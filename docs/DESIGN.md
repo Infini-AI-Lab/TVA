@@ -1,8 +1,8 @@
 # TVA design (v2)
 
 TVA proves properties of **Triton** kernels (Triton 3.8.0, sources pinned in `primitives/`) in
-Lean. v2 was rebuilt on 2026-10-26. v1, with its static translator, is archived at
-`~/fpv/archive/tva-v1`; `ARCHIVED.md` there explains why.
+Lean. v2 was rebuilt on 2026-10-26. v1, with its static translator, is archived
+outside this repository, and nothing here depends on it.
 
 ## Principles
 
@@ -63,10 +63,13 @@ guesses these operations, it cannot guess them wrong.
 
 **No vacuous claims.** A bundle proves `Claim.Consistent Assumptions`: some total behaviour and
 some platform satisfy its assumptions (`exists_total_faithful`, `Platform.ref`). And
-`Compiler.Faithful` holds only for valid launches (`Launch.Valid`: grid limits, `num_ctas = 1`,
-and the block shapes the prover lists). The reviewer checks that the list is complete and that
-the other compile limits hold (shared memory, registers, dot and descriptor minimum sizes), so
-that a claim covers only instances that compile and launch.
+`Compiler.Faithful` holds only for valid launches (`Launch.Valid`: grid limits, fewer than `2^31`
+programs, `num_ctas = 1`, and the block shapes the prover lists); the reviewer checks that the
+list is complete. A launch that Triton or the driver reports to the host with an error before any
+program runs (shared memory, registers, `tl.dot` and descriptor minimum sizes) has no outcome, so
+a claim says nothing about whether the kernel compiles (user, 2026-10-27). That is not a silent
+gap: the host sees the error. The one silent case found, a grid of `2^31` programs or more that
+the launcher skips, is outside `Launch.Valid`.
 
 **Fusion.** With `enable_fp_fusion` (the default), an addition that consumes a product may be
 compiled to an `fma`. The model says where:
@@ -131,7 +134,7 @@ another behind a flag, or that take work from a counter are not covered
 | Fusion is explicit in the model (`add` / `mul_add` / `addc`) | `enable_fp_fusion` is the default; the reviewer can see where it may apply |
 | Sequentially consistent memory with a DRF condition | With only `acq_rel` atomics (Triton's default) a race-free launch is SC; relaxed atomics on shared memory count as races |
 | No synchronises-with between programs | A program is many threads and a scalar atomic is one thread's, with no barrier before it; release/acquire would otherwise publish writes the device does not (review 2026-10-26, round 2) |
-| Claims cover only valid launches, and assumptions must be consistent | A launch Triton rejects is a fault; contradictory assumptions make any claim provable (round 2) |
+| Claims cover only valid launches, and assumptions must be consistent | A launch outside `Launch.Valid` may be skipped without an error (`2^31` programs or more); a launch rejected with an error has no outcome (user, 2026-10-27); contradictory assumptions make any claim provable (round 2) |
 | NaN results may be any NaN; `max(+0,-0)` may be either zero | The device and MLIR folds do not fix them (library review 2026-10-26) |
 | Compiler hints are checks, not no-ops | A false `multiple_of`/`max_contiguous`/`assume` lets the compiler misvectorise |
 | A non-positive `range` step is undefined behaviour | Not used in practice; listed in [exclusions.md](exclusions.md) |

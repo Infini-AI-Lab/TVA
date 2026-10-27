@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-vecadd",
+  "kernel": "vec_add_f32",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {
+      "id": "F1",
+      "note": "The revised README (Narrowings, bullet on n + BLOCK_SIZE <= 2^31, and the Conditions row for n_fits) now gives each excluded range its own reason: the int32 wrap for n > 2^31 (out-of-bounds accesses before the buffers; other programs' elements from n > 2^32 on), an int64 n_elements at n = 2^31 where nothing wraps, and Block.Fits (L8) for 2^31 - BLOCK_SIZE < n < 2^31. work/ranges.py checks each of these for every BLOCK_SIZE = 2^e <= 2^20. This settles the finding."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Non-blocking. (1) Only README.md changed since round 1; every item's digest is the one I accepted at gate b7289baba9114347, and work/Axioms.lean re-checks main's statement and its axioms (propext, Classical.choice, Quot.sound). (2) The revised Aliasing bullet and the overlap row ('can make programs race'; conditions stated on whole buffers, Buf.bytes) take up my round-1 remark (2) and match Inst.ok. (3) For a later round: the library as it is being edited now defines Block.Fits p B as p * B + B <= 2^31 and adds Block.fits_of_grid_pow2 (n < 2^31), which looks like the fix of L8. When the gate is re-run against that library, n_fits could be widened to n < 2^31, and the README sentence 'Block.Fits asks p * BLOCK_SIZE + BLOCK_SIZE < 2^31' and the n_fits docstring would need updating. This does not affect the claim as recorded."
+}

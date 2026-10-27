@@ -90,8 +90,15 @@ Each definition's docstring states its reading of the documentation. The non-obv
   - Any other pair is undefined behaviour in the model.
 - Triton's dtype promotions are written in the model:
   - `/` and `%` on fp16/bf16 run in fp32;
-  - `tl.max`/`tl.min` reductions widen floats narrower than 32 bits to fp32;
-  - `tl.sum` widens only small integers.
+  - `tl.max`/`tl.min` reductions (without `return_indices`) widen floats narrower than 32 bits to
+    fp32, and integers narrower than 32 bits to `int32` whatever their signedness: `int8`/`int16`
+    sign-extended, `uint8`/`uint16` zero-extended, `int1` as `0`/`1`. So `tl.max` of an `int8`
+    tensor is an `int32`, and `tl.max(x) + 100` does not wrap at 8 bits;
+  - `tl.sum` widens integers narrower than 32 bits to `int32` (signed) or `uint32` (unsigned,
+    `int1` included), and floats not at all;
+  - `tl.max`/`tl.min` with `return_indices`, `tl.argmax` and `tl.argmin` widen only `bfloat16`
+    (to fp32).
+  ([evidence/int-reductions](../evidence/int-reductions/README.md))
 - **`x.to(int)`** truncates. A NaN, infinite or out-of-range element is undefined behaviour
   (LLVM poison, read conservatively).
 - **`x.to(float)`** from an int (`tl.itof`) rounds to nearest even once. For fp16/bf16
@@ -108,6 +115,18 @@ Each definition's docstring states its reading of the documentation. The non-obv
     launch's fusion flag.
   - `tl.max1 isMax` (`axis=1`), `tl.max0 isMax` (`axis=0`) and `tl.maxAll isMax` (a whole 1-D
     tensor) combine with `maximum` (`isMax = true`) or `minimum`.
+  - Integer reductions do not depend on the order: `Tensor.foldAll`, `foldRows`, `foldCols` with
+    wrapping `+`, `IntV.max`, `IntV.min`, on the widened values (above).
+- **Index reductions.** `tl.max(x, axis, return_indices=True)` and `tl.min(…)` give the values and
+  their `int32` indices; `tl.argmax`/`tl.argmin` give the indices. They are `tl.argmaxAll`,
+  `tl.argmax1`, `tl.argmax0` (`isMax`, `tieLeft`): the pairs `(x[j], j)` combined along a `Tree`
+  Triton chooses by `tl.argCombine`, Triton's own combine function. A pair wins when its value is
+  greater (`isMax`; less for `min`), or, with `tie_break_left` (`tieLeft`, the default), when the
+  values are `==` and its index is smaller. The values compare with Triton's `<` and `==` on the
+  dtype (`CmpKey`): signed or unsigned integers, ordered floats. So without NaN and with
+  `tie_break_left`, the result is the first index of the maximum; with `tie_break_left=False` any
+  maximal index may come out; a NaN compares false, and then the result depends on the tree
+  ([evidence/argmax](../evidence/argmax/README.md)).
 - **`tl.dot(a, b, acc)`** is `P.dot cfg`. A source `tl.dot(a, b, acc=z) + c` (either
   order), with `z` a constant zero and no other use of the product, is `tl.dot_add cfg a b c z`.
   Triton's combine pass may turn it into `tl.dot(a, b, c)`, so either form is allowed (S7).
@@ -148,11 +167,13 @@ Each definition's docstring states its reading of the documentation. The non-obv
   (S9). The storage dtypes are Triton's (`ScaledCfg.TypesOk`), and only `e2m1` may be packed
   along a dimension other than `K`. `scaledValue` gives the exact values for accuracy rules.
 - **Shape changes** are exact: `Tensor.join`, `split`, `interleave` (proved equal to Triton's
-  `join` + `reshape`), `reshape` (row-major, `can_reorder=False`). `tl.reshape_any` is
-  `can_reorder=True`: some order of the same elements. A reshape to rank 1 whose only users are
-  reductions or histograms is also `tl.reshape_any`, since the combine pass allows it to
-  reorder (S7). An index reduction (`tl.argmax`) of such a reshape then pairs reordered values
-  with unreordered indices, as on the device.
+  `join` + `reshape`), `reshape` (row-major, `can_reorder=False`), `trans` (rank 2) and
+  `permute` (any rank: dimension `k` of the result is dimension `dims[k]` of the input, as
+  `tl.permute(x, dims)` and `tl.trans(x, dims)`; [evidence/permute](../evidence/permute/README.md)).
+  `tl.reshape_any` is `can_reorder=True`: some order of the same elements. A reshape to rank 1
+  whose only users are reductions or histograms is also `tl.reshape_any`, since the combine pass
+  allows it to reorder (S7). An index reduction (`tl.argmax`) of such a reshape then pairs
+  reordered values with unreordered indices, as on the device.
 - **Scans** (`TVA.Lang.Scan`): `tl.associative_scan x axis op reverse` gives position `j`
   as `op` evaluated along a tree whose leaves are `0, …, j` in order (`reverse`: `n-1, …, j`
   in that order, as Triton lowers it as `flip(scan(flip(x)))`; S8). `op` is the model's
@@ -207,12 +228,30 @@ Each definition's docstring states its reading of the documentation. The non-obv
 ## Launches (`TVA/Sem/Launch.lean`)
 
 - `Launch` = grid `(x, y, z)`, `enable_fp_fusion`, `debug` (default `false`), `num_ctas`
-  (default `1`) and `blocks`, the source's block shapes on this instance.
+  (default `1`), `pdl` (`launch_pdl`, default `false`) and `blocks`, the source's block shapes on
+  this instance.
+  - `Compiler.Faithful` covers only launches compiled and run with Triton's environment at its
+    defaults: none of the environment variables that change what Triton compiles or how it
+    launches is set ([rules/compiler-faithful.md](rules/compiler-faithful.md) lists them). For
+    example `TRITON_F32_DEFAULT` changes the `input_precision` of a `tl.dot` that does not give
+    one, and `TRITON_DEFAULT_FP_FUSION` the default of `enable_fp_fusion`
+    ([evidence/env-knobs](../evidence/env-knobs/README.md)).
   - `Compiler.Faithful` covers only `debug = false`, since with `debug` asserts and integer
     overflow checks trap.
-  - It also covers only `Launch.Valid` launches: grid `x < 2^31` and `y, z < 2^16`,
-    `num_ctas = 1`, and every block shape a power of two in each dimension with at most `2^20`
-    elements.
+  - It also covers only `Launch.Valid` launches: grid `x < 2^31` and `y, z < 2^16`, fewer than
+    `2^31` programs (`x·y·z < 2^31`), `num_ctas = 1`, no programmatic dependent launch
+    (`pdl = false`), and every block shape a power of two in each dimension with at most `2^20`
+    elements. With `launch_pdl`, a kernel may start before the previous kernel on the stream has
+    finished writing, so its programs may read memory other than the launch's `init`. Without it,
+    `tl.extra.cuda.gdc_wait()` and `gdc_launch_dependents()` change nothing, and the model drops
+    them ([evidence/pdl](../evidence/pdl/README.md)). Triton 3.8.0's launcher tests `x·y·z > 0` in C `int`
+    and returns without an error, running no program, when the grid has `2^31` to `2^32`
+    programs (`triton-3.8.0-nvidia-driver.c:968-972`;
+    [evidence/launch-outcomes](../evidence/launch-outcomes/README.md)).
+  - A launch reported to the host with an error before any program runs (shared memory,
+    registers, threads, `tl.dot` sizes, dtypes, grid limits) has no outcome
+    (`TVA.Claim.Behaviour`). A launch that returns without an error has one, even if no program
+    ran: with a zero grid dimension it is `ok` with memory unchanged.
 
   Program `i` has `program_id = (i % gx, i / gx % gy, i / (gx·gy))`.
 - A configuration is one memory plus each program's remaining `Prog`. A launch step is a step of

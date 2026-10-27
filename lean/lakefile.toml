@@ -1,6 +1,6 @@
 name = "TVA"
 version = "2.0.0"
-defaultTargets = ["TVA", "vec_add_f32", "grouped_gemm_f16", "flash_attn_fwd_f16"]
+defaultTargets = ["TVA", "vec_add_f32"]
 
 [[require]]
 name = "mathlib"
@@ -13,18 +13,9 @@ autoImplicit = false
 [[lean_lib]]
 name = "TVA"
 
-# One library per kernel folder (kernels/<kernel>/lean); `tvr new` adds these.
+# One library per kernel folder (kernels/<kernel>/lean); `tvr new` adds them below.
+
 [[lean_lib]]
 name = "vec_add_f32"
 srcDir = "../kernels/vec_add_f32/lean"
 roots = ["VecAdd"]
-
-[[lean_lib]]
-name = "grouped_gemm_f16"
-srcDir = "../kernels/grouped_gemm_f16/lean"
-roots = ["GroupedGemm"]
-
-[[lean_lib]]
-name = "flash_attn_fwd_f16"
-srcDir = "../kernels/flash_attn_fwd_f16/lean"
-roots = ["FlashAttn"]

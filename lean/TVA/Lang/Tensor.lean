@@ -117,7 +117,8 @@ def unsqueeze0 {n : Nat} (x : Tensor [n] α) : Tensor [1, n] α := of2 (fun _ j 
 def bcastCols {m : Nat} (x : Tensor [m, 1] α) (n : Nat) : Tensor [m, n] α := of2 (fun i _ => x.get2 i 0)
 def bcastRows {n : Nat} (x : Tensor [1, n] α) (m : Nat) : Tensor [m, n] α := of2 (fun _ j => x.get2 0 j)
 
-/-- `tl.trans` (`x.T`) of a rank-2 tensor. -/
+/-- `tl.trans` (`x.T`) of a rank-2 tensor. Other ranks, and explicit `dims`, are
+`Tensor.permute` (`permute_trans`: this is `permute [1, 0]`). -/
 def trans {m n : Nat} (x : Tensor [m, n] α) : Tensor [n, m] α := of2 (fun j i => x.get2 i j)
 
 @[simp] theorem get2_col {m n : Nat} (x : Tensor [m] α) (i : Fin m) (j : Fin n) :
@@ -237,12 +238,28 @@ end Get
 /-! ### Exact reductions
 
 Reductions whose result does not depend on the order of combination: integer `+` (wrapping),
-boolean `and`/`or`, and integer `max`/`min`. Floating-point reductions are in `TVA.Lang.Ops`. -/
+boolean `and`/`or`, and integer `max`/`min`. Floating-point reductions are in `TVA.Lang.Ops`.
 
-/-- Combine all elements with `op` from `init`, in row-major order. -/
+Triton widens small integers before these reductions, and the model writes the widening:
+* `tl.max` and `tl.min` without `return_indices` convert an integer tensor narrower than 32 bits
+  to `int32`, whatever its signedness (`triton-3.8.0-standard.py:184-190, 233-239`): `int8` and
+  `int16` are sign-extended, `uint8` and `uint16` zero-extended, and `tl.int1` becomes `0`/`1`.
+  The result is `int32`. The model converts first (`Tensor.castInt` to `I32`; a `Bool` tensor
+  is mapped to `0`/`1`) and reduces with the `int32` `IntV.max`/`IntV.min`.
+* `tl.sum` converts an integer tensor narrower than 32 bits to `int32` if it is signed and to
+  `uint32` if it is unsigned, `tl.int1` included (`_pick_sum_dtype`,
+  `triton-3.8.0-standard.py:254-283`). The sum wraps in that type.
+* `tl.max`/`tl.min` with `return_indices`, and `tl.argmax`/`tl.argmin`, do not widen integers:
+  they are `tl.argmaxAll`, `tl.argmax1`, `tl.argmax0` in `TVA.Lang.Ops`. -/
+
+/-- Combine all elements with `op` from `init`, in row-major order. For a source `tl.max`,
+`tl.min` or `tl.sum` of integers, `x` is the widened tensor (see the section's docstring): a
+tensor narrower than 32 bits is first converted to `int32` (`max`/`min`, any signedness) or to
+`int32`/`uint32` by signedness (`sum`). -/
 def foldAll (op : β → α → β) (init : β) (x : Tensor s α) : β := x.toList.foldl op init
 
-/-- Rank-2 reductions along axis 1 (each row) and axis 0 (each column). -/
+/-- Rank-2 reductions along axis 1 (each row) and axis 0 (each column), with the same widening of
+small integers as `foldAll`. -/
 def foldRows {m n : Nat} (op : β → α → β) (init : β) (x : Tensor [m, n] α) : Tensor [m] β :=
   of1 (fun i => (List.finRange n).foldl (fun acc j => op acc (x.get2 i j)) init)
 def foldCols {m n : Nat} (op : β → α → β) (init : β) (x : Tensor [m, n] α) : Tensor [n] β :=
@@ -517,6 +534,107 @@ theorem get_reshape (x : Tensor s α) (s' : Shape) (h : s'.prod = s.prod) (i : I
   ext i
   simp only [get_reshape]
   rw [Idx.ofPos_congr (Idx.pos_ofPos s' _ _) _ (Idx.pos_lt s i), Idx.ofPos_pos]
+
+end Tensor
+
+/-! ## Permutations of the axes
+
+`tl.permute(x, dims)` and `tl.trans(x, dims)` (`triton-3.8.0-core.py:2070-2121`) reorder the
+axes of a tensor without changing its elements: dimension `k` of the result is dimension
+`dims[k]` of the input (`triton-3.8.0-semantic.py:701-709`), so the result's element at index
+`o` is the input's element whose coordinate `dims[k]` is `o`'s coordinate `k`. -/
+
+/-- `Shape.dim` is the list's entry, `0` beyond the rank. -/
+theorem Shape.dim_eq_getD : ∀ (s : Shape) (k : Nat), Shape.dim s k = s.getD k 0
+  | [], _ => rfl
+  | _ :: _, 0 => rfl
+  | _ :: s, k + 1 => Shape.dim_eq_getD s k
+
+namespace Idx
+
+/-- The index with coordinates `c 0, c 1, …` (each below its dimension). -/
+def ofCoords : (s : Shape) → (c : Nat → Nat) → (∀ k, k < s.length → c k < Shape.dim s k) → Idx s
+  | [], _, _ => ()
+  | _ :: s, c, h => (⟨c 0, h 0 (Nat.succ_pos _)⟩,
+      ofCoords s (fun k => c (k + 1)) (fun k hk => h (k + 1) (Nat.succ_lt_succ hk)))
+
+theorem coord_ofCoords : ∀ (s : Shape) (c : Nat → Nat) (h : ∀ k, k < s.length → c k < Shape.dim s k)
+    {k : Nat}, k < s.length → (ofCoords s c h).coord k = c k
+  | [], _, _, _, hk => absurd hk (Nat.not_lt_zero _)
+  | _ :: _, _, _, 0, _ => rfl
+  | _ :: s, c, _, _ + 1, hk => coord_ofCoords s (fun k => c (k + 1)) _ (Nat.lt_of_succ_lt_succ hk)
+
+/-- A coordinate beyond the rank is `0`. -/
+theorem coord_of_ge : ∀ {s : Shape} (i : Idx s) {k : Nat}, s.length ≤ k → i.coord k = 0
+  | [], (), _, _ => rfl
+  | _ :: _, (_, _), 0, h => absurd h (by simp)
+  | _ :: s, (_, j), k + 1, h => coord_of_ge (s := s) j (by simpa using h)
+
+end Idx
+
+/-- `getD` below the length is the entry. -/
+theorem list_getD_of_lt {β : Type} {l : List β} {k : Nat} {d : β} (hk : k < l.length) :
+    l.getD k d = l[k] := by
+  simp [List.getD_eq_getElem?_getD, hk]
+
+namespace Tensor
+
+variable {s : Shape} {α : Type}
+
+/-- The coordinates `permute` reads are in range. -/
+theorem permute_coord_lt (dims : List Nat) (h : dims.Perm (List.range s.length))
+    (o : Idx (dims.map (Shape.dim s))) :
+    ∀ j, j < s.length → o.coord (dims.idxOf j) < Shape.dim s j := by
+  intro j hj
+  have hmem : j ∈ dims := h.mem_iff.mpr (List.mem_range.mpr hj)
+  have hp : dims.idxOf j < dims.length := List.idxOf_lt_length_of_mem hmem
+  have hlt := Idx.coord_lt o (k := dims.idxOf j) (by simpa using hp)
+  rw [Shape.dim_eq_getD, list_getD_of_lt (by simpa using hp), List.getElem_map,
+    List.getElem_idxOf] at hlt
+  exact hlt
+
+/-- `tl.permute(x, dims)` and `tl.trans(x, dims)` (`triton-3.8.0-core.py:2070-2121`,
+`triton-3.8.0-semantic.py:701-709`): the result has shape `[s[dims[0]], s[dims[1]], …]`, and its
+element at index `o` is the element of `x` whose coordinate `dims[k]` is `o.coord k`, for every
+`k` (`get_permute`). `dims` must be a permutation of `0, …, rank − 1` (Triton rejects any other
+list at compile time); for a shape of literal rank the default proof `h` is found by itself.
+
+* A rank-2 `tl.trans(x)` or `x.T` is `Tensor.trans`, which equals `x.permute [1, 0]`
+  (`permute_trans`).
+* `tl.trans(x)` with no `dims` on a tensor of rank `r ≥ 3` swaps the last two axes
+  (`triton-3.8.0-core.py:2091-2097`): `dims` is `List.range (r - 2) ++ [r - 1, r - 2]`, which the
+  model writes as a literal list (`x.permute [0, 2, 1]` for rank 3, `[0, 1, 3, 2]` for rank 4),
+  so that the result's shape reduces to the source's. -/
+def permute (x : Tensor s α) (dims : List Nat)
+    (h : dims.Perm (List.range s.length) := by
+      (try simp only [List.length_cons, List.length_nil]); decide) :
+    Tensor (dims.map (Shape.dim s)) α :=
+  ⟨fun o => x.get (Idx.ofCoords s (fun j => o.coord (dims.idxOf j)) (permute_coord_lt dims h o))⟩
+
+/-- The element of `x.permute dims` at `o` is `x` at the index `i` whose coordinate `dims[k]` is
+`o.coord k` for every `k`. -/
+theorem get_permute (x : Tensor s α) (dims : List Nat) (h : dims.Perm (List.range s.length))
+    (o : Idx (dims.map (Shape.dim s))) (i : Idx s)
+    (hi : ∀ k, k < dims.length → i.coord (dims.getD k 0) = o.coord k) :
+    (x.permute dims h).get o = x.get i := by
+  unfold permute
+  refine congrArg x.get (Idx.ext_coord fun j => ?_)
+  by_cases hj : j < s.length
+  · rw [Idx.coord_ofCoords _ _ _ hj]
+    have hmem : j ∈ dims := h.mem_iff.mpr (List.mem_range.mpr hj)
+    have hp : dims.idxOf j < dims.length := List.idxOf_lt_length_of_mem hmem
+    have := hi (dims.idxOf j) hp
+    rw [list_getD_of_lt hp, List.getElem_idxOf] at this
+    exact this.symm
+  · rw [Idx.coord_of_ge _ (Nat.le_of_not_lt hj), Idx.coord_of_ge _ (Nat.le_of_not_lt hj)]
+
+/-- On rank 2, `permute [1, 0]` is the transpose `Tensor.trans`. -/
+theorem permute_trans {m n : Nat} (x : Tensor [m, n] α) : x.permute [1, 0] = x.trans := by
+  ext ⟨j, i, ⟨⟩⟩
+  exact (get_permute x [1, 0] _ (j, i, ()) (i, j, ()) fun k hk =>
+    match k, hk with
+    | 0, _ => rfl
+    | 1, _ => rfl).trans rfl
 
 end Tensor
 

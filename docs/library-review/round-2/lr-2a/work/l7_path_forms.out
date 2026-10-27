@@ -1,0 +1,8 @@
+control: the home form: flagged (as the rule asks)
+control: the absolute form: flagged (as the rule asks)
+$HOME form: NOT flagged (MISSED)
+${HOME} form: NOT flagged (MISSED)
+file URL, three slashes: NOT flagged (MISSED)
+path after a Markdown link bracket: flagged (as the rule asks)
+path inside a shell assignment: flagged (as the rule asks)
+path glued to a semicolon: NOT flagged (MISSED)

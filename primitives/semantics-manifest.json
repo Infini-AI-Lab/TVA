@@ -140,6 +140,26 @@
       "source": "triton-3.8.0-AxisInfo.cpp",
       "sha256": "38a037900f5f8fbd75bfe6bf41a423eaa19978fe2f6bdeaf0aedfaad08cd1016",
       "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Analysis/AxisInfo.cpp"
+    },
+    {
+      "source": "triton-3.8.0-nvidia-driver.c",
+      "sha256": "c32586d1814fc6770f966087b88fce0611db5e10e96d95579ba51631576d533c",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/third_party/nvidia/backend/driver.c"
+    },
+    {
+      "source": "triton-3.8.0-knobs.py",
+      "sha256": "85948451cc241f900e0ab19fe591a9127877f8de7fcc39b1c0bae9c0dc21e60d",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/knobs.py"
+    },
+    {
+      "source": "triton-3.8.0-gdc.py",
+      "sha256": "adb54e71d0ffc3bdac437fbc97929769fbbe4ebd03e6361c6357f2a24f7c5954",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/third_party/nvidia/language/cuda/gdc.py"
+    },
+    {
+      "source": "triton-3.8.0-GetEnv.h",
+      "sha256": "d44ef05827327cb771df949dac47ec593657a3cceb117a1c7be3bd78c65592c2",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/include/triton/Tools/Sys/GetEnv.h"
     }
   ],
   "api_exports": [

@@ -1,5 +1,9 @@
 # Plan: proofs of vec-add, grouped GEMM and flash-attention forward
 
+> **Superseded (2026-10-27).** The user cleared all kernels to restart from scratch under the
+> protocol ([../REVIEW_PROTOCOL.md](../REVIEW_PROTOCOL.md)), beginning with vec-add. The proofs
+> below are in the git history (commit `089d4c5`).
+
 User goal (2026-10-27): "write proofs for vec-add, flash-attn-fwd and grouped-gemm. we need to
 clearly state the specification, assumption, condition and proof."
 
@@ -42,9 +46,9 @@ tile module was needed. Item 5 is in `TVA.Lemmas.Softmax*` (flash attention).
 
 | Bundle | Lean | Page | State |
 |---|---|---|---|
-| vec-add | [`kernels/vec_add_f32/`](../../kernels/vec_add_f32/) | [README](../../kernels/vec_add_f32/README.md) | proved; restated with labelled conditions/specification/assumptions/proof |
-| grouped GEMM | [`kernels/grouped_gemm_f16/`](../../kernels/grouped_gemm_f16/) | [README](../../kernels/grouped_gemm_f16/README.md) | proved (`main`, `consistent`; standard axioms only) |
-| flash attention fwd | [`kernels/flash_attn_fwd_f16/`](../../kernels/flash_attn_fwd_f16/) | [README](../../kernels/flash_attn_fwd_f16/README.md) | proved (`main`, `consistent`; standard axioms only) |
+| vec-add | (cleared) | | restarting from scratch |
+| grouped GEMM | (cleared) | | |
+| flash attention fwd | (cleared) | | |
 
 Library rule added on the way: a hint on a block argument (a loop-carried value or an
 induction variable) is a no-op in Triton 3.8.0 and is dropped (`SEMANTICS.md`,

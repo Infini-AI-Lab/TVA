@@ -29,8 +29,8 @@ Reviewers judge the model against the source, the specification and the assumpti
 - Reviewing the library: [docs/LIBRARY_REVIEW.md](docs/LIBRARY_REVIEW.md), issues in
   [docs/library-review/ISSUES.md](docs/library-review/ISSUES.md), evidence in `evidence/`
 - Plan: [docs/plan/PLAN.md](docs/plan/PLAN.md)
-- Kernels: [kernels/](kernels/README.md), one folder per kernel (`vec_add_f32`, `grouped_gemm_f16`,
-  `flash_attn_fwd_f16`) with its Lean bundle, source, write-up and review
+- Kernels: [kernels/](kernels/README.md), one folder per kernel with its Lean bundle, source,
+  write-up and review. Restarted from scratch on 2026-10-27, beginning with vector addition
 
 Build:
 

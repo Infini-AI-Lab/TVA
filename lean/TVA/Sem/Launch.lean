@@ -40,14 +40,25 @@ def Shape.TritonOk (s : Shape) : Prop := (∀ k ∈ s, ∃ e, k = 2 ^ e) ∧ s.p
 structure Launch where
   /-- The grid `(x, y, z)`. -/
   grid : Fin 3 → Nat
-  /-- `enable_fp_fusion` (default `True`). -/
+  /-- `enable_fp_fusion`: the source's or the launch's value, or Triton's default `True` when
+  neither gives one. That default holds with the environment variable `TRITON_DEFAULT_FP_FUSION`
+  unset; `Rules.Compiler.Faithful` covers only launches with Triton's environment at its
+  defaults. -/
   fusion : Bool := true
-  /-- The `debug` compile option (default `False`; `TRITON_DEBUG=1`). With it, `tl.device_assert`
-  and integer overflow checks trap. `Compiler.Faithful` covers only `debug = false`. -/
+  /-- The `debug` compile option (default `False`; the environment variable `TRITON_DEBUG=1` turns
+  it on). With it, `tl.device_assert` and integer overflow checks trap. `Compiler.Faithful`
+  covers only `debug = false`. -/
   debug : Bool := false
   /-- `num_ctas` (default `1`). With more, a program is a cluster of CTAs and `cta`-scope atomics
   are atomic only within one of them; `Launch.Valid` requires `1`. -/
   numCtas : Nat := 1
+  /-- The launch option `launch_pdl` (programmatic dependent launch): the NVIDIA backend's option
+  (`triton-3.8.0-nvidia-compiler.py:124`, default `False`), which the launcher turns into a
+  launch attribute (`triton-3.8.0-nvidia-driver.c:1004-1008`). With it, the kernel may start before the
+  previous kernel on the stream has finished, so its programs may read memory before that
+  kernel's writes, and the claim's initial memory would not be the memory they read.
+  `Launch.Valid` requires `false`. -/
+  pdl : Bool := false
   /-- The shapes of the source's block values on this instance (every `tl.arange`, loaded tile,
   accumulator, …). The prover lists them and the reviewer checks the list against the source;
   `Launch.Valid` requires Triton to accept each. -/
@@ -66,13 +77,25 @@ def ctx (L : Launch) (i : Nat) : Ctx :=
 def grid1 (n : Nat) (blocks : List Shape) (fusion : Bool := true) : Launch :=
   { grid := ![n, 1, 1], fusion, blocks }
 
-/-- The launch is one the compiler and the driver accept, as far as the library can state it:
-the CUDA grid limits (`x < 2^31`, `y, z < 2^16`), `num_ctas = 1`, and block shapes Triton
-accepts. Other limits (shared memory, registers) are part of the reviewed `Compiler.Faithful`
-instance. -/
+/-- The launch is one that runs its whole grid whenever it returns without an error, as far as
+the library can state it:
+* the CUDA grid limits, `x < 2^31` and `y, z < 2^16`;
+* fewer than `2^31` programs. Triton 3.8.0's launcher computes `gridX * gridY * gridZ` in C `int`
+  and skips the launch, with no error, when that product is not positive
+  (`triton-3.8.0-nvidia-driver.c:968-972`). With `2^31` to `2^32` programs it returns at once and
+  no program runs (`evidence/launch-outcomes`; library issue L9);
+* `num_ctas = 1`;
+* no programmatic dependent launch (`pdl = false`, `launch_pdl=False`): the kernel starts after
+  the previous kernel on the stream has finished, so its programs read the memory that kernel
+  left (library issue L17);
+* block shapes Triton accepts, for the shapes listed in `blocks`.
+
+The other limits (shared memory, registers, threads, `tl.dot` sizes, dtypes) are not part of
+`Valid`. Triton or the driver reports a launch that exceeds one to the host with an error, before
+any program runs, and such a launch has no outcome (`TVA.Claim.Behaviour`). -/
 def Valid (L : Launch) : Prop :=
-  L.grid 0 < 2 ^ 31 ∧ L.grid 1 < 2 ^ 16 ∧ L.grid 2 < 2 ^ 16 ∧ L.numCtas = 1 ∧
-    ∀ s ∈ L.blocks, s.TritonOk
+  L.grid 0 < 2 ^ 31 ∧ L.grid 1 < 2 ^ 16 ∧ L.grid 2 < 2 ^ 16 ∧ L.size < 2 ^ 31 ∧ L.numCtas = 1 ∧
+    L.pdl = false ∧ ∀ s ∈ L.blocks, s.TritonOk
 
 /-- The environment programs run in. -/
 def env (L : Launch) (P : Platform) : Env := ⟨P, L.fusion⟩

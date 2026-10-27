@@ -1,0 +1,45 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+
+== float32 ==
+tl.log         fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.log         fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.math.log2   fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.math.log2   fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.exp         fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.exp         fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.math.exp2   fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.math.exp2   fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.sin         fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 72
+tl.sin         fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 72
+tl.cos         fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 72
+tl.cos         fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 72
+tl.sqrt        fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.sqrt        fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.math.rsqrt  fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.math.rsqrt  fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.math.erf    fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 56
+tl.math.erf    fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 56
+tl.sigmoid     fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.sigmoid     fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+
+== float64 ==
+tl.log         fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 136
+tl.log         fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 128
+tl.math.log2   fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 144
+tl.math.log2   fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 136
+tl.exp         fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 112
+tl.exp         fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 112
+tl.math.exp2   fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.math.exp2   fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.sin         fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.sin         fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.cos         fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.cos         fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 96
+tl.sqrt        fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.sqrt        fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.math.rsqrt  fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.math.rsqrt  fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 0
+tl.math.erf    fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 296
+tl.math.erf    fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 296
+tl.sigmoid     fusion=True :      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 112
+tl.sigmoid     fusion=False:      0 of 65536 differ from the IEEE sum,      0 off the grid of y (no float result gives them); fma in PTX: 112

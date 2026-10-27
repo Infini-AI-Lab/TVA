@@ -18,7 +18,11 @@ This file gives the lane addresses of such an access (`addrs_lane`) and its foot
 (`safe_load_block`, `safe_store_block`), and shows that the tiles of different programs and
 of disjoint buffers do not overlap.
 
-`int32` arithmetic does not wrap when `p * BLOCK + BLOCK < 2^31` (`Fits`).
+`int32` arithmetic does not wrap when the largest offset, `p * BLOCK + BLOCK - 1`, is below
+`2^31`, that is `p * BLOCK + BLOCK ≤ 2^31` (`Fits`). Every program of the grid
+`cdiv(n, BLOCK)` fits when `n + BLOCK ≤ 2^31` (`fits_of_grid`), and when `n < 2^31` and `BLOCK`
+divides `2^31` (`fits_of_grid_dvd`), as every power of two up to `2^31` does
+(`fits_of_grid_pow2`; Triton's block sizes are powers of two up to `2^20`).
 -/
 namespace TVA
 
@@ -33,32 +37,42 @@ def mask (p B n : Nat) : Tensor [B - 0] Bool := (offs p B).ltS (IntV.ofNat n)
 /-- Element `j` belongs to program `p`'s tile and is below `n`. -/
 def Tile (p B n j : Nat) : Prop := p * B ≤ j ∧ j < p * B + B ∧ j < n
 
-/-- The block arithmetic of program `p` fits `int32`. -/
-def Fits (p B : Nat) : Prop := p * B + B < 2 ^ 31
+/-- The block arithmetic of program `p` fits `int32`: its largest offset `p * B + B - 1` is below
+`2^31`. -/
+def Fits (p B : Nat) : Prop := p * B + B ≤ 2 ^ 31
 
 theorem lane_toInt {p B : Nat} (hfit : Fits p B) (l : Fin (B - 0)) :
     ((offs p B).get (l, ())).toInt = p * B + l := by
   have hl := l.isLt
   simp only [Nat.sub_zero] at hl
-  have hB : 0 < B := by omega
-  have hp : p ≤ p * B := Nat.le_mul_of_pos_right p hB
   unfold Fits at hfit
-  have hp31 : p < 2 ^ 31 := by omega
-  have hB31 : B < 2 ^ 31 := by
-    have : B ≤ p * B + B := Nat.le_add_left _ _; omega
-  have hpB : (p : Int) * B + B < 2 ^ 31 := by exact_mod_cast hfit
-  have hpi := IntV.I32.toInt_ofNat hp31
-  have hBi := IntV.I32.toInt_ofNat hB31
   have hli : (IntV.ofInt ((0 : Nat) + (l : Nat)) : I32).toInt = l := by
     rw [IntV.I32.toInt_ofInt] <;> push_cast
     · ring
     · constructor <;> omega
-  have hmul : ((IntV.ofNat p : I32) * IntV.ofNat B).toInt = (p : Int) * B := by
-    rw [IntV.toInt_mul (by norm_num), hpi, hBi]
-    rw [hpi, hBi]; constructor <;> norm_num <;> nlinarith
   show ((IntV.ofNat p : I32) * IntV.ofNat B + IntV.ofInt ((0 : Nat) + (l : Nat))).toInt = _
-  rw [IntV.toInt_add (by norm_num), hmul, hli]
-  rw [hmul, hli]; constructor <;> norm_num <;> nlinarith
+  rcases Nat.eq_zero_or_pos p with rfl | hp0
+  · -- program 0: the product is `0`, whatever `B` is as an `int32`
+    have h0 : (IntV.ofNat 0 : I32).toInt = 0 := IntV.I32.toInt_ofNat (by norm_num)
+    have hmul : ((IntV.ofNat 0 : I32) * IntV.ofNat B).toInt = 0 := by
+      rw [IntV.toInt_mul (by norm_num), h0, zero_mul]
+      rw [h0, zero_mul]; constructor <;> norm_num
+    rw [IntV.toInt_add (by norm_num), hmul, hli]
+    · simp
+    · rw [hmul, hli]; constructor <;> omega
+  · have hBB : B + B ≤ p * B + B := by
+      have := Nat.le_mul_of_pos_left B hp0; omega
+    have hp31 : p < 2 ^ 31 := by
+      have : p ≤ p * B := Nat.le_mul_of_pos_right p (by omega); omega
+    have hB31 : B < 2 ^ 31 := by omega
+    have hpB : (p : Int) * B + B ≤ 2 ^ 31 := by exact_mod_cast hfit
+    have hpi := IntV.I32.toInt_ofNat hp31
+    have hBi := IntV.I32.toInt_ofNat hB31
+    have hmul : ((IntV.ofNat p : I32) * IntV.ofNat B).toInt = (p : Int) * B := by
+      rw [IntV.toInt_mul (by norm_num), hpi, hBi]
+      rw [hpi, hBi]; constructor <;> norm_num <;> nlinarith
+    rw [IntV.toInt_add (by norm_num), hmul, hli]
+    rw [hmul, hli]; constructor <;> norm_num <;> nlinarith
 
 theorem mask_lane {p B n : Nat} (hfit : Fits p B) (hn : n < 2 ^ 31) (l : Fin (B - 0)) :
     (mask p B n).get (l, ()) = decide (p * B + l < n) := by
@@ -107,6 +121,31 @@ theorem fits_of_grid {p B n : Nat} (hnB : n + B ≤ 2 ^ 31) (hp : p < (n + B - 1
   have h1 : (p + 1) * B ≤ (n + B - 1) / B * B := Nat.mul_le_mul_right B hp
   have h2 : (n + B - 1) / B * B ≤ n + B - 1 := Nat.div_mul_le_self _ _
   unfold Fits; rw [Nat.succ_mul] at h1; omega
+
+/-- Programs below the grid `cdiv(n, B)` have fitting arithmetic when `n < 2^31` and `B`
+divides `2^31`: program `p`'s first offset `p * B` is a multiple of `B` below `n`, so at most
+`2^31 - B`. -/
+theorem fits_of_grid_dvd {p B n : Nat} (hB : B ∣ 2 ^ 31) (hn : n < 2 ^ 31)
+    (hp : p < (n + B - 1) / B) : Fits p B := by
+  have hB0 : 0 < B := Nat.pos_of_dvd_of_pos hB (by norm_num)
+  have h1 : (p + 1) * B ≤ (n + B - 1) / B * B := Nat.mul_le_mul_right B hp
+  have h2 : (n + B - 1) / B * B ≤ n + B - 1 := Nat.div_mul_le_self _ _
+  rw [Nat.succ_mul] at h1
+  have hlt : p * B < 2 ^ 31 := by omega
+  obtain ⟨c, hc⟩ := hB
+  have hpc : p < c := by
+    rw [hc] at hlt
+    rw [Nat.mul_comm B c] at hlt
+    exact Nat.lt_of_mul_lt_mul_right hlt
+  unfold Fits
+  have : (p + 1) * B ≤ c * B := Nat.mul_le_mul_right B hpc
+  rw [Nat.succ_mul] at this; rw [hc, Nat.mul_comm B c]; omega
+
+/-- `fits_of_grid_dvd` for a power-of-two block size up to `2^31` (Triton's block sizes are powers
+of two up to `2^20`): every program of the grid `cdiv(n, B)` fits when `n < 2^31`. -/
+theorem fits_of_grid_pow2 {p B n e : Nat} (hB : B = 2 ^ e) (he : e ≤ 31) (hn : n < 2 ^ 31)
+    (hp : p < (n + B - 1) / B) : Fits p B :=
+  fits_of_grid_dvd (hB ▸ Nat.pow_dvd_pow 2 he) hn hp
 
 end Block
 

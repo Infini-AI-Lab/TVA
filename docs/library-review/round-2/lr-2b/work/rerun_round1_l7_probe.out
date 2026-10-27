@@ -1,0 +1,23 @@
+baseline: exit 0, independent
+I1: CAUGHT - library Lean file: plain `import Aesop`
+I2: CAUGHT - library Lean file: `public import Aesop` (module system; elaborates in Lean 4.35, see ImportSyntax.lean)
+I3: CAUGHT - library Lean file: `meta import Aesop`
+K1: CAUGHT - lakefile: [[require]] of another package, `name` first
+K2: CAUGHT - lakefile: [[require]] of another package, `path` before `name`
+K3: CAUGHT - lakefile: [[lean_lib]] whose srcDir is outside TVA
+K4: CAUGHT - lakefile: a comment naming the other project
+N1: CAUGHT - docs: the other project's name as a word
+N2: CAUGHT - docs: the name in upper case
+N3: CAUGHT - docs: the name as the prefix of an identifier (name + `Lemmas`)
+N4: CAUGHT - docs: the name joined by an underscore (name + `_v2`)
+N5: CAUGHT - Lean docstring: the name as a word
+P1: CAUGHT - docs: a home path into a sibling directory of TVA (a made-up name)
+P2: CAUGHT - docs: a home path into an archive directory (a made-up name)
+P3: CAUGHT - docs: a home path to a directory whose name starts with `tva` (`tva-old`, a made-up name)
+P4: CAUGHT - docs: a relative path that climbs out of TVA (a made-up target)
+P5: CAUGHT - docs: an absolute path outside /home
+F1: CAUGHT - evidence: the name inside a `.log` output file
+F2: CAUGHT - evidence: the name inside a `.csv` output file
+F3: CAUGHT - evidence: the name inside a `.sh` script
+F4: CAUGHT - top-level kernels/README.md: the name
+0 of 21 probes missed

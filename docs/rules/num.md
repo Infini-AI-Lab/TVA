@@ -10,15 +10,18 @@ The Triton documentation does not define these operations exactly:
 - float `atomic_add`.
 
 The library gives them as relations in the platform `P`, and a claim quantifies over `P`. A
-bundle that needs a property of one of them assumes it with one of these definitions, as a field
-of `Assumptions`:
+bundle that needs a property of one of them assumes it as a field of `Assumptions`, citing a
+fact the library states for the operation ("Facts the library states", below), with the
+library's arguments:
 
 ```lean
-  /-- [rule] `Num.MathTotal`: `tl.exp2` on fp32 always has a result. -/
-  exp2_total : Rules.Num.MathTotal P .exp2 Format.binary32
-  /-- [rule] `Num.MathAcc`: `tl.exp2` on fp32 is within 2 ulp (relative 2^-22) on [-126, 126]. -/
-  exp2_acc : Rules.Num.MathAcc P .exp2 Format.binary32 (Set.Icc (-126) 126) (2 ^ (-22 : ℤ)) 0
+  /-- [rule] `Num.DivTotal`: `/` on fp32 always has a result. -/
+  div_total : Rules.Num.DivTotal P Format.binary32
+  /-- [rule] `Num.DivFull`: `/` on fp32 is `div.full.f32`, within 2 ulp. -/
+  div_full : Rules.Num.DivFull P
 ```
+
+The definitions:
 
 | Definition | Says | Typical use |
 |---|---|---|
@@ -35,81 +38,115 @@ of `Assumptions`:
 | `DotScaledTotal P cfg` | `P.dotScaled cfg` has a result for all operands | `safe_dot_scaled` |
 | `DotScaledAcc P cfg dom sdom rel abs` | per output `(i, n)`: if row `i` of `lhs` and column `n` of `rhs` have finite scaled values in `dom`, scale bits in `sdom`, and the accumulator is finite, the result is finite and within `rel K·(|acc| + Σ|a·b|) + abs K` of `acc + Σ a·b` | MXFP4/MXFP8 matmuls |
 
-## What the reviewer judges
+## What a kernel reviewer checks
 
-- **Truth on the device.** Ask for the PTX the operation lowers to and the instruction's
-  documented accuracy, or for a test. Points to check:
-  - `tl.exp` on fp32 lowers to `ex2.approx` after a multiplication by `log2 e`, so its error
-    is relative and grows with `|x|`;
-  - `/` on fp32 is `div.full.f32`. Cite `DivFull`, not a tighter `DivAcc`. See "Division"
-    below.
-  - `/` on fp64 is `div.rn.f64` (IEEE), so `DivRn P .binary64` holds. `DivRn P .binary32` does
-    not hold on NVIDIA.
-  - `atom.add.f32` rounds to nearest but flushes subnormal inputs and results to zero. Two
-    operands just below the smallest normal sum to almost `2^-125` and give `0`, so `abs` must
-    be at least `2^-125` for fp32 (`2^(emin+1)` in general).
-  - `P.atomicAdd` covers both `atom.add` and the TMA reduction of `desc.atomic_add`
-    (`cp.reduce.async.bulk`); an `AtomicAddAcc` instance must hold for every instruction the
-    kernel uses;
-  - `tl.dot_scaled` runs on native microscaling instructions (sm_100+) or on an emulation that
-    upcasts to `bf16` or `fp16` (`core.py:2433-2438`). `DotScaledAcc` must hold for the
-    path the target takes, and `fast_math` may skip NaN handling of scales. The emulation
-    reads an `e8m0` scale `0x00` as `0` rather than `2^-127`, and with `fp16` compute it rounds
-    scales to `fp16` (`triton-3.8.0-DecomposeScaledBlocked.cpp:58-96`). It multiplies each
-    element by its scale in `bf16`/`fp16`, so one element can overflow to `inf`, and another
-    underflow to `0` (giving `inf·0 = NaN`), while the exact sum is small. An instance for that
-    path must choose `dom` to keep each scaled value in the compute type's range, and `sdom` to
-    exclude scale `0x00`. `rel` and `abs` depend on `K`, since `float32` accumulation error
-    grows with it.
-  - `P.cvt` is judged per source format, rounding mode and architecture. Before sm_90,
-    `float32 → fp8` goes through a truncation to `float16` and stays within `CvtAcc`'s bound,
-    not within half an ulp. On sm_80, `bfloat16 → float8e5` clamps below `2^-15` to `0`, which
-    exceeds the bound for tiny inputs. `CvtAcc` speaks only of `.rn`; an `.rz` conversion has
-    no card yet.
-  - A scalar `atomic_add(p, 0)` (or `±0.0`) with `relaxed` or `acquire` order is lowered to a
-    plain load (`triton-3.8.0-nvidia-LoadStoreOpToLLVM.cpp:648-687`), so memory keeps `o`.
-    Every `P.atomicAdd` card must therefore admit `n = o` when `v = ±0`, even where an exact
-    sum or a flush would give another value.
-- **Scope.** The domain `dom` and the formats named must cover the kernel's inputs, and nothing
-  broader than the proof needs should be assumed.
-- **Satisfiability.** The bundle's assumptions must be satisfiable together, and the bundle
-  proves it (`Claim.Consistent`). `Platform.ref rel abs sp` (`lean/TVA/Lemmas/Consistency.lean`)
-  is the most accurate platform. Approximate functions return a float within the requested
-  bound whenever one exists, and `tl.dot`/`tl.dot_scaled` round the exact result once. It
-  satisfies all of these together, with `u = 2^-(m+1)` and `η = 2^(emin−m−1)` of the format:
-  - every `…Total` rule (`mathTotal`, `divTotal`, `cvtTotal`, `atomicAddTotal`, `dotTotal`,
-    `dotScaledTotal`);
-  - `MathAcc` with `rel ≥ u`:
-    - for `abs ≥ η` on any domain (`mathAcc_of_eta`);
-    - for any `abs ≥ 0` where the real function's values are normal, `|ref x| ≥ 2^emin`
-      (`mathAcc_of_normal`; the `exp2_acc` example above, with `abs = 0`);
-    - wherever the bundle proves that floats that accurate exist (`mathAcc`);
-  - `MathAt` at non-finite inputs, given by the table `sp` (`mathAt`);
-  - `DivRn`, `DivFull`;
-  - `CvtAcc`;
-  - `AtomicAddAcc` for `rel ≥ u`, `abs ≥ η`;
-  - `DotAcc`:
-    - with a float accumulator, for `rel K ≥ u` and `abs K ≥ η` when `K > 0` (`dotAcc`);
-    - with integer operands and a signed accumulator, for any `rel`, `abs ≥ 0` (`dotAcc_int`).
-      Triton 3.8.0's only integer `tl.dot` is `int8 × int8 → int32` (`semantic.py:1483-1486`),
-      so no other integer case arises;
-  - `DotScaledAcc` for `rel K ≥ u` and `abs K ≥ η` of `float32` when `K > 0`
-    (`dotScaledAcc`).
+A kernel reviewer trusts this page ([REVIEW_PROTOCOL.md](../REVIEW_PROTOCOL.md) §1–§2): whether
+a fact is true of the device, how Triton lowers the operation, and whether the constants are
+right are settled in library review, below. For each `[rule]` field that cites a `Num.*`
+definition, the kernel reviewer checks that it is **the library's fact for the operation the
+model uses**:
+- **The operation.** The definition is the one for the model's operation: `MathTotal`,
+  `MathAcc`, `MathAt` with the model's `MathFn` for `tl.exp`, `tl.exp2`, …; `DivTotal`, `DivFull`
+  for `/` on `float32`; `DivTotal`, `DivRn` for `/` on `float64`; `DotTotal`, `DotAcc` with the
+  model's `DotCfg`; `CvtTotal`, `CvtAcc` for a conversion into fp8; `AtomicAddTotal`,
+  `AtomicAddAcc` for a float `atomic_add`; `DotScaledTotal`, `DotScaledAcc` with the model's
+  `ScaledCfg`.
+- **The format and configuration** are the model's: the same `Format`, rounding mode, `DotCfg`
+  or `ScaledCfg` as the operation in the model.
+- **The arguments are the library's.** The field is a fact of the table below, with the same
+  arguments. A field whose constants (`dom`, `rel`, `abs`, `qmax`, `x`, `y`, …) the kernel chose
+  is not a library fact (`RULE_MISCITED`). A kernel that needs a fact the table lacks asks the
+  library for it and waits (protocol §2).
 
-  At `K = 0` the bounds need only be nonnegative, because the result is the accumulator. So
-  constants that vanish there, such as `γ_K = K·u / (1 − K·u)`, are fine. The rounding argument
-  is `FloatV.exists_nearest`: the nearest float to a real is within half an ulp, `u·|y| + η`,
-  and `u·|y|` in the normal range. A bound tighter than that is false of any device that rounds,
-  and only such a bound would need the bundle's own witness.
-- **`tl.dot` accuracy (`DotAcc`).** The constants are judged for one `DotCfg` and target:
-  - the input precision (`tf32` keeps 10 fraction bits of fp32 operands; `tf32x3`, `bf16x3`
-    and `bf16x6` split them into several products);
+A doubt about the facts themselves is a `LIBRARY_REPORT`.
+
+## Facts the library states (sm_90, Triton 3.8.0)
+
+| Fact | Operation | Evidence |
+|---|---|---|
+| `MathTotal P fn f`, `DivTotal P f`, `CvtTotal P f g rnd`, `DotTotal P cfg`, `AtomicAddTotal P f`, `DotScaledTotal P cfg`, for every function, format and configuration | the operation gives some result for every input | the device's instruction returns a value; a combination Triton cannot lower is rejected on the host, with no outcome ([compiler-faithful.md](compiler-faithful.md)) |
+| `DivFull P` | `/` on `float32` | the lowering and the PTX ISA's 2 ulp ("Division", below); TVA's own measurement is library issue L4 |
+| `DivRn P .binary64` | `/` on `float64` | the lowering ("Division", below) |
+
+The accuracy facts with constants (`MathAcc`, `MathAt`, `DotAcc`, `CvtAcc`, `AtomicAddAcc`,
+`DotScaledAcc`) are not stated yet: library issue L4 covers `tl.math.exp2`, `tl.math.log2`, `/`
+and `tl.dot` with `float16` and `bfloat16` operands. Until then a kernel cannot cite them.
+
+## Device questions (library review)
+
+These are for library review and the library author, who settle them with Triton 3.8.0's sources
+(`primitives/`) and TVA's evidence on the target (`evidence/`). Kernel reviewers do not check
+them. A fact for an operation must take into account:
+- `tl.exp` on fp32 lowers to `ex2.approx` after a multiplication by `log2 e`, so its error is
+  relative and grows with `|x|`;
+- `/` on fp32 is `div.full.f32`, so its fact is `DivFull`, not a tighter `DivAcc` ("Division",
+  below);
+- `/` on fp64 is `div.rn.f64` (IEEE), so `DivRn P .binary64` holds. `DivRn P .binary32` does
+  not hold on NVIDIA;
+- `atom.add.f32` rounds to nearest but flushes subnormal inputs and results to zero. Two
+  operands just below the smallest normal sum to almost `2^-125` and give `0`, so `abs` must be
+  at least `2^-125` for fp32 (`2^(emin+1)` in general);
+- `P.atomicAdd` covers both `atom.add` and the TMA reduction of `desc.atomic_add`
+  (`cp.reduce.async.bulk`); an `AtomicAddAcc` fact must hold for every instruction a kernel may
+  use;
+- a scalar `atomic_add(p, 0)` (or `±0.0`) with `relaxed` or `acquire` order is lowered to a plain
+  load (`triton-3.8.0-nvidia-LoadStoreOpToLLVM.cpp:648-687`), so memory keeps `o`. Every
+  `P.atomicAdd` fact must therefore admit `n = o` when `v = ±0`, even where an exact sum or a
+  flush would give another value;
+- `tl.dot_scaled` runs on native microscaling instructions (sm_100+) or on an emulation that
+  upcasts to `bf16` or `fp16` (`core.py:2433-2438`). `DotScaledAcc` must hold for the path the
+  target takes, and `fast_math` may skip NaN handling of scales. The emulation reads an `e8m0`
+  scale `0x00` as `0` rather than `2^-127`, and with `fp16` compute it rounds scales to `fp16`
+  (`triton-3.8.0-DecomposeScaledBlocked.cpp:58-96`). It multiplies each element by its scale in
+  `bf16`/`fp16`, so one element can overflow to `inf`, and another underflow to `0` (giving
+  `inf·0 = NaN`), while the exact sum is small. A fact for that path must choose `dom` to keep
+  each scaled value in the compute type's range, and `sdom` to exclude scale `0x00`. `rel` and
+  `abs` depend on `K`, since `float32` accumulation error grows with it;
+- `P.cvt` is judged per source format, rounding mode and architecture. Before sm_90,
+  `float32 → fp8` goes through a truncation to `float16` and stays within `CvtAcc`'s bound, not
+  within half an ulp. On sm_80, `bfloat16 → float8e5` clamps below `2^-15` to `0`, which exceeds
+  the bound for tiny inputs. `CvtAcc` speaks only of `.rn`; an `.rz` conversion has no fact yet;
+- **`tl.dot` (`DotAcc`)**, judged for one `DotCfg` and target:
+  - the input precision (`tf32` keeps 10 fraction bits of fp32 operands; `tf32x3`, `bf16x3` and
+    `bf16x6` split them into several products);
   - `maxImpreciseAcc`: an fp8 dot on sm_90 sums that many products in the tensor core's
     reduced-precision accumulator before adding them into fp32;
   - the summation order the tensor cores use, which `rel K` must cover for every order.
 
-  Ask for a test at the largest `K` covered, or a derivation. A card that derives `rel K` from
-  per-precision facts (exact products, a summation bound over all orders) is planned.
+  The evidence is a test at the largest `K` the fact covers, or a derivation. A fact that derives
+  `rel K` from per-precision facts (exact products, a summation bound over all orders) is
+  planned.
+
+## Satisfiability
+
+A bundle proves its assumptions satisfiable together (`Claim.Consistent`, checked by the gate),
+and every fact of the library must be satisfiable together with the others.
+`Platform.ref rel abs sp` (`lean/TVA/Lemmas/Consistency.lean`) is the most accurate platform.
+Approximate functions return a float within the requested bound whenever one exists, and
+`tl.dot`/`tl.dot_scaled` round the exact result once. It satisfies all of these together, with
+`u = 2^-(m+1)` and `η = 2^(emin−m−1)` of the format:
+- every `…Total` rule (`mathTotal`, `divTotal`, `cvtTotal`, `atomicAddTotal`, `dotTotal`,
+  `dotScaledTotal`);
+- `MathAcc` with `rel ≥ u`:
+  - for `abs ≥ η` on any domain (`mathAcc_of_eta`);
+  - for any `abs ≥ 0` where the real function's values are normal, `|ref x| ≥ 2^emin`
+    (`mathAcc_of_normal`);
+  - wherever the bundle proves that floats that accurate exist (`mathAcc`);
+- `MathAt` at non-finite inputs, given by the table `sp` (`mathAt`);
+- `DivRn`, `DivFull`;
+- `CvtAcc`;
+- `AtomicAddAcc` for `rel ≥ u`, `abs ≥ η`;
+- `DotAcc`:
+  - with a float accumulator, for `rel K ≥ u` and `abs K ≥ η` when `K > 0` (`dotAcc`);
+  - with integer operands and a signed accumulator, for any `rel`, `abs ≥ 0` (`dotAcc_int`).
+    Triton 3.8.0's only integer `tl.dot` is `int8 × int8 → int32` (`semantic.py:1483-1486`), so
+    no other integer case arises;
+- `DotScaledAcc` for `rel K ≥ u` and `abs K ≥ η` of `float32` when `K > 0` (`dotScaledAcc`).
+
+At `K = 0` the bounds need only be nonnegative, because the result is the accumulator. So
+constants that vanish there, such as `γ_K = K·u / (1 − K·u)`, are fine. The rounding argument is
+`FloatV.exists_nearest`: the nearest float to a real is within half an ulp, `u·|y| + η`, and
+`u·|y|` in the normal range. A bound tighter than that is false of any device that rounds.
 
 ## Division (`DivFull`, `DivRn`)
 

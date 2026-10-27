@@ -21,7 +21,8 @@ example : ∀ K, @NS@.Spec K = TVA.Claim.Meets @NS@.Inst.ok @NS@.Pre @NS@.Post K
 
 namespace TVR
 
-def inScope (n : Name) : Bool := n.getRoot == `TVA || n.getRoot == `TVAExamples
+/-- The constants that belong to a claim: the library's and the kernel's own (its namespace's root). -/
+def inScope (n : Name) : Bool := n.getRoot == `TVA || n.getRoot == (`@NS@).getRoot
 
 /-- The constants an item reaches: definitions are followed through their values, theorems,
 axioms and opaque constants through their types only (a proof is not part of the meaning). -/
@@ -76,8 +77,12 @@ def constJson (n : Name) : MetaM Json := do
   let vh : UInt64 := match ci with
     | .defnInfo v => mixHash v.value.hash (hash (toString v.value))
     | _ => 0
-  let th := mixHash ci.type.hash (hash (toString ci.type))
   let doc ← findDocString? env n
+  -- The trusted interface to the device (the claim's shape, the rules, the platform) also means
+  -- what its docstrings say, so a change there re-opens the items that reach it.
+  let trusted := [`TVA.Claim, `TVA.Rules, `TVA.Platform].any (·.isPrefixOf n)
+  let th := mixHash (mixHash ci.type.hash (hash (toString ci.type)))
+    (if trusted then hash (doc.getD "") else 0)
   let rng ← findDeclarationRanges? n
   let modName := match env.getModuleIdxFor? n with
     | some i => (env.header.moduleNames[i.toNat]!).toString

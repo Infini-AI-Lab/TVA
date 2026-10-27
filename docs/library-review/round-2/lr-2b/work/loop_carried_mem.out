@@ -1,0 +1,12 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+range                    num_stages=1: 0 of 66560 elements differ from the sequential result
+range                    num_stages=3: 0 of 66560 elements differ from the sequential result
+tl.range(num_stages=3)   num_stages=1: 64512 of 66560 elements differ from the sequential result
+tl.range(num_stages=3)   num_stages=3: 64512 of 66560 elements differ from the sequential result
+... + tl.debug_barrier() num_stages=1: 0 of 66560 elements differ from the sequential result
+... + tl.debug_barrier() num_stages=3: 0 of 66560 elements differ from the sequential result
+in place, same address   num_stages=1: 0 of 1024 elements differ from the sequential result (64)
+in place, same address   num_stages=3: 0 of 1024 elements differ from the sequential result (64)
+range with tl.dot        num_stages=1: 0 of 66560 elements differ from the sequential result; cp.async in PTX: False
+range with tl.dot        num_stages=3: 64512 of 66560 elements differ from the sequential result; cp.async in PTX: True
+range with tl.dot        num_stages=4: 64512 of 66560 elements differ from the sequential result; cp.async in PTX: True

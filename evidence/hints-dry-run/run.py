@@ -1,6 +1,6 @@
 """Does `tl.multiple_of` on a loop-carried pointer reach the compiled code?
 
-Tutorial 08's `grouped_matmul_kernel` (lines 93-169 of kernels/grouped_gemm_f16/source/, verbatim)
+Tutorial 08's `grouped_matmul_kernel` (lines 93-169 of tutorials/08-grouped-gemm.py, verbatim)
 is compiled twice with Triton 3.8.0: as written, and without the two hints (lines 148-149). The
 script prints the `tt.divisibility` attributes in the TTIR and the global-load instructions in
 the PTX. Run: ~/fpv/tva/.venv/bin/python -I run.py

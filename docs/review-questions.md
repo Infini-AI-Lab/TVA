@@ -30,7 +30,7 @@ answer.
   - Tensor `//`, `%` and shifts are undefined on bad lanes.
 
 - **S5. Float rewrites** (formerly Q1). Settled from the 3.8.0 sources, 2026-10-26. The
-  sources are pinned in `primitives/` and listed in `semantics-manifest.json`.
+  sources are pinned in `primitives/` and listed in `primitives/semantics-manifest.json`.
   - The only float-math option of the NVIDIA backend is contraction. `enable_fp_fusion` sets
     LLVM's `AllowFPOpFusion = Fast` (`triton-3.8.0-llvm.cc:139-140`) and, when off, passes
     `--fmad=false` to `ptxas` (`triton-3.8.0-nvidia-compiler.py:532`). No fast-math flags

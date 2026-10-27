@@ -1,0 +1,24 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+
+== S1: holding assertions (constexpr, dtype, shape) change nothing ==
+    ttir: with and without the assertions identical (locations stripped): True
+    ttgir: with and without the assertions identical (locations stripped): True
+    llir: with and without the assertions identical (locations stripped): True
+    ptx: with and without the assertions identical (locations stripped): True
+    out == x + 1: True
+
+== S2: a condition that is not a compile-time bool is rejected on the host ==
+    host error: CompilationError; out untouched: True
+
+== S3: a holding tl.static_assert whose condition stores ==
+    compiles: True; out[B:2B] == 2x (written by the assertion's condition): True
+    tt.store ops in the TTIR: 2
+
+== S4: a holding tl.static_assert whose condition calls a @triton.jit helper that stores ==
+    compiles: True; out[B:2B] == 3 (written by the helper): True
+
+== S5: lines the transcription drops as no-op:print, with an atomic in an argument (debug off) ==
+int32[]
+    tl.static_print(tl.atomic_add(cnt, 1) ...), grid 4: cnt = 4 (0 if the line had no effect)
+    tl.device_assert(tl.atomic_add(cnt, 1) ...), grid 4: cnt = 4 (0 if the line had no effect)
+    tl.device_print(tl.atomic_add(cnt, 1) ...), grid 4: cnt = 4 (0 if the line had no effect)

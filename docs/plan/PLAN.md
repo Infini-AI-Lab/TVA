@@ -6,7 +6,7 @@ library and lemma construction."
 
 ## Done (2026-10-26)
 
-- v1 archived (`~/fpv/archive/tva-v1`).
+- v1 archived outside this repository; nothing here depends on it.
 - Language: scalars, tensors, memory, platform, `Prog`, the `tl.*` API, including atomics
   (`add`, `xchg`, `cas`, `max`, `min`, `and`, `or`, `xor`), the fusion forms (`add`, `mul_add`,
   `addc`) and tree reductions.

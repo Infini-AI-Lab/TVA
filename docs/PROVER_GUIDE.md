@@ -64,7 +64,17 @@ Rules:
   `MODEL_MISMATCH`.
 - **Keep `mask` and `other` exactly as in the source.** A masked load without `other` gives
   unspecified values on the disabled lanes.
-- **`tl.debug_barrier()` is a no-op.** Write a comment where it was. Compiler hints are not
+- **Name the rules.** Each entry of the model map names, in `rules`, the identities of the
+  transcription rules it applies (`["mask", "call"]`; a drop names its reason). The gate refuses a
+  model entry without them, and the reviewer checks that none is missing: the rules' text is in
+  your `map` and `model` digests, so a change to a rule you use re-opens them.
+- **Integer reductions widen.** `tl.max`/`tl.min` of an integer narrower than 32 bits reduce
+  `int32` values, whatever the signedness; `tl.sum` reduces `int32` or `uint32`
+  ([TRANSCRIPTION.md](TRANSCRIPTION.md) `[reduce]`). Write the conversion.
+- **`tl.debug_barrier()` is a no-op.** Write a comment where it was. Prints and assertions
+  (`tl.static_print`, `tl.device_print`, `print`, `tl.device_assert`, `assert`,
+  `tl.static_assert`) are dropped only when their arguments are pure; otherwise transcribe the
+  operations in their arguments ([TRANSCRIPTION.md](TRANSCRIPTION.md) §10). Compiler hints are not
   no-ops: write `tl.multiple_of`, `tl.max_contiguous`, `tl.max_constancy` and `tl.assume`.
   Put each check where the hinted value is defined, before any use of it. A hint inside a loop
   body on a loop-carried name, and the meaning of a hint on a rank ≥ 2 tensor, are open library
@@ -101,8 +111,8 @@ Rules:
   Keep it as wide as the kernel's real use.
 - **`launch d`**: the host's grid, the source's block shapes, and `enable_fp_fusion`, such as
   `Launch.grid1 (cdiv n BLOCK) [[BLOCK]]`. `Inst.ok` must make the launch valid
-  (`Launch.Valid`): `BLOCK` a power of two of at most `2^20` elements, and the grid within
-  CUDA's limits.
+  (`Launch.Valid`): `BLOCK` a power of two of at most `2^20` elements, the grid within CUDA's
+  limits, and fewer than `2^31` programs. `Launch.valid_grid1` proves it for a 1-D grid.
 - **`Pre d init`**: the buffers are valid (`Buf.Valid`, which means aligned and present), plus
   conditions on input values if needed.
 - **`Post d init fin`**: what the outputs are. Also say what does *not* change, for example
@@ -228,6 +238,8 @@ integer arithmetic once you show it does not wrap.
 **Tips.**
 - Choose footprints as unions of `Buf.tile`s. `Buf.tile_disjoint` and `Buf.tile_disjoint_of`
   then prove `hdisj`.
+- For the 1-D block pattern, `Block.fits_of_grid_pow2` gives `Block.Fits` for every program of
+  the grid `cdiv(n, BLOCK)` when `n < 2^31` and `BLOCK` is a power of two.
 - Validity of a buffer survives stores (`safe_store_block` gives presence).
 - `#print axioms main` must show only `propext`, `Classical.choice` and `Quot.sound`.
 - Where a lemma would help other kernels, add it to the library (`TVA/Lemmas/`), not to the

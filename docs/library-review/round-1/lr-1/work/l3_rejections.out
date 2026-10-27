@@ -1,0 +1,41 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+
+== Rejections before any program runs (L3: no outcome, reported on the host) ==
+R0 (not a rejection) a single tl.dot of 256x256x256 float16 operands: compiles and runs
+    host error: none
+    device usable after: yes; memory unchanged: False; out[0:2] = [1.0, -7.0]; 4.90 s
+R1 shared memory: pipelined 256x256x128 float16 tl.dot loop, num_stages=6
+    host error: OutOfResources: out of resource: shared memory, Required: 786432, Hardware limit: 232448. Reducing block sizes or `num_stages`
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.89 s
+R2 threads: num_warps=64 (2048 threads per program)
+    host error: OutOfResources: out of resource: threads, Required: 2048, Hardware limit: 1024. Reducing block sizes or `num_stages` may help.
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.00 s
+R3 tl.dot below its minimum size: float16, K = 8
+    host error: CompilationError: at 8:8:
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.00 s
+R4 a dtype the target lacks: x.to(tl.float8e4b8) on CUDA
+    host error: CompilationError: at 4:8:
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.00 s
+R5 tl.static_assert that fails (B = 24)
+    host error: CompileTimeAssertionFailure: at 3:4:
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.00 s
+R6 grid y = 65536 (above CUDA's limit; Launch.Valid excludes it)
+    host error: RuntimeError: Triton Error [CUDA]: invalid argument
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.00 s
+
+== Launches that run no program ==
+Z1 grid (0, 1, 1): no program, by the semantics an ok end with memory unchanged
+    host error: none
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.00 s
+C1 control, grid (2^20, 2, 1) = 2^21 programs: both marks written
+    host error: none
+    device usable after: yes; memory unchanged: False; out[0:2] = [1.0, 2.0]; 0.00 s
+C2 control, grid (2^30, 1, 1) = 2^30 programs: both marks written
+    host error: none
+    device usable after: yes; memory unchanged: False; out[0:2] = [1.0, 2.0]; 13.86 s
+W1 grid (2^30, 2, 1) = 2^31 programs, Launch.Valid holds: x < 2^31, y < 2^16
+    host error: none
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.00 s
+W2 grid (2^16, 2^15, 2) = 2^32 programs, Launch.Valid holds
+    host error: none
+    device usable after: yes; memory unchanged: True; out[0:2] = [-7.0, -7.0]; 0.00 s

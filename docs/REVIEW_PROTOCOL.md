@@ -71,8 +71,8 @@ meaning reaches the changed constants (§4).
   - **each `[kernel]` assumption**: it is true, needed, and clearly stated;
   - **the write-up**: it matches the Lean.
 - **Not in scope:**
-  - whether the kernel compiles. A launch Triton rejects before it runs is outside every claim
-    (§6);
+  - whether the kernel compiles. A launch that Triton or the driver reports to the host with
+    an error, before any program runs, is outside every claim (§6);
   - how Triton lowers an operation;
   - whether a device fact's constants are right;
   - whether a `tl.*` definition matches Triton.
@@ -92,8 +92,56 @@ meaning reaches the changed constants (§4).
 - Checks the library against Triton 3.8.0's documentation and compiler (the pinned sources in
   `primitives/`) and against the target GPU.
 - May read any source, compile, inspect PTX and run measurements.
-- A device fact is accepted on TVA's own evidence. Another project's measurement can suggest
-  where to look, but it is not evidence.
+- A device fact is accepted on TVA's own evidence only.
+
+### Independence
+
+TVA stands on itself and on Mathlib (general mathematics), and on nothing else. This holds for
+every role.
+- **Results and lemmas.** A proof in TVA, in the library or in a kernel, uses only TVA's
+  definitions and lemmas and Mathlib's. Lean enforces this through imports:
+  - the library imports only `TVA` and `Mathlib`, and a kernel also its own modules;
+  - the lake configuration requires only Mathlib.
+- **Evidence.** A device fact rests on TVA's own evidence in `evidence/`, produced with Triton
+  3.8.0 on the target. Another project's measurement, card or argument is not used, not even as
+  a pointer.
+- **Text.** No library file, kernel file or review record names another project or a path into
+  one, and no role reads another project's material.
+- **Enforcement.**
+  - `tvr audit` checks the whole project.
+  - The gate's `independence` check covers a kernel and the library.
+  - `tvr file`, `tvr respond` and `tvr lint` refuse a filing, report, work file, response or
+    notes that refers to another project.
+
+  What the checks read:
+  - **Imports.** The header of every Lean file under `lean/` and in a kernel's `lean/` folder,
+    read as Lean reads it: `module`, `prelude`, and every `public`, `meta` and `all` form of
+    `import`, with comments. A header the tool cannot read, or an `import` after the header, fails.
+  - **Lake.** `lean/lakefile.toml`, parsed as TOML: the only requirement is Mathlib from
+    `leanprover-community` (no `path`, no `git`); the libraries are `TVA` and one per kernel folder,
+    exactly `srcDir = "../kernels/<kernel>/lean"` with the kernel's module as its root; no other
+    key. There is no `lakefile.lean`. In `lake-manifest.json` the only direct package is Mathlib,
+    from its own repository.
+  - **Text.** Every file outside `.lake`, `.venv`, `.git` and `__pycache__`, whatever its
+    extension, must be UTF-8 text. It may not contain another project's name: as a word, as a
+    piece of a word (split at `_`, case changes and digits), or at the start or end of a
+    one-case piece. It may not contain a path that leads out of TVA: a home path other than TVA
+    (`~/fpv/tva`, by whole path components), the Lean toolchain (`~/.elan`), Triton's compile
+    cache (`~/.triton`) and the folders that hold them; another absolute path outside the system
+    directories (`/usr`, `/etc`, …); or a relative path whose `..` climbs out of TVA from the
+    file's folder. A home path is `~/…`, `~<user>/…` or `/home/<user>/…`, also when written with
+    `$HOME`, `${HOME}`, `%HOME%`, `%USERPROFILE%` or `$env:HOME`, or as a `file:` URL; other URLs
+    are not paths. A path counts wherever it starts after a character that cannot be part of a
+    path name (a space, a quote, a bracket, `=`, `:`, `;`, `,`, …). A symbolic link may not lead
+    out of TVA. Triton's own pinned files (`primitives/`, `tutorials/`, a kernel's source) are
+    checked for names only.
+  - **Transcription rules.** `tvr audit` also checks that [TRANSCRIPTION.md](TRANSCRIPTION.md) is
+    consistent: no rule identity twice, every `[id]` it names is a rule, and every drop reason
+    (§7) is a rule.
+
+  The tool keeps the names of other projects only as sha256 hashes, so TVA does not name them.
+- **A finding that rests on another project** is not recorded. Restate it on TVA's own terms,
+  or as a library request.
 
 ## 3. The kernel folder
 
@@ -108,7 +156,7 @@ kernels/<kernel>/
   source/<file>.py           prover    the kernel source, pinned by its sha256
   lean/<Module>.lean, lean/<Module>/*.lean
                              prover    the Lean bundle (a lake library of its own: lean/lakefile.toml)
-  model-map.json             prover    each source line → model text, or a drop reason (§7)
+  model-map.json             prover    each source line → model text and the rules it applies, or a drop reason (§7)
   claim.md                   tvr       the sheet the reviewers judge (tvr check)
   gate.json                  tvr       the gate's checks and the item digests (tvr check)
   REVIEW.md                  tvr       the review, readable: status, items, findings, every round in full
@@ -140,18 +188,23 @@ The claim splits into items. A reviewer accepts items, not files.
 
 | Item | Roots | What the kernel reviewer judges |
 |---|---|---|
-| `model` | `model`, `launch` (and the source's sha256) | the transcription, the launch, the block shapes |
-| `map` | `model-map.json` and the source | that each source line corresponds to its model text |
+| `model` | `model`, `launch` (and the source's sha256, and the transcription rules the map names) | the transcription, the launch, the block shapes |
+| `map` | `model-map.json`, the source and the transcription rules the map names | that each source line corresponds to its model text, by the rules it names |
 | `conditions` | `Inst`, `Inst.ok`, `Pre` | coverage of real use |
 | `spec` | `Post`, `Spec` | what the outputs are; that a tolerance is meaningful |
 | `assumption:<f>` | the statement of field `f` and its docstring | `[rule]`: the right library fact; `[kernel]`: true, needed, clear |
 
 Each item's digest covers its *cone*: every `TVA.*` and kernel constant its definitions reach,
 by elaborated term (definition bodies included; theorems by statement only), plus the roots'
-docstrings. So:
+docstrings. The `model` and `map` digests also cover the transcription rules the map names (§7),
+with the rules their text names, and the text of [TRANSCRIPTION.md](TRANSCRIPTION.md) outside
+its rules together with [exclusions.md](exclusions.md), which apply to every model; whitespace is
+normalised. So:
 - a proof edit, a comment or a reformatting changes no digest;
-- a library fix re-opens exactly the items whose meaning reaches the changed constants;
-- `REVIEW.md` names the constants that changed since a reviewer accepted.
+- a library fix re-opens exactly the items whose meaning reaches the changed constants, and a
+  change to a transcription rule re-opens the `model` and `map` of every kernel whose map names it;
+- `REVIEW.md` names the constants that changed since a reviewer accepted, and the rules
+  (`rule:<id>`, `rule:(general)` for the text outside the rules).
 
 The claim reader (`tools/claim_reader.lean.in`) computes the cones from the elaborated Lean
 claim. It never reads the kernel's source: there is no translator, and the model is the
@@ -172,42 +225,47 @@ a library rule, and a `[kernel]` assumption cannot be about the device or the co
 ## 6. What a claim covers
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance and input, every outcome
-of a launch of the compiled kernel is a normal end whose memory satisfies `Post`. A launch that
-Triton or the driver rejects before any program runs has no outcome. Examples are too much
-shared memory, too many registers, or a `tl.dot` below its minimum size; Triton reports these on
-the host. So a claim never promises that the kernel compiles, and nobody asks for compile logs
-in kernel review (user, 2026-10-27).
+of a launch of the compiled kernel is a normal end whose memory satisfies `Post`. A launch is
+*rejected* when Triton or the driver reports it to the host with an error before any program
+runs, and a rejected launch has no outcome. Examples are too much shared memory, too many
+registers, or a `tl.dot` below its minimum size. So a claim never promises that the kernel
+compiles, and nobody asks for compile logs in kernel review (user, 2026-10-27). A launch that
+returns without an error has an outcome, even if no program ran. The launcher skips grids of
+`2^31` programs or more without an error, and `Launch.Valid`, which every claim needs for its
+covered instances, excludes them.
 
 ## 7. The model map
 
 `model-map.json` is `{"entries": [...]}`, one entry per source line or line range of the kernel:
 
 ```json
-{"src": [153], "model": "let accumulator ← tl.dot_add cfg a b accumulator", "note": "…"}
+{"src": [153], "model": "let accumulator ← tl.dot_add cfg a b accumulator", "rules": ["dot-add", "dot"], "note": "…"}
 {"src": [189], "drop": "config", "note": "FP8_OUTPUT = False on every covered instance"}
 ```
 
 - `model` is a string or a list of strings. Each must occur, up to whitespace, in the kernel's
   Lean files.
-- `drop` is one of these (each is a rule of [TRANSCRIPTION.md](TRANSCRIPTION.md)):
-  - `decl`: a decorator or signature line, covered by the model's definition;
-  - `no-op:debug_barrier`, `no-op:print`, `no-op:cache`, `no-op:range-kw`: the no-ops of the
-    transcription rules;
-  - `config`: a branch not taken in the covered configuration. The `note` names the condition;
-  - `compile-check`: a compile-time assertion (`tl.static_assert`) that holds on every covered
-    instance. The `note` names the condition of `Inst.ok` that makes it hold;
-  - `dead`: a pure value no covered path uses. The `note` says why;
-  - `comment`.
+- `rules` names the transcription rules the entry applies, by their identities in
+  [TRANSCRIPTION.md](TRANSCRIPTION.md) (`"mask"` for **[mask]**). A `model` entry names at least
+  one; a `drop` entry may name more besides its reason. The kernel reviewer checks that an entry
+  names every rule it applies. Their text is in the `map` and `model` digests (§4).
+- `drop` is a drop reason, each a rule of [TRANSCRIPTION.md](TRANSCRIPTION.md) §10, which says
+  what it drops and when: `decl`, `no-op:debug_barrier`, `no-op:print`, `no-op:cache`,
+  `no-op:range-kw`, `no-op:gdc`, `config`, `compile-check`, `dead`, `comment`. `config`,
+  `compile-check` and `dead` need a `note` (the condition that makes the drop hold).
 - The gate fails when a code line of the kernel's ranges is not covered, when model text is not
-  found, or when a drop reason is not on the list.
+  found, when a drop reason is not on the list, when an entry names no rule or a rule the page
+  does not define, or when the page itself is inconsistent.
 
 ## 8. The gate (`tvr check <kernel>`)
 
 | Check | Passes when |
 |---|---|
 | `source` | the kernel source has the manifest's sha256 |
-| `build` | `lake build <module>` succeeds |
-| `hygiene` | the kernel's Lean files contain no `sorry`, `admit`, `native_decide`, `axiom`, `extern`, `implemented_by`, `unsafe` or `set_option debug.*` |
+| `hygiene` | the kernel's Lean files, read whole (comments and strings included), contain no proof escape (`sorry`, `admit`, `native_decide`, `+native`, `ofReduceBool`, an `axiom` command), no kernel or compiler bypass (`implemented_by`, `extern`, `unsafe`, `set_option debug.*`, `addDecl…`, `doCheck`, `skipKernelTC`, `modifyEnv`, `setEnv`, `Environment`), no meta code (`#eval`, `#exit`, `run_cmd`, `run_elab`, `run_meta`, `run_tac`, `by_elab`, `eval%`, `elab`, `macro`, `syntax`, `initialize`, `register_…`, `include_str`, `simproc`, `delab`, …), no meta type (`IO`, `CoreM`, `MetaM`, `TermElabM`, `CommandElabM`, `TacticM`, `MacroM`, `Lean.Elab`, `Lean.Meta`, `Lean.Syntax`) and no attribute that installs a handler (`tactic`, `init`, `norm_num`, `positivity`, `aesop`, `export`); the full list is `HYGIENE` in `tools/tvr.py` |
+| `independence` | §2 |
+| `build` | `lake build <module>` succeeds. It runs only after `hygiene` and `independence` pass, since building runs the kernel's Lean |
+| `replay` | `leanchecker <root>` (Lean's own tool, in the toolchain) re-checks every declaration of the kernel's modules from the compiled files, with Lean's kernel, in the environment of their imports. A declaration that meta code added without the kernel's check fails here |
 | `shape` | the claim reader elaborates: `main : ∀ K P, Assumptions K P → Spec K`, `consistent : Claim.Consistent Assumptions`, `Spec K = Claim.Meets Inst.ok Pre Post K` |
 | `axioms` | `main` and `consistent` depend only on `propext`, `Classical.choice`, `Quot.sound` |
 | `usage` | `main` uses every assumption, through its projection (no destructuring of `Assumptions`) |
@@ -233,16 +291,18 @@ Declarations are quoted from their files by Lean's declaration ranges.
 
 1. **The prover** makes the gate pass and asks for review.
 2. **The coordinator** assigns reviewers: `tvr assign <kernel> <reviewer> [--focus model|claim|all]`.
-   They start each agent with its role's prompt (`tvr prompt <kernel> reviewer <id>`, §11) and
+   They start each agent with its role's prompt (`tvr prompt <kernel> reviewer <id>`, §12) and
    may record notes (`tvr note <kernel> <text> [--files …]`).
 3. **Round 1 (blind).** Each reviewer reads `claim.md`, the source, the Lean files, the write-up
-   and the library pages the claim cites. They write `review/round-1/<reviewer>/filing.json`,
-   `report.md` and any `work/`, and record the filing with `tvr file <kernel> <reviewer>`. Until
+   and the library pages the claim cites. They run `tvr start <kernel> reviewer <id>`, fill in
+   `review/round-1/<reviewer>/filing.json` and `report.md` (and any `work/`), check them with
+   `tvr lint <kernel> reviewer <id>` (§11), and record the filing with `tvr file <kernel> <reviewer>`. Until
    every assigned reviewer has filed, `REVIEW.md` and `tvr status` hide round 1's findings
    (`--as <reviewer>` shows one's own).
 4. **The prover answers every open finding in one batch** (the tool refuses a partial batch):
-   fix, re-run the gate, write `review/round-N/prover/response.json` and `notes.md`, then run
-   `tvr respond <kernel>`. This closes round `N`.
+   fix, re-run the gate, `tvr start <kernel> prover`, fill in `review/round-N/prover/response.json`
+   and `notes.md`, check them with `tvr lint <kernel> prover` (§11), then run `tvr respond <kernel>`.
+   This closes round `N`.
 5. **Round N + 1.** Each reviewer re-reads what changed (`REVIEW.md` names the changed
    constants per item), then files in `review/round-<N+1>/<reviewer>/`: release settled
    findings, re-raise the others, raise new ones, accept items.
@@ -353,7 +413,7 @@ evidence/<topic>/         author        README.md, the script, its output
 
 - **Sources of issues.** An issue comes from a kernel finding (`LIBRARY_REPORT`, or a response
   `REFERRED`), from library review, or from the author. The coordinator records it in
-  `ISSUES.md` with its source, for example `grouped_gemm_f16#F2`.
+  `ISSUES.md` with its source, for example `vec_add_f32#F2`.
 - **States.** An issue is `OPEN`, `FIXED` (in a batch, with the constants it changed), `ACCEPTED`
   (a library reviewer accepted the fix), or `DECLINED` (with the reason, and the user's decision
   where the scope changes).
@@ -363,7 +423,138 @@ evidence/<topic>/         author        README.md, the script, its output
   a fix re-opens exactly the affected kernel items. Their reviewers re-accept them in the next
   kernel round.
 
-## 11. Prompts
+## 11. Formats
+
+Every output of a role is regular: the tool parses it and refuses it otherwise.
+- `tvr start` writes the skeleton.
+- `tvr lint` checks it with the same parser `tvr file` and `tvr respond` run. So each role checks
+  its own output and fixes it until `tvr lint` prints `regular`, then records it.
+- The parser also rejects placeholders (`TODO`) and references to other projects (§2).
+
+**Kernel reviewer: `review/round-N/<id>/filing.json`.**
+
+```json
+{"reviewer": "<id>", "kernel": "<kernel>", "round": 1,
+ "findings": [{"kind": "<KIND>", "target": "<target>", "summary": "<one line, at most 200 characters>",
+               "detail": "<required for a blocking kind>", "evidence": "<optional>",
+               "affects": ["item:<name>"]}],
+ "release": [{"id": "F<n>", "note": "<why>"}],
+ "reraise": [{"id": "F<n>", "note": "<why>"}],
+ "accept": "all",
+ "notes": "<optional>"}
+```
+
+- There are no other keys.
+- `kind` is one of §9.
+- Whether a finding blocks follows from its kind; `blocking`, if given, must agree.
+- `accept` is `"all"` or a list of `item:<name>`.
+
+**Kernel reviewer: `report.md`.**
+
+```
+# Review of <kernel>, round <N>, by <id>
+
+## Verdict
+
+accept | accept-partly | reject
+<why, in a paragraph>
+
+## Findings
+
+- **<KIND>** `<target>` — <one line>        one per new finding, in the filing's order
+- **release F<n>** — <why>
+- **re-raise F<n>** — <why>
+                                             or: None.
+## Accepted
+
+- `item:<name>`                              one per accepted item; or: All items. / None.
+
+## Checked
+
+- <what you checked>                         at least one
+
+## Not checked
+
+- <what you could not check>                 or: Nothing.
+```
+
+The verdict must agree with the filing:
+- `accept`: every item accepted, no new blocking finding, no re-raise;
+- `reject`: no item accepted;
+- `accept-partly`: the rest.
+
+**Kernel prover: `review/round-N/prover/response.json`.**
+
+```json
+{"kernel": "<kernel>", "round": 1,
+ "responses": [{"id": "F<n>", "response": "REVISED", "text": "<…>", "changed": ["item:<name>"]},
+               {"id": "F<m>", "response": "REFERRED", "text": "<…>", "issue": "L<k>"}]}
+```
+
+- Exactly one response per open finding.
+- `changed` comes with `REVISED`, always, and with nothing else.
+- `issue` comes with `REFERRED`, always, and with nothing else. It names an issue of `ISSUES.md`.
+
+**Kernel prover: `notes.md`.**
+
+```
+# Prover's notes on <kernel>, round <N>
+
+## Changes
+
+- <what changed and why>                     or: None.
+
+## Responses
+
+- **F<n>** <RESPONSE> — <one line>           one per response, in order
+
+## Library requests
+
+- <what the library should state, and why>   or: None.
+
+## Gate
+
+PASS, digest `<the gate's 16-digit digest>`
+```
+
+**Library author: `docs/library-review/round-N/author/notes.md`.**
+
+```
+# Library batch, round <N>: author's notes
+
+## L<n>: <title>                              one per issue of the round, in order
+
+- **What changed.** …
+- **Why.** …
+- **Evidence.** …                             when there is any
+- **Constants whose meaning changed.** …
+```
+
+**Library reviewer: `docs/library-review/round-N/<id>/report.md`.**
+
+```
+# Library review, round <N>, by <id>
+
+## Verdicts
+
+- **L<n>** ACCEPT — <reason>                 one per issue of the round
+- **L<m>** REOPEN — <what is wrong, and what would fix it>
+
+## New issues
+
+- **NEW** <class> — <summary>                 or: None. <class>: soundness, gap or wording
+                                              (docs/LIBRARY_REVIEW.md)
+
+## Re-ran
+
+- <evidence re-run, tests added>              or: Nothing.
+
+## Not checked
+
+- <…>                                         or: Nothing.
+```
+
+## 12. Prompts
 
 Each agent starts from its role's prompt in [docs/prompts/](prompts/):
 
@@ -379,7 +570,7 @@ current round and the reviewer's id filled in. The coordinator adds nothing abou
 the claim: what the agent reads is in the kernel's folder and the library, and an agent handed
 the coordinator's view of the claim reviews that view instead of the claim.
 
-## 12. Why it is built this way
+## 13. Why it is built this way
 
 - **Scope.** Kernel reviewers trust a separately reviewed library, so device and compiler
   knowledge is checked once, in library review, not again for every kernel.
@@ -388,5 +579,11 @@ the coordinator's view of the claim reviews that view instead of the claim.
 - **One ledger and one folder per kernel.** Findings have explicit states, the tool enforces
   the transitions, and `REVIEW.md` renders the whole record beside the kernel's files.
 - **Checked by Lean and by the gate.** The claim's shape is checked by Lean, not by text
-  matching. The model map is checked for coverage, and the assumption kinds for ownership.
-- **Fixed prompts.** Every agent of a role starts from the same prompt, which carries the scope.
+  matching, and every declaration of the kernel is re-checked by Lean's kernel from the compiled
+  files (`replay`), so meta code cannot slip in an unchecked theorem. The model map is checked for
+  coverage and for the rules it names, and the assumption kinds for ownership.
+- **Fixed prompts and regular outputs.** Every agent of a role starts from the same prompt,
+  which carries the scope. Every output has a fixed format that the tool parses, and each role
+  checks its own output with `tvr lint` before recording it.
+- **Independence.** TVA's results come from TVA and Mathlib, and its evidence is its own. Lean's
+  imports and the tool enforce this.

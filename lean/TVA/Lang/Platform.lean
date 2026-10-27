@@ -44,6 +44,10 @@ structure DotCfg where
   a : DType
   b : DType
   acc : DType
+  /-- The source's `input_precision`. When the source omits it, Triton uses the environment
+  variable `TRITON_F32_DEFAULT` if it is set, and otherwise `tf32` on sm_90
+  (`triton-3.8.0-core.py:2384-2388`). `Rules.Compiler.Faithful` covers only launches with Triton's
+  environment at its defaults, so an omitted `input_precision` is `tf32`. -/
   precision : InputPrecision := .tf32
   maxImpreciseAcc : Nat := 0
   deriving DecidableEq, Repr

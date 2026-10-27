@@ -1,25 +1,33 @@
 {
-  "protocol": "tvr-1",
-  "title": "Vector addition, tutorial 01 (`add_kernel`, float32)",
+  "doc": "README.md",
   "lean": {
     "module": "VecAdd",
-    "namespace": "TVAExamples.VecAdd"
+    "namespace": "Kernels.VecAdd"
   },
+  "protocol": "tvr-2",
   "source": {
     "file": "source/01-vector-add.py",
-    "sha256": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3",
+    "host": [
+      [
+        62,
+        78
+      ],
+      [
+        84,
+        89
+      ],
+      [
+        107,
+        129
+      ]
+    ],
     "ranges": [
       [
         29,
         54
       ]
     ],
-    "host": [
-      [
-        62,
-        78
-      ]
-    ]
+    "sha256": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3"
   },
-  "doc": "README.md"
+  "title": "Vector addition, tutorial 01 (`add_kernel`, float32)"
 }

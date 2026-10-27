@@ -495,24 +495,100 @@ def sum0c {m n : Nat} (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [n] (FloatV 
 
 /-- `tl.max(x, axis=1)` (`isMax`) or `tl.min(x, axis=1)` of a rank-2 float tensor: each row
 combined with `MaxRel` along a tree Triton chooses. Triton first converts floats narrower than
-32 bits to `float32` (`standard.py:178-190`): the model converts explicitly. -/
+32 bits to `float32` (`triton-3.8.0-standard.py:178-190`): the model converts explicitly.
+Integer `tl.max`/`tl.min` are the exact folds of `TVA.Lang.Tensor` (`IntV.max`/`IntV.min`),
+after Triton's widening of integers narrower than 32 bits to `int32`; with `return_indices` they
+are `tl.argmax1`/`argmax0`/`argmaxAll`. -/
 def max1 {m n : Nat} (isMax : Bool) (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [m] (FloatV f)) :=
   .pick (fun r : Tensor [m] (FloatV f) => ∀ i, ∃ t : Tree, t.Covers n ∧
     t.Eval (FloatV.MaxRel isMax) (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) .ret
 
 /-- `tl.max(x)` (`isMax`) or `tl.min(x)` of a rank-1 float tensor (or `axis=0` of it): the
-whole tensor combined with `MaxRel` along a tree, after the same widening as `max1`. -/
+whole tensor combined with `MaxRel` along a tree, after the same widening as `max1` (integers:
+see `max1`). -/
 def maxAll {n : Nat} (isMax : Bool) (x : Tensor [n] (FloatV f)) : Prog (FloatV f) :=
   .pick (fun r => ∃ t : Tree, t.Covers n ∧
     t.Eval (FloatV.MaxRel isMax) (fun j => if h : j < n then x.get1 ⟨j, h⟩ else default) r) .ret
 
 /-- `tl.max(x, axis=0)` (`isMax`) or `tl.min(x, axis=0)` of a rank-2 float tensor: each column,
-as `max1`. -/
+as `max1` (integers: see `max1`). -/
 def max0 {m n : Nat} (isMax : Bool) (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [n] (FloatV f)) :=
   .pick (fun r : Tensor [n] (FloatV f) => ∀ j, ∃ t : Tree, t.Covers m ∧
     t.Eval (FloatV.MaxRel isMax) (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) .ret
 
 end Float
+
+end tl
+
+/-! ## Index reductions
+
+`tl.max(x, axis, return_indices=True)`, `tl.min(…, return_indices=True)`, `tl.argmax` and
+`tl.argmin` reduce `(value, index)` pairs along an axis with Triton's combine functions
+`_argmax_combine` and `_argmin_combine` (`triton-3.8.0-standard.py:146-155, 172-190, 199-208,
+223-240`). The index is an `int32` `tl.arange` along the axis (`_reduce_with_indices`,
+`triton-3.8.0-core.py:3093-3107`). As for the other reductions, Triton combines along a tree of
+its choosing, so the model takes some tree covering the axis.
+
+These do not widen: Triton converts only `bfloat16` to `float32` first (the model writes that
+`tl.cvt`). Unlike `tl.max`/`tl.min` without `return_indices`, they keep `float16`, fp8 and
+integers narrower than 32 bits in their own type. -/
+
+/-- The comparisons Triton's index reductions use on an element type: `<` and `==` (`arith.cmpi`,
+signed or unsigned as the dtype is, for integers; the ordered `arith.cmpf olt`/`oeq` for floats,
+so any comparison with a NaN is false). -/
+class CmpKey (α : Type) where
+  lt : α → α → Bool
+  eq : α → α → Bool
+
+instance {sg : Bool} {w : Nat} : CmpKey (IntV sg w) := ⟨IntV.lt, IntV.eq⟩
+instance {f : Format} : CmpKey (FloatV f) := ⟨FloatV.lt, FloatV.eq⟩
+
+namespace tl
+
+variable {s : Shape} {α : Type}
+
+/-- Triton's `_argmax_combine` (`isMax`) and `_argmin_combine` on two `(value, index)` pairs
+(`triton-3.8.0-standard.py:146-155, 199-208`). With `tieLeft` (`tie_break_left=True`, the
+default), equal values (`==`) keep the smaller index; without it, a tie keeps the second pair.
+`a` wins when its value is strictly greater (`isMax`) or smaller than `b`'s, or on such a tie.
+Indices are below `2^20`, so the `int32` comparison of indices is the comparison of naturals. -/
+def argCombine [CmpKey α] (isMax tieLeft : Bool) (a b : α × Nat) : α × Nat :=
+  let tie := tieLeft && CmpKey.eq a.1 b.1 && decide (a.2 < b.2)
+  let win := (if isMax then CmpKey.lt b.1 a.1 else CmpKey.lt a.1 b.1) || tie
+  if win then a else b
+
+/-- `tl.max(x, 0, return_indices=True, return_indices_tie_break_left=tieLeft)` (`isMax`) or
+`tl.min(…)` of a rank-1 tensor: the pair `(value, index)` that `argCombine` gives along some tree
+over the positions, each leaf `j` being `(x[j], j)`. `tl.argmax(x, 0, tie_break_left=tieLeft)`
+(`tl.argmin`) is the index. No widening (see the section): `bfloat16` is converted to `float32`
+by the model first. With `tieLeft = false`, a tie may give any of the tied indices, and with a
+NaN (every comparison false) the result depends on the tree. -/
+def argmaxAll [CmpKey α] [Inhabited α] {n : Nat} (isMax tieLeft : Bool) (x : Tensor [n] α) :
+    Prog (α × I32) :=
+  .pick (fun r : α × I32 => ∃ p : α × Nat, ∃ t : Tree, t.Covers n ∧
+    t.Eval (fun a b c => c = argCombine isMax tieLeft a b)
+      (fun j => (if h : j < n then x.get1 ⟨j, h⟩ else default, j)) p ∧
+    r = (p.1, IntV.ofNat p.2)) .ret
+
+/-- `tl.max(x, 1, return_indices=True)` (`isMax`) or `tl.min(x, 1, …)` of a rank-2 tensor: for
+each row, the `(value, index)` pair of `argmaxAll`; `tl.argmax(x, 1)` (`tl.argmin`) is the
+index tensor. -/
+def argmax1 [CmpKey α] [Inhabited α] {m n : Nat} (isMax tieLeft : Bool) (x : Tensor [m, n] α) :
+    Prog (Tensor [m] α × Tensor [m] I32) :=
+  .pick (fun r : Tensor [m] α × Tensor [m] I32 => ∀ i, ∃ p : α × Nat, ∃ t : Tree, t.Covers n ∧
+    t.Eval (fun a b c => c = argCombine isMax tieLeft a b)
+      (fun j => (if h : j < n then x.get2 i ⟨j, h⟩ else default, j)) p ∧
+    r.1.get1 i = p.1 ∧ r.2.get1 i = IntV.ofNat p.2) .ret
+
+/-- `tl.max(x, 0, return_indices=True)` (`isMax`) or `tl.min(x, 0, …)` of a rank-2 tensor: for
+each column, the `(value, index)` pair of `argmaxAll`; `tl.argmax(x, 0)` (`tl.argmin`) is the
+index tensor. -/
+def argmax0 [CmpKey α] [Inhabited α] {m n : Nat} (isMax tieLeft : Bool) (x : Tensor [m, n] α) :
+    Prog (Tensor [n] α × Tensor [n] I32) :=
+  .pick (fun r : Tensor [n] α × Tensor [n] I32 => ∀ j, ∃ p : α × Nat, ∃ t : Tree, t.Covers m ∧
+    t.Eval (fun a b c => c = argCombine isMax tieLeft a b)
+      (fun i => (if h : i < m then x.get2 ⟨i, h⟩ j else default, i)) p ∧
+    r.1.get1 j = p.1 ∧ r.2.get1 j = IntV.ofNat p.2) .ret
 
 /-! ## Matrix multiplication -/
 

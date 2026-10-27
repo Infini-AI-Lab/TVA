@@ -1,0 +1,55 @@
+baseline (the tree as it is): exit 0, independent
+I1: flagged [import] (as the rule asks) - library Lean: `import Aesop`
+I2: flagged [import] (as the rule asks) - library Lean: `module` then `public import Aesop`
+I3: flagged [import] (as the rule asks) - library Lean: `module` then `meta import Aesop`
+I4: flagged [import] (as the rule asks) - library Lean: `public meta import Aesop`
+I5: flagged [import] (as the rule asks) - library Lean: `import all Aesop`
+I6: flagged [import] (as the rule asks) - library Lean: `import «Aesop»` (escaped name)
+I7: flagged [import] (as the rule asks) - library Lean: a second import on the same line as the first
+I8: flagged [import] (as the rule asks) - library Lean: an import after a block comment in the header
+I9: flagged [import] (as the rule asks) - library Lean: an import with a nested comment before the module name
+I10: flagged [import] (as the rule asks) - library Lean: `prelude` then an import
+I11: flagged [header] (as the rule asks) - library Lean: a header the audit cannot read (an unterminated comment)
+I12: flagged [header] (as the rule asks) - library Lean: an `import` line after the header
+I13: flagged [import] (as the rule asks) - a Lean file under lean/ outside lean/TVA that imports another root
+I14: flagged [import] (as the rule asks) - kernel Lean: an import of another root
+I15: passed (as the rule asks) - control: kernel Lean importing its own module and TVA
+I16: passed (as the rule asks) - control: `import` inside a docstring after the header
+K1: flagged [lake, relative path] (as the rule asks) - lakefile: [[require]] of another package, `name` first
+K2: flagged [lake, relative path] (as the rule asks) - lakefile: [[require]] of another package, `path` before `name`
+K3: flagged [lake, relative path] (as the rule asks) - lakefile: [[lean_lib]] whose srcDir is outside TVA
+K4: flagged [name] (as the rule asks) - lakefile: a comment naming the other project
+K5: flagged [import, lake] (as the rule asks) - lean/lakefile.lean present (lake would read it)
+K6: flagged [lake] (as the rule asks) - lakefile: a top-level key that passes arguments to Lean
+K7: flagged [lake] (as the rule asks) - lakefile: the mathlib requirement taken from a git fork
+K8: flagged [lake] (as the rule asks) - lakefile: the TVA library with a second root
+K9: flagged [lake] (as the rule asks) - lakefile: a kernel library with a srcDir into another kernel's folder
+K10: flagged [manifest, relative path] (as the rule asks) - lake-manifest.json: a direct path package
+K11: flagged [manifest] (as the rule asks) - lake-manifest.json: mathlib from another repository
+N1: flagged [name] (as the rule asks) - docs: the name as a word
+N2: flagged [name] (as the rule asks) - docs: the name in upper case
+N3: flagged [name] (as the rule asks) - docs: the name as the prefix of an identifier (upper case + `Lemmas`)
+N4: flagged [name] (as the rule asks) - docs: the name joined by an underscore (name + `_v2`)
+N5: flagged [name] (as the rule asks) - Lean docstring: the name as a word
+N6: flagged [name] (as the rule asks) - docs: the name run into a lower-case word (name + `lemmas`)
+N7: flagged [name] (as the rule asks) - docs: the name in camel case before a word (name + `Lemmas`)
+N8: passed (as the rule asks) - control: the name's letters across a case boundary inside a longer word
+P1: flagged [path] (as the rule asks) - docs: a home path into a sibling directory of TVA
+P2: flagged [path] (as the rule asks) - docs: a home path into an archive directory
+P3: flagged [path] (as the rule asks) - docs: a home path to a directory whose name starts with `tva`
+P4: flagged [relative path] (as the rule asks) - docs: a relative path that climbs out of TVA
+P5: flagged [path] (as the rule asks) - docs: an absolute path outside /home
+P6: flagged [path] (as the rule asks) - docs: a home path into TVA that climbs out with `..`
+P7: flagged [path] (as the rule asks) - docs: an absolute /home path to a directory whose name starts with `tva`
+P8: flagged [relative path] (as the rule asks) - docs: a Markdown link that climbs out of TVA
+P9: passed (as the rule asks) - control: paths inside TVA, the toolchain, the system, and a URL
+F1: flagged [name] (as the rule asks) - evidence: the name inside a `.log` file
+F2: flagged [name] (as the rule asks) - evidence: the name inside a `.csv` file
+F3: flagged [name] (as the rule asks) - evidence: the name inside a `.sh` script
+F4: flagged [name] (as the rule asks) - kernels/README.md: the name
+F5: flagged [path] (as the rule asks) - lean/lakefile.toml read as text: a home path out of TVA in a comment
+F6: flagged [not text] (as the rule asks) - evidence: a file that is not UTF-8 text
+F7: flagged [link] (as the rule asks) - docs: a symbolic link to a directory outside TVA
+F8: flagged [name] (as the rule asks) - a kernel reviewer's work file with an unusual extension naming the project
+F9: flagged [name] (as the rule asks) - tools: the name in a new tool file
+53 probes, 0 wrong

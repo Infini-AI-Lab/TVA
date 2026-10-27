@@ -1,0 +1,4 @@
+'TVA.Block.fits_of_grid_dvd' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Block.fits_of_grid_pow2' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Block.lane_toInt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Launch.valid_grid1' depends on axioms: [propext, Classical.choice, Quot.sound]

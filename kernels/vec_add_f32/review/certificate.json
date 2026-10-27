@@ -1,0 +1,15 @@
+{
+  "gate": "b7289baba91143474c665faa7c7dd652cea5f18116959c8c13fe6265c90892d9",
+  "items": {
+    "assumption:faithful": "7daa38a8cf8de56ac66e1388579c1543c27ad0398947fe9f9766a90cc14367f1",
+    "conditions": "1acb1ddb767fb8362951c2ecf1a03019e2735489e349d034d1e63ce8c32779ea",
+    "map": "f63781ab10ff27823f4535a2e2e42e3f40e05d86a7c5116e66abedd67d48e132",
+    "model": "a5bc157e2943fef22239a0cad05c88a3adcff9e0ac6cf78807d0418a7a91ee4a",
+    "spec": "81c44a8a677b741905b7dbcc4eaee5946cfad2371f6469f6066699c795824c5a"
+  },
+  "kernel": "vec_add_f32",
+  "reviewers": [
+    "r-vecadd"
+  ],
+  "time": "2026-10-27T18:26:01Z"
+}

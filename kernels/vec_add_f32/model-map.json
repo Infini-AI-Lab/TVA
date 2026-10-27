@@ -1,14 +1,14 @@
 {
   "entries": [
-    {"src": [29], "drop": "decl", "note": "decorator"},
-    {"src": ["30-36"], "model": "def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZE : Nat) : Kernel where", "note": "float32 pointers; n_elements is int32 (it fits); BLOCK_SIZE a constexpr"},
-    {"src": [39], "model": "let pid := tl.program_id ctx 0"},
-    {"src": [44], "model": "let block_start := pid * (IntV.ofNat BLOCK_SIZE : I32)"},
-    {"src": [45], "model": "let offsets := block_start + tl.arange 0 BLOCK_SIZE"},
-    {"src": [47], "model": "let mask := offsets.ltS n_elements"},
-    {"src": [50], "model": "let x ← tl.load (x_ptr + offsets) (some mask)", "note": "no `other`: disabled lanes unspecified"},
-    {"src": [51], "model": "let y ← tl.load (y_ptr + offsets) (some mask)"},
-    {"src": [52], "model": "let output ← tl.add x y", "note": "no product feeds the +: IEEE addition"},
-    {"src": [54], "model": "tl.store (output_ptr + offsets) output (some mask)"}
+    {"src": [29], "drop": "decl", "note": "the model is the `Kernel` `add_kernel`"},
+    {"src": ["30-36"], "model": "def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZE : Nat) : Kernel where", "note": "the three pointers are `*fp32`; `n_elements` is `int32` (Triton passes an integer argument below 2^31 as `int32`; `Inst.ok` has n + BLOCK_SIZE ≤ 2^31); the constexpr `BLOCK_SIZE` is a Lean parameter"},
+    {"src": [39], "model": "let pid := tl.program_id ctx 0", "note": "axis 0 of the 1-D grid"},
+    {"src": [44], "model": "let block_start := pid * (IntV.ofNat BLOCK_SIZE : I32)", "note": "the constexpr becomes an `int32` constant; `int32` product"},
+    {"src": [45], "model": "let offsets := block_start + tl.arange 0 BLOCK_SIZE", "note": "scalar + tensor, `int32`"},
+    {"src": [47], "model": "let mask := offsets.ltS n_elements", "note": "the scalar `n_elements` broadcast against every lane, signed `int32` comparison"},
+    {"src": [50], "model": "let x ← tl.load (x_ptr + offsets) (some mask)", "note": "mask as in the source, no `other`"},
+    {"src": [51], "model": "let y ← tl.load (y_ptr + offsets) (some mask)", "note": "mask as in the source, no `other`"},
+    {"src": [52], "model": "let output ← tl.add x y", "note": "IEEE `tl.add`: both operands are loaded values, no product feeds the addition"},
+    {"src": [54], "model": "tl.store (output_ptr + offsets) output (some mask)", "note": "`output` is already `float32`, the pointer's dtype; mask as in the source"}
   ]
 }

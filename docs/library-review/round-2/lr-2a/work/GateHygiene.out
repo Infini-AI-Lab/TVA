@@ -1,0 +1,2 @@
+'Kernels.GateHygiene.main' depends on axioms: [propext]
+'Kernels.GateHygiene.consistent' depends on axioms: [propext, Classical.choice, Quot.sound]

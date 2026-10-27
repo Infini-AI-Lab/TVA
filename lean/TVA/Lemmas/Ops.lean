@@ -16,7 +16,10 @@ then a walk down the model's `do` block, applying the rule of each line.
   `safe_neg`, `safe_abs`, `safe_cvt`; `safe_maximum`, `safe_minimum` (`MaxRel`).
 * Fusable and platform operations: `safe_mul_add`, `safe_addc`, `safe_subc`, `safe_div`, `safe_math`, `safe_cvt8`, `safe_ftoi`, `safe_dot`, `safe_sum`/`sum1`/`sum0` (IEEE nodes),
   `safe_sumc`/`sum1c` (fusable nodes), the `…With` forms, `safe_max1`, `safe_dot_add`,
-  `safe_sum_bcast_mul`, `safe_maxAll`, `safe_max0`.
+  `safe_sum_bcast_mul`, `safe_maxAll`, `safe_max0`; index reductions: `safe_argmaxAll`,
+  `safe_argmax1`, `safe_argmax0`, with `Tree.eval_argCombine` (the result is a leaf) and
+  `Tree.eval_argCombine_first` (with `tie_break_left` on integers, the first index of the
+  maximum or minimum).
 * Integers and hints: `safe_idiv`, `safe_irem`, `safe_shl`, `safe_ashr`, `safe_lshr`, `safe_assume`,
   `safe_multiple_of(1)`, `safe_max_contiguous`, `safe_max_constancy`, and the any-rank
   `…N` forms; `safe_reshape_any`.
@@ -569,6 +572,177 @@ theorem safe_max0 {M N : Nat} (hm : 0 < M) (isMax : Bool) {x : Tensor [M, N] (Fl
       (fun a b => ⟨_, Or.inl (FloatV.NaNEq.refl (if isMax then FloatV.max a b else FloatV.min a b))⟩) _ _
   exact .pick ⟨Tensor.of1 (fun j => Classical.choose (hex j)), fun j =>
     ⟨Tree.seq M, Tree.seq_covers hm, Classical.choose_spec (hex j)⟩⟩ hk
+
+/-! ### Index reductions (`tl.argmaxAll`, `tl.argmax1`, `tl.argmax0`) -/
+
+/-- The pair `argCombine` keeps is one of its two operands. -/
+theorem tl.argCombine_eq_or {β : Type} [CmpKey β] (isMax tieLeft : Bool) (a b : β × Nat) :
+    tl.argCombine isMax tieLeft a b = a ∨ tl.argCombine isMax tieLeft a b = b := by
+  simp only [tl.argCombine]
+  by_cases h : ((if isMax then CmpKey.lt b.1 a.1 else CmpKey.lt a.1 b.1) ||
+      (tieLeft && CmpKey.eq a.1 b.1 && decide (a.2 < b.2))) = true
+  · exact Or.inl (if_pos h)
+  · exact Or.inr (if_neg h)
+
+/-- An index reduction returns one of its leaves: the index is a leaf of the tree, and the value
+is the element at that index. -/
+theorem Tree.eval_argCombine {β : Type} [CmpKey β] {isMax tieLeft : Bool} {g : Nat → β} :
+    ∀ {t : Tree} {p : β × Nat}, t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
+      (fun j => (g j, j)) p → p.2 ∈ t.leaves ∧ p.1 = g p.2
+  | .leaf i, _, .leaf _ => ⟨by simp [Tree.leaves], rfl⟩
+  | .node l r, _, .node (a := a) (b := b) ha hb hc => by
+    obtain ⟨hal, haf⟩ := Tree.eval_argCombine ha
+    obtain ⟨hbl, hbf⟩ := Tree.eval_argCombine hb
+    subst hc
+    rcases tl.argCombine_eq_or isMax tieLeft a b with h | h <;> rw [h]
+    · exact ⟨List.mem_append_left _ hal, haf⟩
+    · exact ⟨List.mem_append_right _ hbl, hbf⟩
+
+/-- `argCombine` always has a result. -/
+theorem tl.argCombine_total {β : Type} [CmpKey β] (isMax tieLeft : Bool) (a b : β × Nat) :
+    ∃ c, c = tl.argCombine isMax tieLeft a b := ⟨_, rfl⟩
+
+/-- `tl.argmaxAll` (`tl.max`/`tl.min` with `return_indices`, `tl.argmax`/`tl.argmin` of a rank-1
+tensor): never undefined; the rest runs for every pair some tree gives. -/
+theorem safe_argmaxAll {β : Type} [CmpKey β] [Inhabited β] {N : Nat} (hn : 0 < N)
+    (isMax tieLeft : Bool)
+    {x : Tensor [N] β} {k : β × I32 → Prog α}
+    (hk : ∀ r : β × I32, (∃ p : β × Nat, ∃ t : Tree, t.Covers N ∧
+        t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
+          (fun j => (if h : j < N then x.get1 ⟨j, h⟩ else default, j)) p ∧
+        r = (p.1, IntV.ofNat p.2)) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.argmaxAll isMax tieLeft x >>= k) := by
+  simp only [tl.argmaxAll, bind_eq, Prog.bind]
+  obtain ⟨p, hp⟩ := Tree.eval_exists (op := fun a b c => c = tl.argCombine isMax tieLeft a b)
+    (tl.argCombine_total isMax tieLeft) (fun j => (if h : j < N then x.get1 ⟨j, h⟩ else default, j)) (Tree.seq N)
+  exact .pick ⟨_, p, Tree.seq N, Tree.seq_covers hn, hp, rfl⟩ hk
+
+/-- `tl.argmax1` (axis 1 of a rank-2 tensor), as `safe_argmaxAll` for each row. -/
+theorem safe_argmax1 {β : Type} [CmpKey β] [Inhabited β] {M N : Nat} (hn : 0 < N)
+    (isMax tieLeft : Bool)
+    {x : Tensor [M, N] β} {k : Tensor [M] β × Tensor [M] I32 → Prog α}
+    (hk : ∀ r : Tensor [M] β × Tensor [M] I32, (∀ i, ∃ p : β × Nat, ∃ t : Tree, t.Covers N ∧
+        t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
+          (fun j => (if h : j < N then x.get2 i ⟨j, h⟩ else default, j)) p ∧
+        r.1.get1 i = p.1 ∧ r.2.get1 i = IntV.ofNat p.2) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.argmax1 isMax tieLeft x >>= k) := by
+  simp only [tl.argmax1, bind_eq, Prog.bind]
+  have hex : ∀ i : Fin M, ∃ p, (Tree.seq N).Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
+      (fun j => (if h : j < N then x.get2 i ⟨j, h⟩ else default, j)) p :=
+    fun i => Tree.eval_exists (op := fun a b c => c = tl.argCombine isMax tieLeft a b)
+      (tl.argCombine_total isMax tieLeft) _ _
+  exact .pick ⟨(Tensor.of1 fun i => (Classical.choose (hex i)).1,
+      Tensor.of1 fun i => IntV.ofNat (Classical.choose (hex i)).2), fun i =>
+    ⟨_, Tree.seq N, Tree.seq_covers hn, Classical.choose_spec (hex i), rfl, rfl⟩⟩ hk
+
+/-- `tl.argmax0` (axis 0 of a rank-2 tensor), as `safe_argmaxAll` for each column. -/
+theorem safe_argmax0 {β : Type} [CmpKey β] [Inhabited β] {M N : Nat} (hm : 0 < M)
+    (isMax tieLeft : Bool)
+    {x : Tensor [M, N] β} {k : Tensor [N] β × Tensor [N] I32 → Prog α}
+    (hk : ∀ r : Tensor [N] β × Tensor [N] I32, (∀ j, ∃ p : β × Nat, ∃ t : Tree, t.Covers M ∧
+        t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
+          (fun i => (if h : i < M then x.get2 ⟨i, h⟩ j else default, i)) p ∧
+        r.1.get1 j = p.1 ∧ r.2.get1 j = IntV.ofNat p.2) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.argmax0 isMax tieLeft x >>= k) := by
+  simp only [tl.argmax0, bind_eq, Prog.bind]
+  have hex : ∀ j : Fin N, ∃ p, (Tree.seq M).Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
+      (fun i => (if h : i < M then x.get2 ⟨i, h⟩ j else default, i)) p :=
+    fun j => Tree.eval_exists (op := fun a b c => c = tl.argCombine isMax tieLeft a b)
+      (tl.argCombine_total isMax tieLeft) _ _
+  exact .pick ⟨(Tensor.of1 fun j => (Classical.choose (hex j)).1,
+      Tensor.of1 fun j => IntV.ofNat (Classical.choose (hex j)).2), fun j =>
+    ⟨_, Tree.seq M, Tree.seq_covers hm, Classical.choose_spec (hex j), rfl, rfl⟩⟩ hk
+
+/-- `CmpKey`'s `<` on integers is the order of their values. -/
+theorem IntV.cmpKey_lt {sg : Bool} {w : Nat} (a b : IntV sg w) :
+    CmpKey.lt a b = true ↔ a.toInt < b.toInt := by
+  show IntV.lt a b = true ↔ _
+  cases sg
+  · simp only [IntV.lt, IntV.toInt, Bool.false_eq_true, ite_false, BitVec.ult_iff_lt]
+    simp [BitVec.lt_def]
+  · simp only [IntV.lt, IntV.toInt, ite_true]
+    exact BitVec.slt_iff_toInt_lt
+
+/-- `CmpKey`'s `==` on integers is the equality of their values. -/
+theorem IntV.cmpKey_eq {sg : Bool} {w : Nat} (a b : IntV sg w) :
+    CmpKey.eq a b = true ↔ a.toInt = b.toInt := by
+  show IntV.eq a b = true ↔ _
+  cases sg
+  · simp only [IntV.eq, IntV.toInt, Bool.false_eq_true, ite_false, beq_iff_eq, Nat.cast_inj]
+    exact ⟨fun h => h ▸ rfl, fun h => BitVec.eq_of_toNat_eq h⟩
+  · simp only [IntV.eq, IntV.toInt, ite_true, beq_iff_eq]
+    exact ⟨fun h => h ▸ rfl, fun h => BitVec.eq_of_toInt_eq h⟩
+
+section ArgFirst
+variable {β : Type} [CmpKey β] (key : β → Int)
+  (hlt : ∀ u v : β, CmpKey.lt u v = true ↔ key u < key v)
+  (heq : ∀ u v : β, CmpKey.eq u v = true ↔ key u = key v)
+
+include hlt heq in
+/-- With `tie_break_left`, on keys ordered by `key`, `argCombine` keeps the pair whose value is
+better (greater for `isMax`, smaller otherwise), and on equal values the smaller index. -/
+theorem tl.argCombine_tieLeft (isMax : Bool) (a b : β × Nat) :
+    tl.argCombine isMax true a b =
+      if (if isMax then key b.1 < key a.1 else key a.1 < key b.1) ∨
+          (key a.1 = key b.1 ∧ a.2 < b.2) then a else b := by
+  have hw : ((if isMax then CmpKey.lt b.1 a.1 else CmpKey.lt a.1 b.1) ||
+      (true && CmpKey.eq a.1 b.1 && decide (a.2 < b.2))) = true ↔
+      ((if isMax then key b.1 < key a.1 else key a.1 < key b.1) ∨ (key a.1 = key b.1 ∧ a.2 < b.2)) := by
+    cases isMax <;> simp [hlt, heq]
+  simp only [tl.argCombine]
+  by_cases h : (if isMax then key b.1 < key a.1 else key a.1 < key b.1) ∨ (key a.1 = key b.1 ∧ a.2 < b.2)
+  · rw [if_pos (hw.mpr h), if_pos h]
+  · have h' : ¬ (((if isMax then CmpKey.lt b.1 a.1 else CmpKey.lt a.1 b.1) ||
+        (true && CmpKey.eq a.1 b.1 && decide (a.2 < b.2))) = true) := fun h' => h (hw.mp h')
+    rw [if_neg h', if_neg h]
+
+include hlt heq in
+/-- **`tl.argmax`/`tl.argmin` with `tie_break_left` on integers.** Over any tree whose leaves are
+distinct, the reduction of `(g j, j)` gives a leaf `p.2` whose value is a maximum (`isMax`) or
+minimum of the leaves' values, and the smallest such leaf. With `t.Covers n` the leaves are
+`0, …, n-1`, so `p.2` is the first index of the maximum (minimum). -/
+theorem Tree.eval_argCombine_first (isMax : Bool) (g : Nat → β) :
+    ∀ {t : Tree} {p : β × Nat}, t.leaves.Nodup →
+      t.Eval (fun a b c => c = tl.argCombine isMax true a b) (fun j => (g j, j)) p →
+      p.2 ∈ t.leaves ∧ p.1 = g p.2 ∧ ∀ j ∈ t.leaves,
+        (if isMax then key (g j) ≤ key (g p.2) else key (g p.2) ≤ key (g j)) ∧
+        (key (g j) = key (g p.2) → p.2 ≤ j)
+  | .leaf i, _, _, .leaf _ => by
+    refine ⟨by simp [Tree.leaves], rfl, fun j hj => ?_⟩
+    simp only [Tree.leaves, List.mem_singleton] at hj
+    subst hj; cases isMax <;> simp
+  | .node l r, _, hnd, .node (a := ⟨va, ia⟩) (b := ⟨vb, ib⟩) ha hb hc => by
+    simp only [Tree.leaves, List.nodup_append] at hnd
+    obtain ⟨hndl, hndr, hdisj⟩ := hnd
+    obtain ⟨hal, haf, hab⟩ := Tree.eval_argCombine_first isMax g hndl ha
+    obtain ⟨hbl, hbf, hbb⟩ := Tree.eval_argCombine_first isMax g hndr hb
+    simp only at hal haf hab hbl hbf hbb
+    subst haf hbf hc
+    rw [tl.argCombine_tieLeft key hlt heq]
+    simp only [Tree.leaves, List.mem_append]
+    by_cases hw : (if isMax then key (g ib) < key (g ia) else key (g ia) < key (g ib)) ∨
+        (key (g ia) = key (g ib) ∧ ia < ib)
+    · rw [if_pos hw]
+      refine ⟨Or.inl hal, rfl, fun j hj => ?_⟩
+      rcases hj with hj | hj
+      · exact hab j hj
+      · obtain ⟨h1, h2⟩ := hbb j hj
+        have hjne : ia ≠ j := hdisj _ hal _ hj
+        cases isMax <;> simp only [Bool.false_eq_true, ite_false, ite_true] at hw h1 ⊢ <;>
+          exact ⟨by omega, fun e => by omega⟩
+    · rw [if_neg hw]
+      refine ⟨Or.inr hbl, rfl, fun j hj => ?_⟩
+      rcases hj with hj | hj
+      · obtain ⟨h1, h2⟩ := hab j hj
+        have hne : ia ≠ ib := hdisj _ hal _ hbl
+        cases isMax <;> simp only [Bool.false_eq_true, ite_false, ite_true] at hw h1 ⊢ <;>
+          exact ⟨by omega, fun e => by omega⟩
+      · exact hbb j hj
+
+end ArgFirst
 
 /-- Products of a float dtype exist. -/
 theorem tl.MulRel.total {d : DType} (hd : d = .f16 ∨ d = .bf16 ∨ d = .f32 ∨ d = .f64) :

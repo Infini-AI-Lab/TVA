@@ -1,0 +1,2 @@
+Kernels.RuleKinds.chosenConstants: constants the gate sees [TVA.Platform, TVA.Rules.Num.DivAcc, TVA.Math.Float.Format.binary32]; kernel-own []; TVA.Rules [TVA.Rules.Num.DivAcc]; kinds check passes: true
+Kernels.RuleKinds.extraConjunct: constants the gate sees [TVA.Claim.Behaviour, Kernels.RuleKinds.Inst, TVA.Platform, TVA.Rules.Compiler.Faithful, Kernels.RuleKinds.model, Kernels.RuleKinds.launch, TVA.Mem, TVA.Claim.Outcome.fault]; kernel-own []; TVA.Rules [TVA.Rules.Compiler.Faithful]; kinds check passes: true

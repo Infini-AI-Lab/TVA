@@ -11,10 +11,27 @@ claim about the device.
 `meets_independent`: the same claim from per-program proofs (`Safe`) with footprints that do
 not conflict across programs (`TVA.Lemmas.Independent`). Most kernel proofs end with this
 lemma.
+
+`Launch.valid_grid1`: a one-dimensional grid of fewer than `2^31` programs, with block shapes
+Triton accepts (and the defaults `num_ctas = 1`, no programmatic dependent launch), is
+`Launch.Valid` (both lemmas need validity).
 -/
 namespace TVA
 
 open TVA.Claim
+
+/-- A one-dimensional grid of `n` programs has `n` programs. -/
+theorem Launch.size_grid1 (n : Nat) (blocks : List Shape) (fusion : Bool) :
+    (Launch.grid1 n blocks fusion).size = n := by
+  simp [Launch.size, Launch.grid1]
+
+/-- A one-dimensional launch is valid when it has fewer than `2^31` programs and Triton accepts
+its block shapes: the bound on `x` is also the bound on the program count (`grid1` keeps the
+defaults `num_ctas = 1` and `launch_pdl = False`). -/
+theorem Launch.valid_grid1 {n : Nat} {blocks : List Shape} {fusion : Bool} (hn : n < 2 ^ 31)
+    (hb : ∀ s ∈ blocks, s.TritonOk) : (Launch.grid1 n blocks fusion).Valid :=
+  ⟨by simpa [Launch.grid1] using hn, by simp [Launch.grid1], by simp [Launch.grid1],
+    by rw [Launch.size_grid1]; exact hn, rfl, rfl, hb⟩
 
 theorem meets_of_faithful {Inst : Type} {ok : Inst → Prop} {Pre : Inst → Mem → Prop}
     {Post : Inst → Mem → Mem → Prop} {model : Inst → Kernel} {launch : Inst → Launch}

@@ -1,0 +1,16 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+B= 1024 num_warps= 4 reversed read-back, no barrier          :  33320002 of 83886080 elements differ from what the program wrote (33320002 still hold the sentinel)
+B= 1024 num_warps= 4 reversed read-back, tl.debug_barrier()  :         0 of 83886080 elements differ from what the program wrote (0 still hold the sentinel)
+B= 1024 num_warps= 4 same-offset read-back, no barrier       :         0 of 83886080 elements differ from what the program wrote (0 still hold the sentinel)
+B= 1024 num_warps= 4 war: in-place reversed copy             :    253348 of 83886080 elements differ from the sequential result
+B= 1024 num_warps= 4 waw: second store reversed              :         0 of 83886080 elements differ from the sequential result
+B= 4096 num_warps= 8 reversed read-back, no barrier          :  79430750 of 335544320 elements differ from what the program wrote (79430750 still hold the sentinel)
+B= 4096 num_warps= 8 reversed read-back, tl.debug_barrier()  :         0 of 335544320 elements differ from what the program wrote (0 still hold the sentinel)
+B= 4096 num_warps= 8 same-offset read-back, no barrier       :         0 of 335544320 elements differ from what the program wrote (0 still hold the sentinel)
+B= 4096 num_warps= 8 war: in-place reversed copy             :   5497956 of 335544320 elements differ from the sequential result
+B= 4096 num_warps= 8 waw: second store reversed              :         0 of 335544320 elements differ from the sequential result
+B= 8192 num_warps=16 reversed read-back, no barrier          : 174843060 of 671088640 elements differ from what the program wrote (174843060 still hold the sentinel)
+B= 8192 num_warps=16 reversed read-back, tl.debug_barrier()  :         0 of 671088640 elements differ from what the program wrote (0 still hold the sentinel)
+B= 8192 num_warps=16 same-offset read-back, no barrier       :         0 of 671088640 elements differ from what the program wrote (0 still hold the sentinel)
+B= 8192 num_warps=16 war: in-place reversed copy             :  23924899 of 671088640 elements differ from the sequential result
+B= 8192 num_warps=16 waw: second store reversed              :         0 of 671088640 elements differ from the sequential result

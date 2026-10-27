@@ -26,8 +26,9 @@ whether the prover's choices are right. You do not change the kernel; you raise 
 - the lemmas.
 
 You need not know how Triton compiles anything, and you do not read compiler sources or PTX,
-consult other projects, or run the kernel. A launch Triton rejects before it runs (resources,
-unsupported sizes) has no outcome, so whether the kernel compiles is not part of the claim.
+consult other projects, or run the kernel. A launch that Triton reports to the host with an
+error before it runs (resources, unsupported sizes) has no outcome, so whether the kernel
+compiles is not part of the claim.
 
 If you doubt the library, file a `LIBRARY_REPORT` and carry on as if the library were right. It
 does not block the kernel.
@@ -35,11 +36,15 @@ does not block the kernel.
 ## 1. The model and the map (`MODEL_MISMATCH`, `MAP_INCOMPLETE`, `UNSUPPORTED`)
 
 Read the source and the model side by side; claim.md §6 shows the model map.
-- **Each mapped line.** Is the model text what the transcription rule for that construct gives?
-  The usual slips: a missing conversion or broadcast, an IEEE `+` that a product feeds, a
-  different `mask` or `other`, a loop bound or carried variable, a hint left out.
-- **Each drop.** Is it one of the rules' drop reasons, and does its note hold on every covered
-  instance?
+- **Each mapped line.** Is the model text what the transcription rules give for that construct,
+  and does the entry name every rule it applies (its `rules`, shown in brackets in claim.md §6,
+  with the rules' text below the map)? A rule left out of an entry is `MAP_INCOMPLETE`: a later
+  change to that rule would not re-open the kernel. The usual slips: a missing conversion or
+  broadcast, an IEEE `+` that a product feeds, a different `mask` or `other`, a loop bound or
+  carried variable, a hint left out, an integer `tl.max` without its widening to `int32`.
+- **Each drop.** Is it one of the drop reasons (each a rule of TRANSCRIPTION.md §10), and does
+  its note hold on every covered instance? For `no-op:print`, `compile-check` and `dead`, is every
+  operand of a pure type (the rule `[pure]`: no aggregate class)?
 - **Names.** Print the model with full names (`set_option pp.fullNames true`, `#print`): every
   operation is `TVA.*`. The gate also checks that the kernel declares nothing in `TVA` and no
   instance of a library class.
