@@ -1,0 +1,73 @@
+{
+  "checks": [
+    {
+      "detail": "source/08-grouped-gemm.py sha256 0b474fc69d34dfde",
+      "name": "source",
+      "ok": true
+    },
+    {
+      "detail": "lake build GroupedGemm",
+      "name": "build",
+      "ok": true
+    },
+    {
+      "detail": "no sorry, admit, native_decide, axiom, extern or unsafe",
+      "name": "hygiene",
+      "ok": true
+    },
+    {
+      "detail": "main : ∀ K P, Assumptions K P → Spec K; consistent : Claim.Consistent Assumptions; Spec K = Meets Inst.ok Pre Post K",
+      "name": "shape",
+      "ok": true
+    },
+    {
+      "detail": "consistent: propext, Classical.choice, Quot.sound; main: propext, Classical.choice, Quot.sound",
+      "name": "axioms",
+      "ok": true
+    },
+    {
+      "detail": "every assumption is used by main",
+      "name": "usage",
+      "ok": true
+    },
+    {
+      "detail": "the kernel declares nothing in TVA and no instance of a library class",
+      "name": "namespace",
+      "ok": true
+    },
+    {
+      "detail": "dotTotal: a [rule] must cite a TVA.Rules fact with no constant of the kernel's own (cfg); dotAcc: a [rule] must cite a TVA.Rules fact with no constant of the kernel's own (abs, cfg, rel)",
+      "name": "kinds",
+      "ok": false
+    },
+    {
+      "detail": "entry 29: drop reason 'no-op:block-arg-hint' is not allowed",
+      "name": "map",
+      "ok": false
+    },
+    {
+      "detail": "README.md has the sections Specification, Conditions, Assumptions, Proof",
+      "name": "doc",
+      "ok": true
+    }
+  ],
+  "digest": "934a161c0fdbd7ff2b4b702b1426162aa70946d2c0f78e0787d918717c00653f",
+  "items": {
+    "assumption:dotAcc": "2aaf8b1aee782477728c6492080848f65e40c529b925737f4faecabbfb26ee0d",
+    "assumption:dotTotal": "022f684afd7d5a4b4543e369c521741583b3853382f8b18410d926d5d3321d6c",
+    "assumption:faithful": "1763b5faa61d09241e8886f03f6940179ca512757b9387a331afc822f5e6ebf0",
+    "conditions": "2f403107f08ddbeded010ca878e816894f3750ecdec1dec286bef27f22f7a2c4",
+    "map": "5faeb7f8b655bc21d5b5b60d85b2efbe2db76b90b3f1734b17109212ebb460ce",
+    "model": "df1ca1d794a3cc839bc0050f66e30632b1b287bad36f74c211e135d0df3db6a2",
+    "spec": "592f38f6369fa37c937e0a1aee19f66e5553e6a99b60f7ef063d9e99ed246226"
+  },
+  "kernel": "grouped_gemm_f16",
+  "kinds": {
+    "dotAcc": "rule",
+    "dotTotal": "rule",
+    "faithful": "rule"
+  },
+  "ok": false,
+  "protocol": "tvr-2",
+  "time": "2026-10-27T17:01:02Z"
+}

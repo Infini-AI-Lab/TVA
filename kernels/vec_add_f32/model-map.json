@@ -1,0 +1,14 @@
+{
+  "entries": [
+    {"src": [29], "drop": "decl", "note": "decorator"},
+    {"src": ["30-36"], "model": "def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZE : Nat) : Kernel where", "note": "float32 pointers; n_elements is int32 (it fits); BLOCK_SIZE a constexpr"},
+    {"src": [39], "model": "let pid := tl.program_id ctx 0"},
+    {"src": [44], "model": "let block_start := pid * (IntV.ofNat BLOCK_SIZE : I32)"},
+    {"src": [45], "model": "let offsets := block_start + tl.arange 0 BLOCK_SIZE"},
+    {"src": [47], "model": "let mask := offsets.ltS n_elements"},
+    {"src": [50], "model": "let x ← tl.load (x_ptr + offsets) (some mask)", "note": "no `other`: disabled lanes unspecified"},
+    {"src": [51], "model": "let y ← tl.load (y_ptr + offsets) (some mask)"},
+    {"src": [52], "model": "let output ← tl.add x y", "note": "no product feeds the +: IEEE addition"},
+    {"src": [54], "model": "tl.store (output_ptr + offsets) output (some mask)"}
+  ]
+}

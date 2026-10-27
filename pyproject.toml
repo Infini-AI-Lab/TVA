@@ -1,0 +1,24 @@
+[project]
+name = "tva"
+version = "0.1.0"
+description = "Small Triton verification library: real computation, memory/concurrency, separate numerical refinement"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+triton = ["triton==3.8.0"]
+test = ["pytest>=8"]
+
+[project.scripts]
+tva = "tva.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["tva*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["gpu: executes Triton on a GPU", "lean: checks Lean proofs"]

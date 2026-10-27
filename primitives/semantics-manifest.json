@@ -1,0 +1,293 @@
+{
+  "triton": "3.8.0",
+  "sources": [
+    {
+      "source": "triton-3.8.0-language-api.py",
+      "sha256": "db2c88a5ae26a73b1d496abdf6aec391f320cab4fbd3318d6b937696681168d4",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/__init__.py"
+    },
+    {
+      "source": "triton-3.8.0-semantic.py",
+      "sha256": "0d99c1f30bdb86bd718c98bf026ced2a84a878f79630fa9b3fe099ce46e86ebd",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/semantic.py"
+    },
+    {
+      "source": "triton-3.8.0-core.py",
+      "sha256": "b4966729f21f0db6f20fa4cb9b2b5402c5735e1424ffba05dbd8f480dedee790",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/core.py"
+    },
+    {
+      "source": "triton-3.8.0-standard.py",
+      "sha256": "113296c74fb8b8dcf67a1b82f71926842eb66d0c77fe2c4f8d0f315715a38fd4",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/standard.py"
+    },
+    {
+      "source": "triton-3.8.0-math.py",
+      "sha256": "08abee21ce6230a873ed0831f70f9570b7ce39969dbf9b2f28ae1a1992ee1cc7",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/math.py"
+    },
+    {
+      "source": "triton-3.8.0-target-info.py",
+      "sha256": "18ba36f0d8827d4807c631a2b92f9615eb56c8aa7f914964a0bb6f2ba69f344d",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/target_info.py"
+    },
+    {
+      "source": "triton-3.8.0-utils.py",
+      "sha256": "8712b84835ee407e852605acf697395e3b79c91025f1d0ef58b0c678578938dd",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/_utils.py"
+    },
+    {
+      "source": "triton-3.8.0-code-generator.py",
+      "sha256": "e7b75e513fb868674fd2adc660c6527e4ad9e74f01120d8e2b1ad243329a0c92",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/compiler/code_generator.py"
+    },
+    {
+      "source": "triton-3.8.0-ScanOpToLLVM.cpp",
+      "sha256": "b005b544289d517c6afed03a4bdb52c3e7a02e8403bad866df136366bf41545b",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Conversion/TritonGPUToLLVM/ScanOpToLLVM.cpp"
+    },
+    {
+      "source": "triton-3.8.0-ReduceScanCommon.h",
+      "sha256": "8aab52cda7a32ea57ffcd64d7144a2a70886d24b08ed7b9ff532d131ef231051",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Conversion/TritonGPUToLLVM/ReduceScanCommon.h"
+    },
+    {
+      "source": "triton-3.8.0-Combine.cpp",
+      "sha256": "5d5953d48be5a5d8891d4d243136d8ffac6d001f1886e63c48a9c464f7cc243e",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Dialect/Triton/Transforms/Combine.cpp"
+    },
+    {
+      "source": "triton-3.8.0-nvidia-compiler.py",
+      "sha256": "e898d9a654e9e51aecb43b263fe61102f7162375c4275307fd1830d18b814eb8",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/third_party/nvidia/backend/compiler.py"
+    },
+    {
+      "source": "triton-3.8.0-llvm.cc",
+      "sha256": "76553aaba27b4988fe30293675a0e88d383abb3b4a35cb67f642bac6bb59b3f6",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/src/llvm.cc"
+    },
+    {
+      "source": "triton-3.8.0-triton_nvidia.cc",
+      "sha256": "c6d7355a419f2efa86fe4e5680005cb0210461f0579fad9ca76de6f277c4c9b4",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/third_party/nvidia/triton_nvidia.cc"
+    },
+    {
+      "source": "triton-3.8.0-nvidia-ElementwiseOpToLLVM.cpp",
+      "sha256": "fdd88c931d4b3fcce703d96d764de13377a04f8147dac06badf1b44aa6f8d037",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/ElementwiseOpToLLVM.cpp"
+    },
+    {
+      "source": "triton-3.8.0-nvidia-LoadStoreOpToLLVM.cpp",
+      "sha256": "2e00e6008f6c952055ce1a2f180907a7cb82e8b3e4a8acf31d79aff992c54b2c",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/LoadStoreOpToLLVM.cpp"
+    },
+    {
+      "source": "triton-3.8.0-PTXAsmFormat.cpp",
+      "sha256": "103114007392dcea03434433f52fce1d4d74ce345193754e75017cd08a000ccb",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/third_party/nvidia/lib/TritonNVIDIAGPUToLLVM/PTXAsmFormat.cpp"
+    },
+    {
+      "source": "triton-3.8.0-Ops.cpp",
+      "sha256": "9dab44fe94e852e4f01e05a7fd8c88084e206d62c1d205c0953dbf89280bd86a",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Dialect/Triton/IR/Ops.cpp"
+    },
+    {
+      "source": "triton-3.8.0-TritonOps.td",
+      "sha256": "0d1eba77b5da9e94c89f7f7e4ee18946ce15babb15eb3afe84035ac2d762ba47",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/include/triton/Dialect/Triton/IR/TritonOps.td"
+    },
+    {
+      "source": "triton-3.8.0-DecomposeScaledBlocked.cpp",
+      "sha256": "0bc780febab0e5c4e53699bff53c803881e4090a802e897d9601d73ea2cbec1b",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Dialect/TritonGPU/Transforms/DecomposeScaledBlocked.cpp"
+    },
+    {
+      "source": "llvm-NVPTXIntrinsics.td",
+      "sha256": "24390967f2716f8f1d68cce040a3a3e0f4380f9ac1875d36104f255d761640ed",
+      "upstream": "https://github.com/llvm/llvm-project/blob/5f07f818b51b786b0a87b4e514882600ecba112f/llvm/lib/Target/NVPTX/NVPTXIntrinsics.td"
+    },
+    {
+      "source": "llvm-NVPTXInstrInfo.td",
+      "sha256": "dd048c313ae8a843a74361e002482bae3d6fa4df8f276f56a2b517e0cad74ef0",
+      "upstream": "https://github.com/llvm/llvm-project/blob/5f07f818b51b786b0a87b4e514882600ecba112f/llvm/lib/Target/NVPTX/NVPTXInstrInfo.td"
+    },
+    {
+      "source": "llvm-NVPTXTargetTransformInfo.cpp",
+      "sha256": "6baca1391214f41fbdb9f74476a0b01379982fe9cf48796e194a57caba73ab7c",
+      "upstream": "https://github.com/llvm/llvm-project/blob/5f07f818b51b786b0a87b4e514882600ecba112f/llvm/lib/Target/NVPTX/NVPTXTargetTransformInfo.cpp"
+    },
+    {
+      "source": "llvm-ArithOps.cpp",
+      "sha256": "bdc2d17ba8a5b026a9a020d664df1468b8ab87a4c01fec2c355217fc57ca470e",
+      "upstream": "https://github.com/llvm/llvm-project/blob/5f07f818b51b786b0a87b4e514882600ecba112f/mlir/lib/Dialect/Arith/IR/ArithOps.cpp"
+    },
+    {
+      "source": "llvm-ArithCanonicalization.td",
+      "sha256": "8fdd390be3edf9db3c969f9ee7cc517ce27ae1bb627546c234fc84a64d0d374b",
+      "upstream": "https://github.com/llvm/llvm-project/blob/5f07f818b51b786b0a87b4e514882600ecba112f/mlir/lib/Dialect/Arith/IR/ArithCanonicalization.td"
+    },
+    {
+      "source": "triton-3.8.0-llvm-info.json",
+      "sha256": "fc4f63eaad2b5b2a5d3f1e37d9c676b925572d681ecf993d50f6aac45cd67406",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/cmake/llvm-info.json"
+    },
+    {
+      "source": "triton-3.8.0-ir.cc",
+      "sha256": "6d24c0ebf02117363fcb7ee65af3b142ecf581bc860c3691a1d241a482548f55",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/src/ir.cc"
+    },
+    {
+      "source": "triton-3.8.0-AxisInfo.cpp",
+      "sha256": "38a037900f5f8fbd75bfe6bf41a423eaa19978fe2f6bdeaf0aedfaad08cd1016",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Analysis/AxisInfo.cpp"
+    }
+  ],
+  "api_exports": [
+    "PropagateNan",
+    "TRITON_MAX_TENSOR_NUMEL",
+    "load_tensor_descriptor",
+    "store_tensor_descriptor",
+    "make_tensor_descriptor",
+    "tensor_descriptor",
+    "abs",
+    "add",
+    "advance",
+    "arange",
+    "argmax",
+    "argmin",
+    "associative_scan",
+    "assume",
+    "atomic_add",
+    "atomic_and",
+    "atomic_cas",
+    "atomic_max",
+    "atomic_min",
+    "atomic_or",
+    "atomic_xchg",
+    "atomic_xor",
+    "bfloat16",
+    "bitonic_merge",
+    "block_type",
+    "broadcast",
+    "broadcast_to",
+    "cat",
+    "cast",
+    "cdiv",
+    "ceil",
+    "clamp",
+    "condition",
+    "const",
+    "constexpr",
+    "constexpr_type",
+    "cos",
+    "cumprod",
+    "cumsum",
+    "debug_barrier",
+    "device_assert",
+    "device_print",
+    "div_rn",
+    "dot",
+    "dot_scaled",
+    "dtype",
+    "erf",
+    "exp",
+    "exp2",
+    "expand_dims",
+    "extra",
+    "fdiv",
+    "flip",
+    "float16",
+    "float32",
+    "float64",
+    "float8e4b15",
+    "float8e4nv",
+    "float8e4b8",
+    "float8e5",
+    "float8e5b16",
+    "floor",
+    "fma",
+    "full",
+    "gather",
+    "histogram",
+    "inline_asm_elementwise",
+    "interleave",
+    "int1",
+    "int16",
+    "int32",
+    "int64",
+    "int8",
+    "join",
+    "load",
+    "log",
+    "log2",
+    "make_block_ptr",
+    "map_elementwise",
+    "math",
+    "max",
+    "max_constancy",
+    "max_contiguous",
+    "maximum",
+    "min",
+    "minimum",
+    "mul",
+    "multiple_of",
+    "num_programs",
+    "pair_uniform_to_normal",
+    "permute",
+    "philox",
+    "philox_impl",
+    "pi32_t",
+    "pointer_type",
+    "program_id",
+    "rand",
+    "rand4x",
+    "randint",
+    "randint4x",
+    "randn",
+    "randn4x",
+    "range",
+    "ravel",
+    "reduce",
+    "reduce_or",
+    "reshape",
+    "rsqrt",
+    "slice",
+    "sigmoid",
+    "sin",
+    "softmax",
+    "sort",
+    "split",
+    "sqrt",
+    "sqrt_rn",
+    "squeeze",
+    "static_assert",
+    "static_print",
+    "static_range",
+    "store",
+    "sub",
+    "sum",
+    "swizzle2d",
+    "target_info",
+    "tensor",
+    "topk",
+    "to_tensor",
+    "trans",
+    "tuple",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uint8",
+    "expect_zero",
+    "uint_to_uniform_float",
+    "umulhi",
+    "unsqueeze",
+    "view",
+    "void",
+    "where",
+    "xor_sum",
+    "zeros",
+    "zeros_like"
+  ],
+  "scope": "Core Triton language, math and source control flow; Gluon and external-function implementations excluded.",
+  "llvm": "5f07f818b51b786b0a87b4e514882600ecba112f"
+}

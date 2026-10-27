@@ -1,0 +1,60 @@
+{
+  "version": "3.8.0",
+  "commit": "c01b6774b1865984607d89d89d3a10833de92037",
+  "excluded": [
+    "07-extern-functions.py",
+    "gluon/"
+  ],
+  "files": [
+    {
+      "file": "01-vector-add.py",
+      "sha256": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/01-vector-add.py"
+    },
+    {
+      "file": "02-fused-softmax.py",
+      "sha256": "8a65b696d5b02a3900380395ecd883671afeb66328db108f55622ed8853a05da",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/02-fused-softmax.py"
+    },
+    {
+      "file": "03-matrix-multiplication.py",
+      "sha256": "f88a9506694c58d483ad3cdb4aa672c23df0300803bcfaca13b9396184825008",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/03-matrix-multiplication.py"
+    },
+    {
+      "file": "04-low-memory-dropout.py",
+      "sha256": "43ea69769349d20654fe7bb983e60ad9c38591d195891caf3a56053d9b0ab788",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/04-low-memory-dropout.py"
+    },
+    {
+      "file": "05-layer-norm.py",
+      "sha256": "241f9f74e2f18567b26f3b4cf9b9873ae859150ccd10976d65d38fe24896d1d2",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/05-layer-norm.py"
+    },
+    {
+      "file": "06-fused-attention.py",
+      "sha256": "5b16be48b7b781ef018931c789b191f3390886ac479bb5df8a3418e5612ab317",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/06-fused-attention.py"
+    },
+    {
+      "file": "08-grouped-gemm.py",
+      "sha256": "0b474fc69d34dfde591454ca735d10abdc72bcc03d6b42530390aceaa2844c3b",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/08-grouped-gemm.py"
+    },
+    {
+      "file": "09-persistent-matmul.py",
+      "sha256": "26b19072955dd4472f9821d68c97943f625137f89850be1c5d9451cae3011aa3",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/09-persistent-matmul.py"
+    },
+    {
+      "file": "10-block-scaled-matmul.py",
+      "sha256": "22ca9616acab1ee6a017746cffc7bae5a34109510cc49f4a64e6d40cfc331885",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/10-block-scaled-matmul.py"
+    },
+    {
+      "file": "11-programmatic-dependent-launch.py",
+      "sha256": "773415d0a82c8b5c9895cfe87ead2e610c8ae56ae922475e87aa12991ba9be2e",
+      "url": "https://raw.githubusercontent.com/triton-lang/triton/c01b6774b1865984607d89d89d3a10833de92037/python/tutorials/11-programmatic-dependent-launch.py"
+    }
+  ]
+}

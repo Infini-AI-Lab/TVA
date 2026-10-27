@@ -1,0 +1,10 @@
+{
+  "triton": "3.8.0",
+  "primitives": [
+    {
+      "source": "triton-3.8.0-random.py",
+      "sha256": "1a7ae2a0c3de32df60ffc18f21a20f8dcf8bf3bc8cb018bb269b540533868829",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/random.py"
+    }
+  ]
+}

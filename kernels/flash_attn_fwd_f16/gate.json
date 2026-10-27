@@ -1,0 +1,87 @@
+{
+  "checks": [
+    {
+      "detail": "source/06-fused-attention.py sha256 5b16be48b7b781ef",
+      "name": "source",
+      "ok": true
+    },
+    {
+      "detail": "lake build FlashAttn",
+      "name": "build",
+      "ok": true
+    },
+    {
+      "detail": "no sorry, admit, native_decide, axiom, extern or unsafe",
+      "name": "hygiene",
+      "ok": true
+    },
+    {
+      "detail": "main : ∀ K P, Assumptions K P → Spec K; consistent : Claim.Consistent Assumptions; Spec K = Meets Inst.ok Pre Post K",
+      "name": "shape",
+      "ok": true
+    },
+    {
+      "detail": "consistent: propext, Classical.choice, Quot.sound; main: propext, Classical.choice, Quot.sound",
+      "name": "axioms",
+      "ok": true
+    },
+    {
+      "detail": "every assumption is used by main",
+      "name": "usage",
+      "ok": true
+    },
+    {
+      "detail": "the kernel declares nothing in TVA and no instance of a library class",
+      "name": "namespace",
+      "ok": true
+    },
+    {
+      "detail": "dotTotal: a [rule] must cite a TVA.Rules fact with no constant of the kernel's own (cfg); dotAcc: a [rule] must cite a TVA.Rules fact with no constant of the kernel's own (Err.absDot, Err.relDot, cfg); exp2Acc: a [rule] must cite a TVA.Rules fact with no constant of the kernel's own (Err.absE, Err.relE); exp2NegInf: a [rule] must cite a TVA.Rules fact with no constant of the kernel's own (zero32); log2Acc: a [rule] must cite a TVA.Rules fact with no constant of the kernel's own (Err.absL, Err.relL)",
+      "name": "kinds",
+      "ok": false
+    },
+    {
+      "detail": "57 entries cover every code line of [[47, 110], [176, 247]]",
+      "name": "map",
+      "ok": true
+    },
+    {
+      "detail": "README.md has the sections Specification, Conditions, Assumptions, Proof",
+      "name": "doc",
+      "ok": true
+    }
+  ],
+  "digest": "3c095d49f0df00700749e27614c92933f1fda0976c19a5568c9a307c736ef706",
+  "items": {
+    "assumption:divFull": "8b2ff07469cc1a9444648bfa1184d6d9d3ed062f57c34adbddf34b473514545c",
+    "assumption:divTotal": "b3dd168f9696246649a29a2f64ed92c1fe4dae7fc1bf074453b2967264400f31",
+    "assumption:dotAcc": "edad020d0f6443c2702c92f55fe969f4afc7a332840fab62af793dd03e971ee6",
+    "assumption:dotTotal": "6537c012e51287ef7175e9a074b657cea0864501e704e2b23ca8d1c2da7d7e0c",
+    "assumption:exp2Acc": "ae32645ffa067114bb1fd23a28be7bf63290efc0b76b21802d23f0067aef643b",
+    "assumption:exp2NegInf": "7fb4fc9b58b4481fc8f297427fa25de93b0f73cfdc89edb9bd69c04cdc5c1574",
+    "assumption:exp2Total": "46cde8ecaec8238b34e0a3348bbc66765fa54a81b92519e3a2d5c58b018391e4",
+    "assumption:faithful": "c4d7f2bd415655cf73a0b030409c39f5e2d292cf16598857eaf33613b419a134",
+    "assumption:log2Acc": "6b396f5ae0550cea7b5498cb6f482a232f65cc28f3da40935b38521717fc7ad8",
+    "assumption:log2Total": "2d859c99d7d9be48600333c91f44e99d94b55e7e86e198ba7d6e01edf11297ce",
+    "conditions": "28a980eb84b39507c6819da764422057a06b5c6261fb1c4e98d111c810e47e49",
+    "map": "f1d26bd611505d1807f5c7ca1e8326770ed0d11d03853b607535e864db2fb9c7",
+    "model": "cdc10a80b44a4535ba35e025129905120d07e931ad2b7d75a573a118717628ed",
+    "spec": "513aae76a9385be5d066edb5ee341fe278a2aa89b76079d663959cf2e132dcb8"
+  },
+  "kernel": "flash_attn_fwd_f16",
+  "kinds": {
+    "divFull": "rule",
+    "divTotal": "rule",
+    "dotAcc": "rule",
+    "dotTotal": "rule",
+    "exp2Acc": "rule",
+    "exp2NegInf": "rule",
+    "exp2Total": "rule",
+    "faithful": "rule",
+    "log2Acc": "rule",
+    "log2Total": "rule"
+  },
+  "ok": false,
+  "protocol": "tvr-2",
+  "time": "2026-10-27T17:01:17Z"
+}

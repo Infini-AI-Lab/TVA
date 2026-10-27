@@ -1,0 +1,69 @@
+{
+  "checks": [
+    {
+      "detail": "source/01-vector-add.py sha256 842430949e0ccde4",
+      "name": "source",
+      "ok": true
+    },
+    {
+      "detail": "lake build VecAdd",
+      "name": "build",
+      "ok": true
+    },
+    {
+      "detail": "no sorry, admit, native_decide, axiom, extern or unsafe",
+      "name": "hygiene",
+      "ok": true
+    },
+    {
+      "detail": "main : ∀ K P, Assumptions K P → Spec K; consistent : Claim.Consistent Assumptions; Spec K = Meets Inst.ok Pre Post K",
+      "name": "shape",
+      "ok": true
+    },
+    {
+      "detail": "consistent: propext, Classical.choice, Quot.sound; main: propext, Classical.choice, Quot.sound",
+      "name": "axioms",
+      "ok": true
+    },
+    {
+      "detail": "every assumption is used by main",
+      "name": "usage",
+      "ok": true
+    },
+    {
+      "detail": "the kernel declares nothing in TVA and no instance of a library class",
+      "name": "namespace",
+      "ok": true
+    },
+    {
+      "detail": "every assumption is a [rule] citing the library or a [kernel] fact about the kernel's own values",
+      "name": "kinds",
+      "ok": true
+    },
+    {
+      "detail": "10 entries cover every code line of [[29, 54]]",
+      "name": "map",
+      "ok": true
+    },
+    {
+      "detail": "README.md has the sections Specification, Conditions, Assumptions, Proof",
+      "name": "doc",
+      "ok": true
+    }
+  ],
+  "digest": "7e82dbbe04536c5b9d11fc9726e8758aa37566dce3c253d2bb95fd88c4dec714",
+  "items": {
+    "assumption:faithful": "85dd2387498f253ffa5f8a7e4264ded539015e2df9a589b8eb2a64d98bc61595",
+    "conditions": "5f454e09a02bfde40d05d69bbe592c89b7b2bd9297d5ec0b6d5da5526af52cab",
+    "map": "d9453a990b51f38151b4369865fccc8d33dc7436013351bba4061cde259cfa55",
+    "model": "a76f8f54e817c465c1a85055498b08794de9f069a89c0370e3bf08f0f9df80f6",
+    "spec": "aebb028a7e7c8f8e14c7d105cb0bbcabe9f7ecfe0197ce472ce287d314429133"
+  },
+  "kernel": "vec_add_f32",
+  "kinds": {
+    "faithful": "rule"
+  },
+  "ok": true,
+  "protocol": "tvr-2",
+  "time": "2026-10-27T17:00:47Z"
+}

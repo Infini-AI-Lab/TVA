@@ -1,0 +1,747 @@
+{
+  "triton": "3.8.0",
+  "commit": "c01b6774b1865984607d89d89d3a10833de92037",
+  "tutorials": [
+    {
+      "source": "01-vector-add.py",
+      "sha256": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3",
+      "functions": [
+        {
+          "name": "add_kernel",
+          "line": 30,
+          "end_line": 54,
+          "ast_sha256": "2cef6169a12121931f3d2f9ac354bb6ea20190d6a7487d47b31c56e26e24e5c8",
+          "operations": [
+            "tl.arange",
+            "tl.load",
+            "tl.program_id",
+            "tl.store"
+          ],
+          "helpers": [],
+          "other_calls": [],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    },
+    {
+      "source": "02-fused-softmax.py",
+      "sha256": "8a65b696d5b02a3900380395ecd883671afeb66328db108f55622ed8853a05da",
+      "functions": [
+        {
+          "name": "softmax_kernel",
+          "line": 85,
+          "end_line": 109,
+          "ast_sha256": "6e40cc0bc15fe0e5b89697a2fca4ea4c3e1a2f4b77a6d173110e5a35e7b6e70e",
+          "operations": [
+            "tl.arange",
+            "tl.exp",
+            "tl.load",
+            "tl.max",
+            "tl.num_programs",
+            "tl.program_id",
+            "tl.range",
+            "tl.store",
+            "tl.sum"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "float"
+          ],
+          "loops": [
+            "tl.range(row_start, n_rows, row_step, num_stages=num_stages)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    },
+    {
+      "source": "03-matrix-multiplication.py",
+      "sha256": "f88a9506694c58d483ad3cdb4aa672c23df0300803bcfaca13b9396184825008",
+      "functions": [
+        {
+          "name": "matmul_kernel",
+          "line": 233,
+          "end_line": 320,
+          "ast_sha256": "2a768e7f83915512224b00fd6f394cc5c9b913fe7942792d57737c07318c17ae",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.assume",
+            "tl.cdiv",
+            "tl.dot",
+            "tl.load",
+            "tl.program_id",
+            "tl.store",
+            "tl.zeros"
+          ],
+          "helpers": [
+            "leaky_relu"
+          ],
+          "other_calls": [
+            "get_autotune_config",
+            "min",
+            "range",
+            "triton.autotune"
+          ],
+          "loops": [
+            "range(0, tl.cdiv(K, BLOCK_SIZE_K))"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "leaky_relu",
+          "line": 325,
+          "end_line": 326,
+          "ast_sha256": "670693df624c6f2640a500a6806949d580761f02e38b83643a3cdc339a2be57f",
+          "operations": [
+            "tl.where"
+          ],
+          "helpers": [],
+          "other_calls": [],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    },
+    {
+      "source": "04-low-memory-dropout.py",
+      "sha256": "43ea69769349d20654fe7bb983e60ad9c38591d195891caf3a56053d9b0ab788",
+      "functions": [
+        {
+          "name": "_dropout",
+          "line": 45,
+          "end_line": 63,
+          "ast_sha256": "f2955ee1c16bf76d47c09c2064ee99849bb7ad8511d671df2884046387f366ff",
+          "operations": [
+            "tl.arange",
+            "tl.load",
+            "tl.program_id",
+            "tl.store",
+            "tl.where"
+          ],
+          "helpers": [],
+          "other_calls": [],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_seeded_dropout",
+          "line": 111,
+          "end_line": 131,
+          "ast_sha256": "ff1d709c42e9603348cd749fd56e565a0abbf1885e2287775cbe7d8b7a1dd0cf",
+          "operations": [
+            "tl.arange",
+            "tl.load",
+            "tl.program_id",
+            "tl.rand",
+            "tl.store",
+            "tl.where"
+          ],
+          "helpers": [],
+          "other_calls": [],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    },
+    {
+      "source": "05-layer-norm.py",
+      "sha256": "241f9f74e2f18567b26f3b4cf9b9873ae859150ccd10976d65d38fe24896d1d2",
+      "functions": [
+        {
+          "name": "_layer_norm_fwd_fused",
+          "line": 49,
+          "end_line": 95,
+          "ast_sha256": "75b3ef8d8f8f7756e1d84d995d02488683cf8ae85fce97f9c3467d89497b0f7e",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.load",
+            "tl.program_id",
+            "tl.sqrt",
+            "tl.store",
+            "tl.sum",
+            "tl.where",
+            "tl.zeros"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "range"
+          ],
+          "loops": [
+            "range(0, N, BLOCK_SIZE)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_layer_norm_bwd_dx_fused",
+          "line": 133,
+          "end_line": 194,
+          "ast_sha256": "2312aba3c07cea3e63f996b39be60823a3f6032ad7444a927ac86af5f24bb1cf",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.atomic_cas",
+            "tl.atomic_xchg",
+            "tl.debug_barrier",
+            "tl.load",
+            "tl.program_id",
+            "tl.store",
+            "tl.sum",
+            "tl.where"
+          ],
+          "helpers": [],
+          "other_calls": [],
+          "loops": [
+            "while tl.atomic_cas(Lock, 0, 1) == 1"
+          ],
+          "atomics": [
+            "tl.atomic_cas",
+            "tl.atomic_xchg"
+          ],
+          "indirect_access": false
+        },
+        {
+          "name": "_layer_norm_bwd_dwdb",
+          "line": 198,
+          "end_line": 221,
+          "ast_sha256": "fca7bb3021c89f7aeab3449bea55db5755ce061d19c28ec6e7dd0db28dac17f5",
+          "operations": [
+            "tl.arange",
+            "tl.load",
+            "tl.program_id",
+            "tl.store",
+            "tl.sum",
+            "tl.zeros"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "range"
+          ],
+          "loops": [
+            "range(0, M, BLOCK_SIZE_M)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    },
+    {
+      "source": "06-fused-attention.py",
+      "sha256": "5b16be48b7b781ef018931c789b191f3390886ac479bb5df8a3418e5612ab317",
+      "functions": [
+        {
+          "name": "_attn_fwd_inner",
+          "line": 48,
+          "end_line": 110,
+          "ast_sha256": "bb1e1d2e32f7225d1135d74126bc6924859c5621909bd9f40e15a94154c91376",
+          "operations": [
+            "descriptor.load",
+            "tensor.permute",
+            "tensor.reshape",
+            "tensor.split",
+            "tensor.to",
+            "tl.dot",
+            "tl.join",
+            "tl.math.exp2",
+            "tl.max",
+            "tl.maximum",
+            "tl.multiple_of",
+            "tl.range",
+            "tl.sum",
+            "tl.where"
+          ],
+          "helpers": [],
+          "other_calls": [],
+          "loops": [
+            "tl.range(lo, hi, BLOCK_N, warp_specialize=warp_specialize)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_maybe_make_tensor_desc",
+          "line": 169,
+          "end_line": 173,
+          "ast_sha256": "d52f9442053566bc7cddd9723159ce335e6dbf2b62d77a9b868c58f7e465b1bf",
+          "operations": [
+            "tl.make_tensor_descriptor"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "isinstance"
+          ],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_attn_fwd",
+          "line": 179,
+          "end_line": 247,
+          "ast_sha256": "0c0cd020680b78078c4baab3a137d354c0c0378fad3bed4c696eba7abcb66222",
+          "operations": [
+            "descriptor.load",
+            "descriptor.store",
+            "tensor.to",
+            "tl.arange",
+            "tl.math.log2",
+            "tl.program_id",
+            "tl.static_assert",
+            "tl.store",
+            "tl.zeros"
+          ],
+          "helpers": [
+            "_attn_fwd_inner",
+            "_maybe_make_tensor_desc"
+          ],
+          "other_calls": [
+            "filter",
+            "float",
+            "list",
+            "triton.autotune"
+          ],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_attn_bwd_preprocess",
+          "line": 251,
+          "end_line": 264,
+          "ast_sha256": "62a8c04c8715d7967f00399a5a8355715ce64ff7eb1f1c6ec1555ed96779f17f",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.load",
+            "tl.program_id",
+            "tl.store",
+            "tl.sum"
+          ],
+          "helpers": [],
+          "other_calls": [],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_attn_bwd_dkdv",
+          "line": 269,
+          "end_line": 317,
+          "ast_sha256": "d87fc4463092adecc9be7b6b17bdac6b70e686c33be4f00b564f7f3d5f7d13aa",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.dot",
+            "tl.load",
+            "tl.math.exp2",
+            "tl.static_assert",
+            "tl.trans",
+            "tl.where"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "range"
+          ],
+          "loops": [
+            "range(num_steps)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_attn_bwd_dq",
+          "line": 322,
+          "end_line": 365,
+          "ast_sha256": "ee2a3ee5dbce40fdb80f5833f566a54808e29126b958240fadc7e9825aa1eb32",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.dot",
+            "tl.load",
+            "tl.math.exp2",
+            "tl.static_assert",
+            "tl.trans",
+            "tl.where"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "range"
+          ],
+          "loops": [
+            "range(num_steps)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_attn_bwd",
+          "line": 369,
+          "end_line": 502,
+          "ast_sha256": "e8a3e931c445d9bb86e5a728504b5d7aa3ef3888861a952fe0ff110e820472bb",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.load",
+            "tl.program_id",
+            "tl.store",
+            "tl.zeros"
+          ],
+          "helpers": [
+            "_attn_bwd_dkdv",
+            "_attn_bwd_dq"
+          ],
+          "other_calls": [],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    },
+    {
+      "source": "08-grouped-gemm.py",
+      "sha256": "0b474fc69d34dfde591454ca735d10abdc72bcc03d6b42530390aceaa2844c3b",
+      "functions": [
+        {
+          "name": "grouped_matmul_kernel",
+          "line": 94,
+          "end_line": 169,
+          "ast_sha256": "1d4f81710119f77d4ced085520662bf6ddef627f0c2cdb3661ac397420926ac7",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.cdiv",
+            "tl.dot",
+            "tl.load",
+            "tl.multiple_of",
+            "tl.pointer_type",
+            "tl.program_id",
+            "tl.store",
+            "tl.zeros"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "num_sms",
+            "range",
+            "triton.Config",
+            "triton.autotune"
+          ],
+          "loops": [
+            "range(0, tl.cdiv(k, BLOCK_SIZE_K))",
+            "range(group_size)",
+            "while tile_idx >= last_problem_end and tile_idx < last_problem_end + num_tiles"
+          ],
+          "atomics": [],
+          "indirect_access": true
+        },
+        {
+          "name": "grouped_matmul_tma_kernel",
+          "line": 231,
+          "end_line": 322,
+          "ast_sha256": "2672dc4b08a29204dc1fc89b09d02e209d96191b0570848f3abcd71d7617083b",
+          "operations": [
+            "descriptor.load",
+            "descriptor.store",
+            "tensor.to",
+            "tl.cdiv",
+            "tl.dot",
+            "tl.load",
+            "tl.make_tensor_descriptor",
+            "tl.pointer_type",
+            "tl.program_id",
+            "tl.zeros"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "range",
+            "triton.autotune"
+          ],
+          "loops": [
+            "range(0, tl.cdiv(k, BLOCK_SIZE_K))",
+            "range(group_size)",
+            "while tile_idx >= last_problem_end and tile_idx < last_problem_end + num_tiles"
+          ],
+          "atomics": [],
+          "indirect_access": true
+        }
+      ]
+    },
+    {
+      "source": "09-persistent-matmul.py",
+      "sha256": "26b19072955dd4472f9821d68c97943f625137f89850be1c5d9451cae3011aa3",
+      "functions": [
+        {
+          "name": "matmul_kernel",
+          "line": 107,
+          "end_line": 159,
+          "ast_sha256": "9a2558491795a6944b057532d8c12104cec12d84faca3a346d2a132887aec102",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.cdiv",
+            "tl.dot",
+            "tl.load",
+            "tl.max_contiguous",
+            "tl.multiple_of",
+            "tl.program_id",
+            "tl.store",
+            "tl.where",
+            "tl.zeros"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "matmul_get_configs",
+            "min",
+            "range",
+            "triton.autotune",
+            "triton.jit"
+          ],
+          "loops": [
+            "range(0, tl.cdiv(K, BLOCK_SIZE_K))"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "matmul_kernel_tma",
+          "line": 201,
+          "end_line": 239,
+          "ast_sha256": "a0e9220e9796d0c85e782d3e18ebb0df8aa67d47478a2538b0275a07047ae207",
+          "operations": [
+            "descriptor.load",
+            "descriptor.store",
+            "tensor.to",
+            "tl.cdiv",
+            "tl.dot",
+            "tl.program_id",
+            "tl.range",
+            "tl.zeros"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "matmul_get_configs",
+            "min",
+            "triton.autotune",
+            "triton.jit"
+          ],
+          "loops": [
+            "tl.range(k_tiles, warp_specialize=WARP_SPECIALIZE)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "_compute_pid",
+          "line": 274,
+          "end_line": 280,
+          "ast_sha256": "912feae73cca053c0933c393ac055c4fb2dbe56b99b927920cfa64f8b213aa07",
+          "operations": [],
+          "helpers": [],
+          "other_calls": [
+            "min"
+          ],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "matmul_kernel_persistent",
+          "line": 288,
+          "end_line": 343,
+          "ast_sha256": "13e6cab30f167b43adc30eb68f5465f8d571397dda6269cb16b0c0146139b3db",
+          "operations": [
+            "tensor.to",
+            "tl.arange",
+            "tl.cdiv",
+            "tl.dot",
+            "tl.load",
+            "tl.max_contiguous",
+            "tl.multiple_of",
+            "tl.program_id",
+            "tl.range",
+            "tl.store",
+            "tl.where",
+            "tl.zeros"
+          ],
+          "helpers": [
+            "_compute_pid"
+          ],
+          "other_calls": [
+            "matmul_get_configs",
+            "range",
+            "triton.autotune",
+            "triton.jit"
+          ],
+          "loops": [
+            "range(k_tiles)",
+            "tl.range(start_pid, num_tiles, NUM_SMS, flatten=True)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "matmul_kernel_tma_persistent",
+          "line": 390,
+          "end_line": 445,
+          "ast_sha256": "0f196c2827be6f090851791d2330e1f0738ab71ebd9166036a4b3d66a83fe0ae",
+          "operations": [
+            "descriptor.load",
+            "descriptor.store",
+            "tensor.to",
+            "tl.cdiv",
+            "tl.dot",
+            "tl.permute",
+            "tl.program_id",
+            "tl.range",
+            "tl.reshape",
+            "tl.split",
+            "tl.zeros"
+          ],
+          "helpers": [
+            "_compute_pid"
+          ],
+          "other_calls": [
+            "matmul_tma_persistent_get_configs",
+            "range",
+            "triton.autotune",
+            "triton.jit"
+          ],
+          "loops": [
+            "range(k_tiles)",
+            "tl.range(start_pid, num_tiles, NUM_SMS, flatten=True, warp_specialize=WARP_SPECIALIZE)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "matmul_kernel_descriptor_persistent",
+          "line": 495,
+          "end_line": 570,
+          "ast_sha256": "78c1fcf37b5c0f8c3c74829e37f56f79b4cf375ec189ab45003a589a2e3e03f3",
+          "operations": [
+            "descriptor.load",
+            "descriptor.store",
+            "tensor.to",
+            "tl.cdiv",
+            "tl.dot",
+            "tl.make_tensor_descriptor",
+            "tl.permute",
+            "tl.program_id",
+            "tl.range",
+            "tl.reshape",
+            "tl.split",
+            "tl.zeros"
+          ],
+          "helpers": [
+            "_compute_pid"
+          ],
+          "other_calls": [
+            "matmul_tma_persistent_get_configs",
+            "range",
+            "triton.autotune",
+            "triton.jit"
+          ],
+          "loops": [
+            "range(k_tiles)",
+            "tl.range(start_pid, num_tiles, NUM_SMS, flatten=FLATTEN, warp_specialize=WARP_SPECIALIZE)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    },
+    {
+      "source": "10-block-scaled-matmul.py",
+      "sha256": "22ca9616acab1ee6a017746cffc7bae5a34109510cc49f4a64e6d40cfc331885",
+      "functions": [
+        {
+          "name": "block_scaled_matmul_kernel",
+          "line": 175,
+          "end_line": 240,
+          "ast_sha256": "89d556f994fe8cdac10ef2a243f077534ba1d9fe4c3345d9dd83f79f585bfa3c",
+          "operations": [
+            "descriptor.load",
+            "descriptor.store",
+            "tensor.reshape",
+            "tensor.to",
+            "tensor.trans",
+            "tl.cdiv",
+            "tl.dot_scaled",
+            "tl.program_id",
+            "tl.range",
+            "tl.zeros"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "triton.jit"
+          ],
+          "loops": [
+            "tl.range(0, tl.cdiv(K, BLOCK_K), num_stages=NUM_STAGES, disallow_acc_multi_buffer=disallow_acc_multi_buffer)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        },
+        {
+          "name": "block_scaled_matmul_kernel_cdna4",
+          "line": 516,
+          "end_line": 593,
+          "ast_sha256": "88ebcd73ca92f1c7af37ac203b5892f010a336aadb1879b0a36d70c2ec247532",
+          "operations": [
+            "tensor.permute",
+            "tensor.reshape",
+            "tensor.to",
+            "tl.arange",
+            "tl.cdiv",
+            "tl.dot_scaled",
+            "tl.load",
+            "tl.program_id",
+            "tl.store",
+            "tl.zeros"
+          ],
+          "helpers": [],
+          "other_calls": [
+            "range"
+          ],
+          "loops": [
+            "range(0, num_k_iter)"
+          ],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    },
+    {
+      "source": "11-programmatic-dependent-launch.py",
+      "sha256": "773415d0a82c8b5c9895cfe87ead2e610c8ae56ae922475e87aa12991ba9be2e",
+      "functions": [
+        {
+          "name": "add_kernel",
+          "line": 28,
+          "end_line": 55,
+          "ast_sha256": "f7f294d325db82a9ba9d351107f9025694730f96c9550d2133fc8e7f3b6ffe1b",
+          "operations": [
+            "tl.arange",
+            "tl.extra.cuda.gdc_launch_dependents",
+            "tl.extra.cuda.gdc_wait",
+            "tl.load",
+            "tl.program_id",
+            "tl.store"
+          ],
+          "helpers": [],
+          "other_calls": [],
+          "loops": [],
+          "atomics": [],
+          "indirect_access": false
+        }
+      ]
+    }
+  ]
+}
