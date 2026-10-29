@@ -101,8 +101,7 @@ folders.
      operation but means something else is a `MODEL_MISMATCH`. Lean checks the proofs; the gate's
      `namespace` and `hygiene` checks are only a backstop.
 2. **The conditions** (`Inst.ok`, `Pre`):
-   - Do they cover the kernel's real use: the host code, the autotune configs, realistic sizes
-     and values?
+   - Do they cover the kernel's real use: the host code, realistic sizes and values?
    - Is every narrowing stated in the write-up?
    - Are they satisfiable?
 3. **The specification** (`Post`):

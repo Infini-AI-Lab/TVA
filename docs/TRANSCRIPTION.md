@@ -32,7 +32,8 @@ inlined `@triton.jit` helper is written where it is called, or as a Lean functio
 applies to the call's arguments.
 
 The source must stay inside the supported subset of Python (SEMANTICS.md, "The supported subset";
-library issue L88): a kernel that uses another form (a `break`, a `@triton.heuristics`, a bare
+library issue L88): a kernel that uses another form (a `break`, a `@triton.heuristics`, a
+`@triton.autotune`, a bare
 annotation, a `tl.constexpr(…)` global, a `for` loop's variable after the loop, …) has no claim yet,
 whatever its model says. Check that first.
 
@@ -216,10 +217,9 @@ What most often makes a model differ from its source, and what a reviewer should
   other than through Triton's API as the tutorials use it: `set_allocator`, a hook's `block_shape`),
   and the kernel new (the code the launch runs compiled for it, not code compiled for other values
   or settings and taken from Triton's caches)
-  ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"); with `@triton.autotune`,
-  `Inst` ranges over the configs the autotuner may pick, and `init` is the memory after the last
-  hook, not the caller's memory before the call, with the arguments the last hook leaves ("Which
-  launch"). Of these, the kernel and its launches (the options, `@triton.heuristics`, the
+  ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"); `init` is the memory when
+  the direct launch starts, not the caller's memory before the call ("Which launch"). Of these, the
+  kernel and its launches (the options, `@triton.heuristics`, the
   descriptor scratch, a precompiled kernel's arguments, host descriptors, graph capture) are part
   (A) of the scope, which the kernel reviewer checks; the rest is part (B), the environment, which
   TVA assumes and nobody checks.

@@ -56,8 +56,8 @@ non-negative and aligned to 4 bytes, the buffer inside `[0, 2^64)`, every byte p
 
 **The kernel and its launches are within part (A) of `Compiler.Faithful`'s scope**
 ([rule page](../../docs/rules/compiler-faithful.md), "Scope" (A) and the checklist of "How a
-bundle cites it"). Every launch the script makes is the JIT launch
-`add_kernel[grid](x, y, output, n_elements, BLOCK_SIZE=1024)` of `add` (line 75), called at line 89
+bundle cites it"). Every launch the script makes is a direct launch of the `@triton.jit` function,
+the JIT launch `add_kernel[grid](x, y, output, n_elements, BLOCK_SIZE=1024)` of `add` (line 75), called at line 89
 and, in the benchmark, through `triton.testing.do_bench(lambda: add(x, y), …)` (line 127). Point by
 point:
 
@@ -77,8 +77,9 @@ point:
   times plain calls of its function with CUDA events, not through `triton.testing.do_bench_cudagraph`;
   the script opens no `torch.cuda.graph` and makes no capture of its own.
 
-The kernel has no `@triton.autotune`, so the launch a call of `add` makes is the one the claim
-covers, from the memory at that launch.
+The kernel has no `@triton.autotune` (a source with it is outside the supported subset, and the
+rule covers no call of an autotuned kernel: rule page, "Which launch"), so a call of `add` makes
+this one direct launch, which the claim covers, from the memory at that launch.
 
 **Part (B) of the scope, the environment** (points 1, 2, 3, the environment's part of 4, 7, 10 and
 11), is an assumption of the rule: the claim relies on it, and TVA does not check it.
@@ -88,7 +89,12 @@ kernel is a top-level `def` under a bare `@triton.jit`; its parameters are three
 arguments), one unannotated integer (an `int` argument) and one `tl.constexpr` with an `int`
 argument, none with a default; its statements are assignments `name = e` and one call; its
 expressions are `tl.program_id(axis=0)`, `tl.arange`, `tl.load(…, mask=…)`, `tl.store(…, mask=…)`,
-`*`, `+` and one `<`, on `int32` and `float32` values. The only module-level names it reads are
+`*`, `+` and one `<`. The `*` of line 44 multiplies the `int32` program id by the constexpr
+`BLOCK_SIZE`; the `+` of line 45 adds that `int32` scalar to the `int32` block `tl.arange(…)`; the
+`<` of line 47 compares the `int32` block `offsets` with `n_elements`; the `+` of lines 50, 51 and
+54 adds the `int32` block `offsets` to a `float32` pointer (`*fp32`), which advances the pointer by
+each lane's offset, in elements ([SEMANTICS.md](../../docs/SEMANTICS.md), "Values": `p + i`
+advances by `i * sizeof(d)`); and the `+` of line 52 adds two `float32` blocks. The only module-level names it reads are
 `triton` (its decorator) and `tl`, Triton's modules, each bound only by its own `import` (lines 23
 and 24): no other statement of the module binds `triton`, `tl` or `add_kernel` (the others bind
 `torch`, `DEVICE`, `add`, `size`, `x`, `y`, `output_torch`, `output_triton` and `benchmark`, and
@@ -178,8 +184,8 @@ Narrowings, each against the kernel's real use:
   from `n` on is allowed: the conditions are stated on the first `n` elements.
 - **The environment.** The claim covers only launches within part (B) of `Compiler.Faithful`'s
   scope, which it relies on and nobody checks (Conditions): among it, point 7's target and host (an
-  H200, driven from an x86-64 host running CPython 3.13 without `-O`, in the default floating-point
-  environment). The script's `DEVICE` is whatever device is active.
+  H200, driven from an x86-64 host running CPython 3.13 without `-O` or `-OO` and with
+  `PYTHONOPTIMIZE` unset, in the default floating-point environment). The script's `DEVICE` is whatever device is active.
 
 Modelling decisions:
 
@@ -188,7 +194,8 @@ Modelling decisions:
   `[-2^31, 2^31)` other than `1` as an `int32`, and at `n = 1` the constant `1`, which gives the
   same model (above). An `n` that is a multiple of 16 (`0` included) is also marked divisible by 16
   for the compiler, which is true of it (SEMANTICS.md, "Scalar arguments"). The code a JIT launch
-  runs is compiled for that launch (`Compiler.Faithful`'s point 11, in part (B)); only a launch of
+  runs was compiled for it, or earlier for the same source, compile-time values and settings (a
+  repeated launch of the same instance; `Compiler.Faithful`'s point 11, in part (B)); only a launch of
   a `CompiledKernel` needs arguments in another launch's specialisation (point 6), and there is
   none.
 - `pid * BLOCK_SIZE` multiplies two `int32` values: the constexpr, an operand of `*` with an

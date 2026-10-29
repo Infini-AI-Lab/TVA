@@ -1,7 +1,7 @@
 {
   "build": {
     "lean/TVA.lean": "5be099ee865913eeeb786dbcf85806270a42a444f102d2fcc89617a9510f0584",
-    "lean/TVA/Claim.lean": "32330f430d05113cc4bc0f3d77af5e2f3d3bef44feb193b67ee1ee1fcbf27e61",
+    "lean/TVA/Claim.lean": "1386c4fd4208c69e9ac9d020ff130c71568078b6cd7b6e5d2d4a7a492033fbc3",
     "lean/TVA/Lang/BlockPtr.lean": "5c121ff17dd9b6f3b49adbbd9572d7f87055bfaabba8ab60025d69ac19f2fe4f",
     "lean/TVA/Lang/Desc.lean": "f6f836aff2342615a2aac7752b46e621308d1edd71a3efe989f7fd12f93c29f6",
     "lean/TVA/Lang/Mem.lean": "6f3cd41173dee6b11c2f4550330d5b8cbaaf779f4789b679900b07280c9d4de7",
@@ -47,7 +47,7 @@
     "lean/TVA/Math/Encoding.lean": "143fddb425da930e88dcc6486a0a841f04d77aeb15a599edffd7ae4e80c79568",
     "lean/TVA/Math/LittleEndian.lean": "5db9bb20becf6165928865b5b26e74c0c08f67dd867df9cec5767b8ab3778aa9",
     "lean/TVA/Math/Rounding.lean": "d9b4b60bd4ad6d16fe47a13c1e803b900c4e7d380f092e5614a82861dad5d9c6",
-    "lean/TVA/Rules/Compiler.lean": "57cbbb1840db24889b5ea9bff27337c4e171420b67c145b7e5983ec987d2e98a",
+    "lean/TVA/Rules/Compiler.lean": "5ed22588de4369b587c9cb54e98e0f7e3d057213fab28541dc56e414b1636812",
     "lean/TVA/Rules/Num.lean": "b6e744d5e1c70ca2bdd36bf0538d24541134c1f51f103a901f735413d03b3cae",
     "lean/TVA/Rules/Num/Sm90.lean": "53afff946a81fb8a0043a96564b71e87ab0597a5cbf3c53fa5204a16285e8b54",
     "lean/TVA/Sem/Launch.lean": "05ff97e010e389d6c077066b779f2d4fd8903ea5ee3d5a71486c7e7307dc9c99",
@@ -123,20 +123,20 @@
       "ok": true
     }
   ],
-  "digest": "990243026f1289fb2ed87580d8161c73a986048181d4a7e6a2bc46ce8915c484",
+  "digest": "a2e8d45aaf58a6d2fa26116df5f0d1cdf997a20a1abac1e67ba2480ca58ecfe1",
   "files": {
-    "README.md": "fd98b422522c3612676aa31a3ce8ea64996869e4cbb15c5b205411e71f94fef3",
+    "README.md": "00b58de0fb8e5dc258646ebe9298ac19522a5db2f890076e78bdf801d4e8b112",
     "kernel.json": "94fef9de8d3b064c6c47f0aa3afc42393ba58963304caa68f610cd0592b5dbe8",
-    "lean/VecAdd.lean": "fbdfac494a1785fa75892d54c37bd5fa11811b29e33dfcf62e74b6093d08ba76",
+    "lean/VecAdd.lean": "3eea78c9a3ec3965ebb3c9ef713bf9c3f8d169ad9edd89f92bb5c6d4456f832e",
     "model-map.json": "b97cfe5fe1b42ee3ce93414e358df7d95059122c2dc553bfc9a115be916cf83d",
     "source/01-vector-add.py": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3"
   },
   "items": {
-    "assumption:faithful": "75b45a93a1ed2c7e5b57d2c6de3a44ffffba00dfa2b66aa8ae6f4b72b0f8e89b",
-    "conditions": "e5538e70ac7053117564849db1432620a273bf555100bfa119dfcf6163c33553",
-    "map": "7c50c7991362915dd11be8d344640329f04ad098f911a8a3ef9d0301c005c0bd",
-    "model": "1f91261a42c160c444a9b6f975f5b8c6b6e9eee2441655b04f3d8ea414a6e2d5",
-    "spec": "203cf396fedcb719efa232b76cc0208f9161089d5cd2fd316a964859cfd8291d"
+    "assumption:faithful": "87a47837dd8c1dfccd1fc984bd60340d94ccd3d612155066800d98ea33b791bf",
+    "conditions": "d08be5b9cdf49f20d1eff390f637d162c64d4603d129fd8f6b0d68f3cc89372d",
+    "map": "48b842c21c2db8c61e13b7216686c8f1f3596446bbabff7150aade7100ed3347",
+    "model": "aa40427c867c6acb8297c0532a431bc1ef599d2cb87bb4f0721a090fc0e98da4",
+    "spec": "6990eccb4ba50ff017b3403dd70019804315d812f0c6d24987c361cbc169b2a4"
   },
   "kernel": "vec_add_f32",
   "kinds": {
@@ -144,7 +144,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-10-29T05:55:17Z",
+  "time": "2026-10-29T07:29:23Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "84f0b4d50930c1f687944b15cba75fbe7973f32210c33b3e4bca863af9234cec"

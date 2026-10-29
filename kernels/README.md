@@ -4,4 +4,4 @@
 
 | Kernel | What | Gate | Phase | Open blocking | Certificate |
 |---|---|---|---|---|---|
-| [vec_add_f32](vec_add_f32/README.md) | Vector addition, tutorial 01 (`add_kernel`, float32) | PASS | [round 2: all reviewers have filed](vec_add_f32/REVIEW.md) | 0 | GRANTED |
+| [vec_add_f32](vec_add_f32/README.md) | Vector addition, tutorial 01 (`add_kernel`, float32) | PASS | [round 2: waiting for the prover (3 open finding(s))](vec_add_f32/REVIEW.md) | 0 | GRANTED |

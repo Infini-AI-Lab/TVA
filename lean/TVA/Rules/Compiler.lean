@@ -49,19 +49,22 @@ L73). Bytes `init` does not give are no part of the outcome, so `Post` cannot sp
 frame is part of the rule, and what anything else does to them is outside the claim.
 
 **Scope.** The rule covers a launch only under the conditions below, in two parts (library issues
-L5, L17, L18, L19, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104, L105, L107, L109, L110). The
-user's decisions, 2026-10-29: "To make the verifier easy, we do not verify triton cache.", "we
-assume the kernel is new." and "So basically, we want to verify the kernel itself, rather than
-triton installation or other code programmed by users." Each condition keeps its number of earlier
-rounds, so that a citation of "scope `n`" still names it.
+L5, L17, L18, L19, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104, L105, L107, L109, L110,
+L116). The user's decisions, 2026-10-29: "To make the verifier easy, we do not verify triton
+cache.", "we assume the kernel is new.", "So basically, we want to verify the kernel itself, rather
+than triton installation or other code programmed by users." and, on the autotuner ("Which
+launch"), "actually we do not neccessarily cover autotune. we do verification basically for the
+kernel." and "our principle is, we are verifying kernel itself. [...] actually not the prover picks
+a config, it is we pick a config. prover is not aware of the autotune." Each condition keeps its
+number of earlier rounds, so that a citation of "scope `n`" still names it.
 
 **(A) The kernel and its launches: checked.** What the claim's instances describe and the kernel
 reviewer checks against the source: the `@triton.jit` function, its helpers and its decorators as
-the kernel's source writes them (`triton.autotune` with its `triton.Config`s and their hooks,
-`triton.heuristics`); the launch call (the grid, the arguments, the compile-time values and the
-launch options the call passes); and what the kernel needs from its host to run at all (an
-allocator for descriptors, the host `TensorDescriptor`s the launch is given). The claim's text
-states these conditions:
+the kernel's source writes them (`triton.heuristics`, and `triton.autotune`, which is outside the
+supported subset, "Which launch"); the launch call, a direct launch of the `@triton.jit` function
+(the grid, the arguments, the compile-time values and the launch options the call passes); and
+what the kernel needs from its host to run at all (an allocator for descriptors, the host
+`TensorDescriptor`s the launch is given). The claim's text states these conditions:
 
 - **4.** *Only the launch options `Launch` records.* No compile or launch option of the NVIDIA backend
    (`CUDAOptions`, `triton-3.8.0-nvidia-compiler.py:108-135`; the launcher accepts every field as a
@@ -218,32 +221,41 @@ is still a finding:
    compiles the kernel, so such a change gives the launch another computation than its source's
    (`evidence/host-round20` M1–M4: `3·x` for the source's `2·x`, `log x` for `exp x`, `5·x` after
    `_unsafe_update_src` for `2·x`).
-- **11.** *The kernel is new* (library issues L98, L103, L109). The code the launch runs was compiled
-   for that launch: from the kernel's own source, its compile-time values (its `tl.constexpr`
-   arguments, an autotune config's values, and an integer `1` or `None` passed to a parameter
-   without annotation, which `triton-3.8.0-specialize.cc` makes compile-time) and the settings the
-   other conditions give. It is not code compiled earlier, for other values or under other
-   settings, and taken from Triton's caches, the `JITFunction`'s cache in the process
-   (`triton-3.8.0-jit.py:592-614`) or the cache directory (`triton-3.8.0-compiler.py:244-270`). Code
-   compiled earlier for the same source, values and settings (an autotuner's benchmark run of the
-   chosen config, an earlier launch of the same instance) counts as compiled for it. TVA does not
-   verify Triton's caches. The assumption is needed because the caches' keys equate some different
+- **11.** *The kernel is new* (library issues L98, L103, L109, L116). The code the launch runs was
+   compiled for it, from the kernel's own source, its compile-time values (its `tl.constexpr`
+   arguments, and an integer `1` or `None` passed to a parameter without annotation, which
+   `triton-3.8.0-specialize.cc` makes compile-time) and the settings the other conditions give, or
+   earlier for the same source, compile-time values and settings (a repeated launch of the same
+   instance). It is not code
+   compiled earlier, for other values or under other settings, and taken from Triton's caches, the
+   `JITFunction`'s cache in the process (`triton-3.8.0-jit.py:592-614`) or the cache directory
+   (`triton-3.8.0-compiler.py:244-270`). TVA does not verify Triton's caches. The assumption is
+   needed because the caches' keys equate some different
    compile-time values and record no knob set from Python, no `TRITON_KERNEL_OVERRIDE`, no hook, no
    change to Triton in memory and no state of the host process, so code taken from them may have
    been compiled for other values or under other settings (`evidence/compile-keys`,
    `evidence/host-round21` K1–K4 and X1–X5, and the library reviews of round 20;
    `docs/rules/compiler-faithful.md`, "Scope" 11).
 
-**Which launch.** The rule is about one launch of the kernel, made through Triton outside CUDA
-graph capture (scope 9). A call of a `@triton.autotune`d
-kernel is host code: on a new key it runs the kernel many times on the caller's buffers to time
-each config, and runs `reset_to_zero`, `restore_value`, the autotuner's hooks and each config's
-`pre_hook`, which write those buffers; then it makes one launch with the chosen config, after that
-config's `pre_hook` (`triton-3.8.0-autotuner.py:217-282`, `evidence/autotune-launch`). The launch
-the rule covers is that last one, with the arguments the last hook leaves (a hook may change them:
-tutorials 06 and 09 set a host `TensorDescriptor`'s `block_shape` in a config's `pre_hook`), and its
-`init` is the memory after the last hook. What the caller's memory was before the call is the host's
-part, outside the claim. -/
+**Which launch** (library issues L21, L116). The rule is about one direct launch of the kernel's
+`@triton.jit` function (`kernel[grid](…)`, or the launch of its `CompiledKernel` within scope 6),
+made through Triton outside CUDA graph capture (scope 9), with the grid, the arguments, the
+compile-time values and the options the launch call gives; its `init` is the memory when it starts. TVA verifies the kernel itself, not the autotuner (the user's decisions
+above): `@triton.autotune` is outside the supported subset, and the rule covers no call of an
+autotuned kernel. Such a call is host code that, on a key it has not timed, prunes the configs,
+runs the kernel many times on the caller's buffers to time each config left (`do_bench`), runs
+`reset_to_zero`, `restore_value` and the autotuner's and the configs' hooks, which write those
+buffers, and then launches the config it chose (`triton-3.8.0-autotuner.py:133-173, 217-282`,
+`evidence/autotune-launch`). Its benchmark runs, its key, pruning, `reset_to_zero` and
+`restore_value`, `do_bench` and its choice are not verified and are outside every claim. For a
+kernel a tutorial autotunes, the user and the coordinator pick one of its configs when they set up
+the kernel's folder, before any prover starts (`docs/REVIEW_PROTOCOL.md` §3): the folder's source
+is the tutorial's with the decorator removed, its launch passes the config's meta-parameters and
+launch options (`num_warps`, `num_stages`, …) as the autotuner's own launch passes them
+(`Config.all_kwargs`, `triton-3.8.0-autotuner.py:273-280, 365-377`), and where the config has a
+`pre_hook` the host code does what the hook does before the launch (tutorials 06 and 09 set a host
+`TensorDescriptor`'s `block_shape`). That launch is a direct launch, covered as any other. What the
+caller's memory was before the launch is the host's part, outside the claim. -/
 def Faithful (P : Platform) (k : Kernel) (L : Launch) (K : Mem → Outcome → Prop) : Prop :=
   L.debug = false → L.Valid → ∀ init, WellBehaved (L.env P) k L init → ∀ o, K init o →
     match o with

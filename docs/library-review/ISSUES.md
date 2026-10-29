@@ -126,6 +126,9 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L113](#l113) | OPEN | 21 | library review round 20 (lr-20f) | gap: the proof kit has no rule for `tl.convert` or `tl.sum0c`, and none named for `tl.store1` |
 | [L114](#l114) | OPEN | 21 | library review round 20 (lr-20a, lr-20b, lr-20e, lr-20f) | wording: the fp8 constants' prose and PROVER_GUIDE's list, num.md's "exact" division facts, four lemma docstrings |
 | [L115](#l115) | CLOSED | — | coordinator, 2026-10-29 (independence check) | independence: `TVA.Lemmas.Softmax` was written by an agent that had read another project's lemmas; removed |
+| [L116](#l116) | OPEN | 22 | user, 2026-10-29 | gap: the autotuner is not verified; for an autotuned tutorial kernel we pick one config when we set up its folder |
+| [L117](#l117) | OPEN | 23 | vec_add_f32#F3, vec_add_f32#F4 (r-vecadd, r-vecadd2) | soundness: condition 11's reuse clause does not ask for the same specialisation of the runtime arguments |
+| [L118](#l118) | OPEN | 23 | vec_add_f32#F2 (r-vecadd) | wording: the `int32` docstring sits on `I8` in `Lang/Scalar.lean`; two pages still say only "without `-O`" |
 
 ## L1
 
@@ -719,6 +722,29 @@ reviewed with round 6, since L36 reshapes L7, L20, L25 and L32.
   installed and unmodified, the host and its process settings, knobs, environment variables and
   hooks, other host code, and the kernel assumed new) is assumed, and no gate, prover or reviewer
   check covers it. This settles how L104, L105, L107, L109 and L110 are stated: as part (B).
+- **User, 2026-10-29, on autotuning: "actually we do not neccessarily cover autotune. we do
+  verification basically for the kernel. that is to say, for autotune, we actually should prove the
+  selected hyper-parameters. for the kernels in the tutorial with autotune, we can select a
+  reasonable autotune config to provide proof."** The autotuner (its benchmark runs, its key,
+  pruning and choice) is not verified. Correction (user, 2026-10-29): "our principle is, we are
+  verifying kernel itself. it is not correct that 'For an autotuned tutorial kernel, the prover
+  picks a reasonable config from the tutorial's list and says which. The reviewer checks that the
+  claim fixes it'. actually not the prover picks a config, it is we pick a config. prover is not
+  aware of the autotune." So we (the user and the coordinator) pick the config when we set up the
+  kernel's folder: its source is the tutorial's without `@triton.autotune`, launched with that
+  config's values; the prover and the reviewer see only that kernel (L116). Condition
+  11 ("the kernel is new") is read as: the code the launch runs was compiled for it, or earlier for
+  the same source, compile-time values and settings (a repeated launch of the same instance).
+- **User, 2026-10-29, on the vec-add reviewers' three non-blocking wording remarks: "Fix and
+  re-review".**
+- **User, 2026-10-29, on L117 (condition 11 and the specialisation of runtime arguments): "for the
+  viriable n_elements, its value should be merged into the assumptions of the prover. e.g., x.len >=
+  n_elements, etc."** A runtime argument's value is part of the claim's instance, and the prover's
+  conditions constrain it (`vec_add_f32`'s `Inst.ok` has `n ≤ x.len`, `n ≤ y.len`, `n ≤
+  output.len`). So condition 11 assumes that the code a launch runs is the code Triton compiles for
+  that launch's own argument values (compile-time and runtime, as the instance gives them) and
+  settings, with no clause about reusing other code: code a cache returns counts when it is that
+  code, as for a repeated launch.
 
 ## L37
 
@@ -2195,3 +2221,78 @@ been replaced by `TVA.Lemmas.FloatMax`, which round 12's author wrote with no ac
 project. No review followed this removal (after the final batch, round 21); it is checked by the
 build, `tvr library-check`, the audit and the release check, and leaves `vec_add_f32`'s certificate
 as it was.
+- **The rest of the project, checked the same day** (coordinator):
+  - *Authorship.* Apart from that agent, only two early kernel reviewers (2026-10-27, on kernels
+    since deleted, whose filings never reached the repository) and the coordinator's own session
+    (2026-10-26, while building TVA's second version) read the other project's content; library
+    reviewers that listed folder names read no file. No prover, kernel reviewer or library author
+    did so after the independence rules (L7). Nothing those agents wrote survives in the library
+    except through later rewrites: the copied float layer was replaced clean-room in round 12
+    (L65: its author worked in a tree without the copied files or their history, and its
+    transcript shows it never looked for them).
+  - *Declarations.* Of TVA's 1,498 declaration names, 276 also occur in the other project; their
+    statements and bodies were compared. The float layer shares names and types that the rest of
+    TVA used, as L65's clean room intended, but its definitions are written differently (fields by
+    `2^`, division and remainder rather than bit operations; another rounding algorithm). The only
+    theorems with nearly the same statement are elementary (`u_pos`: `0 < u`; `binary32_emin`:
+    `emin = -126`; `abs_toRat`: `|value| = magnitude`). Of 8,058 distinctive Lean lines, 27 occur
+    there, all generic tactic steps or standard definitions.
+  - *Results.* Every measured fact kernels may cite (32 of the 38; the six `…Total` facts only say
+    a result exists) names a TVA evidence folder, and each was re-run by library reviewers; the
+    constants an early kernel reviewer had cited from the other project (`Exp2F32`'s `2^-126`)
+    stand on TVA's own test of all `2^32` inputs (evidence/num-math-f32).
+  - *History.* The repository's first commit still holds the copied float layer; the user chose,
+    2026-10-29, to keep the history as it is.
+
+## L116
+
+**The autotuner is not verified: a claim fixes the selected config** (gap; the user's decision of
+2026-10-29, under L36). The library now covers an autotuned call: `Compiler.Faithful`'s "Which
+launch" treats a call of a `@triton.autotune`d kernel as host code that benchmarks every config on
+a key it has not timed and then launches the chosen one, and part (A) of the scope counts
+`triton.autotune` with its `Config`s and hooks. By the user's decision TVA verifies the kernel
+itself, not the autotuner, and (the user's correction, same day) "it is we pick a config. prover is
+not aware of the autotune":
+- `@triton.autotune` is outside the supported subset of a kernel's source, with a row in
+  exclusions.md; the autotuner's benchmark runs, key, pruning, `reset_to_zero`/`restore_value`,
+  `do_bench` and choice are outside every claim;
+- for a kernel the tutorial autotunes, we (the user and the coordinator) pick one config when we set
+  up its folder, before any prover starts: its `source/` is the tutorial's source with the decorator
+  removed, launched with that config's meta-parameters and launch options (`num_warps`,
+  `num_stages`, …), the host doing what the config's `pre_hook` does; the folder records the choice;
+- the prover is not told about autotuning and proves the kernel as given; the kernel reviewer judges
+  that kernel, not the choice of config, and a source that still holds `@triton.autotune` is
+  `UNSUPPORTED`;
+- `docs/REVIEW_PROTOCOL.md` says how a kernel's folder is set up, the config choice included;
+- "Which launch" and part (A) cover a direct launch of the JIT function; condition 11 reads as the
+  user's decision says.
+Round 22.
+
+## L117
+
+**Condition 11's reuse clause is too loose** (soundness of an assumption's wording;
+`vec_add_f32` F3 by r-vecadd and F4 by r-vecadd2, independently, 2026-10-29, in
+`kernels/vec_add_f32/review/round-2/`). Condition 11 of `Compiler.Faithful`'s scope (part (B),
+assumed) lets the launch run code compiled "earlier for the same source, compile-time values and
+settings", but does not ask for the same specialisation of the runtime arguments (point 6's classes:
+an integer's divisibility by 16 and equality to 1, a pointer's 16-byte alignment). Read literally, a
+launch with `n = 98433` may run code compiled for `n = 98432`, and point 6's own evidence
+(evidence/compiled-launch K2) shows code of another specialisation writing past `n`. Its example, "a
+repeated launch of the same instance", can also be read as the only reuse allowed, which would leave
+a benchmark's later launches at other sizes outside the rule. Fix: in the Lean docstring, the rule
+page, SEMANTICS, exclusions.md and `TVA.Claim`, say "the same source, compile-time values,
+specialisation of the runtime arguments (point 6) and settings", and give the example as one case
+("for example, a repeated launch"). `vec_add_f32`'s launches are all in one class (every size the
+script uses is a multiple of 16), so its claim is not affected.
+- **User decision, 2026-10-29** (under L36): the runtime arguments' values are the instance's, and
+  the prover's conditions constrain them; condition 11 is stated for the launch's own argument
+  values, with no reuse clause. Round 23.
+
+## L118
+
+**Two wording slips** (`vec_add_f32` F2 by r-vecadd, and a remark of r-vecadd2, 2026-10-29). In
+`lean/TVA/Lang/Scalar.lean:103` the docstring "`tl.int32` values, the type of `tl.program_id` …"
+sits on `abbrev I8 := IntV true 8`, and `I32` has none; and the rule page and `TVA.Claim`'s docstring
+still say only "without `-O`" where condition 7 says without `-O` or `-OO` and with
+`PYTHONOPTIMIZE` unset. Fix: move the docstring to `I32` (and give `I8` its own), and say what
+condition 7 says. Round 23.

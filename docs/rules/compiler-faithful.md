@@ -78,22 +78,26 @@ those bytes is outside the claim.
 ## Scope
 
 The rule covers a launch only under the conditions below, in two parts (library issues L5, L17, L18,
-L19, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104, L105, L107, L109, L110). They are about the
-host, which `Launch` does not describe, so the claim's text states them (the hashed docstring of
-`Rules.Compiler.Faithful`). The user's decisions, 2026-10-29, under L36: "To make the verifier easy,
-we do not verify triton cache.", "we assume the kernel is new." and "So basically, we want to verify
-the kernel itself, rather than triton installation or other code programmed by users." Each
-condition keeps its number of earlier rounds, so that a citation of "scope `n`" or "point `n`"
-still names it.
+L19, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104, L105, L107, L109, L110, L116). They are
+about the host, which `Launch` does not describe, so the claim's text states them (the hashed
+docstring of `Rules.Compiler.Faithful`). The user's decisions, 2026-10-29, under L36: "To make the
+verifier easy, we do not verify triton cache.", "we assume the kernel is new." and "So basically, we
+want to verify the kernel itself, rather than triton installation or other code programmed by
+users."; on the autotuner ("Which launch"), "actually we do not neccessarily cover autotune. we do
+verification basically for the kernel." and "our principle is, we are verifying kernel itself.
+[...] actually not the prover picks a config, it is we pick a config. prover is not aware of the
+autotune." Each condition keeps its number of earlier rounds, so that a citation of "scope `n`" or
+"point `n`" still names it.
 
 ### (A) The kernel and its launches: checked
 
 What the claim's instances describe and the kernel reviewer checks against the source: the
 `@triton.jit` function, its helpers and its decorators as the kernel's source writes them
-(`triton.autotune` with its `triton.Config`s and their hooks, `triton.heuristics`); the launch call
-(the grid, the arguments, the compile-time values and the launch options the call passes); and what
-the kernel needs from its host to run at all (an allocator for descriptors, the host
-`TensorDescriptor`s the launch is given). The checklist ("How a bundle cites it") lists these.
+(`triton.heuristics`, and `triton.autotune`, which is outside the supported subset: "Which
+launch"); the launch call, a direct launch of the `@triton.jit` function (the grid, the arguments,
+the compile-time values and the launch options the call passes); and what the kernel needs from its
+host to run at all (an allocator for descriptors, the host `TensorDescriptor`s the launch is given).
+The checklist ("How a bundle cites it") lists these.
 
 - **4.** **Only the launch options `Launch` records.** Every field of the NVIDIA backend's
    `CUDAOptions` (`primitives/triton-3.8.0-nvidia-compiler.py:108-135`) is accepted as a launch
@@ -296,19 +300,18 @@ visibly breaks one (the source sets a knob, or rebinds a Triton name) is still a
    change gives the launch another computation than its source's: `3·x` for the source's `2·x`,
    `log x` for `exp x`, `5·x` after `_unsafe_update_src` for `2·x`
    ([evidence/host-round20](../../evidence/host-round20/README.md) M1–M4).
-- **11.** **The kernel is new** (library issues L98, L103, L109). The code the claimed launch runs was
-   compiled for that launch: from its own source, its compile-time values (its `tl.constexpr`
-   arguments, an autotune config's values, and an integer `1` or `None` passed to a parameter
-   without annotation, which `primitives/triton-3.8.0-specialize.cc` makes compile-time,
-   [SEMANTICS.md](../SEMANTICS.md), "Scalar arguments") and the settings the other conditions give.
-   It is not code compiled earlier, for other values or under other settings, and taken from
-   Triton's caches, the `JITFunction`'s cache in the process (`primitives/triton-3.8.0-jit.py:592-614`)
-   or the cache directory (`TRITON_CACHE_DIR`, else `.triton/cache` under `TRITON_HOME` or the home
-   directory, `primitives/triton-3.8.0-knobs.py:343-354`, `primitives/triton-3.8.0-compiler.py:244-270`).
-   Code compiled earlier for the same source, values and settings (an autotuner's benchmark run of the
-   chosen config, an earlier launch of the same instance) counts as compiled for it. TVA does not
-   verify Triton's caches (the user's decisions, 2026-10-29, under L36: "To make the verifier easy, we
-   do not verify triton cache." and "we assume the kernel is new.").
+- **11.** **The kernel is new** (library issues L98, L103, L109, L116). The code the claimed launch
+   runs was compiled for it, from its own source, its compile-time values (its `tl.constexpr`
+   arguments, and an integer `1` or `None` passed to a parameter without annotation, which
+   `primitives/triton-3.8.0-specialize.cc` makes compile-time, [SEMANTICS.md](../SEMANTICS.md),
+   "Scalar arguments") and the settings the other conditions give, or earlier for the same source,
+   compile-time values and settings (a repeated launch of the same instance). It is not code
+   compiled earlier, for other values or under other settings, and taken from Triton's caches, the
+   `JITFunction`'s cache in the process (`primitives/triton-3.8.0-jit.py:592-614`) or the cache
+   directory (`TRITON_CACHE_DIR`, else `.triton/cache` under `TRITON_HOME` or the home directory,
+   `primitives/triton-3.8.0-knobs.py:343-354`, `primitives/triton-3.8.0-compiler.py:244-270`). TVA
+   does not verify Triton's caches (the user's decisions, 2026-10-29, under L36: "To make the verifier
+   easy, we do not verify triton cache." and "we assume the kernel is new.").
 
    The assumption is needed. The caches find compiled code by keys that equate some different
    compile-time values (in the process, values Python's `==` equates and every NaN; on disk, the
@@ -334,22 +337,38 @@ visibly breaks one (the source sets a knob, or rebinds a Triton name) is still a
 
 ## Which launch
 
-The rule is about one launch, made through Triton outside CUDA graph capture (scope 9). A call of
-a `@triton.autotune`d kernel is host code (`primitives/triton-3.8.0-autotuner.py:217-282`): on a
-key it has not timed, it runs the kernel
-many times on the caller's buffers to time each config (`_bench`, 133-173), and runs
-`reset_to_zero`, `restore_value`, the autotuner's `pre_hook` and `post_hook` and each config's
-`pre_hook`, which write those buffers; then it makes one launch with the chosen config, after that
-config's `pre_hook`, which runs on a cached key too. In
+The rule is about one direct launch of the kernel's `@triton.jit` function (`kernel[grid](…)`, or
+the launch of a `CompiledKernel` within point 6), made through Triton outside CUDA graph capture
+(scope 9), with the grid, the arguments, the compile-time values and the options the launch call
+gives. Its `init` is the memory when it starts; what the caller's memory was before is the host's
+part, outside the claim, and a claim about the caller's buffers before the call must be stated on
+the host (it is not a kernel claim).
+
+**The autotuner is not verified** (library issue L116; the user's decisions, 2026-10-29, above).
+TVA verifies the kernel itself. `@triton.autotune` is outside the supported subset of a kernel's
+source ([SEMANTICS.md](../SEMANTICS.md), "The supported subset"; [exclusions.md](../exclusions.md)),
+and the rule covers no call of an autotuned kernel. Such a call is host code
+(`primitives/triton-3.8.0-autotuner.py:217-282`): on a key it has not timed, it prunes the configs
+(`prune_configs_by`), runs the kernel many times on the caller's buffers to time each config left
+(`_bench`, 133-173, through `do_bench`), and runs `reset_to_zero`, `restore_value`, the autotuner's
+`pre_hook` and `post_hook` and each config's `pre_hook`, which write those buffers; then it launches
+the config it chose, after that config's `pre_hook`. In
 [evidence/autotune-launch](../../evidence/autotune-launch/README.md) an in-place `+1` ran about
-4000 times on the first call, and `reset_to_zero` made the final launch start from zeros. The
-launch the rule covers is the final one, with one of the configs the autotuner may pick, with the
-arguments the last hook leaves (a hook may change them: tutorials 06 and 09 set a host
-`TensorDescriptor`'s `block_shape` in a config's `pre_hook`), and its `init` is the memory after the
-last hook. Whether a call benchmarks depends on the process's cache,
-the number of configs left after pruning, and the disk cache; what the caller's memory was before
-the call is the host's part, outside the claim. A claim about the caller's buffers before the call
-must be stated on the host (it is not a kernel claim).
+4000 times on the first call, and `reset_to_zero` made the final launch start from zeros; whether a
+call benchmarks depends on the process's cache, the number of configs left after pruning, and the
+disk cache. Its benchmark runs, its key, pruning, `reset_to_zero` and `restore_value`, `do_bench`
+and its choice are outside every claim.
+
+**A kernel a tutorial autotunes** is covered through one config, which the user and the coordinator
+pick when they set up the kernel's folder, before any prover starts
+([REVIEW_PROTOCOL.md](../REVIEW_PROTOCOL.md) §3). The folder's source is the tutorial's with the
+`@triton.autotune` decorator removed, and its launch passes the config's meta-parameters and launch
+options (`num_warps`, `num_stages`, …), as the autotuner's own launch passes them
+(`Config.all_kwargs`, `primitives/triton-3.8.0-autotuner.py:273-280, 365-377`). Where the config has
+a `pre_hook`, the host code does what the hook does before the launch: tutorials 06 and 09 set a
+host `TensorDescriptor`'s `block_shape` there. That launch is a direct launch, which the rule
+covers as any other. The prover proves the kernel as given in `source/`, and the kernel reviewer
+judges that kernel, not the choice of config.
 
 [evidence/env-knobs](../../evidence/env-knobs/README.md) shows `TRITON_F32_DEFAULT` and
 `TRITON_DEFAULT_FP_FUSION` at work.
@@ -389,9 +408,11 @@ must be stated on the host (it is not a kernel claim).
   target other than the H200 or a host other than x86-64 with CPython 3.13 (or one run with `-O`, or
   in another floating-point environment), Triton or the kernel's module changed by other code, and
   code compiled for other values or settings taken from Triton's caches.
-- **The host code around the launch**: an autotuner's benchmark runs and hooks (above, "Which
-  launch"), and what anything but the launch does to the bytes `init` does not give (the launch
-  itself writes none of them but the descriptor scratch, "Memory").
+- **The autotuner and the host code around the launch**: a call of a `@triton.autotune`d kernel,
+  with its benchmark runs, key, pruning, `reset_to_zero` and `restore_value`, hooks, `do_bench` and
+  choice, which TVA does not verify (above, "Which launch"), and what anything but the launch does
+  to the bytes `init` does not give (the launch itself writes none of them but the descriptor
+  scratch, "Memory").
 - **Whether the kernel compiles.** A rejected launch has no outcome, so the rule covers only
   launches that run. The limits behind a rejection include (A1–A8 of
   [evidence/launch-outcomes](../../evidence/launch-outcomes/README.md) show several):
@@ -440,8 +461,8 @@ The reviewer checks five things:
   - 9. no CUDA graph capture: no call made while a CUDA stream capture is in progress, on the
     capturing stream or any other, and no replay;
 
-  and, with `@triton.autotune`, that the launch covered is the last one, its `init` the memory after
-  the last hook and its arguments those the last hook leaves. Part (B) (points 1, 2, 3, the
+  and that the launch is a direct launch of the `@triton.jit` function: a source that has
+  `@triton.autotune` is outside the supported subset ("Which launch"). Part (B) (points 1, 2, 3, the
   environment's part of 4, 7, 10 and 11) is assumed: the reviewer does not read host code for it,
   and files a finding only when the claim's own launch or kernel source visibly breaks it;
 - `d.ok` covers the instances the claim is about;

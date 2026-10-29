@@ -35,8 +35,11 @@ theorem satisfiable : TVA.Claim.Satisfiable Inst.ok Pre
 * `init` is the global memory when the launch starts, as far as the launch is given it: the bytes
   present in `init` (`Mem` is a partial map), the buffers of `Pre`. The outcome `ok fin` gives the
   same bytes, with their contents when the launch ends, so `Post` speaks only of them. It covers
-  one launch: for an autotuned call, the final launch, with the arguments and the memory the last
-  hook leaves. Its scope has two parts (the user's decisions, 2026-10-29: "To make the verifier
+  one launch, a direct launch of the kernel's `@triton.jit` function, and no call of an autotuned
+  kernel: TVA verifies the kernel itself, not the autotuner, and `@triton.autotune` is outside the
+  supported subset (library issue L116; the user's decisions, 2026-10-29: "actually we do not
+  neccessarily cover autotune. we do verification basically for the kernel." and "our principle
+  is, we are verifying kernel itself."). Its scope has two parts (the user's decisions, 2026-10-29: "To make the verifier
   easy, we do not verify triton cache.", "we assume the kernel is new." and "So basically, we want
   to verify the kernel itself, rather than triton installation or other code programmed by
   users."). (A) The kernel and its launches, which the kernel reviewer checks: no compile option
@@ -59,7 +62,7 @@ theorem satisfiable : TVA.Claim.Satisfiable Inst.ok Pre
   and taken from Triton's caches (the `JITFunction`'s cache in the process, or the cache
   directory). `Rules.Compiler.Faithful` states this scope
   (library issues L5, L17, L18, L19, L21, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104,
-  L105, L107, L109, L110).
+  L105, L107, L109, L110, L116).
 * **Other memory** (library issue L73). `Rules.Compiler.Faithful` also states that a valid,
   well-behaved launch within its scope writes no byte of global memory other than those `init`
   gives, except the scratch of the descriptors the kernel builds (its scope 5). A claim's `main`

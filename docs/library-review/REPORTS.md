@@ -4,3 +4,6 @@
 
 | Finding | Kind | Target | State | Summary | Referred as |
 |---|---|---|---|---|---|
+| [vec_add_f32#F2](../../kernels/vec_add_f32/REVIEW.md#f2) | LIBRARY_REPORT | `decl:TVA.I8` | OPEN | TVA.I8's docstring says it is `tl.int32` values (the type of tl.program_id and tl.arange); I8 is IntV true 8, and the te |  |
+| [vec_add_f32#F3](../../kernels/vec_add_f32/REVIEW.md#f3) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | OPEN | Scope 11's reuse clause names the source, compile-time values and settings, not the runtime arguments' specialisation; i |  |
+| [vec_add_f32#F4](../../kernels/vec_add_f32/REVIEW.md#f4) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | OPEN | Scope 11 admits code compiled 'earlier for the same source, compile-time values and settings' without asking for the sam |  |

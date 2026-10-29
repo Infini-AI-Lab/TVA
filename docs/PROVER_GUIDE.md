@@ -53,7 +53,8 @@ def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZ
 
 - **Stay inside the supported subset** (SEMANTICS.md, "The supported subset"; library issue L88).
   A kernel that uses another form of Python has no claim until the library adds the form: ask for
-  it as a library request.
+  it as a library request. A source that has `@triton.autotune` is outside the subset (library
+  issue L116): ask the coordinator to set the kernel up again.
 - **`tl.constexpr` arguments are Lean parameters** (`BLOCK_SIZE : Nat`).
 - **Write every implicit conversion and broadcast explicitly**: `tl.cvt` for `.to(...)` and
   for dtype promotion, scalar–tensor arithmetic, `bc`, `.col`/`.row`. Use `tl.cvt8` into fp8,
@@ -160,8 +161,7 @@ def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZ
   `triton.compile`, not an IR file) and arguments in its specialisation (dtypes, pointer alignment,
   integer class, host descriptors' dtype and block shape); (8) no host `TensorDescriptor` with
   `round_f32_to_tf32=True`; (9) no CUDA graph capture (no call while a stream capture is in
-  progress, on any stream, no replay). With `@triton.autotune`, the launch covered is the last one,
-  from the memory and with the arguments the last hook leaves. Say so in the write-up's Conditions.
+  progress, on any stream, no replay). Say so in the write-up's Conditions.
   Part (B), the environment (points 1, 2, 3, the environment's part of 4, 7, 10 and 11: other
   writers, knobs, hooks, `kernel.debug` and `preload`, the target and host (an H200; x86-64,
   CPython 3.13 without `-O`/`-OO` and with `PYTHONOPTIMIZE` unset, in the default floating-point

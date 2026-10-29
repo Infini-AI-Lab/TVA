@@ -79,8 +79,8 @@ meaning reaches the changed constants (§4).
     checks the proofs; what the names mean is the reviewer's to judge, and a model line that reads
     as a library operation but means another is a `MODEL_MISMATCH` (user, 2026-10-27, library
     issue L20). The gate's `hygiene` and `namespace` checks (§8) are a backstop;
-  - **the conditions**: they cover the kernel's real use (the host code, the autotune configs),
-    and they are what the write-up says;
+  - **the conditions**: they cover the kernel's real use (the host code), and they are what the
+    write-up says;
   - **the specification**: it says what the kernel is for, and a tolerance is meaningful at the
     sizes the conditions allow;
   - **each `[rule]` assumption**: it is the library's fact for the operation the model uses
@@ -356,7 +356,8 @@ lists the kernels and where each one stands.
 kernels/<kernel>/
   README.md                  prover    the write-up: Specification, Conditions, Assumptions, Proof, Narrowings
   kernel.json                prover    manifest: title, Lean module and namespace, source file, sha256, line ranges
-  source/<file>.py           prover    the kernel source, pinned by its sha256
+  SETUP.md                   setup     for a kernel a tutorial autotunes: the config chosen at setup, and from where (below)
+  source/<file>.py           setup     the kernel source, pinned by its sha256 (copied at setup, below)
   lean/<Module>.lean, lean/<Module>/*.lean
                              prover    the Lean bundle (a lake library of its own: lean/lakefile.toml)
   model-map.json             prover    each source line → model text, or a drop and its reason (§7)
@@ -447,6 +448,28 @@ A kernel folder holds no device evidence: device facts are the library's.
   sha256 (a later ledger whose first lines hash to that sha256 only grew). No step reads an earlier
   `release.json` back.
 - **A new kernel**: `tvr new <kernel> --module <Module> --namespace <NS> --source <file>`.
+- **Setting up a kernel folder** (library issue L116). The user and the coordinator ("setup" above:
+  whoever creates `kernels/<kernel>/`) set up each kernel's folder, before any prover starts: `tvr
+  new` copies the source into `source/` and pins its sha256. TVA verifies the kernel itself, not
+  the autotuner (the user's decisions, 2026-10-29: "actually we do not neccessarily cover autotune.
+  we do verification basically for the kernel." and "our principle is, we are verifying kernel
+  itself. [...] actually not the prover picks a config, it is we pick a config. prover is not aware
+  of the autotune."): `@triton.autotune` is outside the supported subset
+  ([exclusions.md](exclusions.md)), and `Compiler.Faithful` covers a direct launch of the
+  `@triton.jit` function, no call of an autotuned kernel ([rules/compiler-faithful.md](rules/compiler-faithful.md),
+  "Which launch"). So, for a kernel a tutorial autotunes, the user and the coordinator pick one
+  config of the tutorial's list at this step, and the source they give `tvr new` is the tutorial's
+  with the `@triton.autotune` decorator removed, its launch passing that config's meta-parameters
+  and launch options (`num_warps`, `num_stages`, …); where the config has a `pre_hook`, the host
+  code does what the hook does before the launch (tutorials 06 and 09 set a host
+  `TensorDescriptor`'s `block_shape`). They record in `SETUP.md`, in the kernel's folder, which
+  config they chose and where it is in the tutorial (the file, the kernel, and the `triton.Config`
+  or the list and position it comes from), and what they changed from the tutorial's source. The
+  prover does not write `SETUP.md` or choose the config, is not told about autotuning, and proves
+  the kernel as given in `source/`; a source that still has `@triton.autotune` is outside the
+  subset, and the prover asks for the kernel to be set up again. The kernel reviewer judges the
+  kernel as given in `source/`, not the choice of config, and files `UNSUPPORTED` on a source that
+  still has `@triton.autotune`.
 
 ## 4. Claim items and digests
 

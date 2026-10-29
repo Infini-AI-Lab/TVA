@@ -62,7 +62,7 @@ SEMANTICS.md lists in "The supported subset"; every other form is excluded
 (the kernel, its helpers, the decorators and the module-level names they read), against that list:
 its statements, names, expressions, calls, decorators and parameters. A kernel that uses a form
 outside it (a `break`, a `with`, a bare annotation or an annotation other than `tl.constexpr`, a
-`@triton.heuristics`, a `@triton.constexpr_function` or another Python function called at compile
+`@triton.heuristics`, a `@triton.autotune`, a `@triton.constexpr_function` or another Python function called at compile
 time, a module-level value other than Triton's modules and the module's `@triton.jit` functions, a
 `for` loop's variable used after the loop, an assignment in a runtime `if` to a name holding `None`
 or a dtype, a helper whose visited `return`s give values of different kinds, or compile-time values
@@ -128,8 +128,7 @@ and `namespace` checks catch the common routes mechanically; they are a backstop
 substitute.
 
 **The launch**: the grid formula, the `program_id` axes, every block shape in `blocks`
-(`Launch.Valid` checks only the listed ones), `num_ctas`, `debug`, `enable_fp_fusion`, and the
-autotune configs.
+(`Launch.Valid` checks only the listed ones), `num_ctas`, `debug` and `enable_fp_fusion`.
 
 **The kernel and its launches** must stay within part (A) of `Compiler.Faithful`'s scope
 ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"; the same list is the page's
@@ -150,8 +149,12 @@ checklist, "How a bundle cites it"), point by point (the points keep their numbe
   (`torch.cuda.graph`, `triton.testing.do_bench_cudagraph`), on the capturing stream or any other,
   and is not a replay of a captured graph.
 
-With `@triton.autotune`, the launch covered is the last one of the call, its `init` the memory after
-the last hook, and its arguments those the last hook leaves ("Which launch"). A launch that leaves
+The launch is a direct launch of the `@triton.jit` function: `@triton.autotune` is outside the
+supported subset, and a source that still has it is `UNSUPPORTED` (library issue L116). For a
+kernel a tutorial autotunes, the user and the coordinator chose one config when they set up the
+kernel's folder, removed the decorator and pass the config's values at the launch
+([REVIEW_PROTOCOL.md](REVIEW_PROTOCOL.md) §3); judge the kernel as given in `source/`, not the
+choice of config ("Which launch"). A launch that leaves
 part (A) is `CONDITION_WRONG` (the claim then covers nothing it runs) or a narrowing the write-up
 must state.
 

@@ -129,10 +129,8 @@ names some only to say so. Each item points to the section that gives its meanin
 **Functions.**
 - *The kernel*: a function defined by a `def` statement at the top level of the kernel's source
   file, under `@triton.jit`, or `@triton.jit(…)` with no arguments but `launch_metadata=`
-  ("Launches") and `do_not_specialize=` ("Scalar arguments"), with or without one
-  `@triton.autotune(…)` above it: its `configs` (`triton.Config(kwargs, …)` with only the options
-  `Compiler.Faithful` admits), its `key`, and its other arguments, which run on the host and choose
-  the config ("One launch").
+  ("Launches") and `do_not_specialize=` ("Scalar arguments"); not under `@triton.autotune(…)`,
+  whose autotuner TVA does not verify (library issue L116; "One launch").
 - *Helpers*: functions defined by `def` at the top level of the kernel's source file under a bare
   `@triton.jit`, called by name from the kernel or from another helper ("Helpers are inlined").
 - No other function runs at compile time: no `@triton.constexpr_function`, and no Python function
@@ -241,7 +239,7 @@ Outside the subset, for instance (all excluded, [exclusions.md](exclusions.md)):
 `def` or `class`, `lambda`, comprehensions, `:=`, `for … else` and `while … else`, a bare annotation
 `name: T`, an annotation other than `tl.constexpr`, an assignment to a subscript or an attribute,
 `*` and `**` in a call or a signature, a slice with bounds or an integer index of a tensor, chained
-comparisons, `@triton.heuristics`, `@triton.jit(noinline=True)`, a kernel parameter's default, a
+comparisons, `@triton.heuristics`, `@triton.autotune` (L116), `@triton.jit(noinline=True)`, a kernel parameter's default, a
 value at the top level of the module other than those above (a `tl.constexpr(…)`, a dtype, a
 number), an enclosing function's names, Python's `range` with a keyword argument or a fourth
 argument (L90), a `return` in a `tl.static_range` body and a statement after an `if` that returns
@@ -1186,16 +1184,24 @@ Each definition's docstring states its reading of the documentation. The non-obv
     buffers, and a descriptor-building one none outside its output and its scratch). So a claim
     that cites the rule implies that the launch leaves the host's other memory as it was
     (`TVA.Claim`, "Other memory").
-  - **One launch** (library issue L21, [evidence/autotune-launch](../evidence/autotune-launch/README.md)).
-    A claim is about one launch. A call of a `@triton.autotune`d kernel is host code: on a key it
-    has not timed, it runs the kernel many times on the caller's buffers (thousands of runs of an
-    in-place `+1`), and runs `reset_to_zero`, `restore_value`, its `pre_hook` and `post_hook` and
-    each config's `pre_hook`, which write those buffers; then it makes one launch with the config
-    it chose, after that config's `pre_hook` (on a cached key too). The launch a claim covers is
-    that last one, with one of the configs the autotuner may pick, from the memory after the last
-    hook, its `init`, and with the arguments the last hook leaves: a hook may change them as well
-    (tutorials 06 and 09 set a host `TensorDescriptor`'s `block_shape` in a config's `pre_hook`).
-    What the caller's memory was before the call is the host's part, outside the claim. A kernel
+  - **One launch** (library issues L21, L116, [evidence/autotune-launch](../evidence/autotune-launch/README.md)).
+    A claim is about one direct launch of the kernel's `@triton.jit` function (`kernel[grid](…)`, or
+    through a `CompiledKernel`, below), from the memory when it starts, its `init`; what the caller's
+    memory was before is the host's part, outside the claim. TVA verifies the kernel itself, not the
+    autotuner (the user's decisions, 2026-10-29: "actually we do not neccessarily cover autotune. we
+    do verification basically for the kernel." and "our principle is, we are verifying kernel
+    itself."): `@triton.autotune` is outside the subset, and no claim covers a call of an autotuned
+    kernel. Such a call is host code: on a key it has not timed, it prunes the configs, runs the
+    kernel many times on the caller's buffers to time each config left (`do_bench`; thousands of runs
+    of an in-place `+1`), and runs `reset_to_zero`, `restore_value`, its `pre_hook` and `post_hook`
+    and each config's `pre_hook`, which write those buffers; then it launches the config it chose.
+    Its benchmark runs, key, pruning, `reset_to_zero` and `restore_value`, `do_bench` and choice are
+    outside every claim. A kernel a tutorial autotunes is covered through one config, which the user
+    and the coordinator pick when they set up its folder, before any prover starts ([REVIEW_PROTOCOL.md](REVIEW_PROTOCOL.md) §3): its source is the
+    tutorial's without the decorator, its launch passes the config's meta-parameters and launch
+    options (`num_warps`, `num_stages`, …), and where the config has a `pre_hook` the host code does
+    what the hook does before the launch (tutorials 06 and 09 set a host `TensorDescriptor`'s
+    `block_shape`; [rules/compiler-faithful.md](rules/compiler-faithful.md), "Which launch"). A kernel
     under `@triton.heuristics` is outside the subset: a heuristic sets launch keywords, compile
     options included, and replaces the launch's own (library issue L78; below). A call made while a
     CUDA stream capture is in progress (`torch.cuda.graph`, `triton.testing.do_bench_cudagraph`), on
@@ -1207,7 +1213,7 @@ Each definition's docstring states its reading of the documentation. The non-obv
     ([evidence/host-round20](../evidence/host-round20/README.md) G0–G3).
   - `Compiler.Faithful` covers a launch only within its scope
     ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"; library issues L17–L19, L72,
-    L74, L76–L78, L91, L103–L105, L107, L109, L110):
+    L74, L76–L78, L91, L103–L105, L107, L109, L110, L116):
     in two parts (the user's decisions, 2026-10-29: "To make the verifier easy, we do not verify
     triton cache.", "we assume the kernel is new." and "So basically, we want to verify the kernel
     itself, rather than triton installation or other code programmed by users."):
@@ -1315,15 +1321,14 @@ Each definition's docstring states its reading of the documentation. The non-obv
         what these hold, and such a change gave `3·x` for the source's `2·x`, `log x` for `exp x` and
         `5·x` after `_unsafe_update_src` for `2·x`
         ([evidence/host-round20](../evidence/host-round20/README.md) M1–M4);
-      - **the kernel is new** (library issues L98, L103, L109; the user's decisions, 2026-10-29: "To
-        make the verifier easy, we do not verify triton cache." and "we assume the kernel is new."): the
-        code the launch runs was compiled for that launch, from its own source, its compile-time values
-        (its `tl.constexpr` arguments, a config's values, an integer `1` or `None` passed to a parameter
-        without annotation) and the settings the conditions above give; it is not code compiled
-        earlier, for other values or under other settings, and taken from Triton's caches (the
-        `JITFunction`'s cache in the process, or the cache directory). Code compiled earlier for the
-        same source, values and settings (an autotuner's benchmark run of the chosen config) counts as
-        compiled for it. TVA assumes this and does not verify Triton's caches: neither the gate, nor the
+      - **the kernel is new** (library issues L98, L103, L109, L116; the user's decisions, 2026-10-29:
+        "To make the verifier easy, we do not verify triton cache." and "we assume the kernel is
+        new."): the code the launch runs was compiled for it, from its own source, its compile-time
+        values (its `tl.constexpr` arguments, an integer `1` or `None` passed to a parameter without
+        annotation) and the settings the conditions above give, or earlier for the same source,
+        compile-time values and settings (a repeated launch of the same instance); it is not code
+        compiled earlier, for other values or under other settings, and taken from Triton's caches (the
+        `JITFunction`'s cache in the process, or the cache directory). TVA assumes this and does not verify Triton's caches: neither the gate, nor the
         prover, nor the kernel reviewer checks it. The caches' keys equate some different compile-time values
         and record no knob set from Python, no `TRITON_KERNEL_OVERRIDE`, no hook, no change to Triton in
         memory and no state of the host process, so code taken from them may differ from the launch's

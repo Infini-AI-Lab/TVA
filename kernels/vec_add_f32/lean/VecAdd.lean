@@ -123,9 +123,9 @@ def Spec (K : Claim.Behaviour Inst) : Prop := Claim.Meets Inst.ok Pre Post K
 structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) : Prop where
   /-- [rule] `Compiler.Faithful`: on every covered instance, when `launch d` has `debug = false`
   and is valid, every outcome of the compiled kernel launched as `launch d`, from a memory from which
-  the model's launch is well behaved, is one of the model's launch. The rule covers a launch within
-  its scope: part (A), the kernel and its launches, which the host's launches meet (README,
-  Conditions), and part (B), the environment, which the claim relies on. -/
+  the model's launch is well behaved, is one of the outcomes of the model's launch. The rule covers
+  a launch within its scope: part (A), the kernel and its launches, which the host's launches meet
+  (README, Conditions), and part (B), the environment, which the claim relies on. -/
   faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)
 
 /-! ## The proof -/

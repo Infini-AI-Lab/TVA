@@ -38,7 +38,8 @@ status. Think as the prover who must write the model and the proof:
 - memory: pointer arithmetic, masks, block pointers, tensor descriptors, atomics, aliasing;
 - types: dtypes, literals, conversions, scalar arguments;
 - helpers: called `@triton.jit` functions, which a proof inlines;
-- the launch: grid, `num_warps`, `num_stages`, autotuning and its hooks, constexpr arguments.
+- the launch: grid, `num_warps`, `num_stages`, constexpr arguments (`@triton.autotune` is excluded,
+  library issue L116: a kernel a tutorial autotunes is set up with one config, REVIEW_PROTOCOL §3).
 
 The statuses:
 - **covered**: SEMANTICS (with its Lean definition) gives the meaning, a device fact in
