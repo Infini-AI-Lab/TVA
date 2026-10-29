@@ -125,6 +125,7 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L112](#l112) | OPEN | 21 | library review round 20 (lr-20c) | gap: the claim reader misreports two claims, both failing closed (a `PANIC` substring; a `private` field) |
 | [L113](#l113) | OPEN | 21 | library review round 20 (lr-20f) | gap: the proof kit has no rule for `tl.convert` or `tl.sum0c`, and none named for `tl.store1` |
 | [L114](#l114) | OPEN | 21 | library review round 20 (lr-20a, lr-20b, lr-20e, lr-20f) | wording: the fp8 constants' prose and PROVER_GUIDE's list, num.md's "exact" division facts, four lemma docstrings |
+| [L115](#l115) | CLOSED | — | coordinator, 2026-10-29 (independence check) | independence: `TVA.Lemmas.Softmax` was written by an agent that had read another project's lemmas; removed |
 
 ## L1
 
@@ -2176,3 +2177,21 @@ LIBRARY.md's `Ops` row. Round 21.
   `|y| ≤ maxVal` ([lr-20f](round-20/lr-20f/report.md)).
 
 Round 21.
+
+## L115
+
+**`TVA.Lemmas.Softmax` removed for its provenance** (independence; coordinator, 2026-10-29, for the
+user's goal "make sure the independence of tva, provers and reviewers cannot cite other project's
+results or lemmas"). The coordinator checked provenance by authorship, not only by text: every tool
+call of every agent of the project's sessions, for what each read outside TVA, and what each then
+wrote into TVA. One file of the library had been written, on 2026-10-27, by an agent that had just
+read another project's float `max`/compare lemmas and exponential notes: `lean/TVA/Lemmas/Softmax.lean`
+(online-softmax error lemmas over the reals). Its text shares no theorem name or statement with that
+project, but a lemma derived from another project's work is not cleared by a text comparison. No
+kernel and no other library module used it, so it is removed (with its `TVA.lean` import, its
+`LIBRARY.md` row and a line of `docs/plan/examples.md`), and is to be written again, from TVA and
+Mathlib alone, when a softmax kernel needs it. The same agent's order-key `max` lemmas had already
+been replaced by `TVA.Lemmas.FloatMax`, which round 12's author wrote with no access to any other
+project. No review followed this removal (after the final batch, round 21); it is checked by the
+build, `tvr library-check`, the audit and the release check, and leaves `vec_add_f32`'s certificate
+as it was.

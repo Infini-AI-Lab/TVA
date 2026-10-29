@@ -20,7 +20,8 @@ Each bundle states four things, and its kernel folder's `README.md` (`kernels/<k
 
 Status (2026-10-27): items 1-4 are done (`Fused`, `tl.intToPtr` in `Lang/Ops`, `Scalar`,
 `DotLoop`; item 1 is `TVA.Lemmas.FusedErr` since round 12). Full-tile 2-D accesses use `safe_load_buf`/`safe_store_buf` directly, so no separate
-tile module was needed. Item 5 is in `TVA.Lemmas.Softmax` and `TVA.Lemmas.FloatMax` (flash attention).
+tile module was needed. Item 5's float maximum is `TVA.Lemmas.FloatMax`; its online-softmax lemmas were removed on 2026-10-29
+(library issue L115) and are to be written again when a softmax kernel needs them.
 
 1. `TVA.Lemmas.FusedErr` (was `Fused`):
    - the error of a rounding that comes out finite (IEEE formats), also just above `maxVal`;

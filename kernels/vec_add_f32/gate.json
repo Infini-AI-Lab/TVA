@@ -1,6 +1,6 @@
 {
   "build": {
-    "lean/TVA.lean": "0aaeb48dd3db34a86f0000b472f86ec80148b8404391c3a54892f272d48d18f1",
+    "lean/TVA.lean": "5be099ee865913eeeb786dbcf85806270a42a444f102d2fcc89617a9510f0584",
     "lean/TVA/Claim.lean": "32330f430d05113cc4bc0f3d77af5e2f3d3bef44feb193b67ee1ee1fcbf27e61",
     "lean/TVA/Lang/BlockPtr.lean": "5c121ff17dd9b6f3b49adbbd9572d7f87055bfaabba8ab60025d69ac19f2fe4f",
     "lean/TVA/Lang/Desc.lean": "f6f836aff2342615a2aac7752b46e621308d1edd71a3efe989f7fd12f93c29f6",
@@ -38,7 +38,6 @@
     "lean/TVA/Lemmas/Shared.lean": "3bb137f3355e0164d4852adc4e72c0a8f232195b7ee18db833f1fcfc67607ddb",
     "lean/TVA/Lemmas/SharedAcc.lean": "9af6e59cd1376d09131623eb357717d44dde71af236f1af5a0879489bb24b447",
     "lean/TVA/Lemmas/Sm90.lean": "9ced578680a0271d766bd3e90f1cfe1e62d488ca9c61c79e81d8d66cb24073b1",
-    "lean/TVA/Lemmas/Softmax.lean": "2f8a86c238454e9ab5b71ae702a0813b7f903f1f859ec77c6dde30d91d6744ce",
     "lean/TVA/Lemmas/Sum.lean": "e4cf5bfed24f41db7347befc13c10a291ba2974f1b6cdb7e86a304d8dc807427",
     "lean/TVA/Lemmas/SumFused.lean": "7b50dd56c38f33283603a4f296b170fa954a86db2c3ee88aa3f3cd113c0bc696",
     "lean/TVA/Lemmas/Tree.lean": "68c596165ed4a37059c5699712916c34b1c083e611b6cdc400e53b4918cfdc30",
@@ -145,7 +144,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-10-29T05:06:23Z",
+  "time": "2026-10-29T05:55:17Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "84f0b4d50930c1f687944b15cba75fbe7973f32210c33b3e4bca863af9234cec"

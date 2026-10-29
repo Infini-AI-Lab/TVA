@@ -40,7 +40,6 @@ import TVA.Lemmas.FusedErr
 import TVA.Lemmas.FloatMax
 import TVA.Lemmas.DotLoop
 import TVA.Lemmas.Scalar
-import TVA.Lemmas.Softmax
 import TVA.Lemmas.Sm90
 import TVA.Lemmas.SumFused
 import TVA.Lemmas.SharedAcc
