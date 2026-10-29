@@ -1,15 +1,16 @@
 {
-  "gate": "b7289baba91143474c665faa7c7dd652cea5f18116959c8c13fe6265c90892d9",
+  "gate": "990243026f1289fb2ed87580d8161c73a986048181d4a7e6a2bc46ce8915c484",
   "items": {
-    "assumption:faithful": "7daa38a8cf8de56ac66e1388579c1543c27ad0398947fe9f9766a90cc14367f1",
-    "conditions": "1acb1ddb767fb8362951c2ecf1a03019e2735489e349d034d1e63ce8c32779ea",
-    "map": "f63781ab10ff27823f4535a2e2e42e3f40e05d86a7c5116e66abedd67d48e132",
-    "model": "a5bc157e2943fef22239a0cad05c88a3adcff9e0ac6cf78807d0418a7a91ee4a",
-    "spec": "81c44a8a677b741905b7dbcc4eaee5946cfad2371f6469f6066699c795824c5a"
+    "assumption:faithful": "75b45a93a1ed2c7e5b57d2c6de3a44ffffba00dfa2b66aa8ae6f4b72b0f8e89b",
+    "conditions": "e5538e70ac7053117564849db1432620a273bf555100bfa119dfcf6163c33553",
+    "map": "7c50c7991362915dd11be8d344640329f04ad098f911a8a3ef9d0301c005c0bd",
+    "model": "1f91261a42c160c444a9b6f975f5b8c6b6e9eee2441655b04f3d8ea414a6e2d5",
+    "spec": "203cf396fedcb719efa232b76cc0208f9161089d5cd2fd316a964859cfd8291d"
   },
   "kernel": "vec_add_f32",
   "reviewers": [
-    "r-vecadd"
+    "r-vecadd",
+    "r-vecadd2"
   ],
-  "time": "2026-10-27T18:26:01Z"
+  "time": "2026-10-29T05:17:41Z"
 }

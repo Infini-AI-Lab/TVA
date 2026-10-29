@@ -1,0 +1,92 @@
+# Part U: the tool's functions on small inputs
+
+## U1 (L39): code lines, round 6 against round 7
+K1 a triple-quoted argument:
+  1: round 6 code | round 7 code | @triton.jit
+  2: round 6 code | round 7 code | def k(c, x_ptr):
+  3: round 6 code | round 7 code |     x = tl.load(x_ptr)
+  4: round 6 ---- | round 7 code |     tl.device_print("""x""", tl.atomic_add(c, 1))
+  5: round 6 code | round 7 code |     tl.store(x_ptr, x)
+K2 triple quotes in two comments:
+  1: round 6 code | round 7 code | @triton.jit
+  2: round 6 code | round 7 code | def k(c, x_ptr):
+  3: round 6 ---- | round 7 code |     x = tl.load(x_ptr)  # """
+  4: round 6 ---- | round 7 code |     tl.atomic_add(c, 1)
+  5: round 6 ---- | round 7 code |     tl.store(x_ptr, x)  # """
+K3 a docstring (control):
+  1: round 6 code | round 7 code | @triton.jit
+  2: round 6 code | round 7 code | def k(c, x_ptr):
+  3: round 6 ---- | round 7 ---- |     """Adds one.
+  4: round 6 ---- | round 7 ---- |     tl.atomic_add(c, 1) is how it would read
+  5: round 6 ---- | round 7 ---- |     """
+  6: round 6 code | round 7 code |     tl.atomic_add(c, 1)
+K4 an empty triple-quoted string after `;`:
+  1: round 6 code | round 7 code | def k(x_ptr, c_ptr):
+  2: round 6 ---- | round 7 code |     x = tl.atomic_add(c_ptr, 2)  ; s = """"""
+  3: round 6 code | round 7 code |     tl.store(x_ptr, x)
+K5 a bare non-ASCII string, then code:
+  1: round 6 code | round 7 code | def k(c):
+  2: round 6 code | round 7 code |     'é' ; tl.atomic_add(c, 1)
+  3: round 6 code | round 7 ---- |     'a bare string'
+  4: round 6 code | round 7 code |     x = f(
+  5: round 6 ---- | round 7 code |         """two
+  6: round 6 ---- | round 7 code |         lines""",
+  7: round 6 code | round 7 code |     )
+a source that does not parse: (None, 'invalid syntax (<unknown>, line 1)')
+
+## U2 (L38): the manifest check
+the real manifest: no problem
+the namespace of lr-6a's injection: ['lean.namespace must be a dotted name of ASCII letters, digits, `_` and `\'` (found \'Nat), True := fun _ => trivial\\n#eval IO.println "x"\\n#exit\\n--\')']
+a module with a line break: ["lean.module must be a dotted name of ASCII letters, digits, `_` and `'` (found 'VecAdd\\n#exit')"]
+a namespace with a space: ["lean.namespace must be a dotted name of ASCII letters, digits, `_` and `'` (found 'Kernels.Vec Add')"]
+a source file outside the kernel folder: ["source.file must be a path inside the kernel folder (found '<three folders up>/README.md')"]
+
+## U3 (L40): the library hygiene's view of Lean code (comments removed, literals kept)
+a command after a string holding --: ['meta code']
+a command after a char literal of a quote: ['meta code']
+a raw string holding a quote and --: ['meta code']
+a guillemet name holding --: ['meta code']
+a nested comment: nothing flagged
+a docstring naming syntax (prose): nothing flagged
+a line comment naming run_cmd: nothing flagged
+the library as it is: nothing flagged
+
+# Part C: on a copy of the tree
+
+## C0: the copy as it is
+tvr audit: exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+the shipped gate of vec_add_f32: ok True, stale: ['it was recorded by a tool older than whole-file digests (round 6), so it records no library files']
+
+## C1 (L43): rule pages for modules in subfolders
+lean/TVA/Rules/Num/Exp2.lean added: tvr audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+  files in the digest of an item that reaches only TVA.Rules.Num.Exp2: ['file:docs/SEMANTICS.md', 'file:docs/exclusions.md', 'file:docs/rules/num.md', 'file:lean/TVA/Rules/Num/Exp2.lean']
+lean/TVA/Rules/Extra/Y.lean added (no page above it): tvr audit exit 1 (tools/tvr.py: RULE_PAGES gives no page for the module TVA.Rules.Extra.Y or any module above it)
+
+## C2 (L40): package-wide Lean options in lean/lakefile.toml
+[leanOptions] debug.skipKernelTC = true: tvr audit exit 1 (lean/lakefile.toml: leanOptions 'debug.skipKernelTC' is not allowed (only resource limits, autoImplicit, relaxedAutoImplicit, linter.* and pp.*, with a boolean or number value))
+[leanOptions] maxHeartbeats = 400000: tvr audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+[leanOptions] linter.unusedVariables = false: tvr audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+[leanOptions] trace.Meta.synthInstance = true: tvr audit exit 1 (lean/lakefile.toml: leanOptions 'trace.Meta.synthInstance' is not allowed (only resource limits, autoImplicit, relaxedAutoImplicit, linter.* and pp.*, with a boolean or number value))
+[leanOptions] pp.all = true: tvr audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+[leanOptions] autoImplicit = "yes": tvr audit exit 1 (lean/lakefile.toml: leanOptions 'autoImplicit' is not allowed (only resource limits, autoImplicit, relaxedAutoImplicit, linter.* and pp.*, with a boolean or number value))
+
+## C3 (L41): a note in a nested .lake folder
+untracked docs/.lake/note.md: shipped (git ls-files): False; tvr audit exit 0
+after `git add -f`: tvr audit exit 1 (docs/.lake/note.md: shipped inside a folder the text scan skips (.lake))
+the same note at docs/note.md (control): tvr audit exit 1 (docs/note.md: a path outside TVA (a sibling folder, <a sibling of TVA>))
+
+## C4 (L38): lr-6a's namespace injection, end to end
+tvr check: exit 1: FAIL  manifest   kernel.json: lean.namespace must be a dotted name of ASCII letters, digits, `_` and `'` (found 'Nat), True := fun _ => trivial\n#eval IO.println "TVR_JSON {}') | gate FAIL (nothing else runs on this manifest)
+  claim reader written: False
+
+## C5 (L42): a library change after a certificate
+the kernel updated in the copy, its review record cleared: tvr check exit 0 (gate PASS  digest 27bbd2663f9f945e)
+tvr file (accept all): exit 0; certificate.json present: True
+a comment added to lean/TVA/Lang/Ops.lean, then tvr index: certificate.json present: False
+  REVIEW.md: - Gate: **PASS**, digest `27bbd2663f9f945e` (2026-10-28T10:30:37Z), **stale**: library files changed after it ran (file:lean/TVA/Lang/Ops.lean).
+  REVIEW.md: **Certificate: not yet** — 0 blocking finding(s) unresolved; the gate is stale (library files changed after it ran (file:lean/TVA/Lang/Ops.lean)): run `tvr check`
+  kernels/README.md: | [vec_add_f32](vec_add_f32/README.md) | Vector addition, tutorial 01 (`add_kernel`, float32) | PASS (stale) | [round 1: all reviewers have filed](vec_add_f32/REVIEW.md) | 0 | — |
+a further filing: tvr file exit 1: tvr: the gate is stale (library files changed after it ran (file:lean/TVA/Lang/Ops.lean)); run `tvr check`
+tvr check again: exit 0 (gate PASS  digest f92bb1f23521b431)
+tvr status after it: | `assumption:faithful` | `e8bbb9410068` | STALE (changed: `file:lean/TVA/Lang/Ops.lean`) | | | `conditions` | `e988809e8d45` | accepted | | | `map` | `a3a5a3b742d3` | STALE (changed: `file:lean/TVA/Lang/Ops.lean`) | | | `model` | `c0d8f1505e9e` | STALE (changed: `file:lean/TVA/Lang/Ops.lean`) | | | `spec` | `ffe082cd66d6` | STALE (changed: `file:lean/TVA/Lang/Ops.lean`) | | **Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
+

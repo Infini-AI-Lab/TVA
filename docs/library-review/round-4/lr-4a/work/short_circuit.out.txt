@@ -1,0 +1,8 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+K1 if FLAG and <atomic> is not None (FLAG=False): atomics that ran 0 of 4; outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 0
+K2 if FLAG or <atomic> is None (FLAG=True): atomics that ran 0 of 4; outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0
+K3 if FLAG: ... elif <atomic> is not None: (FLAG=True): atomics that ran 0 of 4; outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0
+False
+K4 tl.static_print(FLAG and <atomic>) (FLAG=False): atomics that ran 0 of 4; outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0
+K5 tl.device_print('v', <atomic> if FLAG else 0) (FLAG=False): atomics that ran 0 of 4; outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0
+K6 control: if <atomic> is not None and FLAG (FLAG=False): atomics that ran 4 of 4; outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1

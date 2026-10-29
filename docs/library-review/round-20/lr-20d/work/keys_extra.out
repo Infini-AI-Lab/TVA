@@ -1,0 +1,9 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, python 3.13.9
+Y1. one process, fresh cache, k1 (x * C, isinstance(C, float)); each value alone as the control:
+  2 then 2.0: [33554434, 0], [33554434, 0] (alone: [33554432, 1]) DIFFERS
+  2.0 then 2: [33554432, 1], [33554432, 1] (alone: [33554434, 0]) DIFFERS
+  3 then 3.0: [50331651, 0], [50331651, 0] (alone: [50331648, 1]) DIFFERS
+Y2. a first process, then a second on the same cache folder with TRITON_ALWAYS_COMPILE=1:
+  (a) MODE = 1 -> [[10]]; then MODE = '1' with TRITON_ALWAYS_COMPILE=1 -> [[20]] (the string's own code: [[20]]); then MODE = '1' without it -> [[20]]
+  (b) tl.exp = tl.log in the first -> [0.693147]; plain second with TRITON_ALWAYS_COMPILE=1 -> [7.389056] (exp(2) = 7.389056)
+Y1 launches that ran code compiled for another value: 3 of 3

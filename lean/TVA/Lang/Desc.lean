@@ -28,13 +28,33 @@ At the language level (`core.py:1424-1484, 2647-2668`, `semantic.py:1065-1190, 1
   happens to an out-of-bounds lane, so it is undefined behaviour here;
 * the documented requirements: the base is 16-byte aligned, every stride but the last is a
   multiple of 16 bytes, the last stride is 1, and the offset is a multiple of 16 bytes (read
-  here as the innermost offset, in bytes). A violation is undefined behaviour in the model.
+  here as the innermost offset, in bytes). A violation is undefined behaviour in the model. So is
+  an access through a descriptor with a zero shape entry: on the H200 it faults
+  (`evidence/desc-zero-shape`, library issue L5), so every shape entry of an accessed descriptor is
+  positive (`TensorDesc.Valid`). Building such a descriptor without accessing it is harmless;
+* on the H200 (sm_90), `desc.gather` and `desc.scatter` do not compile (ptxas: `.tile::gather4`
+  needs sm_100, `.tile::scatter4` is not on sm_90a; `evidence/desc-zero-shape` Z14-Z16): a launch
+  that uses one is rejected on the host and has no outcome. `tl.desc_gather` and `tl.desc_scatter`
+  state their reading of the documentation for later targets.
 
-Descriptor accesses are modelled as ordinary sequential accesses. That needs Triton to order
-pointer and TMA accesses to the same bytes (`fence.proxy.async`), which is not yet confirmed
-(`docs/review-questions.md` Q11). Until then, a model must not access the same bytes both
-ways. A device-side descriptor occupies scratch memory from `triton.set_allocator`; the model
-assumes it does not overlap the kernel's buffers (the reviewer checks the allocator).
+Descriptor accesses are steps of the program like pointer accesses, and like them they are not
+ordered (library issue L15): two accesses of a program to the same bytes with a write among them
+conflict, unless both are atomics, whichever way they are made, so a well-behaved model never needs
+Triton to order a pointer access and a TMA access (`fence.proxy.async`). A model still does not
+access the same bytes both ways (`docs/exclusions.md`): a pointer atomic and a descriptor reduction
+on the same bytes do not conflict, but their atomicity across the generic and the async proxy is
+not confirmed, and two reads, which need no order, are kept out until `docs/review-questions.md`
+Q11 is settled.
+
+The library covers descriptors the host builds (a `TensorDescriptor` argument), with the host's
+shape, strides, block shape and padding, and descriptors built inside the kernel
+(`tl.make_tensor_descriptor`, library issue L5). Building one touches none of the launch's bytes in
+the model (`tl.make_tensor_descriptor` is pure): on the device each program writes it into the
+launch's scratch, a buffer the allocator set by `triton.set_allocator` returns (128 bytes per
+descriptor per program; without an allocator the launch is rejected on the host). That buffer is
+not part of the claim's memory, and `Rules.Compiler.Faithful` (scope point 5) covers the launch
+only when it holds none of the bytes `init` gives the launch and nothing else writes it during the
+launch (`evidence/desc-scratch`; `docs/SEMANTICS.md`, "Tensor descriptors").
 -/
 namespace TVA
 
@@ -55,11 +75,14 @@ variable {d : DType}
 /-- The rank. -/
 def rank (D : TensorDesc d) : Nat := D.shape.length
 
-/-- Triton's requirements on the descriptor. The shape entries are `int32`
-(`make_tensor_descriptor` casts them, `semantic.py:1872`). -/
+/-- Triton's requirements on the descriptor an access goes through. The shape entries are positive
+`int32` values (`make_tensor_descriptor` casts them, `semantic.py:1872`): on the H200 every load,
+store or reduction through an in-kernel descriptor with a zero shape entry faults
+(`evidence/desc-zero-shape` Z2-Z11, library issue L5), and a host-built one is rejected on the host
+(Z13). -/
 def Valid (D : TensorDesc d) : Prop :=
   1 ≤ D.rank ∧ D.rank ≤ 5 ∧ D.strides.length = D.rank ∧ D.block.length = D.rank ∧
-    (∀ k, k < D.rank → D.shape.getD k 0 < 2 ^ 31) ∧ D.base.addr % 16 = 0 ∧
+    (∀ k, k < D.rank → 0 < D.shape.getD k 0 ∧ D.shape.getD k 0 < 2 ^ 31) ∧ D.base.addr % 16 = 0 ∧
     D.strides.getLast? = some 1 ∧ (∀ k, k + 1 < D.rank → (D.strides.getD k 0 * d.bytes) % 16 = 0) ∧
     D.padding ≠ .undef ∧ (D.padding = .nan → d.format?.isSome = true)
 
@@ -137,6 +160,22 @@ namespace tl
 
 variable {d : DType}
 
+/-- `tl.make_tensor_descriptor(base, shape, strides, block_shape, padding_option)` in the kernel
+(`semantic.py:1851-1890`, `core.py:2647-2704`): the descriptor of the arguments' values, each shape
+entry converted to `int32` and each stride to `int64` by the source's promotion, the source's
+`block_shape`, and the padding (`"zero"` by default). It accesses no memory of the model: the
+device writes the descriptor into the launch's scratch (see the module docstring). Undefined
+behaviour for a negative shape entry or stride. A zero shape entry is accepted here, and an access
+through the descriptor is then undefined (`TensorDesc.Valid`, library issue L5). The front end rejects on the host a rank outside
+1–5, lists of different lengths, a last stride other than the constant `1`, a last block dimension
+under 16 bytes, and `"nan"` padding for an integer dtype. Its accesses require `TensorDesc.Access`,
+as a host-built descriptor's do. -/
+def make_tensor_descriptor (base : Ptr d) (shape : List I32) (strides : List I64) (block : Shape)
+    (padding : Padding := .zero) : Prog (TensorDesc d) :=
+  .pick (fun D : TensorDesc d => (∀ x ∈ shape, 0 ≤ x.toInt) ∧ (∀ x ∈ strides, 0 ≤ x.toInt) ∧
+    D = ⟨base, shape.map (fun x => x.toInt.toNat), strides.map (fun x => x.toInt.toNat), block,
+      padding⟩) .ret
+
 /-- `desc.load(offsets)`: the block at `offsets`; lanes outside the tensor hold the padding. -/
 def desc_load {bs : Shape} (D : TensorDesc d) (offsets : List I32) : Prog (Tensor bs d.Val) :=
   let o := offsets.map IntV.toInt
@@ -164,14 +203,17 @@ def desc_atomic {bs : Shape} (op : RedOp) (D : TensorDesc d) (offsets : List I32
     return ()
 
 /-- `desc.gather(x_offsets, y_offset)` with block `[1, BN]`: rows `x_offsets`, columns
-`y_offset + [0, BN)`. Lanes outside the tensor hold unspecified values. -/
+`y_offset + [0, BN)`. Lanes outside the tensor hold unspecified values. On the H200 a launch that
+uses it is rejected on the host (`evidence/desc-zero-shape` Z14, Z16): no outcome. -/
 def desc_gather {M BN : Nat} {w : Nat} (D : TensorDesc d) (xs : Tensor [M] (IntV true w)) (y : I32) :
     Prog (Tensor [M, BN] d.Val) :=
   .pick (fun _ : Unit => D.RowAccess BN y) fun _ =>
     tl.load (D.ptrsAt (TensorDesc.rowCoord xs y)) (some (D.maskAt (TensorDesc.rowCoord xs y)))
 
 /-- `desc.scatter(value, x_offsets, y_offset)`: the inverse of `desc_gather`. Every lane must
-lie inside the tensor. Rows may repeat; the elements are then written in an unspecified order. -/
+lie inside the tensor. Rows may repeat; the elements are then written in an unspecified order. On
+the H200 a launch that uses it is rejected on the host (`evidence/desc-zero-shape` Z15): no
+outcome. -/
 def desc_scatter {M BN : Nat} {w : Nat} (D : TensorDesc d) (vals : Tensor [M, BN] d.Val)
     (xs : Tensor [M] (IntV true w)) (y : I32) : Prog Unit :=
   .pick (fun _ : Unit => D.RowAccess BN y ∧ ∀ l : Idx [M, BN], D.inbAt (TensorDesc.rowCoord xs y l) = true)

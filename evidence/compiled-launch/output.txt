@@ -1,0 +1,62 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+K1: tutorial 02: warmup, then the CompiledKernel launched with the tutorial's arguments
+  compiled for: {'signature': {'output_ptr': '*fp32', 'input_ptr': '*fp32', 'input_row_stride': 'i32', 'output_row_stride': 'i32', 'n_rows': 'i32', 'n_cols': 'i32', 'BLOCK_SIZE': 'constexpr', 'num_stages': 'constexpr'}, 'constexprs': {'(6,)': '1024', '(7,)': '4'}, 'attrs': {'(0,)': "[['tt.divisibility', 16]]", '(1,)': "[['tt.divisibility', 16]]", '(2,)': '[]', '(3,)': '[]', '(4,)': '[]', '(5,)': '[]', '(6,)': '[]', '(7,)': '[]'}}
+  num_programs: 1056
+  tutorial launch: allclose to torch.softmax: True
+  constexpr positions given 1 and 99: result identical: True
+  constexpr positions given None and a string: result identical: True
+  without the constexpr positions: ran; result identical: True
+  grid (num_programs,): IndexError: tuple index out of range
+
+K2a: compiled for 16-byte aligned x; launched with x 4 bytes past alignment
+  compiled for: {'signature': {'x_ptr': '*fp32', 'y_ptr': '*fp32', 'n': 'i32', 'BLOCK': 'constexpr'}, 'constexprs': {'(3,)': '128'}, 'attrs': {'(0,)': "[['tt.divisibility', 16]]", '(1,)': "[['tt.divisibility', 16]]", '(2,)': "[['tt.divisibility', 16]]", '(3,)': '[]'}}
+  memory ops: ['ld.global.v4.b32', 'st.global.v4.b32']
+  JIT launch with x[1:]: correct: True
+  compiled kernel with x[1:]: error: CUDA error: misaligned address
+
+K2b: compiled for n = 1024 (divisible by 16); launched with n = 1001
+  compiled for: {'signature': {'x_ptr': '*fp32', 'y_ptr': '*fp32', 'n': 'i32', 'BLOCK': 'constexpr'}, 'constexprs': {'(3,)': '128'}, 'attrs': {'(0,)': "[['tt.divisibility', 16]]", '(1,)': "[['tt.divisibility', 16]]", '(2,)': "[['tt.divisibility', 16]]", '(3,)': '[]'}}
+  memory ops: ['ld.global.v4.b32', 'st.global.v4.b32']
+  JIT launch with n=1001: elements written: 1001
+  compiled kernel with n=1001: elements written: 1004
+  compiled kernel with n=1001: indices >= 1001 written: [1001, 1002, 1003]
+
+K2c: compiled for s = 1 (a constexpr); launched with s = 3
+  compiled for: {'signature': {'x_ptr': '*fp32', 'y_ptr': '*fp32', 'n': 'i32', 's': 'constexpr', 'BLOCK': 'constexpr'}, 'constexprs': {'(3,)': '1', '(4,)': '128'}, 'attrs': {'(0,)': "[['tt.divisibility', 16]]", '(1,)': "[['tt.divisibility', 16]]", '(2,)': "[['tt.divisibility', 16]]", '(3,)': '[]', '(4,)': '[]'}}
+  compiled kernel with s=3: equals x[3*i]: False
+  compiled kernel with s=3: equals x[i] (s taken as 1): True
+
+K2d: compiled for s = 3 (int32); launched with s = 1
+  compiled for: {'signature': {'x_ptr': '*fp32', 'y_ptr': '*fp32', 'n': 'i32', 's': 'i32', 'BLOCK': 'constexpr'}, 'constexprs': {'(4,)': '128'}, 'attrs': {'(0,)': "[['tt.divisibility', 16]]", '(1,)': "[['tt.divisibility', 16]]", '(2,)': "[['tt.divisibility', 16]]", '(3,)': '[]', '(4,)': '[]'}}
+  compiled kernel with s=1: equals x[i]: True
+
+K2e: compiled for an int32 n; launched with n >= 2^31
+  compiled for: {'signature': {'x_ptr': '*fp32', 'y_ptr': '*fp32', 'n': 'i32', 'BLOCK': 'constexpr'}, 'constexprs': {'(3,)': '128'}, 'attrs': {'(0,)': "[['tt.divisibility', 16]]", '(1,)': "[['tt.divisibility', 16]]", '(2,)': "[['tt.divisibility', 16]]", '(3,)': '[]'}}
+  compiled kernel with n=2147483653: elements written: 0
+  JIT launch with n=2147483653: elements written: 128
+  compiled kernel with n=4294967301: elements written: 8
+  JIT launch with n=4294967301: elements written: 128
+  JIT signatures compiled: ["{'x_ptr': '*fp32', 'y_ptr': '*fp32', 'n': 'i32', 'BLOCK': 'constexpr'}", "{'x_ptr': '*fp32', 'y_ptr': '*fp32', 'n': 'i64', 'BLOCK': 'constexpr'}"]
+
+K2f: compiled for float32 x; launched with float16 x
+  compiled for: {'signature': {'x_ptr': '*fp32', 'y_ptr': '*fp32', 'n': 'i32', 'BLOCK': 'constexpr'}, 'constexprs': {'(3,)': '128'}, 'attrs': {'(0,)': "[['tt.divisibility', 16]]", '(1,)': "[['tt.divisibility', 16]]", '(2,)': "[['tt.divisibility', 16]]", '(3,)': '[]'}}
+  compiled kernel with float16 x: y equals x's bytes read as float32: True
+
+K2g: compiled kernel launched with too few arguments
+  5 of 5 processes: SystemError: Objects/longobject.c:472: bad argument to internal function
+
+K2h: compiled kernel launched with a host tensor
+  host tensor for x: ValueError: Pointer argument cannot be accessed from Triton (cpu tensor?)
+  y untouched: True
+
+K3: launch_metadata= and launch hooks
+  knobs.runtime.launch_enter_hook: HookChain
+  launch_enter_hook is None: False
+  no hook added (JIT): {'launch_metadata calls': 0, 'result correct': True}
+  no hook added (compiled kernel): {'launch_metadata calls': 0, 'result correct': True}
+  a hook that does not read the metadata (JIT): {'launch_metadata calls': 0, 'result correct': True}
+  a hook that reads the metadata (JIT): {'launch_metadata calls': 1, 'result correct': True}
+  a hook that reads the metadata (compiled kernel): {'launch_metadata calls': 1, 'result correct': True}
+  what the reading hook saw: [{'name': 'probe', 'flops': '7'}]
+  a hook that reads the metadata, launch_metadata raises (JIT): {'launch_metadata calls': 0, 'raised': 'ValueError: launch_metadata failed', 'y untouched': True}

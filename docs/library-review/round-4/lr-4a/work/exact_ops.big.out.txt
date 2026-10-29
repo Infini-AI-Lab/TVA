@@ -1,0 +1,21 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+  chunk 0: sqrt_rn 0, bf16 0, f16 0
+  chunk 1: sqrt_rn 0, bf16 0, f16 0
+  chunk 2: sqrt_rn 0, bf16 0, f16 0
+  chunk 3: sqrt_rn 0, bf16 0, f16 0
+  chunk 4: sqrt_rn 0, bf16 0, f16 0
+  chunk 5: sqrt_rn 0, bf16 0, f16 0
+  chunk 6: sqrt_rn 0, bf16 0, f16 0
+  chunk 7: sqrt_rn 0, bf16 0, f16 0
+  chunk 8: sqrt_rn 0, bf16 0, f16 0
+  chunk 9: sqrt_rn 0, bf16 0, f16 0
+  chunk 10: sqrt_rn 0, bf16 0, f16 0
+  chunk 11: sqrt_rn 0, bf16 0, f16 0
+  chunk 12: sqrt_rn 0, bf16 0, f16 0
+  chunk 13: sqrt_rn 0, bf16 0, f16 0
+  chunk 14: sqrt_rn 0, bf16 0, f16 0
+  chunk 15: sqrt_rn 0, bf16 0, f16 0
+E1 tl.sqrt_rn float32, all 2^32 inputs: 0 differ from IEEE
+E2 float32 -> bfloat16, all 2^32: 0 differ; float32 -> float16, all 2^32: 0 differ (1895809024 float16 results zero or subnormal)
+E3 float16 + and *, all 2^32 pairs: + 0 differ, * 0 differ
+E3 bfloat16 + and *, all 2^32 pairs: + 0 differ, * 0 differ

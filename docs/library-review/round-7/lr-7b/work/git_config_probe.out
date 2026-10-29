@@ -1,0 +1,2 @@
+plain: make_packages problems: none; files that differ from the commit's blobs: 0 of 12; `git status` clean: True; first line of Cli.lean: 'module'
+smudge: make_packages problems: none; files that differ from the commit's blobs: 5 of 12; `git status` clean: False; first line of Cli.lean: '-- a line the commit does not have'

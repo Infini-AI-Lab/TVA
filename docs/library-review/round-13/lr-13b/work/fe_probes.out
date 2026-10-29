@@ -1,0 +1,31 @@
+Triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+W1: W1 dtype fp32
+W1: W1 stored [16777216, 0, -3, 2147483647]
+W2: W2 stored [1.5, 0.0, -3.0, 0.10000000149011612]
+C1: rejected on the host: ValueError: arange's arguments must be of type tl.constexpr
+C2: C2 stored [-3]
+C3: C3 stored [-4]
+C4: C4/C5 dtype bf16
+C4: C4 stored [0.0, 0.0, 0.0, 0.0]
+C5: C4/C5 dtype fp32
+C5: C5 stored [1.0000000116860974e-07, 2.0000000233721948e-07, 3.000000106112566e-07, 0.00010000000474974513]
+C6: C6 a dtype int32
+C6: C6 stored [-2147483648]
+C7: C7 stored [2147483648]
+D1: D dtype bf16
+D1: D1 stored [0.0, 0.0, 0.0, 0.0]
+D2: D dtype bf16
+D2: D2 stored [0.0, 0.0, 0.0, 0.0]
+G1: G1 dtype bf16
+G1: G1 stored [0.0, 0.0, 0.0, 0.0]
+G2: rejected on the host: NameError("Cannot access global variable E2 from within @jit'ed function. Triton kernels can only access global variables that are instanstiated as constexpr (`x = triton.language.constexpr(42)`). Note that this is different from annotating
+R1: R1 stored [1, 0]
+L1: L1 counter after 8 programs [0]
+L2: L2 counter after 8 programs [8]
+L3: L3 counter after 8 programs [0]
+L4: L4 counter after 8 programs [16]
+L5: L5 counter after 8 programs [8]
+L6: L6 counter after 8 programs [8]
+O1: O1 other's bits ['0x3c00', '0x3c00', '0x3c00', '0x3c00']
+F1: F1 stored [0, 1, 2, 3, 4, 5, 6, 7]
+F2: rejected on the host: ValueError: Did you forget to add @triton.jit ? (`_semantic` argument must be provided outside of JIT functions.)

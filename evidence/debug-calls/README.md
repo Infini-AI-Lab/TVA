@@ -4,6 +4,10 @@ Library evidence (not a kernel's), for library issues L6 and L10. Triton 3.8.0
 (`~/fpv/tva/.venv`, torch 2.11.0+cu130), NVIDIA H200 NVL (sm_90), GPU 0, 2026-10-27, compiled
 without `debug` (`TRITON_DEBUG` unset). Script: [run.py](run.py); output: [out.txt](out.txt).
 
+**Since round 6** (library issue L36), TRANSCRIPTION.md is guidance and states no rule; the facts this
+evidence establishes are stated in [SEMANTICS.md](../../docs/SEMANTICS.md), "How the front end evaluates the source" (debugging
+calls, `tl.static_assert`, expressions with no effect).
+
 **Question.** The transcription rules drop `tl.static_assert` (`compile-check`) and
 `tl.static_print`, `tl.device_print`, `tl.device_assert` (`no-op:print`). When is that sound?
 
@@ -39,7 +43,8 @@ without `debug` (`TRITON_DEBUG` unset). Script: [run.py](run.py); output: [out.t
 
 **Conclusions.**
 1. With pure arguments (P1, P2), these calls change nothing a launch does to global memory, so the
-   model may drop them. "Pure" is defined in [TRANSCRIPTION.md](../../docs/TRANSCRIPTION.md) §10.
+   model may drop them. Which expressions have no effect is stated in [SEMANTICS.md](../../docs/SEMANTICS.md) ("How the front end
+   evaluates the source", since round 6).
 2. An operation inside an argument runs, whatever the call (E1–E7, E9). Dropping such a line loses
    the operation, so the argument's operations must be transcribed.
 3. A `tl.static_assert`'s message is evaluated only when the assertion fails (E8), and then the

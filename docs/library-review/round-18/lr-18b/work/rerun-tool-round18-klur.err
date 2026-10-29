@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "<tva>/evidence/tool-round18/run.py", line 566, in <module>
+    fn()
+    ~~^^
+  File "<tva>/evidence/tool-round18/run.py", line 408, in part_r
+    some = {f"{w1}/work/Cover.lean": tvr.file_sha(os.path.join(root, w1, "work", "Cover.lean"))}
+                                     ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<tva>/tools/tvr.py", line 133, in file_sha
+    with open(path, "rb") as f:
+         ~~~~^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '<scratch>/r0/kernels/vec_add_f32/review/round-1/r-vecadd/work/Cover.lean'

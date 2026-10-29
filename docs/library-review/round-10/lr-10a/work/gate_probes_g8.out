@@ -1,0 +1,5 @@
+## G8 (L7, the audit's text scan): a file in a folder of kernels/ that has no kernel.json
+- `tvr audit` names kernels/notes/readme.md: False
+- `tvr audit` names kernels/vec_add_f32/notes/readme.md: True
+- the folders `kernels()` lists (a kernel.json each): ['vec_add_f32']
+

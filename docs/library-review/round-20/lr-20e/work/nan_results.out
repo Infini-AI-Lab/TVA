@@ -1,0 +1,53 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+
+torch.float32: NaN operands 7fc00000, 7fc00005, 7f800001, 7f800003, 7fffffff, ffc00000, ffc00005, ff800001, ff800003, ffffffff
+  add      NaN op x: ['0x7fffffff']; NaN op y: ['0x7fffffff']
+  sub      NaN op x: ['0x7fffffff']; NaN op y: ['0x7fffffff']; invalid (inf-inf): ['0x7fffffff']
+  mul      NaN op x: ['0x7fffffff']; NaN op y: ['0x7fffffff']; invalid (0*inf): ['0x7fffffff']
+  fma      NaN op x: ['0x7fffffff']; NaN op y: ['0x7fffffff']
+  div      NaN op x: ['0x7fffffff']; NaN op y: ['0x7fffffff']
+  max      NaN op x: ['0x7fffffff']; NaN op y: ['0x7fffffff']
+  min      NaN op x: ['0x7fffffff']; NaN op y: ['0x7fffffff']
+  div_rn   NaN op x: ['0x7fffffff']; NaN op y: ['0x7fffffff']
+  sqrt_rn  NaN op x: ['0x7fffffff']; NaN op y: ['0x3f800000']; sqrt_rn(-1): ['0x7fffffff']
+
+torch.float16: NaN operands 7e00, 7e05, 7c01, 7c03, 7fff, fe00, fe05, fc01, fc03, ffff
+  add      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+  sub      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']; invalid (inf-inf): ['0x7fff']
+  mul      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']; invalid (0*inf): ['0x7fff']
+  fma      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+  div      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+  max      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+  min      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+
+torch.bfloat16: NaN operands 7fc0, 7fc5, 7f81, 7f83, 7fff, ffc0, ffc5, ff81, ff83, ffff
+  add      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+  sub      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']; invalid (inf-inf): ['0x7fff']
+  mul      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']; invalid (0*inf): ['0x7fff']
+  fma      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+  div      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+  max      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+  min      NaN op x: ['0x7fff']; NaN op y: ['0x7fff']
+
+torch.float64: NaN operands 7ff8000000000000, 7ff8000000000005, 7ff0000000000001, 7ff0000000000003, 7fffffffffffffff, fff8000000000000, fff8000000000005, fff0000000000001, fff0000000000003, ffffffffffffffff
+  add      NaN op x: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']; NaN op y: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']
+  sub      NaN op x: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']; NaN op y: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']; invalid (inf-inf): ['0xfff8000000000000']
+  mul      NaN op x: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']; NaN op y: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']; invalid (0*inf): ['0xfff8000000000000']
+  fma      NaN op x: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']; NaN op y: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']
+  div      NaN op x: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']; NaN op y: ['0x7ff8000000000000', '0x7ff8000000000001', '0x7ff8000000000003', '0x7ff8000000000005', '0x7fffffffffffffff', '0xfff8000000000000', '0xfff8000000000001', '0xfff8000000000003', '0xfff8000000000005', '0xffffffffffffffff']
+  max      NaN op x: ['0x7ff8000000000000']; NaN op y: ['0x7ff8000000000000']
+  min      NaN op x: ['0x7ff8000000000000']; NaN op y: ['0x7ff8000000000000']
+
+conversions of NaN operands (default rounding):
+  torch.float16   -> torch.float32  : 7e00->7fffffff, 7e05->7fffffff, 7c01->7fffffff, 7c03->7fffffff, 7fff->7fffffff, fe00->7fffffff, fe05->7fffffff, fc01->7fffffff, fc03->7fffffff, ffff->7fffffff
+  torch.float32   -> torch.float16  : 7fc00000->7fff, 7fc00005->7fff, 7f800001->7fff, 7f800003->7fff, 7fffffff->7fff, ffc00000->7fff, ffc00005->7fff, ff800001->7fff, ff800003->7fff, ffffffff->7fff
+  torch.float32   -> torch.bfloat16 : 7fc00000->7fff, 7fc00005->7fff, 7f800001->7fff, 7f800003->7fff, 7fffffff->7fff, ffc00000->7fff, ffc00005->7fff, ff800001->7fff, ff800003->7fff, ffffffff->7fff
+  torch.float16   -> torch.bfloat16 : 7e00->7fff, 7e05->7fff, 7c01->7fff, 7c03->7fff, 7fff->7fff, fe00->7fff, fe05->7fff, fc01->7fff, fc03->7fff, ffff->7fff
+  torch.bfloat16  -> torch.float16  : 7fc0->7fff, 7fc5->7fff, 7f81->7fff, 7f83->7fff, 7fff->7fff, ffc0->7fff, ffc5->7fff, ff81->7fff, ff83->7fff, ffff->7fff
+  torch.bfloat16  -> torch.float32  : 7fc0->7fc00000, 7fc5->7fc50000, 7f81->7f810000, 7f83->7f830000, 7fff->7fff0000, ffc0->ffc00000, ffc5->ffc50000, ff81->ff810000, ff83->ff830000, ffff->ffff0000
+  torch.float32   -> torch.float64  : 7fc00000->7ff8000000000000, 7fc00005->7ff80000a0000000, 7f800001->7ff8000020000000, 7f800003->7ff8000060000000, 7fffffff->7fffffffe0000000, ffc00000->fff8000000000000, ffc00005->fff80000a0000000, ff800001->fff8000020000000, ff800003->fff8000060000000, ffffffff->ffffffffe0000000
+  torch.float16   -> torch.float64  : 7e00->7ff8000000000000, 7e05->7ff8140000000000, 7c01->7ff8040000000000, 7c03->7ff80c0000000000, 7fff->7ffffc0000000000, fe00->fff8000000000000, fe05->fff8140000000000, fc01->fff8040000000000, fc03->fff80c0000000000, ffff->fffffc0000000000
+  torch.bfloat16  -> torch.float64  : 7fc0->7ff8000000000000, 7fc5->7ff8a00000000000, 7f81->7ff8200000000000, 7f83->7ff8600000000000, 7fff->7fffe00000000000, ffc0->fff8000000000000, ffc5->fff8a00000000000, ff81->fff8200000000000, ff83->fff8600000000000, ffff->ffffe00000000000
+  torch.float64   -> torch.float32  : 7ff8000000000000->7fc00000, 7ff8000000000005->7fc00000, 7ff0000000000001->7fc00000, 7ff0000000000003->7fc00000, 7fffffffffffffff->7fffffff, fff8000000000000->ffc00000, fff8000000000005->ffc00000, fff0000000000001->ffc00000, fff0000000000003->ffc00000, ffffffffffffffff->ffffffff
+  torch.float64   -> torch.float16  : 7ff8000000000000->7e00, 7ff8000000000005->7e00, 7ff0000000000001->7e00, 7ff0000000000003->7e00, 7fffffffffffffff->7fff, fff8000000000000->fe00, fff8000000000005->fe00, fff0000000000001->fe00, fff0000000000003->fe00, ffffffffffffffff->ffff
+  torch.float64   -> torch.bfloat16 : 7ff8000000000000->7fc0, 7ff8000000000005->7fc0, 7ff0000000000001->7fc0, 7ff0000000000003->7fc0, 7fffffffffffffff->7fff, fff8000000000000->ffc0, fff8000000000005->ffc0, fff0000000000001->ffc0, fff0000000000003->ffc0, ffffffffffffffff->ffff

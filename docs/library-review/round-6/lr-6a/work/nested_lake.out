@@ -1,0 +1,9 @@
+## baseline (the copy as it is)
+  tvr audit: PASS (independent)
+## N1: the note in two nested .lake folders
+  docs/.lake/note.md: shipped (git lists it): True; named by tvr audit: False
+  kernels/vec_add_f32/lean/.lake/note.md: shipped (git lists it): True; named by tvr audit: False
+  tvr audit: PASS (independent)
+## N2 (control): the note in docs/
+  docs/note.md: shipped (git lists it): True; named by tvr audit: True
+  tvr audit: FAIL

@@ -1,0 +1,7 @@
+freeze_paths.py (lr-18a): tools/tvr.py sha256 38cde42e17f4b038
+
+- the hand-written freeze records: ['kernels/vec_add_f32/review/round-1/r-vecadd/work/Cover.lean', 'kernels/vec_add_f32/review/round-1/r-vecadd/work/Print.lean', 'kernels/vec_add_f32/review/round-1/r-vecadd/work/Spec.lean', 'kernels/vec_add_f32/review/round-1/r-vecadd/work/offsets.py', 'kernels/vec_add_f32/review/round-1/r-vecadd/work/../filing-2.json', 'kernels/vec_add_f32/review/round-1/r-vecadd/work/../report-2.md']
+- freeze_problem on it (is it one `tvr freeze` writes?): none
+- kernel_event_problems: none
+- ledger_problems: none
+- kernel_folder_problems: ['kernels/vec_add_f32/review/round-1/r-vecadd/filing-2.json: in a role folder that its own events record, but recorded by none of them', 'kernels/vec_add_f32/review/round-1/r-vecadd/report-2.md: in a role folder that its own events record, but recorded by none of them']

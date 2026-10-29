@@ -1,0 +1,15 @@
+config-cond exit=0 secs=3
+literals exit=0 secs=314
+bcast-mul exit=0 secs=5
+pdl exit=0 secs=4
+launch-options exit=0 secs=56
+itof-rtz exit=0 secs=4
+argmax exit=0 secs=326
+int-reductions exit=0 secs=16
+permute exit=0 secs=26
+launch-outcomes exit=0 secs=10
+intra-program exit=0 secs=4
+env-knobs exit=0 secs=28
+hints-dry-run exit=0 secs=3
+debug-calls exit=0 secs=3
+pure-operands exit=0 secs=3

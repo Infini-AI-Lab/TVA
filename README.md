@@ -24,7 +24,8 @@ Reviewers judge the model against the source, the specification and the assumpti
 - The protocol (who writes and checks what, the gate, findings, acceptance):
   [docs/REVIEW_PROTOCOL.md](docs/REVIEW_PROTOCOL.md), tool `python3 -I tools/tvr.py`, role prompts
   in [docs/prompts/](docs/prompts/)
-- Transcribing a kernel: [docs/TRANSCRIPTION.md](docs/TRANSCRIPTION.md)
+- Transcribing a kernel: [docs/TRANSCRIPTION.md](docs/TRANSCRIPTION.md) (guidance; the facts are in
+  [docs/SEMANTICS.md](docs/SEMANTICS.md))
 - Reviewing a kernel (trusting the library): [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md)
 - Reviewing the library: [docs/LIBRARY_REVIEW.md](docs/LIBRARY_REVIEW.md), issues in
   [docs/library-review/ISSUES.md](docs/library-review/ISSUES.md), evidence in `evidence/`

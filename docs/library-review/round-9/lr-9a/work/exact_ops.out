@@ -1,0 +1,15 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| format | operation | pairs (random, subnormal, near-overflow) | differ from IEEE rounding to nearest even (NaN: not a NaN) | first difference (x, y, device, reference) |
+|---|---|---|---|---|
+| f16 | + | 201326592 | 0 | None |
+| f16 | - | 201326592 | 0 | None |
+| f16 | * | 201326592 | 0 | None |
+| bf16 | + | 201326592 | 0 | None |
+| bf16 | - | 201326592 | 0 | None |
+| bf16 | * | 201326592 | 0 | None |
+| f32 | + | 201326592 | 0 | None |
+| f32 | - | 201326592 | 0 | None |
+| f32 | * | 201326592 | 0 | None |
+| f32 | div_rn | 201326592 | 0 | None |
+| f32 | sqrt_rn | 201326592 | 0 | None |

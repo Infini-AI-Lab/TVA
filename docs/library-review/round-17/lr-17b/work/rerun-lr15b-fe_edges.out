@@ -1,0 +1,27 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+K1: for i in range(0, n, step=2), n = 8: trips
+  trips 8
+K2: for i in range(n, step=2), n = 8: trips
+  trips 8
+K3: for i in tl.range(0, n, step=2), n = 8: trips (control)
+  trips 4
+K4: for i in range(0, n, 2, 99), n = 8: trips (four positional arguments)
+  trips 4
+A1: a: tl.int32 = tl.atomic_add(c, 1), 8 programs: atomics
+  atomics 16 in 8 programs; a = [8, 9, 10, 11, 12, 13, 14, 15]
+A2: c: tl.constexpr = 1 / 2 in the branches of a runtime if; c after the if
+  rejected on the host: CompilationError: NameError('c is not defined')
+A3: c: tl.constexpr = 4 in a range(0, n) body, n = 3; s += c
+  compiled and ran; stored 12
+S1: for j in tl.static_range(3): pass; store j after the loop
+  compiled and ran; stored 2
+S2: for j in tl.static_range(3): t = j * 10; store t after the loop
+  compiled and ran; stored 20
+H1: def h(x, mode='a'); h(x, 'b'), x = 0
+  rejected on the host: CompilationError: ^
+H2: def h(x, e=None); h(x), x = 0
+  compiled and ran; stored 3
+W1: i = 0; while i < n: if FLAG (constexpr True): return; i += 1; store i (n = 4)
+  rejected on the host: CompilationError: AssertionError()
+R1: for i in range(tl.atomic_add(c, 1) * 0, 4), 8 programs: atomics
+  atomics 8 in 8 programs; trips [4, 4, 4, 4, 4, 4, 4, 4]

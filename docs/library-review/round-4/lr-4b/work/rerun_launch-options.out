@@ -1,0 +1,17 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+{"case": "D0", "env_at_compile": [], "c00_minus_16_in_2^-8": 0.0}
+{"case": "D1", "env_at_compile": [], "c00_minus_16_in_2^-8": 1.0}
+{"case": "D2", "env_at_compile": [], "c00_minus_16_in_2^-8": 0.0}
+{"case": "D3", "env_at_compile": [], "c00_minus_16_in_2^-8": 1.0}
+{"case": "D4", "env_at_compile": ["TRITON_F32_DEFAULT"], "c00_minus_16_in_2^-8": 1.0}
+{"case": "A0", "env_at_compile": [], "call_returned_kernel": true, "y_minus_x_distinct": [1.0], "y_is_initial": false}
+{"case": "A1", "env_at_compile": [], "call_returned_kernel": true, "y_minus_x_distinct": [2.0], "y_is_initial": false}
+{"case": "A2", "env_at_compile": [], "call_returned_kernel": true, "y_minus_x_distinct": [-1.0], "y_is_initial": false}
+{"case": "A3", "env_at_compile": [], "call_returned_kernel": false, "y_minus_x_distinct": [-1030.0, -1029.0, -1028.0, -1027.0], "y_is_initial": true}
+{"case": "F0", "env_at_compile": [], "y_in_2^-26": 1.0, "ptx_fma": 1}
+{"case": "F1", "env_at_compile": [], "y_in_2^-26": 0.0, "ptx_fma": 0}
+{"case": "E0", "env_at_compile": [], "exp2": ["0x0.0p+0", "0x1.0000000000000p-126", "0x0.0p+0", "0x1.0000000000000p+0"], "ptx_ex2": ["ex2.approx.ftz.f32"]}
+{"case": "E1", "env_at_compile": [], "exp2": ["0x1.0000000000000p-130", "0x1.0000000000000p-126", "0x1.0000000000000p-149", "0x1.0000000000000p+0"], "ptx_ex2": ["ex2.approx.f32"]}
+{"case": "S0", "env_at_compile": [], "result": "returned, y = 0.0, compiled debug = False"}
+{"case": "S1", "env_at_compile": [], "result": "raised AcceleratorError: CUDA error: device-side assert triggered"}
+{"case": "B", "env_at_compile": [], "variants": {"num_warps=1": 0, "num_warps=2": 0, "num_warps=8": 0, "num_stages=1": 0, "num_stages=2": 0, "num_stages=4": 0, "maxnreg=64": 0, "maxnreg=128": 0, "launch_cooperative_grid=True": 0}}

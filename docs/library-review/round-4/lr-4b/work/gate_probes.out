@@ -1,0 +1,32 @@
+## tvr check on the copy, kernel with the probes appended
+  PASS  source     source/01-vector-add.py sha256 842430949e0ccde4
+  PASS  hygiene    no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  PASS  independence the kernel and the library import only TVA, the kernel's own modules and Mathlib, and refer to no other project
+  PASS  build      lake build VecAdd
+  PASS  replay     leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  PASS  shape      main : ∀ K P, Assumptions K P → Spec K; consistent : Claim.Consistent Assumptions; Spec K = Meets Inst.ok Pre Post K
+  PASS  axioms     consistent: propext, Classical.choice, Quot.sound; main: propext, Classical.choice, Quot.sound
+  PASS  usage      every assumption is used by main
+  FAIL  namespace  declares Kernels.VecAdd.F16 (written `F16`, it can be read as the library's `TVA.F16`); Kernels.VecAdd.F16 (written `F16`, it can be read as the library's `TVA.F16`)
+  PASS  kinds      every assumption is a [rule] citing the library or a [kernel] fact about the kernel's own values
+  PASS  map        10 entries cover every code line of [[29, 54]]
+  PASS  doc        README.md has the sections Specification, Conditions, Assumptions, Proof
+  gate FAIL  digest fa76c7164a21c436
+
+## the claim reader's `shadow` list
+  Kernels.VecAdd.F16 (written `F16`, it can be read as the library's `TVA.F16`)
+  Kernels.VecAdd.F16 (written `F16`, it can be read as the library's `TVA.F16`)
+## the claim reader's instances
+   {'class': 'HDiv', 'library': False, 'name': 'Kernels.VecAdd.instHDivNatK'}
+   {'class': 'SizeOf', 'library': False, 'name': 'Kernels.VecAdd.Inst._sizeOf_inst'}
+   {'class': 'SizeOf', 'library': False, 'name': 'Kernels.VecAdd.Ops._sizeOf_inst'}
+P1 Kernels.VecAdd.Launch.mk: NOT flagged
+P2 instHDivNatK: NOT flagged
+P3 tℓ.add: NOT flagged
+P4 Kernels.VecAdd.Ops: NOT flagged
+P5 lane_tile: NOT flagged
+P6 Kernels.VecAdd.min: NOT flagged
+C1 Kernels.VecAdd.F16: flagged
+
+## the model's cone (kernel constants)
+   ['Kernels.VecAdd.launch', 'Kernels.VecAdd.Inst.BLOCK_SIZE', 'Kernels.VecAdd.Inst', 'Kernels.VecAdd.Inst.mk', 'Kernels.VecAdd.Inst.n', 'Kernels.VecAdd.model', 'Kernels.VecAdd.Inst.output', 'Kernels.VecAdd.Inst.y', 'Kernels.VecAdd.Inst.x', 'Kernels.VecAdd.add_kernel', 'Kernels.VecAdd.add_kernel._proof_1']

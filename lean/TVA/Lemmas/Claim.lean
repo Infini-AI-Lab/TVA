@@ -12,9 +12,11 @@ claim about the device.
 not conflict across programs (`TVA.Lemmas.Independent`). Most kernel proofs end with this
 lemma.
 
-`Launch.valid_grid1`: a one-dimensional grid of fewer than `2^31` programs, with block shapes
-Triton accepts (and the defaults `num_ctas = 1`, no programmatic dependent launch), is
-`Launch.Valid` (both lemmas need validity).
+Both lemmas take what `Compiler.Faithful` needs of every covered launch: `hdebug`, `debug = false`,
+and `hvalid`, `Launch.Valid`; `meets_independent` also takes `hRW`, each program's read and write
+footprints disjoint. `Launch.valid_grid1`: a one-dimensional grid of fewer than `2^31` programs,
+with block shapes Triton accepts (and the defaults `num_ctas = 1`, no programmatic dependent
+launch), is `Launch.Valid`.
 -/
 namespace TVA
 
@@ -59,7 +61,8 @@ theorem meets_of_faithful {Inst : Type} {ok : Inst → Prop} {Pre : Inst → Mem
 
 /-- **The claim from independent programs.** For each covered instance and initial memory:
 program `i` is safe alone with footprint `R i`/`W i` and leaves `Q i` in its own memory; no
-program writes into another's footprint; and the programs' results together give `Post`. -/
+program writes into another's footprint; each program's read and write footprints are disjoint;
+and the programs' results together give `Post`. -/
 theorem meets_independent {Inst : Type} {ok : Inst → Prop} {Pre : Inst → Mem → Prop}
     {Post : Inst → Mem → Mem → Prop} {model : Inst → Kernel} {launch : Inst → Launch}
     {K : Behaviour Inst} {P : Platform}
@@ -73,12 +76,13 @@ theorem meets_independent {Inst : Type} {ok : Inst → Prop} {Pre : Inst → Mem
         ((model d).body ((launch d).ctx i)))
     (hdisj : ∀ d, ok d → ∀ init, Pre d init → ∀ i j, i ≠ j →
       Disjoint (W d init i) (R d init j ∪ W d init j))
+    (hRW : ∀ d, ok d → ∀ init, Pre d init → ∀ i, Disjoint (R d init i) (W d init i))
     (hpost : ∀ d, ok d → ∀ init, Pre d init → ∀ fin,
       (∀ i, ∃ m, Q d init i m ∧ ∀ x ∈ R d init i ∪ W d init i, fin x = m x) →
       (∀ x, (∀ i, x ∉ W d init i) → fin x = init x) → Post d init fin) :
     Meets ok Pre Post K := by
   refine meets_of_faithful hf hdebug hvalid fun d hd init hpre => ?_
-  obtain ⟨hwb, hout⟩ := independent (hsafe d hd init hpre) (hdisj d hd init hpre)
+  obtain ⟨hwb, hout⟩ := independent (hsafe d hd init hpre) (hdisj d hd init hpre) (hRW d hd init hpre)
   refine ⟨hwb, fun o ho => ?_⟩
   obtain ⟨fin, rfl, hloc, hfr⟩ := hout o ho
   exact ⟨fin, rfl, hpost d hd init hpre fin hloc hfr⟩

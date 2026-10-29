@@ -1,0 +1,244 @@
+<tva>/.venv/lib/python3.13/site-packages/triton/language/standard.py:293:12: error: 'tt.splat' op requires the same element type for all operands and results
+    return core.reduce(input, axis, _sum_combine, keep_dims=keep_dims)
+           ^
+<tmp>/tmpjfpxmv9l/bm_float16.py:8:9: note: called from
+    r = tl.sum(x[:, :, None] * y[None, :, :], axis=1)
+        ^
+module {
+  tt.func public @k(%arg0: !tt.ptr<f16> {tt.divisibility = 16 : i32}, %arg1: !tt.ptr<f16> {tt.divisibility = 16 : i32}, %arg2: !tt.ptr<f16> {tt.divisibility = 16 : i32}) attributes {noinline = false} {
+    %0 = tt.make_range {end = 16 : i32, start = 0 : i32} : tensor<16xi32>
+    %1 = tt.expand_dims %0 {axis = 1 : i32} : tensor<16xi32> -> tensor<16x1xi32>
+    %c2_i32 = arith.constant 2 : i32
+    %c2_i32_0 = arith.constant 2 : i32
+    %cst = arith.constant dense<2> : tensor<16x1xi32>
+    %2 = arith.extsi %1 : tensor<16x1xi32> to tensor<16x1xi64>
+    %3 = arith.extsi %cst : tensor<16x1xi32> to tensor<16x1xi64>
+    %4 = arith.muli %2, %3 : tensor<16x1xi64>
+    %c2147483647_i64 = arith.constant 2147483647 : i64
+    %c-2147483648_i64 = arith.constant -2147483648 : i64
+    %cst_1 = arith.constant dense<2147483647> : tensor<16x1xi64>
+    %5 = arith.cmpi sle, %4, %cst_1 : tensor<16x1xi64>
+    %cst_2 = arith.constant dense<-2147483648> : tensor<16x1xi64>
+    %6 = arith.cmpi sge, %4, %cst_2 : tensor<16x1xi64>
+    %7 = arith.andi %5, %6 : tensor<16x1xi1>
+    %8 = arith.muli %1, %cst : tensor<16x1xi32>
+    %9 = tt.splat %arg0 : !tt.ptr<f16> -> tensor<16x1x!tt.ptr<f16>>
+    %10 = tt.addptr %9, %8 : tensor<16x1x!tt.ptr<f16>>, tensor<16x1xi32>
+    %11 = tt.make_range {end = 2 : i32, start = 0 : i32} : tensor<2xi32>
+    %12 = tt.expand_dims %11 {axis = 0 : i32} : tensor<2xi32> -> tensor<1x2xi32>
+    %13 = tt.broadcast %10 : tensor<16x1x!tt.ptr<f16>> -> tensor<16x2x!tt.ptr<f16>>
+    %14 = tt.broadcast %12 : tensor<1x2xi32> -> tensor<16x2xi32>
+    %15 = tt.addptr %13, %14 : tensor<16x2x!tt.ptr<f16>>, tensor<16x2xi32>
+    %16 = tt.load %15 : tensor<16x2x!tt.ptr<f16>>
+    %17 = tt.make_range {end = 2 : i32, start = 0 : i32} : tensor<2xi32>
+    %18 = tt.expand_dims %17 {axis = 1 : i32} : tensor<2xi32> -> tensor<2x1xi32>
+    %c16_i32 = arith.constant 16 : i32
+    %c16_i32_3 = arith.constant 16 : i32
+    %cst_4 = arith.constant dense<16> : tensor<2x1xi32>
+    %19 = arith.extsi %18 : tensor<2x1xi32> to tensor<2x1xi64>
+    %20 = arith.extsi %cst_4 : tensor<2x1xi32> to tensor<2x1xi64>
+    %21 = arith.muli %19, %20 : tensor<2x1xi64>
+    %c2147483647_i64_5 = arith.constant 2147483647 : i64
+    %c-2147483648_i64_6 = arith.constant -2147483648 : i64
+    %cst_7 = arith.constant dense<2147483647> : tensor<2x1xi64>
+    %22 = arith.cmpi sle, %21, %cst_7 : tensor<2x1xi64>
+    %cst_8 = arith.constant dense<-2147483648> : tensor<2x1xi64>
+    %23 = arith.cmpi sge, %21, %cst_8 : tensor<2x1xi64>
+    %24 = arith.andi %22, %23 : tensor<2x1xi1>
+    %25 = arith.muli %18, %cst_4 : tensor<2x1xi32>
+    %26 = tt.splat %arg1 : !tt.ptr<f16> -> tensor<2x1x!tt.ptr<f16>>
+    %27 = tt.addptr %26, %25 : tensor<2x1x!tt.ptr<f16>>, tensor<2x1xi32>
+    %28 = tt.make_range {end = 16 : i32, start = 0 : i32} : tensor<16xi32>
+    %29 = tt.expand_dims %28 {axis = 0 : i32} : tensor<16xi32> -> tensor<1x16xi32>
+    %30 = tt.broadcast %27 : tensor<2x1x!tt.ptr<f16>> -> tensor<2x16x!tt.ptr<f16>>
+    %31 = tt.broadcast %29 : tensor<1x16xi32> -> tensor<2x16xi32>
+    %32 = tt.addptr %30, %31 : tensor<2x16x!tt.ptr<f16>>, tensor<2x16xi32>
+    %33 = tt.load %32 : tensor<2x16x!tt.ptr<f16>>
+    %34 = tt.expand_dims %16 {axis = 2 : i32} : tensor<16x2xf16> -> tensor<16x2x1xf16>
+    %35 = tt.expand_dims %33 {axis = 0 : i32} : tensor<2x16xf16> -> tensor<1x2x16xf16>
+    %36 = tt.broadcast %34 : tensor<16x2x1xf16> -> tensor<16x2x16xf16>
+    %37 = tt.broadcast %35 : tensor<1x2x16xf16> -> tensor<16x2x16xf16>
+    %38 = arith.mulf %36, %37 : tensor<16x2x16xf16>
+    %39 = tt.call @triton.language.standard.sum__fp16S16_2_16S_c1_cFalse_cNone(%38) : (tensor<16x2x16xf16>) -> tensor<16x16xf16>
+    %40 = tt.make_range {end = 16 : i32, start = 0 : i32} : tensor<16xi32>
+    %41 = tt.expand_dims %40 {axis = 1 : i32} : tensor<16xi32> -> tensor<16x1xi32>
+    %c16_i32_9 = arith.constant 16 : i32
+    %c16_i32_10 = arith.constant 16 : i32
+    %cst_11 = arith.constant dense<16> : tensor<16x1xi32>
+    %42 = arith.extsi %41 : tensor<16x1xi32> to tensor<16x1xi64>
+    %43 = arith.extsi %cst_11 : tensor<16x1xi32> to tensor<16x1xi64>
+    %44 = arith.muli %42, %43 : tensor<16x1xi64>
+    %c2147483647_i64_12 = arith.constant 2147483647 : i64
+    %c-2147483648_i64_13 = arith.constant -2147483648 : i64
+    %cst_14 = arith.constant dense<2147483647> : tensor<16x1xi64>
+    %45 = arith.cmpi sle, %44, %cst_14 : tensor<16x1xi64>
+    %cst_15 = arith.constant dense<-2147483648> : tensor<16x1xi64>
+    %46 = arith.cmpi sge, %44, %cst_15 : tensor<16x1xi64>
+    %47 = arith.andi %45, %46 : tensor<16x1xi1>
+    %48 = arith.muli %41, %cst_11 : tensor<16x1xi32>
+    %49 = tt.splat %arg2 : !tt.ptr<f16> -> tensor<16x1x!tt.ptr<f16>>
+    %50 = tt.addptr %49, %48 : tensor<16x1x!tt.ptr<f16>>, tensor<16x1xi32>
+    %51 = tt.make_range {end = 16 : i32, start = 0 : i32} : tensor<16xi32>
+    %52 = tt.expand_dims %51 {axis = 0 : i32} : tensor<16xi32> -> tensor<1x16xi32>
+    %53 = tt.broadcast %50 : tensor<16x1x!tt.ptr<f16>> -> tensor<16x16x!tt.ptr<f16>>
+    %54 = tt.broadcast %52 : tensor<1x16xi32> -> tensor<16x16xi32>
+    %55 = tt.addptr %53, %54 : tensor<16x16x!tt.ptr<f16>>, tensor<16x16xi32>
+    %56 = tt.reshape %39 : tensor<16x16xf16> -> tensor<16x16xf16>
+    tt.store %55, %56 : tensor<16x16x!tt.ptr<f16>>
+    tt.return
+  }
+  tt.func private @triton.language.standard.sum__fp16S16_2_16S_c1_cFalse_cNone(%arg0: tensor<16x2x16xf16>) -> tensor<16x16xf16> attributes {noinline = false} {
+    %0 = "tt.reduce"(%arg0) <{axis = 1 : i32}> ({
+    ^bb0(%arg1: f16, %arg2: f16):
+      %2 = tt.call @triton.language.standard._sum_combine__fp16_fp16(%arg1, %arg2) : (f16, f16) -> f16
+      tt.reduce.return %2 : f16
+    }) : (tensor<16x2x16xf16>) -> tensor<16x16xf16>
+    tt.return %0 : tensor<16x16xf16>
+  ^bb1:  // no predecessors
+    %1 = ub.poison : tensor<16x16xf16>
+    tt.return %1 : tensor<16x16xf16>
+  }
+  tt.func private @triton.language.standard._sum_combine__fp16_fp16(%arg0: f16, %arg1: f16) -> f16 attributes {noinline = false} {
+    %0 = arith.addf %arg0, %arg1 : f16
+    tt.return %0 : f16
+  ^bb1:  // no predecessors
+    %1 = ub.poison : f16
+    tt.return %1 : f16
+  }
+}
+
+{-#
+  external_resources: {
+    mlir_reproducer: {
+      pipeline: "builtin.module(inline{default-pipeline=canonicalize inlining-threshold=4294967295 max-iterations=4 }, canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true}, triton-combine, triton-reorder-broadcast, cse, symbol-dce, triton-loop-unroll)",
+      disable_threading: true,
+      verify_each: true
+    }
+  }
+#-}
+<tmp>/tmpjfpxmv9l/bm_float16.py:5:1: error: Failures have been detected while processing an MLIR pass pipeline
+def k(x_ptr, y_ptr, o_ptr, M: tl.constexpr, K: tl.constexpr, N: tl.constexpr):
+^
+<tmp>/tmpjfpxmv9l/bm_float16.py:5:1: note: Pipeline failed while executing [`TritonCombineOps` on 'builtin.module' operation]: reproducer generated at `std::errs, please share the reproducer above with Triton project.`
+<tva>/.venv/lib/python3.13/site-packages/triton/language/standard.py:293:12: error: 'tt.splat' op requires the same element type for all operands and results
+    return core.reduce(input, axis, _sum_combine, keep_dims=keep_dims)
+           ^
+<tmp>/tmpjfpxmv9l/bm_bfloat16.py:8:9: note: called from
+    r = tl.sum(x[:, :, None] * y[None, :, :], axis=1)
+        ^
+module {
+  tt.func public @k(%arg0: !tt.ptr<bf16> {tt.divisibility = 16 : i32}, %arg1: !tt.ptr<bf16> {tt.divisibility = 16 : i32}, %arg2: !tt.ptr<bf16> {tt.divisibility = 16 : i32}) attributes {noinline = false} {
+    %0 = tt.make_range {end = 16 : i32, start = 0 : i32} : tensor<16xi32>
+    %1 = tt.expand_dims %0 {axis = 1 : i32} : tensor<16xi32> -> tensor<16x1xi32>
+    %c2_i32 = arith.constant 2 : i32
+    %c2_i32_0 = arith.constant 2 : i32
+    %cst = arith.constant dense<2> : tensor<16x1xi32>
+    %2 = arith.extsi %1 : tensor<16x1xi32> to tensor<16x1xi64>
+    %3 = arith.extsi %cst : tensor<16x1xi32> to tensor<16x1xi64>
+    %4 = arith.muli %2, %3 : tensor<16x1xi64>
+    %c2147483647_i64 = arith.constant 2147483647 : i64
+    %c-2147483648_i64 = arith.constant -2147483648 : i64
+    %cst_1 = arith.constant dense<2147483647> : tensor<16x1xi64>
+    %5 = arith.cmpi sle, %4, %cst_1 : tensor<16x1xi64>
+    %cst_2 = arith.constant dense<-2147483648> : tensor<16x1xi64>
+    %6 = arith.cmpi sge, %4, %cst_2 : tensor<16x1xi64>
+    %7 = arith.andi %5, %6 : tensor<16x1xi1>
+    %8 = arith.muli %1, %cst : tensor<16x1xi32>
+    %9 = tt.splat %arg0 : !tt.ptr<bf16> -> tensor<16x1x!tt.ptr<bf16>>
+    %10 = tt.addptr %9, %8 : tensor<16x1x!tt.ptr<bf16>>, tensor<16x1xi32>
+    %11 = tt.make_range {end = 2 : i32, start = 0 : i32} : tensor<2xi32>
+    %12 = tt.expand_dims %11 {axis = 0 : i32} : tensor<2xi32> -> tensor<1x2xi32>
+    %13 = tt.broadcast %10 : tensor<16x1x!tt.ptr<bf16>> -> tensor<16x2x!tt.ptr<bf16>>
+    %14 = tt.broadcast %12 : tensor<1x2xi32> -> tensor<16x2xi32>
+    %15 = tt.addptr %13, %14 : tensor<16x2x!tt.ptr<bf16>>, tensor<16x2xi32>
+    %16 = tt.load %15 : tensor<16x2x!tt.ptr<bf16>>
+    %17 = tt.make_range {end = 2 : i32, start = 0 : i32} : tensor<2xi32>
+    %18 = tt.expand_dims %17 {axis = 1 : i32} : tensor<2xi32> -> tensor<2x1xi32>
+    %c16_i32 = arith.constant 16 : i32
+    %c16_i32_3 = arith.constant 16 : i32
+    %cst_4 = arith.constant dense<16> : tensor<2x1xi32>
+    %19 = arith.extsi %18 : tensor<2x1xi32> to tensor<2x1xi64>
+    %20 = arith.extsi %cst_4 : tensor<2x1xi32> to tensor<2x1xi64>
+    %21 = arith.muli %19, %20 : tensor<2x1xi64>
+    %c2147483647_i64_5 = arith.constant 2147483647 : i64
+    %c-2147483648_i64_6 = arith.constant -2147483648 : i64
+    %cst_7 = arith.constant dense<2147483647> : tensor<2x1xi64>
+    %22 = arith.cmpi sle, %21, %cst_7 : tensor<2x1xi64>
+    %cst_8 = arith.constant dense<-2147483648> : tensor<2x1xi64>
+    %23 = arith.cmpi sge, %21, %cst_8 : tensor<2x1xi64>
+    %24 = arith.andi %22, %23 : tensor<2x1xi1>
+    %25 = arith.muli %18, %cst_4 : tensor<2x1xi32>
+    %26 = tt.splat %arg1 : !tt.ptr<bf16> -> tensor<2x1x!tt.ptr<bf16>>
+    %27 = tt.addptr %26, %25 : tensor<2x1x!tt.ptr<bf16>>, tensor<2x1xi32>
+    %28 = tt.make_range {end = 16 : i32, start = 0 : i32} : tensor<16xi32>
+    %29 = tt.expand_dims %28 {axis = 0 : i32} : tensor<16xi32> -> tensor<1x16xi32>
+    %30 = tt.broadcast %27 : tensor<2x1x!tt.ptr<bf16>> -> tensor<2x16x!tt.ptr<bf16>>
+    %31 = tt.broadcast %29 : tensor<1x16xi32> -> tensor<2x16xi32>
+    %32 = tt.addptr %30, %31 : tensor<2x16x!tt.ptr<bf16>>, tensor<2x16xi32>
+    %33 = tt.load %32 : tensor<2x16x!tt.ptr<bf16>>
+    %34 = tt.expand_dims %16 {axis = 2 : i32} : tensor<16x2xbf16> -> tensor<16x2x1xbf16>
+    %35 = tt.expand_dims %33 {axis = 0 : i32} : tensor<2x16xbf16> -> tensor<1x2x16xbf16>
+    %36 = tt.broadcast %34 : tensor<16x2x1xbf16> -> tensor<16x2x16xbf16>
+    %37 = tt.broadcast %35 : tensor<1x2x16xbf16> -> tensor<16x2x16xbf16>
+    %38 = arith.mulf %36, %37 : tensor<16x2x16xbf16>
+    %39 = tt.call @triton.language.standard.sum__bf16S16_2_16S_c1_cFalse_cNone(%38) : (tensor<16x2x16xbf16>) -> tensor<16x16xbf16>
+    %40 = tt.make_range {end = 16 : i32, start = 0 : i32} : tensor<16xi32>
+    %41 = tt.expand_dims %40 {axis = 1 : i32} : tensor<16xi32> -> tensor<16x1xi32>
+    %c16_i32_9 = arith.constant 16 : i32
+    %c16_i32_10 = arith.constant 16 : i32
+    %cst_11 = arith.constant dense<16> : tensor<16x1xi32>
+    %42 = arith.extsi %41 : tensor<16x1xi32> to tensor<16x1xi64>
+    %43 = arith.extsi %cst_11 : tensor<16x1xi32> to tensor<16x1xi64>
+    %44 = arith.muli %42, %43 : tensor<16x1xi64>
+    %c2147483647_i64_12 = arith.constant 2147483647 : i64
+    %c-2147483648_i64_13 = arith.constant -2147483648 : i64
+    %cst_14 = arith.constant dense<2147483647> : tensor<16x1xi64>
+    %45 = arith.cmpi sle, %44, %cst_14 : tensor<16x1xi64>
+    %cst_15 = arith.constant dense<-2147483648> : tensor<16x1xi64>
+    %46 = arith.cmpi sge, %44, %cst_15 : tensor<16x1xi64>
+    %47 = arith.andi %45, %46 : tensor<16x1xi1>
+    %48 = arith.muli %41, %cst_11 : tensor<16x1xi32>
+    %49 = tt.splat %arg2 : !tt.ptr<bf16> -> tensor<16x1x!tt.ptr<bf16>>
+    %50 = tt.addptr %49, %48 : tensor<16x1x!tt.ptr<bf16>>, tensor<16x1xi32>
+    %51 = tt.make_range {end = 16 : i32, start = 0 : i32} : tensor<16xi32>
+    %52 = tt.expand_dims %51 {axis = 0 : i32} : tensor<16xi32> -> tensor<1x16xi32>
+    %53 = tt.broadcast %50 : tensor<16x1x!tt.ptr<bf16>> -> tensor<16x16x!tt.ptr<bf16>>
+    %54 = tt.broadcast %52 : tensor<1x16xi32> -> tensor<16x16xi32>
+    %55 = tt.addptr %53, %54 : tensor<16x16x!tt.ptr<bf16>>, tensor<16x16xi32>
+    %56 = tt.reshape %39 : tensor<16x16xbf16> -> tensor<16x16xbf16>
+    tt.store %55, %56 : tensor<16x16x!tt.ptr<bf16>>
+    tt.return
+  }
+  tt.func private @triton.language.standard.sum__bf16S16_2_16S_c1_cFalse_cNone(%arg0: tensor<16x2x16xbf16>) -> tensor<16x16xbf16> attributes {noinline = false} {
+    %0 = "tt.reduce"(%arg0) <{axis = 1 : i32}> ({
+    ^bb0(%arg1: bf16, %arg2: bf16):
+      %2 = tt.call @triton.language.standard._sum_combine__bf16_bf16(%arg1, %arg2) : (bf16, bf16) -> bf16
+      tt.reduce.return %2 : bf16
+    }) : (tensor<16x2x16xbf16>) -> tensor<16x16xbf16>
+    tt.return %0 : tensor<16x16xbf16>
+  ^bb1:  // no predecessors
+    %1 = ub.poison : tensor<16x16xbf16>
+    tt.return %1 : tensor<16x16xbf16>
+  }
+  tt.func private @triton.language.standard._sum_combine__bf16_bf16(%arg0: bf16, %arg1: bf16) -> bf16 attributes {noinline = false} {
+    %0 = arith.addf %arg0, %arg1 : bf16
+    tt.return %0 : bf16
+  ^bb1:  // no predecessors
+    %1 = ub.poison : bf16
+    tt.return %1 : bf16
+  }
+}
+
+{-#
+  external_resources: {
+    mlir_reproducer: {
+      pipeline: "builtin.module(inline{default-pipeline=canonicalize inlining-threshold=4294967295 max-iterations=4 }, canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true}, triton-combine, triton-reorder-broadcast, cse, symbol-dce, triton-loop-unroll)",
+      disable_threading: true,
+      verify_each: true
+    }
+  }
+#-}
+<tmp>/tmpjfpxmv9l/bm_bfloat16.py:5:1: error: Failures have been detected while processing an MLIR pass pipeline
+def k(x_ptr, y_ptr, o_ptr, M: tl.constexpr, K: tl.constexpr, N: tl.constexpr):
+^
+<tmp>/tmpjfpxmv9l/bm_bfloat16.py:5:1: note: Pipeline failed while executing [`TritonCombineOps` on 'builtin.module' operation]: reproducer generated at `std::errs, please share the reproducer above with Triton project.`

@@ -1,0 +1,59 @@
+## R0: the TVA tree as it is
+  release check: FAIL (508 shipped files, allowlist sandbox (bwrap), the tool on <path>)
+    PASS  shipped: 508 files; none in a folder the text scan skips
+    PASS  packages: every package of lean/lake-manifest.json made afresh at its pinned commit, with no build output
+    PASS  sandbox: shows only the copy, <path>, <path> (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only) and the system's <path>; no network
+    PASS  build: lake build TVA (Mathlib built from its pinned source)
+    PASS  library: library hygiene; leanchecker TVA re-checks every library declaration
+    FAIL  gate vec_add_f32: the shipped gate.json is stale (the result, the items assumption:faithful, conditions, map, model … differ from the recomputed gate); the shipped certificate.json names a gate other than the recomputed one | FAIL  build      lake build VecAdd: error: ../kernel
+    PASS  lint library 7 author: regular
+    PASS  lint vec_add_f32 reviewer r-vecadd: regular
+    PASS  audit: independent
+  21 minutes; the packages' build in the sandbox: 54186 .olean files, digest 3ae1aa797d96970a; 144496 files in all, digest be407f76eb9859cf
+
+
+## R1: four probes (a file outside TVA, a module of the user's Python, a note in docs/.lake, a stale gate)
+  probes (a) and (b) in the copy's audit ((b) imports `IPython`); outside the sandbox: tvr audit PASS
+  (c) docs/.lake/note.md force-added
+  (d) kernels/vec_add_f32 updated and gated in the copy: gate PASS  digest 27bbd2663f9f945e
+      then a comment added to lean/TVA/Lang/Ops.lean
+  release check: FAIL (509 shipped files, allowlist sandbox (bwrap), the tool on <path>)
+    FAIL  shipped: docs/.lake/note.md: shipped inside a folder the text scan skips (.lake)
+    PASS  packages: every package of lean/lake-manifest.json made afresh at its pinned commit, with no build output
+    PASS  sandbox: shows only the copy, <path>, <path> (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only) and the system's <path>; no network
+    PASS  build: lake build TVA (Mathlib built from its pinned source)
+    PASS  library: library hygiene; leanchecker TVA re-checks every library declaration
+    FAIL  gate vec_add_f32: the shipped gate.json is stale (the items assumption:faithful, map, model, spec differ from the recomputed gate) | PASS  map        10 entries cover every code line of […]] | PASS  doc        README.md has the sections Specification, Conditions, Assumptions, P
+    PASS  lint library 7 author: regular
+    PASS  lint vec_add_f32 reviewer r-vecadd: regular
+    FAIL  audit: probe failed: (a) a file outside TVA; (b) a module of the user's Python
+  19 minutes; the packages' build in the sandbox: 54186 .olean files, digest 3f335c460304e5f1; 144496 files in all, digest 170eee3370308ed8
+
+## R2: Mathlib's checkout holds a module file its .gitignore ignores, and TVA imports it
+  outside the sandbox: the file is ignored by Mathlib's .gitignore: True; the round-6 packages test sees 0 line(s); TVA's import check: no problem; tvr audit PASS
+  release check: FAIL (508 shipped files, allowlist sandbox (bwrap), the tool on <path>)
+    PASS  shipped: 508 files; none in a folder the text scan skips
+    PASS  packages: every package of lean/lake-manifest.json made afresh at its pinned commit, with no build output
+    PASS  sandbox: shows only the copy, <path>, <path> (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only) and the system's <path>; no network
+    FAIL  build: error: no such file or directory (error code: 2) | error: TVA.lean: bad import 'Mathlib.__pycache__.Lemmas' | - Mathlib.__pycache__.Lemmas | - TVA | error: build failed
+    FAIL  library: not run (the build failed)
+    FAIL  gate vec_add_f32: the shipped gate.json is stale (the result, the items assumption:faithful, conditions, map, model … differ from the recomputed gate); the shipped certificate.json names a gate other than the recomputed one | FAIL  build      lake build VecAdd: error: no such f
+    PASS  lint library 7 author: regular
+    PASS  lint vec_add_f32 reviewer r-vecadd: regular
+    PASS  audit: independent
+  17 minutes; the packages' build in the sandbox: 54186 .olean files, digest 3f335c460304e5f1; 144496 files in all, digest 1d46377a498dc42e
+
+## R3: kernels/vec_add_f32 brought up to date and gated in the copy (its gate.json current)
+  outside the sandbox: gate PASS  digest 27bbd2663f9f945e
+  release check: PASS (508 shipped files, allowlist sandbox (bwrap), the tool on <path>)
+    PASS  shipped: 508 files; none in a folder the text scan skips
+    PASS  packages: every package of lean/lake-manifest.json made afresh at its pinned commit, with no build output
+    PASS  sandbox: shows only the copy, <path>, <path> (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only) and the system's <path>; no network
+    PASS  build: lake build TVA (Mathlib built from its pinned source)
+    PASS  library: library hygiene; leanchecker TVA re-checks every library declaration
+    PASS  gate vec_add_f32: PASS  map        10 entries cover every code line of […]] | PASS  doc        README.md has the sections Specification, Conditions, Assumptions, Proof | gate PASS  digest 27bbd2663f9f945e
+    PASS  lint library 7 author: regular
+    PASS  lint vec_add_f32 reviewer r-vecadd: regular
+    PASS  audit: independent
+  19 minutes; the packages' build in the sandbox: 54186 .olean files, digest 3f335c460304e5f1; 144496 files in all, digest 23107a67c1ecdf1c
+

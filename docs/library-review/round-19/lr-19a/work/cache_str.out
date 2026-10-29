@@ -1,0 +1,5 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+Python's meaning: MODE=1 stores 1; MODE='1' stores 2 ('1' == 1 is False)
+K1 empty cache, MODE='1': stores 2
+K2 one cache folder, a process with MODE=1 stores 1, then a process with MODE='1' stores 1
+K3 one cache folder, a process with MODE='1' stores 2, then a process with MODE=1 stores 2

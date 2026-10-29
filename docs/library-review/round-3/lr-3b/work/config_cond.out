@@ -1,0 +1,4 @@
+Triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+if (atomic in condition): counter 4 (4 = the atomic ran in every program); outputs [1, 1, 1, 1]; atomics in TTIR: 1; scf.if in TTIR: 0
+conditional expression: counter 4 (4 = the atomic ran in every program); outputs [2, 2, 2, 2]; atomics in TTIR: 1; scf.if in TTIR: 0
+control: if FLAG: counter 0 (4 = the atomic ran in every program); outputs [1, 1, 1, 1]; atomics in TTIR: 0; scf.if in TTIR: 0

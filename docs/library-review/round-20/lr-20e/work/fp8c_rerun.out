@@ -1,0 +1,54 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+F1 e5m2 full: 248 values of the format, 0 differ from litF8
+F1 e5m2 where: 248 values of the format, 0 differ from litF8
+   e.g. 0.0 -> 00, 0.01953125 -> 25, 12.0 -> 4a, 7168.0 -> 6f, -0.001953125 -> 98, -1.25 -> bd, -768.0 -> e2
+F2 e5m2 full: 79 values the format does not hold, 79 rejected on the host; 0 differ from litF8
+F2 e5m2 where: 20 values the format does not hold, 20 rejected on the host; 0 differ from litF8
+   e.g. 1.5258790881489404e-05, 0.0012207030085846782, 0.0937500074505806, 2.999999761581421, 224.00001525878906, 7167.99951171875, 0.000457763671875, 26.0, 7.62939453125e-06
+F3 e5m2 full, special values as tl.constexpr arguments (float32 constant in brackets): 0 differ from litF8
+    7ff0000000000000 (inf, float32 7f800000): device 7c, library 7c
+    fff0000000000000 (-inf, float32 ff800000): device fc, library fc
+    48078287f49c4a1d (1e+39, float32 7f800000): device 7c, library 7c
+    c7f074f8c4d3cd7b (-3.5e+38, float32 ff800000): device fc, library fc
+    7ff8000000000000 (nan): device 7e, library 7e
+    fff8000000000000 (nan): device fe, library fe
+    7ff8000000000000 (nan): device 7e, library 7e
+    fff8000000000000 (nan): device fe, library fe
+    7ffc000000000000 (nan): device 7f, library 7f
+    fffc000000000000 (nan): device ff, library ff
+    7ff4000000000000 (nan): device 7f, library 7f
+    7ff8000000000001 (nan): device 7e, library 7e
+    7ff8000020000000 (nan): device rejected, library rejected
+    7ff8000400000000 (nan): device rejected, library rejected
+    fffa000000000000 (nan): device rejected, library rejected
+    7fffffffffffffff (nan): device rejected, library rejected
+F4 e5m2 store: 0.0 -> 00, -0.0 -> 00, 1.0 -> 3c, 0.1 -> 2e, 460.0 -> 5f, 1000.0 -> 64, 1000000.0 -> 7b, inf -> 7b, -inf -> fb, nan -> 7f; 0 differ from FloatV.cvtSat .rn (litF32 c), up to NaN payload
+F4 e5m2 other: 0.0 -> 00, -0.0 -> 00, 1.0 -> 3c, 0.1 -> 2e, 460.0 -> 5f, 1000.0 -> 64, 1000000.0 -> 7b, inf -> 7b, -inf -> fb, nan -> 7f; 0 differ from FloatV.cvtSat .rn (litF32 c), up to NaN payload
+F4 e5m2 to: 0.0 -> 00, -0.0 -> 00, 1.0 -> 3c, 0.1 -> 2e, 460.0 -> 5f, 1000.0 -> 64, 1000000.0 -> 7b, inf -> 7b, -inf -> fb, nan -> 7f; 0 differ from FloatV.cvtSat .rn (litF32 c), up to NaN payload
+F1 e4m3 full: 254 values of the format, 0 differ from litF8
+F1 e4m3 where: 254 values of the format, 0 differ from litF8
+   e.g. 0.0 -> 00, 0.203125 -> 25, 5.0 -> 4a, 120.0 -> 6f, -0.05078125 -> 95, -1.25 -> ba, -30.0 -> df
+F2 e4m3 full: 81 values the format does not hold, 81 rejected on the host; 0 differ from litF8
+F2 e4m3 where: 21 values the format does not hold, 21 rejected on the host; 0 differ from litF8
+   e.g. 0.0019531252328306437, 0.0507812462747097, 0.4375000298023224, 2.499999761581421, 22.000001907348633, 119.99999237060547, 0.0029296875, 2.125, 476.0
+F3 e4m3 full, special values as tl.constexpr arguments (float32 constant in brackets): 0 differ from litF8
+    7ff0000000000000 (inf, float32 7f800000): device rejected, library rejected
+    fff0000000000000 (-inf, float32 ff800000): device rejected, library rejected
+    48078287f49c4a1d (1e+39, float32 7f800000): device rejected, library rejected
+    c7f074f8c4d3cd7b (-3.5e+38, float32 ff800000): device rejected, library rejected
+    7ff8000000000000 (nan): device rejected, library rejected
+    fff8000000000000 (nan): device rejected, library rejected
+    7ff8000000000000 (nan): device rejected, library rejected
+    fff8000000000000 (nan): device rejected, library rejected
+    7ffc000000000000 (nan): device rejected, library rejected
+    fffc000000000000 (nan): device rejected, library rejected
+    7ff4000000000000 (nan): device rejected, library rejected
+    7ff8000000000001 (nan): device rejected, library rejected
+    7ff8000020000000 (nan): device rejected, library rejected
+    7ff8000400000000 (nan): device rejected, library rejected
+    fffa000000000000 (nan): device rejected, library rejected
+    7fffffffffffffff (nan): device rejected, library rejected
+F4 e4m3 store: 0.0 -> 00, -0.0 -> 00, 1.0 -> 38, 0.1 -> 1d, 460.0 -> 7e, 1000.0 -> 7e, 1000000.0 -> 7e, inf -> 7e, -inf -> fe, nan -> 7f; 0 differ from FloatV.cvtSat .rn (litF32 c), up to NaN payload
+F4 e4m3 other: 0.0 -> 00, -0.0 -> 00, 1.0 -> 38, 0.1 -> 1d, 460.0 -> 7e, 1000.0 -> 7e, 1000000.0 -> 7e, inf -> 7e, -inf -> fe, nan -> 7f; 0 differ from FloatV.cvtSat .rn (litF32 c), up to NaN payload
+F4 e4m3 to: 0.0 -> 00, -0.0 -> 00, 1.0 -> 38, 0.1 -> 1d, 460.0 -> 7e, 1000.0 -> 7e, 1000000.0 -> 7e, inf -> 7e, -inf -> fe, nan -> 7f; 0 differ from FloatV.cvtSat .rn (litF32 c), up to NaN payload
+differences in all: 0

@@ -1,0 +1,5 @@
+triton 3.8.0 NVIDIA H200 NVL
+hint=none S=64: loads ['ld.global.v4.b32']; correct
+hint=none S=36: loads ['ld.global.b16']; correct
+hint=[16, 1] S=64: loads ['ld.global.v4.b32']; correct
+hint=[16, 1] S=36: loads ['ld.global.v4.b32']; error: CUDA error: misaligned address

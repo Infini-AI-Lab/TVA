@@ -1,0 +1,29 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+claimed launch: 16 programs x 256 elements, y[2i] += 1 repeated 4000 times; other launch: 16 programs, 120000 stores to each of its elements
+
+W1: int32 elements; the other writer writes the odd elements (same sectors and lines)
+  alone: trials with every claimed element correct: 20 of 20
+  with the other writer: trials with every claimed element correct: 20 of 20
+  with the other writer: claimed elements wrong (max over trials): 0
+  trials in which the two launches overlapped in time: 18 of 20
+  claimed launch duration ms (median): 0.883936
+  other launch duration ms (median): 1.227008
+  fraction of the claimed launch's time (program 0) during the other's (median): 0.972
+
+W2: uint8 elements; the other writer writes the odd bytes (same 4-byte words)
+  alone: trials with every claimed element correct: 20 of 20
+  with the other writer: trials with every claimed element correct: 20 of 20
+  with the other writer: claimed elements wrong (max over trials): 0
+  trials in which the two launches overlapped in time: 19 of 20
+  claimed launch duration ms (median): 1.543552
+  other launch duration ms (median): 1.227008
+  fraction of the claimed launch's time (program 0) during the other's (median): 0.797
+
+W3: control, int32: the other writer writes the claimed launch's own (even) elements
+  alone: trials with every claimed element correct: 20 of 20
+  with the other writer: trials with every claimed element correct: 0 of 20
+  with the other writer: claimed elements wrong (max over trials): 4096
+  trials in which the two launches overlapped in time: 19 of 20
+  claimed launch duration ms (median): 1.226432
+  other launch duration ms (median): 1.227008
+  fraction of the claimed launch's time (program 0) during the other's (median): 0.974

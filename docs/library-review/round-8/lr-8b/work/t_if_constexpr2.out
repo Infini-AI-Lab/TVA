@@ -1,0 +1,6 @@
+triton 3.8.0 NVIDIA H200 NVL
+Python's meaning: param [3,7,3,7,...]; param_else [5,7,5,7,...]; local [3,7,3,7,...]; loop [3,7,3,7,...]
+param rejected: CompilationError AssertionError('initial value for `B` is of type constexpr[3], but the then block redefines it as int32[]')
+param_else rejected: CompilationError AssertionError('initial value for `B` is of type constexpr[3], but the then block redefines it as int32[]')
+local rejected: CompilationError AssertionError('initial value for `x` is of type constexpr[3], but the then block redefines it as int32[]')
+loop rejected: CompilationError AssertionError("Loop carried variable B changed type, was <class 'triton.language.core.tensor'> but is now <class 'triton.language.core.constexpr'>")

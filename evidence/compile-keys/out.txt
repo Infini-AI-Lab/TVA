@@ -1,0 +1,33 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+K1. one process, fresh cache, kernel k1 (x * C, isinstance(C, float), C is True or C is False), C =
+  1 then 1.0: 1 -> [16777217, 0, 0]; 1.0 -> [16777217, 0, 0] (alone: [16777216, 1, 0]) DIFFERS
+  1.0 then 1: 1.0 -> [16777216, 1, 0]; 1 -> [16777216, 1, 0] (alone: [16777217, 0, 0]) DIFFERS
+  1 then True: 1 -> [16777217, 0, 0]; True -> [16777217, 0, 0] (alone: [16777217, 0, 1]) DIFFERS
+  True then 1: True -> [16777217, 0, 1]; 1 -> [16777217, 0, 1] (alone: [16777217, 0, 0]) DIFFERS
+  0 then 0.0: 0 -> [0, 0, 0]; 0.0 -> [0, 0, 0] (alone: [0, 1, 0]) DIFFERS
+  0.0 then 0: 0.0 -> [0, 1, 0]; 0 -> [0, 1, 0] (alone: [0, 0, 0]) DIFFERS
+  0 then False: 0 -> [0, 0, 0]; False -> [0, 0, 0] (alone: [0, 0, 1]) DIFFERS
+  -0.0 then 0: -0.0 -> [0, 1, 0]; 0 -> [0, 1, 0] (alone: [0, 0, 0]) DIFFERS
+K2. one process, fresh cache, kernel k2 (tl.full([1], C, tl.float32)), C =
+  nan then -nan: nan -> ['7fc00000']; -nan -> ['7fc00000'] (alone: ['ffc00000']) DIFFERS
+  -nan then nan: -nan -> ['ffc00000']; nan -> ['ffc00000'] (alone: ['7fc00000']) DIFFERS
+K3. kernel k3 (5 for None, 20 for a string, 10 otherwise); MODE in a first process, then MODE in a second process on the same cache folder:
+  1 then '1': 1 -> [10]; '1' -> [10] (alone: [20]) DIFFERS
+  '1' then 1: '1' -> [20]; 1 -> [20] (alone: [10]) DIFFERS
+  None then 'None': None -> [5]; 'None' -> [5] (alone: [20]) DIFFERS
+  'None' then None: 'None' -> [20]; None -> [20] (alone: [5]) DIFFERS
+  2.5 then '2.5': 2.5 -> [10]; '2.5' -> [10] (alone: [20]) DIFFERS
+  True then 'True': True -> [10]; 'True' -> [10] (alone: [20]) DIFFERS
+  nan then 'nan': nan -> [10]; 'nan' -> [10] (alone: [20]) DIFFERS
+  1 then '1' in one process (its own cache folder): 1 -> [10]; '1' -> [10] (alone: [20]) DIFFERS
+K4. kernel k4 (10·len(A) + len(B)); (A, B) in a first process, then in a second on the same cache folder:
+  ('a-b', 'c') then ('a', 'b-c'): ('a-b', 'c') -> [31]; ('a', 'b-c') -> [31] (alone: [13]) DIFFERS
+K5. one kernel calling a helper twice (fresh cache); the stored words, against each call alone:
+  k5_nan: helper(nan, -nan): nan -> 7fc00000; -nan -> 7fc00000 (alone: ffc00000) DIFFERS
+  k5_nan_rev: helper(-nan, nan): -nan -> ffc00000; nan -> ffc00000 (alone: 7fc00000) DIFFERS
+  k5_inf: helper(inf, -inf): inf -> 7f800000; -inf -> ff800000
+  k5_num: helper(1, 1.0, True): 1 -> 3f800000; 1.0 -> 3f800000; True -> 3f800000
+  k5_str: helper('x[y', 'x_y'): 'x[y' -> 2; 'x_y' -> 2 (alone: 1) DIFFERS
+  k5_str_rev: helper('x_y', 'x[y'): 'x_y' -> 1; 'x[y' -> 1 (alone: 2) DIFFERS
+  k5_str_ctl: helper('a', 'x_y'): 'a' -> 2; 'x_y' -> 1
+launches that ran code compiled for other values than their own: 23

@@ -1,0 +1,141 @@
+tvr: tools/tvr.py sha256 c6ce200dc5302615, tools/claim_reader.lean.in sha256 e1e0bec2575fb232; Python 3.13.9
+
+# Part L (L95): the facts section holds only forms a line reader reads as the page renders them
+
+- the tree's docs/rules/num.md: facts listed: 38
+-   the section's problems: none
+-   the audit's fact-page check: nothing
+## control: a line of text between the heading and the table
+
+- facts listed: 38
+- the section's problems: none
+- a `[rule]` field citing `ExpF32 P`: PASS
+- a `[rule]` field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit's fact-page check names num.md: no
+
+## the real table inside an HTML comment, a fake one after it (the page shows only the fake)
+
+- facts listed: none (None)
+- the section's problems: ['line 99: HTML comments are not read as the page renders them', "line 99: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '<!--'", 'line 100: a table needs a blank line before and after it']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 8
+
+## a fenced block holding a fake table before the real one (the page shows it as code)
+
+- facts listed: none (None)
+- the section's problems: ["line 99: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '```'", 'line 100: a table needs a blank line before and after it', 'line 102: a table needs a blank line before and after it']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 6
+
+## the table indented by four spaces (the page shows code, no table)
+
+- facts listed: none (None)
+- the section's problems: ["line 99: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '| Fact (`TVA.Rules.Num`) | Operation | S'", "line 100: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '|---|---|---|---|---|'", "line 101: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '| `MathTotal`, `DivTotal`, `CvtTotal`, `'"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 19
+
+## the table in a block quote
+
+- facts listed: none (None)
+- the section's problems: ["line 99: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '> | Fact (`TVA.Rules.Num`) | Operation |'", "line 100: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '> |---|---|---|---|---|'", "line 101: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '> | `MathTotal`, `DivTotal`, `CvtTotal`,'"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 19
+
+## the table in a list item
+
+- facts listed: none (None)
+- the section's problems: ["line 99: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '- | Fact (`TVA.Rules.Num`) | Operation |'", "line 100: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '|---|---|---|---|---|'", "line 101: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '| `MathTotal`, `DivTotal`, `CvtTotal`, `'"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 19
+
+## a setext heading (text over `---`) before the table, which the page shows under it
+
+- facts listed: none (None)
+- the section's problems: ['line 100: a setext heading (text over a line of = or -)', "line 100: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '---'"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 3
+
+## a rule (`***`) before the table
+
+- facts listed: none (None)
+- the section's problems: ["line 99: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '***'"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 2
+
+## text against the table (no blank line), which the page reads as the table's header
+
+- facts listed: none (None)
+- the section's problems: ['line 100: a table needs a blank line before and after it']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 2
+
+## a second `## Facts the library states` heading later on the page
+
+- facts listed: none (None)
+- the section's problems: ['line 399: a second heading "Facts the library states"']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 2
+
+## the section's heading inside a fenced block, with the real one removed
+
+- facts listed: none (None)
+- the section's problems: ["line 95: the section's heading lies inside a fenced block or an HTML comment", "line 96: a line that is no blank line, table row, ### heading or text (a rule or setext underline, a fence, an indented line, a quote, a list or HTML): '```'"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit's fact-page check names num.md: 3
+
+# Part S (L106): the claim reader refuses an `Assumptions` that is not a structure, and the gate's shape step a reader that panicked
+
+## a structure with a `[kernel]` field that is the specification itself (control)
+
+- the kernel: compiles
+- the tree's reader: exit 0, 1 result line(s), no PANIC line
+-   the gate's shape step (`tvr.reader_result`): PASS
+-   the round's-start shape step (exit 0, one result line): PASS, the claim's fields: ['spec']
+- the round's-start reader: exit 0, 1 result line(s), no PANIC line
+-   the gate's shape step (`tvr.reader_result`): PASS
+-   the round's-start shape step (exit 0, one result line): PASS, the claim's fields: ['spec']
+
+## lr-18a's: an `inductive` with one constructor whose argument is the specification
+
+- the kernel: compiles
+- the tree's reader: exit 1, 0 result line(s), no PANIC line; error: TVR: Assumptions must be a structure (library issue L106)
+-   the gate's shape step (`tvr.reader_result`): FAIL: the claim does not have the protocol's shape: <scratch>/lean/readerInduct.lean:248:0: error: TVR: Assumptions must be a structure (libr
+-   the round's-start shape step (exit 0, one result line): FAIL
+- the round's-start reader: exit 0, 1 result line(s), a PANIC line: PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected
+-   the gate's shape step (`tvr.reader_result`): FAIL: the claim reader panicked (library issue L106): PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected
+-   the round's-start shape step (exit 0, one result line): PASS, the claim's fields: []
+
+## a `def` whose body is the specification
+
+- the kernel: compiles
+- the tree's reader: exit 1, 0 result line(s), no PANIC line; error: TVR: Assumptions must be a structure (library issue L106)
+-   the gate's shape step (`tvr.reader_result`): FAIL: the claim does not have the protocol's shape: <scratch>/lean/readerDef.lean:248:0: error: TVR: Assumptions must be a structure (library
+-   the round's-start shape step (exit 0, one result line): FAIL
+- the round's-start reader: exit 1, 0 result line(s), a PANIC line: PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected; error: Assumptions is not a structure
+-   the gate's shape step (`tvr.reader_result`): FAIL: the claim reader panicked (library issue L106): PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected
+-   the round's-start shape step (exit 0, one result line): FAIL
+
+# Part F (L108): a recorded path that is not normalised is refused
+
+- vec-add's freeze event: event 15, folder kernels/vec_add_f32/review/round-1/r-vecadd, 4 files
+- freeze_problem on it, as recorded: none (the tool's own)
+- is_work_file('kernels/vec_add_f32/review/round-1/r-vecadd/work/../filing.json'): False
+-   freeze_problem with it added: it records kernels/vec_add_f32/review/round-1/r-vecadd/work/../filing.json, which is no work file of the folder that its own events leave out (a filing, report, response or notes is recorded only by its own event)
+- is_work_file('kernels/vec_add_f32/review/round-1/r-vecadd/work/./Cover.lean'): False
+-   freeze_problem with it added: it records kernels/vec_add_f32/review/round-1/r-vecadd/work/./Cover.lean, which is no work file of the folder that its own events leave out (a filing, report, response or notes is recorded only by its own event)
+- is_work_file('kernels/vec_add_f32/review/round-1/r-vecadd//work/Cover.lean'): False
+-   freeze_problem with it added: it records kernels/vec_add_f32/review/round-1/r-vecadd//work/Cover.lean, which is no work file of the folder that its own events leave out (a filing, report, response or notes is recorded only by its own event)
+- ledger_problems on a copy whose freeze also records 'kernels/vec_add_f32/review/round-1/r-vecadd/work/../filing.json' (the filing's own sha256): ["kernels/vec_add_f32/review/ledger.jsonl: event 15 records the path 'kernels/vec_add_f32/review/round-1/r-vecadd/work/../filing.json', which is not a normalised path from TVA's root as the tool writes it (no `.`, `..`, empty component, leading `/` or backslash)"]
+- ledger_problems on the tree's vec-add ledger: none
+- ledger_problems on the tree's library ledger, about paths: none
+

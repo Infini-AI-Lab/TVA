@@ -1,0 +1,19 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+T1: round_f32_to_tf32=False
+  stored 0x3f800001  loaded 0x3f800001  same
+  stored 0x3f800600  loaded 0x3f800600  same
+  stored 0x3f801000  loaded 0x3f801000  same
+  stored 0x3f803000  loaded 0x3f803000  same
+  stored 0xc0400001  loaded 0xc0400001  same
+  stored 0x3dcccccd  loaded 0x3dcccccd  same
+  stored 0x3f800000  loaded 0x3f800000  same
+  stored 0x00080000  loaded 0x00080000  same
+T2: round_f32_to_tf32=True
+  stored 0x3f800001  loaded 0x3f800000  DIFFERENT
+  stored 0x3f800600  loaded 0x3f800000  DIFFERENT
+  stored 0x3f801000  loaded 0x3f800000  DIFFERENT
+  stored 0x3f803000  loaded 0x3f804000  DIFFERENT
+  stored 0xc0400001  loaded 0xc0400000  DIFFERENT
+  stored 0x3dcccccd  loaded 0x3dccc000  DIFFERENT
+  stored 0x3f800000  loaded 0x3f800000  same
+  stored 0x00080000  loaded 0x00080000  same

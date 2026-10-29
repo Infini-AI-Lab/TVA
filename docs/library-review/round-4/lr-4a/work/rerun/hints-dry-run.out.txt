@@ -1,0 +1,15 @@
+triton 3.8.0 | NVIDIA H200 NVL
+== as written
+  ttir: tt.func public @grouped_matmul_kernel(%group_a_ptrs: !tt.ptr<i64> {tt.divisibility = 16 : i32} loc("group_a_ptrs"(#loc)), %group_b_ptrs: !tt.ptr<i64> {tt.divisibility = 16 : i32} loc("group_b_ptrs"(#l
+  ttir: %a_ptrs_24 = tt.addptr %a_ptrs_22, %a_ptrs_23 {tt.divisibility = dense<16> : tensor<2xi32>} : tensor<64x32x!tt.ptr<f16>>, tensor<64x32xi32> loc(#loc79)
+  ttir: %b_ptrs_32 = tt.addptr %b_ptrs_30, %b_ptrs_31 {tt.divisibility = dense<16> : tensor<2xi32>} : tensor<32x64x!tt.ptr<f16>>, tensor<32x64xi32> loc(#loc82)
+  ptx loads: {'cp.async.cg.shared.global': 12, 'cp.async.wait_group': 2, 'ld.global.b32': 6, 'ld.global.b64': 3}
+  aligned run (lda = ldb = ldc = 64): max |C - A@B| = 0.00768
+== without lines 148-149
+  ttir: tt.func public @grouped_matmul_kernel_nohint(%group_a_ptrs: !tt.ptr<i64> {tt.divisibility = 16 : i32} loc("group_a_ptrs"(#loc)), %group_b_ptrs: !tt.ptr<i64> {tt.divisibility = 16 : i32} loc("group_b_p
+  ptx loads: {'ld.global.b16': 32, 'ld.global.b32': 6, 'ld.global.b64': 3}
+  aligned run (lda = ldb = ldc = 64): max |C - A@B| = 0.00777
+triton 3.8.0 | NVIDIA H200 NVL
+misaligned: lda = 36: AcceleratorError: CUDA error: misaligned address
+triton 3.8.0 | NVIDIA H200 NVL
+misaligned-nohint: lda = 36: completed, max |C - A@B| = 0.00731

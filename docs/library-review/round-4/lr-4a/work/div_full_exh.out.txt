@@ -1,0 +1,8 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+subnormal y (every pattern): 2^23 divisors x 16 dividends; outside the bound 0; largest error / bound 0.6407
+y in [2^-126, 2^-125): 2^23 divisors x 16 dividends; outside the bound 0; largest error / bound 0.6492
+y in [1, 2): 2^23 divisors x 16 dividends; outside the bound 0; largest error / bound 0.6426
+y in [2^125, 2^126): 2^23 divisors x 16 dividends; outside the bound 0; largest error / bound 0.6371
+y in [2^126, 2^127): 2^23 divisors x 16 dividends; outside the bound 0; largest error / bound 0.6533
+y in [2^127, 2^128): 2^23 divisors x 16 dividends; outside the bound 0; largest error / bound 0.6472
+all: outside the bound 0; largest error / bound 0.6533

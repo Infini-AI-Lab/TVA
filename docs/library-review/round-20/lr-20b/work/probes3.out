@@ -1,0 +1,4 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+  D, n = 0: python -I -> rejected on the host (CompilationError); python -I -O -> 1.0
+  D, n = 3: python -I -> rejected on the host (CompilationError); python -I -O -> 1.0
+  E, c = 5: python -I -> rejected on the host (CompilationError); python -I -O -> rejected on the host (RuntimeError)

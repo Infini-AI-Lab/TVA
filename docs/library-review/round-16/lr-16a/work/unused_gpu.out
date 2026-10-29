@@ -1,0 +1,3 @@
+Triton 3.8.0, NVIDIA H200 NVL, torch 2.11.0+cu130
+- SCALE_SRC: after import the module's SCALE is constexpr[3]; the kernel stored [0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 18.0, 21.0, 24.0, 27.0, 30.0, 33.0, 36.0, 39.0, 42.0, 45.0]; o == 2·x: False, o == 3·x: True
+- JIT_SRC: after import the module's double is 'triple'; the kernel stored [0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 18.0, 21.0, 24.0, 27.0, 30.0, 33.0, 36.0, 39.0, 42.0, 45.0]; o == 2·x: False, o == 3·x: True

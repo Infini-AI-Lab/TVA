@@ -1,0 +1,41 @@
+tvr: tools/tvr.py sha256 1949787e63b614e5, tools/claim_reader.lean.in sha256 fd98285938f8da45; Python 3.13.9; 2026-10-28
+
+# Part F (L62): the arguments of a `Compiler.Faithful` field
+
+- F1: a whole claim, `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model false) (launch d) (K d)`: the claim reader elaborates main, consistent, satisfiable and Spec (shape PASS)
+-   field as claim.md prints it: ∀ (d : Kernels.Demo.Inst), d.ok → TVA.Rules.Compiler.Faithful P (Kernels.Demo.model false) (Kernels.Demo.launch d) (K d)
+-   head; arguments: ('TVA.Rules.Compiler.Faithful', ['P', '…', '…', '…'])
+-   axioms: PASS
+-   usage: PASS
+-   namespace: PASS
+-   kinds: PASS
+- F2 `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)`: kinds: PASS
+- F2 `otherModel : ∀ d e : Inst, d.ok → Rules.Compiler.Faithful P (model e) (launch d) (K d)`: kinds: PASS
+- F2 `otherLaunch : ∀ d e : Inst, d.ok → Rules.Compiler.Faithful P (model d) (launch e) (K d)`: kinds: PASS
+- F2 `chosen : ∀ (h : ∃ d : Inst, d.ok) (d : Inst), d.ok → Rules.Compiler.Faithful P (model (Classical.choose h)) (launch d) (K d)`: kinds: PASS
+- F2 `noOk : ∀ d, Rules.Compiler.Faithful P (model d) (launch d) (K d)`: kinds: PASS
+
+# Part R (L52): a reviewer's lines removed from a kernel's ledger, the folder left in place
+
+- tvr assign r-two: ok
+- tvr file r-two (a blocking finding): recorded kernels/vec_add_f32/review/round-2/r-two/filing.json: 1 event(s)
+- tvr file r-vecadd (filing-2, accept all): recorded kernels/vec_add_f32/review/round-2/r-vecadd/filing-2.json: 1 event(s)
+- certificate with r-two's lines: False
+- events removed: 3
+- r-two's folder still holds: ['filing.json', 'report.md']
+- after: kernel_record_problems (the certificate's ledger condition): none
+- after: certificate: True
+- after: the records step, about kernels/: none
+- after: what the release check lints there: [['lint', 'vec_add_f32', 'reviewer', 'r-two'], ['lint', 'vec_add_f32', 'reviewer', 'r-vecadd']]
+- after: tvr lint vec_add_f32 reviewer r-two: (None, 'regular')
+
+# Part C (L70): citations of files that do not exist, read as placeholders
+
+- a page citing `docs/DESIGN`: passes
+- a page citing `docs/DESIGNS.md`: ['docs/page.md: cites docs/DESIGNS.md, which does not exist']
+- a page citing `evidence/NUM-DIV-F64/README.md`: ['docs/page.md: cites evidence/NUM-DIV-F64/README.md, which does not exist']
+- a page citing `evidence/num-div-F64/README.md`: ['docs/page.md: cites evidence/num-div-F64/README.md, which does not exist']
+- a page citing `evidence/num-div-f64/README.md`: ['docs/page.md: cites evidence/num-div-f64/README.md, which does not exist']
+- a page citing [the record](../evidence/num-div-F64/README.md): ['docs/page.md: cites ../evidence/num-div-F64/README.md, which does not exist']
+- the tree's evidence READMEs (skipped by the audit), cited files that do not exist: ['evidence/gate-round7/README.md: cites docs/.lake, which does not exist', 'evidence/release-check/README.md: cites docs/.lake/note.md, which does not exist', 'evidence/tool-round13/README.md: cites docs/evidence/conformance/cvt.md, which does not exist']
+

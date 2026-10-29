@@ -1,0 +1,6 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+tl.store(p, 1e-7)            on bfloat16: bits 0x33d7; [literal] says 0x33d7: as stated
+tl.maximum(x, 1e-7)          on bfloat16: bits 0x33d7; [literal] says 0x33d7: as stated
+tl.where(False, x, 1e-7)     on bfloat16: bits 0x0000; [literal] says 0x0000: as stated
+(x + 1.0) / 1e7              on bfloat16: bits 0x33d7; [literal] says 0x33d7: as stated
+x + 1e-7                     on bfloat16: bits 0x0000; [literal] says 0x0000: as stated

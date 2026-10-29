@@ -1,0 +1,24 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+C1 if <atomic> is not None: counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+C2 1 if <atomic> is None else 2: counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+C3 elif <atomic> is not None (FLAG=False): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+C4 if FLAG and <atomic> is not None (FLAG=False): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+P1 if FLAG (FLAG=True): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+P2 if N > 4 (N=8): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+P3 1 if FLAG else 2 (FLAG=False): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+S1 if FLAG and <atomic> is not None (FLAG=True): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+S2 if FLAG or <atomic> is None (FLAG=True): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+S3 if FLAG or <atomic> is None (FLAG=False): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+S4 if (<atomic> is None) and (<atomic> is None): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+S5 if (<atomic> is not None) or (<atomic> is None): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+S6 1 if (<atomic> if FLAG else None) is None else 2 (FLAG=False): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+S7 1 if (<atomic> if FLAG else None) is None else 2 (FLAG=True): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+S8 if FLAG: ... elif <atomic> is not None (FLAG=True): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+S9 if (tl.load(x) > 0) and (<atomic> > 0) (x=0): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 1
+S10 tl.static_assert(FLAG or <atomic> is None) (FLAG=True): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+S11 tl.static_print(FLAG and <atomic>) (FLAG=False): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0; printed 1 line(s), first 'False'
+S12 tl.static_print(<atomic> if FLAG else 0) (FLAG=False): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0; printed 1 line(s), first '0'
+S13 tl.static_print(<atomic> if FLAG else 0) (FLAG=True): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0; printed 1 line(s), first 'int32[]'
+S14 tl.device_print('v', <atomic> if FLAG else 0) (FLAG=False): counter 0 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0; printed 512 line(s), first 'pid (2, 0, 0) idx () v: 0'
+S15 if (FLAG and <atomic +1> is None) or <atomic +2> is not None (FLAG=False): counter 8 (each atomic that runs adds its operand in each of 4 programs); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+S16 if <atomic> is not None and FLAG (FLAG=False): counter 4 (each atomic that runs adds its operand in each of 4 programs); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0

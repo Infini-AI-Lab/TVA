@@ -1,0 +1,22 @@
+tvr: tools/tvr.py sha256 38cde42e17f4b038, tools/claim_reader.lean.in sha256 8e1888db2fbf5319; Python 3.13.9
+
+# Part P (L96): the release check compares the regenerated pages with those the copy shipped
+
+- pages and gates read from the copy before the sandbox: (['docs/library-review/REPORTS.md', 'kernels/README.md', 'kernels/vec_add_f32/REVIEW.md', 'kernels/vec_add_f32/claim.md'], ['vec_add_f32'])
+- the sandbox regenerates the same pages at another gate time: old (the live tree) / new (the shipped copy): ('none', 'none')
+- A: the live tree's claim.md rewritten during the run: old / new: (['kernels/vec_add_f32/claim.md: the shipped page differs from the one regenerated from the shipped files'], 'none')
+- B: the copy shipped a stale claim.md, fixed in the live tree during the run: old / new: ('none', ['kernels/vec_add_f32/claim.md: the shipped page differs from the one regenerated from the shipped files'])
+
+# Part V (L81): the coordinator's commands on a copy of the tree: `tvr check`, then `tvr freeze`
+
+## With the tree's docs/SEMANTICS.md
+
+- docs/SEMANTICS.md in the copy: the tree's, sha256 31ef8b32248903e6; the one vec-add's accepted gate 401e1fa92db421d7 records: f58c4fdbc51b6a83 (another)
+- tvr check vec_add_f32: (0, ['gate PASS  digest 721f1db52c61b7ef'])
+- tvr status vec_add_f32: (0, ['**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest'])
+- tvr freeze vec_add_f32 --dry-run: (0, ['nothing to freeze: every role folder of vec_add_f32 that its events record holds only files they record, or names its folder'])
+- tvr freeze vec_add_f32: (0, ['nothing to freeze: every role folder of vec_add_f32 that its events record holds only files they record, or names its folder'])
+- tvr status vec_add_f32: (0, ['**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest'])
+- certificate.json after it: none
+- the records step on the copy, about kernels/: none
+

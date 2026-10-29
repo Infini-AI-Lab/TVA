@@ -1,0 +1,15 @@
+triton 3.8.0
+TensorDescriptor is a class of Triton: triton.tools.tensor_descriptor.TensorDescriptor, fields ['base', 'shape', 'strides', 'block_shape', 'padding', 'round_f32_to_tf32']
+triton.set_allocator (triton.runtime._allocation) changes Triton's state: _allocator.set(allocator)
+tutorials/06-fused-attention.py:119: nargs["desc_q"].block_shape = [BLOCK_M, HEAD_DIM]
+tutorials/06-fused-attention.py:121: nargs["desc_v"].block_shape = [HEAD_DIM, BLOCK_N]
+tutorials/06-fused-attention.py:123: nargs["desc_v"].block_shape = [BLOCK_N, HEAD_DIM]
+tutorials/06-fused-attention.py:124: nargs["desc_k"].block_shape = [BLOCK_N, HEAD_DIM]
+tutorials/06-fused-attention.py:125: nargs["desc_o"].block_shape = [BLOCK_M, HEAD_DIM]
+tutorials/06-fused-attention.py:548: triton.set_allocator(alloc_fn)
+tutorials/08-grouped-gemm.py:364: triton.set_allocator(alloc_fn)
+tutorials/09-persistent-matmul.py:188: nargs["a_desc"].block_shape = [BLOCK_M, BLOCK_K]
+tutorials/09-persistent-matmul.py:189: nargs["b_desc"].block_shape = [BLOCK_N, BLOCK_K]
+tutorials/09-persistent-matmul.py:191: nargs["c_desc"].block_shape = [BLOCK_M, BLOCK_N // 2]
+tutorials/09-persistent-matmul.py:193: nargs["c_desc"].block_shape = [BLOCK_M, BLOCK_N]
+tutorials/09-persistent-matmul.py:589: triton.set_allocator(alloc_fn)

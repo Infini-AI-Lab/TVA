@@ -1,0 +1,7 @@
+- the repository's .git/config: [core] | 	repositoryformatversion = 0 | 	filemode = true | 	bare = false | 	logallrefupdates = true | [url "https://example.invalid/"] | 	insteadOf = https://github.com/ | [http] | 	proxy = http://127.0.0.1:9 | [https] | 	proxy = http://127.0.0.1:9
+- control: a plain git ls-remote of Mathlib's tag, run in a subfolder of it: (128, "fatal: unable to access 'https://example.invalid/leanprover-community/mathlib4/': Failed to connect to 127.0.0.1 port 9: Connection refused")
+- git's empty home (tvr._git_home) lies inside the repository: True
+- shipped_files (git -C <tva> ls-files) from there: files listed: 889
+- make_packages (the release check's packages step) into a folder of the repository: no problem: every package made afresh from its upstream repository, Mathlib's pin its tag's commit, every file its commit's blob
+- packages made: ['Cli', 'LeanSearchClient', 'Qq', 'aesop', 'batteries', 'importGraph', 'mathlib', 'plausible', 'proofwidgets']
+- minutes: 0.3

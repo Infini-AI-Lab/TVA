@@ -1,0 +1,25 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+tl.full in int8: 50 constants, stored c mod 2^8: 50, otherwise: 0, rejected on the host: 0; 
+  x + -129 in int8: rejected on the host (CompilationError: ValueError('Scalar -129 is out of range for type int8'))
+  x + 128 in int8: rejected on the host (CompilationError: ValueError('Scalar 128 is out of range for type int8'))
+tl.full in int16: 50 constants, stored c mod 2^16: 50, otherwise: 0, rejected on the host: 0; 
+  x + -32769 in int16: rejected on the host (CompilationError: ValueError('Scalar -32769 is out of range for type int16'))
+  x + 32768 in int16: rejected on the host (CompilationError: ValueError('Scalar 32768 is out of range for type int16'))
+tl.full in int32: 50 constants, stored c mod 2^32: 50, otherwise: 0, rejected on the host: 0; 
+  x + -2147483649 in int32: rejected on the host (CompilationError: ValueError('Scalar -2147483649 is out of range for type int32'))
+  x + 2147483648 in int32: rejected on the host (CompilationError: ValueError('Scalar 2147483648 is out of range for type int32'))
+tl.full in int64: 50 constants, stored c mod 2^64: 4, otherwise: 0, rejected on the host: 46; -9223372036854775809: rejected; 9223372036854775808: rejected; 18446744073709551616: rejected
+  x + -9223372036854775809 in int64: rejected on the host (CompilationError: at 2:20:)
+  x + 9223372036854775808 in int64: rejected on the host (CompilationError: ValueError('Scalar 9223372036854775808 is out of range for type int64'))
+tl.full in uint8: 50 constants, stored c mod 2^8: 32, otherwise: 0, rejected on the host: 18; -1: rejected; -256: rejected; -300: rejected
+  x + -1 in uint8: rejected on the host (CompilationError: ValueError('Cannot perform a binary operation between an unsigned tensor and a negative sc)
+  x + 256 in uint8: rejected on the host (CompilationError: ValueError('Scalar 256 is out of range for type uint8'))
+tl.full in uint16: 50 constants, stored c mod 2^16: 30, otherwise: 0, rejected on the host: 20; -1: rejected; -65536: rejected; -300: rejected
+  x + -1 in uint16: rejected on the host (CompilationError: ValueError('Cannot perform a binary operation between an unsigned tensor and a negative sc)
+  x + 65536 in uint16: rejected on the host (CompilationError: ValueError('Scalar 65536 is out of range for type uint16'))
+tl.full in uint32: 50 constants, stored c mod 2^32: 27, otherwise: 0, rejected on the host: 23; -1: rejected; -4294967296: rejected; -300: rejected
+  x + -1 in uint32: rejected on the host (CompilationError: ValueError('Cannot perform a binary operation between an unsigned tensor and a negative sc)
+  x + 4294967296 in uint32: rejected on the host (CompilationError: ValueError('Scalar 4294967296 is out of range for type uint32'))
+tl.full in uint64: 50 constants, stored c mod 2^64: 4, otherwise: 0, rejected on the host: 46; -1: rejected; 18446744073709551616: rejected; 18446744073709551616: rejected
+  x + -1 in uint64: rejected on the host (CompilationError: ValueError('Cannot perform a binary operation between an unsigned tensor and a negative sc)
+  x + 18446744073709551616 in uint64: rejected on the host (CompilationError: at 2:20:)

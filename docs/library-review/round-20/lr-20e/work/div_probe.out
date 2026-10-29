@@ -1,0 +1,4 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+DivFull: 208782513 pairs in its domain, 0 outside the fact, largest error / bound 0.6452
+DivRn P .binary64: 4194385 pairs, 0 differ from IEEE division (up to NaN payload)
+outside the facts in all: 0

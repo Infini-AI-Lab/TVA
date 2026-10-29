@@ -103,7 +103,8 @@ theorem safe_store_block_ptr (b : Buf d) {p : BlockPtr d} {bc : List Nat} {vals 
     (hk : ∀ m', (∀ i, p.inb bc i = true →
         m'.read d (b.ptr ((p.elem i).toNat : Int)).addr = some (vals.get i)) →
       (∀ x, x ∉ b.elems (Buf.img (fun i => (p.elem i).toNat) (p.inb bc)) → m' x = m x) →
-      (∀ x, m x ≠ none → m' x ≠ none) → Safe E R W Q m' (k ())) :
+      (∀ x, m x ≠ none → m' x ≠ none) →
+      Safe E R (W \ b.elems (Buf.img (fun i => (p.elem i).toNat) (p.inb bc))) Q m' (k ())) :
     Safe E R W Q m (tl.store_block p vals bc >>= k) := by
   simp only [tl.store_block, Prog.bind_eq, Prog.bind]
   refine .pick ⟨(), hok⟩ fun _ _ => ?_

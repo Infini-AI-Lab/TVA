@@ -1,0 +1,12 @@
+# Part 1: Triton 3.8.0 on NVIDIA H200 NVL, 2026-10-28
+
+- x[:4] = [0.25, 1.25, 2.25, 3.25]; o[:4] = [0.75, 3.75, 6.75, 9.75] (x * SCALE, rounded to OUT_T = float16 and stored as float32)
+- equal to (x * 3).half().float() on all 16 lanes: True
+- after `SCALE = tl.constexpr(5)` in the same process: Global variable SCALE has changed since we compiled this kernel, from constexpr[3] to constexpr[5] (the value is part of the compiled kernel, and checked at each launch)
+
+# Part 2: the gate's map check on the same source
+
+- the source's functions: [('k', 9, 13), ('run', 16, 20)]
+- kernel lines [[9, 13]], host lines [[16, 20]]: map problems ([], [])
+- lines 5 (`SCALE = tl.constexpr(3)`) and 6 (`OUT_T = tl.float16`) are code lines in no range
+

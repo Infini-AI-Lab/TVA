@@ -1,0 +1,5 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+enable_fp_fusion=True, num_warps=1: element 5.960464477539063e-08 (fma: 5.960464477539063e-08, mul then add: 0.0); PTX has fma.rn.f32: True, mul.rn.f32: False
+enable_fp_fusion=True, num_warps=4: element 5.960464477539063e-08 (fma: 5.960464477539063e-08, mul then add: 0.0); PTX has fma.rn.f32: True, mul.rn.f32: False
+enable_fp_fusion=False, num_warps=1: element 5.960464477539063e-08 (fma: 5.960464477539063e-08, mul then add: 0.0); PTX has fma.rn.f32: True, mul.rn.f32: False
+enable_fp_fusion=False, num_warps=4: element 5.960464477539063e-08 (fma: 5.960464477539063e-08, mul then add: 0.0); PTX has fma.rn.f32: True, mul.rn.f32: False

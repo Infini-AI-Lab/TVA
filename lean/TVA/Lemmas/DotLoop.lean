@@ -1,4 +1,4 @@
-import TVA.Lemmas.Fused
+import TVA.Lemmas.FusedErr
 import TVA.Rules.Num
 
 /-!
@@ -134,9 +134,9 @@ def stepRel (rel : ℕ → ℚ) (K : ℕ) : ℚ := rel K + 3 * Format.binary32.u
 /-- The per-step absolute error. -/
 def stepAbs (abs : ℕ → ℚ) (K : ℕ) : ℚ := abs K * (1 + 3 * Format.binary32.u) + 4 * Format.binary32.eta
 
-theorem binary32_u : Format.binary32.u = 2 ^ (-24 : ℤ) := by unfold Format.u; rfl
+theorem binary32_u : Format.binary32.u = 2 ^ (-24 : ℤ) := Format.binary32_u
 
-theorem binary32_ieee : Format.binary32.special = .ieee := rfl
+theorem binary32_specials : Format.binary32.specials ≠ .finite := by decide
 
 theorem val?_f32 {x : F32} {v : ℚ} : DType.val? .f32 x = some v ↔ x.isFinite = true ∧ x.toRat = v := by
   show (if x.isFinite = true then some x.toRat else none) = some v ↔ _
@@ -198,7 +198,7 @@ theorem dotAdd_step {P : Platform} {fusion : Bool} {da db : DType} {pr : InputPr
       have := abs_sub_abs_le_abs_sub (d.get2 i n).toRat (∑ k, va k * vb k)
       linarith
     have hrel' : AddRel fusion (d.get2 i n) (c.get2 i n) (r.get2 i n) := hadd (i, n, ())
-    obtain ⟨hrfin, hrerr⟩ := FloatV.AddRel.err Format.binary32_regular binary32_ieee
+    obtain ⟨hrfin, hrerr⟩ := FloatV.AddRel.err Format.binary32_regular binary32_specials
       (by rw [binary32_u]; norm_num) hrel' hdfin hc (by nlinarith)
     refine ⟨hrfin, ?_⟩
     have e : (r.get2 i n).toRat - (cv + ∑ k, va k * vb k) =

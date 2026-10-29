@@ -1,0 +1,6 @@
+A.cvt.f16.e4m3.sat1          cvt:f16:e4m3:rn:1        all         65536 inputs  agree  [1 s]
+A.cvt.f16.e5m2.sat1          cvt:f16:e5m2:rn:1        all         65536 inputs  agree  [0 s]
+A.cvt.bf16.e4m3.sat1         cvt:bf16:e4m3:rn:1       all         65536 inputs  agree  [0 s]
+A.cvt.bf16.e5m2.sat1         cvt:bf16:e5m2:rn:1       all         65536 inputs  agree  [0 s]
+A.cvt.f32.e4m3.sat1          cvt:f32:e4m3:rn:1        all    4294967296 inputs  agree  [597 s]
+A.cvt.f32.e5m2.sat1          cvt:f32:e5m2:rn:1        all    4294967296 inputs  agree  [698 s]

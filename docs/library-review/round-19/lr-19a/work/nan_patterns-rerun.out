@@ -1,0 +1,32 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+f16: operands nan 7d23, -nan fe01
+  inf - inf -> 7fff, 0 * inf -> 7fff, 0 / 0 (div_rn) -> 7fff, 0 / 0 (/) -> 7fff, fma(inf, 0, 1) -> 7fff, sqrt_rn(-1) -> 7fff, nan + 1 -> 7fff, -nan + 1 -> 7fff, nan * 1 -> 7fff, fma(nan, 1, 1) -> 7fff, div_rn(nan, 1) -> 7fff, nan / 1 -> 7fff, sqrt_rn(nan) -> 7fff, maximum(nan, 1, ALL) -> 7fff, minimum(-nan, 1, ALL) -> 7fff, -nan -> 7e01, -(-nan) -> fe01, abs(-nan) -> 7e01
+  NaN results other than the canonical 7fff: -nan (7e01), -(-nan) (fe01), abs(-nan) (7e01)
+bf16: operands nan 7fa3, -nan ffc1
+  inf - inf -> 7fff, 0 * inf -> 7fff, 0 / 0 (div_rn) -> 7fff, 0 / 0 (/) -> 7fff, fma(inf, 0, 1) -> 7fff, sqrt_rn(-1) -> 7fff, nan + 1 -> 7fff, -nan + 1 -> 7fff, nan * 1 -> 7fff, fma(nan, 1, 1) -> 7fff, div_rn(nan, 1) -> 7fff, nan / 1 -> 7fff, sqrt_rn(nan) -> 7fff, maximum(nan, 1, ALL) -> 7fff, minimum(-nan, 1, ALL) -> 7fff, -nan -> 7fc1, -(-nan) -> ffc1, abs(-nan) -> 7fc1
+  NaN results other than the canonical 7fff: -nan (7fc1), -(-nan) (ffc1), abs(-nan) (7fc1)
+f32: operands nan 7f812345, -nan ffc00001
+  inf - inf -> 7fffffff, 0 * inf -> 7fffffff, 0 / 0 (div_rn) -> 7fffffff, 0 / 0 (/) -> 7fffffff, fma(inf, 0, 1) -> 7fffffff, sqrt_rn(-1) -> 7fffffff, nan + 1 -> 7fffffff, -nan + 1 -> 7fffffff, nan * 1 -> 7fffffff, fma(nan, 1, 1) -> 7fffffff, div_rn(nan, 1) -> 7fffffff, nan / 1 -> 7fffffff, sqrt_rn(nan) -> 7fffffff, maximum(nan, 1, ALL) -> 7fffffff, minimum(-nan, 1, ALL) -> 7fffffff, -nan -> 7fc00001, -(-nan) -> ffc00001, abs(-nan) -> 7fc00001
+  NaN results other than the canonical 7fffffff: -nan (7fc00001), -(-nan) (ffc00001), abs(-nan) (7fc00001)
+f64: operands nan 7ff0000000012345, -nan fff8000000000001
+  inf - inf -> fff8000000000000, 0 * inf -> fff8000000000000, 0 / 0 (div_rn) -> fff8000000000000, 0 / 0 (/) -> fff8000000000000, fma(inf, 0, 1) -> fff8000000000000, sqrt_rn(-1) -> fff8000000000000, nan + 1 -> 7ff8000000012345, -nan + 1 -> fff8000000000001, nan * 1 -> 7ff8000000012345, fma(nan, 1, 1) -> 7ff8000000012345, div_rn(nan, 1) -> 7ff8000000012345, nan / 1 -> 7ff8000000012345, sqrt_rn(nan) -> 7ff8000000012345, maximum(nan, 1, ALL) -> 7ff8000000000000, minimum(-nan, 1, ALL) -> 7ff8000000000000, -nan -> 7ff8000000000001, -(-nan) -> fff8000000000001, abs(-nan) -> 7ff8000000000001
+  NaN results other than the canonical 7fffffffffffffff: inf - inf (fff8000000000000), 0 * inf (fff8000000000000), 0 / 0 (div_rn) (fff8000000000000), 0 / 0 (/) (fff8000000000000), fma(inf, 0, 1) (fff8000000000000), sqrt_rn(-1) (fff8000000000000), nan + 1 (7ff8000000012345), -nan + 1 (fff8000000000001), nan * 1 (7ff8000000012345), fma(nan, 1, 1) (7ff8000000012345), div_rn(nan, 1) (7ff8000000012345), nan / 1 (7ff8000000012345), sqrt_rn(nan) (7ff8000000012345), maximum(nan, 1, ALL) (7ff8000000000000), minimum(-nan, 1, ALL) (7ff8000000000000), -nan (7ff8000000000001), -(-nan) (fff8000000000001), abs(-nan) (7ff8000000000001)
+conversions of [nan, -nan] (the payload NaNs above)
+  f16 -> bf16: 7fff, 7fff (canonical)
+  f16 -> f32: 7fffffff, 7fffffff (canonical)
+  f16 -> f64: 7ffc8c0000000000, fff8040000000000 (NaN, not canonical)
+  f16 -> e4m3: 7f, 7f (canonical)
+  f16 -> e5m2: 7f, 7f (canonical)
+  bf16 -> f16: 7fff, 7fff (canonical)
+  bf16 -> f32: 7fa30000, ffc10000 (NaN, not canonical)
+  bf16 -> f64: 7ffc600000000000, fff8200000000000 (NaN, not canonical)
+  bf16 -> e4m3: 7f, 7f (canonical)
+  bf16 -> e5m2: 7f, 7f (canonical)
+  f32 -> f16: 7fff, 7fff (canonical)
+  f32 -> bf16: 7fff, 7fff (canonical)
+  f32 -> f64: 7ff82468a0000000, fff8000020000000 (NaN, not canonical)
+  f32 -> e4m3: 7f, 7f (canonical)
+  f32 -> e5m2: 7f, 7f (canonical)
+  f64 -> f16: 7e00, fe00 (NaN, not canonical)
+  f64 -> bf16: 7fc0, ffc0 (NaN, not canonical)
+  f64 -> f32: 7fc00000, ffc00000 (NaN, not canonical)

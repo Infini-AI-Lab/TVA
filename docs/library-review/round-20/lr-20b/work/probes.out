@@ -1,0 +1,14 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+T. equal tuples of compile-time values returned on two paths (x = 2^24 + 1, int32)
+  t1 x * th(c)[0], (1, 2) then (1.0, 2): c = 5 -> 16777217, c = -5 -> 16777217 (the taken return's value as Python reads it: 16777217, 16777216)
+  t2 a, b = th(c); x * a, (1, 2) then (1.0, 2): c = 5 -> 16777217, c = -5 -> 16777217 (the taken return's value as Python reads it: 16777217, 16777216)
+  t3 x * th(c)[0], (1.0, 2) then (1, 2): c = 5 -> 16777216, c = -5 -> 16777216 (the taken return's value as Python reads it: 16777216, 16777217)
+K. scope 11 in one process, fresh cache: C = 2 then C = 2.0 (x = 2^24 + 1, int32; x * C)
+  alone: C = 2 -> 33554434, C = 2.0 -> 33554432
+  2 then 2.0: 33554434, 33554434  DIFFERS from 2.0 alone
+  2.0 then 2: 33554432, 33554432  DIFFERS from 2 alone
+B. a conditional expression whose runtime condition is a block (x = 7, m = 1)
+  b1 [1] block condition: rejected on the host (RuntimeError)
+  b2 [2] block condition: rejected on the host (RuntimeError)
+O. the scalar argument equal to 1: (-1 if c > 0 else -3) // 2
+  c = 1 -> -1 (a compile-time condition: Python's -1 // 2 = -1); c = 5 -> 0 (int32 //)

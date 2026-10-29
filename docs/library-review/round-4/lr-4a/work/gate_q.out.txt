@@ -1,0 +1,20 @@
+## A: the kernel, updated for round 3 in the copy
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and lin
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+
+## Q2 (lr-4a): `let tl : Ops := ops` before the model line `let output ← tl.add x y`
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and lin
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: CHANGED
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+model line in the Lean: ['def ops : Ops := ⟨fun x y => TVA.tl.add x y⟩', 'let output ← tl.add x y', 'let output ← tl.add x y', 'let output ← tl.add x y']

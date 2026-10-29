@@ -2,7 +2,8 @@
 name = "tva"
 version = "0.1.0"
 description = "Small Triton verification library: real computation, memory/concurrency, separate numerical refinement"
-requires-python = ">=3.10"
+# The host the library states (docs/SEMANTICS.md, "Launches"; library issue L107): CPython 3.13 on x86-64.
+requires-python = ">=3.13,<3.14"
 dependencies = []
 
 [project.optional-dependencies]

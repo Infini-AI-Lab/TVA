@@ -1,0 +1,44 @@
+headers.py (lr-18a): tools/tvr.py sha256 38cde42e17f4b038; Python 3.13.9
+
+## a one-line def (lines 11–11)
+
+- def_headers: [9, 10, 11]
+- module_lines: [1, 2, 9, 10, 11]
+- the unused function's lines in no class but source.unused: ['the header of a function in source.unused (lines 9–11: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+- its header, and `triple`'s (lines 9-10), in the host lines too: passes
+
+## comments and a blank line between its decorators (lines 11–18)
+
+- def_headers: [9, 10, 11, 12, 13, 14, 15, 16, 17]
+- module_lines: [1, 2, 9, 10, 11, 14, 15, 16, 17]
+- the unused function's lines in no class but source.unused: ['the header of a function in source.unused (lines 9–11, 14–17: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+- its header, and `triple`'s (lines 9-10), in the host lines too: passes
+
+## an async def (lines 11–12)
+
+- def_headers: [9, 10, 11]
+- module_lines: [1, 2, 9, 10, 11]
+- the unused function's lines in no class but source.unused: ['the header of a function in source.unused (lines 9–11: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+- its header, and `triple`'s (lines 9-10), in the host lines too: passes
+
+## a signature over three lines and a docstring (lines 11–15)
+
+- def_headers: [9, 10, 11, 12, 13]
+- module_lines: [1, 2, 9, 10, 11, 12, 13]
+- the unused function's lines in no class but source.unused: ['the header of a function in source.unused (lines 9–13: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+- its header, and `triple`'s (lines 9-10), in the host lines too: passes
+
+## a def inside the `__main__` block (lines 11–14)
+
+- def_headers: [9, 10, 12]
+- module_lines: [1, 2, 9, 10, 11, 12, 14]
+- the unused function's lines in no class but source.unused: ['the header of a function in source.unused (lines 9–10, 12: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+- its header, and `triple`'s (lines 9-10), in the host lines too: passes
+
+## a decorator that calls the function (its body runs at import) (lines 11–17)
+
+- def_headers: [9, 10, 14, 15]
+- module_lines: [1, 2, 9, 10, 14, 15]
+- the unused function's lines in no class but source.unused: ['the header of a function in source.unused (lines 9–10, 14–15: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+- its header, and `triple`'s (lines 9-10), in the host lines too: passes
+

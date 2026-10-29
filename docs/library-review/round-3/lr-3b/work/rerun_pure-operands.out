@@ -1,0 +1,32 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27, TRITON_DEBUG=None
+
+== A. An aggregate as an operand (grid of 4 programs; each jitted method adds 1) ==
+A0 control: a = make(c) only
+    compiles; counter = 0 after 4 programs
+A1 tl.static_assert((a + a) is not None)  [__add__]
+    compiles; counter = 4 after 4 programs
+A2 tl.device_assert(a == a, 'equal')  [__eq__]
+    compiles; counter = 4 after 4 programs
+A3 assert a < a, 'less'  [__lt__]
+    compiles; counter = 4 after 4 programs
+A4 unused = a + a  (a dead value)  [__add__]
+    compiles; counter = 4 after 4 programs
+A5 tl.static_assert(a[0] is not None)  [__getitem__]
+    compiles; counter = 4 after 4 programs
+A6 tl.static_assert((-a) is not None)  [__neg__]
+    rejected on the host: CompilationError: RuntimeError("Cannot call @triton.jit'd outside of the scope of a kernel")
+A7 tl.static_assert((a,) == (a,))  [a tl.tuple comparison]
+    compiles; counter = 0 after 4 programs
+A8 tl.static_assert(((a,) + (a,)) is not None)  [a tl.tuple concatenation]
+    compiles; counter = 0 after 4 programs
+
+== B. The allowed operand types, every listed operator ==
+B1 TTIR identical to the kernel without the lines: False
+B1 PTX identical to the kernel without the lines: True
+B1 TTIR identical up to value names and the order of the lines (same operations): True
+B1 outputs correct: without the lines True, with the lines True
+B1 TTIR of the kernel with the lines contains tt.atomic_rmw: False
+B1 TTIR of the kernel with the lines contains tt.atomic_cas: False
+B1 TTIR of the kernel with the lines contains tt.print: False
+B1 TTIR of the kernel with the lines contains tt.assert: False
+B1 TTIR of the kernel with the lines contains tt.call: False

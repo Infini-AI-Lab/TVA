@@ -1,0 +1,82 @@
+tvr: tools/tvr.py sha256 2a390f9dca6f5ae1, tools/claim_reader.lean.in sha256 3fecc3f2be58ee48; Python 3.13.9
+
+# Part K: the claim reader's K and P, with parameters before them
+
+## control: `structure Assumptions (K …) (P …)`
+
+Fields: `[kernel] spec : Claim.Meets Inst.ok Pre Post K` (the specification itself) and `[kernel] div : ∀ x y r : FloatV .binary32, P.div .binary32 x y r → r = x` (a device fact); `main` is `h.spec`.
+
+- hygiene (the gate's patterns on the module's text): PASS
+- replay (leanchecker on the compiled module): PASS
+- field spec: the reader's flags: {'K': True, 'P': False, 'head': 'TVA.Claim.Meets'}
+- field div: the reader's flags: {'K': False, 'P': True, 'head': 'Eq'}
+- shape: PASS
+- axioms: PASS
+- usage: PASS
+- namespace: PASS
+- kinds: FAIL ['spec: a [kernel] assumption may not mention K, P or a TVA.Rules fact', 'div: a [kernel] assumption may not mention K, P or a TVA.Rules fact']
+
+## `structure Assumptions [Inhabited Unit] [Inhabited Bool] (K …) (P …)`
+
+Fields: `[kernel] spec : Claim.Meets Inst.ok Pre Post K` (the specification itself) and `[kernel] div : ∀ x y r : FloatV .binary32, P.div .binary32 x y r → r = x` (a device fact); `main` is `h.spec`.
+
+- hygiene (the gate's patterns on the module's text): PASS
+- replay (leanchecker on the compiled module): PASS
+- field spec: the reader's flags: {'K': False, 'P': False, 'head': 'TVA.Claim.Meets'}
+- field div: the reader's flags: {'K': False, 'P': False, 'head': 'Eq'}
+- shape: PASS
+- axioms: PASS
+- usage: PASS
+- namespace: PASS
+- kinds: PASS
+
+# Part U: an unused function's def statement binds a module-level name the kernel reads
+
+- the manifest's classes (probes_src.MANIFEST): {'ranges': [[1, 17]], 'host': [[27, 31]], 'unused': ['triple', '_unused_helper']}
+## SCALE_SRC
+
+- the source's functions (name, first, last): [('k', 8, 12), ('triple', 18, 20), ('_unused_helper', 23, 24), ('run', 27, 31)]
+- code lines outside every function: [1, 2, 3, 5]
+- map_problems (every code line of the kernel lines mapped): passes
+
+## JIT_SRC
+
+- the source's functions (name, first, last): [('double', 6, 8), ('k', 11, 15), ('triple', 18, 20), ('_unused_helper', 23, 24), ('run', 27, 31)]
+- code lines outside every function: [1, 2, 3]
+- map_problems (every code line of the kernel lines mapped): passes
+
+# Part R: role folders and recorded folders of a kernel's ledger (L52, L81)
+
+- vec-add's ledger as it is in the tree: file and response events that name no `dir`: [2, 5, 7]
+- files in the folders of those events that no event records: ['kernels/vec_add_f32/review/round-1/r-vecadd/work/Cover.lean', 'kernels/vec_add_f32/review/round-1/r-vecadd/work/Print.lean', 'kernels/vec_add_f32/review/round-1/r-vecadd/work/Spec.lean', 'kernels/vec_add_f32/review/round-1/r-vecadd/work/offsets.py']
+- ledger_problems on the tree (a file added to a recorded folder?): none
+- scratch, events 1-9 and a hand-made gate at r-vecadd's accepted digests: kernel_record_problems: none
+-   certificate: True
+- L1: r-vecadd files filing-2.json in round 2 with a blocking finding: recorded kernels/vec_add_f32/review/round-2/r-vecadd/filing-2.json: 1 event(s)
+- L1: the file event names its folder as `dir`: True
+- L1: certificate with its lines: False
+- L1: its file and raise lines removed: kernel_record_problems: none
+- L1: unrecorded_current: none
+- L1: the records step, about kernels/: none
+- L1: certificate (filing-2.json, a blocking SPEC_TOO_WEAK, still in the folder): True
+- N: r-vecadd files filing-2.json, accepting every item: recorded kernels/vec_add_f32/review/round-2/r-vecadd/filing-2.json: 1 event(s)
+- N: certificate: True
+- N: r-vecadd files filing-3.json with a blocking finding: recorded kernels/vec_add_f32/review/round-2/r-vecadd/filing-3.json: 1 event(s)
+- N: the coordinator's `tvr note … --files` the filing and its report; certificate: False
+- N: filing-3's file and raise lines removed (the note kept): kernel_record_problems: none
+- N: the records step, about kernels/: none
+- N: certificate (filing-3.json, a blocking SPEC_TOO_WEAK, still in the folder): True
+
+# Part L: a second table in num.md's section "Facts the library states"
+
+- the tree's page: facts listed: 32
+- the page with a second table (of shapes, "never cited") inside the section, before its next heading: facts listed: 34; MathAcc listed alone: True, DotAcc: True
+- then lr-9a's field `MathAcc P .exp .binary32 Set.univ (2^-24) (2^-150)`: rule_fact_problem: PASS
+
+# Part C: citations, and the release check's lint list
+
+- the tree's citations (citation_problems): every cited file exists
+- the facts docs/rules/num.md lists (stated_facts): 32
+- the audit's fact-page check: nothing
+- the records the release check would lint now (release_records on the tree): [['lint', 'library', '16', 'lr-16a'], ['lint', 'vec_add_f32', 'reviewer', 'r-vecadd'], ['lint', 'vec_add_f32', 'reviewer', 'r-vecadd2']]
+

@@ -1,0 +1,36 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+x: int32 buffer of 65536 elements; each run of the kernel adds 1 to every element
+
+A1: three configs, no hooks
+  runs on x at the first call: 5025
+  runs on x at the second call: 1
+  best config: BLOCK: 512, num_warps: 4, num_ctas: 1, num_stages: 3, maxnreg: None
+
+A2: restore_value and reset_to_zero
+  restore_value: x = 7 before the first call, after: 8
+  reset_to_zero: x = 7 before the first call, after: 1
+  reset_to_zero: x = 7 before the second call, after: 8
+
+A3: user pre_hook/post_hook and a config pre_hook, all writing x
+  first call: x after (x = 0 before): 1001
+  first call: {'hook calls': {'config pre_hook BLOCK=128': 1334, 'autotuner pre_hook': 2890, 'autotuner post_hook': 2890, 'config pre_hook BLOCK=256': 1557, 'autotuner pre_hook (reset_only)': 1}, 'last three': ['autotuner post_hook', 'autotuner pre_hook (reset_only)', 'config pre_hook BLOCK=256']}
+  second call: x after (x = 0 before): 1001
+  second call: {'hook calls': {'config pre_hook BLOCK=256': 1}, 'last three': ['config pre_hook BLOCK=256']}
+
+A4: same key, new key
+  first call, key n=65536: 5106
+  second call, same key: 1
+  call with n=32768 (new key): 5378
+  call with n=65535 (new key): 5277
+  cache keys: ["(65536, 'torch.int32')", "(32768, 'torch.int32')", "(65535, 'torch.int32')"]
+
+A5: one config; pruned to one; pruned to two
+  one config: 1
+  pruned to one config: 1
+  pruned to two configs: 3507
+
+A6-first: TRITON_CACHE_AUTOTUNING=1, empty cache folder
+  runs on x at the first call in this process: 4044
+
+A6-second: TRITON_CACHE_AUTOTUNING=1, the same cache folder, a new process
+  runs on x at the first call in this process: 1

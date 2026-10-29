@@ -8,6 +8,11 @@ with outcome `o`: either `next m' p' e` (memory `m'`, continuation `p'`, and the
 recording which bytes it read and wrote) or `ub` (undefined behaviour). A program that is
 `ret a` has finished and takes no step.
 
+The steps follow the program's text, with one exception: an atomic need not be performed before
+the steps after it (`Step.defer`). The threads of a program issue its atomics with no barrier
+between them, so the device may perform them in any order the program's data and control
+dependences allow (library issue L15).
+
 The same relation drives a program alone (`TVA.Safe`) and all programs of a launch
 interleaved over one memory (`TVA.Sem.Launch`). This file is the meaning of each `Prog`
 constructor; it is reviewed once, with `docs/SEMANTICS.md`.
@@ -24,6 +29,8 @@ structure Event where
   writes : Set Int := ∅
   /-- For an atomic read-modify-write: its `sem` and `scope`. -/
   atomic : Option (MemSem × Scope) := none
+  /-- For an atomic read-modify-write: the dtype and address of its element. -/
+  cell : Option (DType × Int) := none
 
 namespace Event
 
@@ -99,11 +106,21 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
       m.read d a = some old → upd old new →
       Step E m (.rmw d a upd sem sc k)
         (.next (m.write d a new) (k old)
-          { reads := Mem.span d a, writes := Mem.span d a, atomic := some (sem, sc) })
+          { reads := Mem.span d a, writes := Mem.span d a, atomic := some (sem, sc),
+            cell := some (d, a) })
   | rmwUB {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope}
       {k : d.Val → Prog α} :
       (m.read d a = none ∨ ∃ old, m.read d a = some old ∧ ∀ new, ¬ upd old new) →
       Step E m (.rmw d a upd sem sc k) .ub
+  /-- An atomic stays pending while the program takes a later step first. The later step must
+  not depend on the atomic's result: whatever old value the atomic returns, the continuation can
+  take that step, with the same memory and the same event. The atomic is performed afterwards,
+  so a program's atomics happen in any order their dependences allow, and their old values
+  reflect that order. -/
+  | defer {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope}
+      {k k' : d.Val → Prog α} {m' : Mem} {e : Event} :
+      (∀ v, Step E m (k v) (.next m' (k' v) e)) →
+      Step E m (.rmw d a upd sem sc k) (.next m' (.rmw d a upd sem sc k') e)
   | pick {α β : Type} {P : β → Prop} {k : β → Prog α} (b : β) :
       P b → Step E m (.pick P k) (.next m (k b) .silent)
   | pickUB {α β : Type} {P : β → Prop} {k : β → Prog α} :

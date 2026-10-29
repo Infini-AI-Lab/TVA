@@ -1,0 +1,101 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+## A. Subnormal operands against large partners
+| operands | M x N, warps | path | K | elements in range | outside the fact | largest error / bound | largest error / mag |
+|---|---|---|---|---|---|---|---|
+| float16 | 16 x 16, 1 | mma.sync | 16 | 1024 | 0 | 0.0000 | 0 |
+| float16 | 16 x 16, 1 | mma.sync | 64 | 1024 | 0 | 0.0023 | 3.68e-08 |
+| float16 | 16 x 16, 1 | mma.sync | 256 | 1024 | 0 | 0.0014 | 8.86e-08 |
+| float16 | 64 x 64, 4 | wgmma | 16 | 16384 | 0 | 0.0000 | 0 |
+| float16 | 64 x 64, 4 | wgmma | 64 | 16384 | 0 | 0.0029 | 4.59e-08 |
+| float16 | 64 x 64, 4 | wgmma | 256 | 16384 | 0 | 0.0018 | 1.09e-07 |
+| bfloat16 | 16 x 16, 1 | mma.sync | 16 | 1024 | 0 | 0.0000 | 0 |
+| bfloat16 | 16 x 16, 1 | mma.sync | 64 | 1024 | 0 | 0.0000 | 0 |
+| bfloat16 | 16 x 16, 1 | mma.sync | 256 | 1024 | 0 | 0.0000 | 0 |
+| bfloat16 | 64 x 64, 4 | wgmma | 16 | 16384 | 0 | 0.0000 | 0 |
+| bfloat16 | 64 x 64, 4 | wgmma | 64 | 16384 | 0 | 0.0000 | 0 |
+| bfloat16 | 64 x 64, 4 | wgmma | 256 | 16384 | 0 | 0.0000 | 0 |
+| float8e4nv | 16 x 16, 1 | mma.sync | 32 | 1024 | 0 | 0.0000 | 0 |
+| float8e4nv | 16 x 16, 1 | mma.sync | 64 | 1024 | 0 | 0.0000 | 0 |
+| float8e4nv | 16 x 16, 1 | mma.sync | 256 | 1024 | 0 | 0.0000 | 0 |
+| float8e4nv | 64 x 64, 4 | wgmma | 32 | 16384 | 0 | 0.0000 | 0 |
+| float8e4nv | 64 x 64, 4 | wgmma | 64 | 16384 | 0 | 0.0000 | 0 |
+| float8e4nv | 64 x 64, 4 | wgmma | 256 | 16384 | 0 | 0.0000 | 0 |
+| float8e5 | 16 x 16, 1 | mma.sync | 32 | 1024 | 0 | 0.0000 | 0 |
+| float8e5 | 16 x 16, 1 | mma.sync | 64 | 1024 | 0 | 0.0000 | 0 |
+| float8e5 | 16 x 16, 1 | mma.sync | 256 | 1024 | 0 | 0.0000 | 0 |
+| float8e5 | 64 x 64, 4 | wgmma | 32 | 16384 | 0 | 0.0000 | 0 |
+| float8e5 | 64 x 64, 4 | wgmma | 64 | 16384 | 0 | 0.0000 | 0 |
+| float8e5 | 64 x 64, 4 | wgmma | 256 | 16384 | 0 | 0.0000 | 0 |
+
+## B. The truncation's worst case: acc = 2^(w+1) (step 2), every product just below 2
+| operands | M x N, warps | path | K | product / step | elements in range | outside the fact | largest error / bound | result - acc (one element) |
+|---|---|---|---|---|---|---|---|---|
+| float16 | 16 x 16, 1 | mma.sync | 16 | 0.9995 | 256 | 0 | 0.1109 | 24 (sum of products 31.9844) |
+| float16 | 16 x 16, 1 | mma.sync | 32 | 0.9995 | 256 | 0 | 0.1174 | 48 (sum of products 63.9688) |
+| float16 | 16 x 16, 1 | mma.sync | 256 | 0.9995 | 256 | 0 | 0.1238 | 384 (sum of products 511.75) |
+| float16 | 16 x 16, 1 | mma.sync | 1024 | 0.9995 | 256 | 0 | 0.1245 | 1536 (sum of products 2047) |
+| float16 | 64 x 64, 4 | wgmma | 16 | 0.9995 | 4096 | 0 | 0.1109 | 24 (sum of products 31.9844) |
+| float16 | 64 x 64, 4 | wgmma | 32 | 0.9995 | 4096 | 0 | 0.1174 | 48 (sum of products 63.9688) |
+| float16 | 64 x 64, 4 | wgmma | 256 | 0.9995 | 4096 | 0 | 0.1238 | 384 (sum of products 511.75) |
+| float16 | 64 x 64, 4 | rejected | 1024 | | | | | (OutOfResources) |
+| bfloat16 | 16 x 16, 1 | mma.sync | 16 | 0.9961 | 256 | 0 | 0.1094 | 24 (sum of products 31.875) |
+| bfloat16 | 16 x 16, 1 | mma.sync | 32 | 0.9961 | 256 | 0 | 0.1158 | 48 (sum of products 63.75) |
+| bfloat16 | 16 x 16, 1 | mma.sync | 256 | 0.9961 | 256 | 0 | 0.1221 | 384 (sum of products 510) |
+| bfloat16 | 16 x 16, 1 | mma.sync | 1024 | 0.9961 | 256 | 0 | 0.1228 | 1536 (sum of products 2040) |
+| bfloat16 | 64 x 64, 4 | wgmma | 16 | 0.9961 | 4096 | 0 | 0.1094 | 24 (sum of products 31.875) |
+| bfloat16 | 64 x 64, 4 | wgmma | 32 | 0.9961 | 4096 | 0 | 0.1158 | 48 (sum of products 63.75) |
+| bfloat16 | 64 x 64, 4 | wgmma | 256 | 0.9961 | 4096 | 0 | 0.1221 | 384 (sum of products 510) |
+| bfloat16 | 64 x 64, 4 | rejected | 1024 | | | | | (OutOfResources) |
+| float8e4nv | 16 x 16, 1 | mma.sync | 32 | 0.9375 | 256 | 0 | 0.0001 | 48 (sum of products 60) |
+| float8e4nv | 16 x 16, 1 | mma.sync | 64 | 0.9375 | 256 | 0 | 0.0001 | 96 (sum of products 120) |
+| float8e4nv | 16 x 16, 1 | mma.sync | 256 | 0.9375 | 256 | 0 | 0.0001 | 384 (sum of products 480) |
+| float8e4nv | 16 x 16, 1 | mma.sync | 1024 | 0.9375 | 256 | 0 | 0.0001 | 1536 (sum of products 1920) |
+| float8e4nv | 64 x 64, 4 | wgmma | 32 | 0.9375 | 4096 | 0 | 0.4670 | 0 (sum of products 60) |
+| float8e4nv | 64 x 64, 4 | wgmma | 64 | 0.9375 | 4096 | 0 | 0.4635 | 0 (sum of products 120) |
+| float8e4nv | 64 x 64, 4 | wgmma | 256 | 0.9375 | 4096 | 0 | 0.4431 | 0 (sum of products 480) |
+| float8e4nv | 64 x 64, 4 | wgmma | 1024 | 0.9375 | 4096 | 0 | 0.3709 | 0 (sum of products 1920) |
+| float8e5 | 16 x 16, 1 | mma.sync | 32 | 0.9375 | 256 | 0 | 0.0001 | 48 (sum of products 60) |
+| float8e5 | 16 x 16, 1 | mma.sync | 64 | 0.9375 | 256 | 0 | 0.0001 | 96 (sum of products 120) |
+| float8e5 | 16 x 16, 1 | mma.sync | 256 | 0.9375 | 256 | 0 | 0.0001 | 384 (sum of products 480) |
+| float8e5 | 16 x 16, 1 | mma.sync | 1024 | 0.9375 | 256 | 0 | 0.0001 | 1536 (sum of products 1920) |
+| float8e5 | 64 x 64, 4 | wgmma | 32 | 0.9375 | 4096 | 0 | 0.4670 | 0 (sum of products 60) |
+| float8e5 | 64 x 64, 4 | wgmma | 64 | 0.9375 | 4096 | 0 | 0.4635 | 0 (sum of products 120) |
+| float8e5 | 64 x 64, 4 | wgmma | 256 | 0.9375 | 4096 | 0 | 0.4431 | 0 (sum of products 480) |
+| float8e5 | 64 x 64, 4 | wgmma | 1024 | 0.9375 | 4096 | 0 | 0.3709 | 0 (sum of products 1920) |
+
+## C. A computed in registers, against A loaded, bit for bit
+| operands | M x N, warps | K | wgmma form (register A?) | bits equal to the loaded-A dot |
+|---|---|---|---|---|
+| float16 | 64 x 64, 4 | 16 | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 (register A: True) | True |
+| float16 | 64 x 64, 4 | 64 | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 (register A: True) | True |
+| float16 | 128 x 64, 4 | 16 | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 (register A: True) | True |
+| float16 | 128 x 64, 4 | 64 | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 (register A: True) | True |
+| bfloat16 | 64 x 64, 4 | 16 | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 (register A: True) | True |
+| bfloat16 | 64 x 64, 4 | 64 | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 (register A: True) | True |
+| bfloat16 | 128 x 64, 4 | 16 | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 (register A: True) | True |
+| bfloat16 | 128 x 64, 4 | 64 | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 (register A: True) | True |
+| float8e4nv | 64 x 64, 4 | 32 | wgmma.mma_async.sync.aligned.m64n64k32.f32.e4m3.e4m3 (register A: True) | True |
+| float8e4nv | 64 x 64, 4 | 128 | wgmma.mma_async.sync.aligned.m64n64k32.f32.e4m3.e4m3 (register A: True) | True |
+| float8e4nv | 128 x 64, 4 | 32 | wgmma.mma_async.sync.aligned.m64n64k32.f32.e4m3.e4m3 (register A: True) | True |
+| float8e4nv | 128 x 64, 4 | 128 | wgmma.mma_async.sync.aligned.m64n64k32.f32.e4m3.e4m3 (register A: True) | True |
+| float8e5 | 64 x 64, 4 | 32 | wgmma.mma_async.sync.aligned.m64n64k32.f32.e5m2.e5m2 (register A: True) | True |
+| float8e5 | 64 x 64, 4 | 128 | wgmma.mma_async.sync.aligned.m64n64k32.f32.e5m2.e5m2 (register A: True) | True |
+| float8e5 | 128 x 64, 4 | 32 | wgmma.mma_async.sync.aligned.m64n64k32.f32.e5m2.e5m2 (register A: True) | True |
+| float8e5 | 128 x 64, 4 | 128 | wgmma.mma_async.sync.aligned.m64n64k32.f32.e5m2.e5m2 (register A: True) | True |
+
+## D. ieee float32 dot with enable_fp_fusion=False
+| M x N, warps | K | enable_fp_fusion | float ops in the PTX | elements in range | outside the fact | largest error / bound |
+|---|---|---|---|---|---|---|
+| 16 x 16, 1 | 8 | True | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 768 | 0 | 0.1250 |
+| 16 x 16, 1 | 8 | False | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 768 | 0 | 0.1111 |
+| 16 x 16, 1 | 64 | True | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 768 | 0 | 0.0333 |
+| 16 x 16, 1 | 64 | False | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 768 | 0 | 0.0333 |
+| 16 x 16, 1 | 512 | True | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 768 | 0 | 0.0088 |
+| 16 x 16, 1 | 512 | False | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 768 | 0 | 0.0083 |
+| 64 x 64, 4 | 8 | True | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 12288 | 0 | 0.1396 |
+| 64 x 64, 4 | 8 | False | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 12288 | 0 | 0.1797 |
+| 64 x 64, 4 | 64 | True | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 12288 | 0 | 0.0343 |
+| 64 x 64, 4 | 64 | False | add.s32, add.s64, fma.rn.f32, mul.wide.u32 | 12288 | 0 | 0.0373 |
+| 64 x 64, 4 | 512 | True | rejected (out of resources) | 0 | 0 | 0.0000 |
+| 64 x 64, 4 | 512 | False | rejected (out of resources) | 0 | 0 | 0.0000 |

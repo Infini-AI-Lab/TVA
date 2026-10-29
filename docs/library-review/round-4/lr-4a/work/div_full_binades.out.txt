@@ -1,0 +1,18 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+q in [2^125, 2^126): 51023165 pairs; max error 2.0639 ulp; in the bottom eighth 1.4062 ulp; max error / (2^-22|q| + 2^-148) = 0.6413
+q in [2^124, 2^125): 51284012 pairs; max error 2.1094 ulp; in the bottom eighth 1.3792 ulp; max error / (2^-22|q| + 2^-148) = 0.6470
+q in [2^120, 2^121): 52329997 pairs; max error 2.0840 ulp; in the bottom eighth 1.3832 ulp; max error / (2^-22|q| + 2^-148) = 0.6434
+q in [2^64, 2^65): 67012803 pairs; max error 2.0719 ulp; in the bottom eighth 1.3870 ulp; max error / (2^-22|q| + 2^-148) = 0.6439
+q in [2^1, 2^2): 89082927 pairs; max error 2.0466 ulp; in the bottom eighth 1.3920 ulp; max error / (2^-22|q| + 2^-148) = 0.6424
+q in [2^0, 2^1): 97340847 pairs; max error 2.0446 ulp; in the bottom eighth 1.3940 ulp; max error / (2^-22|q| + 2^-148) = 0.6452
+q in [2^-1, 2^0): 99951464 pairs; max error 2.0585 ulp; in the bottom eighth 1.3958 ulp; max error / (2^-22|q| + 2^-148) = 0.6393
+q in [2^-64, 2^-63): 72846396 pairs; max error 2.0632 ulp; in the bottom eighth 1.3930 ulp; max error / (2^-22|q| + 2^-148) = 0.6465
+q in [2^-120, 2^-119): 57987546 pairs; max error 2.0538 ulp; in the bottom eighth 1.3849 ulp; max error / (2^-22|q| + 2^-148) = 0.6356
+q in [2^-125, 2^-124): 56674379 pairs; max error 2.0375 ulp; in the bottom eighth 1.3967 ulp; max error / (2^-22|q| + 2^-148) = 0.4366
+q in [2^-126, 2^-125): 56415613 pairs; max error 2.0441 ulp; in the bottom eighth 1.3931 ulp; max error / (2^-22|q| + 2^-148) = 0.3441
+q in [2^-127, 2^-126): 56154956 pairs; max error 1.2631 ulp; in the bottom eighth 0.9416 ulp; max error / (2^-22|q| + 2^-148) = 0.3193
+q in [2^-130, 2^-129): 55366681 pairs; max error 0.5951 ulp; in the bottom eighth 0.5552 ulp; max error / (2^-22|q| + 2^-148) = 0.2648
+q in [2^-140, 2^-139): 52743125 pairs; max error 0.5001 ulp; in the bottom eighth 0.5000 ulp; max error / (2^-22|q| + 2^-148) = 0.2500
+q in [2^-148, 2^-147): 50646215 pairs; max error 0.5000 ulp; in the bottom eighth 0.2500 ulp; max error / (2^-22|q| + 2^-148) = 0.2500
+q in [2^-149, 2^-148): 50384182 pairs; max error 0.5000 ulp; in the bottom eighth 0.1250 ulp; max error / (2^-22|q| + 2^-148) = 0.2500
+largest error / bound: 0.647048 (exactly 0.647048) at x=29.89500617980957, y=1.392935066674218e-36, result 2.1461877357525623e+37

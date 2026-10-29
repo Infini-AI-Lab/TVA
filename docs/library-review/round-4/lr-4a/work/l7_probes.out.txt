@@ -1,0 +1,13 @@
+flagged  as the rule asks  control: sibling, plain
+passed   as the rule asks  control: TVA itself
+flagged  as the rule asks  double-quoted component
+flagged  as the rule asks  single-quoted component
+flagged  as the rule asks  empty quotes inside a name
+flagged  as the rule asks  whole path quoted after ~/
+passed   NOT as a reader resolves it  brace expansion
+passed   NOT as a reader resolves it  glob over siblings
+passed   NOT as a reader resolves it  bracket glob
+passed   NOT as a reader resolves it  cd to the parent, then relative
+flagged  as the rule asks  backslash-escaped letter (shell)
+passed   NOT as a reader resolves it  variable for the parent
+12 probes, 5 not flagged where a shell resolves the path into a sibling

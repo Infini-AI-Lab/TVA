@@ -1,0 +1,43 @@
+## A: base
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and lin
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+
+## D1: the docstring of the field TVA.Launch.blocks changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and lin
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## D2: the docstring of the constructor TVA.Step.defer changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and lin
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## D3: the module docstring of TVA.Claim (the claim's scope bullet) changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and lin
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+

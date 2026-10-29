@@ -1,0 +1,48 @@
+## A (the kernel updated in the copy): gate PASS
+  pass  source: source/01-vector-add.py sha256 842430949e0ccde4
+  pass  hygiene: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printi
+  pass  independence: the kernel and the library import only TVA, the kernel's own modules and Mathlib, and refer to no other project
+  pass  build: lake build VecAdd
+  pass  replay: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  pass  shape: main : ∀ K P, Assumptions K P → Spec K; consistent : Claim.Consistent Assumptions; Spec K = Meets Inst.ok Pre Post K
+  pass  axioms: consistent: propext, Classical.choice, Quot.sound; main: propext, Classical.choice, Quot.sound
+  pass  usage: every assumption is used by main
+  pass  namespace: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no bind
+  pass  kinds: every assumption is a [rule] citing the library or a [kernel] fact about the kernel's own values
+  pass  map: 10 entries cover every code line of [[29, 54]]
+  pass  doc: README.md has the sections Specification, Conditions, Assumptions, Proof
+  saved the honest claim reader's JSON line (105308 characters)
+
+## B (main : True, manifest unchanged): gate FAIL
+  pass  source: source/01-vector-add.py sha256 842430949e0ccde4
+  pass  hygiene: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printi
+  pass  independence: the kernel and the library import only TVA, the kernel's own modules and Mathlib, and refer to no other project
+  pass  build: lake build VecAdd
+  pass  replay: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  FAIL  shape: the claim does not have the protocol's shape: <scratch copy>/lean/.lake/tvr/vec_add_f32/claim_reader.lean:16:2: error: Type mismatch | 
+  pass  map: 10 entries cover every code line of [[29, 54]]
+  pass  doc: README.md has the sections Specification, Conditions, Assumptions, Proof
+
+## C (main : True, kernel.json namespace replaced): gate PASS
+  pass  source: source/01-vector-add.py sha256 842430949e0ccde4
+  pass  hygiene: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printi
+  pass  independence: the kernel and the library import only TVA, the kernel's own modules and Mathlib, and refer to no other project
+  pass  build: lake build VecAdd
+  pass  replay: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  pass  shape: main : ∀ K P, Assumptions K P → Spec K; consistent : Claim.Consistent Assumptions; Spec K = Meets Inst.ok Pre Post K
+  pass  axioms: consistent: propext, Classical.choice, Quot.sound; main: propext, Classical.choice, Quot.sound
+  pass  usage: every assumption is used by main
+  pass  namespace: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no bind
+  pass  kinds: every assumption is a [rule] citing the library or a [kernel] fact about the kernel's own values
+  pass  map: 10 entries cover every code line of [[29, 54]]
+  pass  doc: README.md has the sections Specification, Conditions, Assumptions, Proof
+  claim.md section 1, as a reviewer reads it:
+    | ```lean
+    | theorem Nat), True := fun _ => trivial
+    | #eval IO.println "TVR_JSON {\"axioms\":{\"consistent\":[\"propext\",\"Classical.choice\",\"Quot.sound\"],\"main\":[\"propext\",\"Classical.c …
+    | #exit
+    | --.main : ∀ (K : TVA.Claim.Behaviour Kernels.VecAdd.Inst) (P : TVA.Platform),
+    |   Kernels.VecAdd.Assumptions K P → Kernels.VecAdd.Spec K
+    | theorem Nat), True := fun _ => trivial
+    | #eval IO.println "TVR_JSON {\"axioms\":{\"consistent\":[\"propext\",\"Classical.choice\",\"Quot.sound\"],\"main\":[\"propext\",\"Classical.c …
+(the scratch copy's path is written <scratch copy>)

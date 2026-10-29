@@ -43,6 +43,49 @@ P6: flagged [path] (as the rule asks) - docs: a home path into TVA that climbs o
 P7: flagged [path] (as the rule asks) - docs: an absolute /home path to a directory whose name starts with `tva`
 P8: flagged [relative path] (as the rule asks) - docs: a Markdown link that climbs out of TVA
 P9: passed (as the rule asks) - control: paths inside TVA, the toolchain, the system, and a URL
+P10: flagged [path] (as the rule asks) - docs: `$HOME` then a sibling directory of TVA
+P11: flagged [path] (as the rule asks) - docs: `${HOME}` then a sibling directory of TVA
+P12: flagged [path] (as the rule asks) - docs: a `file:` URL with three slashes into a sibling directory
+P13: flagged [path] (as the rule asks) - docs: the same `file:` URL in angle brackets
+P14: flagged [path] (as the rule asks) - docs: `~<user>` then a sibling directory
+P15: flagged [path] (as the rule asks) - docs: an absolute home path glued to a semicolon
+P16: flagged [path] (as the rule asks) - docs: `%USERPROFILE%` then a sibling directory
+P17: flagged [relative path] (as the rule asks) - docs: a relative path after `=` that climbs out of TVA
+P18: flagged [path] (as the rule asks) - evidence JSON: a home path with escaped slashes
+P19: passed (as the rule asks) - control: the same spellings inside TVA or above it, placeholders, and a web URL
+P20: flagged [path] (as the rule asks) - docs: `${HOME:-}` (parameter expansion with a default) then a sibling
+P21: flagged [path] (as the rule asks) - docs: `${HOME%/}` (suffix removed) then a sibling
+P22: flagged [path] (as the rule asks) - docs: `$(echo ~)` (command substitution) then a sibling
+P23: flagged [path] (as the rule asks) - evidence JSON: a home path with `\u002F` escapes
+P24: flagged [path] (as the rule asks) - docs: a shell redirect into a sibling, no space after `>`
+P25: flagged [path] (as the rule asks) - docs: `2>~` into a sibling
+P26: flagged [path] (as the rule asks) - docs: a home path not under `fpv` right after a closing bracket
+P27: flagged [path] (as the rule asks) - docs: `~/…` not under `fpv` right after `]`
+P28: flagged [path] (as the rule asks) - docs: a home path right after `-`
+P29: flagged [path] (as the rule asks) - docs: `$(dirname $0)` then `..` out of TVA
+P30: flagged [path] (as the rule asks) - evidence script: an f-string home path into a sibling
+P31: flagged [path] (as the rule asks) - docs: URL-escaped slashes (`%2F`)
+P32: flagged [path] (as the rule asks) - docs: `fpv/<name>` with no home prefix
+P33: flagged [path] (as the rule asks) - docs: `fpv/` then a folder whose name starts with `tva`
+P34: passed (as the rule asks) - control: TVA, placeholders and redirects that stay in TVA
+P35: flagged [path] (as the rule asks) - docs: shell, home, then `fpv` in double quotes, then a sibling
+P36: flagged [path] (as the rule asks) - docs: shell, an absolute home path with the sibling in single quotes
+P37: flagged [path] (as the rule asks) - docs: shell, empty quotes after `fpv`
+P38: flagged [path] (as the rule asks) - docs: the named HTML entity `&sol;` as the separator
+P39: flagged [path] (as the rule asks) - evidence script: Python octal escapes `\057` as the separator
+P40: flagged [path] (as the rule asks) - evidence script: Python `\N{SOLIDUS}` as the separator
+P41: flagged [path] (as the rule asks) - docs: shell brace expansion after `fpv/`
+P42: flagged [path] (as the rule asks) - docs: `${HOME:-${X}}` (a nested expansion) then a folder under home
+P43: flagged [path] (as the rule asks) - docs: `%USERPROFILE%` then a backslash path
+P44: flagged [path] (as the rule asks) - docs: PowerShell `$HOME` then a backslash path
+P45: flagged [path] (as the rule asks) - docs: a backquote command substitution of the home directory
+P46: flagged [path] (as the rule asks) - docs: `$(…)` nested three deep, then a folder
+P47: flagged [path] (as the rule asks) - docs: a line continuation (backslash, line break) inside a path into a sibling
+P48: flagged [path] (as the rule asks) - kernel source (pinned by kernel.json): a comment with a home path into a sibling
+P49: flagged [path] (as the rule asks) - primitives: a new file, pinned in the semantics manifest, with a home path into a sibling
+P50: passed (as the rule asks) - control: the round-5 spellings inside TVA, and placeholders
+P51: passed (as the rule asks) - lexical limit (protocol §2): a glob, `cd` then a relative path, a shell variable
+N9: flagged [name] (as the rule asks) - docs: the name with its first letter as a JSON `\u` escape
 F1: flagged [name] (as the rule asks) - evidence: the name inside a `.log` file
 F2: flagged [name] (as the rule asks) - evidence: the name inside a `.csv` file
 F3: flagged [name] (as the rule asks) - evidence: the name inside a `.sh` script
@@ -52,4 +95,4 @@ F6: flagged [not text] (as the rule asks) - evidence: a file that is not UTF-8 t
 F7: flagged [link] (as the rule asks) - docs: a symbolic link to a directory outside TVA
 F8: flagged [name] (as the rule asks) - a kernel reviewer's work file with an unusual extension naming the project
 F9: flagged [name] (as the rule asks) - tools: the name in a new tool file
-53 probes, 0 wrong
+96 probes, 0 wrong

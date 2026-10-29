@@ -11,12 +11,24 @@ atomically on memory (sequential consistency).
 
 That is the language's meaning only for *well-behaved* launches. The rule
 `TVA.Rules.Compiler.Faithful` gives the device the outcomes of this semantics only when no
-interleaving reaches undefined behaviour or a data race between programs (`InterRace`).
+interleaving reaches undefined behaviour, a data race between programs (`InterRace`) or a
+conflict within one program (`IntraRace`).
 
 A data race is a pair of conflicting accesses from different programs, unless both are
 `Event.Strong` atomics: `acq_rel` (Triton's default), at `gpu`/`sys` scope, on the same bytes.
 Relaxed, acquire-only and release-only atomics of different programs race: the interleaving
-would hide their reorderings. Each program itself is sequential (`TVA.Lang.Prog`).
+would hide their reorderings.
+
+A program is not sequential for global memory either (library issue L15, user decision
+2026-10-27). Its threads access memory with no barrier between its operations, so a load may
+miss a store the program made before it, and two stores to the same bytes may land in either
+order. Two accesses of one program conflict when they touch the same bytes and at least one
+writes them (a store or an atomic), unless both are atomics on the same bytes (`IntraRace`); a
+model with such a conflict anywhere, across loop iterations included, is not well behaved, like a
+race between programs, and no claim covers it. Two atomics of one program on the same bytes do
+not conflict, but their order is unspecified: `Step.defer` lets the semantics perform a
+program's atomics in every order their dependences allow. `tl.debug_barrier()` keeps no meaning
+here, and no rule orders a program's accesses.
 
 There is no synchronises-with edge between programs. A program is many threads. A scalar
 atomic is issued by one of them, with no barrier before it
@@ -36,18 +48,35 @@ structure Kernel where
 `triton-3.8.0-core.py:721`; `tl.arange` checks the same, `semantic.py:594`). -/
 def Shape.TritonOk (s : Shape) : Prop := (∀ k ∈ s, ∃ e, k = 2 ^ e) ∧ s.prod ≤ 2 ^ 20
 
-/-- A launch configuration. -/
+/-- A launch configuration: the grid, and the launch and compile options that change what the
+model means (`enable_fp_fusion`, `debug`, `num_ctas`, `launch_pdl`), with the source's block
+shapes. `Rules.Compiler.Faithful` covers a launch only when every other compile or launch option is
+not given, except `num_warps`, `num_stages`, `maxnreg` and `launch_cooperative_grid`, which do not
+change the meaning (library issue L19). -/
 structure Launch where
   /-- The grid `(x, y, z)`. -/
   grid : Fin 3 → Nat
-  /-- `enable_fp_fusion`: the source's or the launch's value, or Triton's default `True` when
-  neither gives one. That default holds with the environment variable `TRITON_DEFAULT_FP_FUSION`
-  unset; `Rules.Compiler.Faithful` covers only launches with Triton's environment at its
-  defaults. -/
+  /-- `enable_fp_fusion`: the value given to the call that compiles the kernel, that is the
+  launch's keyword, `kernel.warmup(…)`'s or `triton.compile`'s option (for a `CompiledKernel`), or,
+  under `@triton.autotune`, the chosen `triton.Config`'s, whose keywords reach the JIT with the
+  launch's (`Config.all_kwargs`, `triton-3.8.0-autotuner.py:276-281, 365-375`; library issue L92);
+  Triton's default `True` when none gives one. That default is `triton.knobs.language.default_fp_fusion` at its own default:
+  `Rules.Compiler.Faithful` covers only launches with Triton's knobs at their defaults, whether
+  they would be set by the environment variable `TRITON_DEFAULT_FP_FUSION` or from Python. Nor does
+  it cover a kernel under `@triton.heuristics`, whose heuristics may set this option, or any other,
+  over the launch's own (its scope 4; library issue L78). -/
   fusion : Bool := true
-  /-- The `debug` compile option (default `False`; the environment variable `TRITON_DEBUG=1` turns
-  it on). With it, `tl.device_assert` and integer overflow checks trap. `Compiler.Faithful`
-  covers only `debug = false`. -/
+  /-- The `debug` compile option (library issue L105). On when the call that compiles the kernel
+  gives `debug=True`: the launch's keyword, `kernel.warmup(…)`'s, `triton.compile`'s option, or,
+  under `@triton.autotune`, the chosen `triton.Config`'s; when that call gives no `debug`, when the
+  kernel's `JITFunction` attribute `debug` is true, which the decorator sets
+  (`@triton.jit(debug=True)`) and Python code may assign (`kernel.debug = True`; `JITFunction.run`
+  takes `kwargs.get("debug", self.debug)`, `triton-3.8.0-jit.py:727`); and in every case when the
+  environment variable `TRITON_DEBUG=1` or the knob `triton.knobs.runtime.debug = True` (a plain
+  attribute, set from Python with no environment variable) asks for it. `False` otherwise. With it,
+  `tl.device_assert` and integer overflow checks trap (with the attribute set, an `int32` addition
+  that overflows trapped, `evidence/host-round20` D1).
+  `Compiler.Faithful` covers only `debug = false`. -/
   debug : Bool := false
   /-- `num_ctas` (default `1`). With more, a program is a cluster of CTAs and `cta`-scope atomics
   are atomic only within one of them; `Launch.Valid` requires `1`. -/
@@ -57,7 +86,10 @@ structure Launch where
   launch attribute (`triton-3.8.0-nvidia-driver.c:1004-1008`). With it, the kernel may start before the
   previous kernel on the stream has finished, so its programs may read memory before that
   kernel's writes, and the claim's initial memory would not be the memory they read.
-  `Launch.Valid` requires `false`. -/
+  `Launch.Valid` requires `false`. The other side, a *later* launch with `launch_pdl=True` that
+  starts while this kernel runs (after its programs call `gdc_launch_dependents()`), is outside
+  `Rules.Compiler.Faithful` too when it writes a byte `init` gives this launch: nothing else may
+  write those bytes until the launch ends (library issues L17, L49). -/
   pdl : Bool := false
   /-- The shapes of the source's block values on this instance (every `tl.arange`, loaded tile,
   accumulator, …). The prover lists them and the reviewer checks the list against the source;
@@ -78,7 +110,10 @@ def grid1 (n : Nat) (blocks : List Shape) (fusion : Bool := true) : Launch :=
   { grid := ![n, 1, 1], fusion, blocks }
 
 /-- The launch is one that runs its whole grid whenever it returns without an error, as far as
-the library can state it:
+the library can state it, for a call made outside CUDA graph capture (`Rules.Compiler.Faithful`'s
+scope 9 excludes every call made while a stream capture is in progress, and every replay of a
+captured graph: a call on the capturing stream returns without an error and runs no program, its
+programs running at each replay, and a call on another stream runs at once; library issue L91):
 * the CUDA grid limits, `x < 2^31` and `y, z < 2^16`;
 * fewer than `2^31` programs. Triton 3.8.0's launcher computes `gridX * gridY * gridZ` in C `int`
   and skips the launch, with no error, when that product is not positive
@@ -158,14 +193,27 @@ def InterRace : Prop :=
   ∃ a b x y, a < b ∧ tr[a]? = some x ∧ tr[b]? = some y ∧ x.1 ≠ y.1 ∧ x.2.Conflict y.2 ∧
     ¬ Event.Strong x.2 y.2 ∧ ¬ HB tr a b
 
+/-- Two atomics on the same bytes: both events are atomic read-modify-writes, and they read and
+write the same bytes. Atomics on partly overlapping bytes are not such a pair. -/
+def Event.SameAtomic (e f : Event) : Prop :=
+  e.atomic.isSome ∧ f.atomic.isSome ∧ e.reads = f.reads ∧ e.writes = f.writes
+
+/-- A conflict within one program (library issue L15): two events of the same program that
+touch the same bytes, at least one writing them, unless both are atomics on the same bytes
+(`Event.SameAtomic`). Program order does not excuse it: the program's threads do not order their
+global accesses. -/
+def IntraRace : Prop :=
+  ∃ (a b : Nat) (x y : Fin N × Event), a < b ∧ tr[a]? = some x ∧ tr[b]? = some y ∧ x.1 = y.1 ∧
+    x.2.Conflict y.2 ∧ ¬ Event.SameAtomic x.2 y.2
+
 end Trace
 
 /-! ## Outcomes -/
 
 /-- The launch of `k` with `L` from `init` is well behaved: no interleaving reaches undefined
-behaviour or a data race. -/
+behaviour, a data race between programs, or a conflict within a program. -/
 def WellBehaved (E : Env) (k : Kernel) (L : Launch) (init : Mem) : Prop :=
-  ∀ tr c, Reach E (Config.start k L init) tr c → ¬ c.StuckUB E ∧ ¬ InterRace tr
+  ∀ tr c, Reach E (Config.start k L init) tr c → ¬ c.StuckUB E ∧ ¬ InterRace tr ∧ ¬ IntraRace tr
 
 /-- What a launch can do, in the semantics. -/
 inductive SemOutcome where

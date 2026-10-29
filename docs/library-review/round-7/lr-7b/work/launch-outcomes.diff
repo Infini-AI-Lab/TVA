@@ -1,0 +1,24 @@
+5c5
+<     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.03 s
+---
+>     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.14 s
+8c8
+<     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+---
+>     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.03 s
+11c11
+<     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.01 s
+---
+>     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.04 s
+14c14
+<     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+---
+>     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.03 s
+17c17
+<     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+---
+>     programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.02 s
+42c42
+<     programs run: 2147450880 (expected 2147450880): as expected; memory unchanged: False; device usable after: yes; 1.42 s
+---
+>     programs run: 2147450880 (expected 2147450880): as expected; memory unchanged: False; device usable after: yes; 1.43 s

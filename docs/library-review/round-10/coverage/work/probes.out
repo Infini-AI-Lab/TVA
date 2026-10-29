@@ -1,0 +1,25 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+== P1: tutorial 10 block_scaled_matmul_kernel on sm_90 ==
+capability (9, 0)
+supports_block_scaling() = False
+mxfp8  configs BLOCK_K=128 VEC=32 num_stages=4: RAN, max |ref - out| = 6.006e-02, tutorial tolerance met: True
+mixed  configs BLOCK_K=128 VEC=32 num_stages=4: RAN, max |ref - out| = 6.006e-02, tutorial tolerance met: True
+mxfp4 : REJECTED on the host before any program ran: OutOfResources: out of resource: shared memory, Required: 287864, Hardware limit: 232448. Reducing block sizes or `num_stages` may help.
+nvfp4 : REJECTED on the host before any program ran: OutOfResources: out of resource: shared memory, Required: 297080, Hardware limit: 232448. Reducing block sizes or `num_stages` may help.
+== P2: Python builtins in a kernel ==
+pointer argument   : [2.0, -inf, -inf]
+host TensorDescriptor: [1.0, -inf, -inf]
+TTIR constants and stores (pointer argument):
+    %cst = arith.constant dense<0.000000e+00> : tensor<1xf32>
+    %cst_0 = arith.constant 0x7F800000 : f32
+    %c2_i32 = arith.constant 2 : i32
+    %cst_1 = arith.constant 0xFF800000 : f32
+    %c1_i32 = arith.constant 1 : i32
+    %cst_2 = arith.constant 2.000000e+00 : f32
+    tt.store %out_ptr, %cst_2 : !tt.ptr<f32>
+    tt.store %0, %cst_1 : !tt.ptr<f32>
+    tt.store %1, %3 : !tt.ptr<f32>
+== P3: tutorial 02's warm-up keyword num_stages ==
+warm-up(num_stages=4, num_warps=8): compiled metadata num_stages = 4 , num_warps = 8
+warm-up(num_stages=2, num_warps=4): compiled metadata num_stages = 2 , num_warps = 4
+constexprs of the compiled kernel: {(2,): 16, (3,): 4}

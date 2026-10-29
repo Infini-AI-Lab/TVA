@@ -1,6 +1,7 @@
-import TVA.Lemmas.SoftmaxMax
+import TVA.Lemmas.FloatMax
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Analysis.SpecialFunctions.Log.Base
+import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
 # Online softmax: the numeric lemmas
@@ -21,7 +22,7 @@ the device state against the exact sums
 * `logb_err`: `log₂ l` against `log₂ Λ`;
 * `pow_le`: `(1 + x)^n ≤ 1 + 2·n·x` for `n·x ≤ 1/2` (the depth term of a reduction tree).
 
-`TVA.Lemmas.SoftmaxMax` has the `float32` maximum by value.
+`TVA.Lemmas.FloatMax` has the float maximum by value and the facts about `−∞`.
 -/
 namespace TVA.Softmax
 

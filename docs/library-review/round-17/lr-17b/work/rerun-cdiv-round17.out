@@ -1,0 +1,7 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+C1: div=1: 0 of 2^32 differ; div=2: 0 of 2^32 differ; div=3: 0 of 2^32 differ; div=4: 0 of 2^32 differ; div=7: 0 of 2^32 differ; div=128: 0 of 2^32 differ; div=1024: 0 of 2^32 differ; div=-4: 0 of 2^32 differ
+C2: 16764531 pairs (1055 edge pairs): 0 differ
+C3: div=4: 0 of 33 differ (x=-5: 0, x=-1: 0, x=0: 0, x=1000: 250, x=2147483520: 536870880, x=2147483647: -536870911); div=128: 0 of 33 differ (x=-5: 0, x=-1: 0, x=0: 0, x=1000: 8, x=2147483520: 16777215, x=2147483647: -16777215)
+C4: int64, div=128: 0 of 19 differ (x=-5: 0, x=2147483647: 16777216, x=2147483648: 16777216, x=9223372036854775807: -72057594037927935)
+C5: x.cdiv(4): 0 of 33 differ
+C6: tl.cdiv(-5, 4) = -1 (Python's -1); tl.cdiv(5, 4) = 2 (Python's 2); tl.cdiv(7, -2) = -2 (Python's -2); tl.cdiv(2147483647, 128) = 16777216 (Python's 16777216); tl.cdiv(0, 3) = 0 (Python's 0); tl.cdiv(-7, -2) = 5 (Python's 5); tl.arange(0, tl.cdiv(13, 4)) accepted, its sum 6

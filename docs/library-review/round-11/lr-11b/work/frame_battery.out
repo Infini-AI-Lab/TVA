@@ -1,0 +1,37 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+W1:
+  sentinel 0xa5: {'correct': True, 'changed': 8192, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 8192, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W2:
+  sentinel 0xa5: error: RuntimeError: PassManager::run failed
+  sentinel 0x5a: error: RuntimeError: PassManager::run failed
+W3:
+  sentinel 0xa5: {'correct': True, 'changed': 8176, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 8173, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W4:
+  sentinel 0xa5: {'correct': True, 'changed': 16359, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 16357, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W5:
+  sentinel 0xa5: {'correct': True, 'changed': 128, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 128, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W6:
+  sentinel 0xa5: {'correct': True, 'changed': 520, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 519, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W7:
+  sentinel 0xa5: {'correct': True, 'changed': 8172, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 8173, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W8:
+  sentinel 0xa5: {'correct': True, 'changed': 131072, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 131072, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W9:
+  sentinel 0xa5: {'correct': True, 'changed': 66475, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 256, 'profile_scratch_size': 0, 'allocator requests': [1024]}
+  sentinel 0x5a: {'correct': True, 'changed': 66517, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 256, 'profile_scratch_size': 0, 'allocator requests': [1024]}
+W10:
+  sentinel 0xa5: {'correct': True, 'changed': 167, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 167, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W11:
+  sentinel 0xa5: {'correct': True, 'changed': 37, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 37, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+W12:
+  sentinel 0xa5: {'correct': True, 'changed': 8187, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}
+  sentinel 0x5a: {'correct': True, 'changed': 8190, 'changed outside the written buffers and scratch': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0, 'allocator requests': []}

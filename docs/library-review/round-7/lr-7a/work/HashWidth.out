@@ -1,0 +1,4 @@
+Expr.hash of e 1: 1781966511 (< 2^32: true)
+Expr.hash collision: e 30606 and e 33013, hash 68782328 = 68782328; values equal: false
+  their vh: 8717996855300293729 and 8141414653428871352
+vh of 20000 values (interpreted): 65 ms (0)

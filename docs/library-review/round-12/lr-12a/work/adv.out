@@ -1,0 +1,37 @@
+add.f32          add:f32                200000 inputs  agree
+sub.f32          sub:f32                200000 inputs  agree
+mul.f32          mul:f32                200000 inputs  agree
+fma.f32          fma:f32                200000 inputs  agree
+max.f32          max:f32                200000 inputs  agree
+min.f32          min:f32                200000 inputs  agree
+div.f32          div:f32                200000 inputs  agree
+add.f64          add:f64                200000 inputs  agree
+sub.f64          sub:f64                200000 inputs  agree
+mul.f64          mul:f64                200000 inputs  agree
+fma.f64          fma:f64                200000 inputs  agree
+max.f64          max:f64                200000 inputs  agree
+min.f64          min:f64                200000 inputs  agree
+div.f64          div:f64                200000 inputs  agree
+add.f16          add:f16                200000 inputs  agree
+sub.f16          sub:f16                200000 inputs  agree
+mul.f16          mul:f16                200000 inputs  agree
+fma.f16          fma:f16                200000 inputs  agree
+max.f16          max:f16                200000 inputs  agree
+min.f16          min:f16                200000 inputs  agree
+add.bf16         add:bf16               200000 inputs  agree
+sub.bf16         sub:bf16               200000 inputs  agree
+mul.bf16         mul:bf16               200000 inputs  agree
+fma.bf16         fma:bf16               200000 inputs  agree
+cvt.f64.f32      cvt:f64:f32:rn:0       200000 inputs  agree
+cvt.f64.f16      cvt:f64:f16:rn:0       200000 inputs  agree  [control: twice through float32 differs on 47934]
+cvt.f64.bf16     cvt:f64:bf16:rn:0      200000 inputs  agree  [control: twice through float32 differs on 50421]
+cvt.f32.f16      cvt:f32:f16:rn:0       200000 inputs  agree
+cvt.f32.bf16     cvt:f32:bf16:rn:0      200000 inputs  agree
+itof.s64.f16     itof:s64:f16           200000 inputs  agree  [control: twice through f32 differs on 0]  [control: twice through f64 differs on 0]
+itof.s64.bf16    itof:s64:bf16          196389 inputs  agree  [control: twice through f32 differs on 32402]  [control: twice through f64 differs on 7021]
+itof.s64.f32     itof:s64:f32           194936 inputs  agree  [control: twice through f64 differs on 9830]
+itof.s64.f64     itof:s64:f64           181680 inputs  agree
+itof.u64.f16     itof:u64:f16           200000 inputs  agree  [control: twice through f32 differs on 0]  [control: twice through f64 differs on 0]
+itof.u64.bf16    itof:u64:bf16          200000 inputs  agree  [control: twice through f32 differs on 34091]  [control: twice through f64 differs on 7806]
+itof.u64.f32     itof:u64:f32           200000 inputs  agree  [control: twice through f64 differs on 10733]
+itof.u64.f64     itof:u64:f64           200000 inputs  agree

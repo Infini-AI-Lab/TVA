@@ -1,5 +1,6 @@
 import TVA.Lemmas.Buf
 import TVA.Lemmas.Safe
+import TVA.Lang.Promote
 
 /-!
 # Proof rules for the `tl.*` operations
@@ -10,20 +11,27 @@ is the rest of the program, for every result the operation may produce. A per-pr
 then a walk down the model's `do` block, applying the rule of each line.
 
 * Memory: `safe_load` (result: `LoadRes`), `safe_store` (for distinct lanes; result
-  `StoreRes`), `safe_store_any` (any lanes).
+  `StoreRes`), `safe_store_any` (any lanes), `safe_store1` (`tl.store1`, a store through a scalar
+  pointer: `tl.store` of the scalar tensors, `tl.store1_eq`).
 * Exact float operations, up to NaN payload: `safe_upToNaN` (and `safe_exact` when no NaN
   arises); `safe_add`, `safe_sub`, `safe_mul`, `safe_fma`, `safe_div_rn`, `safe_sqrt_rn`,
   `safe_neg`, `safe_abs`, `safe_cvt`; `safe_maximum`, `safe_minimum` (`MaxRel`).
+* Conversions of a dtype: `safe_convert` (`tl.convert`: `x.to(…)` with the default rounding and
+  every implicit conversion of an operand, each element as `ConvRel` allows; library issue L113).
 * Fusable and platform operations: `safe_mul_add`, `safe_addc`, `safe_subc`, `safe_div`, `safe_math`, `safe_cvt8`, `safe_ftoi`, `safe_dot`, `safe_sum`/`sum1`/`sum0` (IEEE nodes),
-  `safe_sumc`/`sum1c` (fusable nodes), the `…With` forms, `safe_max1`, `safe_dot_add`,
+  `safe_sumc`/`sum1c`/`sum0c` (fusable nodes), the `…With` forms, `safe_max1`, `safe_dot_add`,
   `safe_sum_bcast_mul`, `safe_maxAll`, `safe_max0`; index reductions: `safe_argmaxAll`,
-  `safe_argmax1`, `safe_argmax0`, with `Tree.eval_argCombine` (the result is a leaf) and
+  `safe_argmax1`, `safe_argmax0`, whose results `tl.ArgRes` describes: `tl.ArgRes.index_lt` (the
+  index is in range), `tl.ArgRes.value` (the value is an element), `tl.ArgRes.tree_of_noNaN`
+  (without NaN, a tree's pair), with `Tree.eval_argCombine` (the result is a leaf) and
   `Tree.eval_argCombine_first` (with `tie_break_left` on integers, the first index of the
-  maximum or minimum).
+  maximum or minimum; integers have no NaN, `IntV.cmpKey_nan`).
 * Integers and hints: `safe_idiv`, `safe_irem`, `safe_shl`, `safe_ashr`, `safe_lshr`, `safe_assume`,
-  `safe_multiple_of(1)`, `safe_max_contiguous`, `safe_max_constancy`, and the any-rank
-  `…N` forms; `safe_reshape_any`.
-* Control: `safe_ret`, `safe_last`, `safe_forN`, `safe_forRange`, `safe_while`.
+  `safe_multiple_of(1)`, `safe_max_contiguous`, `safe_max_constancy`,
+  `safe_max_contiguous_multiple_of` (the pair on one value), and the any-rank `…N` forms;
+  `safe_reshape_any`.
+* Control: `safe_ret`, `safe_last`, `safe_forN`, `safe_forN_bind`, `safe_forRange`, `safe_while`,
+  with per-iteration write footprints (`iterW`).
 -/
 namespace TVA
 
@@ -100,14 +108,15 @@ theorem mem_enabled {addrs : Idx s → Option Int} {i : Idx s} {a : Int} (h : ad
     i ∈ enabled addrs := by
   simp [enabled, Idx.mem_all, h]
 
-/-- `tl.store` to pairwise distinct elements. -/
+/-- `tl.store` to pairwise distinct elements. The rest of the program may not write the stored
+bytes again. -/
 theorem safe_store {ptrs : Tensor s (Ptr d)} {vals : Tensor s d.Val}
     {mask : Option (Tensor s Bool)} {k : Unit → Prog α}
     (hok : StoreOk m d (tl.addrs ptrs mask))
     (hdist : DistinctLanes d (tl.addrs ptrs mask))
     (hW : accBytes d (tl.addrs ptrs mask) ⊆ W)
     (hk : ∀ m', StoreRes m m' ptrs vals mask →
-      Safe E R W Q m' (k ())) :
+      Safe E R (W \ accBytes d (tl.addrs ptrs mask)) Q m' (k ())) :
     Safe E R W Q m (tl.store ptrs vals mask >>= k) := by
   simp only [tl.store, bind_eq, Prog.bind]
   refine .store hok hW (fun order hperm => hk _ ⟨?_, ?_⟩)
@@ -123,10 +132,28 @@ theorem safe_store_any {ptrs : Tensor s (Ptr d)} {vals : Tensor s d.Val}
     (hok : StoreOk m d (tl.addrs ptrs mask))
     (hW : accBytes d (tl.addrs ptrs mask) ⊆ W)
     (hk : ∀ order, order.Perm (enabled (tl.addrs ptrs mask)) →
-      Safe E R W Q (writeAll m d (tl.addrs ptrs mask) vals order) (k ())) :
+      Safe E R (W \ accBytes d (tl.addrs ptrs mask)) Q (writeAll m d (tl.addrs ptrs mask) vals order)
+        (k ())) :
     Safe E R W Q m (tl.store ptrs vals mask >>= k) := by
   simp only [tl.store, bind_eq, Prog.bind]
   exact .store hok hW hk
+
+/-- `tl.store1 p v`, a store through a scalar pointer, is `tl.store` of the scalar tensors with no
+mask, so `safe_store` and `safe_store_any` apply to it after this rewrite (library issue L113). -/
+theorem tl.store1_eq (p : Ptr d) (v : d.Val) :
+    tl.store1 p v = tl.store (Tensor.scalar p) (Tensor.scalar v) none := rfl
+
+/-- `tl.store1 p v`: the one lane writes `v` at `p` (a scalar store has no second lane, so no
+duplicate), as `safe_store` gives for the scalar tensors (library issue L113). -/
+theorem safe_store1 {p : Ptr d} {v : d.Val} {k : Unit → Prog α}
+    (hok : StoreOk m d (tl.addrs (Tensor.scalar p) none))
+    (hdist : DistinctLanes d (tl.addrs (Tensor.scalar p) none))
+    (hW : accBytes d (tl.addrs (Tensor.scalar p) none) ⊆ W)
+    (hk : ∀ m', StoreRes m m' (Tensor.scalar p) (Tensor.scalar v) none →
+      Safe E R (W \ accBytes d (tl.addrs (Tensor.scalar p) none)) Q m' (k ())) :
+    Safe E R W Q m (tl.store1 p v >>= k) := by
+  rw [tl.store1_eq]
+  exact safe_store hok hdist hW hk
 
 end Memory
 
@@ -135,8 +162,9 @@ end Memory
 section Arith
 variable {s : Shape} {f : TVA.Math.Float.Format}
 
-/-- **An exact float operation** (`tl.add`, `sub`, `mul`, `fma`, `div_rn`, `sqrt_rn`, `neg`,
-`abs`, `cvt`): the result is the exact result up to NaN payload. -/
+/-- **An exact float operation** (`tl.upToNaN v`, which `tl.add`, `sub`, `mul`, `fma`, `div_rn`,
+`sqrt_rn`, `neg` and `abs` are): the result is the exact result up to NaN payload. `tl.cvt` is a
+`pick` of its format check around `tl.upToNaN`, so its rule is `safe_cvt`. -/
 theorem safe_upToNaN {f' : TVA.Math.Float.Format} {v : Tensor s (FloatV f')} {k : Tensor s (FloatV f') → Prog α}
     (hk : ∀ r : Tensor s (FloatV f'), (∀ i, FloatV.NaNEq (v.get i) (r.get i)) → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.upToNaN v >>= k) := by
@@ -222,6 +250,19 @@ theorem safe_cvt {g : TVA.Math.Float.Format} {x : Tensor s (FloatV f)} {rnd : TV
   simp only [tl.cvt, bind_eq, Prog.bind]
   exact .pick ⟨(), hok⟩ fun _ _ => safe_upToNaN hk
 
+/-- **`tl.convert d d' x`** (`x.to(d')` with the default rounding, and every implicit conversion of
+an operand: a promotion, the `int1` condition of `tl.where`): when every element has a result
+`ConvRel` allows on the platform, the rest of the program runs on every tensor whose elements are
+such results (library issue L113). -/
+theorem safe_convert {d d' : DType} {x : Tensor s d.Val} {k : Tensor s d'.Val → Prog α}
+    (hex : ∀ i, ∃ r, ConvRel E.P d d' (x.get i) r)
+    (hk : ∀ r : Tensor s d'.Val, (∀ i, ConvRel E.P d d' (x.get i) (r.get i)) → Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.convert d d' x >>= k) := by
+  simp only [tl.convert, bind_eq, Prog.bind]
+  refine .env (.pick ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ ?_)
+  intro r hr
+  simpa [Prog.bind] using hk r hr
+
 /-- **`x.to(dtype)` out of fp8**: finite elements convert exactly. -/
 theorem safe_cvtFrom8 {g : TVA.Math.Float.Format} {x : Tensor s (FloatV f)}
     {k : Tensor s (FloatV g) → Prog α}
@@ -294,8 +335,9 @@ theorem safe_dot {cfg : DotCfg} {M N K : Nat} {a : Tensor [M, K] cfg.a.Val}
   simp only [tl.dot, bind_eq, Prog.bind]
   exact .env (.pick hex hk)
 
-/-- `tl.dot(a, b) + c`: either combined form, given that both `tl.dot`s have a result and the
-accumulator addition is total. -/
+/-- `tl.dot(a, b) + c`: either combined form, given that the `tl.dot` with accumulator `c` has a
+result (`hex`): that one form is enough for the program to go on, so neither the separate product
+(with the zero accumulator `z`) nor the addition needs to have one. -/
 theorem safe_dot_add {cfg : DotCfg} {M N K : Nat} {a : Tensor [M, K] cfg.a.Val}
     {b : Tensor [K, N] cfg.b.Val} {c z : Tensor [M, N] cfg.acc.Val}
     {k : Tensor [M, N] cfg.acc.Val → Prog α}
@@ -362,7 +404,7 @@ theorem safe_assume {c : Bool} {k : Unit → Prog α} (hc : c = true) (hk : Safe
 
 theorem safe_multiple_of {n : Nat} {β : Type} [HintVal β] {x : Tensor [n] β} {v contig : Nat}
     {k : Tensor [n] β → Prog α}
-    (hv : ∀ i : Fin n, i.1 % contig = 0 → (v : Int) ∣ HintVal.val (x.get1 i)) (hk : Safe E R W Q m (k x)) :
+    (hv : FirstsDiv x 0 contig v) (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.multiple_of x v contig >>= k) := by
   simp only [tl.multiple_of, bind_eq, Prog.bind]
   exact .pick ⟨x, rfl, hv⟩ fun y hy => by rw [hy.1]; exact hk
@@ -375,24 +417,21 @@ theorem safe_multiple_of1 {β : Type} [HintVal β] {x : β} {v : Nat} {k : β �
 
 theorem safe_max_contiguous {n : Nat} {β : Type} [HintVal β] {x : Tensor [n] β} {C : Nat}
     {k : Tensor [n] β → Prog α}
-    (hc : ∀ i j : Fin n, i.1 / C = j.1 / C →
-      HintVal.val (x.get1 j) = HintVal.val (x.get1 i) + ((j.1 : Int) - i.1) * HintVal.unit β)
-    (hk : Safe E R W Q m (k x)) :
+    (hc : ContigIs x 0 C) (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_contiguous x C >>= k) := by
   simp only [tl.max_contiguous, bind_eq, Prog.bind]
   exact .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
 
 theorem safe_max_constancy {n : Nat} {β : Type} {x : Tensor [n] β} {C : Nat}
     {k : Tensor [n] β → Prog α}
-    (hc : ∀ i j : Fin n, i.1 / C = j.1 / C → x.get1 j = x.get1 i) (hk : Safe E R W Q m (k x)) :
+    (hc : ConstAlong x 0 C) (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_constancy x C >>= k) := by
   simp only [tl.max_constancy, bind_eq, Prog.bind]
   exact .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
 
 theorem safe_multiple_ofN {s : Shape} {β : Type} [HintVal β] {x : Tensor s β} {vs contig : List Nat}
     {k : Tensor s β → Prog α}
-    (hv : ∀ k, k < s.length → ∀ i : Idx s, i.coord k % contig.getD k 1 = 0 →
-      (vs.getD k 1 : Int) ∣ HintVal.val (x.get i))
+    (hv : ∀ k, k < s.length → FirstsDiv x k (contig.getD k 1) (vs.getD k 1))
     (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.multiple_ofN x vs contig >>= k) := by
   simp only [tl.multiple_ofN, bind_eq, Prog.bind]
@@ -400,16 +439,30 @@ theorem safe_multiple_ofN {s : Shape} {β : Type} [HintVal β] {x : Tensor s β}
 
 theorem safe_max_contiguousN {s : Shape} {β : Type} [HintVal β] {x : Tensor s β} {Cs : List Nat}
     {k : Tensor s β → Prog α}
-    (hc : ∀ k, k < s.length → ∀ i j : Idx s, Idx.SameGroup k (Cs.getD k 1) i j →
-      HintVal.val (x.get j) = HintVal.val (x.get i) + ((j.coord k : Int) - i.coord k) * HintVal.unit β)
+    (hc : ∀ k, k < s.length → ContigIs x k (Cs.getD k 1))
     (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_contiguousN x Cs >>= k) := by
   simp only [tl.max_contiguousN, bind_eq, Prog.bind]
   exact .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
 
+theorem safe_max_contiguous_multiple_of {n : Nat} {β : Type} [HintVal β] {x : Tensor [n] β}
+    {C v : Nat} {k : Tensor [n] β → Prog α}
+    (hc : ContigAlong x 0 C) (hv : FirstsDiv x 0 C v) (hk : Safe E R W Q m (k x)) :
+    Safe E R W Q m (tl.max_contiguous_multiple_of x C v >>= k) := by
+  simp only [tl.max_contiguous_multiple_of, bind_eq, Prog.bind]
+  exact .pick ⟨x, rfl, hc, hv⟩ fun y hy => by rw [hy.1]; exact hk
+
+theorem safe_max_contiguous_multiple_ofN {s : Shape} {β : Type} [HintVal β] {x : Tensor s β}
+    {Cs vs : List Nat} {k : Tensor s β → Prog α}
+    (hcv : ∀ k, k < s.length → ContigAlong x k (Cs.getD k 1) ∧ FirstsDiv x k (Cs.getD k 1) (vs.getD k 1))
+    (hk : Safe E R W Q m (k x)) :
+    Safe E R W Q m (tl.max_contiguous_multiple_ofN x Cs vs >>= k) := by
+  simp only [tl.max_contiguous_multiple_ofN, bind_eq, Prog.bind]
+  exact .pick ⟨x, rfl, hcv⟩ fun y hy => by rw [hy.1]; exact hk
+
 theorem safe_max_constancyN {s : Shape} {β : Type} {x : Tensor s β} {Cs : List Nat}
     {k : Tensor s β → Prog α}
-    (hc : ∀ k, k < s.length → ∀ i j : Idx s, Idx.SameGroup k (Cs.getD k 1) i j → x.get j = x.get i)
+    (hc : ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1))
     (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_constancyN x Cs >>= k) := by
   simp only [tl.max_constancyN, bind_eq, Prog.bind]
@@ -533,6 +586,16 @@ theorem safe_sum1c {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
   simp only [tl.sum1c, bind_eq, Prog.bind]
   exact .env (by simpa only [bind_eq] using safe_sum1With E.fusion hn hk)
 
+/-- `tl.sum0c` (fusable nodes), as `safe_sum1c` along the other axis (library issue L113). -/
+theorem safe_sum0c {M N : Nat} (hm : 0 < M) {x : Tensor [M, N] (FloatV f)}
+    {k : Tensor [N] (FloatV f) → Prog α}
+    (hk : ∀ r : Tensor [N] (FloatV f), (∀ j, ∃ t : Tree, t.Covers M ∧
+        t.Eval (AddRel E.fusion) (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sum0c x >>= k) := by
+  simp only [tl.sum0c, bind_eq, Prog.bind]
+  exact .env (by simpa only [bind_eq] using safe_sum0With E.fusion hm hk)
+
 theorem safe_max1 {M N : Nat} (hn : 0 < N) (isMax : Bool) {x : Tensor [M, N] (FloatV f)}
     {k : Tensor [M] (FloatV f) → Prog α}
     (hk : ∀ r : Tensor [M] (FloatV f), (∀ i, ∃ t : Tree, t.Covers N ∧
@@ -602,59 +665,95 @@ theorem Tree.eval_argCombine {β : Type} [CmpKey β] {isMax tieLeft : Bool} {g :
 theorem tl.argCombine_total {β : Type} [CmpKey β] (isMax tieLeft : Bool) (a b : β × Nat) :
     ∃ c, c = tl.argCombine isMax tieLeft a b := ⟨_, rfl⟩
 
+/-- The pair a tree gives is a result `ArgRes` allows. -/
+theorem tl.ArgRes.of_tree {β : Type} [CmpKey β] {isMax tieLeft : Bool} {n : Nat} {g : Nat → β}
+    {p : β × Nat} {t : Tree} (ht : t.Covers n)
+    (hp : t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b) (fun j => (g j, j)) p) :
+    tl.ArgRes isMax tieLeft n g (p.1, IntV.ofNat p.2) :=
+  Or.inl ⟨p, t, ht, hp, rfl⟩
+
+/-- Some result exists (a sequential tree's). -/
+theorem tl.ArgRes.exists {β : Type} [CmpKey β] (isMax tieLeft : Bool) {n : Nat} (hn : 0 < n)
+    (g : Nat → β) : ∃ r, tl.ArgRes isMax tieLeft n g r := by
+  obtain ⟨p, hp⟩ := Tree.eval_exists (op := fun a b c => c = tl.argCombine isMax tieLeft a b)
+    (tl.argCombine_total isMax tieLeft) (fun j => (g j, j)) (Tree.seq n)
+  exact ⟨_, tl.ArgRes.of_tree (Tree.seq_covers hn) hp⟩
+
+/-- **Without NaN** in the slice, the result is the pair some tree gives. -/
+theorem tl.ArgRes.tree_of_noNaN {β : Type} [CmpKey β] {isMax tieLeft : Bool} {n : Nat}
+    {g : Nat → β} {r : β × I32} (hno : ∀ j, j < n → CmpKey.nan (g j) = false)
+    (h : tl.ArgRes isMax tieLeft n g r) :
+    ∃ p : β × Nat, ∃ t : Tree, t.Covers n ∧
+      t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b) (fun j => (g j, j)) p ∧
+      r = (p.1, IntV.ofNat p.2) := by
+  rcases h with h | ⟨⟨j, hj, hnan⟩, -⟩
+  · exact h
+  · rw [hno j hj] at hnan; cases hnan
+
+/-- The index is that of a position. -/
+theorem tl.ArgRes.index_lt {β : Type} [CmpKey β] {isMax tieLeft : Bool} {n : Nat}
+    {g : Nat → β} {r : β × I32} (h : tl.ArgRes isMax tieLeft n g r) :
+    ∃ j, j < n ∧ r.2 = IntV.ofNat j := by
+  rcases h with ⟨p, t, ht, hp, rfl⟩ | ⟨-, -, hidx⟩
+  · have hl := (Tree.eval_argCombine hp).1
+    exact ⟨p.2, List.mem_range.mp (ht.mem_iff.mp hl), rfl⟩
+  · exact hidx
+
+/-- The value is one of the elements, up to NaN payload. -/
+theorem tl.ArgRes.value {β : Type} [CmpKey β] {isMax tieLeft : Bool} {n : Nat}
+    {g : Nat → β} {r : β × I32} (h : tl.ArgRes isMax tieLeft n g r) :
+    ∃ j, j < n ∧ (r.1 = g j ∨ (CmpKey.nan r.1 = true ∧ CmpKey.nan (g j) = true)) := by
+  rcases h with ⟨p, t, ht, hp, rfl⟩ | ⟨-, hval, -⟩
+  · obtain ⟨hl, hv⟩ := Tree.eval_argCombine hp
+    exact ⟨p.2, List.mem_range.mp (ht.mem_iff.mp hl), Or.inl hv⟩
+  · exact hval
+
+/-- Integers have no NaN. -/
+@[simp] theorem IntV.cmpKey_nan {sg : Bool} {w : Nat} (a : IntV sg w) : CmpKey.nan a = false := rfl
+
 /-- `tl.argmaxAll` (`tl.max`/`tl.min` with `return_indices`, `tl.argmax`/`tl.argmin` of a rank-1
-tensor): never undefined; the rest runs for every pair some tree gives. -/
+tensor): never undefined; the rest runs for every result `ArgRes` allows. -/
 theorem safe_argmaxAll {β : Type} [CmpKey β] [Inhabited β] {N : Nat} (hn : 0 < N)
     (isMax tieLeft : Bool)
     {x : Tensor [N] β} {k : β × I32 → Prog α}
-    (hk : ∀ r : β × I32, (∃ p : β × Nat, ∃ t : Tree, t.Covers N ∧
-        t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
-          (fun j => (if h : j < N then x.get1 ⟨j, h⟩ else default, j)) p ∧
-        r = (p.1, IntV.ofNat p.2)) →
+    (hk : ∀ r : β × I32,
+      tl.ArgRes isMax tieLeft N (fun j => if h : j < N then x.get1 ⟨j, h⟩ else default) r →
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.argmaxAll isMax tieLeft x >>= k) := by
   simp only [tl.argmaxAll, bind_eq, Prog.bind]
-  obtain ⟨p, hp⟩ := Tree.eval_exists (op := fun a b c => c = tl.argCombine isMax tieLeft a b)
-    (tl.argCombine_total isMax tieLeft) (fun j => (if h : j < N then x.get1 ⟨j, h⟩ else default, j)) (Tree.seq N)
-  exact .pick ⟨_, p, Tree.seq N, Tree.seq_covers hn, hp, rfl⟩ hk
+  exact .pick (tl.ArgRes.exists isMax tieLeft hn _) hk
 
 /-- `tl.argmax1` (axis 1 of a rank-2 tensor), as `safe_argmaxAll` for each row. -/
 theorem safe_argmax1 {β : Type} [CmpKey β] [Inhabited β] {M N : Nat} (hn : 0 < N)
     (isMax tieLeft : Bool)
     {x : Tensor [M, N] β} {k : Tensor [M] β × Tensor [M] I32 → Prog α}
-    (hk : ∀ r : Tensor [M] β × Tensor [M] I32, (∀ i, ∃ p : β × Nat, ∃ t : Tree, t.Covers N ∧
-        t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
-          (fun j => (if h : j < N then x.get2 i ⟨j, h⟩ else default, j)) p ∧
-        r.1.get1 i = p.1 ∧ r.2.get1 i = IntV.ofNat p.2) →
+    (hk : ∀ r : Tensor [M] β × Tensor [M] I32, (∀ i, tl.ArgRes isMax tieLeft N
+        (fun j => if h : j < N then x.get2 i ⟨j, h⟩ else default) (r.1.get1 i, r.2.get1 i)) →
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.argmax1 isMax tieLeft x >>= k) := by
   simp only [tl.argmax1, bind_eq, Prog.bind]
-  have hex : ∀ i : Fin M, ∃ p, (Tree.seq N).Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
-      (fun j => (if h : j < N then x.get2 i ⟨j, h⟩ else default, j)) p :=
-    fun i => Tree.eval_exists (op := fun a b c => c = tl.argCombine isMax tieLeft a b)
-      (tl.argCombine_total isMax tieLeft) _ _
-  exact .pick ⟨(Tensor.of1 fun i => (Classical.choose (hex i)).1,
-      Tensor.of1 fun i => IntV.ofNat (Classical.choose (hex i)).2), fun i =>
-    ⟨_, Tree.seq N, Tree.seq_covers hn, Classical.choose_spec (hex i), rfl, rfl⟩⟩ hk
+  have hex : ∀ i : Fin M, ∃ r, tl.ArgRes isMax tieLeft N
+      (fun j => if h : j < N then x.get2 i ⟨j, h⟩ else default) r :=
+    fun i => tl.ArgRes.exists isMax tieLeft hn _
+  refine .pick ⟨(Tensor.of1 fun i => (Classical.choose (hex i)).1,
+      Tensor.of1 fun i => (Classical.choose (hex i)).2), fun i => ?_⟩ hk
+  simpa using Classical.choose_spec (hex i)
 
 /-- `tl.argmax0` (axis 0 of a rank-2 tensor), as `safe_argmaxAll` for each column. -/
 theorem safe_argmax0 {β : Type} [CmpKey β] [Inhabited β] {M N : Nat} (hm : 0 < M)
     (isMax tieLeft : Bool)
     {x : Tensor [M, N] β} {k : Tensor [N] β × Tensor [N] I32 → Prog α}
-    (hk : ∀ r : Tensor [N] β × Tensor [N] I32, (∀ j, ∃ p : β × Nat, ∃ t : Tree, t.Covers M ∧
-        t.Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
-          (fun i => (if h : i < M then x.get2 ⟨i, h⟩ j else default, i)) p ∧
-        r.1.get1 j = p.1 ∧ r.2.get1 j = IntV.ofNat p.2) →
+    (hk : ∀ r : Tensor [N] β × Tensor [N] I32, (∀ j, tl.ArgRes isMax tieLeft M
+        (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) (r.1.get1 j, r.2.get1 j)) →
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.argmax0 isMax tieLeft x >>= k) := by
   simp only [tl.argmax0, bind_eq, Prog.bind]
-  have hex : ∀ j : Fin N, ∃ p, (Tree.seq M).Eval (fun a b c => c = tl.argCombine isMax tieLeft a b)
-      (fun i => (if h : i < M then x.get2 ⟨i, h⟩ j else default, i)) p :=
-    fun j => Tree.eval_exists (op := fun a b c => c = tl.argCombine isMax tieLeft a b)
-      (tl.argCombine_total isMax tieLeft) _ _
-  exact .pick ⟨(Tensor.of1 fun j => (Classical.choose (hex j)).1,
-      Tensor.of1 fun j => IntV.ofNat (Classical.choose (hex j)).2), fun j =>
-    ⟨_, Tree.seq M, Tree.seq_covers hm, Classical.choose_spec (hex j), rfl, rfl⟩⟩ hk
+  have hex : ∀ j : Fin N, ∃ r, tl.ArgRes isMax tieLeft M
+      (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) r :=
+    fun j => tl.ArgRes.exists isMax tieLeft hm _
+  refine .pick ⟨(Tensor.of1 fun j => (Classical.choose (hex j)).1,
+      Tensor.of1 fun j => (Classical.choose (hex j)).2), fun j => ?_⟩ hk
+  simpa using Classical.choose_spec (hex j)
 
 /-- `CmpKey`'s `<` on integers is the order of their values. -/
 theorem IntV.cmpKey_lt {sg : Bool} {w : Nat} (a b : IntV sg w) :
@@ -754,8 +853,10 @@ theorem AccAdd.total {d : DType} (fusion : Bool) (hd : d = .f16 ∨ d = .bf16 �
     ∀ a b : d.Val, ∃ c, AccAdd fusion d a b c := by
   rcases hd with rfl | rfl | rfl | rfl <;> exact fun a b => ⟨_, AddRel.ieee fusion a b⟩
 
-/-- **`tl.sum(x[:, :, None] * y[None, :, :], axis=1)`**: each element is either a sum of the
-products along a tree, or Triton's `tl.dot` rewrite. -/
+/-- **`tl.sum(x[:, :, None] * y[None, :, :], axis=1)`**: the result is, as a whole, either a
+tensor each of whose elements is a sum of its products along a tree (each element with its own
+tree and products), or Triton's `tl.dot` rewrite (`E.P.dot` with the zero accumulator); the form
+is chosen once for the whole tensor, not per element. -/
 theorem safe_sum_bcast_mul {d : DType} {M K N : Nat} {x : Tensor [M, K] d.Val} {y : Tensor [K, N] d.Val}
     (hd : d = .f16 ∨ d = .bf16 ∨ d = .f32 ∨ d = .f64) (hK : 0 < K)
     {k : Tensor [M, N] d.Val → Prog α}
@@ -806,54 +907,83 @@ end Arith
 
 section Loops
 
+/-- The bytes that iterations `0, …, n-1` may write, iteration `t` writing inside `Wt t`. -/
+def iterW (Wt : Nat → Set Int) (n : Nat) : Set Int := {x | ∃ t, t < n ∧ x ∈ Wt t}
+
+theorem iterW_mono {Wt : Nat → Set Int} {n n' : Nat} (h : n ≤ n') : iterW Wt n ⊆ iterW Wt n' :=
+  fun _ ⟨t, ht, hx⟩ => ⟨t, by omega, hx⟩
+
+theorem iterW_zero (Wt : Nat → Set Int) : iterW Wt 0 = ∅ := by
+  ext x; simp [iterW]
+
+theorem iterW_empty (n : Nat) : iterW (fun _ => ∅) n = ∅ := by
+  ext x; simp [iterW]
+
 /-- **Loop invariant** for `forN` (and hence `for` loops): `I t st m` holds before iteration
-`t`; each iteration preserves it. -/
+`t`; each iteration preserves it and writes only inside its own footprint `Wt t`. Different
+iterations write disjoint bytes (a conflict across iterations is a conflict within the program,
+library issue L15). A loop that writes nothing takes `Wt = fun _ => ∅` (`iterW_empty`). -/
 theorem safe_forN {σ : Type} (n : Nat) (body : Nat → σ → Prog σ) (init : σ)
-    (I : Nat → σ → Mem → Prop) (h0 : I 0 init m)
+    (I : Nat → σ → Mem → Prop) (Wt : Nat → Set Int)
+    (hWt : ∀ t u, t < u → u < n → Disjoint (Wt t) (Wt u)) (h0 : I 0 init m)
     (hstep : ∀ t, t < n → ∀ st m₁, I t st m₁ →
-      Safe E R W (fun st' m₂ => I (t + 1) st' m₂) m₁ (body t st)) :
-    Safe E R W (fun st m₁ => I n st m₁) m (tl.forN n body init) := by
+      Safe E R (Wt t) (fun st' m₂ => I (t + 1) st' m₂) m₁ (body t st)) :
+    Safe E R (iterW Wt n) (fun st m₁ => I n st m₁) m (tl.forN n body init) := by
   induction n with
   | zero => exact .ret h0
   | succ n ih =>
     simp only [tl.forN]
-    apply Safe.bind
-    exact (ih (fun t ht => hstep t (by omega))).mono
-      (fun st m₁ h => hstep n (by omega) st m₁ h) le_rfl le_rfl
+    have hd : Disjoint (iterW Wt n) (Wt n) := Set.disjoint_left.mpr fun x ⟨t, ht, hx⟩ hx' =>
+      Set.disjoint_left.mp (hWt t n ht (by omega)) hx hx'
+    have h := Safe.bind ((ih (fun t u htu hu => hWt t u htu (by omega))
+      (fun t ht => hstep t (by omega))).mono (fun st m₁ h => hstep n (by omega) st m₁ h) le_rfl) hd
+    refine h.mono (fun _ _ h => h) ?_
+    rintro x (⟨t, ht, hx⟩ | hx)
+    · exact ⟨t, by omega, hx⟩
+    · exact ⟨n, by omega, hx⟩
 
-/-- `forN` followed by the rest of the program. -/
+/-- `forN` followed by the rest of the program, which writes outside the loop's footprint. -/
 theorem safe_forN_bind {σ : Type} {n : Nat} {body : Nat → σ → Prog σ} {init : σ}
-    {k : σ → Prog α} (I : Nat → σ → Mem → Prop) (h0 : I 0 init m)
+    {k : σ → Prog α} (I : Nat → σ → Mem → Prop) (Wt : Nat → Set Int) {Wk : Set Int}
+    (hWt : ∀ t u, t < u → u < n → Disjoint (Wt t) (Wt u)) (hWk : Disjoint (iterW Wt n) Wk)
+    (h0 : I 0 init m)
     (hstep : ∀ t, t < n → ∀ st m₁, I t st m₁ →
-      Safe E R W (fun st' m₂ => I (t + 1) st' m₂) m₁ (body t st))
-    (hk : ∀ st m₁, I n st m₁ → Safe E R W Q m₁ (k st)) :
-    Safe E R W Q m (tl.forN n body init >>= k) :=
-  Safe.bind ((safe_forN n body init I h0 hstep).mono hk le_rfl le_rfl)
+      Safe E R (Wt t) (fun st' m₂ => I (t + 1) st' m₂) m₁ (body t st))
+    (hk : ∀ st m₁, I n st m₁ → Safe E R Wk Q m₁ (k st)) :
+    Safe E R (iterW Wt n ∪ Wk) Q m (tl.forN n body init >>= k) :=
+  Safe.bind ((safe_forN n body init I Wt hWt h0 hstep).mono hk le_rfl) hWk
 
 /-- `for i in range(lo, hi, step)` with `step > 0` and no overflow of the last increment: an
-invariant over the trip number `t`, where the induction variable is `lo + t * step`. -/
+invariant over the trip number `t`, where the induction variable is `lo + t * step`; trip `t`
+writes inside `Wt t`. -/
 theorem safe_forRange {σ : Type} {sg : Bool} {w : Nat} {lo hi step : IntV sg w} {init : σ}
     {body : IntV sg w → σ → Prog σ} {k : σ → Prog α} (hrange : tl.RangeOk lo hi step)
-    (I : Nat → σ → Mem → Prop) (h0 : I 0 init m)
+    (I : Nat → σ → Mem → Prop) (Wt : Nat → Set Int) {Wk : Set Int}
+    (hWt : ∀ t u, t < u → u < tl.tripCount lo.toInt hi.toInt step.toInt → Disjoint (Wt t) (Wt u))
+    (hWk : Disjoint (iterW Wt (tl.tripCount lo.toInt hi.toInt step.toInt)) Wk) (h0 : I 0 init m)
     (hstep : ∀ t, t < tl.tripCount lo.toInt hi.toInt step.toInt → ∀ st m₁, I t st m₁ →
-      Safe E R W (fun st' m₂ => I (t + 1) st' m₂) m₁
+      Safe E R (Wt t) (fun st' m₂ => I (t + 1) st' m₂) m₁
         (body (IntV.ofInt (lo.toInt + t * step.toInt)) st))
-    (hk : ∀ st m₁, I (tl.tripCount lo.toInt hi.toInt step.toInt) st m₁ → Safe E R W Q m₁ (k st)) :
-    Safe E R W Q m (tl.forRange lo hi step init body >>= k) := by
+    (hk : ∀ st m₁, I (tl.tripCount lo.toInt hi.toInt step.toInt) st m₁ → Safe E R Wk Q m₁ (k st)) :
+    Safe E R (iterW Wt (tl.tripCount lo.toInt hi.toInt step.toInt) ∪ Wk) Q m
+      (tl.forRange lo hi step init body >>= k) := by
   simp only [tl.forRange, if_pos hrange]
-  exact safe_forN_bind I h0 hstep hk
+  exact safe_forN_bind I Wt hWt hWk h0 hstep hk
 
-/-- **While loop** with an invariant `I` and a variant `μ` that every iteration decreases. -/
+/-- **While loop** with an invariant `I` and a variant `μ` that every iteration decreases. The
+condition writes nothing; the iteration from a state `st` writes inside `Wv (μ st)`, and
+footprints of different variant values are disjoint. -/
 theorem safe_while {σ : Type} (cond : σ → Prog Bool) (body : σ → Prog σ) (init : σ)
-    {Q' : σ → Mem → Prop} (I : σ → Mem → Prop) (μ : σ → Nat) (h0 : I init m)
+    {Q' : σ → Mem → Prop} (I : σ → Mem → Prop) (μ : σ → Nat) (Wv : Nat → Set Int)
+    (hWv : ∀ u v, u < v → Disjoint (Wv u) (Wv v)) (h0 : I init m)
     (hiter : ∀ st m₁, I st m₁ →
-      Safe E R W (fun c m₂ => if c then
-          Safe E R W (fun st' m₃ => I st' m₃ ∧ μ st' < μ st) m₂ (body st)
+      Safe E R ∅ (fun c m₂ => if c then
+          Safe E R (Wv (μ st)) (fun st' m₃ => I st' m₃ ∧ μ st' < μ st) m₂ (body st)
         else Q' st m₂) m₁ (cond st)) :
-    Safe E R W Q' m (tl.whileLoop init cond body) := by
+    Safe E R (iterW Wv (μ init + 1)) Q' m (tl.whileLoop init cond body) := by
   unfold tl.whileLoop
   suffices H : ∀ n, ∀ st m₁, μ st = n → I st m₁ →
-      Safe E R W Q' m₁ (.loop st (fun st => (cond st).bind fun c =>
+      Safe E R (iterW Wv (n + 1)) Q' m₁ (.loop st (fun st => (cond st).bind fun c =>
         if c then (body st).bind (fun st' => .ret (.inl st')) else .ret (.inr st)) .ret) from
     H _ init m rfl h0
   intro n
@@ -862,20 +992,28 @@ theorem safe_while {σ : Type} (cond : σ → Prog Bool) (body : σ → Prog σ)
     intro st m₁ hμ hI
     apply Safe.loop
     unfold Prog.loopStep
-    apply Safe.bind
-    apply Safe.bind
-    refine (hiter st m₁ hI).mono ?_ le_rfl le_rfl
-    intro c m₂ hc
-    cases c with
-    | true =>
-      simp only [ite_true] at hc ⊢
-      apply Safe.bind
-      refine hc.mono ?_ le_rfl le_rfl
-      rintro st' m₃ ⟨hI', hlt⟩
-      exact .ret (ih (μ st') (hμ ▸ hlt) st' m₃ rfl hI')
-    | false =>
-      simp only [Bool.false_eq_true, ite_false] at hc ⊢
-      exact .ret (.ret hc)
+    have hd : Disjoint (Wv n) (iterW Wv n) := Set.disjoint_left.mpr fun x hx ⟨t, ht, hx'⟩ =>
+      Set.disjoint_left.mp (hWv t n ht) hx' hx
+    refine (Safe.bind (W₁ := Wv n) (W₂ := iterW Wv n) ?_ hd).mono (fun _ _ h => h) ?_
+    · apply Safe.bind_ro
+      refine (hiter st m₁ hI).mono ?_ le_rfl
+      intro c m₂ hc
+      cases c with
+      | true =>
+        simp only [ite_true] at hc ⊢
+        rw [show Wv n = Wv n ∪ ∅ by simp]
+        refine Safe.bind ?_ (Set.disjoint_empty _)
+        subst hμ
+        refine hc.mono ?_ le_rfl
+        rintro st' m₃ ⟨hI', hlt⟩
+        have hle : μ st' + 1 ≤ μ st := by omega
+        exact .ret ((ih (μ st') hlt st' m₃ rfl hI').mono (fun _ _ h => h) (iterW_mono (Wt := Wv) hle))
+      | false =>
+        simp only [Bool.false_eq_true, ite_false] at hc ⊢
+        exact .ret (.ret hc)
+    · rintro x (hx | ⟨t, ht, hx⟩)
+      · exact ⟨n, by omega, hx⟩
+      · exact ⟨t, by omega, hx⟩
 
 end Loops
 

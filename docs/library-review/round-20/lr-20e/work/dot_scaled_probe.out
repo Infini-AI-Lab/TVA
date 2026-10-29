@@ -1,0 +1,10 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+lhs e4m3, rhs e4m3, K=64, fast_math=False: checked so far 5864, outside 0
+lhs e4m3, rhs e4m3, K=64, fast_math=True: checked so far 11826, outside 0
+lhs e4m3, rhs e4m3, K=256, fast_math=False: checked so far 17355, outside 0
+lhs e4m3, rhs e4m3, K=256, fast_math=True: checked so far 22962, outside 0
+lhs e4m3, rhs e2m1, K=64, fast_math=False: checked so far 29027, outside 0
+lhs e4m3, rhs e2m1, K=64, fast_math=True: checked so far 35051, outside 0
+lhs e4m3, rhs e2m1, K=256, fast_math=False: checked so far 40722, outside 0
+lhs e4m3, rhs e2m1, K=256, fast_math=True: checked so far 46480, outside 0
+DotScaledE4m3 / DotScaledE4m3E2m1: 46480 elements in the facts' domain, 0 outside, largest error / bound 0.0266

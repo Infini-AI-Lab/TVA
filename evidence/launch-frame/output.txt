@@ -1,0 +1,19 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+K1:
+  sentinel 0xa5: {'correct': True, 'bytes changed by the launch': 3998, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+  sentinel 0x5a: {'correct': True, 'bytes changed by the launch': 3995, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+K2:
+  sentinel 0xa5: {'correct': True, 'bytes changed by the launch': 25516, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+  sentinel 0x5a: {'correct': True, 'bytes changed by the launch': 25527, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+K3:
+  sentinel 0xa5: {'correct': True, 'bytes changed by the launch': 16384, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+  sentinel 0x5a: {'correct': True, 'bytes changed by the launch': 16384, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+K4:
+  sentinel 0xa5: {'correct': True, 'bytes changed by the launch': 64, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+  sentinel 0x5a: {'correct': True, 'bytes changed by the launch': 64, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+K5:
+  sentinel 0xa5: {'correct': True, 'bytes changed by the launch': 1085, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+  sentinel 0x5a: {'correct': True, 'bytes changed by the launch': 1088, 'changed outside the written buffers': 0, 'global_scratch_size': 0, 'profile_scratch_size': 0}
+K6:
+  sentinel 0xa5: {'scratch requests': [4096], 'correct': True, 'bytes changed by the launch': 69590, 'changed outside the written buffers': 0, 'global_scratch_size': 256, 'profile_scratch_size': 0}
+  sentinel 0x5a: {'scratch requests': [4096], 'correct': True, 'bytes changed by the launch': 69547, 'changed outside the written buffers': 0, 'global_scratch_size': 256, 'profile_scratch_size': 0}

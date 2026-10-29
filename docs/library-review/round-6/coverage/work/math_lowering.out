@@ -1,0 +1,4 @@
+k_exp: ['add.f32', 'add.s64', 'ex2.approx.f32', 'mul.f32', 'mul.wide.u32']
+k_exp2: ['add.f32', 'add.s64', 'ex2.approx.ftz.f32', 'mul.wide.u32']
+k_log2: ['add.f32', 'add.s32', 'add.s64', 'fma.rn.ftz.f32', 'mul.f32', 'mul.wide.u32', 'selp.f32', 'setp.eq.f32', 'setp.lt.f32', 'setp.lt.u32', 'sub.s32']
+k_sqrt: ['add.f32', 'add.s64', 'mul.wide.u32', 'sqrt.approx.ftz.f32']

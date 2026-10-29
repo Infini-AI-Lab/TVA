@@ -15,17 +15,20 @@ reviewers accept. You write four things in Lean, in one bundle. Lean checks the 
 kernel reviewers judge the rest.
 
 **Your scope.** The kernel is yours; the library is not. The library gives the meaning of
-every operation, the transcription rules ([TRANSCRIPTION.md](TRANSCRIPTION.md)), the compiler
-rule and the device facts. You cite them; you never write a device or compiler fact of your own
-or choose accuracy constants. If the kernel needs something the library lacks, ask for it as a
-library request. That covers a fact, an operation and a transcription rule. Kernel review
+every operation and every fact about Triton a model relies on ([SEMANTICS.md](SEMANTICS.md)), the
+compiler rule and the device facts. You cite them; you never write a device or compiler fact of
+your own or choose accuracy constants. If the kernel needs something the library lacks, ask for
+it as a library request: a fact, an operation, or the meaning of a construct. Kernel review
 trusts the library, so a gap filled inside the kernel would go unchecked.
+[TRANSCRIPTION.md](TRANSCRIPTION.md) is guidance on writing the model (worked patterns,
+pitfalls, common reasons to drop a line); the reviewer judges your model by what it means, not by
+whether it follows a pattern.
 
 | Part | What it is | Who judges it |
 |---|---|---|
-| **Model** | the kernel transcribed into the `tl.*` vocabulary by the transcription rules, line by line | kernel reviewer (`MODEL_MISMATCH`) |
+| **Model** | the kernel transcribed into the `tl.*` vocabulary, line by line, meaning what the source does by SEMANTICS.md | kernel reviewer (`MODEL_MISMATCH`) |
 | **Specification** | `Inst`, `Inst.ok`, `launch`, `Pre`, `Post`; `Spec K := Meets Inst.ok Pre Post K` | kernel reviewer (`SPEC_TOO_WEAK`, `CONDITION_TOO_NARROW`) |
-| **Assumptions** | `structure Assumptions K P`: `[rule]` fields cite the library, `[kernel]` fields are your own unproved facts | kernel reviewer (`RULE_MISCITED`; `ASSUMPTION_*` for `[kernel]`) |
+| **Assumptions** | `structure Assumptions K P`: `[rule]` fields cite the library, `[kernel]` fields are facts about your own values (closed statements, which `consistent` proves) | kernel reviewer (`RULE_MISCITED`; `ASSUMPTION_*` for `[kernel]`) |
 | **Proof** | `theorem main : ∀ K P, Assumptions K P → Spec K` | Lean |
 
 `kernels/vec_add_f32/lean/VecAdd.lean` has all four for tutorial 01.
@@ -33,8 +36,9 @@ trusts the library, so a gap filled inside the kernel would go unchecked.
 ## 1. The model
 
 Write the kernel as a `Kernel` whose `body : Ctx → Prog Unit` is a `do` block, keeping the
-source's line structure and names. [TRANSCRIPTION.md](TRANSCRIPTION.md) gives the rule for each
-source construct; the main ones are repeated below.
+source's line structure and names, so that a reviewer can read the two side by side. What each
+construct means is in [SEMANTICS.md](SEMANTICS.md); [TRANSCRIPTION.md](TRANSCRIPTION.md) has worked
+patterns and the usual pitfalls. The points that matter most:
 
 ```lean
 def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZE : Nat) : Kernel where
@@ -47,13 +51,25 @@ def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZ
     ...
 ```
 
-Rules:
+- **Stay inside the supported subset** (SEMANTICS.md, "The supported subset"; library issue L88).
+  A kernel that uses another form of Python has no claim until the library adds the form: ask for
+  it as a library request.
 - **`tl.constexpr` arguments are Lean parameters** (`BLOCK_SIZE : Nat`).
 - **Write every implicit conversion and broadcast explicitly**: `tl.cvt` for `.to(...)` and
   for dtype promotion, scalar–tensor arithmetic, `bc`, `.col`/`.row`. Use `tl.cvt8` into fp8,
-  `tl.cvtFrom8` out of fp8, and `tl.itof` from integers. Write any narrowing of an integer-to-float value (an explicit chain, or the implicit
-  conversion of a store into a narrower buffer) as one `tl.itof` to the final format. Write `-0.0` literals as `+0.0`, which is what Triton
-  builds.
+  `tl.cvtFrom8` out of fp8, and `tl.itof` from integers. Write a narrowing with the default
+  rounding of an integer-to-float value (an explicit chain, or the implicit conversion of a store
+  into a narrower buffer) as one `tl.itof` to the final format; with
+  `fp_downcast_rounding="rtz"`, as `tl.itof` to the intermediate format, then `tl.cvt … .rz`
+  (SEMANTICS.md, `x.to(float)`).
+- **Write each Python number as the constant Triton builds** (SEMANTICS.md, "Constants"): with an
+  arithmetic or bitwise operator, as a value of `tl.where`, and in `tl.full`, in the operation's
+  dtype, `FloatV.litF64`, `litF32`, `litF16` or `litBF16` of the number's double (`FloatV.ofPat` of
+  its `float64` pattern), and `FloatV.litF8` in an fp8 dtype (not `tl.cvt8`; `Operand.constIn?`
+  gives each); elsewhere (a comparison, `other=`, a stored value, another `tl.*`
+  function) as a tensor of its own type, then the conversion. A zero, `-0.0` included, is `+0.0`. A
+  name a statement assigned a number holds a tensor of its own type (SEMANTICS.md, "How the front
+  end evaluates the source").
 - **Pick the meaning of each float `+`/`-`.**
   - `tl.add`/`tl.sub` when no product feeds it.
   - `tl.mul_add a b c` for `a * b + c`.
@@ -64,21 +80,39 @@ Rules:
   `MODEL_MISMATCH`.
 - **Keep `mask` and `other` exactly as in the source.** A masked load without `other` gives
   unspecified values on the disabled lanes.
-- **Name the rules.** Each entry of the model map names, in `rules`, the identities of the
-  transcription rules it applies (`["mask", "call"]`; a drop names its reason). The gate refuses a
-  model entry without them, and the reviewer checks that none is missing: the rules' text is in
-  your `map` and `model` digests, so a change to a rule you use re-opens them.
+- **Map every line, and say why.** Each entry of the model map gives the model text, or drops the
+  line with a reason and a note (the condition that makes the drop hold). A note that says why
+  this operation (the IEEE `+` because no product feeds it), which conversion, or which condition
+  of `Inst.ok`, saves the reviewer a question. `rules` is optional and unchecked.
+- **Class every function of the source** (every `def` and `lambda`, from its first decorator to
+  its last line): the kernel lines (`source.ranges` in `kernel.json`) hold the launched kernel and
+  everything it runs, on the device or at compile time (helpers, however `jit` is spelled,
+  `triton.constexpr_function`s); the host lines (`source.host`) hold the functions only the host
+  runs; `source.unused` (a list of names) names a `def` nothing runs. The gate fails on a function
+  in none of these, and the reviewers judge the classes (protocol §7, library issue L50). Class
+  every code line outside a function too (imports, module-level assignments, a class's own lines,
+  a `__main__` block), and the header of each unused function (its decorators and `def` lines: a
+  `def` runs at import and evaluates them, defaults included, even if nothing calls the function): a
+  line that binds a name the launch reads (the import of `triton.language as tl`, a JIT function's
+  `def`) goes in the kernel lines, where it is mapped (modelled, or dropped with its reason), and the
+  others in the host lines; the gate fails on a line in neither (L79). The only module-level names a
+  launch may read are the imports of `triton` and of `triton.language as tl` and the module's
+  `@triton.jit` functions, each bound only by its own `import` or `def`: a kernel that reads any
+  other (a `tl.constexpr(…)` global, a dtype) is outside the supported subset, and reviewers file
+  `UNSUPPORTED` (L88). Lines are counted at line feeds only; a source or Lean file with another line
+  break (a form feed, U+2028, a lone carriage return) fails the gate (L51).
 - **Integer reductions widen.** `tl.max`/`tl.min` of an integer narrower than 32 bits reduce
-  `int32` values, whatever the signedness; `tl.sum` reduces `int32` or `uint32`
-  ([TRANSCRIPTION.md](TRANSCRIPTION.md) `[reduce]`). Write the conversion.
+  `int32` values, whatever the signedness; `tl.sum` reduces `int32` or `uint32` (SEMANTICS.md,
+  reductions). Write the conversion.
 - **`tl.debug_barrier()` is a no-op.** Write a comment where it was. Prints and assertions
   (`tl.static_print`, `tl.device_print`, `print`, `tl.device_assert`, `assert`,
-  `tl.static_assert`) are dropped only when their arguments are pure; otherwise transcribe the
-  operations in their arguments ([TRANSCRIPTION.md](TRANSCRIPTION.md) §10). Compiler hints are not
-  no-ops: write `tl.multiple_of`, `tl.max_contiguous`, `tl.max_constancy` and `tl.assume`.
-  Put each check where the hinted value is defined, before any use of it. A hint inside a loop
-  body on a loop-carried name, and the meaning of a hint on a rank ≥ 2 tensor, are open library
-  issues (L1, L2 in [library-review/ISSUES.md](library-review/ISSUES.md)).
+  `tl.static_assert`) may be dropped only when what the front end evaluates in their arguments has
+  no effect; otherwise the operations it evaluates are model lines (SEMANTICS.md, "How the front
+  end evaluates the source"; TRANSCRIPTION.md §4). Compiler hints are not no-ops: write
+  `tl.multiple_of`, `tl.max_contiguous`, `tl.max_constancy` and `tl.assume`.
+  Put each check where the hinted value is defined, before any use of it; a hint on a parameter, an
+  induction variable or an inlined call's result has no effect and is dropped, and one on a loop's
+  carried name checks the value before the loop (SEMANTICS.md, "Compiler hints").
 - **Shifts:** `>>` is `tl.ashr` when the tensor operand Python dispatches on (the left one,
   or the right one when the left is a Python scalar) is signed before promotion, `tl.lshr`
   otherwise.
@@ -89,8 +123,14 @@ Rules:
 - **Scans take the combine function as a relation.** Write the `combine_fn` body as a
   relation (`AddRel false` for an IEEE `a + b`, `AddRel E.fusion` when a product may feed it,
   `fun a b c => c = a + b` for integers).
-- **Do not declare anything in the `TVA` or `tl` namespaces, nor instances of library
-  classes.** The reviewer rejects a bundle that does.
+- **Declare everything in the kernel's namespace, and give no name another meaning.** No
+  declaration in `TVA`, none with a name component `tl`, none whose name (as you would write it)
+  would otherwise mean another constant (a library name through `TVA` or a namespace you `open`,
+  or a root name such as `min`), names in plain ASCII only, no instance at all, no binder named
+  like a library namespace (`tl`, `Tensor`, `Block`, …, or a look-alike), no notation,
+  `open … renaming`, `export` or `set_option` beyond resource limits, printing and linters
+  (library issue L20). The gate checks this as a backstop, and the kernel reviewer reads all of
+  your Lean.
 - **Float operations are `Prog`s** (`let y ← tl.neg x`), because a NaN result may be any NaN.
   State `Post` up to NaN payload (`FloatV.NaNEq`).
 - **Loops:** `range(lo, hi, step)` is `tl.forRange`, and a fixed count is `tl.forN`. A loop's
@@ -109,6 +149,27 @@ Rules:
   - disjointness of buffers that are written.
 
   Keep it as wide as the kernel's real use.
+- **The kernel and its launches stay within part (A) of `Compiler.Faithful`'s scope**
+  ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope", and its checklist in "How a
+  bundle cites it"), point by point: (4) only the launch options `Launch` records plus
+  `num_warps`, `num_stages`, `maxnreg`, `launch_cooperative_grid`, at the launch, at
+  `kernel.warmup(…)`, in `triton.compile`'s options or in a `triton.Config`, and no
+  `@triton.heuristics`, with the decorator's `debug` as `Launch.debug`; (5) when the kernel builds
+  descriptors, an allocator whose buffer holds none of the claim's buffers and that nothing else
+  writes during the launch; (6) for a `CompiledKernel`, the kernel's own source (an `ASTSource` for
+  `triton.compile`, not an IR file) and arguments in its specialisation (dtypes, pointer alignment,
+  integer class, host descriptors' dtype and block shape); (8) no host `TensorDescriptor` with
+  `round_f32_to_tf32=True`; (9) no CUDA graph capture (no call while a stream capture is in
+  progress, on any stream, no replay). With `@triton.autotune`, the launch covered is the last one,
+  from the memory and with the arguments the last hook leaves. Say so in the write-up's Conditions.
+  Part (B), the environment (points 1, 2, 3, the environment's part of 4, 7, 10 and 11: other
+  writers, knobs, hooks, `kernel.debug` and `preload`, the target and host (an H200; x86-64,
+  CPython 3.13 without `-O`/`-OO` and with `PYTHONOPTIMIZE` unset, in the default floating-point
+  environment), Triton as installed and other code, the kernel new), is assumed and not checked:
+  the write-up says only that the claim
+  relies on it (the user's decisions, 2026-10-29: "To make the verifier easy, we do not verify
+  triton cache.", "we assume the kernel is new." and "So basically, we want to verify the kernel
+  itself, rather than triton installation or other code programmed by users.").
 - **`launch d`**: the host's grid, the source's block shapes, and `enable_fp_fusion`, such as
   `Launch.grid1 (cdiv n BLOCK) [[BLOCK]]`. `Inst.ok` must make the launch valid
   (`Launch.Valid`): `BLOCK` a power of two of at most `2^20` elements, the grid within CUDA's
@@ -134,15 +195,27 @@ operation, format and target (`[rule]`). If the library has none, the kernel wai
 as a library request, and do not write it yourself.
 
 Every assumption is one of two kinds, and the gate checks both:
-- **`[rule]`** cites a library rule or device fact as the library states it. Its statement may
-  mention the library's constants, `K`, `P`, and your `Inst`, `Inst.ok`, `model` and `launch`,
-  but no other constant of yours.
-- **`[kernel]`** is an unproved fact about your own values (for example, a property of an error
-  constant). It mentions neither `K` nor `P`. Prove it instead when you can.
+- **`[rule]`** cites a library rule or device fact as the library states it, by its name, applied
+  to `P`: a fact [rules/num.md](rules/num.md)'s "Facts the library states" lists, as it lists it
+  (`Rules.Num.Exp2F32 P`, `Rules.Num.DotF16 P`, `Rules.Num.DivFull P`, `Rules.Num.DivRn P
+  .binary64`, a `…Total` rule), or `Compiler.Faithful` exactly as above, `Faithful P (model d)
+  (launch d) (K d)` for one bound `d` (library issue L62), under `∀`/`→` binders if needed. The gate
+  refuses any other constant of `TVA.Rules`. Never a shape with constants
+  (`Rules.Num.MathAcc P .exp .binary32 …`, `DotAcc`, `DivAcc`, …), even the library's constants
+  written out: the gate refuses it (library issue L62). Its statement may mention the library's
+  constants, `P`, and your `Inst`, `Inst.ok`, `model` and `launch`, but no other constant of yours
+  (a `private` or `_root_` one included, L63), and `K` only in `Compiler.Faithful`.
+- **`[kernel]`** is a fact about your own values (for example, a property of an error constant).
+  It mentions neither `K` nor `P`, so it is a closed statement, and `consistent` proves it (its
+  witness must satisfy every field). The reviewer judges whether it is needed and clear, and
+  whether the constants it constrains mean what your write-up says. A lemma proved on its own is
+  clearer still: use one when you can.
 
 Only `faithful` may mention `K`.
 
-Then prove the assumptions consistent, so that the claim is not vacuous:
+Then prove the assumptions consistent, and the conditions satisfiable
+(`theorem satisfiable : Claim.Satisfiable Inst.ok Pre`, one covered instance and memory; the gate
+checks it, library issue L71), so that the claim is not vacuous:
 
 ```lean
 theorem consistent : Claim.Consistent Assumptions := by
@@ -150,24 +223,12 @@ theorem consistent : Claim.Consistent Assumptions := by
   exact ⟨K, P₀, htot, ⟨fun d _ => hf d, …⟩⟩
 ```
 
-Here `P₀` is a platform satisfying the rules about `P`: `Platform.any` if there are none, or
-`Platform.ref rel abs sp`, the most accurate platform. It covers these rules for every bound
-that allows one correct rounding ([the rule page](rules/num.md) gives the exact conditions):
-- every `…Total` rule (`Platform.ref.mathTotal`, `divTotal`, `cvtTotal`, `atomicAddTotal`,
-  `dotTotal`, `dotScaledTotal`);
-- `MathAcc`:
-  - `mathAcc_of_eta` for `abs ≥ η`;
-  - `mathAcc_of_normal` for any `abs ≥ 0` where the real function's values are normal;
-- `MathAt` at non-finite inputs (`mathAt`, from the table `sp`);
-- division (`divFull`, `divRn`);
-- `CvtAcc` (`cvtAcc`);
-- `AtomicAddAcc` (`atomicAddAcc`);
-- `DotAcc`: `dotAcc` (float accumulator), `dotAcc_int` (integer operands, signed accumulator);
-- `DotScaledAcc` (`dotScaledAcc`).
-
-`rel` and `abs` of `Platform.ref` are the bundle's `MathAcc` constants, and `sp` lists its
-`MathAt` values. `Consistent` is mandatory. A bound tighter than one rounding is false of the
-device anyway, so a bundle should not need its own witness.
+Here `P₀` is a platform satisfying the facts the bundle cites: `Platform.any` if there are none,
+or else `Platform.sm90ref` (`lean/TVA/Lemmas/Sm90.lean`), which satisfies every fact of
+`TVA.Rules.Num.Sm90` (`Platform.sm90ref.expF32`, `.exp2F32`, …, `.dotF16`, …, `.atomicAddF32`),
+`DivFull`, `DivRn` and every `…Total` rule together ([the rule page](rules/num.md),
+"Satisfiability"). `Consistent` is mandatory. The facts are the library's, so a bundle needs no
+witness of its own.
 
 ## 4. Proof
 
@@ -180,7 +241,14 @@ The common route, for kernels whose programs touch disjoint tiles, is
 - `Q d init i m`: what program `i` leaves in its own memory;
 - **`hsafe`**: each program is `Safe` from `init`;
 - **`hdisj`**: `W i` is disjoint from `R j ∪ W j` for `i ≠ j`;
+- **`hRW`**: `R i` and `W i` are disjoint: a program does not read what it writes (library issue
+  L15: two accesses of one program to the same bytes, one writing, are not well behaved);
 - **`hpost`**: the programs' results give `Post`.
+
+`Safe` writes each byte at most once: a store or atomic rule hands the rest of the program the
+write footprint without the bytes it wrote (`W \ b.tile p B n` after `safe_store_block`). A
+kernel that stores the same bytes twice, reads back what it wrote, or updates an input in place
+cannot be proved, and is out of scope ([exclusions.md](exclusions.md)).
 
 **Proving `Safe` for one program.** Unfold the model for program `i`; a `body_eq` lemma that
 `rfl` proves keeps this tidy. Then apply one rule per line, in order:
@@ -209,16 +277,16 @@ The common route, for kernels whose programs touch disjoint tiles, is
 | `tl.associative_scan`, `tl.cumsum`, `tl.cumprod` | `safe_associative_scan`, `safe_cumsum(c)`, `safe_icumsum` (prefix sums), `safe_cumprod`, `safe_icumprod`; error: `sum_err_list` with `ScanLeaves.perm` |
 | `tl.sort` | `safe_sort` (integers and floats: `SortKey.Lawful`) |
 | `tl.histogram` | `safe_histogram` (prove every enabled value in range) |
-| `tl.dot_scaled` | `safe_dot_scaled` (with `Rules.Num.DotScaledTotal`); accuracy: `DotScaledAcc` |
+| `tl.dot_scaled` | `safe_dot_scaled` (with `Rules.Num.DotScaledTotal`); accuracy: the named fact (`Rules.Num.DotScaledE4m3`, `DotScaledE4m3E2m1`; each is a `DotScaledAcc`) |
 | hints on rank ≥ 2 | `safe_multiple_ofN`, `safe_max_contiguousN`, `safe_max_constancyN` |
 | `tl.mul_add`, `tl.addc`, `tl.subc` | `safe_mul_add`, `safe_addc`, `safe_subc` (a relation on the result) |
-| `tl.exp` …, `/`, `tl.cvt8`, `tl.dot` | `safe_math`, `safe_div`, `safe_cvt8`, `safe_dot` (need a result to exist); accuracy of `tl.dot`: `Rules.Num.DotAcc` |
-| accuracy of `/` | `Rules.Num.DivFull` (fp32), `Rules.Num.DivRn` + `DivRn.divAcc` (fp64) |
+| `tl.exp` …, `/`, `tl.cvt8`, `tl.dot` | `safe_math`, `safe_div`, `safe_cvt8`, `safe_dot` (need a result to exist); accuracy of `tl.dot`: the named fact (`Rules.Num.DotF16`, `DotBF16`, `DotE4m3`, …, `DotF32Ieee`; each is a `DotAcc`, which `DotAcc.mono` weakens); `tl.cvt8`: the named fact (`Rules.Num.CvtF32E4m3`, … in range, a `CvtRn`; `CvtSatF32E4m3`, … on every input, a `CvtSat`, with `FloatV.cvtSat_rn_err`) |
+| accuracy of `/` | `Rules.Num.DivFull` (fp32), `Rules.Num.DivRn P .binary64` + `DivRn.divAcc` (fp64) |
 | `tl.sum`, `sum1`, `sum0` / `sumc`, `sum1c` / `max1`, `max0`, `maxAll` | `safe_sum`, …, `safe_max1`, `safe_max0`, `safe_maxAll` (a tree for each output); accuracy: `sum_err_covers` |
-| accuracy of `tl.exp` … | `Rules.Num.MathAcc`; special values (`exp(-∞) = +0`): `Rules.Num.MathAt` |
+| accuracy of `tl.exp` … | the named fact (`Rules.Num.ExpF32`, `Exp2F32`, `LogF32`, …; each is a `MathAcc`, which `MathAcc.mono` weakens); special values (`exp(-∞) = +0`): `Rules.Num.ExpF32NegInf`, `Exp2F32NegInf` (a `MathAt`) |
 | `x.to(int)` | `safe_ftoi` (each element in range) |
-| `for` loop | `safe_forRange` / `safe_forN_bind` with an invariant |
-| `while` loop | `safe_while` with an invariant and a decreasing measure |
+| `for` loop | `safe_forRange` / `safe_forN_bind` with an invariant and per-trip write footprints `Wt t`, disjoint across trips (`fun _ => ∅` when the body writes nothing; `iterW_empty`) |
+| `while` loop | `safe_while` with an invariant, a decreasing measure `μ`, and write footprints `Wv` per value of `μ`, disjoint |
 | the last line | `safe_last`, then that line's rule with `pure` as the rest |
 | `return` | `safe_ret` |
 
@@ -226,13 +294,23 @@ The common route, for kernels whose programs touch disjoint tiles, is
 instead of `meets_independent`.
 - Prove each program with `SafeA`.
 - Private segments are ordinary `Safe` proofs, lifted by `SafeA.of_safe`.
-- A scalar atomic on the shared region uses `SafeA.atomic1`: it may find any old value, and
-  the step goes into the program's log.
+- A scalar atomic on the shared region uses `SafeA.atomic1`, a tensor atomic (masked or not)
+  `SafeA.atomic`: it may find any old value, and each step goes into the program's log.
 - The postcondition `Q i log m` says what the log contains, for example "one `atomic_add` of
-  my partial sum per cell".
-- `replay_add` and `sum_proj` then give each integer cell's final value.
+  my partial sum per cell". It must not depend on the log's order (`PermInv`): a program's
+  atomics may be performed in any order their dependences allow (`Step.defer`).
+- `replay_add` and `sum_proj` (`replay_add_any`, `sum_proj_any` at any width) then give each
+  integer cell's final value.
+- A logged step does not record its operand, so for float accumulation and `max`/`min` the
+  postcondition pairs the log with the program's operands per position: `Paired R log ops`
+  (`Paired.lanes` for a tensor atomic's lanes, `Paired.append`; `Paired.perm` makes it
+  `PermInv`). `replay_err_shared` (float, with `accStep_atomicAdd` from `Rules.Num.AtomicAddF32`
+  and `accStep_other`) and `replay_max`, `replay_min` (integers) then bound or give the cell
+  against every program's operands.
+- `shared` also needs `hRW` (disjoint read and write footprints) and `hQ` (`PermInv`).
 
-`Safe.bind` and `Safe.mono` compose and weaken. `TVA.Lemmas.Int` turns `int32` arithmetic into
+`Safe.bind` (the two parts write disjoint footprints; `Safe.bind_ro` when the first writes
+nothing) and `Safe.mono` compose and weaken. `TVA.Lemmas.Int` turns `int32` arithmetic into
 integer arithmetic once you show it does not wrap.
 
 **Tips.**
@@ -250,7 +328,7 @@ integer arithmetic once you show it does not wrap.
 Read [REVIEWER_GUIDE.md](REVIEWER_GUIDE.md) before submitting. The questions most likely to
 come back:
 
-- Does each model line follow the transcription rule for its construct, and each `+` the right
+- Does each model line mean what its source line does (SEMANTICS.md), and each `+` the right
   meaning?
 - Are the masked lanes handled?
 - Does `Inst.ok` exclude real uses, and is every narrowing stated?

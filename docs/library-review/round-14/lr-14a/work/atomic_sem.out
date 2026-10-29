@@ -1,0 +1,15 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+| sem | scope | instruction | cells differing from acq_rel/gpu |
+|---|---|---|---|
+| acq_rel | gpu | `atom.global.gpu.acq_rel.add.v4.f32` | 0 |
+| acq_rel | cta | `atom.global.cta.acq_rel.add.v4.f32` | 0 |
+| acq_rel | sys | `atom.global.sys.acq_rel.add.v4.f32` | 0 |
+| acquire | gpu | `atom.global.gpu.acquire.add.v4.f32` | 0 |
+| acquire | cta | `atom.global.cta.acquire.add.v4.f32` | 0 |
+| acquire | sys | `atom.global.sys.acquire.add.v4.f32` | 0 |
+| release | gpu | `atom.global.gpu.release.add.v4.f32` | 0 |
+| release | cta | `atom.global.cta.release.add.v4.f32` | 0 |
+| release | sys | `atom.global.sys.release.add.v4.f32` | 0 |
+| relaxed | gpu | `atom.global.gpu.relaxed.add.v4.f32` | 0 |
+| relaxed | cta | `atom.global.cta.relaxed.add.v4.f32` | 0 |
+| relaxed | sys | `atom.global.sys.relaxed.add.v4.f32` | 0 |

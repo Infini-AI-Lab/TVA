@@ -20,7 +20,9 @@ file gives the witness:
   - An approximate function on a finite input returns a finite float within
     `rel · |ref x| + abs` of the real function whenever one exists. On other inputs it returns
     the value the table `sp` gives, if any.
-  - Division, conversions and float `atomic_add` are IEEE (up to NaN payload).
+  - Division and float `atomic_add` are IEEE (up to NaN payload). A conversion to nearest
+    saturates (`FloatV.cvtSat .rn`: `±maxVal` beyond the range, as sm_90's conversions into fp8
+    do); toward zero it is `FloatV.cvtWith .rz`.
   - `tl.dot` and `tl.dot_scaled` round the exact `acc + Σ a·b` once into the accumulator.
 
   So these hold together, for every rule a bundle may assume about `P`:
@@ -30,7 +32,7 @@ file gives the witness:
     exist;
   - `MathAt` at non-finite inputs (`mathAt`);
   - `DivRn`, `DivFull`, `DivTotal`;
-  - `CvtAcc`, `CvtTotal`;
+  - `CvtAcc`, `CvtSat` (`cvtSat`), `CvtTotal`;
   - `AtomicAddAcc` (`rel ≥ u`, `abs ≥ η`) and `AtomicAddTotal`;
   - `DotTotal`, and `DotAcc`: `dotAcc` for float accumulators with `rel K ≥ u`, `abs K ≥ η`
     for `K > 0`, and `dotAcc_int` for integer operands with a signed accumulator, with `rel`,
@@ -39,8 +41,8 @@ file gives the witness:
     (`dotScaledAcc`).
 
   At `K = 0` the bounds need only be nonnegative, since the result is the accumulator. The
-  rounding argument is `FloatV.exists_nearest`: the nearest float to a real is within half an
-  ulp (`u·|y| + η`, and `u·|y|` in the normal range).
+  rounding argument is `FloatV.exists_nearest`: the nearest float to a real `y` with
+  `|y| ≤ maxVal` is within one rounding's bound (`u·|y| + η`, and `u·|y|` in the normal range).
 -/
 namespace TVA
 
@@ -197,7 +199,8 @@ private theorem exists_rat_near {y ε : ℝ} (hε : 0 < ε) {lo hi : ℚ} (hlo0 
     · rw [abs_neg, abs_of_nonneg ht0]; exact_mod_cast ht2
 
 /-- **The nearest float.** For a real `y` with `|y| ≤ maxVal`, the finite float nearest to `y`
-is within `u·|y| + η` of it, and within `u·|y|` when `|y| ≥ 2^emin`: half an ulp. It is at least
+is within `u·|y| + η` of it, and within `u·|y|` when `|y| ≥ 2^emin`: the bound of one rounding to
+nearest (at least half an ulp, and up to about a whole one). It is at least
 as near as the rounding of every rational near `y`, and these come arbitrarily close to that
 bound. -/
 theorem FloatV.exists_nearest {f : TVA.Math.Float.Format} (hf : f.Regular) (y : ℝ)
@@ -337,14 +340,15 @@ theorem DType.bound_of_format? {d : DType} {g : TVA.Math.Float.Format} (hd : d.f
     d.bound = g.maxVal := by
   cases d <;> simp only [DType.format?, reduceCtorEq, Option.some.injEq] at hd <;> subst hd <;> rfl
 
-/-- Rounding a rational in range into a float dtype gives a finite value within half an ulp. -/
+/-- Rounding a rational in range into a float dtype gives a finite value within one rounding's
+bound, `|q|·u + η`. -/
 theorem DType.val?_ofRat_float {d : DType} {g : TVA.Math.Float.Format} (hd : d.format? = some g)
     {q : ℚ} (hq : |q| ≤ g.maxVal) : ∃ v, d.val? (d.ofRat q) = some v ∧ |v - q| ≤ |q| * g.u + g.eta := by
   have hg := DType.regular_of_format? hd
   cases d <;> simp only [DType.format?, reduceCtorEq, Option.some.injEq] at hd <;> subst hd
   all_goals
     obtain ⟨hfin, herr⟩ := FloatV.ofPat_roundRat_err hg false false hq
-    exact ⟨_, by simp only [DType.val?, DType.ofRat, FloatV.ofRat, TVA.Math.Float.Format.ofRat, hfin,
+    exact ⟨_, by simp only [DType.val?, DType.ofRat, FloatV.ofRat, hfin,
       if_true], herr⟩
 
 theorem DType.int_of_val? {d : DType} (hd : d.isInt = true) {x : d.Val} {v : ℚ}
@@ -373,8 +377,9 @@ theorem DType.val?_ofRat_sint {d : DType} (hd : d.isSInt = true) (z : ℤ) (hz :
 
 /-- The most accurate platform (see the module docstring): approximate functions as accurate as
 `rel fn f`, `abs fn f` ask wherever a float that accurate exists, special values from the table
-`sp`; IEEE division, conversions and float `atomic_add`; `tl.dot` and `tl.dot_scaled` rounded
-once from the exact result (with `K = 0`, the accumulator itself). -/
+`sp`; IEEE division and float `atomic_add`; conversions to nearest that saturate (`FloatV.cvtSat`),
+toward zero as `FloatV.cvtWith .rz`; `tl.dot` and `tl.dot_scaled` rounded once from the exact
+result (with `K = 0`, the accumulator itself). -/
 noncomputable def Platform.ref (rel abs : MathFn → TVA.Math.Float.Format → ℝ)
     (sp : (fn : MathFn) → (f : TVA.Math.Float.Format) → FloatV f → Option (FloatV f) :=
       fun _ _ _ => none) : Platform where
@@ -388,7 +393,8 @@ noncomputable def Platform.ref (rel abs : MathFn → TVA.Math.Float.Format → �
   div _ x y r := FloatV.NaNEq (FloatV.divRn x y) r
   dot := fun cfg {_ _ K} a b acc r => ∀ i n,
     r.get2 i n = if K = 0 then acc.get2 i n else cfg.acc.ofRat (cfg.exact a b acc i n)
-  cvt _ _ rnd x r := FloatV.NaNEq (FloatV.cvtWith rnd x) r
+  cvt _ _ rnd x r :=
+    FloatV.NaNEq (if rnd = .rn then FloatV.cvtSat .rn x else FloatV.cvtWith rnd x) r
   atomicAdd _ o v n := FloatV.NaNEq (FloatV.add o v) n
   dotScaled := fun cfg {_ _ K} a sa b sb acc r => ∀ i n,
     r.get2 i n = if K = 0 then acc.get2 i n else FloatV.ofRat (cfg.exact a sa b sb acc i n)
@@ -468,10 +474,15 @@ theorem cvtAcc {f g : TVA.Math.Float.Format} (hg : g.Regular) :
     Rules.Num.CvtAcc (Platform.ref rel abs sp) f g := by
   intro x r hr hx hmax
   obtain ⟨hfin, herr⟩ := FloatV.cvt_err hg hx hmax
-  simp only [Platform.ref] at hr
-  rw [FloatV.cvtWith_rn] at hr
+  simp only [Platform.ref, ↓reduceIte] at hr
+  rw [FloatV.cvtSat_of_le hg .rn hx hmax, FloatV.cvtWith_rn] at hr
   rw [hr.eq (FloatV.isFinite_iff.mp hfin).1]
   exact ⟨hfin, herr⟩
+
+/-- Conversions to nearest saturate, so every `CvtSat` holds. -/
+theorem cvtSat (f g : TVA.Math.Float.Format) : Rules.Num.CvtSat (Platform.ref rel abs sp) f g := by
+  intro x r hr
+  simpa only [Platform.ref, ↓reduceIte] using hr
 
 theorem atomicAddTotal (f : TVA.Math.Float.Format) :
     Rules.Num.AtomicAddTotal (Platform.ref rel abs sp) f :=

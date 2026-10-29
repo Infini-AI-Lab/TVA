@@ -1,0 +1,24 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+## 1. DotF32Ieee, K = 8, 16 x 16, 1 warp: the largest ratio per input kind
+| kind | largest ratio | error / (2^-24 mag) at that element | error / 2^-150 |
+|---|---|---|---|
+| normal | 0.0824 | 1.483 | 4.8e+38 |
+| spread | 0.1370 | 2.466 | 2.79e+37 |
+| accbig | 0.2156 | 3.880 | 6.92e+44 |
+| allones | 0.3889 | 7.000 | 9.99e+45 |
+| onebig | 0.0338 | 0.609 | 1.19e+39 |
+| cancel | 0.0266 | 0.479 | 4.1e+38 |
+| tiny | 0.0000 | 0.000 | 0 |
+| huge | 0.1262 | 2.271 | 2.39e+52 |
+
+(K - 1) / (2 (K + 1)) = 0.3889
+
+## 2. tl.dot_scaled e2m1 by e2m1 on sm_90 (all elements 1.0, scales 1, K = 64)
+compiled and ran: o[0, 0] = 64.0 (exact 64)
+
+## 3. Tutorial 10's block_scaled_matmul_kernel, its own configuration, M = N = 256, K = 512
+- mxfp8: ran; max |reference - output| = 0.04785, max |reference| = 146.4
+- mixed: ran; max |reference - output| = 0.03125, max |reference| = 147
+- mxfp4: rejected on the host: OutOfResources: out of resource: shared memory, Required: 287864, Hardware limit: 232448. Reducing block sizes or `num_stages` may help.
+- nvfp4: rejected on the host: OutOfResources: out of resource: shared memory, Required: 297080, Hardware limit: 232448. Reducing block sizes or `num_stages` may help.

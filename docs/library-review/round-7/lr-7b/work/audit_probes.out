@@ -1,0 +1,25 @@
+the copy as it is: audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+
+## L43: rule pages
+lean/TVA/Rules/Num/Exp2.lean: audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+lean/TVA/Rules/Extra/Y.lean: audit exit 1 (tools/tvr.py: RULE_PAGES gives no page for the module TVA.Rules.Extra.Y or any module above it)
+
+## L40: lean/lakefile.toml leanOptions
+'debug.skipKernelTC = true': audit exit 1 (lean/lakefile.toml: leanOptions 'debug.skipKernelTC' is not allowed (only resource limits, autoImplicit, relaxedAutoImplicit, linter.* and pp.*, with a boolean or number value))
+'maxHeartbeats = 0': audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+'trace.profiler = true': audit exit 1 (lean/lakefile.toml: leanOptions 'trace.profiler' is not allowed (only resource limits, autoImplicit, relaxedAutoImplicit, linter.* and pp.*, with a boolean or number value))
+'pp.all = true': audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+'[leanOptions.debug]\nskipKernelTC = true': audit exit 1 (lean/lakefile.toml: leanOptions 'debug.skipKernelTC' is not allowed (only resource limits, autoImplicit, relaxedAutoImplicit, linter.* and pp.*, with a boolean or number value))
+'linter.all = "yes"': audit exit 1 (lean/lakefile.toml: leanOptions 'linter.all' is not allowed (only resource limits, autoImplicit, relaxedAutoImplicit, linter.* and pp.*, with a boolean or number value))
+'Elab.async = false': audit exit 1 (lean/lakefile.toml: leanOptions 'Elab.async' is not allowed (only resource limits, autoImplicit, relaxedAutoImplicit, linter.* and pp.*, with a boolean or number value))
+
+## L41: a note in a nested .lake folder
+untracked kernels/vec_add_f32/lean/.lake/note.md shipped: False; audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+after git add -f: audit exit 1 (kernels/vec_add_f32/lean/.lake/note.md: shipped inside a folder the text scan skips (.lake))
+
+## Not covered: the toolchain lean/lean-toolchain names
+lean-toolchain 'someone/lean4:v4.35.0-patched': audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+lean-toolchain 'leanprover/lean4:nightly': audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)
+
+## Not covered: a library module outside lean/TVA.lean's imports
+lean/TVA/Lemmas/Orphan.lean (not imported by lean/TVA.lean): audit exit 0 (independent: TVA imports only TVA and Mathlib, and refers to no other project)

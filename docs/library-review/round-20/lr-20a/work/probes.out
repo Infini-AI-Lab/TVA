@@ -1,0 +1,16 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+P1. fp8 constants (stored byte; FloatV.litF8 in Fp8Probe.out):
+  full_e5, C = 1.0000000009313226 (1 + 2^-30: float32 constant 1.0): 3c
+  full_e4, C = 1.0000000009313226 (1 + 2^-30: float32 constant 1.0): 38
+  full_e5, C = -1e-50 (float32 constant -0.0): 80
+  full_e4, C = -1e-50 (float32 constant -0.0): 80
+  full_e5, C = 1e39 (float32 constant +inf): 7c
+  full_e5, C = 3 (an int): 42
+  full_e4, C = 448 (an int): 7e
+  where_e4, C = 448 (an int beside a float8e4nv tensor): 7e
+  where_e5, C = True (a bool beside a float8e5 tensor): 3c
+  where_e5, C = -1e-50 (float32 constant -0.0, beside a float8e5 tensor): 80
+P2a. one process, fresh cache directory: kc (x * C, x = 2^24 + 1) with C = 1, then C = 1.0
+  C = 1 -> 16777217; then C = 1.0 -> 16777217; C = 1.0 alone (fresh process and cache) -> 16777216
+P2b. one process, fresh cache directory: kab (10*len(A) + len(B)) with (A, B) = ('a-b', 'c'), then ('a', 'b-c'); A's two values and B's two values are each keyed apart
+  ('a-b', 'c') -> 31; then ('a', 'b-c') -> 31; ('a', 'b-c') alone -> 13

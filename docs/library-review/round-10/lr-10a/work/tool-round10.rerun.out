@@ -1,0 +1,122 @@
+tvr: tools/tvr.py sha256 51a1e0f8accb4fa1, tools/claim_reader.lean.in sha256 f62126cbd840b89b; git version 2.52.0; Python 3.13.9
+
+# Part U: the tool's functions
+
+## U1 (L40): string literals holding `{`, and the comment reader
+- lr-7a H1: lines refused: [1]
+- lr-7a H1: `#eval`/`open` left as code by the plain reading: False
+- lr-7b `--` in a nested string: lines refused: [1]
+- lr-7b `--` in a nested string: `#eval`/`open` left as code by the plain reading: False
+- lr-7b `/-` in a nested string: lines refused: [1]
+- lr-7b `/-` in a nested string: `#eval`/`open` left as code by the plain reading: False
+- lr-7b a hidden `open`: lines refused: [1]
+- lr-7b a hidden `open`: `#eval`/`open` left as code by the plain reading: False
+- a plain string without `{` (control): lines refused: none
+- a plain string without `{` (control): `#eval`/`open` left as code by the plain reading: False
+- braces in a docstring and a comment (control): lines refused: none
+- braces in a docstring and a comment (control): `#eval`/`open` left as code by the plain reading: False
+- the library's code, every file: hygiene problems: none
+
+## U2 (L40): every library file is reached from lean/TVA.lean
+- the tree: every library file is reached
+- a copy with lean/TVA/Orphan.lean, which nothing imports: ['lean/TVA/Orphan.lean: a library file that lean/TVA.lean does not reach through its imports, so `lake build TVA` does not build it and `leanchecker TVA` does not replay it']
+
+## U3 (L50): the ranges hold every `@triton.jit` function
+- jit functions of the source: {'add_kernel': [[29, 54]]}
+- the kernel as it is (ranges [[29, 54]]): ([], [])
+- lr-7a M1: line 52 (output = x + y) unmapped, ranges [[29, 51], [53, 54]]: (['the ranges leave out line 52 of the @triton.jit function add_kernel (lines 29–54): cover it, or name it in source.unused if the claimed launch never runs it'], [])
+- lr-7a M1: line 52 unmapped, ranges []: (['the ranges leave out lines 29–54 of the @triton.jit function add_kernel (lines 29–54): cover it, or name it in source.unused if the claimed launch never runs it'], [])
+- line 52 unmapped, ranges [[29, 54]] (control): ([], [52])
+- a helper outside the ranges: ['the ranges leave out lines 4–6 of the @triton.jit function helper (lines 4–6): cover it, or name it in source.unused if the claimed launch never runs it']
+- the same with source.unused = [helper]: ([], [])
+- source.unused naming no jit function: ['source.unused names nothing, which is no @triton.jit function of the source', 'the ranges leave out lines 4–6 of the @triton.jit function helper (lines 4–6): cover it, or name it in source.unused if the claimed launch never runs it']
+- manifest_problems on source.unused = [1]: ['source.unused must be a list of function names']
+
+## U4 (L51): line breaks other than a line feed
+- lr-7a M2: line 6 by str.splitlines (round 7): '    x = tl.load(x_ptr)'
+- line 6 by line feeds (round 10): '    tl.store(x_ptr, x)'
+- line 6 as Python's tokenizer and ast count it: the statement: '    tl.store(x_ptr, x)'
+- the map check on that source: ["the source holds a line break other than a line feed (line 3), which Python's tokenizer, Triton, Lean and str.splitlines count differently (library issue L51)"]
+- the map check with a form feed: ["the source holds a line break other than a line feed (line 3), which Python's tokenizer, Triton, Lean and str.splitlines count differently (library issue L51)"]
+- the map check with a lone carriage return: ["the source holds a line break other than a line feed (line 3), which Python's tokenizer, Triton, Lean and str.splitlines count differently (library issue L51)"]
+- the map check with a U+2029: ["the source holds a line break other than a line feed (line 3), which Python's tokenizer, Triton, Lean and str.splitlines count differently (library issue L51)"]
+- the map check with CRLF line ends (allowed): ([], [])
+- kernel hygiene with a form feed in VecAdd.lean: ["lean/VecAdd.lean:269: a line break other than a line feed ('\\x0c'), which readers count differently (library issue L51)"]
+
+## U5 (L53): gate staleness by contents and by the gate's code
+- S0 a gate recorded now: not stale
+- S1 a comment added to the source: ['kernel files changed after it ran (source/01-vector-add.py)']
+- S1 a line added to the write-up: ['kernel files changed after it ran (README.md)']
+- S1 VecAdd.lean changed, its old modification time put back: ['kernel files changed after it ran (lean/VecAdd.lean)']
+- a Lean file added: ['kernel files changed after it ran (lean/Extra.lean)']
+- a change to the gate's code (tools/claim_reader.lean.in): ["the gate's code changed after it ran (tools/claim_reader.lean.in)"]
+- the tree's shipped vec_add_f32 gate (from 2026-10-27): it was recorded by a tool older than round 10, which kept no sha256 of the kernel's files and of the gate's code; it was recorded by a tool older than whole-file digests (round 6), so it records no library files
+
+## U6 (L52, L53): ledgers, certificates and generated pages
+- the kernel's ledger as shipped: every recorded file as recorded
+- files the ledger records: ['kernels/vec_add_f32/review/round-1/prover/notes.md', 'kernels/vec_add_f32/review/round-1/prover/response.json', 'kernels/vec_add_f32/review/round-1/r-vecadd/filing.json', 'kernels/vec_add_f32/review/round-1/r-vecadd/report.md', 'kernels/vec_add_f32/review/round-2/r-vecadd/filing.json', 'kernels/vec_add_f32/review/round-2/r-vecadd/report.md']
+- a recorded file changed after recording: ['kernels/vec_add_f32/review/round-1/prover/notes.md: changed after it was recorded in kernels/vec_add_f32/review/ledger.jsonl']
+- a folder recorded with every file in it (as `tvr file` now records): consistent
+- a work file added to that folder after recording: ['kernels/vec_add_f32/review/round-1/prover/work/late.txt: in a folder kernels/vec_add_f32/review/ledger.jsonl records, but recorded by no event']
+- lr-7a G1: a shipped certificate that the ledger does not grant (regenerated: none): ['the shipped certificate.json is not granted by the ledger and the recomputed gate']
+- a certificate regenerated the same but for its time: the same
+- gate_mismatch: a shipped gate whose kernel files differ: ['the shipped gate.json is stale (the kernel files differ from the recomputed gate)']
+- round 7 recorded in the copy: events: 3
+- recording lr-7a a second time: tvr: docs/library-review/round-7/lr-7a is recorded already, and recorded records are frozen
+- records step: rounds 1-6 not recorded (first 2): ['docs/library-review/round-1/author: a record of an earlier round, not recorded in docs/library-review/ledger.jsonl (`tvr record library 1 author`)', 'docs/library-review/round-1/lr-1: a record of an earlier round, not recorded in docs/library-review/ledger.jsonl (`tvr record library 1 lr-1`)']
+- a recorded work file changed, a work file added: ['docs/library-review/round-7/lr-7a/work/release.out: changed after it was recorded in docs/library-review/ledger.jsonl', 'docs/library-review/round-7/lr-7b/work/late.txt: in a folder docs/library-review/ledger.jsonl records, but recorded by no event']
+- release_records lints only the last round's unrecorded folders: [['lint', 'library', '10', 'author'], ['lint', 'library', '10', 'lr-10a'], ['lint', 'library', '10', 'lr-10b'], ['lint', 'vec_add_f32', 'reviewer', 'r-vecadd']]
+- generated pages that differ only in their gate's time: the same
+- a shipped REVIEW.md that says otherwise: ['kernels/vec_add_f32/REVIEW.md: the shipped page differs from the one regenerated from the shipped files']
+
+## U7 (L54): the toolchain
+- lean-toolchain 'leanprover/lean4:v4.35.0': accepted
+- lean-toolchain 'someone/lean4:v4.35.0-patched': ["lean/lean-toolchain must be one line `leanprover/lean4:v<major>.<minor>.<patch>` (a release of Lean, optionally `-rc<n>`; found 'someone/lean4:v4.35.0-patched\\n')"]
+- lean-toolchain 'leanprover/lean4:nightly': ["lean/lean-toolchain must be one line `leanprover/lean4:v<major>.<minor>.<patch>` (a release of Lean, optionally `-rc<n>`; found 'leanprover/lean4:nightly\\n')"]
+- lean-toolchain 'leanprover/lean4:v4.35.0\nextra': ["lean/lean-toolchain must be one line `leanprover/lean4:v<major>.<minor>.<patch>` (a release of Lean, optionally `-rc<n>`; found 'leanprover/lean4:v4.35.0\\nextra\\n')"]
+- a toolchain folder that is a symbolic link: the toolchain's .elan/toolchains/leanprover--lean4---v4.35.0 is a symbolic link or lies under one (library issue L54)
+- a real toolchain folder: leanprover/lean4:v4.35.0
+- the tree, with the user's toolchain: leanprover/lean4:v4.35.0
+
+## U8 (L55): a `TVA.Rules.*` constant declared outside lean/TVA/Rules
+- kinds: ['TVA.Rules.Num.borrowed is declared in TVA.Lemmas.Num, outside lean/TVA/Rules, so no rule page covers it']
+- rule pages in the digest of a cone holding it: ['file:docs/rules/num.md']
+
+## U9 (L7): the manifest against Mathlib's own
+- TVA's inherited packages against Mathlib's manifest at the pinned commit (read from the commit's blob): the same
+- lr-7a: batteries pinned at a local commit: ["batteries: rev differ from Mathlib's manifest"]
+- lr-7a P4: an inherited package from another URL: ["batteries: url differ from Mathlib's manifest"]
+- packagesDir ../evidence/pk: ["lean/lake-manifest.json: packagesDir must be '.lake/packages' (found '../evidence/pk')"]
+
+# Part N: the packages from their upstream repositories (network)
+
+- N1 Mathlib's pin against the tag v4.35.0: the tag's commit
+- N1 lr-7a's local Mathlib commit against the tag: commit 724ae5f0a9ab is not https://github.com/leanprover-community/mathlib4's 'v4.35.0'
+- N1 an inputRev that names no ref (a commit hash): inputRev '56a005855ea17e0b0958f73ec801ae140b0a1679' names no tag or branch of https://github.com/leanprover-community/mathlib4
+- N1 batteries' pin against its branch main (reachable, not the head): reachable from main
+- N1 aesop's pin against batteries' main (not reachable): commit 4a174c490d87 is not https://github.com/leanprover-community/batteries's 'main' (nor reachable from the branch)
+  (the two branch checks took 3 s)
+- N2 make_packages with that home directory, the tree's manifest: problems: none
+  (all 9 packages fetched and checked in 22 s)
+- N2 first line of Cli/Cli.lean: 'module'
+- N2 Cli's checkout against its blobs: every file is its blob
+- N2 the same after a file is changed and one added: ['Extra.lean: not a file of the commit', "Cli.lean: differs from the commit's blob"]
+- N3 make_packages with Mathlib pinned at a local commit: ["mathlib: commit 724ae5f0a9ab is not https://github.com/leanprover-community/mathlib4's 'v4.35.0'", "the inherited packages are not made, since Mathlib's commit is not shown"]
+
+# Part L (L48): item digests from the claim reader, on two kernels whose old hashes collide
+
+lr-7a's collision: `fun x => x + a` and `fun x => x + b` had the same 64-bit value hash. Kernel C is A
+with a proof edit and a renamed bound variable; kernel D is A with `a + 1`.
+
+- A: model's canonical text: `(K def _s7:Kernelss4:Demos5:model[] (P d (C _s3:Nat) (C _s3:Nat)) (def safe) (L d (C _s3:Nat) (A (A (A (A (A (A (C _s4:HAdds4:hAdd 0 0 0) (C _s3:Nat)) (C _s3:Nat)) (C _s3…`
+  model's hash b704732d793ab023; item digests {'assumption:own': '39d33ca8a4ce24c9', 'conditions': '11b571264863a919', 'model': '1c311c6be7a42826', 'spec': '1590e5fb3db7f03f', 'map': 'ee42d2f139cdbed0'}
+- B: model's canonical text: `(K def _s7:Kernelss4:Demos5:model[] (P d (C _s3:Nat) (C _s3:Nat)) (def safe) (L d (C _s3:Nat) (A (A (A (A (A (A (C _s4:HAdds4:hAdd 0 0 0) (C _s3:Nat)) (C _s3:Nat)) (C _s3…`
+  model's hash 8df5d676bcaa5241; item digests {'assumption:own': 'b4555aff3bc93aff', 'conditions': '11b571264863a919', 'model': '14448611ec0989be', 'spec': '1590e5fb3db7f03f', 'map': 'ee42d2f139cdbed0'}
+- C: model's canonical text: `(K def _s7:Kernelss4:Demos5:model[] (P d (C _s3:Nat) (C _s3:Nat)) (def safe) (L d (C _s3:Nat) (A (A (A (A (A (A (C _s4:HAdds4:hAdd 0 0 0) (C _s3:Nat)) (C _s3:Nat)) (C _s3…`
+  model's hash b704732d793ab023; item digests {'assumption:own': '39d33ca8a4ce24c9', 'conditions': '11b571264863a919', 'model': '1c311c6be7a42826', 'spec': '1590e5fb3db7f03f', 'map': 'ee42d2f139cdbed0'}
+- D: model's canonical text: `(K def _s7:Kernelss4:Demos5:model[] (P d (C _s3:Nat) (C _s3:Nat)) (def safe) (L d (C _s3:Nat) (A (A (A (A (A (A (C _s4:HAdds4:hAdd 0 0 0) (C _s3:Nat)) (C _s3:Nat)) (C _s3…`
+  model's hash 28cb7b9c8fafcf24; item digests {'assumption:own': '44d2f02f4e760a0f', 'conditions': '11b571264863a919', 'model': '111884162a821bfc', 'spec': '1590e5fb3db7f03f', 'map': 'ee42d2f139cdbed0'}
+- A against B: the same digest for conditions, map, spec; different for assumption:own, model
+- A against C: the same digest for assumption:own, conditions, map, model, spec; different for no item
+- A against D: the same digest for conditions, map, spec; different for assumption:own, model
+

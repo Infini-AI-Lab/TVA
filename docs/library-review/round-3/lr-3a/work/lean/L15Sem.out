@@ -1,0 +1,19 @@
+../docs/library-review/round-3/lr-3a/work/lean/L15Sem.lean:37:23: warning: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+../docs/library-review/round-3/lr-3a/work/lean/L15Sem.lean:42:6: warning: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+../docs/library-review/round-3/lr-3a/work/lean/L15Sem.lean:67:8: warning: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+../docs/library-review/round-3/lr-3a/work/lean/L15Sem.lean:126:8: warning: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+'LR3A.defer_reorders' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LR3A.overlap_not_wellBehaved' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0

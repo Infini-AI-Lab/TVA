@@ -1,0 +1,6 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, 2026-10-28
+load, sum, atomic_add, sort, store: global_scratch_size 0, profile_scratch_size 0
+gather, histogram: global_scratch_size 0, profile_scratch_size 0
+tl.dot in tl.range(warp_specialize=True): rejected at compile time (RuntimeError: PassManager::run failed)
+host TensorDescriptor load/store: global_scratch_size 0, profile_scratch_size 0
+tl.make_tensor_descriptor load/store: global_scratch_size 256, profile_scratch_size 0

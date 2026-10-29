@@ -1,0 +1,22 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+
+== Part A: launch_pdl default ==
+GDC=False: metadata launch_pdl=False; PTX griddepcontrol.wait: 0, griddepcontrol.launch_dependents: 0
+GDC=True : metadata launch_pdl=False; PTX griddepcontrol.wait: 1, griddepcontrol.launch_dependents: 1
+n=       1: elements whose bits differ between GDC=False and GDC=True: 0
+n=       7: elements whose bits differ between GDC=False and GDC=True: 0
+n=    1023: elements whose bits differ between GDC=False and GDC=True: 0
+n=    1024: elements whose bits differ between GDC=False and GDC=True: 0
+n=    1025: elements whose bits differ between GDC=False and GDC=True: 0
+n=   65536: elements whose bits differ between GDC=False and GDC=True: 0
+n= 1000003: elements whose bits differ between GDC=False and GDC=True: 0
+total differing elements: 0
+
+== Part B: launch_pdl=True ==
+GDC=False: launch_pdl=True accepted (compiled kernel's metadata launch_pdl=True); elements differing from the default launch: 0
+GDC=True : launch_pdl=True accepted (compiled kernel's metadata launch_pdl=True); elements differing from the default launch: 0
+
+== Part C: producer, then consumer on the same stream ==
+consumer gdc_wait=False launch_pdl=False: runs with stale reads 0 of 20; stale elements 0 of 83886080
+consumer gdc_wait=False launch_pdl=True : runs with stale reads 19 of 20; stale elements 29480960 of 83886080
+consumer gdc_wait=True  launch_pdl=True : runs with stale reads 0 of 20; stale elements 0 of 83886080

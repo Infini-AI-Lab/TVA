@@ -1,0 +1,28 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+  PTX of x / y: div.rn.f64
+  PTX of (-x) / (-y): div.rn.f64
+
+| inputs | kernel | pairs | differ from IEEE (host) |
+|---|---|---|---|
+| uniform patterns | `x / y` | 33554432 | 0 |
+| uniform patterns | `(-x) / (-y)` | 33554432 | 0 |
+| equal exponents | `x / y` | 33554432 | 0 |
+| equal exponents | `(-x) / (-y)` | 33554432 | 0 |
+| quotient at 2^-1022 (+-2 binades) | `x / y` | 33554432 | 0 |
+| quotient at 2^-1022 (+-2 binades) | `(-x) / (-y)` | 33554432 | 0 |
+| quotient deep subnormal / underflow | `x / y` | 33554432 | 0 |
+| quotient deep subnormal / underflow | `(-x) / (-y)` | 33554432 | 0 |
+| quotient at maxVal (+-1 binade) | `x / y` | 33554432 | 0 |
+| quotient at maxVal (+-1 binade) | `(-x) / (-y)` | 33554432 | 0 |
+| x within 64 ulps of y | `x / y` | 33554432 | 0 |
+| x within 64 ulps of y | `(-x) / (-y)` | 33554432 | 0 |
+| all-ones divisor significand | `x / y` | 33554432 | 0 |
+| all-ones divisor significand | `(-x) / (-y)` | 33554432 | 0 |
+| subnormal by subnormal | `x / y` | 33554432 | 0 |
+| subnormal by subnormal | `(-x) / (-y)` | 33554432 | 0 |
+| subnormal by normal | `x / y` | 33554432 | 0 |
+| subnormal by normal | `(-x) / (-y)` | 33554432 | 0 |
+| x = RN(q*y), wide exponents | `x / y` | 33554432 | 0 |
+| x = RN(q*y), wide exponents | `(-x) / (-y)` | 33554432 | 0 |
+
+Total pairs: 671088640; differing: 0

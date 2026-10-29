@@ -1,0 +1,152 @@
+tool files: {'tools/tvr.py': '84f0b4d50930c1f6', 'tools/claim_reader.lean.in': 'b46319f3a9f14126'}
+
+# Part L (L95): what the gate reads as the facts table is what the page shows as it
+
+- the tree's docs/rules/num.md: facts listed: 38
+-   the section's problems: none
+-   the audit's fact-page check: nothing
+
+## control: a line of text between the heading and the table
+
+- facts listed: 38
+- the section's problems: none
+- a `[rule]` field citing `ExpF32 P`: PASS
+- a `[rule]` field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## control: a tilde fence and a backtick fence, each closed, before the section
+
+- facts listed: 38
+- the section's problems: none
+- a `[rule]` field citing `ExpF32 P`: PASS
+- a `[rule]` field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## a ```` fence, a ``` line inside it (too short to close it), the section, then ```` (lr-20c 1)
+
+- facts listed: none (None)
+- the section's problems: ["line 96: the section's heading lies inside a fenced block or an HTML comment"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## a ``` fence, a ```python line inside it (a closer has no info string), the section, then ``` (lr-20c 2)
+
+- facts listed: none (None)
+- the section's problems: ["line 96: the section's heading lies inside a fenced block or an HTML comment"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## a line ```a`b (no fence: its info string holds a backtick), then a ``` fence around the section (lr-20c 3)
+
+- facts listed: none (None)
+- the section's problems: ["line 96: the section's heading lies inside a fenced block or an HTML comment"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## <script> before the heading, </script> after the next ## heading (lr-20c 4)
+
+- facts listed: none (None)
+- the section's problems: ['line 94: a line before the section that starts with `<` (an HTML block, which can run on across blank lines and headings)']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## <pre> before the heading, </pre> after the next ## heading (lr-20c 5)
+
+- facts listed: none (None)
+- the section's problems: ['line 94: a line before the section that starts with `<` (an HTML block, which can run on across blank lines and headings)']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## a row that starts `||` (GFM: an empty first cell, the fact in the second column) (lr-20c 6)
+
+- facts listed: 38
+- the section's problems: none
+- a `[rule]` field citing `ExpF32 P`: PASS
+- a `[rule]` field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## inline HTML: `<details>` in a text line before the table (lr-20c 7)
+
+- facts listed: none (None)
+- the section's problems: ['line 99: HTML (a `<` before a letter, `/`, `!` or `?`) is not read as the page renders it']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## inline HTML: `<sub>` in a cell (lr-20c 7)
+
+- facts listed: none (None)
+- the section's problems: ['line 117: HTML (a `<` before a letter, `/`, `!` or `?`) is not read as the page renders it']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## a struck-through first cell (lr-20c's probe, its last case)
+
+- facts listed: none (None)
+- the section's problems: ['line 117: a `~` (GFM strikes text through between tildes)']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## a header row with one cell more than the delimiter row (GFM shows no table)
+
+- facts listed: none (None)
+- the section's problems: ["line 99: the table's header row and delimiter row have different numbers of cells, so GFM shows no table"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+## a list item's fence (two spaces), then a ``` line at the margin opening a fence around the section
+
+- facts listed: none (None)
+- the section's problems: ['line 95: a fence indented by one to three spaces before the section (it may belong to a list item, which a line reader cannot tell)', "line 97: the section's heading lies inside a fenced block or an HTML comment"]
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 3
+
+## a fence indented by one space around the section
+
+- facts listed: none (None)
+- the section's problems: ['line 94: a fence indented by one to three spaces before the section (it may belong to a list item, which a line reader cannot tell)']
+- a `[rule]` field citing `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- a `[rule]` field citing `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+- the audit names num.md: 2
+
+# Part R (L112): a private field is refused by name; PANIC is read off the result line only
+
+## a public `[kernel]` field that is the specification (control)
+
+- the kernel: compiles
+- the reader: exit 0, 1 result line(s)
+- the gate's shape step (`tvr.reader_result`): PASS
+- the claim's fields: ['spec']
+- kinds: ['spec: a [kernel] assumption may not mention K, P or a TVA.Rules fact']
+- usage: PASS
+
+## a `private` `[kernel]` field that is the specification (lr-20c R1)
+
+- the kernel: compiles
+- the reader: exit 1, 0 result line(s); error: TVR: the field spec of Assumptions has no projection Kernels.Demo.Assumptions.spec (a private field?); every field must be public (library issue L112)
+- the gate's shape step (`tvr.reader_result`): FAIL: the claim does not have the protocol's shape: <scratch>/lean/readerPriv.lean:248:0: error: TVR: the field spec of Assumptions has no projection Ke
+
+## the word PANIC in a field's docstring (lr-20c R3)
+
+- the kernel: compiles
+- the reader: exit 0, 1 result line(s)
+- the gate's shape step (`tvr.reader_result`): PASS
+- the claim's fields: ['spec']
+- kinds: ['spec: a [kernel] assumption may not mention K, P or a TVA.Rules fact']
+- usage: PASS
+
+## made-up reader outputs (the shape decision alone)
+
+- a result line that holds the word PANIC, nothing else: PASS
+- the same, and a panic of Lean's on stderr: FAIL: the claim reader panicked (library issue L106): PANIC at Lean.getStructureInfo Lean.Structure:1:2: structure expected
+- the same, and a panic of Lean's on stdout before the result line: FAIL: the claim reader panicked (library issue L106): PANIC at Lean.getStructureInfo Lean.Structure:1:2: structure expected
+

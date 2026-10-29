@@ -1,0 +1,21 @@
+== hint-loops 16:26:50
+exit 0
+== hint-rank2 16:27:37
+exit 0
+== runtime-if 16:28:30
+exit 0
+== scalar-args 16:29:13
+exit 0
+== desc-scratch 16:29:48
+exit 0
+== autotune-launch 16:30:11
+exit 0
+== compiled-launch 16:30:37
+exit 0
+== other-writers 16:31:20
+exit 0
+== promotion 16:31:30
+exit 0
+exit 0
+exit 0
+== done 16:32:08

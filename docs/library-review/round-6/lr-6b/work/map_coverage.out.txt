@@ -1,0 +1,8 @@
+copy matches tools/tvr.py: True
+ 1 must be covered  @triton.jit
+ 2 must be covered  def k(x_ptr, c_ptr, n, BLOCK: tl.constexpr):
+ 3 exempt               """A docstring."""
+ 4 must be covered      pid = tl.program_id(0)
+ 5 exempt               tl.device_print("""v""", tl.atomic_add(c_ptr, 1))
+ 6 exempt               x = tl.load(x_ptr + pid) + tl.atomic_add(c_ptr, 2)  ; s = """"""
+ 7 must be covered      tl.store(x_ptr + pid, x)

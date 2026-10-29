@@ -1,0 +1,15 @@
+triton 3.8.0 NVIDIA H200 NVL 2.11.0+cu130
+dtypel result [0.5, 1.5, 0.1669921875, 4.992010415851715e-31]
+dtypen result [0.5, 1.5, 0.1669921875, 4.992010415851715e-31]
+smalll result [0.0, 0.0, 0.0, -0.0]
+smalln result [1.0000000116860974e-07, 3.000000106112566e-07, 9.999999747378752e-06, -2.0000000233721948e-07]
+helperl result [0.0, 0.0, 0.0, -0.0]
+helpern result [1.0000000116860974e-07, 3.000000106112566e-07, 9.999999747378752e-06, -2.0000000233721948e-07]
+tuplel result [0.0, 0.0, 0.0, 0.0]
+tuplen result [1.0000000116860974e-07, 3.000000106112566e-07, 9.999999747378752e-06, -2.0000000233721948e-07]
+andl atomics run (first, second) [0, 0] of 64 programs
+andn atomics run (first, second) [64, 0] of 64 programs
+branchl compiled; stored [1]
+branchn rejected: CompileTimeAssertionFailure branch visited
+divl stored [-4]
+divn stored [-3]

@@ -1,0 +1,4 @@
+S1: Inst.ok := d.n = 1; satisfiable given; the claim compiles: True
+  the reader elaborates and prints one result; axioms {'consistent': [], 'main': [], 'satisfiable': []}
+S2: Inst.ok := False; satisfiable absent; the claim compiles: True
+  the reader does not elaborate (exit 1): the gate's shape check fails; error(lean.unknownIdentifier): Unknown identifier `RSat2.satisfiable`

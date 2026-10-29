@@ -1,0 +1,4 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+A, `mod.double = mod.triple` before the first launch: o / x = [3.0]
+B, first launch (as the source binds it): o / x = [2.0]
+B, launch after `mod.double = mod.triple`: o / x = [2.0]

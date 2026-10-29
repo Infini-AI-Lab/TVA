@@ -1,0 +1,25 @@
+Triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+c = 1e-07       bfloat16  full: device 0.0                      [literal] model 1.0011717677116394e-07   differing 64/64
+c = 1e-07       bfloat16 where: device 0.0                      [literal] model 1.0011717677116394e-07   differing 64/64
+c = 1e-07       bfloat16 other: device 1.0011717677116394e-07   [literal] model 1.0011717677116394e-07   differing 0/64
+c = 1e-07        float64  full: device 1e-07                    [literal] model 1.0000000116860974e-07   differing 64/64
+c = 1e-07        float64 where: device 1e-07                    [literal] model 1.0000000116860974e-07   differing 64/64
+c = 1e-07        float64 other: device 1.0000000116860974e-07   [literal] model 1.0000000116860974e-07   differing 0/64
+c = -1e-07      bfloat16  full: device -0.0                     [literal] model -1.0011717677116394e-07  differing 64/64
+c = -1e-07      bfloat16 where: device -0.0                     [literal] model -1.0011717677116394e-07  differing 64/64
+c = -1e-07      bfloat16 other: device -1.0011717677116394e-07  [literal] model -1.0011717677116394e-07  differing 0/64
+c = -1e-07       float64  full: device -1e-07                   [literal] model -1.0000000116860974e-07  differing 64/64
+c = -1e-07       float64 where: device -1e-07                   [literal] model -1.0000000116860974e-07  differing 64/64
+c = -1e-07       float64 other: device -1.0000000116860974e-07  [literal] model -1.0000000116860974e-07  differing 0/64
+c = 1.23456e-05 bfloat16  full: device 1.1980533599853516e-05   [literal] model 1.233816146850586e-05    differing 64/64
+c = 1.23456e-05 bfloat16 where: device 1.1980533599853516e-05   [literal] model 1.233816146850586e-05    differing 64/64
+c = 1.23456e-05 bfloat16 other: device 1.233816146850586e-05    [literal] model 1.233816146850586e-05    differing 0/64
+c = 1.23456e-05  float64  full: device 1.23456e-05              [literal] model 1.234560022567166e-05    differing 64/64
+c = 1.23456e-05  float64 where: device 1.23456e-05              [literal] model 1.234560022567166e-05    differing 64/64
+c = 1.23456e-05  float64 other: device 1.234560022567166e-05    [literal] model 1.234560022567166e-05    differing 0/64
+c = 0.1         bfloat16  full: device 0.10009765625            [literal] model 0.10009765625            differing 0/64
+c = 0.1         bfloat16 where: device 0.10009765625            [literal] model 0.10009765625            differing 0/64
+c = 0.1         bfloat16 other: device 0.10009765625            [literal] model 0.10009765625            differing 0/64
+c = 0.1          float64  full: device 0.1                      [literal] model 0.10000000149011612      differing 64/64
+c = 0.1          float64 where: device 0.1                      [literal] model 0.10000000149011612      differing 64/64
+c = 0.1          float64 other: device 0.10000000149011612      [literal] model 0.10000000149011612      differing 0/64

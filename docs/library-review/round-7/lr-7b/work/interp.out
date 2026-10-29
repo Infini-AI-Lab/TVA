@@ -1,0 +1,8 @@
+== lake env lean InterpStr.lean
+"meta code ran: 2"
+"second command ran"
+exit 0
+== lake env lean InterpOpen.lean
+def y : Nat :=
+Nat.zero
+exit 0

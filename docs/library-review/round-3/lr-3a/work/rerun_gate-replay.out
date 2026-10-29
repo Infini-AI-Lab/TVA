@@ -1,0 +1,17 @@
+Lean 4.35.0, with leanchecker from the same toolchain
+C1 control: an ordinary module with a checked theorem
+    elab: elaborates
+    replay (leanchecker): accepts
+    hygiene: passes
+A1 run_cmd + addDeclCore (doCheck := false): `main : False := True.intro`
+    elab: elaborates
+    replay (leanchecker): REJECTS: (kernel) declaration type mismatch, 'GateReplay.AddUnchecked.main' has type
+    hygiene: flags a kernel or compiler bypass; meta code
+A2 the same, through a command the file defines with `elab` (no `run_cmd`)
+    elab: elaborates
+    replay (leanchecker): REJECTS: (kernel) declaration type mismatch, 'GateReplay.ElabRoute.main' has type
+    hygiene: flags a kernel or compiler bypass; meta code
+R1 the library reviewer's bundle of round 2 (Post = False, main added unchecked)
+    elab: elaborates
+    replay (leanchecker): REJECTS: (kernel) declaration has metavariables 'Kernels.GateHygiene.main'
+    hygiene: flags a kernel or compiler bypass; meta code

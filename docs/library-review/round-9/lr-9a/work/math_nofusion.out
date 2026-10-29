@@ -1,0 +1,14 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| function | results differing from the default (all 2^32 inputs) | inputs checked against the fact (with fusion off) | outside | non-finite | largest error / bound |
+|---|---|---|---|---|---|
+| exp | 0 | (same bits as the default) | 0 | 0 | 0.0000 (None) |
+| exp2 | 0 | (same bits as the default) | 0 | 0 | 0.0000 (None) |
+| log | 0 | (same bits as the default) | 0 | 0 | 0.0000 (None) |
+| log2 | 0 | (same bits as the default) | 0 | 0 | 0.0000 (None) |
+| sqrt | 0 | (same bits as the default) | 0 | 0 | 0.0000 (None) |
+| rsqrt | 0 | (same bits as the default) | 0 | 0 | 0.0000 (None) |
+
+PTX float ops, default: add.f32, add.s32, add.s64, ex2.approx.f32, ex2.approx.ftz.f32, fma.rn.ftz.f32, mul.f32, mul.wide.s32, rsqrt.approx.ftz.f32, sqrt.approx.ftz.f32, sub.s32
+
+PTX float ops, enable_fp_fusion=False: add.rn.f32, add.s32, add.s64, ex2.approx.f32, ex2.approx.ftz.f32, fma.rn.ftz.f32, mul.rn.f32, mul.wide.s32, rsqrt.approx.ftz.f32, sqrt.approx.ftz.f32, sub.s32

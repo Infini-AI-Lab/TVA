@@ -17,7 +17,10 @@ model's reading of the source's `combine_fn` (`fun a b c => c = a + b` for an in
 `AddRel` for a float add, …). It is up to the model to state it, and the reviewer checks it.
 
 `tl.cumsum` first converts `bfloat16` to `float32` and integers narrower than 32 bits to 32
-bits. `tl.cumprod` converts `bfloat16` to `float32`. The model writes these conversions.
+bits; with `dtype=d` it converts `bfloat16` to `float32` and then the input to `d`, with no other
+widening, and scans in `d` (`standard.py:270-281, 334-343`; `evidence/front-end-subset` S1-S3;
+library issue L87). `tl.cumprod` converts `bfloat16` to `float32`. The model writes these
+conversions.
 
 **Sorting** (`tl.sort`, `standard.py:374-466`): a bitonic network along the last dimension.
 Each compare-and-swap keeps an element unless the comparison `x > y` says to take the

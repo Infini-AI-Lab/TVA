@@ -1,0 +1,7 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+M=16 N=16 K=4, tl.reduce(x[:, :, None] * y[None, :, :], 1, f) with f returning a + a: tt.dot in TTIR: True; output values [10.0] (sum of products: 10.0)
+M=16 N=16 K=4, tl.reduce(x[:, :, None] * y[None, :, :], 1, f) with f returning b + b: tt.dot in TTIR: True; output values [10.0] (sum of products: 10.0)
+M=16 N=16 K=4, tl.reduce(x[:, :, None] * y[None, :, :], 1, f) with f returning a + b: tt.dot in TTIR: True; output values [10.0] (sum of products: 10.0)
+M=8 N=8 K=4, tl.reduce(x[:, :, None] * y[None, :, :], 1, f) with f returning a + a: tt.dot in TTIR: False; output values [4.0] (sum of products: 10.0)
+M=8 N=8 K=4, tl.reduce(x[:, :, None] * y[None, :, :], 1, f) with f returning b + b: tt.dot in TTIR: False; output values [16.0] (sum of products: 10.0)
+M=8 N=8 K=4, tl.reduce(x[:, :, None] * y[None, :, :], 1, f) with f returning a + b: tt.dot in TTIR: False; output values [10.0] (sum of products: 10.0)

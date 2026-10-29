@@ -1,0 +1,8 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+G1 warm-up launch: o[0], o[-1] = (2.0, 2.0) (x + 1)
+G1 captured call returned without an error (CompiledKernel); right after capture o[0], o[-1] = (-7.0, -7.0) (the sentinel: no program ran)
+G1 after replay 1: o[0], o[-1] = (2.0, 2.0)
+G1 x set to 10 on the host, replay 2: o[0], o[-1] = (11.0, 11.0) (the replay reads the memory of the replay)
+G2 captured with n = 16, host variable later 4096: replay wrote 16 elements
+G3 capture with no warm-up: returned; right after capture o3[0] = -7.0
+G3 after replay: o3[0] = 4.0

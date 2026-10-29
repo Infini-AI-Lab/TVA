@@ -1,0 +1,7 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+I1: rejected on the host: CompilationError: AssertionError('initial value for `FACTOR` is of type constexpr[2], but the then block redefines it as int32[]')
+I2: compiled and ran with n = 2; stored -1.0
+I3: compiled and ran with n = 2; stored 10.0
+I4: rejected on the host: CompilationError: AssertionError('initial value for `c` is of type constexpr[2], but the then block redefines it as int32[]')
+I5: compiled and ran with n = 2; stored 30.0
+I6: compiled and ran with n = 2; stored 1.0

@@ -1,0 +1,5 @@
+M,N,K=32,32,32 matmul_kernel: max |c - ref| = 7.301e-03
+M,N,K=32,32,32 matmul_kernel_persistent: max |c - ref| = 7.301e-03
+M,N,K=200,136,64 matmul_kernel: max |c - ref| = 1.498e-02
+M,N,K=200,136,64 matmul_kernel_persistent: max |c - ref| = 1.498e-02
+offs_am for M = 32, BLOCK_SIZE_M = 128: [0, 1, 2, 3] ... [30, 31, 0, 0, 0, 0] ...

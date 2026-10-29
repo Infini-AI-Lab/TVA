@@ -1,0 +1,7 @@
+== LibRoots.lean
+library constants not rooted at TVA: 299
+by root: [(_private, 299)]
+== ImportAll1.lean
+../docs/library-review/round-10/lr-10a/work/ImportAll1.lean:2:7: error: cannot use `import all` without `module`
+== ImportAll2.lean
+../docs/library-review/round-10/lr-10a/work/ImportAll2.lean:2:0: error: cannot import non-`module` TVA.Rules.Num from `module`

@@ -1,0 +1,89 @@
+tvr: tools/tvr.py sha256 38cde42e17f4b038, tools/claim_reader.lean.in sha256 8e1888db2fbf5319; Python 3.13.9
+
+# Part K (L94): Assumptions has exactly the parameters K and P
+
+Fields: `[kernel] spec : Claim.Meets Inst.ok Pre Post K` (the specification itself) and `[kernel] div : ∀ x y r : FloatV .binary32, P.div .binary32 x y r → r = x` (a device fact); `main` is `h.spec`.
+
+- control: the two parameters: `structure Assumptions (K : Claim.Behaviour Inst) (P : Platform)`: the reader elaborates (shape PASS)
+-   field spec: the reader's flags: {'K': True, 'P': False, 'head': 'TVA.Claim.Meets'}
+-   field div: the reader's flags: {'K': False, 'P': True, 'head': 'Eq'}
+-   shape: PASS
+-   axioms: PASS
+-   usage: PASS
+-   namespace: PASS
+-   kinds: FAIL ['spec: a [kernel] assumption may not mention K, P or a TVA.Rules fact', 'div: a [kernel] assumption may not mention K, P or a TVA.Rules fact']
+- lr-16a: two instance parameters before K and P: `structure Assumptions [Inhabited Unit] [Inhabited Bool] (K : Claim.Behaviour Inst) (P : Platform)`: the reader fails (shape FAIL): <scratch>/lean/readerShifted.lean:248:0: error: TVR: Assumptions must have exactly the parameters (K : Claim.Behaviour Inst) (P : Platform), in this order and explicit (library issue L94); its type is [Inhabited
+- an instance parameter after them (`Claim.Consistent Assumptions` does not elaborate): `structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) [Inhabited Unit]`: the kernel does not compile: <scratch>/lean/Trailing.lean:28:38: error: Application type mismatch: The argument
+- a third parameter with a default, which `Assumptions K P` fills in: `structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) (n : Nat := 0)`: the reader fails (shape FAIL): <scratch>/lean/readerDefaulted.lean:248:0: error: TVR: Assumptions must have exactly the parameters (K : Claim.Behaviour Inst) (P : Platform), in this order and explicit (library issue L94); its type is TVA.Claim.Behaviour
+
+# Part L (L95): the gate reads the first table of the facts section only, and the audit names a second
+
+- the tree's docs/rules/num.md: facts listed: 38
+-   its section's tables: 1
+-   the audit's fact-page check: nothing
+- num.md with lr-16b's: a `### Shapes the facts use (not citable)` subsection with a table: facts listed: 38
+-   its section's tables: 2
+-   `MathAcc P …`: Rules.Num.MathAcc is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+-   `ExpF32 P`: PASS
+-   the audit's fact-page check: ['docs/rules/num.md: the section "Facts the library states" holds 2 tables; the gate reads only the first as the facts a kernel may cite, so keep one table there and put any other in another section (library issue L95)']
+- num.md with a second table after a line of text, no heading: facts listed: 38
+-   its section's tables: 2
+-   `MathAcc P …`: Rules.Num.MathAcc is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+-   `ExpF32 P`: PASS
+-   the audit's fact-page check: ['docs/rules/num.md: the section "Facts the library states" holds 2 tables; the gate reads only the first as the facts a kernel may cite, so keep one table there and put any other in another section (library issue L95)']
+- num.md with the table split in two by a blank line: facts listed: 7
+-   its section's tables: 2
+-   `MathAcc P …`: Rules.Num.MathAcc is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   `DivRn P .binary32`: Rules.Num.DivRn is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   `ExpF32 P`: PASS
+-   the audit's fact-page check: ['docs/rules/num.md: the section "Facts the library states" holds 2 tables; the gate reads only the first as the facts a kernel may cite, so keep one table there and put any other in another section (library issue L95)']
+- num.md with the only table moved under a `###` heading: facts listed: none (None)
+-   its section's tables: 1
+-   `MathAcc P …`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+-   `DivRn P .binary32`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+-   `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+-   the audit's fact-page check: ['docs/rules/num.md: no section "Facts the library states" with a table whose first column names the facts a kernel may cite, before any heading of the section, so the gate\'s kinds check accepts no fact but Compiler.Faithful (library issue L62)']
+
+# Part U (L79): the header of an unused function is module code
+
+- lr-16a's manifest (probes_src.MANIFEST): {'ranges': [[1, 17]], 'host': [[27, 31]], 'unused': ['triple', '_unused_helper']}
+## lr-16a's SCALE_SRC
+
+- the headers of its unused functions (def_headers): [18, 19, 23]
+- its module lines (module_lines with source.unused): [1, 2, 3, 5, 18, 19, 23]
+- lr-16a's manifest, every code line of the kernel lines mapped: ['the header of a function in source.unused (lines 18–19, 23: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+- the headers in the host lines (the reviewer then judges what they bind): passes
+- the headers in the kernel lines, mapped: passes
+## lr-16a's JIT_SRC
+
+- the headers of its unused functions (def_headers): [18, 19, 23]
+- its module lines (module_lines with source.unused): [1, 2, 3, 18, 19, 23]
+- lr-16a's manifest, every code line of the kernel lines mapped: ['the header of a function in source.unused (lines 18–19, 23: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+- the headers in the host lines (the reviewer then judges what they bind): passes
+- the headers in the kernel lines, mapped: passes
+## A nested unused function, and a method
+
+- headers of `outer`, `inner` (inside `outer`) and `method` (in a class): [10, 19]
+- module lines: [1, 2, 10, 16, 19]
+- kernel lines [[1, 7]], host lines 10, 16, 19 (the headers of outer and method, the class line): passes
+- vec-add's manifest as shipped (unused []): passes
+- claim.md §2 for JIT_SRC, the headers in the host lines: The code outside every function, and the header of each unused function (its decorators and `def` lines), which run when Python executes the module (a `def` evaluates its decorators, defaults and annotations then), as the manifest classes them: in the kernel lines, lines 1–3; in the host lines, lines 18–19, 23. The gate checks that every such line is in one of these (library issue L79). Judge that every module-level name the claimed launch reads lies in the kernel lines, mapped there, and is one the supported subset admits (the imports of `triton` and of `triton.language as tl`, and the module's `@triton.jit` functions, each bound only by its own `import` or `def`; reading any other module-level value, such as a `tl.constexpr(…)` global or a dtype, is `UNSUPPORTED`), and that the host lines bind nothing the launch reads.
+
+# Part R (L81): a role folder is frozen by its own filing or response, and only by it
+
+## vec-add's ledger at its first 14 events (as shipped before the coordinator's freeze)
+
+- the events naming no folder (`dir`): [2, 5, 7]
+- kernel_record_problems: none
+- the records step, about kernels/: none
+- legacy_folders (what tvr freeze would record): none
+- tvr freeze vec_add_f32 --dry-run: (0, 'nothing to freeze: every role folder of vec_add_f32 that its events record holds only files they record, or names its folder')
+- the ledger unchanged by --dry-run (events): 14
+- tvr freeze vec_add_f32: (0, 'nothing to freeze: every role folder of vec_add_f32 that its events record holds only files they record, or names its folder')
+- the event it appended: {'actor': 'r-vecadd2', 'gate': '401e1fa92db421d7f39da67285f36ece15c1d32af599f9759cf83395571847f1', 'items': {'assumption:faithful': '0117c611fa46f46f7dfb86de36a4923d542c7575dec5648f8eff2ebb69bdd2c5', 'conditions': '83745dc608047e05009a8961e76f3b33ce60ad3cca45a2453a0d44ea252cd43c', 'map': '2907fb1cf7ed2c4e54f09bbca33051b0106b3893e0feb643d4c89e92e190ccf0', 'model': '361e85eab286d2108053000609285374801c94bc908ad5ad8829ec49906bcb7f', 'spec': '72ed5a4b6decdad66af12fe06f538943f19941844ef94d1646a6c64006e5d961'}, 'round': 2, 'seq': 14, 'type': 'accept'}
+- kernel_record_problems after it: none
+- the records step after it, about kernels/: none
+- tvr freeze vec_add_f32 again: (0, 'nothing to freeze: every role folder of vec_add_f32 that its events record holds only files they record, or names its folder')
+- REVIEW.md's line for it: he coordinator froze the work files of `kernels/vec_add_f32/review/round-1/r-vecadd` that its events, recorded before the tool named folders, left out (`tvr freeze`): [work/Cover.lean](review/round-1/r-vecadd/work/Cover.lean), [work/Print.lean](review/round-1/r-vecadd/work/Print.lean), [work/Spec.lean](review/round-1/r-vecadd/work/Spec.lean), [work/offsets.py](review/round-1/r-vecadd/work/offsets.py)

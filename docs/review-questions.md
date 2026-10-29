@@ -6,7 +6,12 @@ answer.
 
 ## Settled
 
-- **S1. Barrier and intra-program ordering.** Settled by the user, 2026-10-26: "we do not need
+- **S1. Barrier and intra-program ordering.** *Superseded 2026-10-27 by library issue L15*: one
+  program is not sequential for global memory on the device, and the user chose to exclude
+  conflicting accesses within a program. Round 3 implements it: `IntraRace` in `WellBehaved`,
+  `Step.defer` for the order of a program's atomics, `Safe` writing each byte once, and
+  [SEMANTICS.md](SEMANTICS.md) "Programs" ([evidence/intra-program](../evidence/intra-program/README.md)).
+  The original entry follows. Settled by the user, 2026-10-26: "we do not need
   debug semantics here". A program is sequential; `tl.debug_barrier` has no meaning and is
   dropped from models. The intra-program hazard rule of an earlier draft is gone.
 - **S2. Atomic defaults.** When the source gives none, `sem = acq_rel` and `scope = gpu`.
@@ -101,7 +106,7 @@ answer.
 - **S10. `/` on floats** (formerly Q6). Settled from the 3.8.0 and pinned LLVM sources,
   2026-10-26. The library keeps `/` as the platform's `P.div` and states its accuracy as rules:
   - `Rules.Num.DivFull`: `float32` `/` is `div.full.f32`, within `2^-22·|x/y| + 2^-148` for
-    `|x/y| ≤ 2^126`. The PTX ISA gives 2 ulp; TVA's own measurement is library issue L4.
+    `|x/y| ≤ 2^126`. The PTX ISA gives 2 ulp; TVA's own measurement is `evidence/num-div-f32`.
   - `Rules.Num.DivRn`: `/` is IEEE; this holds for `float64` (`div.rn.f64`).
   - `DivAcc` now takes the quotient bound `qmax` and is stated over `ℚ`.
 
@@ -121,7 +126,8 @@ answer.
   ones. The question of release sequences no longer arises. A future progress rule must give
   `tl.debug_barrier` a meaning before it allows publication.
 - **S12. Second library review, 2026-10-26: findings fixed.** Six reviewers covered core ops,
-  memory, execution semantics, tensors/scans/`dot_scaled`, numerics, and docs/examples.
+  memory, execution semantics, tensors/scans/`dot_scaled`, numerics, and the examples (a folder since
+  removed).
   - **Claims.**
     - `Compiler.Faithful` needs `Launch.Valid`: grid limits, `num_ctas = 1`, and block shapes
       that are powers of two with at most `2^20` elements.
@@ -158,7 +164,8 @@ answer.
     - `tl.randint`/`tl.rand` (Philox, exact; Random123 known answers).
   - **Documentation.**
     - Hints apply at the value's definition.
-    - `multiple_of`'s `contig` must divide Triton's contiguity.
+    - `multiple_of`'s `contig` must divide Triton's contiguity (withdrawn: what a `contig` above 1
+      promises is open, library issue L2).
     - `-0.0` literals are `+0.0`.
     - Scan promotions are per operation.
     - Name shadowing and instances of library classes are rejected.
@@ -193,6 +200,7 @@ answer.
   assigns to the tensor, from its axis analysis. `contig` in the model is a claim about that
   analysis. Should the library pin the analysis rules for common patterns (`arange`, `+ scalar`,
   `* scalar`) so that `contig` becomes a computed fact?
+  Tracked as library issue L2: until it is settled, the library's reading is `contig = 1`.
 - **Q10. Relaxed atomics** (now also descriptor reductions, which are relaxed TMA
   reductions). Kernels with `sem="relaxed"` (or `acquire`/`release`) atomics on
   shared cells are out of scope (they race). Pure accumulation with relaxed atomics is common
@@ -200,18 +208,20 @@ answer.
   values are unused behave like `acq_rel` ones.
 - **Q11. Proxy ordering for descriptors.** TMA copies use the async proxy. In PTX, a pointer
   (generic-proxy) access followed by a TMA access to the same global bytes needs
-  `fence.proxy.async`. `TVA.Lang.Desc` models descriptor accesses as ordinary sequential ones.
-  That is right only if Triton inserts the fence whenever pointer and descriptor accesses touch
-  the same bytes within a program (across programs, such accesses race, S11). This is not yet
-  confirmed from the Triton sources. Until it is, the reviewer rejects models in which the same
-  bytes are accessed both through pointers and through descriptors.
+  `fence.proxy.async`. Since library issue L15 (round 3), two accesses of one program to the same
+  bytes, one writing, are a conflict within the program whatever proxy they use, so the question
+  remains for two reads (a pointer load and a descriptor load of the same bytes), which no fence
+  orders anyway, and for two atomics, a pointer atomic and a descriptor reduction on the same bytes,
+  which do not conflict but must be atomic with respect to each other across the two proxies.
+  Until a reviewer confirms both, models in which the same bytes are accessed both through pointers
+  and through descriptors stay out of scope (`docs/exclusions.md`).
 - **Q13. Undocumented out-of-bounds behaviour.** `tl.histogram` with a value outside
   `[0, bins)` and `desc.scatter` with an out-of-bounds row are undefined behaviour in the
   library, and `desc.gather` gives unspecified values there. These are conservative. Pin the
   lowerings (`HistogramOpToLLVM`, the TMA gather4/scatter4 path) to relax them if a kernel
   needs it.
 - **Q7. Granularity.** A tensor load or store is one step of the interleaving. This is claimed
-  harmless for race-free launches. A reviewer may ask for the argument in Lean (a
+  harmless for launches without a race between programs or a conflict within a program (L15). A reviewer may ask for the argument in Lean (a
   finer-interleaving refinement). The width of the device's atomics can also differ from the
   model's events:
   - two contiguous fp16 lanes may become one 32-bit `f16x2` atomic

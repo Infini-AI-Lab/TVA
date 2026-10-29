@@ -1,0 +1,40 @@
+2998 declarations
+docs/LIBRARY.md: 770 names, not declarations: A Arith Block Claim Consistency Defs Desc DotLoop Encoding FloatErr FloatMax FusedErr Independent Int K Layout LittleEndian Ops Promote Q R Random Rounding Rules.Compiler Rules.Num Rules.Num.Sm90 Scalar Scaled Scan Sem.Launch Sem.Step Shared SharedAcc Sm90 Softmax Sum SumFused TVA TVA.Lemmas.FloatErr TVA.Math.Arith TVA.Math.Bytes W acq_rel float32 hRW hdebug hvalid i q return_indices sat semantic.cast tie_break_left tl.argmax tl.argmin tl.max tl.min vec_add_f32 x zs
+docs/rules/num.md: 233 names, not declarations: Assumptions K LIBRARY_REPORT Mono P.atomicAdd P.cvt P.div RULE_MISCITED TVA.Lang.Scalar TVA.Lemmas.FloatErr TVA.Lemmas.SharedAcc TVA.Lemmas.Sm90 TVA.Lemmas.Sum TVA.Lemmas.SumFused TVA.Math.Defs TVA.Rules.Num TVA.Rules.Num.Sm90 X __nv_exp2f _check_dtype arith.divf atom.add atom.add.f32 cp.reduce.async.bulk cvt.rn.satfinite.e4m3x2 desc.atomic_add div.approx div.full.f32 div.rn.f64 dom e2m3 e3m2 e5m2x2 enable_reflect_ftz ex2.approx ex2.approx.f32 ex2.approx.ftz.f32 f fast_math fdiv float16 float32 float64 float8e5 fma.rn.f32 fma.rn.ftz fma.rn.ftz.f32 fn.natDom fn.ref fp32 fp64 g i inf input_precision j ld.global.gpu.relaxed.b32 llvm.nvvm.div.full llvm.nvvm.div.rn.d max_num_imprecise_acc mma.sync mul.bf16 mul.f32 n o q qmax rcp.approx rel rsqrt.approx.ftz.f32 sdom sp sqrt.approx.ftz.f32 tl.fdiv tl.math.exp2 tl.math.log2 tl.math.rsqrt tt.precise_divf wgmma x y
+docs/TRANSCRIPTION.md: 143 names, not declarations: BLOCK_SIZE_M C FLAG False Inst Inst.ok LIBRARY_REPORT M N TVA TVA.Lang.Ops TensorDescriptor UNSUPPORTED assert break c cfg combine combine_fn comment config contig dead decl device_assert do do_bench_cudagraph drop elif else export float16 float32 float64 for getattr grouped_matmul_kernel hasattr hi hygiene i if init input_precision int1 int32 int64 int8 isinstance keep list lo max_num_imprecise_acc maxnreg n namespace note num_stages num_warps op other out_dtype p print range return rtz rules scope sem source.unused tl.cdiv tl.constexpr tl.device_assert tl.device_print tl.max tl.range tl.split tl.static_assert tl.static_print tl.static_range tl.view torch.cuda.graph triton.compile uint32 uint64 volatile w warmup x x.castInt
+docs/PROVER_GUIDE.md: 317 names, not declarations: ASTSource BLOCK Block CONDITION_TOO_NARROW Classical.choice CompiledKernel Inst Inst.ok K MODEL_MISMATCH Post Pre P₀ Quot.sound README.md RULE_MISCITED SPEC_TOO_WEAK TVA TVA.Lang.Ops TVA.Lemmas.Int TVA.Rules TVA.Rules.Num.Sm90 TensorDescriptor UNSUPPORTED Wv __main__ _root_ assert body_eq combine_fn consistent def desc.gather desc.scatter do enable_fp_fusion export faithful float64 for hQ hRW hdebug hdisj hf hpost hsafe hvalid i import init int32 int64 jit kernel.json lambda launch launch_cooperative_grid maxnreg model num_stages num_warps open other padding_option print private propext pure return rfl rules set_option source.host source.ranges source.unused tl tl.constexpr tl.device_assert tl.device_print tl.interleave tl.join tl.max tl.min tl.reshape tl.split tl.static_assert tl.static_print triton triton.Config triton.compile triton.constexpr_function triton.knobs uint32 uint8 while
+docs/REVIEWER_GUIDE.md: 86 names, not declarations: ASTSource Assumptions CONDITION_TOO_NARROW CONDITION_WRONG Classical.choice CompiledKernel DOC EVIDENCE_REQUEST Inst.ok K LIBRARY_REPORT MAP_INCOMPLETE MODEL_MISMATCH None Post Pre Quot.sound README.md RULE_MISCITED SPEC_TOO_WEAK SPEC_WRONG TensorDescriptor UNSUPPORTED __main__ attribute break claim.md consistent def double enable_fp_fusion export for fun hygiene if import init instance int32 lambda launch_cooperative_grid let maxnreg n namespace notation num_ctas num_stages num_warps open other propext set_option source.host source.unused tl tl.constexpr torch.cuda.graph triton triton.Config triton.compile triton.constexpr_function triton.knobs triton.testing.do_bench_cudagraph with
+lean/TVA/Lemmas/Access.lean: 36 names, not declarations: L S TVA.Lemmas.Block TVA.Lemmas.BlockPtr TVA.Lemmas.Desc TVA.Lemmas.Independent TVA.Lemmas.Shared en g i other
+lean/TVA/Lemmas/Block.lean: 17 names, not declarations: B BLOCK int32 j l n p
+lean/TVA/Lemmas/BlockPtr.lean: 12 names, not declarations: i int64 p.elem
+lean/TVA/Lemmas/Buf.lean: 11 names, not declarations: b.bytes i n v x x_ptr
+lean/TVA/Lemmas/Claim.lean: 16 names, not declarations: Post Pre TVA.Lemmas.Independent hRW hdebug hvalid i n x
+lean/TVA/Lemmas/Consistency.lean: 46 names, not declarations: dom float32 hnear q rel sp y
+lean/TVA/Lemmas/Desc.lean: 18 names, not declarations: TVA.Lang.Desc desc.gather desc.load desc.scatter desc.store i
+lean/TVA/Lemmas/DotLoop.lean: 18 names, not declarations: B K S St T float32 t
+lean/TVA/Lemmas/FloatErr.lean: 48 names, not declarations: TVA.Math.Rounding float16 float32 float64 g q tl x
+lean/TVA/Lemmas/FloatMax.lean: 33 names, not declarations: float32 tl.max tl.min x
+lean/TVA/Lemmas/FusedErr.lean: 21 names, not declarations: TVA.Lang.Ops enable_fp_fusion float16 float32 float64 float8e4nv float8e5 p q x
+lean/TVA/Lemmas/Independent.lean: 3 names, not declarations: i
+lean/TVA/Lemmas/Int.lean: 21 names, not declarations: TVA.Lemmas.SharedAcc int32 tl.int32 tl.int64 w x
+lean/TVA/Lemmas/Layout.lean: 5 names, not declarations: 
+lean/TVA/Lemmas/Mem.lean: 8 names, not declarations: 
+lean/TVA/Lemmas/Ops.lean: 109 names, not declarations: E.P.dot I c do for hex isMax other pure return_indices st t tie_break_left tl.argmax tl.argmin tl.max tl.min z
+lean/TVA/Lemmas/Random.lean: 7 names, not declarations: float32
+lean/TVA/Lemmas/Safe.lean: 21 names, not declarations: E Q R S TVA.Lemmas.Independent TVA.Lemmas.Ops W do m' m₀ p
+lean/TVA/Lemmas/Scalar.lean: 12 names, not declarations: i int32 sdiv srem tl.cdiv
+lean/TVA/Lemmas/Scaled.lean: 5 names, not declarations: P.dotScaled
+lean/TVA/Lemmas/Scan.lean: 24 names, not declarations: L reverse
+lean/TVA/Lemmas/SharedAcc.lean: 73 names, not declarations: A C G R TVA.Lemmas.Shared W acq_rel float32 g int32 junk l l' n none op ops r s v w x y
+lean/TVA/Lemmas/Shared.lean: 47 names, not declarations: A C G R TVA.Lemmas.SharedAcc W acq_rel i inc int32 j m₀ s v
+lean/TVA/Lemmas/Sm90.lean: 15 names, not declarations: TVA.Rules.Num.Sm90 float32
+lean/TVA/Lemmas/Softmax.lean: 17 names, not declarations: B TVA.Lemmas.FloatMax Y YG YS l l' la ls
+lean/TVA/Lemmas/SumFused.lean: 27 names, not declarations: A B K L enable_fp_fusion float32
+lean/TVA/Lemmas/Sum.lean: 3 names, not declarations: 
+lean/TVA/Lemmas/Tree.lean: 9 names, not declarations: A N t
+lean/TVA/Math/Arith.lean: 34 names, not declarations: TVA.Math.Defs f g maxnum none
+lean/TVA/Math/Defs.lean: 101 names, not declarations: E2M1 E4M3 E5M2 M NatPow TVA.Math.Arith TVA.Math.Encoding TVA.Math.Rounding c emax f g k n none q s sat sg tl.bfloat16 tl.float16 tl.float32 tl.float64 tl.float8e4nv tl.float8e5 true w zs
+lean/TVA/Math/Encoding.lean: 38 names, not declarations: BitVec E E2M1 E4M3 E5M2 F TVA.Lang.Scalar TVA.Math.Defs emax float8e4nv
+lean/TVA/Math/LittleEndian.lean: 8 names, not declarations: TVA.Lang.Mem bs i k v
+lean/TVA/Math/Rounding.lean: 30 names, not declarations: Int.log N Rat.floor TVA.Math.Defs f q rnd sat zs
+lean/TVA/Lang/Scalar.lean: 102 names, not declarations: Bool Option TVA.Lang.Ops TVA.Lang.Promote TVA.Math.Arith c cvt.rn cvt.rz double emax extractFP32 f fabs float16 float32 float64 float8e4b15 float8e4b8 float8e4nv float8e5 float8e5b16 fneg g get_bf16 get_fp16 get_fp32 get_null_value int1 int32 none nsw p q rnd s scalar_constant sdiv srem tl.bfloat16 tl.constexpr tl.dtype tl.float16 tl.float32 tl.float64 tl.float8e4nv tl.float8e5 tl.int1 tl.int32 tl.int8 tl.intW tl.uint64 tl.uintW true udiv urem w x

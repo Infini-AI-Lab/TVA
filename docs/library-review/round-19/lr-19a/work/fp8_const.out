@@ -1,0 +1,63 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+e4m3:
+  0.3                  f32 3e99999a: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 2a
+  1.0                  f32 3f800000: tl.full 38, tl.where 38, run-time x.to 38, cvtSat .rn 38
+  -1.0                 f32 bf800000: tl.full b8, tl.where b8, run-time x.to b8, cvtSat .rn b8
+  448.0                f32 43e00000: tl.full 7e, tl.where 7e, run-time x.to 7e, cvtSat .rn 7e
+  449.0                f32 43e08000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  464.0                f32 43e80000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  465.0                f32 43e88000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  480.0                f32 43f00000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  500.0                f32 43fa0000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  1e6                  f32 49742400: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  -1e6                 f32 c9742400: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn fe
+  57344.0              f32 47600000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  61439.0              f32 476fff00: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  61440.0              f32 47700000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  65536.0              f32 47800000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  1e-9                 f32 3089705f: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 00
+  2.0**-9              f32 3b000000: tl.full 01, tl.where 01, run-time x.to 01, cvtSat .rn 01
+  2.0**-10             f32 3a800000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 00
+  2.0**-17             f32 37000000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 00
+  2.0**-16             f32 37800000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 00
+  -2.0**-17            f32 b7000000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 80
+  1.0 + 2.0**-4        f32 3f880000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 38
+  1.0 + 3 * 2.0**-4    f32 3f980000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 3a
+  float('inf')         f32 7f800000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  -float('inf')        f32 ff800000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn fe
+  float('nan')         f32 7fc00000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7f
+  -float('nan')        f32 ffc00000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn ff
+  3.0e38               f32 7f61b1e6: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7e
+  1e-40                f32 000116c2: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 00
+  e4m3: 4 compiled, as the run-time conversion, 25 rejected on the host, 0 DIFFERS
+e5m2:
+  0.3                  f32 3e99999a: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 35
+  1.0                  f32 3f800000: tl.full 3c, tl.where 3c, run-time x.to 3c, cvtSat .rn 3c
+  -1.0                 f32 bf800000: tl.full bc, tl.where bc, run-time x.to bc, cvtSat .rn bc
+  448.0                f32 43e00000: tl.full 5f, tl.where 5f, run-time x.to 5f, cvtSat .rn 5f
+  449.0                f32 43e08000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 5f
+  464.0                f32 43e80000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 5f
+  465.0                f32 43e88000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 5f
+  480.0                f32 43f00000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 60
+  500.0                f32 43fa0000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 60
+  1e6                  f32 49742400: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7b
+  -1e6                 f32 c9742400: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn fb
+  57344.0              f32 47600000: tl.full 7b, tl.where 7b, run-time x.to 7b, cvtSat .rn 7b
+  61439.0              f32 476fff00: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7b
+  61440.0              f32 47700000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7b
+  65536.0              f32 47800000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7b
+  1e-9                 f32 3089705f: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 00
+  2.0**-9              f32 3b000000: tl.full 18, tl.where 18, run-time x.to 18, cvtSat .rn 18
+  2.0**-10             f32 3a800000: tl.full 14, tl.where 14, run-time x.to 14, cvtSat .rn 14
+  2.0**-17             f32 37000000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 00
+  2.0**-16             f32 37800000: tl.full 01, tl.where 01, run-time x.to 01, cvtSat .rn 01
+  -2.0**-17            f32 b7000000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 80
+  1.0 + 2.0**-4        f32 3f880000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 3c
+  1.0 + 3 * 2.0**-4    f32 3f980000: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 3d
+  float('inf')         f32 7f800000: tl.full 7c, tl.where 7c, run-time x.to 7b, cvtSat .rn 7b  DIFFERS
+  -float('inf')        f32 ff800000: tl.full fc, tl.where fc, run-time x.to fb, cvtSat .rn fb  DIFFERS
+  float('nan')         f32 7fc00000: tl.full 7e, tl.where 7e, run-time x.to 7f, cvtSat .rn 7f
+  -float('nan')        f32 ffc00000: tl.full fe, tl.where fe, run-time x.to 7f, cvtSat .rn ff
+  3.0e38               f32 7f61b1e6: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 7b
+  1e-40                f32 000116c2: rejected on the host (RuntimeError: PassManager::run failed); cvtSat .rn 00
+  e5m2: 9 compiled, as the run-time conversion, 18 rejected on the host, 2 DIFFERS

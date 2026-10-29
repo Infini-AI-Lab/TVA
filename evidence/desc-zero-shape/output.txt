@@ -1,0 +1,33 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+Z1: load, shape [32, 32] (control); model: the block
+  as the model
+Z2: load, shape [0, 32]; model before round 11: every lane the padding 0
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+Z3: load, shape [32, 0]; model before round 11: every lane the padding 0
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+Z4: load, shape [1, 32]; model: row 0, then the padding 0
+  as the model
+Z5: store, shape [0, 32]; model before round 11: nothing written
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+Z6: store, shape [32, 0]; model before round 11: nothing written
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+Z7: atomic_add, shape [0, 32]; model before round 11: nothing written
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+Z8: gather of 8 rows, shape [0, 32]; model before round 11: unspecified values
+  error: PTXASError: PTXAS error: Internal Triton PTX codegen error (ptxas: Feature '.tile::gather4 with destination state space as .shared::cta' requires .target sm_100 or higher)
+Z9: scatter of 8 rows, shape [0, 32]; model: undefined (every lane out of bounds)
+  error: PTXASError: PTXAS error: Internal Triton PTX codegen error (ptxas: Feature '.tile::scatter4' not supported on .target 'sm_90a')
+Z10: load, rank 1, shape [0]; model before round 11: every lane the padding 0
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+Z11: load, shape [0, 32], offsets [32, 0]; model before round 11: every lane the padding 0
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+Z12: shape [0, 32], built but never accessed; model: y[0] = 5, the rest unchanged
+  as the model
+Z13: host-built TensorDescriptor, shape [0, 32]
+  error: AssertionError: shape must be positive
+Z14: gather of 8 rows, shape [32, 32] (control for Z8); model: rows 0-7
+  error: PTXASError: PTXAS error: Internal Triton PTX codegen error (ptxas: Feature '.tile::gather4 with destination state space as .shared::cta' requires .target sm_100 or higher)
+Z15: scatter of 8 rows, shape [32, 32] (control for Z9); model: rows 0-7 written with 7
+  error: PTXASError: PTXAS error: Internal Triton PTX codegen error (ptxas: Feature '.tile::scatter4' not supported on .target 'sm_90a')
+Z16: gather of 8 rows, host-built descriptor of shape [32, 32]; model: rows 0-7
+  error: PTXASError: PTXAS error: Internal Triton PTX codegen error (ptxas: Feature '.tile::gather4 with destination state space as .shared::cta' requires .target sm_100 or higher)

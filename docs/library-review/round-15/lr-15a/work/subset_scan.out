@@ -1,0 +1,300 @@
+in-scope functions scanned: 23
+
+## decorators (9)
+  triton.autotune(configs=get_autotune_config(), key=['M', 'N', 'K'])
+  triton.autotune(configs=list(filter(keep, configs)), key=['N_CTX', 'HEAD_DIM', 'FP8_OUTPUT
+  triton.autotune(configs=matmul_get_configs(), key=['M', 'N', 'K'])
+  triton.autotune(configs=matmul_get_configs(pre_hook=matmul_tma_set_block_size_hook), key=[
+  triton.autotune(configs=matmul_tma_persistent_get_configs(), key=['M', 'N', 'K', 'WARP_SPE
+  triton.autotune(configs=matmul_tma_persistent_get_configs(pre_hook=matmul_tma_set_block_si
+  triton.autotune(tma_configs, key=['group_size'])
+  triton.jit
+  triton.jit(launch_metadata=_matmul_launch_metadata)
+
+## varargs (0)
+
+## posonly/kwonly (0)
+
+## param defaults (0)
+
+## chained compare (0)
+
+## star in call (0)
+
+## attribute store (0)
+
+## subscript store (0)
+
+## slice with bounds (0)
+
+## annassign (6)
+  BM: tl.constexpr = acc.shape[0]
+  BN: tl.constexpr = acc.shape[1]
+  LN2: tl.constexpr = 0.6931471824645996
+  MASK_BLOCK_M1: tl.constexpr = BLOCK_M1 // BLK_SLICE_FACTOR
+  MASK_BLOCK_N2: tl.constexpr = BLOCK_N2 // BLK_SLICE_FACTOR
+  MIXED_PREC: tl.constexpr = ELEM_PER_BYTE_A == 1 and ELEM_PER_BYTE_B == 2
+
+## multi-target assign (0)
+
+## tuple assign (9)
+  (acc, l_i, m_i) = _attn_fwd_inner(acc, l_i, m_i, q, desc_k, desc_v, offset_y, 
+  (acc0, acc1) = acc.reshape([BM, 2, BN // 2]).permute(0, 2, 1).split()
+  (acc0, acc1) = tl.split(acc)
+  (dk, dv) = _attn_bwd_dkdv(dk, dv, Q, k, v, sm_scale, DO, M, D, stride_t
+  (lo, hi) = (0, N_CTX)
+  (lo, hi) = (0, start_m * BLOCK_M)
+  (lo, hi) = (start_m * BLOCK_M, (start_m + 1) * BLOCK_M)
+  (pid_m, pid_n) = _compute_pid(tile_id, num_pid_in_group, num_pid_m, GROUP_SIZ
+  (pid_m, pid_n) = _compute_pid(tile_id_c, num_pid_in_group, num_pid_m, GROUP_S
+
+## tuple assign non-name target (0)
+
+## for-else (0)
+
+## for non-name target (0)
+
+## while-else (0)
+
+## f-strings (0)
+
+## other exprs (1)
+  Dict: {'early_config_prune': prune_invalid_configs}
+
+## other stmts (0)
+
+## ifexp (4)
+  BLOCK_SIZE_N if not EPILOGUE_SUBTILE else BLOCK_SIZE_N // 2
+  tl.float8e4nv if FP8 else tl.float16
+  tl.float8e4nv if FP8_OUTPUT else tl.float16
+  tl.float8e5 if FP8_OUTPUT else tl.float16
+
+## for var used after loop (0)
+
+## param annotations
+  None: 180
+  tl.constexpr: 98
+
+## stmt
+  AnnAssign: 6
+  Assign: 415
+  AugAssign: 45
+  Expr: 39
+  For: 20
+  If: 25
+  Return: 7
+  While: 1
+
+## expr
+  Attribute: 533
+  BinOp: 400
+  BoolOp: 5
+  Call: 386
+  Compare: 65
+  Constant: 337
+  Dict: 2
+  IfExp: 5
+  List: 77
+  Name: 2397
+  Slice: 76
+  Subscript: 78
+  Tuple: 112
+  UnaryOp: 4
+
+## calls
+  BinOp.to: 2
+  _attn_bwd_dkdv: 2
+  _attn_bwd_dq: 2
+  _attn_fwd_inner: 2
+  _compute_pid: 6
+  _maybe_make_tensor_desc: 5
+  a_desc.load: 5
+  a_scale_desc.load: 1
+  acc.reshape: 1
+  acc.reshape(...).permute: 1
+  acc.reshape(...).permute(...).split: 1
+  acc.to: 1
+  acc0.to: 2
+  acc1.to: 2
+  accumulator.to: 10
+  b_desc.load: 5
+  b_scale_desc.load: 1
+  c_desc.store: 9
+  desc_k.load: 1
+  desc_o.store: 1
+  desc_q.load: 1
+  desc_v.load: 2
+  ds.to: 1
+  dsT.to: 1
+  filter: 1
+  float: 2
+  get_autotune_config: 1
+  isinstance: 1
+  leaky_relu: 1
+  list: 1
+  matmul_get_configs: 3
+  matmul_tma_persistent_get_configs: 2
+  min: 4
+  p.to: 1
+  ppT.to: 1
+  range: 13
+  scale_a.reshape: 1
+  scale_a.reshape(...).trans: 1
+  scale_a.reshape(...).trans(...).reshape: 1
+  scale_b.reshape: 1
+  scale_b.reshape(...).trans: 1
+  scale_b.reshape(...).trans(...).reshape: 1
+  tl.arange: 40
+  tl.assume: 8
+  tl.cdiv: 23
+  tl.dot: 16
+  tl.dot(...).to: 2
+  tl.dot_scaled: 3
+  tl.exp: 1
+  tl.join: 1
+  tl.join(...).permute: 1
+  tl.join(...).permute(...).reshape: 1
+  tl.load: 42
+  tl.load(...).to: 7
+  tl.make_tensor_descriptor: 7
+  tl.math.exp2: 4
+  tl.math.log2: 1
+  tl.max: 3
+  tl.max_contiguous: 4
+  tl.maximum: 2
+  tl.multiple_of: 6
+  tl.num_programs: 1
+  tl.permute: 2
+  tl.pointer_type: 3
+  tl.program_id: 20
+  tl.rand: 1
+  tl.range: 7
+  tl.reshape: 2
+  tl.split: 2
+  tl.sqrt: 1
+  tl.static_assert: 3
+  tl.store: 17
+  tl.sum: 7
+  tl.trans: 3
+  tl.where: 11
+  tl.zeros: 18
+  triton.autotune: 8
+  triton.jit: 6
+
+## keywords
+  _attn_bwd_dkdv:MASK: 2
+  _attn_bwd_dq:MASK: 2
+  _maybe_make_tensor_desc:block_shape: 5
+  _maybe_make_tensor_desc:shape: 5
+  _maybe_make_tensor_desc:strides: 5
+  matmul_get_configs:pre_hook: 1
+  matmul_tma_persistent_get_configs:pre_hook: 1
+  tl.load:mask: 19
+  tl.load:other: 12
+  tl.make_tensor_descriptor:block_shape: 6
+  tl.make_tensor_descriptor:shape: 6
+  tl.make_tensor_descriptor:strides: 6
+  tl.max:axis: 1
+  tl.program_id:axis: 10
+  tl.range:disallow_acc_multi_buffer: 1
+  tl.range:flatten: 3
+  tl.range:num_stages: 2
+  tl.range:warp_specialize: 4
+  tl.store:mask: 10
+  tl.sum:axis: 6
+  tl.zeros:dtype: 18
+  triton.autotune:configs: 7
+  triton.autotune:key: 8
+  triton.autotune:prune_configs_by: 2
+  triton.jit:launch_metadata: 6
+
+## binop
+  Add: 147
+  BitAnd: 6
+  Div: 7
+  FloorDiv: 29
+  Mod: 17
+  Mult: 164
+  Sub: 30
+
+## compare
+  Eq: 19
+  Gt: 7
+  GtE: 8
+  Lt: 30
+  LtE: 1
+
+## free names
+  _attn_bwd_dkdv: 2
+  _attn_bwd_dq: 2
+  _attn_fwd_inner: 2
+  _compute_pid: 6
+  _matmul_launch_metadata: 6
+  _maybe_make_tensor_desc: 5
+  configs: 1
+  filter: 1
+  float: 2
+  get_autotune_config: 1
+  isinstance: 1
+  keep: 1
+  leaky_relu: 1
+  list: 1
+  matmul_get_configs: 3
+  matmul_tma_persistent_get_configs: 2
+  matmul_tma_set_block_size_hook: 2
+  min: 4
+  prune_invalid_configs: 2
+  range: 13
+  tl: 413
+  tma_configs: 1
+  triton: 31
+
+## constant kinds
+  NoneType: 76
+  bool: 6
+  float: 21
+  int: 195
+  str: 39
+
+## for iter
+  range: 13
+  tl.range: 7
+
+## unaryop
+  Not: 2
+  USub: 2
+
+## augassign
+  Add: 40
+  Mult: 3
+  Sub: 2
+
+## attributes (not tl.*)
+  T: 9
+  dtype: 3
+  element_ty: 3
+  load: 16
+  permute: 2
+  reshape: 6
+  shape: 2
+  split: 1
+  store: 10
+  to: 30
+  trans: 2
+
+## subscripts
+  (:, None): 41
+  (None, :): 35
+  0: 1
+  1: 1
+
+## returns
+  _attn_bwd_dkdv:value: 1
+  _attn_bwd_dq:value: 1
+  _attn_fwd_inner:value: 1
+  _compute_pid:value: 1
+  _maybe_make_tensor_desc:value: 2
+  leaky_relu:value: 1
+
+## boolop
+  And: 5

@@ -1,8 +1,9 @@
 import TVA.Lang.Platform
 import TVA.Lang.Scaled
-import TVA.Lemmas.Num
+import TVA.Lemmas.FloatErr
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
 # Rules about the platform (`Rules.Num.*`)
@@ -16,10 +17,14 @@ The platform `P` gives the operations the Triton documentation leaves to the dev
 - fp8 conversions (`P.cvt`);
 - float `atomic_add` (`P.atomicAdd`).
 
-A claim quantifies over `P`. These definitions are the facts about `P` a bundle may assume, as
-fields of its `Assumptions` with kind `[rule]`. Each is stated for one operation and one format,
-so a bundle assumes only what it uses. The reviewer judges each instance against the device and
-Triton 3.8.0's lowering, with the evidence it asks for.
+A claim quantifies over `P`. These definitions are the shapes of the facts about `P` a bundle
+may assume, as fields of its `Assumptions` with kind `[rule]`. The facts themselves, each one
+instance for one operation, format and configuration with its constants written into the
+definition, are the constants of `TVA.Rules.Num.Sm90` (`Exp2F32`, `DotF16`, …), together with
+`DivFull`, `DivRn` and the `…Total` rules here; `docs/rules/num.md` lists them. A bundle assumes
+only the facts it uses. Library review judges each fact against the device and Triton 3.8.0's
+lowering, with TVA's evidence; a kernel reviewer checks only that a bundle cites the library's
+fact for the operation its model uses.
 
 * `MathTotal`, `DivTotal`, `CvtTotal`, `DotTotal`, `AtomicAddTotal`: the operation has a result
   (on the device there is always one). The `Safe` rules need these.
@@ -30,11 +35,17 @@ Triton 3.8.0's lowering, with the evidence it asks for.
   the real function (`MathFn.ref`).
 * `DivAcc f qmax rel abs`: the same for `x / y`, `y ≠ 0`, `|x/y| ≤ qmax`. Two instances name
   what Triton 3.8.0 compiles `/` to on NVIDIA:
-  - `DivFull`: `float32` `/` is `div.full.f32`, at most 2 ulp from `x/y`;
+  - `DivFull`: `float32` `/` is `div.full.f32`, within `2^-22·|x/y| + 2^-148` of `x/y` for
+    `|x/y| ≤ 2^126`;
   - `DivRn f`: `/` is IEEE division (`float64`: `div.rn.f64`). `DivRn.divAcc` turns it into
-    `DivAcc` with half an ulp, and `DivFull.of_divRn` shows that `DivFull` is satisfiable.
-* `CvtAcc f g`: an fp8 (or other) conversion of a finite value in range is finite and within
-  half an ulp of the target.
+    `DivAcc` with one rounding's bound (`u`, `η`), and `DivFull.of_divRn` shows that `DivFull` is
+    satisfiable.
+* `CvtRn f g`: a conversion with the default rounding of a finite value in `g`'s range is its
+  rounding to nearest even; `CvtRn.cvtAcc` turns it into `CvtAcc f g`: finite and within one
+  rounding's bound (`|x|·u + η`) of the target.
+* `CvtSat f g`: a conversion with the default rounding of any input is its saturating rounding
+  to nearest even (`FloatV.cvtSat .rn`: `±maxVal` beyond the range and for `±∞`), up to NaN
+  payload; `CvtSat.cvtRn` gives `CvtRn f g`.
 * `DotAcc cfg dom rel abs`: an output element of `tl.dot` whose row of `a` and column of `b`
   have values (`DType.val?`) in `dom` is within `rel K · (|acc| + Σ |a·b|) + abs K` of
   `acc + Σ a·b`, with room below the accumulator's `DType.bound`. With an integer accumulator
@@ -46,6 +57,9 @@ Triton 3.8.0's lowering, with the evidence it asks for.
   within `rel · |o + v| + abs`. On NVIDIA, `atom.add.f32` flushes subnormal inputs and results.
   Two operands just below the smallest normal then sum to almost `2 · 2^emin` and give `0`, so
   `abs` must be at least `2^(emin + 1)` (`2^-125` for fp32).
+* `MathAcc.mono`, `DotAcc.mono`, `DotScaledAcc.mono`: a fact implies the same statement with
+  larger constants or a smaller domain; `CvtRn.cvtAcc`, `CvtSat.cvtRn`, `DivRn.divAcc`: a fact
+  implies a weaker shape. They state nothing new about the device.
 -/
 namespace TVA.Rules.Num
 
@@ -139,27 +153,32 @@ def DivAcc (f : Format) (qmax rel abs : ℚ) : Prop :=
     |x.toRat / y.toRat| ≤ qmax →
     r.isFinite = true ∧ |r.toRat - x.toRat / y.toRat| ≤ rel * |x.toRat / y.toRat| + abs
 
-/-- **`/` on `float32` is `div.full.f32`.** Triton 3.8.0 lowers `arith.divf` on `f32` to
-`llvm.nvvm.div.full` (`triton-3.8.0-nvidia-ElementwiseOpToLLVM.cpp:553-580`), which LLVM selects
-as `div.full.f32` (`llvm-NVPTXIntrinsics.td:1536-1537`). The PTX ISA documents it as "a
-relatively fast, full-range approximation that scales operands to achieve better accuracy", at
-most 2 ulp from `x/y`. For `|x/y| ≤ 2^126`, 2 ulp is at most `2^-22·|x/y|` for a normal result
-and `2^-148` for a subnormal one. TVA's own measurement of it on the target is library issue
-L4 (`docs/library-review/ISSUES.md`). -/
+/-- **`/` on `float32` is `div.full.f32`**, within `2^-22·|x/y| + 2^-148` of `x/y` for
+`|x/y| ≤ 2^126`. Triton 3.8.0 lowers `arith.divf` on `f32` to `llvm.nvvm.div.full`
+(`triton-3.8.0-nvidia-ElementwiseOpToLLVM.cpp:553-580`), which LLVM selects as `div.full.f32`
+(`llvm-NVPTXIntrinsics.td:1536-1537`). The PTX ISA documents it as "a relatively fast, full-range
+approximation that scales operands to achieve better accuracy", with a maximum error of 2 ulp. The
+fact is the relative bound, not "2 ulp": near the top of a binade, where the bound is almost 4 ulp
+of the quotient's binade, errors reach 2.11 ulp. TVA's evidence: `evidence/num-div-f32`, about
+`3.1·10^10` pairs (every divisor mantissa at many exponents, subnormal operands, random pairs), all
+within the bound, at most `0.651` of it (`docs/rules/num.md`, "Division"). -/
 def DivFull : Prop := DivAcc P .binary32 (2 ^ 126) (2 ^ (-22 : ℤ)) (2 ^ (-148 : ℤ))
 
 /-- **`/` on format `f` is IEEE division**, up to NaN payload. Triton 3.8.0 lowers `arith.divf`
 on `f64` to `llvm.nvvm.div.rn.d` (`triton-3.8.0-nvidia-ElementwiseOpToLLVM.cpp:569-571`), which
 is `div.rn.f64` or, after LLVM's `instcombine`, an IEEE `fdiv` (`llvm-NVPTXTargetTransformInfo.cpp:298`).
-So `DivRn .binary64` holds on NVIDIA. -/
+So `DivRn .binary64` holds on NVIDIA. TVA's evidence: `evidence/num-div-f64`, `x / y` and
+`tl.fdiv(x, y)` on `float64` against `FloatV.divRn` itself on about `4.5·10^8` pairs (random
+patterns, subnormal dividends, quotients and divisors, divisors near `1`, quotients next to
+midpoints, constant divisors), all equal up to NaN payload (`docs/rules/num.md`, "Division"). -/
 def DivRn (f : Format) : Prop :=
   ∀ x y r : FloatV f, P.div f x y r → FloatV.NaNEq (FloatV.divRn x y) r
 
 /-- **A round-to-nearest conversion is accurate in range.** A finite value within `g`'s range
 converts (with the default `.rn`) to a finite value within `|x|·u + η` of `x`, the bound
 `FloatV.cvt_err` gives for one rounding. It is judged per source format and architecture: before
-sm_90, `float32` goes to fp8 through a truncation to `float16`, which can exceed half an ulp but
-stays within this bound. -/
+sm_90, `float32` goes to fp8 through a truncation to `float16`, which is not always the rounding to
+nearest but stays within this bound. -/
 def CvtAcc (f g : Format) : Prop :=
   ∀ x : FloatV f, ∀ r : FloatV g, P.cvt f g .rn x r → x.isFinite = true → |x.toRat| ≤ g.maxVal →
     r.isFinite = true ∧ |r.toRat - x.toRat| ≤ |x.toRat| * g.u + g.eta
@@ -204,7 +223,7 @@ column `n` of `b` have values `va`, `vb` (`DType.val?`: finite floats, integers)
 the accumulator element has value `vc`. Then the result element has a value within
 `rel K · mag + abs K` of `vc + Σₖ va·vb`, where `mag = |vc| + Σₖ |va·vb|`, provided
 `mag + rel K · mag + abs K` is at most the accumulator's `DType.bound`. The constants hold for
-one `cfg`, and the reviewer judges them with its input precision (`tf32` keeps 10 fraction bits
+one `cfg`, and library review judges them with its input precision (`tf32` keeps 10 fraction bits
 of `float32` operands) and its `maxImpreciseAcc` (how many fp8 products sm_90 may sum in the
 tensor core's reduced-precision accumulator before adding them into `float32`). With an
 integer accumulator and `rel = abs = 0`, the rule says that an exact sum in range is the
@@ -220,12 +239,93 @@ def DotAcc (cfg : DotCfg) (dom : ℚ → Prop) (rel abs : ℕ → ℚ) : Prop :=
       ∃ vr, cfg.acc.val? (r.get2 i n) = some vr ∧
         |vr - (vc + ∑ k, va k * vb k)| ≤ rel K * (|vc| + ∑ k, |va k * vb k|) + abs K
 
+/-- **A conversion rounds to nearest even in range.** A finite value within `g`'s range
+converts, with the default `.rn`, to its rounding to nearest even (`FloatV.cvtWith .rn`, up to
+NaN payload). It says nothing about inputs beyond `g.maxVal` (Triton's fp8 conversions saturate
+them), infinities or NaN; `CvtSat` does. `CvtRn.cvtAcc` turns it into `CvtAcc`. -/
+def CvtRn (f g : Format) : Prop :=
+  ∀ x : FloatV f, ∀ r : FloatV g, P.cvt f g .rn x r → x.isFinite = true → |x.toRat| ≤ g.maxVal →
+    FloatV.NaNEq (FloatV.cvtWith .rn x) r
+
+/-- **A conversion saturates.** Every input converts, with the default `.rn`, to its saturating
+rounding to nearest even (`FloatV.cvtSat .rn`, up to NaN payload): a finite value within `g`'s
+range to its rounding (as `CvtRn` says), a finite value beyond the range and `±∞` to `±maxVal` of
+`g` (PTX `.satfinite`), and a NaN to a NaN. `CvtSat.cvtRn` gives `CvtRn`; `FloatV.cvtSat_rn_err`
+bounds the result against the clamped value, and `FloatV.cvtSat_of_gt`, `cvtSat_of_isInf` give
+`±maxVal`. -/
+def CvtSat (f g : Format) : Prop :=
+  ∀ x : FloatV f, ∀ r : FloatV g, P.cvt f g .rn x r → FloatV.NaNEq (FloatV.cvtSat .rn x) r
+
+/-! ## Weakening a fact
+
+A kernel may use a fact with larger constants or a smaller domain than the library states. These
+lemmas derive the weaker statement; they state nothing new about the device. -/
+
+section Mono
+variable {P}
+
+/-- `MathAcc` on a smaller domain with a bound that is at least as large at every point. -/
+theorem MathAcc.mono {fn : MathFn} {f : Format} {dom dom' : Set ℝ} {rel abs rel' abs' : ℝ}
+    (h : MathAcc P fn f dom rel abs) (hdom : dom' ⊆ dom)
+    (hb : ∀ g, fn.ref = some g → ∀ x ∈ dom', x ∈ fn.natDom →
+      rel * |g x| + abs ≤ rel' * |g x| + abs') :
+    MathAcc P fn f dom' rel' abs' := by
+  obtain ⟨g, hg, h⟩ := h
+  refine ⟨g, hg, fun x r hr hx hd hn hroom => ?_⟩
+  have hb' := hb g hg _ hd hn
+  obtain ⟨hfin, herr⟩ := h x r hr hx (hdom hd) hn (by linarith)
+  exact ⟨hfin, herr.trans hb'⟩
+
+/-- `DotAcc` on a smaller domain with constants at least as large. -/
+theorem DotAcc.mono {cfg : DotCfg} {dom dom' : ℚ → Prop} {rel abs rel' abs' : ℕ → ℚ}
+    (h : DotAcc P cfg dom rel abs) (hdom : ∀ q, dom' q → dom q) (hrel : ∀ K, rel K ≤ rel' K)
+    (habs : ∀ K, abs K ≤ abs' K) : DotAcc P cfg dom' rel' abs' := by
+  intro M N K a b acc r hr i n va vb vc hva hvb hd hvc hroom
+  have hmag : 0 ≤ |vc| + ∑ k, |va k * vb k| :=
+    add_nonneg (abs_nonneg _) (Finset.sum_nonneg fun _ _ => abs_nonneg _)
+  have hm := mul_le_mul_of_nonneg_right (hrel K) hmag
+  obtain ⟨vr, hvr, herr⟩ := h a b acc r hr i n va vb vc hva hvb
+    (fun k => ⟨hdom _ (hd k).1, hdom _ (hd k).2⟩) hvc (by linarith [habs K])
+  exact ⟨vr, hvr, by linarith [habs K]⟩
+
+/-- `DotScaledAcc` on smaller domains with constants at least as large. -/
+theorem DotScaledAcc.mono {cfg : ScaledCfg} {dom dom' : ℚ → Prop} {sdom sdom' : Nat → Prop}
+    {rel abs rel' abs' : ℕ → ℚ} (h : DotScaledAcc P cfg dom sdom rel abs)
+    (hdom : ∀ q, dom' q → dom q) (hsdom : ∀ b, sdom' b → sdom b) (hrel : ∀ K, rel K ≤ rel' K)
+    (habs : ∀ K, abs K ≤ abs' K) : DotScaledAcc P cfg dom' sdom' rel' abs' := by
+  intro M N K a sa b sb acc r hr i n va vb hva hvb hd hsa hsb hacc hroom
+  have hmag : 0 ≤ |(acc.get2 i n).toRat| + ∑ k, |va k * vb k| :=
+    add_nonneg (abs_nonneg _) (Finset.sum_nonneg fun _ _ => abs_nonneg _)
+  have hm := mul_le_mul_of_nonneg_right (hrel K) hmag
+  obtain ⟨hfin, herr⟩ := h a sa b sb acc r hr i n va vb hva hvb
+    (fun k => ⟨hdom _ (hd k).1, hdom _ (hd k).2⟩) (fun t ht k => hsdom _ (hsa t ht k))
+    (fun t ht k => hsdom _ (hsb t ht k)) hacc (by linarith [habs K])
+  exact ⟨hfin, by linarith [habs K]⟩
+
+/-- Round-to-nearest in range gives `CvtAcc` (one rounding: `FloatV.cvt_err`). -/
+theorem CvtRn.cvtAcc {f g : Format} (hg : g.Regular) (h : CvtRn P f g) : CvtAcc P f g := by
+  intro x r hr hx hmax
+  obtain ⟨hfin, herr⟩ := FloatV.cvt_err hg hx hmax
+  have hne := h x r hr hx hmax
+  rw [FloatV.cvtWith_rn] at hne
+  rw [hne.eq (FloatV.isFinite_iff.mp hfin).1]
+  exact ⟨hfin, herr⟩
+
+/-- A saturating conversion rounds to nearest even in range (`FloatV.cvtSat_of_le`). -/
+theorem CvtSat.cvtRn {f g : Format} (hg : g.Regular) (h : CvtSat P f g) : CvtRn P f g := by
+  intro x r hr hx hmax
+  have := h x r hr
+  rwa [FloatV.cvtSat_of_le hg .rn hx hmax] at this
+
+end Mono
+
 /-! ## Consequences of the division rules -/
 
 section Div
 variable {P}
 
-/-- IEEE division meets `DivAcc` with half an ulp, over the whole range of the format. -/
+/-- IEEE division meets `DivAcc` with one rounding's bound (`u`, `η`), over the whole range of the
+format. -/
 theorem DivRn.divAcc {f : Format} (hf : f.Regular) (h : DivRn P f) : DivAcc P f f.maxVal f.u f.eta := by
   intro x y r hr hx hy hy0 hmax
   have hz : f.isZero y.pat = false := by
@@ -241,13 +341,13 @@ cites it also holds when `/` is IEEE. -/
 theorem DivFull.of_divRn (h : DivRn P .binary32) : DivFull P := by
   intro x y r hr hx hy hy0 hq
   have hmax : (2 : ℚ) ^ 126 ≤ Format.binary32.maxVal := by
-    norm_num [Format.maxVal, Format.binary32, Format.maxSig, Format.emax, Format.m, Format.expMax, Format.bias]
+    rw [Format.binary32_maxVal]; norm_num
   obtain ⟨hfin, herr⟩ := DivRn.divAcc Format.binary32_regular h x y r hr hx hy hy0 (hq.trans hmax)
   refine ⟨hfin, herr.trans ?_⟩
   have hu : Format.binary32.u ≤ 2 ^ (-22 : ℤ) := by
-    norm_num [Format.u, Format.binary32, Format.m]
+    rw [Format.binary32_u]; exact zpow_le_zpow_right₀ (by norm_num) (by norm_num)
   have he : Format.binary32.eta ≤ 2 ^ (-148 : ℤ) := by
-    norm_num [Format.eta, Format.binary32, Format.emin, Format.m, Format.bias]
+    rw [Format.binary32_eta]; exact zpow_le_zpow_right₀ (by norm_num) (by norm_num)
   exact add_le_add (mul_le_mul_of_nonneg_right hu (abs_nonneg _)) he
 
 end Div

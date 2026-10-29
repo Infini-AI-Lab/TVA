@@ -1,0 +1,7 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9; enable_fp_fusion=True
+DotF16: 400 elements (both paths, K in (16, 32, 64, 256, 1024)), 0 outside the fact, largest error / bound 0.1246
+DotBF16: 400 elements (both paths, K in (16, 32, 64, 256, 1024)), 0 outside the fact, largest error / bound 0.0139
+DotE4m3: 400 elements (both paths, K in (32, 64, 128, 512, 1024)), 0 outside the fact, largest error / bound 0.4343
+DotE5m2: 400 elements (both paths, K in (32, 64, 128, 512, 1024)), 0 outside the fact, largest error / bound 0.4360
+DotF32Ieee: 240 elements (both paths, K in (16, 32, 64)), 0 outside the fact, largest error / bound 0.3692
+outside the facts in all: 0

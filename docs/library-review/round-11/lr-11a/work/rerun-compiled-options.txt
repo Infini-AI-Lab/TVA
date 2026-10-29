@@ -1,0 +1,15 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+O1: JIT launch with enable_reflect_ftz=False
+  exp2(-130) = 7.346839692639297e-40 (2^-130)
+O2: warmup with enable_reflect_ftz=False, then the CompiledKernel with no keyword
+  exp2(-130) = 7.346839692639297e-40 (2^-130)
+O3: warmup with the defaults, then the CompiledKernel (control)
+  exp2(-130) = 0.0 (0)
+O4: triton.compile with options enable_reflect_ftz=False, then the CompiledKernel
+  exp2(-130) = 7.346839692639297e-40 (2^-130)
+O5: triton.compile for target cuda sm_80, launched on the H200
+  error: RuntimeError: Triton Error [CUDA]: no kernel image is available for execution on the device
+O6: CompiledKernel warmed up with a [32, 32] descriptor, launched with a [16, 16] one
+  elements written: 1024 (a [16, 16] block is 256, a [32, 32] block 1024); top-left 16 x 16 equal to x
+O7: the JIT with the [16, 16] descriptor (control)
+  elements written: 256 (a [16, 16] block is 256, a [32, 32] block 1024); top-left 16 x 16 equal to x

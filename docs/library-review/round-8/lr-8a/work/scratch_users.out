@@ -1,0 +1,5 @@
+tl.dot fp16 loop: global_scratch_size = 0
+sort, cumsum, argmax, histogram, gather, atomic_add: global_scratch_size = 0
+tl.range num_stages=3 with tl.dot: global_scratch_size = 0
+tl.dot_scaled e4m3 (sm_90 emulation): global_scratch_size = 0
+triton 3.8.0 NVIDIA H200 NVL

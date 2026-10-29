@@ -1,0 +1,7 @@
+Triton 3.8.0, NVIDIA H200 NVL, torch 2.11.0+cu130, Python 3.13.9
+- R1: stored [3.0, 6.0, 9.0, 12.0] …; o == 2·x (the model): False, o == 3·x: True, o == 5·x: False
+- R2: stored [3.0, 6.0, 9.0, 12.0] …; o == 2·x (the model): False, o == 3·x: True, o == 5·x: False
+- D0: returned; lane 0 stored -2147483648 (the model, wrapping: -2147483648)
+- D1: AcceleratorError: CUDA error: device-side assert triggered  [stderr: kmod.py:27: unknown: block: [0,0,0], thread: [96,0,0] Assertion `int32 overflow detected for operation add` failed. | kmod.py:27: unknown: block: [0,0,0], thread: [112,0,0] Assertion `int32 overflow detected for operation add` failed.]
+- T1: stored [0.0, 0.693147, 1.098612, 1.386294] …; o ≈ exp(x) (the model): False, o ≈ log(x): True
+- S1: stored [5.0, 10.0, 15.0, 20.0] …; o == 2·x (the model): False, o == 3·x: False, o == 5·x: True

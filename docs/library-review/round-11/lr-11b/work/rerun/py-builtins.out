@@ -1,0 +1,21 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+F1: -float('inf') stored, and as other= of a masked load
+  stored -inf (0xff800000), 1.0 (0x3f800000), 2.0 (0x40000000), -inf (0xff800000), -inf (0xff800000)
+F2: tl.zeros([4], tl.float32) - float('inf')
+  stored -inf (0xff800000), -inf (0xff800000), -inf (0xff800000), -inf (0xff800000)
+F3: float, int and len of compile-time values in tl.static_assert
+  compiled and ran; atomics: 0
+F4: isinstance on a pointer argument and on a host TensorDescriptor argument
+  pointer: is a tl.tensor_descriptor -> 2.0, is a tl.tensor -> 1.0 (1.0 yes, 2.0 no); stores in the TTIR: 2; TensorDescriptor: is a tl.tensor_descriptor -> 1.0, is a tl.tensor -> 2.0 (1.0 yes, 2.0 no); stores in the TTIR: 2
+F5: getattr(x, 'dtype') and hasattr(x, 'dtype') of a block
+  compiled and ran; atomics: 0
+F6: len(x.shape) and list(x.shape) of a block
+  compiled and ran; atomics: 0
+F7: isinstance(tl.atomic_add(c, 1), tl.tensor) in tl.static_assert, 8 programs
+  compiled and ran; atomics: 8
+F8: float(x) of a loaded scalar
+  rejected on the host: CompilationError: TypeError("float() argument must be a string or a real number, not 'tensor'")
+F9: abs(-3)
+  rejected on the host: CompilationError: NameError('abs is not defined')
+F10: int(n) of a runtime int32 argument
+  rejected on the host: CompilationError: TypeError("int() argument must be a string, a bytes-like object or a real number, not 'tensor'")

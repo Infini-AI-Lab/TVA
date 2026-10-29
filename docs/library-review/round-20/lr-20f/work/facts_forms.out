@@ -1,0 +1,8 @@
+control (the tree's page): problems 0; facts the gate accepts: 38; MathAcc citable: False
+a pipe-less table before the real one: problems 1 (line 100: a line that is no blank line, table row, ### heading or text (a rule or setext u); facts the gate accepts: 0; MathAcc citable: False
+a table whose header has no leading pipe: problems 1 (line 100: a table needs a blank line before and after it); facts the gate accepts: 0; MathAcc citable: False
+<details> around the real table: problems 1 (line 99: a line that is no blank line, table row, ### heading or text (a rule or setext un); facts the gate accepts: 0; MathAcc citable: False
+a text line with inline HTML before the table: problems 0; facts the gate accepts: 38; MathAcc citable: False
+the real table's rows indented by 1 space: problems 18 (line 99: a line that is no blank line, table row, ### heading or text (a rule or setext un); facts the gate accepts: 0; MathAcc citable: False
+a '#Heading' (no space) before the table: problems 1 (line 99: a line that is no blank line, table row, ### heading or text (a rule or setext un); facts the gate accepts: 0; MathAcc citable: False
+a tab-indented line: problems 1 (line 99: a line that is no blank line, table row, ### heading or text (a rule or setext un); facts the gate accepts: 0; MathAcc citable: False

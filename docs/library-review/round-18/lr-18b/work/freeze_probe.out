@@ -1,0 +1,16 @@
+tvr: tools/tvr.py sha256 38cde42e17f4b038; vec-add's ledger: 15 events
+
+- event 15 as shipped: what tvr freeze writes
+- round-1/prover: dir False, frozen False, records ['notes.md', 'response.json']
+- round-1/r-vecadd: dir False, frozen True, records ['filing.json', 'report.md', 'work/Cover.lean', 'work/Print.lean', 'work/Spec.lean', 'work/offsets.py']
+- round-2/r-vecadd: dir True, frozen False, records ['filing-2.json', 'filing.json', 'report-2.md', 'report.md', 'work/Axioms.lean', 'work/Cover2.lean', 'work/Names.lean', 'work/ranges.py']
+- round-2/r-vecadd2: dir True, frozen False, records ['filing.json', 'report.md', 'work/Checks.lean', 'work/Instances.lean', 'work/Names.lean']
+- a hand-written freeze of round-1/r-vecadd again, a new work file: the folder was frozen before
+- a hand-written freeze of round-1/prover (event 5, no dir, not frozen): its notes.md: it records kernels/vec_add_f32/review/round-1/prover/notes.md, which is no work file of the folder that its own events leave out (a filing, report, response or notes is recorded only by its own event)
+- a hand-written freeze of round-1/prover: a response-2.json at its top: it records kernels/vec_add_f32/review/round-1/prover/response-2.json, which is no work file of the folder that its own events leave out (a filing, report, response or notes is recorded only by its own event)
+- a hand-written freeze of round-1/prover: a report under a subfolder: accepted (records no event)
+- a hand-written freeze of round-1/prover: a file of round-1/r-vecadd: it records kernels/vec_add_f32/review/round-1/r-vecadd/filing-2.json, which is no work file of the folder that its own events leave out (a filing, report, response or notes is recorded only by its own event)
+- a hand-written freeze of round-2/r-vecadd (event 11 names its dir): a work file: the folder's own events name it as a folder (`dir`), so they record every file it held
+- a hand-written freeze of round-2/r-vecadd2: its filing-2.json: the folder's own events name it as a folder (`dir`), so they record every file it held
+- a hand-written freeze of round-1/prover by r-vecadd: a freeze is the coordinator's (`tvr freeze`)
+- a hand-written freeze of round-3/r-vecadd, which no event records: it names no role folder that a filing or response before it records

@@ -28,6 +28,7 @@ HOME = "~"
 DOLLAR = "$"
 UP = ".." + SEP
 USER_HOME = SEP + "home" + SEP + "someone"
+Q, SQ, BS, BQ = '"', "'", "\\", "\x60"  # a double and a single quote, a backslash, a backquote
 LIB = "lean/TVA/Claim.lean"
 DOC = "docs/SEMANTICS.md"
 KERNEL = "vec_add_f32"
@@ -121,6 +122,29 @@ def mathlib_fork(m):
     for p in m["packages"]:
         if p["name"] == "mathlib":
             p["url"] = "https://github.com/someone/mathlib4"
+
+
+def kernel_source_path(root):
+    """The kernel's source gains a comment with a home path into a sibling folder; kernel.json pins the
+    new sha256, as a prover would."""
+    mp = os.path.join(root, "kernels", KERNEL, "kernel.json")
+    m = json.load(open(mp))
+    src = os.path.join(root, "kernels", KERNEL, m["source"]["file"])
+    with open(src, "a") as f:
+        f.write("# from " + HOME + SEP + "fpv" + SEP + "otherproj" + SEP + "vec_add.py\n")
+    m["source"]["sha256"] = hashlib.sha256(open(src, "rb").read()).hexdigest()
+    json.dump(m, open(mp, "w"), indent=2)
+
+
+def pinned_primitive(root):
+    """A new file in primitives/, pinned by its sha256 in the semantics manifest, with a home path into
+    a sibling folder."""
+    body = "see " + HOME + SEP + "fpv" + SEP + "otherproj" + SEP + "results.txt\n"
+    write(root, "primitives/triton-3.8.0-notes.txt", body)
+    mp = os.path.join(root, "primitives", "semantics-manifest.json")
+    m = json.load(open(mp))
+    m["sources"].append({"source": "triton-3.8.0-notes.txt", "sha256": hashlib.sha256(body.encode()).hexdigest()})
+    json.dump(m, open(mp, "w"), indent=2)
 
 
 NAME_SPLIT = "abc" + NAME[0].lower() + NAME[1:].upper() + "def"  # the name across a case boundary
@@ -230,6 +254,83 @@ PROBES = [
                       USER_HOME + SEP + "fpv" + SEP + "tva" + SEP + "x, " + HOME + SEP + "fpv, round-<N>" + SEP +
                       "author" + SEP + "notes.md, {kernel}" + SEP + "review" + SEP + "x, https:" + SEP + SEP +
                       "example.org" + USER_HOME + SEP + "fpv" + SEP + "otherproj.\n")),
+    # round 4 (L7): spellings that passed round 3's scanner, and the `fpv/<name>` rule
+    ("P20", "docs: `${HOME:-}` (parameter expansion with a default) then a sibling", True,
+     lambda r: append(r, DOC, "\nRun cd " + DOLLAR + "{HOME:-}" + SEP + "fpv" + SEP + "otherproj.\n")),
+    ("P21", "docs: `${HOME%/}` (suffix removed) then a sibling", True,
+     lambda r: append(r, DOC, "\nRun cd " + DOLLAR + "{HOME%" + SEP + "}" + SEP + "fpv" + SEP + "otherproj.\n")),
+    ("P22", "docs: `$(echo ~)` (command substitution) then a sibling", True,
+     lambda r: append(r, DOC, "\nRun cd " + DOLLAR + "(echo " + HOME + ")" + SEP + "fpv" + SEP + "otherproj.\n")),
+    ("P23", "evidence JSON: a home path with `\\u002F` escapes", True,
+     lambda r: write(r, "evidence/hints-dry-run/y.json", '{"p": "' + HOME + "\\u002F" + "fpv" + "\\u002F" + "otherproj" + '"}\n')),
+    ("P24", "docs: a shell redirect into a sibling, no space after `>`", True,
+     lambda r: append(r, DOC, "\nRun python3 run.py >" + USER_HOME + SEP + "fpv" + SEP + "otherproj" + SEP + "out.txt\n")),
+    ("P25", "docs: `2>~` into a sibling", True,
+     lambda r: append(r, DOC, "\nRun python3 run.py 2>" + HOME + SEP + "fpv" + SEP + "otherproj" + SEP + "err.txt\n")),
+    ("P26", "docs: a home path not under `fpv` right after a closing bracket", True,
+     lambda r: append(r, DOC, "\nSee (the notes)" + USER_HOME + SEP + "otherdir" + SEP + "x.md\n")),
+    ("P27", "docs: `~/…` not under `fpv` right after `]`", True,
+     lambda r: append(r, DOC, "\nSee x]" + HOME + SEP + "otherdir" + SEP + "x.md\n")),
+    ("P28", "docs: a home path right after `-`", True,
+     lambda r: append(r, DOC, "\nSee a-" + USER_HOME + SEP + "otherdir" + SEP + "x.md\n")),
+    ("P29", "docs: `$(dirname $0)` then `..` out of TVA", True,
+     lambda r: append(r, DOC, "\nRun cd " + DOLLAR + "(dirname " + DOLLAR + "0)" + (SEP + "..") * 6 + SEP + "otherdir\n")),
+    ("P30", "evidence script: an f-string home path into a sibling", True,
+     lambda r: write(r, "evidence/hints-dry-run/z.py", "p = f\"{os.environ['HOME']}" + SEP + "fpv" + SEP + "otherproj" + SEP
+                     + "x\"\n")),
+    ("P31", "docs: URL-escaped slashes (`%2F`)", True,
+     lambda r: append(r, DOC, "\nSee " + HOME + "%2F" + "fpv" + "%2F" + "otherproj" + "%2F" + "x\n")),
+    ("P32", "docs: `fpv/<name>` with no home prefix", True,
+     lambda r: append(r, DOC, "\nSee fpv" + SEP + "otherproj" + SEP + "x.md\n")),
+    ("P33", "docs: `fpv/` then a folder whose name starts with `tva`", True,
+     lambda r: append(r, DOC, "\nSee fpv" + SEP + "tva-old" + SEP + "x.md\n")),
+    ("P34", "control: TVA, placeholders and redirects that stay in TVA", False,
+     lambda r: append(r, DOC, "\nSee fpv" + SEP + "tva" + SEP + "docs, fpv" + SEP + "<dir>" + SEP + "x, " + HOME + SEP + "fpv, fpv"
+                      + SEP + "…, run.py >out.txt, echo x >" + HOME + SEP + "fpv" + SEP + "tva" + SEP + "x, round-<N>" + SEP
+                      + "author" + SEP + "notes.md, kernels" + SEP + "{kernel}" + SEP + "x, " + DOLLAR + "(date -Is), "
+                      + DOLLAR + "{HOME}" + SEP + "fpv" + SEP + "tva" + SEP + "docs, 100%, a-b" + SEP + "c.\n")),
+    # round 5 (library issue L7): shell quoting, more escapes, home spellings with nesting and
+    # backslashes, and the files pinned by sha256 (a kernel's source, a new file in primitives/)
+    ("P35", "docs: shell, home, then `fpv` in double quotes, then a sibling", True,
+     lambda r: append(r, DOC, "\nRun cd " + HOME + SEP + Q + "fpv" + Q + SEP + "otherproj" + SEP + "x\n")),
+    ("P36", "docs: shell, an absolute home path with the sibling in single quotes", True,
+     lambda r: append(r, DOC, "\nRun cat " + USER_HOME + SEP + "fpv" + SEP + SQ + "otherproj" + SQ + SEP + "x\n")),
+    ("P37", "docs: shell, empty quotes after `fpv`", True,
+     lambda r: append(r, DOC, "\nRun cd " + HOME + SEP + "fpv" + SQ + SQ + SEP + "otherproj\n")),
+    ("P38", "docs: the named HTML entity `&sol;` as the separator", True,
+     lambda r: append(r, DOC, "\nSee " + HOME + "&sol;" + "fpv" + "&sol;" + "otherproj.\n")),
+    ("P39", "evidence script: Python octal escapes `\\057` as the separator", True,
+     lambda r: write(r, "evidence/hints-dry-run/z.py", "p = " + Q + HOME + BS + "057" + "fpv" + BS + "057" + "otherproj" + Q + "\n")),
+    ("P40", "evidence script: Python `\\N{SOLIDUS}` as the separator", True,
+     lambda r: write(r, "evidence/hints-dry-run/z.py", "p = " + Q + HOME + BS + "N{SOLIDUS}" + "fpv" + BS + "N{SOLIDUS}"
+                     + "otherproj" + Q + "\n")),
+    ("P41", "docs: shell brace expansion after `fpv/`", True,
+     lambda r: append(r, DOC, "\nRun ls " + HOME + SEP + "fpv" + SEP + "{" + "otherproj,x}" + SEP + "y\n")),
+    ("P42", "docs: `${HOME:-${X}}` (a nested expansion) then a folder under home", True,
+     lambda r: append(r, DOC, "\nRun cd " + DOLLAR + "{HOME:-" + DOLLAR + "{X}}" + SEP + "otherdir" + SEP + "x\n")),
+    ("P43", "docs: `%USERPROFILE%` then a backslash path", True,
+     lambda r: append(r, DOC, "\nRun cd %USERPROFILE%" + BS + "otherdir" + BS + "x\n")),
+    ("P44", "docs: PowerShell `$HOME` then a backslash path", True,
+     lambda r: append(r, DOC, "\nRun cd " + DOLLAR + "HOME" + BS + "otherdir" + BS + "x\n")),
+    ("P45", "docs: a backquote command substitution of the home directory", True,
+     lambda r: append(r, DOC, "\nRun cd " + BQ + "echo " + HOME + BQ + SEP + "otherdir\n")),
+    ("P46", "docs: `$(…)` nested three deep, then a folder", True,
+     lambda r: append(r, DOC, "\nRun cd " + DOLLAR + "(a " + DOLLAR + "(b " + DOLLAR + "(echo " + HOME + ")))" + SEP
+                      + "otherdir\n")),
+    ("P47", "docs: a line continuation (backslash, line break) inside a path into a sibling", True,
+     lambda r: append(r, DOC, "\nRun cd " + HOME + SEP + "fpv" + SEP + BS + "\n" + "otherproj" + SEP + "x\n")),
+    ("P48", "kernel source (pinned by kernel.json): a comment with a home path into a sibling", True, kernel_source_path),
+    ("P49", "primitives: a new file, pinned in the semantics manifest, with a home path into a sibling", True,
+     pinned_primitive),
+    ("P50", "control: the round-5 spellings inside TVA, and placeholders", False,
+     lambda r: append(r, DOC, "\nSee " + HOME + SEP + Q + "fpv" + Q + SEP + "tva" + SEP + "docs, fpv" + SEP + Q + "<dir>" + Q
+                      + ", fpv" + SEP + "{tva,<dir>}" + SEP + "x, " + HOME + "&" + "sol;fpv&" + "sol;tva, " + DOLLAR + "{HOME:-"
+                      + DOLLAR + "{X}}" + SEP + "fpv" + SEP + "tva, " + BQ + "max" + BQ + SEP + BQ + "min" + BQ + ".\n")),
+    ("P51", "lexical limit (protocol §2): a glob, `cd` then a relative path, a shell variable", False,
+     lambda r: append(r, DOC, "\nRun ls " + HOME + SEP + "fpv" + SEP + "*" + SEP + "x; cd " + HOME + SEP + "fpv && cat "
+                      + "otherproj" + SEP + "x; D=" + HOME + SEP + "fpv; cat " + DOLLAR + "D" + SEP + "otherproj.\n")),
+    ("N9", "docs: the name with its first letter as a JSON `\\u` escape", True,
+     lambda r: append(r, DOC, "\nAs in " + "\\u%04x" % ord(NAME[0]) + NAME[1:] + ".\n")),
     ("F1", "evidence: the name inside a `.log` file", True, lambda r: append(r, "evidence/hints-dry-run/run.log", f"{NAME}\n")),
     ("F2", "evidence: the name inside a `.csv` file", True, lambda r: append(r, "evidence/hints-dry-run/data.csv", f"{NAME},1\n")),
     ("F3", "evidence: the name inside a `.sh` script", True, lambda r: append(r, "evidence/hints-dry-run/run.sh", f"# {NAME}\n")),

@@ -1,0 +1,28 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+
+== Part A: one block written, then read back ==
+B= 1024 num_warps= 4 reversed                    :   3504032 of 8388608 elements differ from source order (41.8%); 3504032 of them the sentinel
+B= 1024 num_warps= 4 reversed + debug_barrier    :         0 of 8388608 elements differ from source order (0.0%); 0 of them the sentinel
+B= 1024 num_warps= 4 same offsets                :         0 of 8388608 elements differ from source order (0.0%); 0 of them the sentinel
+B= 1024 num_warps= 4 war (in place, reversed)    :     13376 of 8388608 elements differ from source order (0.2%); elements of buf that are not the source-order result
+B= 1024 num_warps= 4 waw (second store reversed) :         0 of 8388608 elements differ from source order (0.0%); elements where the first store won
+B= 4096 num_warps= 8 reversed                    :   4017180 of 16777216 elements differ from source order (23.9%); 4017180 of them the sentinel
+B= 4096 num_warps= 8 reversed + debug_barrier    :         0 of 16777216 elements differ from source order (0.0%); 0 of them the sentinel
+B= 4096 num_warps= 8 same offsets                :         0 of 16777216 elements differ from source order (0.0%); 0 of them the sentinel
+B= 4096 num_warps= 8 war (in place, reversed)    :    289308 of 16777216 elements differ from source order (1.7%); elements of buf that are not the source-order result
+B= 4096 num_warps= 8 waw (second store reversed) :         0 of 16777216 elements differ from source order (0.0%); elements where the first store won
+
+== Part B: a loop reading what the previous iteration stored ==
+range                                    num_stages=1:      0 of 66560 elements differ from source order (0.0%)
+range                                    num_stages=3:      0 of 66560 elements differ from source order (0.0%)
+tl.range(num_stages=3)                   num_stages=1:  64512 of 66560 elements differ from source order (96.9%)
+tl.range(num_stages=3)                   num_stages=3:  64512 of 66560 elements differ from source order (96.9%)
+tl.range(num_stages=3) + debug_barrier   num_stages=1:      0 of 66560 elements differ from source order (0.0%)
+tl.range(num_stages=3) + debug_barrier   num_stages=3:      0 of 66560 elements differ from source order (0.0%)
+range, row through tl.dot                num_stages=1:      0 of 66560 elements differ from source order (0.0%); cp.async in PTX: False
+range, row through tl.dot                num_stages=3:  64512 of 66560 elements differ from source order (96.9%); cp.async in PTX: True
+range, row through tl.dot                num_stages=4:  64512 of 66560 elements differ from source order (96.9%); cp.async in PTX: True
+
+== Part C: two atomics on the same address in one program ==
+B= 1024 num_warps= 4: atomic_xchg pair: 268288 of 83886080 addresses end as 1 (second operation's exchange first); atomic_add pair: 280128 of 83886080 second-add old values are 0 (second operation's add first); every counter ends at 2
+B= 4096 num_warps= 8: atomic_xchg pair: 603136 of 83886080 addresses end as 1 (second operation's exchange first); atomic_add pair: 627232 of 83886080 second-add old values are 0 (second operation's add first); every counter ends at 2

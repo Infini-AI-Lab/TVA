@@ -1,0 +1,46 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+
+== TRITON_F32_DEFAULT unset ==
+  knobs.language.fp32_default=None, knobs.language.default_fp_fusion=True
+  tl.dot(a, b)                         : TTIR tt.dot inputPrecision = tf32; result values [16.0] (16 + 2^-8 = 16.00390625)
+  tl.dot(a, b, allow_tf32=False)       : TTIR tt.dot inputPrecision = (omitted, so ieee); result values [16.00390625] (16 + 2^-8 = 16.00390625)
+  tl.dot(a, b, input_precision="ieee") : TTIR tt.dot inputPrecision = (omitted, so ieee); result values [16.00390625] (16 + 2^-8 = 16.00390625)
+
+== TRITON_F32_DEFAULT = 'ieee' ==
+  knobs.language.fp32_default='ieee', knobs.language.default_fp_fusion=True
+  tl.dot(a, b)                         : TTIR tt.dot inputPrecision = (omitted, so ieee); result values [16.00390625] (16 + 2^-8 = 16.00390625)
+  tl.dot(a, b, allow_tf32=False)       : TTIR tt.dot inputPrecision = (omitted, so ieee); result values [16.00390625] (16 + 2^-8 = 16.00390625)
+  tl.dot(a, b, input_precision="ieee") : TTIR tt.dot inputPrecision = (omitted, so ieee); result values [16.00390625] (16 + 2^-8 = 16.00390625)
+
+== TRITON_F32_DEFAULT = 'tf32' ==
+  knobs.language.fp32_default='tf32', knobs.language.default_fp_fusion=True
+  tl.dot(a, b)                         : TTIR tt.dot inputPrecision = tf32; result values [16.0] (16 + 2^-8 = 16.00390625)
+  tl.dot(a, b, allow_tf32=False)       : TTIR tt.dot inputPrecision = tf32; result values [16.0] (16 + 2^-8 = 16.00390625)
+  tl.dot(a, b, input_precision="ieee") : TTIR tt.dot inputPrecision = (omitted, so ieee); result values [16.00390625] (16 + 2^-8 = 16.00390625)
+
+== TRITON_F32_DEFAULT = 'tf32x3' ==
+  knobs.language.fp32_default='tf32x3', knobs.language.default_fp_fusion=True
+  tl.dot(a, b)                         : TTIR tt.dot inputPrecision = tf32x3; result values [16.00390625] (16 + 2^-8 = 16.00390625)
+  tl.dot(a, b, allow_tf32=False)       : TTIR tt.dot inputPrecision = tf32x3; result values [16.00390625] (16 + 2^-8 = 16.00390625)
+  tl.dot(a, b, input_precision="ieee") : TTIR tt.dot inputPrecision = (omitted, so ieee); result values [16.00390625] (16 + 2^-8 = 16.00390625)
+
+== TRITON_F32_DEFAULT = 'bogus' ==
+  knobs.language.fp32_default='bogus', knobs.language.default_fp_fusion=True
+  tl.dot(a, b)                         : rejected on the host, CompilationError: input_precision must be one of ('tf32', 'tf32x3', 'ieee', 'bf16x3', 'bf16x6'). Got bogus
+  tl.dot(a, b, allow_tf32=False)       : rejected on the host, CompilationError: input_precision must be one of ('tf32', 'tf32x3', 'ieee', 'bf16x3', 'bf16x6'). Got bogus
+  tl.dot(a, b, input_precision="ieee") : TTIR tt.dot inputPrecision = (omitted, so ieee); result values [16.00390625] (16 + 2^-8 = 16.00390625)
+
+== TRITON_DEFAULT_FP_FUSION unset ==
+  knobs.language.fp32_default=None, knobs.language.default_fp_fusion=True
+  default enable_fp_fusion : compiled enable_fp_fusion=True; PTX fma.rn.f32 1, mul.rn.f32 0, add.rn.f32 0; y values [1.4901161193847656e-08] (fused 2^-26 = 1.4901161193847656e-08, unfused 0.0)
+  enable_fp_fusion=True    : compiled enable_fp_fusion=True; PTX fma.rn.f32 1, mul.rn.f32 0, add.rn.f32 0; y values [1.4901161193847656e-08] (fused 2^-26 = 1.4901161193847656e-08, unfused 0.0)
+
+== TRITON_DEFAULT_FP_FUSION = '0' ==
+  knobs.language.fp32_default=None, knobs.language.default_fp_fusion=False
+  default enable_fp_fusion : compiled enable_fp_fusion=False; PTX fma.rn.f32 0, mul.rn.f32 1, add.rn.f32 1; y values [0.0] (fused 2^-26 = 1.4901161193847656e-08, unfused 0.0)
+  enable_fp_fusion=True    : compiled enable_fp_fusion=True; PTX fma.rn.f32 1, mul.rn.f32 0, add.rn.f32 0; y values [1.4901161193847656e-08] (fused 2^-26 = 1.4901161193847656e-08, unfused 0.0)
+
+== TRITON_DEFAULT_FP_FUSION = '1' ==
+  knobs.language.fp32_default=None, knobs.language.default_fp_fusion=True
+  default enable_fp_fusion : compiled enable_fp_fusion=True; PTX fma.rn.f32 1, mul.rn.f32 0, add.rn.f32 0; y values [1.4901161193847656e-08] (fused 2^-26 = 1.4901161193847656e-08, unfused 0.0)
+  enable_fp_fusion=True    : compiled enable_fp_fusion=True; PTX fma.rn.f32 1, mul.rn.f32 0, add.rn.f32 0; y values [1.4901161193847656e-08] (fused 2^-26 = 1.4901161193847656e-08, unfused 0.0)

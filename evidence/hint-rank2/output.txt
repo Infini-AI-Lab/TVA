@@ -1,0 +1,76 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+R1: rank 2, tutorial 08's multiple_of(p, [16, 16]), S = 64 (rows 128 bytes apart)
+  library's reading: false (p[0, 1] = a + 2 bytes)
+  result:  correct
+  loads:   ld.global.v4.b32
+
+R2: the same, S = 36 (rows 72 bytes apart)
+  library's reading: false
+  result:  error: CUDA error: misaligned address
+  loads:   ld.global.v4.b32
+
+R3: the same block, no hint, S = 64
+  library's reading: -
+  result:  correct
+  loads:   ld.global.v4.b32
+
+R4: max_contiguous(multiple_of(p, [1, 16]), [1, 64]), S = 64
+  library's reading: true
+  result:  correct
+  loads:   ld.global.v4.b32
+
+R5: the same hints, S = 36
+  library's reading: false (row 1 starts 72 bytes in)
+  result:  error: CUDA error: misaligned address
+  loads:   ld.global.v4.b32
+
+R6: the same block, no hint, S = 36
+  library's reading: -
+  result:  correct
+  loads:   ld.global.b16
+
+C1: max_contiguous(rr, 1) on rr = [0..7]: true for groups of 1, but rr's contiguity is 8
+  library's reading: false (not rr's contiguity)
+  result:  error: CUDA error: misaligned address
+  loads:   ld.global.v4.b32
+
+C2: max_contiguous(rr, 8), rr's own contiguity
+  library's reading: true
+  result:  correct
+  loads:   ld.global.b32
+
+C3: no hint on rr
+  library's reading: -
+  result:  correct
+  loads:   ld.global.b32
+
+T1: tutorial 09's clamped offsets, full tile (N = 64, BN = 64)
+  library's reading: true
+  result:  correct
+  loads:   ld.global.b32
+
+T2: the same, partial tile (N = 40): offsets [0..39, 0, ..., 0]
+  library's reading: false
+  result:  WRONG at 12 of 64 elements; first: index 41 got 1001.0 expected 1000.0; wrong lanes: [41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63], each holding x[1]: True
+  loads:   ld.global.b32
+
+T3: the same partial tile without the hints
+  library's reading: -
+  result:  correct
+  loads:   ld.global.b16
+
+K1: max_constancy(offs, 4) on offs = [0..127]
+  library's reading: false
+  result:  WRONG at 96 of 128 elements; first: index 1 got 1 expected 4
+  loads:   -
+
+K2: max_constancy(offs // 4, 4)
+  library's reading: true
+  result:  correct
+  loads:   -
+
+K3: offs // 4, no hint
+  library's reading: -
+  result:  correct
+  loads:   -

@@ -1,0 +1,78 @@
+tvr: tools/tvr.py sha256 2a390f9dca6f5ae1, tools/claim_reader.lean.in sha256 3fecc3f2be58ee48
+
+# Part A: Compiler.Faithful fields
+
+- `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel"}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch"}, {"fn": "K", "pp": "K d"}]
+  kinds: PASS
+- `otherP : ∀ d, d.ok → Rules.Compiler.Faithful Platform.sm90ref (model d) (launch d) (K d)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"const": "TVA.Platform.sm90ref", "pp": "TVA.Platform.sm90ref", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel"}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch"}, {"fn": "K", "pp": "K d"}]
+  kinds: Rules.Compiler.Faithful is not applied to the platform P
+- `everyP : ∀ (Q : Platform) (d : Inst), d.ok → Rules.Compiler.Faithful Q (model d) (launch d) (K d)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"pp": "Q", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel", "var": 1}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 1}, {"fn": "K", "pp": "K d", "var": 1}]
+  kinds: Rules.Compiler.Faithful is not applied to the platform P
+- `conj : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d) ∧ True`
+  head And; arguments: [{"pp": "TVA.Rules.Compiler.Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K d)"}, {"const": "True", "pp": "True"}]
+  kinds: it states no library fact (under its binders it applies And, not a TVA.Rules fact); only Compiler.Faithful may mention K
+- `exist : ∃ d : Inst, Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  head Exists; arguments: [{"const": "Kernels.Demo.Inst", "pp": "Kernels.Demo.Inst"}, {"pp": "fun d => TVA.Rules.Compiler.Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K d)"}]
+  kinds: it states no library fact (under its binders it applies Exists, not a TVA.Rules fact); only Compiler.Faithful may mention K
+- `dneg : ∀ d, d.ok → ¬¬ Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  head Not; arguments: [{"fn": "Not", "pp": "¬TVA.Rules.Compiler.Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K d)"}]
+  kinds: it states no library fact (under its binders it applies Not, not a TVA.Rules fact); only Compiler.Faithful may mention K
+- `letx : ∀ d : Inst, let e := d; Rules.Compiler.Faithful P (model e) (launch e) (K e)`
+  head (none); arguments: []
+  kinds: it states no library fact (under its binders it applies (no constant), not a TVA.Rules fact); only Compiler.Faithful may mention K
+- `beta : ∀ d : Inst, (fun x => Rules.Compiler.Faithful P (model x) (launch x) (K x)) d`
+  head (none); arguments: [{"pp": "d", "type": "Kernels.Demo.Inst"}]
+  kinds: it states no library fact (under its binders it applies (no constant), not a TVA.Rules fact); only Compiler.Faithful may mention K
+- `nested : ∀ d : Inst, d.ok → ∀ e : Inst, Rules.Compiler.Faithful P (model e) (launch e) (K e)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model e", "type": "TVA.Kernel", "var": 2}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch e", "type": "TVA.Launch", "var": 2}, {"fn": "K", "pp": "K e", "var": 2}]
+  kinds: PASS
+- `explicit : ∀ d, d.ok → @Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel"}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch"}, {"fn": "K", "pp": "K d"}]
+  kinds: PASS
+- `updated : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) { launch d with debug := false } (K d)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel"}, {"pp": "let __src := Kernels.Demo.launch d;\n{ grid := __src.grid, fusion := __src.fusion, numCtas := __src.numCtas, pdl := __src.pdl, blocks := __src.blocks }", "type": "TVA.Launch"}, {"fn": "K", "pp": "K d"}]
+  kinds: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model d) (let __src := Kernels.Demo.launch d;
+{ grid := __src.grid, fusion := __src.fusion, numCtas := __src.numCtas, pdl := __src.pdl,`
+- `idModel : ∀ d, d.ok → Rules.Compiler.Faithful P (id (model d)) (launch d) (K d)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"pp": "id (Kernels.Demo.model d)", "type": "TVA.Kernel"}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch"}, {"fn": "K", "pp": "K d"}]
+  kinds: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (id (Kernels.Demo.model d)) (Kernels.Demo.launch d) (K d)`
+- `hypOther : ∀ d, d.ok → Rules.Compiler.Faithful P (model ⟨0⟩) (launch d) (K d) → Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel"}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch"}, {"fn": "K", "pp": "K d"}]
+  kinds: a [rule] may mention no constant of the kernel's own but Inst, Inst.ok, model, launch (found Inst.mk)
+
+# Part B: listed facts in further forms
+
+- `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  head TVA.Rules.Compiler.Faithful; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel"}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch"}, {"fn": "K", "pp": "K d"}]
+  kinds: PASS
+- `expOtherP : Rules.Num.ExpF32 Platform.sm90ref`
+  head TVA.Rules.Num.ExpF32; arguments: [{"const": "TVA.Platform.sm90ref", "pp": "TVA.Platform.sm90ref", "type": "TVA.Platform"}]
+  kinds: Rules.Num.ExpF32 is not applied to the platform P
+- `cvtDefault : Rules.Num.CvtTotal P .binary32 .e4m3`
+  head TVA.Rules.Num.CvtTotal; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "TVA.Math.Float.Format.binary32", "pp": "TVA.Math.Float.Format.binary32", "type": "TVA.Math.Float.Format"}, {"const": "TVA.Math.Float.Format.e4m3", "pp": "TVA.Math.Float.Format.e4m3", "type": "TVA.Math.Float.Format"}, {"const": "TVA.Math.Float.RoundMode.rn", "pp": "TVA.Math.Float.RoundMode.rn", "type": "TVA.Math.Float.RoundMode"}]
+  kinds: PASS
+- `mathBound : ∀ f : TVA.Math.Float.Format, Rules.Num.MathTotal P .exp f`
+  head TVA.Rules.Num.MathTotal; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "TVA.MathFn.exp", "pp": "TVA.MathFn.exp", "type": "TVA.MathFn"}, {"pp": "f", "type": "TVA.Math.Float.Format"}]
+  kinds: PASS
+- `d64abbrev : Rules.Num.DivRn P f64`
+  head TVA.Rules.Num.DivRn; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "Kernels.Demo.f64", "pp": "Kernels.Demo.f64", "type": "TVA.Math.Float.Format"}]
+  kinds: a [rule] may mention no constant of the kernel's own but Inst, Inst.ok, model, launch (found f64); Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- `d64if : Rules.Num.DivRn P (if True then .binary64 else .binary32)`
+  head TVA.Rules.Num.DivRn; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"pp": "if True then TVA.Math.Float.Format.binary64 else TVA.Math.Float.Format.binary32", "type": "TVA.Math.Float.Format"}]
+  kinds: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- `divK : ∀ d : Inst, K d = K d → Rules.Num.DivFull P`
+  head TVA.Rules.Num.DivFull; arguments: [{"platform": true, "pp": "P", "type": "TVA.Platform"}]
+  kinds: only Compiler.Faithful may mention K
+
+# Part C: the reader of num.md's section "Facts the library states"
+
+- num.md as in the tree: 32 facts; shapes among them: none
+  a field `MathAcc P .exp .binary32 Set.univ (2^-24) (2^-150)`: Rules.Num.MathAcc is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+- num.md a `###` subsection with a table of shapes inside the section: 33 facts; shapes among them: ['DivRn as P .binary64 / P .binary32', 'MathAcc']
+  a field `MathAcc P .exp .binary32 Set.univ (2^-24) (2^-150)`: PASS
+- num.md a code span `CvtRn` in the second column of the ExpF32 row: 32 facts; shapes among them: none
+  a field `MathAcc P .exp .binary32 Set.univ (2^-24) (2^-150)`: Rules.Num.MathAcc is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+

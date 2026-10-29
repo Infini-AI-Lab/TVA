@@ -1,0 +1,6 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+S1: shape [4, 32], strides [0, 1], block [4, 32]: as the model
+S2: shape [4, 32], strides [4, 1], block [4, 32]: as the model
+S3: shape [1, 32], strides [274877906944, 1], block [2, 32]: as the model
+S4: shape [1, 32], strides [68719476736, 1], block [2, 32]: as the model
+S5: shape [4, 32], strides [32, 1], block [4, 32]: as the model

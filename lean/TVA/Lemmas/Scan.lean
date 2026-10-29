@@ -210,30 +210,8 @@ instance {sg : Bool} {w : Nat} : SortKey.Lawful (IntV sg w) where
     cases sg <;> simp [IntV.lt, IntV.toInt, BitVec.slt, BitVec.ult]
   same_refl _ _ := rfl
 
-/-- The order key of a float: the IEEE order, with both zeros at `0`. -/
-def FloatV.sortKey {f : Format} (x : FloatV f) : Int :=
-  if f.isZero x.pat then 0 else ieeeOrderKey f.e f.m x.pat
-
-theorem ieeeOrderKey_of_isZero {f : Format} {x : Nat} (h : f.isZero x = true) :
-    ieeeOrderKey f.e f.m x = 0 ∨ ieeeOrderKey f.e f.m x = -1 := by
-  simp only [Format.isZero, Format.expField, Format.fracField, Bool.and_eq_true, beq_iff_eq] at h
-  simp only [ieeeOrderKey, floatFields, h.1, h.2, Nat.zero_mul, Nat.add_zero]
-  split <;> simp
-
-theorem ieeeOrderKey_of_not_isZero {f : Format} {x : Nat} (h : f.isZero x = false) :
-    1 ≤ ieeeOrderKey f.e f.m x ∨ ieeeOrderKey f.e f.m x ≤ -2 := by
-  simp only [Format.isZero, Format.expField, Format.fracField, Bool.and_eq_false_iff, beq_eq_false_iff_ne,
-    ne_eq] at h
-  have hmag : 1 ≤ (x >>> f.m) % 2 ^ f.e * 2 ^ f.m + x % 2 ^ f.m := by
-    rcases h with hE | hF
-    · have h1 : 1 ≤ (x >>> f.m) % 2 ^ f.e := Nat.one_le_iff_ne_zero.mpr hE
-      have h2 : 1 ≤ 2 ^ f.m := Nat.one_le_two_pow
-      have := Nat.mul_le_mul h1 h2
-      omega
-    · omega
-  simp only [ieeeOrderKey, floatFields]
-  generalize (x >>> f.m % 2 ^ f.e * 2 ^ f.m + x % 2 ^ f.m) = M at hmag ⊢
-  split_ifs <;> omega
+/-- The order key of a float: the IEEE order, with both zeros at `0` (`Format.orderKey`). -/
+def FloatV.sortKey {f : Format} (x : FloatV f) : Int := f.orderKey x.pat
 
 instance {f : Format} : SortKey.Lawful (FloatV f) where
   key := FloatV.sortKey
@@ -241,25 +219,15 @@ instance {f : Format} : SortKey.Lawful (FloatV f) where
     show FloatV.lt a b = true ↔ FloatV.sortKey a < FloatV.sortKey b
     have ha' : f.isNaN a.pat = false := ha
     have hb' : f.isNaN b.pat = false := hb
-    unfold FloatV.lt Format.compare FloatV.sortKey
-    simp only [ha', hb', Bool.or_false, Bool.false_eq_true, ite_false]
-    cases hza : f.isZero a.pat <;> cases hzb : f.isZero b.pat
-    · simp [compare_lt_iff_lt]
-    · have := ieeeOrderKey_of_not_isZero hza
-      have := ieeeOrderKey_of_isZero hzb
-      simp [compare_lt_iff_lt]
-      omega
-    · have := ieeeOrderKey_of_isZero hza
-      have := ieeeOrderKey_of_not_isZero hzb
-      simp [compare_lt_iff_lt]
-      omega
-    · simp
+    unfold FloatV.lt FloatV.sortKey
+    rw [← Format.cmp_lt_iff ha' hb']
+    simp
   same_refl a ha := by
     show FloatV.eq a a = true
     have ha' : f.isNaN a.pat = false := ha
-    unfold FloatV.eq Format.compare
-    simp only [ha', Bool.or_false, Bool.false_eq_true, ite_false]
-    split_ifs <;> simp
+    unfold FloatV.eq
+    rw [(Format.cmp_eq_iff ha' ha').mpr rfl]
+    rfl
 
 /-- A sorted arrangement of a row exists. -/
 theorem sorted_row_exists {β : Type} [SortKey β] [SortKey.Lawful β] {n : Nat} (row : Fin n → β)

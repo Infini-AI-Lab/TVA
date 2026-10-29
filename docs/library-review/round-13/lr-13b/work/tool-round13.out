@@ -1,0 +1,150 @@
+tvr: tools/tvr.py sha256 1949787e63b614e5, tools/claim_reader.lean.in sha256 fd98285938f8da45; git version 2.52.0; Python 3.13.9
+
+# Part K (L62, L63): what a [rule] field may state, and whose constants
+
+- `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  head TVA.Rules.Compiler.Faithful; Platform → Prop: False; arguments ['P', '…', '…', '…']
+  kinds: PASS
+- `div : Rules.Num.DivFull P`
+  head TVA.Rules.Num.DivFull; Platform → Prop: True; arguments ['P']
+  kinds: PASS
+- `exp2 : ∀ d : Inst, d.ok → Rules.Num.Exp2F32 P`
+  head TVA.Rules.Num.Exp2F32; Platform → Prop: True; arguments ['P']
+  kinds: PASS
+- `tot : Rules.Num.MathTotal P .exp .binary32`
+  head TVA.Rules.Num.MathTotal; Platform → Prop: False; arguments ['P', 'TVA.MathFn.exp', 'TVA.Math.Float.Format.binary32']
+  kinds: PASS
+- `d64 : Rules.Num.DivRn P .binary64`
+  head TVA.Rules.Num.DivRn; Platform → Prop: False; arguments ['P', 'TVA.Math.Float.Format.binary64']
+  kinds: PASS
+- `d32 : Rules.Num.DivRn P .binary32`
+  head TVA.Rules.Num.DivRn; Platform → Prop: False; arguments ['P', 'TVA.Math.Float.Format.binary32']
+  kinds: Rules.Num.DivRn applied to constants the field chooses is a shape, not a fact the library states: cite the fact by its name (docs/rules/num.md, "Facts the library states"), or ask the library for one
+- `accLib : Rules.Num.DivAcc P .binary32 (2 ^ 126) (2 ^ (-22 : Int)) (2 ^ (-148 : Int))`
+  head TVA.Rules.Num.DivAcc; Platform → Prop: False; arguments ['P', 'TVA.Math.Float.Format.binary32', '…', '…', '…']
+  kinds: Rules.Num.DivAcc applied to constants the field chooses is a shape, not a fact the library states: cite the fact by its name (docs/rules/num.md, "Facts the library states"), or ask the library for one
+- `exp9a : Rules.Num.MathAcc P .exp .binary32 Set.univ (2 ^ (-24 : Int)) (2 ^ (-150 : Int))`
+  head TVA.Rules.Num.MathAcc; Platform → Prop: False; arguments ['P', 'TVA.MathFn.exp', 'TVA.Math.Float.Format.binary32', '…', '…', '…']
+  kinds: Rules.Num.MathAcc applied to constants the field chooses is a shape, not a fact the library states: cite the fact by its name (docs/rules/num.md, "Facts the library states"), or ask the library for one
+- `fam : Rules.Num.DotF8 P .f8e4nv .f8e5`
+  head TVA.Rules.Num.DotF8; Platform → Prop: False; arguments ['P', 'TVA.DType.f8e4nv', 'TVA.DType.f8e5']
+  kinds: Rules.Num.DotF8 applied to constants the field chooses is a shape, not a fact the library states: cite the fact by its name (docs/rules/num.md, "Facts the library states"), or ask the library for one
+- `tolPriv : Rules.Num.DivAcc P .binary32 (2 ^ 126) tol (2 ^ (-148 : Int))`
+  head TVA.Rules.Num.DivAcc; Platform → Prop: False; arguments ['P', 'TVA.Math.Float.Format.binary32', '…', '_private.KindsDemo.0.Kernels.Demo.tol', '…']
+  kinds: a [rule] may mention no constant of the kernel's own but Inst, Inst.ok, model, launch (found _private.KindsDemo.0.Kernels.Demo.tol); Rules.Num.DivAcc applied to constants the field chooses is a shape, not a fact the library states: cite the fact by its name (docs/rules/num.md, "Facts the library states"), or ask the library for one
+- `tolRoot : Rules.Num.DivAcc P .binary32 (2 ^ 126) Kernels._tol (2 ^ (-148 : Int))`
+  head TVA.Rules.Num.DivAcc; Platform → Prop: False; arguments ['P', 'TVA.Math.Float.Format.binary32', '…', 'Kernels._tol', '…']
+  kinds: a [rule] may mention no constant of the kernel's own but Inst, Inst.ok, model, launch (found Kernels._tol); Rules.Num.DivAcc applied to constants the field chooses is a shape, not a fact the library states: cite the fact by its name (docs/rules/num.md, "Facts the library states"), or ask the library for one
+- `tolRoot2 : Rules.Num.DivAcc P .binary32 (2 ^ 126) _root_._tol (2 ^ (-148 : Int))`
+  head TVA.Rules.Num.DivAcc; Platform → Prop: False; arguments ['P', 'TVA.Math.Float.Format.binary32', '…', '_tol', '…']
+  kinds: a [rule] may mention no constant of the kernel's own but Inst, Inst.ok, model, launch (found _tol); Rules.Num.DivAcc applied to constants the field chooses is a shape, not a fact the library states: cite the fact by its name (docs/rules/num.md, "Facts the library states"), or ask the library for one
+- `kOut : (K = K) → Rules.Num.DivFull P`
+  head TVA.Rules.Num.DivFull; Platform → Prop: True; arguments ['P']
+  kinds: only Compiler.Faithful may mention K
+- `conj : Rules.Num.DivFull P ∧ Rules.Num.Exp2F32 P`
+  head And; Platform → Prop: False; arguments ['…', '…']
+  kinds: it states no library fact (under its binders it applies And, not a TVA.Rules fact)
+- `own : model = model`
+  head Eq; Platform → Prop: False; arguments ['…', 'Kernels.Demo.model', 'Kernels.Demo.model']
+  kinds: PASS
+- kinds problems not about a field: none
+- namespace: names declared outside the kernel's namespace: ["_tol (declared outside the kernel's namespace Kernels.Demo)", "Kernels._tol (declared outside the kernel's namespace Kernels.Demo)"]
+- namespace: instances (internal = the one Lean makes): [('Kernels.Demo.Inst._sizeOf_inst', 'SizeOf', True), ('Kernels.Demo._hdiv', 'HDiv', False)]
+- the TVA.Rules constants of type Platform → Prop (25): ['TVA.Rules.Num.AtomicAddF32', 'TVA.Rules.Num.CvtBF16E4m3', 'TVA.Rules.Num.CvtBF16E5m2', 'TVA.Rules.Num.CvtF16E4m3', 'TVA.Rules.Num.CvtF16E5m2', 'TVA.Rules.Num.CvtF32E4m3', 'TVA.Rules.Num.CvtF32E5m2', 'TVA.Rules.Num.DivFull', 'TVA.Rules.Num.DotBF16', 'TVA.Rules.Num.DotE4m3', 'TVA.Rules.Num.DotE4m3E5m2', 'TVA.Rules.Num.DotE5m2', 'TVA.Rules.Num.DotE5m2E4m3', 'TVA.Rules.Num.DotF16', 'TVA.Rules.Num.DotF32Ieee', 'TVA.Rules.Num.DotScaledE4m3', 'TVA.Rules.Num.DotScaledE4m3E2m1', 'TVA.Rules.Num.Exp2F32', 'TVA.Rules.Num.Exp2F32NegInf', 'TVA.Rules.Num.ExpF32', 'TVA.Rules.Num.ExpF32NegInf', 'TVA.Rules.Num.Log2F32', 'TVA.Rules.Num.LogF32', 'TVA.Rules.Num.RsqrtF32', 'TVA.Rules.Num.SqrtF32']
+- control (structures with defaults, recursion, a private def, simp, omega, decide, norm_num): namespace problems: none
+- control: instances: [('Kernels.Demo.Inst._sizeOf_inst', 'SizeOf', True), ('Kernels.Demo.Cfg._sizeOf_inst', 'SizeOf', True)]
+
+# Part D (L68): an assumption item's digest holds its statement
+
+lr-10a's digest probes: R2 tightens `div`'s relative bound to 2^-40, R3 wraps `div` in `∀ _ : Nat`, K2
+changes the [kernel] field `own`; C is R1 with a proof edit.
+
+- R1: statements {"div": "TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-22)) (2 ^ (-148))", "faithful": "∀ (d : Kernels.Demo.Inst), d.ok → TVA.Rules.Compiler.Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K d)", "own": "Kernels.Demo.model { n := 0 } = Kernels.Demo.model { n := 0 }"}
+  item digests {'assumption:div': 'bbd08e6972a603ea', 'assumption:faithful': '06982ee55e7a2301', 'assumption:own': '6055d11386503fb5', 'conditions': '23ca15afa755c6f6', 'model': '614197eb9738668b', 'spec': '57431d5517d37c1d', 'map': 'b63ea3fb68757c1a'}
+- R2: statements {"div": "TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-40)) (2 ^ (-148))", "faithful": "∀ (d : Kernels.Demo.Inst), d.ok → TVA.Rules.Compiler.Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K d)", "own": "Kernels.Demo.model { n := 0 } = Kernels.Demo.model { n := 0 }"}
+  item digests {'assumption:div': 'cdc21cf3e66b10a5', 'assumption:faithful': '06982ee55e7a2301', 'assumption:own': '6055d11386503fb5', 'conditions': '23ca15afa755c6f6', 'model': '614197eb9738668b', 'spec': '57431d5517d37c1d', 'map': 'b63ea3fb68757c1a'}
+- R3: statements {"div": "∀ (x : ℕ), TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-22)) (2 ^ (-148))", "faithful": "∀ (d : Kernels.Demo.Inst), d.ok → TVA.Rules.Compiler.Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K d)", "own": "Kernels.Demo.model { n := 0 } = Kernels.Demo.model { n := 0 }"}
+  item digests {'assumption:div': 'f07729b3125ab489', 'assumption:faithful': '06982ee55e7a2301', 'assumption:own': '6055d11386503fb5', 'conditions': '23ca15afa755c6f6', 'model': '614197eb9738668b', 'spec': '57431d5517d37c1d', 'map': 'b63ea3fb68757c1a'}
+- K2: statements {"div": "TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-22)) (2 ^ (-148))", "faithful": "∀ (d : Kernels.Demo.Inst), d.ok → TVA.Rules.Compiler.Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K d)", "own": "Kernels.Demo.model { n := 0 } = Kernels.Demo.model { n := 0 } ∧ True"}
+  item digests {'assumption:div': 'bbd08e6972a603ea', 'assumption:faithful': '06982ee55e7a2301', 'assumption:own': '3f7b4068cbcd541a', 'conditions': '23ca15afa755c6f6', 'model': '614197eb9738668b', 'spec': '57431d5517d37c1d', 'map': 'b63ea3fb68757c1a'}
+- C: statements {"div": "TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-22)) (2 ^ (-148))", "faithful": "∀ (d : Kernels.Demo.Inst), d.ok → TVA.Rules.Compiler.Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K d)", "own": "Kernels.Demo.model { n := 0 } = Kernels.Demo.model { n := 0 }"}
+  item digests {'assumption:div': 'bbd08e6972a603ea', 'assumption:faithful': '06982ee55e7a2301', 'assumption:own': '6055d11386503fb5', 'conditions': '23ca15afa755c6f6', 'model': '614197eb9738668b', 'spec': '57431d5517d37c1d', 'map': 'b63ea3fb68757c1a'}
+- R1 against R2: different for assumption:div; the same for assumption:faithful, assumption:own, conditions, map, model, spec
+- R1 against R3: different for assumption:div; the same for assumption:faithful, assumption:own, conditions, map, model, spec
+- R1 against K2: different for assumption:own; the same for assumption:div, assumption:faithful, conditions, map, model, spec
+- R1 against C: different for no item; the same for assumption:div, assumption:faithful, assumption:own, conditions, map, model, spec
+
+# Part U: the tool's functions
+
+## U1 (L50): every function of the source is classed
+- vec-add's functions: [('add_kernel', 29, 54), ('add', 62, 78), (None, 70, 70), ('benchmark', 107, 129), (None, 125, 125), (None, 127, 127), (None, 128, 128)]
+- vec-add's manifest (ranges [[29, 54]], host [[62, 78], [84, 89], [107, 129]]): ([], [])
+- vec-add with host [[62, 78]] only (benchmark and its lambdas unclassed): ['the function benchmark (lines 107–129) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it, or name it in source.unused if nothing runs it', 'a lambda (lines 125–125) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it', 'a lambda (lines 127–127) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it', 'a lambda (lines 128–128) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it']
+- lr-10a G6: `h = triton.jit(_h)`, ranges hold the kernel only: ['the function _h (lines 5–6) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it, or name it in source.unused if nothing runs it']
+- an aliased decorator (`from triton import jit as J`): ['the function h (lines 6–8) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it, or name it in source.unused if nothing runs it']
+- a decorator bound to a name (`deco = triton.jit`): ['the function h (lines 7–9) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it, or name it in source.unused if nothing runs it']
+- lr-10a G5: a `@triton.constexpr_function` helper: ['the function width (lines 5–7) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it, or name it in source.unused if nothing runs it']
+- a lambda made a constexpr function: ['a lambda (lines 4–4) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it']
+- the same lambda in the host lines (control: the reviewer judges the class): passes
+- a `@triton.jit` helper in the host lines: ['the ranges leave out lines 5–7 of the @triton.jit function h (lines 5–7): cover it, or name it in source.unused if the claimed launch never runs it']
+- a nested helper inside the kernel (control): passes
+- lr-10a G6 with source.unused = [_h] (the reviewer judges that `k` never runs it): passes
+- source.unused naming no function of the source: ['source.unused names nope, which is no function the source defines', 'the function _h (lines 5–6) lies neither in the kernel lines nor in the host lines: cover it, put it in source.host if only the host runs it, or name it in source.unused if nothing runs it']
+
+## U2 (L52): kernel ledgers derived from their recorded files
+- vec-add's ledger as shipped: events no recorded file gives: none
+- vec-add's ledger as shipped: recorded files: as recorded
+- lr-10a G1: a hand-written accept appended: ['kernels/vec_add_f32/review/ledger.jsonl: event 10 (accept by r-vecadd): no recorded filing or response gives it']
+-   the certificate's ledger condition (kernel_record_problems): True
+- round 2's accept edited to other digests: ['kernels/vec_add_f32/review/ledger.jsonl: event 7 (file by r-vecadd): the events after it are not what its recorded filing gives (event 9 differs)', 'kernels/vec_add_f32/review/ledger.jsonl: event 8 (release F1 by r-vecadd): no recorded filing or response gives it', 'kernels/vec_add_f32/review/ledger.jsonl: event 9 (accept by r-vecadd): no recorded filing or response gives it']
+- a release appended with no filing: ['kernels/vec_add_f32/review/ledger.jsonl: event 10 (release F1 by r-vecadd): no recorded filing or response gives it']
+- a decide on a finding that is not escalated: ['kernels/vec_add_f32/review/ledger.jsonl: event 10 (decide F1): the user decides only an escalated finding']
+- a recorded report edited, and a line appended that records it again: ['kernels/vec_add_f32/review/round-2/r-vecadd/report.md: recorded in the ledger with 2 different sha256s, which the tool never writes (a record is frozen once recorded)']
+
+## U3 (L52): a round trip through `tvr file` and `tvr respond`
+- the hand-made gate: stale: no
+- tvr file (a second filing in round 2): (None, 'recorded kernels/vec_add_f32/review/round-2/r-vecadd/filing-2.json: 2 event(s)')
+-   events no recorded file gives, after it: none
+- tvr respond: (None, 'recorded kernels/vec_add_f32/review/round-2/prover/response.json: 1 response(s); round 3 is open for the reviewers')
+-   events no recorded file gives, after it: none
+-   recorded files: as recorded
+
+## U4 (L52): the library's ledger
+- the tree's library ledger: lines: every line records one role folder, once
+- lr-10b P2: round 7's lr-7a report changed (REOPEN to ACCEPT): ['docs/library-review/round-7/lr-7a/report.md: changed after it was recorded in docs/library-review/ledger.jsonl', 'docs/library-review/round-11/lr-11a: a record of an earlier round, not recorded in docs/library-review/ledger.jsonl (`tvr record library 11 lr-11a`)', 'docs/library-review/round-11/lr-11b: a record of an earlier round, not recorded in docs/library-review/ledger.jsonl (`tvr record library 11 lr-11b`)']
+- route 1: one line appended that records the folder again: ['docs/library-review/round-7/lr-7a/report.md: recorded in docs/library-review/ledger.jsonl with 2 different sha256s, which the tool never writes (a record is frozen once recorded)', 'docs/library-review/ledger.jsonl: event 32 records docs/library-review/round-7/lr-7a again, which `tvr record` refuses (a record is frozen)', 'docs/library-review/round-11/lr-11a: a record of an earlier round, not recorded in docs/library-review/ledger.jsonl (`tvr record library 11 lr-11a`)', 'docs/library-review/round-11/lr-11b: a record of an earlier round, not recorded in docs/library-review/ledger.jsonl (`tvr record library 11 lr-11b`)']
+- route 2: the original line's sha256 edited: ['docs/library-review/round-11/lr-11a: a record of an earlier round, not recorded in docs/library-review/ledger.jsonl (`tvr record library 11 lr-11a`)', 'docs/library-review/round-11/lr-11b: a record of an earlier round, not recorded in docs/library-review/ledger.jsonl (`tvr record library 11 lr-11b`)']
+-   release.json's earlier digest of the ledger against the first lines now: differs (63b337f888a3 then, b62722beb8cd now)
+- lr-10a G2: tvr record library 10 lr-x --no-lint: (1, 'tvr: --no-lint is for the rounds before the ledger (1 to 7); round 10 is linted when recorded')
+- the same line written by hand: ['docs/library-review/ledger.jsonl: event 32 records docs/library-review/round-10/lr-x without linting it, which only rounds 1 to 7 (before the ledger) may be']
+
+## U5 (L69): the build's inputs make a gate stale
+- the library files the kernel imports, transitively (count): 69
+- a gate recorded now: not stale
+- lr-10a G4: lean/lean-toolchain to v4.36.0: ["the build's inputs changed after it ran (lean/lean-toolchain)"]
+- a leanOptions key in lean/lakefile.toml: ["the build's inputs changed after it ran (lean/lakefile.toml)"]
+- a comment in lean/TVA.lean (a module that holds no constant): ["the build's inputs changed after it ran (lean/TVA.lean)"]
+- a comment in lean/TVA/Lemmas/Sm90.lean: ["the build's inputs changed after it ran (lean/TVA/Lemmas/Sm90.lean)"]
+- a gate without `build` (round 10's): ["it was recorded by a tool older than round 13, which kept no sha256 of the build's other inputs"]
+- gate_mismatch: a shipped gate whose build inputs differ: ["the shipped gate.json is stale (the build's inputs differ from the recomputed gate)"]
+
+## U6 (L70): the audit of kernels/, and cited paths
+- lr-10a G8: kernels/notes/readme.md (no kernel.json) holding a sibling path, named by the audit: True
+- a page citing two missing files, and six that exist, end in a placeholder or are code: ['docs/probe.md: cites ../evidence/nope-too/README.md, which does not exist', 'docs/probe.md: cites evidence/nope/README.md, which does not exist']
+- lr-9a: a Lean docstring citing a missing record: ['lean/TVA/Probe.lean: cites docs/evidence/conformance/cvt.md, which does not exist']
+- the tree's citations: every cited file exists
+
+# Part N (L7): the programs the release check runs, and Mathlib's revision
+
+- system_tool(git), (bwrap), (find): ['/usr/bin/git', '/usr/bin/bwrap', '/usr/bin/find']
+- lr-10b P3: with git, bwrap and find wrappers first on PATH, the tool ran: git: git version 2.52.0; bwrap: /usr/bin/bwrap; find: nothing user-placed
+-   the wrappers that ran: none
+-   the PATH git gets: /usr/bin:/bin
+- Mathlib's allowed inputRevs for the tree's toolchain: {'master': 'branch', 'v4.35.0': 'tag'}
+- the tree's lake configuration: accepted
+- lr-10a G7: a feature branch as Mathlib's rev (the audit): ["lean/lakefile.toml: Mathlib's rev 'feat/abel-sym-module' must be the release tag of the toolchain's Lean or master (master, v4.35.0; another branch is not reviewed Mathlib)"]
+- lr-10a G7: the same in the release check's packages step (before any fetch): ["lean/lake-manifest.json: Mathlib's inputRev 'feat/abel-sym-module' is neither the release tag of the toolchain's Lean nor master (master, v4.35.0; library issue L7)"]
+- upstream: Mathlib's pin as the tag v4.35.0: accepted
+- upstream: Mathlib's pin as a commit of master: accepted
+- upstream: `master` asked for as a tag: inputRev 'master' names no tag of https://github.com/leanprover-community/mathlib4
+

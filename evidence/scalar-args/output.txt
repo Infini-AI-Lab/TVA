@@ -1,0 +1,140 @@
+Triton 3.8.0, torch 2.11.0+cu130, numpy 2.3.5, NVIDIA H200 NVL
+
+S1: the int 1 is a compile-time constant unless annotated or not specialised
+  unannotated, n=1: parameter constexpr, absent from the IR (compile-time constant); n=1, n+n=2, (n-2)//2=-1, n*65536*65536=4294967296
+  unannotated, n=3: parameter i32 (IR i32); n=3, n+n=6, (n-2)//2=0, n*65536*65536=0
+  annotated n: tl.int32, n=1: parameter i32 (IR i32); n=1, n+n=2, (n-2)//2=0, n*65536*65536=0
+  do_not_specialize=['n'], n=1: parameter i32 (IR i32); n=1, n+n=2, (n-2)//2=0, n*65536*65536=0
+
+S2: ints: i32, i64, u64 by value; out of range; divisibility by 16
+  n=0: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); received 0 (exact: True); n+n = 0
+  n=2: parameter i32 (IR i32); received 2 (exact: True); n+n = 4
+  n=16: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); received 16 (exact: True); n+n = 32
+  n=24: parameter i32 (IR i32); received 24 (exact: True); n+n = 48
+  n=2147483647: parameter i32 (IR i32); received 2147483647 (exact: True); n+n = -2
+  n=2147483648: parameter i64 (IR i64 {tt.divisibility = 16 : i32}); received 2147483648 (exact: True); n+n = 4294967296
+  n=-2147483648: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); received -2147483648 (exact: True); n+n = 0
+  n=-2147483649: parameter i64 (IR i64); received -2147483649 (exact: True); n+n = -4294967298
+  n=1073741824: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); received 1073741824 (exact: True); n+n = -2147483648
+  n=9223372036854775807: parameter i64 (IR i64); received 9223372036854775807 (exact: True); n+n = -2
+  n=9223372036854775808: parameter u64 (IR i64 {tt.divisibility = 16 : i32}); received 9223372036854775808 (exact: True); n+n = 0
+  n=18446744073709551615: parameter u64 (IR i64); received 18446744073709551615 (exact: True); n+n = 18446744073709551614
+  n=-9223372036854775808: parameter i64 (IR i64 {tt.divisibility = 16 : i32}); received -9223372036854775808 (exact: True); n+n = 0
+  n=18446744073709551616: rejected on the host: OverflowError: integer to be specialized too large to represent; buffer untouched: True
+  n=-9223372036854775809: rejected on the host: OverflowError: integer to be specialized too large to represent; buffer untouched: True
+  n=1180591620717411303424: rejected on the host: OverflowError: integer to be specialized too large to represent; buffer untouched: True
+  do_not_specialize_on_alignment=['n'], n=32: parameter i32 (IR i32); received 32
+  do_not_specialize=['n'], n=32: parameter i32 (IR i32); received 32
+  annotated n: tl.int32, n=32: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); received 32
+
+S3: bool
+  b=True: parameter u1 (IR i1); received 1
+  b=False: parameter u1 (IR i1); received 0
+  annotated b: tl.int1, b=True: parameter u1 (IR i1); received 1
+  annotated b: tl.int1, b=1: parameter u1 (IR i1); received 1
+  annotated b: tl.int1, b=2: parameter u1 (IR i1); received 0
+  annotated b: tl.int1, b=0: parameter u1 (IR i1); received 0
+
+S4: Python float -> float32 parameter
+  parameter fp32 (IR f32)
+  1+2^-24 (tie, to even: 1): received 0x3f800000 = np.float32(1.0); round-to-nearest-even of the double 0x3f800000; same: True
+  1+3*2^-24 (tie, to even: up): received 0x3f800002 = np.float32(1.0000002); round-to-nearest-even of the double 0x3f800002; same: True
+  1+2^-24+2^-50 (above the tie): received 0x3f800001 = np.float32(1.0000001); round-to-nearest-even of the double 0x3f800001; same: True
+  0.1: received 0x3dcccccd = np.float32(0.1); round-to-nearest-even of the double 0x3dcccccd; same: True
+  1/3: received 0x3eaaaaab = np.float32(0.33333334); round-to-nearest-even of the double 0x3eaaaaab; same: True
+  FLT_MAX: received 0x7f7fffff = np.float32(3.4028235e+38); round-to-nearest-even of the double 0x7f7fffff; same: True
+  FLT_MAX+2^103 (tie above FLT_MAX): received 0x7f800000 = np.float32(inf); round-to-nearest-even of the double 0x7f800000; same: True
+  FLT_MAX+2^103-2^80 (below the tie): received 0x7f7fffff = np.float32(3.4028235e+38); round-to-nearest-even of the double 0x7f7fffff; same: True
+  3.5e38: received 0x7f800000 = np.float32(inf); round-to-nearest-even of the double 0x7f800000; same: True
+  1e300: received 0x7f800000 = np.float32(inf); round-to-nearest-even of the double 0x7f800000; same: True
+  -1e300: received 0xff800000 = np.float32(-inf); round-to-nearest-even of the double 0xff800000; same: True
+  2^-126 (min normal): received 0x00800000 = np.float32(1.1754944e-38); round-to-nearest-even of the double 0x00800000; same: True
+  2^-149 (min subnormal): received 0x00000001 = np.float32(1e-45); round-to-nearest-even of the double 0x00000001; same: True
+  2^-150 (tie, to even: 0): received 0x00000000 = np.float32(0.0); round-to-nearest-even of the double 0x00000000; same: True
+  3*2^-151 (rounds to 2^-149): received 0x00000001 = np.float32(1e-45); round-to-nearest-even of the double 0x00000001; same: True
+  1e-46: received 0x00000000 = np.float32(0.0); round-to-nearest-even of the double 0x00000000; same: True
+  -1e-46: received 0x80000000 = np.float32(-0.0); round-to-nearest-even of the double 0x80000000; same: True
+  1.5*2^-140 (subnormal, exact): received 0x00000300 = np.float32(1.076e-42); round-to-nearest-even of the double 0x00000300; same: True
+  -0.0: received 0x80000000 = np.float32(-0.0); round-to-nearest-even of the double 0x80000000; same: True
+  inf: received 0x7f800000 = np.float32(inf); round-to-nearest-even of the double 0x7f800000; same: True
+  -inf: received 0xff800000 = np.float32(-inf); round-to-nearest-even of the double 0xff800000; same: True
+  nan: received 0x7fc00000 = np.float32(nan); round-to-nearest-even of the double 0x7fc00000; same: True
+  -nan: received 0xffc00000 = np.float32(nan); round-to-nearest-even of the double 0xffc00000; same: True
+  random doubles (exponents -160..135, 4000): received == nearest-even float32: 4000 of 4000; host errors: 0
+
+S5a: annotated float16 parameter
+  parameter fp16 (IR f16)
+  1+2^-11 (tie, to even: 1): received 0x3c00; nearest-even float16 of the double 0x3c00; same: True
+  1+3*2^-11 (tie, to even: up): received 0x3c02; nearest-even float16 of the double 0x3c02; same: True
+  1+2^-11+2^-40 (above the tie; rounding through float32 first would give 1): received 0x3c01; nearest-even float16 of the double 0x3c01; same: True
+  0.1: received 0x2e66; nearest-even float16 of the double 0x2e66; same: True
+  65504 (max): received 0x7bff; nearest-even float16 of the double 0x7bff; same: True
+  65519.99 (below the overflow tie): received 0x7bff; nearest-even float16 of the double 0x7bff; same: True
+  65520 (rounds to inf): rejected on the host: OverflowError: float too large to pack with e format
+  70000: rejected on the host: OverflowError: float too large to pack with e format
+  2^-24 (min subnormal): received 0x0001; nearest-even float16 of the double 0x0001; same: True
+  2^-25 (tie, to even: 0): received 0x0000; nearest-even float16 of the double 0x0000; same: True
+  1e-8: received 0x0000; nearest-even float16 of the double 0x0000; same: True
+  -0.0: received 0x8000; nearest-even float16 of the double 0x8000; same: True
+  inf: received 0x7c00; nearest-even float16 of the double 0x7c00; same: True
+  -inf: received 0xfc00; nearest-even float16 of the double 0xfc00; same: True
+  nan: received 0x7e00; nearest-even float16 of the double 0x7e00; same: True
+  int 3: received 0x4200; nearest-even float16 of the double 0x4200; same: True
+  random doubles (exponents -26..15, 4000): 1 rejected on the host (all round to +-inf: True); of the rest, received == nearest-even float16 of the double: 3999 of 3999
+
+S5b: annotated bfloat16 parameter
+  parameter bf16 (IR bf16)
+  1+2^-8 (tie): received 0x3f80; top 16 bits of the nearest float32 0x3f80; nearest-even bfloat16 0x3f80; truncation: True
+  1+3*2^-8 (tie): received 0x3f81; top 16 bits of the nearest float32 0x3f81; nearest-even bfloat16 0x3f82; truncation: True
+  1+2^-8+2^-12 (above the tie): received 0x3f80; top 16 bits of the nearest float32 0x3f80; nearest-even bfloat16 0x3f81; truncation: True
+  -(1+2^-8+2^-12): received 0xbf80; top 16 bits of the nearest float32 0xbf80; nearest-even bfloat16 0xbf81; truncation: True
+  0.1: received 0x3dcc; top 16 bits of the nearest float32 0x3dcc; nearest-even bfloat16 0x3dcd; truncation: True
+  FLT_MAX: received 0x7f7f; top 16 bits of the nearest float32 0x7f7f; nearest-even bfloat16 0x7f80; truncation: True
+  3.5e38: received 0x7f80; top 16 bits of the nearest float32 0x7f80; nearest-even bfloat16 0x7f80; truncation: True
+  1e-40 (float32 subnormal): received 0x0001; top 16 bits of the nearest float32 0x0001; nearest-even bfloat16 0x0001; truncation: True
+  -0.0: received 0x8000; top 16 bits of the nearest float32 0x8000; nearest-even bfloat16 0x8000; truncation: True
+  inf: received 0x7f80; top 16 bits of the nearest float32 0x7f80; nearest-even bfloat16 0x7f80; truncation: True
+  nan: received 0x7fc0; top 16 bits of the nearest float32 0x7fc0; nearest-even bfloat16 NaN; truncation: True
+  random doubles (exponents -130..127, 4000): received == truncation of the nearest float32: 4000 of 4000; == nearest-even bfloat16: 1960; host errors: 0
+
+S5c: annotated float64, float32, int64, uint32, int8, int32 and int parameters
+  x: tl.float64: parameter fp64 (IR f64); received == the double's bits: 2005 of 2005
+  x: tl.float32 given the ints 3 and 2^24+1 and 0.1: parameter fp32 (IR f32); received [3.0, 16777216.0, 0.10000000149011612]
+  n: tl.int64, n=5: parameter i64 (IR i64); received 5
+  n: tl.int64, n=-1: parameter i64 (IR i64); received -1
+  n: tl.int64, n=1099511627776: parameter i64 (IR i64 {tt.divisibility = 16 : i32}); received 1099511627776
+  n: tl.int64, n=9223372036854775807: parameter i64 (IR i64); received 9223372036854775807
+  n: tl.int64, n=9223372036854775808: rejected on the host: OverflowError: int too big to convert
+  n: tl.uint32, n=5: parameter u32 (IR i32); received 5
+  n: tl.uint32, n=4294967295: parameter u32 (IR i32); received 4294967295
+  n: tl.uint32, n=4294967296: parameter u32 (IR i32 {tt.divisibility = 16 : i32}); received 0
+  n: tl.uint32, n=4294967303: parameter u32 (IR i32); received 7
+  n: tl.uint32, n=-1: rejected on the host: OverflowError: can't convert negative value to unsigned int
+  n: tl.uint32, n=18446744073709551616: rejected on the host: OverflowError: integer to be specialized too large to represent
+  n: tl.int8, n=5: parameter i8 (IR i8); received 5
+  n: tl.int8, n=127: parameter i8 (IR i8); received 127
+  n: tl.int8, n=128: parameter i8 (IR i8 {tt.divisibility = 16 : i32}); received -128
+  n: tl.int8, n=300: parameter i8 (IR i8); received 44
+  n: tl.int8, n=-129: parameter i8 (IR i8); received 127
+  n: tl.int8, n=1099511627776: parameter i8 (IR i8 {tt.divisibility = 16 : i32}); received 0
+  n: tl.int8, n=9223372036854775808: rejected on the host: OverflowError: Python int too large to convert to C long
+  n: tl.int32, n=2147483648: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); received -2147483648
+  n: tl.int32, n=4294967301: parameter i32 (IR i32); received 5
+  n: tl.int32, n=-2147483649: parameter i32 (IR i32); received 2147483647
+  n: int, n=7: parameter i32 (IR i32); received 7
+  n: int, n=2147483648: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); received -2147483648
+  n: int, n=1099511627776: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); received 0
+
+S6: numpy scalars, 0-d tensors, None
+  Python int 2: parameter i32 (IR i32); stored 2
+  Python float 2.0: parameter fp32 (IR f32); stored 2.0
+  Python bool True: parameter u1 (IR i1); stored 1
+  numpy.float64(0.1): parameter fp32 (IR f32); stored 0.10000000149011612
+  numpy.float32(0.1): rejected on the host: TypeError: failed to specialize argument of type: numpy.float32
+  numpy.int64(5): rejected on the host: TypeError: failed to specialize argument of type: numpy.int64
+  numpy.int32(5): rejected on the host: TypeError: failed to specialize argument of type: numpy.int32
+  numpy.bool_(True): rejected on the host: TypeError: failed to specialize argument of type: numpy.bool
+  0-d CUDA tensor torch.tensor(5): parameter *i64 (IR !tt.ptr<i64> {tt.divisibility = 16 : i32}); stored 140667223277568 (== the tensor's address: True)
+  0-d CPU tensor torch.tensor(5): rejected on the host: ValueError: Pointer argument cannot be accessed from Triton (cpu tensor?)
+  x=None in `if x is None`: parameter constexpr, absent from the IR (compile-time constant); branch then
+  x=0 in `if x is None`: parameter i32 (IR i32 {tt.divisibility = 16 : i32}); branch else

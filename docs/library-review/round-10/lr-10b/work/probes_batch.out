@@ -1,0 +1,41 @@
+## P1 (L50): which functions `jit_functions` finds, and what the ranges then need
+
+- decorated helper (control): jit functions found: {'helper': [[4, 6]], 'kernel': [[8, 12]]}
+- decorated helper (control): map problems with ranges holding the kernel only: ['the ranges leave out lines 4–6 of the @triton.jit function helper (lines 4–6): cover it, or name it in source.unused if the claimed launch never runs it']
+- helper made by a call, helper = triton.jit(_helper): jit functions found: {'kernel': [[9, 13]]}
+- helper made by a call, helper = triton.jit(_helper): map problems with ranges holding the kernel only: none (passes)
+- helper under an aliased decorator, from triton import jit as tjit: jit functions found: {'kernel': [[9, 13]]}
+- helper under an aliased decorator, from triton import jit as tjit: map problems with ranges holding the kernel only: none (passes)
+- helper under a decorator bound to a name, deco = triton.jit: jit functions found: {'kernel': [[9, 13]]}
+- helper under a decorator bound to a name, deco = triton.jit: map problems with ranges holding the kernel only: none (passes)
+
+## P2 (L52): a recorded file changed, and the ledger re-recorded by a hand-written line
+
+- the library ledger of the copy, as shipped: consistent
+- after an edit of round 7's lr-7a report (REOPEN to ACCEPT): ['docs/library-review/round-7/lr-7a/report.md: changed after it was recorded in docs/library-review/ledger.jsonl']
+- route 1, one appended line that records the folder again: consistent
+- route 1, the release check's records step on the copy: nothing about round 7
+- route 2, the original line's sha256 edited: consistent
+
+## P3 (L7): which git, bwrap and find the release check runs
+
+- the PATH folders before /usr/bin in this session, by kind: ['home', 'home', 'home', 'home']
+shutil.which(bwrap) is the fake one: True
+git run by _git: git version 2.52.0
+- the programs the fake folder's wrappers saw called (first argument): ['find /usr/share/doc', 'git -c']
+
+## P4 (L40): the comment reader on Lean's other quote-like tokens
+
+- a guillemet name holding a quote: refused as a string with a brace: no
+- a guillemet name holding a quote: the command after it is read as code: True
+- a character literal `'"'`: refused as a string with a brace: no
+- a character literal `'"'`: the command after it is read as code: True
+- a character literal `'\''`: refused as a string with a brace: no
+- a character literal `'\''`: the command after it is read as code: True
+- a primed name before a string: refused as a string with a brace: no
+- a primed name before a string: the command after it is read as code: True
+- a raw string `r#"a"b"#`: refused as a string with a brace: no
+- a raw string `r#"a"b"#`: the command after it is read as code: True
+- a guillemet name, then `open … in`: refused as a string with a brace: no
+- a guillemet name, then `open … in`: the command after it is read as code: True
+

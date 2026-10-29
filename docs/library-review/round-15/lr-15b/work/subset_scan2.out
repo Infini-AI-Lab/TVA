@@ -1,0 +1,16 @@
+D 03-matrix-multiplication.py:matmul_kernel:249 expression statement 'Kernel for computing the matmul C = A x B.\n    A has shape (M, K), B has shape
+A 05-layer-norm.py:_layer_norm_fwd_fused:68 loop variable off read later (check reassignment)
+B 05-layer-norm.py:_layer_norm_fwd_fused:68 name cols first defined in the loop body, read later (check)
+A 05-layer-norm.py:_layer_norm_fwd_fused:75 loop variable off read later (check reassignment)
+B 05-layer-norm.py:_layer_norm_fwd_fused:75 name x first defined in the loop body, read later (check)
+C 06-fused-attention.py:_attn_fwd:189 dtype = tl.float8e5 if FP8_OUTPUT else tl.float16
+C 08-grouped-gemm.py:grouped_matmul_tma_kernel:253 dtype = tl.float8e4nv if FP8 else tl.float16
+C 09-persistent-matmul.py:matmul_kernel_tma:210 dtype = tl.float8e4nv if FP8_OUTPUT else tl.float16
+C 09-persistent-matmul.py:matmul_kernel_tma_persistent:401 dtype = tl.float8e4nv if FP8_OUTPUT else tl.float16
+C 10-block-scaled-matmul.py:block_scaled_matmul_kernel:198 output_dtype = tl.float32
+C 10-block-scaled-matmul.py:block_scaled_matmul_kernel:200 branch of if at 199 assigns output_dtype, which held a non-tensor value earlier
+C 10-block-scaled-matmul.py:block_scaled_matmul_kernel:202 branch of if at 199 assigns output_dtype, which held a non-tensor value earlier
+C 10-block-scaled-matmul.py:block_scaled_matmul_kernel:200 output_dtype = tl.float16
+C 10-block-scaled-matmul.py:block_scaled_matmul_kernel:202 branch of if at 201 assigns output_dtype, which held a non-tensor value earlier
+C 10-block-scaled-matmul.py:block_scaled_matmul_kernel:202 output_dtype = tl.float8e4nv
+done

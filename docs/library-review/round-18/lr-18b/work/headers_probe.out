@@ -1,0 +1,41 @@
+Python 3.13.9; tools/tvr.py sha256 38cde42e17f4b038
+
+# Part A: the headers of unused functions
+
+     1  import triton
+     2  import triton.language as tl
+     5  @triton.jit
+     6  def k(x_ptr):
+     7      tl.store(x_ptr, 1)
+    10  @deco(
+    11      a=(k := None),
+    12  )
+    13  def u1(
+    14      x,
+    15      y=(k := None),
+    16  ) -> (k := None):
+    17      return x
+    20  def u2(z=(k := None)): return z
+    23  async def u3(w=(k := None)):
+    24      return w
+    27  if True:
+    28      def u4(v=(k := None)):
+    29          return v
+    31  try:
+    32      def u5(t=(k := None)):
+    33          return t
+    34  except Exception:
+    35      pass
+
+- def_headers(unused = ['u1', 'u2', 'u3', 'u4', 'u5']): [10, 11, 12, 13, 14, 15, 16, 20, 23, 28, 32]
+- module_lines: [1, 2, 10, 11, 12, 13, 14, 15, 16, 20, 23, 27, 28, 31, 32, 34, 35]
+- map_problems with kernel lines [[1, 7]] and nothing else classed: ['the code lines 27, 31, 34–35, outside every function, lie neither in the kernel lines nor in the host lines: put a line that binds a name the launch reads (the import of `triton.language as tl`, a JIT function) in the kernel lines, and the others in source.host', 'the header of a function in source.unused (lines 10–16, 20, 23, 28, 32: its decorators and `def` lines, which Python evaluates when it imports the module, defaults and annotations included) lies neither in the kernel lines nor in the host lines: put it in source.host, or in the kernel lines if it binds a name the launch reads']
+
+# Part B: what a def evaluates at import (Python itself)
+
+- decorator: after the def, n = 1
+- default: after the def, n = 1
+- annotation: after the def, n = 1
+- return annotation: after the def, n = 1
+- annotation, with `from __future__ import annotations`: SyntaxError (named expression cannot be used within an annotation)
+- body (never called): after the def, n = 0

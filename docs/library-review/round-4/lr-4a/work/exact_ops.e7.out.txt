@@ -1,0 +1,2 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+E7 float64 -> float32: 0 of 16777216 differ; float64 -> float16: 0 of 16777216 differ; float64 -> bfloat16: 0 of 20000 differ from the exact rounding; float16 -> bfloat16, every pattern: 0 differ; bfloat16 -> float16, every pattern: 0 differ

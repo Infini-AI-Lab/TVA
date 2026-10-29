@@ -1,0 +1,7 @@
+Triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+x[:, :, None] * y[None, :, :] (the rule's spelling), enable_fp_fusion=True: tt.dot in TTIR: True; fma.rn.f32 in PTX: True; outputs that no IEEE tree gives: 58/256
+x[:, :, None] * y[None, :, :] (the rule's spelling), enable_fp_fusion=False: tt.dot in TTIR: True; fma.rn.f32 in PTX: True; outputs that no IEEE tree gives: 58/256
+tl.expand_dims(x, 2) * tl.expand_dims(y, 0), enable_fp_fusion=True: tt.dot in TTIR: True; fma.rn.f32 in PTX: True; outputs that no IEEE tree gives: 58/256
+tl.expand_dims(x, 2) * tl.expand_dims(y, 0), enable_fp_fusion=False: tt.dot in TTIR: True; fma.rn.f32 in PTX: True; outputs that no IEEE tree gives: 58/256
+tl.reduce(expand_dims product, 1, add), enable_fp_fusion=True: tt.dot in TTIR: True; fma.rn.f32 in PTX: True; outputs that no IEEE tree gives: 58/256
+tl.reduce(expand_dims product, 1, add), enable_fp_fusion=False: tt.dot in TTIR: True; fma.rn.f32 in PTX: True; outputs that no IEEE tree gives: 58/256

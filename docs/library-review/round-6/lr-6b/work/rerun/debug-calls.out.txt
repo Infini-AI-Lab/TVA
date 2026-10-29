@@ -1,0 +1,38 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-28, TRITON_DEBUG=None
+
+== P. Pure arguments ==
+P1 static_assert x4, static_print, device_assert x2, assert: TTIR identical to the kernel without them: True
+P1 static_assert x4, static_print, device_assert x2, assert: PTX identical to the kernel without them: True
+P1 outputs correct: without True, with True
+P2 device_print and print of pure values: PTX calls vprintf: True; TTIR has tt.print: True; outputs correct: True
+P2 TTIR without its tt.print lines identical to the kernel without them: True
+
+== E. Operations with an effect inside the arguments (grid of 4 programs) ==
+E1 tl.static_assert(tl.atomic_add(c, 1) is not None)
+    compiles; counter = 4 after 4 programs
+E2 tl.static_assert(bump(c) is None), bump a @triton.jit helper that adds 1
+    compiles; counter = 4 after 4 programs
+E3 tl.static_print('old', tl.atomic_add(c, 1))
+    compiles; counter = 4 after 4 programs
+E4 tl.device_print('old', tl.atomic_add(c, 1))
+    compiles; counter = 4 after 4 programs
+E5 tl.device_assert(tl.atomic_add(c, 1) >= 0, ...)
+    compiles; counter = 4 after 4 programs
+E6 assert bump_ret(c) >= 0, ... (a Python assert; bump_ret returns tl.atomic_add(c, 1))
+    compiles; counter = 4 after 4 programs
+E7 print('old', tl.atomic_add(c, 1)) (Python print)
+    compiles; counter = 4 after 4 programs
+E8 tl.static_assert(True, tl.atomic_add(c, 1)): an atomic in the message of a holding assertion
+    compiles; counter = 0 after 4 programs
+E9 tl.device_assert(c is not None, ..., mask=tl.atomic_add(c, 1) >= 0)
+    compiles; counter = 4 after 4 programs
+
+== V. Where the front end evaluates tl.static_assert (B = 16) ==
+V1 in a runtime `if` branch that no program takes
+    CompileTimeAssertionFailure: inside a runtime branch no program takes
+V2 in a tl.static_range(3) loop, assertion i < 2
+    CompileTimeAssertionFailure: in the unrolled iteration i = 2
+V3 in a `for` body that runs zero times (n = 0)
+    CompileTimeAssertionFailure: inside a loop body that runs zero times
+V4 in a constexpr `if` branch that is not taken (B == 3 is false)
+    compiles; counter = 1

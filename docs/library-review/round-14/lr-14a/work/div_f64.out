@@ -1,0 +1,11 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+reference check: numpy float64 division on subnormals equals exact rounding (fractions)
+| family | pairs | x / y differ | tl.fdiv differ | NaN results |
+|---|---|---|---|---|
+| uniform | 67108864 | 0 | 0 | 65617 |
+| spread | 67108864 | 0 | 0 | 0 |
+| near1 | 33554432 | 0 | 0 | 0 |
+| mid | 16777216 | 0 | 0 | 0 |
+| shortsig | 33554432 | 0 | 0 | 0 |
+
+Total pairs: 218103808 (each through x / y and tl.fdiv)

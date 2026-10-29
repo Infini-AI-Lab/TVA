@@ -1,0 +1,28 @@
+A.cvt.f16.e4m3.sat1          cvt:f16:e4m3:rn:1        all         65536 inputs  agree  [1 s]
+A.cvt.f32.e5m2.rz.sat1.sample cvt:f32:e5m2:rz:1        file     67108864 inputs  DIFFER in 64 chunks (61826+ inputs)  [40 s]
+    input 7f800000: library 7b, device 7c
+    input ff800000: library fb, device fc
+    input 7f800000: library 7b, device 7c
+    input ff800000: library fb, device fc
+    input ff800000: library fb, device fc
+    input ff800000: library fb, device fc
+    input 7f800000: library 7b, device 7c
+    input ff800000: library fb, device fc
+    input 7f800000: library 7b, device 7c
+    input 7f800000: library 7b, device 7c
+    input ff800000: library fb, device fc
+    input 7f800000: library 7b, device 7c
+    input 7f800000: library 7b, device 7c
+    input 7f800000: library 7b, device 7c
+    input 7f800000: library 7b, device 7c
+    input 7f800000: library 7b, device 7c
+    input ff800000: library fb, device fc
+    input ff800000: library fb, device fc
+    input ff800000: library fb, device fc
+    input ff800000: library fb, device fc
+    input 7f800000: library 7b, device 7c
+    input 7f800000: library 7b, device 7c
+    input ff800000: library fb, device fc
+    input 7f800000: library 7b, device 7c
+A.cvt.f32.e5m2.rz.sat0       cvt:f32:e5m2:rz:0        all    4294967296 inputs  agree  [702 s]
+B.sqrt.f32                   sqrt:f32                 all    4294967296 inputs  agree  [356 s]

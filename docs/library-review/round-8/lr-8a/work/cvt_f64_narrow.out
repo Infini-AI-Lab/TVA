@@ -1,0 +1,34 @@
+x.to(bf16): 12 values; equal to one rounding: 12; equal to rounding through f32: 2
+           1.0039062574505806  device 1.0078125              one-rounding 1.0078125              via-f32 1.0
+          -1.0039062574505806  device -1.0078125             one-rounding -1.0078125             via-f32 -1.0
+           1.5039062574505806  device 1.5078125              one-rounding 1.5078125              via-f32 1.5
+          -1.5039062574505806  device -1.5078125             one-rounding -1.5078125             via-f32 -1.5
+            3.007812514901161  device 3.015625               one-rounding 3.015625               via-f32 3.0
+           -3.007812514901161  device -3.015625              one-rounding -3.015625              via-f32 -3.0
+           1002.0000038146973  device 1004.0                 one-rounding 1004.0                 via-f32 1000.0
+          -1002.0000038146973  device -1004.0                one-rounding -1004.0                via-f32 -1000.0
+        7.919423990095031e-31  device 7.95023881043051e-31   one-rounding 7.95023881043051e-31   via-f32 7.888609052210118e-31
+       -7.919423990095031e-31  device -7.95023881043051e-31  one-rounding -7.95023881043051e-31  via-f32 -7.888609052210118e-31
+           1.0117187574505806  device 1.015625               one-rounding 1.015625               via-f32 1.015625
+          -1.0117187574505806  device -1.015625              one-rounding -1.015625              via-f32 -1.015625
+x.to(f16): 5 values; equal to one rounding: 5; equal to rounding through f32: 0
+           1.0004882821813226  device 1.0009765625           one-rounding 1.0009765625           via-f32 1.0
+           1.5004882821813226  device 1.5009765625           one-rounding 1.5009765625           via-f32 1.5
+            3.000976564362645  device 3.001953125            one-rounding 3.001953125            via-f32 3.0
+           1000.2500004768372  device 1000.5                 one-rounding 1000.5                 via-f32 1000.0
+           1.0083007821813226  device 1.0087890625           one-rounding 1.0087890625           via-f32 1.0078125
+store f64 into bf16: 12 values; equal to one rounding: 12; equal to rounding through f32: 2
+           1.0039062574505806  device 1.0078125              one-rounding 1.0078125              via-f32 1.0
+          -1.0039062574505806  device -1.0078125             one-rounding -1.0078125             via-f32 -1.0
+           1.5039062574505806  device 1.5078125              one-rounding 1.5078125              via-f32 1.5
+          -1.5039062574505806  device -1.5078125             one-rounding -1.5078125             via-f32 -1.5
+            3.007812514901161  device 3.015625               one-rounding 3.015625               via-f32 3.0
+           -3.007812514901161  device -3.015625              one-rounding -3.015625              via-f32 -3.0
+           1002.0000038146973  device 1004.0                 one-rounding 1004.0                 via-f32 1000.0
+          -1002.0000038146973  device -1004.0                one-rounding -1004.0                via-f32 -1000.0
+        7.919423990095031e-31  device 7.95023881043051e-31   one-rounding 7.95023881043051e-31   via-f32 7.888609052210118e-31
+       -7.919423990095031e-31  device -7.95023881043051e-31  one-rounding -7.95023881043051e-31  via-f32 -7.888609052210118e-31
+           1.0117187574505806  device 1.015625               one-rounding 1.015625               via-f32 1.015625
+          -1.0117187574505806  device -1.015625              one-rounding -1.015625              via-f32 -1.015625
+torch CPU check: 1+2^-8+2^-28 -> bf16 = 1.0
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL

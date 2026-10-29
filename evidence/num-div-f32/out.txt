@@ -1,0 +1,10 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| inputs | pairs with abs(x/y) <= 2^126 | outside the bound | non-finite | largest error / bound (x, y) | largest error in ulps of the quotient's binade (x, y) |
+|---|---|---|---|---|---|
+| A: every divisor mantissa | 27942544904 | 0 | 0 | 0.6504 (2.2907430971573975e-38, 2.271708139077702e-38) | 2.106 (2.1694416574109697e-38, 2.1764593601203084e-38) |
+| B: subnormal operands | 957190703 | 0 | 0 | 0.6446 (2.3509885615147286e-38, 5.862745508549848e-39) | 2.060 (2.2434524969729028e-38, 5.680344092642544e-39) |
+| C: random pairs | 1858035562 | 0 | 0 | 0.6479 (-963.3912963867188, 5.705453216889966e-33) | 2.106 (9.165096263568733e+27, 0.0004520297807175666) |
+
+Total pairs: 30757771169; outside the bound: 0
+PTX division instructions: ['div.full.f32']

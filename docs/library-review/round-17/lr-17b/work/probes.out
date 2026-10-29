@@ -1,0 +1,23 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+H1: _h_rt(c) // 2, c = 5 (returns -1 or -3 through a runtime if)
+  stored 0
+H2: _h_rt(c) // 2, c = -5
+  stored -1
+H3: control: _h_same(c) // 2 (returns -1 on both paths), c = 5
+  stored -1
+H4: tl.static_assert(_h_rt(c) == -1)
+  rejected on the host: CompilationError: NotImplementedError('Assertion condition could not be determined at compile-time. Make sure that it depends only on `constexpr` values')
+H5: x * _h_f(c) (returns 0.1 or 0.2 through a runtime if), x every finite bfloat16, c = 5
+  65280 inputs: the helper's product equal (bit for bit) to the float32 product on 65280, to the bfloat16 product of the Python number on 52204; the two products differ on 13076
+H6: (-1 if c > 0 else -3) // 2, c = 5 (a conditional expression on a runtime condition)
+  stored 0
+H7: x * (0.1 if c > 0 else 0.2), x every finite bfloat16, c = 5
+  65280 inputs: the conditional expression's product equal (bit for bit) to the float32 product on 65280, to the bfloat16 product of the Python number on 52204; the two products differ on 13076
+G0: control: the call made on the capturing stream
+  returned without an error; after the capture, before any replay: o[0], o[-1] = (-7.0, -7.0); after resetting and one replay: (2.0, 2.0)
+G1: capture in progress (global mode), the call made on another stream
+  returned without an error; after the capture, before any replay: o[0], o[-1] = (2.0, 2.0); after resetting and one replay: (-7.0, -7.0)
+G2: capture in progress (thread_local mode), the call made on another stream
+  returned without an error; after the capture, before any replay: o[0], o[-1] = (2.0, 2.0); after resetting and one replay: (-7.0, -7.0)
+G3: capture in progress (relaxed mode), the call made on another stream
+  returned without an error; after the capture, before any replay: o[0], o[-1] = (2.0, 2.0); after resetting and one replay: (-7.0, -7.0)

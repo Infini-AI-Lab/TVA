@@ -1,0 +1,45 @@
+f16   x - inf          x = [+inf, 0, nan 7d23, -nan fe01] -> ['7fff', 'fc00', '7fff', '7fff']
+f16   x * 0            x = [+inf, 0, nan 7d23, -nan fe01] -> ['7fff', '0', '7fff', '7fff']
+f16   x + 1            x = [+inf, 0, nan 7d23, -nan fe01] -> ['7c00', '3c00', '7fff', '7fff']
+f16   fma(x, 0*x, x)   x = [+inf, 0, nan 7d23, -nan fe01] -> ['7fff', '0', '7fff', '7fff']
+f16   -x               x = [+inf, 0, nan 7d23, -nan fe01] -> ['fc00', '8000', 'fd23', '7e01']
+f16   tl.full(nan)      -> 7e00
+f16   tl.full(-nan)     -> fe00
+bf16  x - inf          x = [+inf, 0, nan 7fa3, -nan ffc1] -> ['7fff', 'ff80', '7fff', '7fff']
+bf16  x * 0            x = [+inf, 0, nan 7fa3, -nan ffc1] -> ['7fff', '0', '7fff', '7fff']
+bf16  x + 1            x = [+inf, 0, nan 7fa3, -nan ffc1] -> ['7f80', '3f80', '7fff', '7fff']
+bf16  fma(x, 0*x, x)   x = [+inf, 0, nan 7fa3, -nan ffc1] -> ['7fff', '0', '7fff', '7fff']
+bf16  -x               x = [+inf, 0, nan 7fa3, -nan ffc1] -> ['ff80', '8000', 'ffa3', '7fc1']
+bf16  tl.full(nan)      -> 7fc0
+bf16  tl.full(-nan)     -> ffc0
+f32   x - inf          x = [+inf, 0, nan 7f812345, -nan ffc00001] -> ['7fffffff', 'ff800000', '7fffffff', '7fffffff']
+f32   x * 0            x = [+inf, 0, nan 7f812345, -nan ffc00001] -> ['7fffffff', '0', '7fffffff', '7fffffff']
+f32   x + 1            x = [+inf, 0, nan 7f812345, -nan ffc00001] -> ['7f800000', '3f800000', '7fffffff', '7fffffff']
+f32   fma(x, 0*x, x)   x = [+inf, 0, nan 7f812345, -nan ffc00001] -> ['7fffffff', '0', '7fffffff', '7fffffff']
+f32   -x               x = [+inf, 0, nan 7f812345, -nan ffc00001] -> ['ff800000', '80000000', 'ff812345', '7fc00001']
+f32   tl.full(nan)      -> 7fc00000
+f32   tl.full(-nan)     -> ffc00000
+f64   x - inf          x = [+inf, 0, nan 7ff0000000012345, -nan fff8000000000001] -> ['fff8000000000000', 'fff0000000000000', '7ff8000000012345', 'fff8000000000001']
+f64   x * 0            x = [+inf, 0, nan 7ff0000000012345, -nan fff8000000000001] -> ['fff8000000000000', '0', '7ff8000000012345', 'fff8000000000001']
+f64   x + 1            x = [+inf, 0, nan 7ff0000000012345, -nan fff8000000000001] -> ['7ff0000000000000', '3ff0000000000000', '7ff8000000012345', 'fff8000000000001']
+f64   fma(x, 0*x, x)   x = [+inf, 0, nan 7ff0000000012345, -nan fff8000000000001] -> ['fff8000000000000', '0', '7ff8000000012345', 'fff8000000000001']
+f64   -x               x = [+inf, 0, nan 7ff0000000012345, -nan fff8000000000001] -> ['fff0000000000000', '8000000000000000', 'fff0000000012345', '7ff8000000000001']
+f64   tl.full(nan)      -> 7ff8000000000000
+f64   tl.full(-nan)     -> fff8000000000000
+f32   div_rn(0, 0)     -> ['7fffffff', '7fffffff', '7fffffff', '7fffffff']
+f32   sqrt_rn(-|x|-1)  -> ['7fffffff', '7fffffff', '7fffffff', '7fffffff']
+f32   x / (0*x)        -> ['7fffffff', '7f800000', '7fffffff', '7fffffff']
+cvt f32->f16: [+inf, 0, nan 7f812345, -nan ffc00001] -> ['7c00', '0', '7fff', '7fff']
+cvt f32->bf16: [+inf, 0, nan 7f812345, -nan ffc00001] -> ['7f80', '0', '7fff', '7fff']
+cvt f32->f64: [+inf, 0, nan 7f812345, -nan ffc00001] -> ['7ff0000000000000', '0', '7ff82468a0000000', 'fff8000020000000']
+cvt f64->f32: [+inf, 0, nan 7ff0000000012345, -nan fff8000000000001] -> ['7f800000', '0', '7fc00000', 'ffc00000']
+cvt f16->f32: [+inf, 0, nan 7d23, -nan fe01] -> ['7f800000', '0', '7fffffff', '7fffffff']
+cvt bf16->f32: [+inf, 0, nan 7fa3, -nan ffc1] -> ['7f800000', '0', '7fa30000', 'ffc10000']
+cvt f16->bf16: [+inf, 0, nan 7d23, -nan fe01] -> ['7f80', '0', '7fff', '7fff']
+cvt bf16->f16: [+inf, 0, nan 7fa3, -nan ffc1] -> ['7c00', '0', '7fff', '7fff']
+cvt f32->e4m3: [+inf, 0, nan, -nan] -> ['7e', '0', '7f', '7f']
+cvt f32->e5m2: [+inf, 0, nan, -nan] -> ['7b', '0', '7f', '7f']
+cvt f16->e4m3: [+inf, 0, nan, -nan] -> ['7e', '0', '7f', '7f']
+cvt f16->e5m2: [+inf, 0, nan, -nan] -> ['7b', '0', '7f', '7f']
+cvt bf16->e4m3: [+inf, 0, nan, -nan] -> ['7e', '0', '7f', '7f']
+cvt bf16->e5m2: [+inf, 0, nan, -nan] -> ['7b', '0', '7f', '7f']

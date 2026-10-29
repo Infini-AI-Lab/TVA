@@ -1,0 +1,87 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+C1: for: hint on carried p; p true before the loop; p += 1 element (later values 4-byte aligned)
+  expected: correct, no vector load
+  result:   correct
+  loads:    ld.global.b32
+  attr:     %p_0 = tt.addptr %p, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } {tt.divisibility_arg1 = dense<16> : tensor<1xi32>}
+
+C2: for: the same with p += 4, but p false before the loop (base 4 bytes past alignment)
+  expected: fault: the check is on the pre-loop value
+  result:   error: CUDA error: misaligned address
+  loads:    ld.global.v4.b32
+  attr:     %p_0 = tt.addptr %p, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } {tt.divisibility_arg1 = dense<16> : tensor<1xi32>}
+
+C3: for: p += 4, p true before the loop
+  expected: correct, vector loads
+  result:   correct
+  loads:    ld.global.v4.b32
+  attr:     %p_0 = tt.addptr %p, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } {tt.divisibility_arg1 = dense<16> : tensor<1xi32>}
+
+C4: for: as C2 without the hint
+  expected: correct (control)
+  result:   correct
+  loads:    ld.global.b32
+
+C5: for: hint on the induction variable i (from 1, step 1)
+  expected: correct, no vector load
+  result:   correct
+  loads:    ld.global.b32
+  attr:     %3 = ub.poison {tt.divisibility = dense<16> : tensor<1xi32>} : i32
+
+C6: hint on the kernel parameter x_ptr, x 4 bytes past alignment
+  expected: correct, no vector load
+  result:   correct
+  loads:    ld.global.b32
+
+C7: hint on a helper's parameter, given a pointer 4 bytes past alignment
+  expected: correct, no vector load
+  result:   correct
+  loads:    ld.global.b32
+
+C8: nested: p carried by both loops; true before the outer loop; p += 1 after each inner loop
+  expected: correct, no vector load
+  result:   correct
+  loads:    ld.global.b32
+  attr:     %p_0 = tt.addptr %p, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } {tt.divisibility_arg1 = dense<16> : tensor<1xi32>}
+  attr:     } {tt.divisibility_arg1 = dense<16> : tensor<1xi32>}
+
+C9: nested: as C8 with p += 4, but p false before the outer loop
+  expected: fault: the check is on the value before the outer loop
+  result:   error: CUDA error: misaligned address
+  loads:    ld.global.v4.b32
+  attr:     %p_0 = tt.addptr %p, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } {tt.divisibility_arg1 = dense<16> : tensor<1xi32>}
+  attr:     } {tt.divisibility_arg1 = dense<16> : tensor<1xi32>}
+
+C10: nested: p defined by the outer body (x + o), carried by the inner loop; one outer iteration (o = 0)
+  expected: correct, vector loads
+  result:   correct
+  loads:    ld.global.v4.b32
+  attr:     %p_4 = tt.addptr %p_3, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } {tt.divisibility_arg2 = dense<16> : tensor<1xi32>}
+
+C11: nested: as C10 with two outer iterations (o = 1 makes p false)
+  expected: fault: the check is on each outer iteration's value
+  result:   error: CUDA error: misaligned address
+  loads:    ld.global.v4.b32
+  attr:     %p_3 = tt.addptr %p_2, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } {tt.divisibility_arg2 = dense<16> : tensor<1xi32>}
+
+C12: while: hint on carried p; true before the loop; p += 1
+  expected: correct, no vector load
+  result:   correct
+  loads:    ld.global.b32
+  attr:     %p_0 = tt.addptr %p, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } attributes {tt.divisibility_arg0 = dense<16> : tensor<1xi32>}
+
+C13: while: p += 4, false before the loop
+  expected: fault
+  result:   error: CUDA error: misaligned address
+  loads:    ld.global.v4.b32
+  attr:     %p_0 = tt.addptr %p, %offs {tt.divisibility = dense<16> : tensor<1xi32>} : tensor<128x!tt.ptr<f32>>, tensor<128xi32>
+  attr:     } attributes {tt.divisibility_arg0 = dense<16> : tensor<1xi32>}

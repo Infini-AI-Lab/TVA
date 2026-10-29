@@ -1,0 +1,43 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+H1: s + arange, multiple_of 4, s = 4; hint true
+  loads ['ld.global.v4.b32']; correct
+H2: s + arange, multiple_of 4, s = 1; hint false
+  loads ['ld.global.v4.b32']; error: CUDA error: misaligned address
+H3: arange + s, multiple_of 4, s = 4; hint true
+  loads ['ld.global.v4.b32']; correct
+H4: arange + s, multiple_of 4, s = 2; hint false
+  loads ['ld.global.v4.b32']; error: CUDA error: misaligned address
+H5: arange - s, multiple_of 4, s = -8; hint true
+  loads ['ld.global.v4.b32']; correct
+H6: arange - s, multiple_of 4, s = -3; hint false
+  loads ['ld.global.v4.b32']; error: CUDA error: misaligned address
+H7: loaded scalar + arange, multiple_of 4, s = 8; hint true
+  loads ['ld.global.b32', 'ld.global.v4.b32']; correct
+H8: loaded scalar + arange, multiple_of 4, s = 1; hint false
+  loads ['ld.global.b32', 'ld.global.v4.b32']; error: CUDA error: misaligned address
+H9: pointer x + s + arange, multiple_of 16 bytes, s = 4; hint true
+  loads ['ld.global.v4.b32']; correct
+H10: pointer x + s + arange, multiple_of 16 bytes, s = 1; hint false
+  loads ['ld.global.v4.b32']; error: CUDA error: misaligned address
+H11: (s + arange).to(int64), multiple_of 4, s = 4; hint true
+  loads ['ld.global.v4.b32']; correct
+H12: (s + arange).to(int64), multiple_of 4, s = 1; hint false
+  loads ['ld.global.v4.b32']; error: CUDA error: misaligned address
+H13: 2-D rows of stride S, multiple_of [1, 4], S = 36; hint true
+  loads ['ld.global.v4.b32']; correct
+H14: 2-D rows of stride S, multiple_of [1, 4], S = 34; hint false
+  loads ['ld.global.v4.b32']; error: CUDA error: misaligned address
+H15: 2-D loaded row starts [0, 36, 72, 108], multiple_of [1, 4]; hint true
+  loads ['ld.global.b32', 'ld.global.v4.b32']; correct
+H16: 2-D loaded row starts [0, 34, 68, 102], multiple_of [1, 4]; hint false
+  loads ['ld.global.b32', 'ld.global.v4.b32']; error: CUDA error: misaligned address
+H17: pair max_contiguous(multiple_of(s + arange, 4), 4), s = 4; hint true
+  loads ['ld.global.v4.b32']; correct
+H18: pair max_contiguous(multiple_of(s + arange, 4), 8), s = 4; hint true
+  loads ['ld.global.v4.b32']; correct
+H19: pair max_contiguous(multiple_of(s + arange, 4), 4), s = 2; hint false
+  loads ['ld.global.v4.b32']; error: CUDA error: misaligned address
+H20: s + arange, no hint, s = 4 (control); hint -
+  loads ['ld.global.b32']; correct
+H21: 2-D rows of stride S, no hint, S = 36 (control); hint -
+  loads ['ld.global.b32']; correct

@@ -1,0 +1,92 @@
+## A: the kernel, updated for round 3 in the copy
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type or handler attribute
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+
+## B: the text of [sort], which the map does not name, changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type or handler attribute
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## C: the text of [mask], which the map names, changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type or handler attribute
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## D: exclusions.md, part of every map's general text, changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type or handler attribute
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## E: a map entry names no rule of the page
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type or handler attribute
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: FAIL: entry 1 (src ['30-36']): no transcription rule [no-such-rule]
+  item map: CHANGED
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## F: the kernel's Lean adds a theorem through run_cmd and addDeclCore (doCheck := false)
+gate ok: False
+  hygiene: FAIL: lean/VecAdd.lean:280: a kernel or compiler bypass (addDeclCore); lean/VecAdd.lean:280: a kernel or compiler bypass (doCheck); lean/VecAdd.lean:281: a kernel or 
+  build: FAIL: not run (hygiene or independence failed)
+  replay: FAIL: not run (the build did not run or failed)
+  shape: FAIL: not checked (the build did not run or failed)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: CHANGED
+  item spec: CHANGED
+  item conditions: CHANGED
+  item assumption:faithful: CHANGED
+
+## G: the same, with the copy's tool not running the hygiene list
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type or handler attribute
+  build: pass: lake build VecAdd
+  replay: FAIL: leanchecker VecAdd rejects the compiled kernel: leanchecker found a problem in VecAdd | uncaught exception: while replaying declaration 'Kernels.VecAdd.extraFal
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## H: everything restored
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type or handler attribute
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+

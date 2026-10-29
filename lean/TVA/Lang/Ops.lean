@@ -69,8 +69,8 @@ not). The model does not track which operands are products, so this allows:
 - the rounding of `p + q` for exact `p`, `q` rounding to the operands;
 - an infinite operand added to an exact other operand, which gives that infinity.
 
-This soundly over-approximates every fusion. Error bounds lose at most half an ulp per operand,
-and an exact zero result may have either sign. -/
+This soundly over-approximates every fusion. Error bounds lose at most one rounding's bound
+(`u·|y| + η`) per operand, and an exact zero result may have either sign. -/
 def AddRel {f : Format} (fusion : Bool) (x y r : FloatV f) : Prop :=
   FloatV.NaNEq (FloatV.add x y) r ∨
     (fusion = true ∧
@@ -126,6 +126,28 @@ other coordinate, and their `k`-th coordinates have the same quotient by `C`. -/
 def Idx.SameGroup {s : Shape} (k C : Nat) (i j : Idx s) : Prop :=
   (∀ k', k' ≠ k → i.coord k' = j.coord k') ∧ i.coord k / C = j.coord k / C
 
+/-- Along dimension `k`, each group of `C` positions (`Idx.SameGroup`) holds consecutive values,
+`HintVal.unit β` apart. -/
+def ContigAlong {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) : Prop :=
+  ∀ i j : Idx s, Idx.SameGroup k C i j →
+    HintVal.val (x.get j) = HintVal.val (x.get i) + ((j.coord k : Int) - i.coord k) * HintVal.unit β
+
+/-- `C` is `x`'s contiguity along dimension `k`: each group of `C` positions holds consecutive
+values, and, unless `2·C` exceeds the dimension's size, the groups of `2·C` positions do not all do
+so. Since a group of `2·C` consecutive values splits into two groups of `C`, `C` is then the
+largest such group size. -/
+def ContigIs {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) : Prop :=
+  ContigAlong x k C ∧ (2 * C ≤ s.dim k → ¬ ContigAlong x k (2 * C))
+
+/-- `v` divides the first element of each group of `C` positions along dimension `k`: the elements
+whose coordinate `k` is a multiple of `C`. With `C = 1`, every element. -/
+def FirstsDiv {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C v : Nat) : Prop :=
+  ∀ i : Idx s, i.coord k % C = 0 → (v : Int) ∣ HintVal.val (x.get i)
+
+/-- Along dimension `k`, each group of `C` positions holds equal values. -/
+def ConstAlong {s : Shape} {β : Type} (x : Tensor s β) (k C : Nat) : Prop :=
+  ∀ i j : Idx s, Idx.SameGroup k C i j → x.get j = x.get i
+
 namespace tl
 
 variable {s : Shape} {α : Type}
@@ -164,7 +186,9 @@ def addrs {d : DType} (ptrs : Tensor s (Ptr d)) (mask : Option (Tensor s Bool)) 
 
 /-- `tl.load(ptrs, mask, other)`. Disabled lanes are not accessed; they hold `other` when given
 and an unspecified value otherwise (the documentation: "If `other` is `None`, the masked-out
-value is undefined"). `cache_modifier`, `eviction_policy` and `volatile` do not change the
+value is undefined"). `other` here is the source's `other` converted to the pointer's dtype (the
+front end casts it, `triton-3.8.0-semantic.py:1043-1045`), after a Python number has become a tensor
+of its own type (`docs/SEMANTICS.md`, `tl.load`; library issue L86). `cache_modifier`, `eviction_policy` and `volatile` do not change the
 result in a race-free execution, the only kind the semantics gives meaning to. -/
 def load {d : DType} (ptrs : Tensor s (Ptr d)) (mask : Option (Tensor s Bool) := none)
     (other : Option (Tensor s d.Val) := none) : Prog (Tensor s d.Val) :=
@@ -355,8 +379,8 @@ def fma (x y z : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := upToNaN (T
 
 /-- `x / y` on floats (`tl.fdiv` with `ieee_rounding=False`): the platform's division. Triton
 computes `/` of `float16` and `bfloat16` in `float32` (`semantic.py:93-102`): the model converts
-explicitly. Its accuracy is a rule: `Rules.Num.DivFull` for `float32` (`div.full.f32`, 2 ulp),
-`Rules.Num.DivRn` for `float64` (IEEE). -/
+explicitly. Its accuracy is a rule: `Rules.Num.DivFull` for `float32` (`div.full.f32`, within
+`2^-22·|x/y| + 2^-148` for `|x/y| ≤ 2^126`), `Rules.Num.DivRn` for `float64` (IEEE). -/
 def div (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
   .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i, e.P.div f (x.get i) (y.get i) (r.get i)) .ret
 
@@ -394,6 +418,16 @@ def maximum (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
 def minimum (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
   .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel false (x.get i) (y.get i) (r.get i)) .ret
 
+/-- `tl.maximum(x, y)` / `tl.minimum(x, y)` on integer tensors, and Python's `max(x, y)` /
+`min(x, y)` in a kernel when an operand is a tensor (`core.py:3882-3929`, which folds
+`tl.maximum`/`tl.minimum`): exact, signed or unsigned by the dtype (`arith.maxsi`/`maxui`,
+`minsi`/`minui`, `semantic.py:366-398`; `IntV.max`, `IntV.min`). The operands have the promoted
+dtype (`TVA.Lang.Promote`, `BinOp.typing?`). -/
+def imaximum {sg : Bool} {w : Nat} (x y : Tensor s (IntV sg w)) : Tensor s (IntV sg w) :=
+  Tensor.map2 IntV.max x y
+def iminimum {sg : Bool} {w : Nat} (x y : Tensor s (IntV sg w)) : Tensor s (IntV sg w) :=
+  Tensor.map2 IntV.min x y
+
 /-- The rounding modes `x.to(dtype, fp_downcast_rounding=…)` allows from format `f` to `g`:
 `"rtne"` (`.rn`, the default) always; `"rtz"` (`.rz`) only from `float32`, to `float16`,
 `bfloat16` (`cvt.rz`) or `float8e5`. Other pairs do not compile: a non-`float32` source with
@@ -425,12 +459,14 @@ def cvtFrom8 {g : Format} (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV g))
 
 /-- The results an integer `z` may convert to in format `g`: rounded to nearest even once, or
 twice through a wider standard format. Before sm_90 there is no direct integer-to-`bfloat16`
-conversion, so it goes through `float32`. And MLIR folds any narrowing of an integer-to-float
-result into one conversion to the final format (`truncf(sitofp x) → sitofp x`,
-`llvm-ArithCanonicalization.td:453-463`, with no one-use condition). That covers an explicit
-chain `x.to(float64).to(float32)` and also the implicit conversions of `tl.store`, the atomics
-and `desc.store`. The model writes each such narrowed value as one `tl.itof` to the final
-format. -/
+conversion, so it goes through `float32`. And MLIR folds a narrowing with the default rounding of
+an integer-to-float result into one conversion to the final format (`truncf(sitofp x) → sitofp x`,
+`llvm-ArithCanonicalization.td:453-463`, with no one-use condition, for a `truncf` without a
+rounding mode). That covers an explicit chain `x.to(float64).to(float32)` and also the implicit
+conversions of `tl.store`, the atomics and `desc.store`. So each such narrowed value is one
+`tl.itof` to the final format (`docs/SEMANTICS.md`, `x.to(float)`). A narrowing with
+`fp_downcast_rounding="rtz"` is `tt.fp_to_fp`, which no fold touches: the model writes `tl.itof` to
+the intermediate format, then `tl.cvt … .rz` (library issue L24). -/
 def ItofRel (g : Format) (z : Int) (r : FloatV g) : Prop :=
   r = FloatV.ofRat (z : Rat) ∨
   ((g = .binary16 ∨ g = .bfloat16 ∨ g = .binary32) ∧ r = FloatV.cvt (FloatV.ofRat (z : Rat) : F64)) ∨
@@ -535,13 +571,14 @@ integers narrower than 32 bits in their own type. -/
 
 /-- The comparisons Triton's index reductions use on an element type: `<` and `==` (`arith.cmpi`,
 signed or unsigned as the dtype is, for integers; the ordered `arith.cmpf olt`/`oeq` for floats,
-so any comparison with a NaN is false). -/
+so any comparison with a NaN is false), and which elements are NaN (none for integers). -/
 class CmpKey (α : Type) where
   lt : α → α → Bool
   eq : α → α → Bool
+  nan : α → Bool
 
-instance {sg : Bool} {w : Nat} : CmpKey (IntV sg w) := ⟨IntV.lt, IntV.eq⟩
-instance {f : Format} : CmpKey (FloatV f) := ⟨FloatV.lt, FloatV.eq⟩
+instance {sg : Bool} {w : Nat} : CmpKey (IntV sg w) := ⟨IntV.lt, IntV.eq, fun _ => false⟩
+instance {f : Format} : CmpKey (FloatV f) := ⟨FloatV.lt, FloatV.eq, FloatV.isNaN⟩
 
 namespace tl
 
@@ -557,38 +594,45 @@ def argCombine [CmpKey α] (isMax tieLeft : Bool) (a b : α × Nat) : α × Nat 
   let win := (if isMax then CmpKey.lt b.1 a.1 else CmpKey.lt a.1 b.1) || tie
   if win then a else b
 
+/-- What an index reduction over the elements `g 0, …, g (n-1)` may return: the pair
+`(value, index)` that `argCombine` gives along some tree over the positions, each leaf `j` being
+`(g j, j)`; or, when some element is NaN, a value that is one of the elements (up to NaN payload)
+with an index in range, not necessarily from the same position. With a NaN in the slice, the
+device's `float16` and `bfloat16` results (the latter reduced in `float32`) take the value and the
+index from different positions (`evidence/argmax`, library issue L17), so the library assumes no
+more than this for any float type. -/
+def ArgRes [CmpKey α] (isMax tieLeft : Bool) (n : Nat) (g : Nat → α) (r : α × I32) : Prop :=
+  (∃ p : α × Nat, ∃ t : Tree, t.Covers n ∧
+    t.Eval (fun a b c => c = argCombine isMax tieLeft a b) (fun j => (g j, j)) p ∧
+    r = (p.1, IntV.ofNat p.2)) ∨
+  ((∃ j, j < n ∧ CmpKey.nan (g j) = true) ∧
+    (∃ j, j < n ∧ (r.1 = g j ∨ (CmpKey.nan r.1 = true ∧ CmpKey.nan (g j) = true))) ∧
+    ∃ j, j < n ∧ r.2 = IntV.ofNat j)
+
 /-- `tl.max(x, 0, return_indices=True, return_indices_tie_break_left=tieLeft)` (`isMax`) or
-`tl.min(…)` of a rank-1 tensor: the pair `(value, index)` that `argCombine` gives along some tree
-over the positions, each leaf `j` being `(x[j], j)`. `tl.argmax(x, 0, tie_break_left=tieLeft)`
+`tl.min(…)` of a rank-1 tensor: a result `ArgRes` allows. `tl.argmax(x, 0, tie_break_left=tieLeft)`
 (`tl.argmin`) is the index. No widening (see the section): `bfloat16` is converted to `float32`
 by the model first. With `tieLeft = false`, a tie may give any of the tied indices, and with a
-NaN (every comparison false) the result depends on the tree. -/
+NaN the result depends on the tree, and the value and the index may come from different
+positions. -/
 def argmaxAll [CmpKey α] [Inhabited α] {n : Nat} (isMax tieLeft : Bool) (x : Tensor [n] α) :
     Prog (α × I32) :=
-  .pick (fun r : α × I32 => ∃ p : α × Nat, ∃ t : Tree, t.Covers n ∧
-    t.Eval (fun a b c => c = argCombine isMax tieLeft a b)
-      (fun j => (if h : j < n then x.get1 ⟨j, h⟩ else default, j)) p ∧
-    r = (p.1, IntV.ofNat p.2)) .ret
+  .pick (fun r : α × I32 => ArgRes isMax tieLeft n
+    (fun j => if h : j < n then x.get1 ⟨j, h⟩ else default) r) .ret
 
 /-- `tl.max(x, 1, return_indices=True)` (`isMax`) or `tl.min(x, 1, …)` of a rank-2 tensor: for
-each row, the `(value, index)` pair of `argmaxAll`; `tl.argmax(x, 1)` (`tl.argmin`) is the
-index tensor. -/
+each row, a pair `ArgRes` allows; `tl.argmax(x, 1)` (`tl.argmin`) is the index tensor. -/
 def argmax1 [CmpKey α] [Inhabited α] {m n : Nat} (isMax tieLeft : Bool) (x : Tensor [m, n] α) :
     Prog (Tensor [m] α × Tensor [m] I32) :=
-  .pick (fun r : Tensor [m] α × Tensor [m] I32 => ∀ i, ∃ p : α × Nat, ∃ t : Tree, t.Covers n ∧
-    t.Eval (fun a b c => c = argCombine isMax tieLeft a b)
-      (fun j => (if h : j < n then x.get2 i ⟨j, h⟩ else default, j)) p ∧
-    r.1.get1 i = p.1 ∧ r.2.get1 i = IntV.ofNat p.2) .ret
+  .pick (fun r : Tensor [m] α × Tensor [m] I32 => ∀ i, ArgRes isMax tieLeft n
+    (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.1.get1 i, r.2.get1 i)) .ret
 
 /-- `tl.max(x, 0, return_indices=True)` (`isMax`) or `tl.min(x, 0, …)` of a rank-2 tensor: for
-each column, the `(value, index)` pair of `argmaxAll`; `tl.argmax(x, 0)` (`tl.argmin`) is the
-index tensor. -/
+each column, a pair `ArgRes` allows; `tl.argmax(x, 0)` (`tl.argmin`) is the index tensor. -/
 def argmax0 [CmpKey α] [Inhabited α] {m n : Nat} (isMax tieLeft : Bool) (x : Tensor [m, n] α) :
     Prog (Tensor [n] α × Tensor [n] I32) :=
-  .pick (fun r : Tensor [n] α × Tensor [n] I32 => ∀ j, ∃ p : α × Nat, ∃ t : Tree, t.Covers m ∧
-    t.Eval (fun a b c => c = argCombine isMax tieLeft a b)
-      (fun i => (if h : i < m then x.get2 ⟨i, h⟩ j else default, i)) p ∧
-    r.1.get1 j = p.1 ∧ r.2.get1 j = IntV.ofNat p.2) .ret
+  .pick (fun r : Tensor [n] α × Tensor [n] I32 => ∀ j, ArgRes isMax tieLeft m
+    (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.1.get1 j, r.2.get1 j)) .ret
 
 /-! ## Matrix multiplication -/
 
@@ -617,11 +661,17 @@ def MulRel : (d : DType) → d.Val → d.Val → d.Val → Prop
   | .f32, a, b, c => FloatV.NaNEq (FloatV.mul a b) c | .f64, a, b, c => FloatV.NaNEq (FloatV.mul a b) c
   | _, _, _, _ => False
 
-/-- A source `tl.sum(x[:, :, None] * y[None, :, :], axis=1)` of float tensors. Triton's
-combine pass rewrites it to `tl.dot(x, y)` with `input_precision="ieee"` when the additions
-are at most 32 bits wide and `M, N ≥ 16` (`CombineBroadcastMulReducePattern`,
-`Combine.cpp:112-200`), whatever `enable_fp_fusion` says. Otherwise each element is the
-products summed along a tree, with fusable additions (as `tl.sumc`). -/
+/-- A float reduction on axis 1 of the products `x[i, k] * y[k, j]`, with `x` expanded on its last
+axis and `y` on its first: `tl.sum(x[:, :, None] * y[None, :, :], axis=1)`, and every other
+spelling of that computation (`tl.expand_dims`, `tl.broadcast_to`, a `tl.reduce` whose combine
+returns the sum of its two arguments; library issue L26). A `tl.reduce` whose combine is another
+single addition (`a + a`, `b + b`) is not this computation, though the pass rewrites it too; the
+library gives it no meaning yet. Triton's combine pass matches the IR, not the
+spelling: it rewrites such a reduction to `tl.dot(x, y)` with `input_precision="ieee"` when the
+additions are at most 32 bits wide and `M, N ≥ 16` (`CombineBroadcastMulReducePattern`,
+`Combine.cpp:112-200`), whatever `enable_fp_fusion` says. Otherwise each element is the products
+summed along a tree, with fusable additions (as `tl.sumc`). Both are allowed here, so the
+definition covers a spelling whether or not the pass rewrites it. -/
 def sum_bcast_mul (d : DType) {M K N : Nat} (x : Tensor [M, K] d.Val) (y : Tensor [K, N] d.Val) :
     Prog (Tensor [M, N] d.Val) :=
   .env fun e => .pick (fun r : Tensor [M, N] d.Val =>
@@ -668,68 +718,177 @@ def lshr {sg : Bool} {w : Nat} (x n : Tensor s (IntV sg w)) : Prog (Tensor s (In
 
 /-! ## Compiler hints
 
-A hint is a promise to the compiler, which uses it to vectorise and align accesses. If the
-promise is false the behaviour is undefined, so the model keeps each hint as a check
-(`core.py:3307-3389`, `semantic.py:1776-1792`). The hint is an attribute of the *value*
-(`set_attr` on its defining operation), and the compiler uses it at every use of that value,
-including uses before the call or on paths that never reach it. So the model places the check
-where the hinted value is defined, before any use, even when the source writes the hint later
-or inside a branch. A hint on a block argument (a loop's induction variable, or a variable the
-loop carries) has no effect: `Value.set_attr` stores it as `<name>_arg<N>` on the loop
-operation (`triton-3.8.0-ir.cc:411-424`), and no pass of Triton 3.8.0 reads that attribute. The
-model drops such a hint. A hint applies to an integer tensor or a
-pointer tensor (`HintVal`). Each takes one value per dimension. The 1-D forms
-(`max_contiguous`, `max_constancy`, `multiple_of`) take a single value. The forms for any rank
-end in `N` and take a list, one entry per dimension, as the source does. -/
+A hint is a promise to the compiler, which uses it to vectorise and align accesses and to
+compute a value once per group of equal ones. If the promise is false the behaviour is
+undefined, so the model keeps each hint as a check (`core.py:3307-3382`,
+`semantic.py:1775-1791`). The hint is an attribute of the *value* (`set_attr` on its defining
+operation, `ir.cc:411-425`), and the compiler uses it at every use of that value, including uses
+before the call or on paths that never reach it. So the model places the check where the hinted
+value is defined, before any use, even when the source writes the hint later or inside a branch
+(`docs/SEMANTICS.md`, "Compiler hints").
+
+**Which value a hint marks** (library issues L1 and L60, `evidence/hint-loops`,
+`evidence/hint-multi`). A hint marks the operation that defined its argument's value when the
+front end visits the call. A value no operation defines takes no mark: a kernel's or a helper's
+parameter, a loop's induction variable, and the value a loop carries inside its body (block
+arguments; the attribute the front end leaves on the loop is read by no pass). Before it emits a
+`for` or `while` loop, the front end visits the body once with every name bound to its value before
+the loop and the induction variable bound to a placeholder no code uses. So:
+- a hint on a value the body defines checks each iteration's value;
+- a hint on a name the loop carries, where it still holds the carried value, checks the value
+  before the loop, once, when an operation defined that value, and promises nothing about the
+  values of later iterations. With nested loops that all carry the name, that is the value before
+  the outermost of them; a value an enclosing loop's body defines is checked on each iteration of
+  that body;
+- a hint on a parameter or an induction variable has no effect, and the model drops it;
+- a hint on the value a call of a `@triton.jit` function returns, when Triton inlines the call,
+  marks the call, and inlining removes it: the hint has no effect, and the model drops it
+  (`evidence/hint-multi` M12, M13). Every call is inlined but that of a helper declared
+  `@triton.jit(noinline=True)`; the calls include the `tl.*` functions Triton writes in Triton
+  (`triton-3.8.0-standard.py`): `tl.argmax`, `argmin`, `bitonic_merge`, `cdiv`, `cumprod`,
+  `cumsum`, `flip`, `interleave`, `max`, `min`, `ravel`, `reduce_or`, `sigmoid`, `softmax`, `sort`,
+  `squeeze`, `sum`, `swizzle2d`, `topk`, `unsqueeze`, `xor_sum`, `zeros`, `zeros_like`, and their
+  method forms;
+- **several results.** When the operation that defined the value has several results, the hint
+  may apply to every one of them: the compiler reads it off the operation for each result
+  (`AxisInfo.cpp:1239-1242, 1318-1342`), and a true hint on one result made the loads through
+  another vectorise, and they faulted (`evidence/hint-multi` M4-M6, M14). The operations are
+  `tl.split` (`a, b = tl.split(z)`), `tl.reduce` and `tl.associative_scan` on a tuple, the call of
+  a helper declared `noinline=True` that returns a tuple, and the `for` or `while` loop or runtime
+  `if` whose results are the names it carries or merges (a hint after it on one of them). Such a
+  hint promises the same about each result of that operation, and the model checks each, where the
+  operation defines them. The library states that promise when every result has the hinted value's
+  shape and, for `multiple_of` and `max_contiguous`, is an integer or pointer tensor (`HintVal`;
+  `ConstAlong` holds of any element type). A hint on one result of an operation with a result of
+  another shape, or with a float result under `multiple_of` or `max_contiguous`, is excluded
+  (`docs/exclusions.md`; library issue L86): the readings are not defined for that result. A hint
+  after a loop or a runtime `if` marks the loop or the `if`, whose mark the compiler does not read
+  (`evidence/hint-multi` M7-M10), and in some other cases the mark is lost (M1): checking each result
+  is then stronger than the device needs, and sound.
+
+**What a hint promises** (library issues L2 and L58, `evidence/hint-rank2`, `evidence/hint-contig`),
+along each dimension `k` of the hinted tensor `x`, for the source's per-dimension values (one value
+for rank 1). A hint replaces one part of what the compiler's analysis believes of the value
+(`AxisInfo.cpp:1244-1259`): `max_contiguous` the contiguity, `multiple_of` the divisibility of the
+first element of each group, `max_constancy` the constancy.
+- `tl.max_contiguous(x, C)` alone: `C` is `x`'s contiguity along `k` (`ContigIs`): groups of `C`
+  positions hold consecutive values, and groups of `2·C` do not. "Groups of `C`" alone is not
+  sound: with a smaller `C` than `x`'s own, the compiler keeps the divisibility its analysis
+  inferred for its own, longer groups and applies it to the hinted ones (`evidence/hint-rank2` C1:
+  a true "groups of 1" faults).
+- `tl.max_constancy(x, C)`: groups of `C` positions hold equal values (`ConstAlong`).
+- `tl.multiple_of(x, v)` alone: `v` divides the first element of each group of `C` positions
+  (`FirstsDiv x k C v`), where the compiler pairs `v` with the contiguity `C` its analysis infers
+  for `x`. The model may take for `C` any lower bound the library states for that contiguity
+  (below), and `1` otherwise, which makes it every element (`AxisInfo.h:31-40, 92-101`). A smaller
+  `C` is a stronger promise, so a lower bound is sound.
+- `tl.max_contiguous(tl.multiple_of(x, v), C)` (both on the same value, in either order): the pair
+  replaces the compiler's contiguity and divisibility, and promises `ContigAlong x k C` and
+  `FirstsDiv x k C v` (`tl.max_contiguous_multiple_of`), `C` below `x`'s own contiguity included
+  (`evidence/hint-contig` H17-H19).
+
+**The contiguity the analysis infers** (library issue L58, `AxisInfo.cpp:138-147, 169-183,
+242-279, 553-575, 607-668, 1232-1259`, `evidence/hint-contig` H1-H16, `evidence/hint-hinted-bound`
+G1-G6, `evidence/hint-unread-round17` N0-N10), a lower bound per dimension `k`, for the value the
+hinted operation defines:
+- a value that carries a `max_contiguous` hint, alone or in the pair (its defining operation is
+  marked, as above): the smaller of the hinted `C` along `k` (with two such hints, the smallest) and
+  the bound the items below give it as if it carried no hint. When the compiler reads the mark, the
+  hint replaces what the analysis infers and the contiguity is `C`; but it reads no mark on a loop's
+  or a runtime `if`'s result, inlining removes the mark from a call's result, an operation with
+  several results keeps it in some cases only, and the canonicalizer drops it with an operation it
+  folds away (`r + 0`, `r * 1`), and then the analysis keeps its own contiguity, which the items
+  below bound. Values built from the hinted value start from that bound (after
+  `a = tl.max_contiguous(tl.multiple_of(tl.arange(0, 512), 4), 4)`, `a + s` has the bound `4`,
+  not `512`: `evidence/hint-hinted-bound` G2, G5, G6; after the pair `16` on a loaded `r`, `r + s`
+  has the bound `1`: `evidence/hint-unread-round17` N2-N5, N9, N10, where the loads were as wide as
+  without the hint);
+- for a value that carries none:
+  - `tl.arange(a, b)`: `b - a`;
+  - `x + y`, `y + x` and `x - y`, where `x` has the lower bound `C` along `k` (by this list) and
+    `y` is constant along `k` (a scalar, a Python number, a `tl.constexpr`, or a tensor of size 1
+    along `k` that the operation broadcasts): `C`; with pointers, `p + x` and `x + p` likewise (`C`
+    in elements);
+  - `x[:, None]`, `x[None, :]` and `tl.expand_dims`: the kept dimensions keep their bound, and the
+    new one has `1`; a broadcast (implicit, or `tl.broadcast_to`) keeps the bound of each dimension
+    it does not broadcast;
+  - an integer conversion `x.to(…)` between integer dtypes: `x`'s bound.
+
+Anything else has the bound `1`; a `multiple_of` alone on a sub-expression does not change its bound
+(`evidence/hint-hinted-bound` G4). The library gives these readings for values that are powers of
+two, at most the dimension's size for `max_contiguous` and `max_constancy`; other values are
+excluded (`docs/exclusions.md`). A hint applies to an integer tensor or a pointer tensor
+(`HintVal`: a pointer's divisibility is in bytes, its contiguity in elements). The 1-D forms take a
+single value. The forms for any rank end in `N` and take a list, one entry per dimension, as the
+source does. -/
 
 /-- `tl.assume(cond)`. -/
 def assume (c : Bool) : Prog Unit := .pick (fun _ : Unit => c = true) .ret
 
-/-- `tl.max_contiguous(x, C)` (1-D): `x` is `n / C` runs of `C` consecutive values. -/
+/-- `tl.max_contiguous(x, C)` (1-D), with no `tl.multiple_of` on the same value: `C` is `x`'s
+contiguity (`ContigIs`): `x` is `n / C` runs of `C` consecutive values, and not `n / (2·C)` runs of
+`2·C` (see the section). With a `tl.multiple_of` on the same value, the pair is
+`tl.max_contiguous_multiple_of`. -/
 def max_contiguous {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C : Nat) :
     Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ∀ i j : Fin n, i.1 / C = j.1 / C →
-    HintVal.val (x.get1 j) = HintVal.val (x.get1 i) + ((j.1 : Int) - i.1) * HintVal.unit β) .ret
+  .pick (fun y => y = x ∧ ContigIs x 0 C) .ret
 
 /-- `tl.max_constancy(x, C)` (1-D): `x` is `n / C` runs of `C` equal values. -/
 def max_constancy {n : Nat} {β : Type} (x : Tensor [n] β) (C : Nat) : Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ∀ i j : Fin n, i.1 / C = j.1 / C → x.get1 j = x.get1 i) .ret
+  .pick (fun y => y = x ∧ ConstAlong x 0 C) .ret
 
-/-- `tl.multiple_of(x, v)` (1-D): `v` divides the first element of every contiguous group of
-`x`. A group is `contig` consecutive positions. `contig` is the contiguity Triton assigns to
-`x`, from `tl.max_contiguous` or its own analysis (`pid * B + tl.arange(0, B)` has contiguity
-`B`).
-
-`contig = 1` requires every element to be a multiple, which is always a sound reading. A larger
-`contig` must *divide* Triton's contiguity for `x` (then every group start Triton relies on is
-checked), and the reviewer checks it. Triton's contiguities are powers of two. -/
+/-- `tl.multiple_of(x, v)` (1-D), with no `tl.max_contiguous` on the same value: `v` divides the
+first element of each group of `contig` positions of `x` (`FirstsDiv`). `contig` is a lower bound
+the library states for the contiguity Triton's analysis infers for `x` ("The contiguity the analysis
+infers", in the section: `B` for `s + tl.arange(0, B)`), and `1` (the default: every element is a
+multiple of `v`) otherwise. With a `tl.max_contiguous` on the same value, the pair is
+`tl.max_contiguous_multiple_of`. -/
 def multiple_of {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (v : Nat)
     (contig : Nat := 1) : Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ∀ i : Fin n, i.1 % contig = 0 → (v : Int) ∣ HintVal.val (x.get1 i)) .ret
+  .pick (fun y => y = x ∧ FirstsDiv x 0 contig v) .ret
+
+/-- `tl.max_contiguous(tl.multiple_of(x, v), C)` (1-D; both hints on the same value, in either
+order): the pair replaces what the compiler believes of `x`'s contiguity and divisibility, so it
+promises that groups of `C` positions hold consecutive values (`ContigAlong`) and that `v` divides the
+first element of each group (`FirstsDiv`), also with `C` below `x`'s own contiguity
+(`evidence/hint-contig` H17-H19; library issue L58). -/
+def max_contiguous_multiple_of {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C v : Nat) :
+    Prog (Tensor [n] β) :=
+  .pick (fun y => y = x ∧ ContigAlong x 0 C ∧ FirstsDiv x 0 C v) .ret
 
 /-- `tl.multiple_of(x, v)` of a scalar. -/
 def multiple_of1 {β : Type} [HintVal β] (x : β) (v : Nat) : Prog β :=
   .pick (fun y => y = x ∧ (v : Int) ∣ HintVal.val x) .ret
 
-/-- `tl.max_contiguous(x, Cs)` for any rank: along each dimension `k`, every group of
-`Cs[k]` positions (`Idx.SameGroup`) holds consecutive values. -/
+/-- `tl.max_contiguous(x, Cs)` for any rank, with no `tl.multiple_of` on the same value: along each
+dimension `k`, `Cs[k]` is `x`'s contiguity (`ContigIs`). -/
 def max_contiguousN {β : Type} [HintVal β] (x : Tensor s β) (Cs : List Nat) : Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → ∀ i j : Idx s, Idx.SameGroup k (Cs.getD k 1) i j →
-    HintVal.val (x.get j) = HintVal.val (x.get i) + ((j.coord k : Int) - i.coord k) * HintVal.unit β) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → ContigIs x k (Cs.getD k 1)) .ret
 
 /-- `tl.max_constancy(x, Cs)` for any rank: along each dimension `k`, every group of `Cs[k]`
 positions holds equal values. -/
 def max_constancyN {β : Type} (x : Tensor s β) (Cs : List Nat) : Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → ∀ i j : Idx s, Idx.SameGroup k (Cs.getD k 1) i j →
-    x.get j = x.get i) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1)) .ret
 
-/-- `tl.multiple_of(x, vs)` for any rank: along each dimension `k`, `vs[k]` divides the first
-element of every contiguous group (`contig[k]` positions, the contiguity Triton assigns along
-`k`; the default `1` is always sound, as in `multiple_of`). -/
+/-- `tl.multiple_of(x, vs)` for any rank, with no `tl.max_contiguous` on the same value: along each
+dimension `k`, `vs[k]` divides the first element of each group of `contig[k]` positions
+(`FirstsDiv`). `contig[k]` is a lower bound the library states for the contiguity Triton's analysis
+infers for `x` along `k` (see the section), and `1` where it states none (the default `[]`: `1`
+along every dimension, so every element is a multiple of each `vs[k]`). Tutorial 08's
+`tl.multiple_of(a_ptrs, [16, 16])` on a block of row pointers is therefore a promise that every
+pointer of the block is 16-byte aligned (dimension 0 has contiguity 1, so its value applies to every
+element), which no launch meets (`evidence/hint-rank2` R1, R2). -/
 def multiple_ofN {β : Type} [HintVal β] (x : Tensor s β) (vs : List Nat) (contig : List Nat := []) :
     Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → ∀ i : Idx s, i.coord k % contig.getD k 1 = 0 →
-    (vs.getD k 1 : Int) ∣ HintVal.val (x.get i)) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → FirstsDiv x k (contig.getD k 1) (vs.getD k 1)) .ret
+
+/-- `tl.max_contiguous(tl.multiple_of(x, vs), Cs)` for any rank (both hints on the same value): along
+each dimension `k`, groups of `Cs[k]` positions hold consecutive values and `vs[k]` divides the first
+element of each group (see `max_contiguous_multiple_of`). -/
+def max_contiguous_multiple_ofN {β : Type} [HintVal β] (x : Tensor s β) (Cs vs : List Nat) :
+    Prog (Tensor s β) :=
+  .pick (fun y => y = x ∧ ∀ k, k < s.length →
+    ContigAlong x k (Cs.getD k 1) ∧ FirstsDiv x k (Cs.getD k 1) (vs.getD k 1)) .ret
 
 /-! ## Shape changes with reordering -/
 

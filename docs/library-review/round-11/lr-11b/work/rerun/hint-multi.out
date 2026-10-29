@@ -1,0 +1,57 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+M1: tl.split: hint r0 (true), load through r1
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: ['%outLHS, %outRHS = tt.split %z_25 {tt.divisibility = dense<4> : tensor<1xi32>} : tensor<64x2xi32> -> tensor<64xi32> loc(']
+  after the TTIR passes: ['%outLHS, %outRHS = tt.split %z_9 {tt.divisibility = dense<4> : tensor<1xi32>} : tensor<64x2xi32> -> tensor<64xi32> loc(#']
+M2: tl.split: no hint (control)
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: []
+  after the TTIR passes: []
+M3: tl.max(..., return_indices=True): hint the indices (true), load through the values
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: ['%1:2 = tt.call @triton.language.standard.max__i32S64_2S_c1_cTrue_cTrue_cFalse(%0) {tt.divisibility = dense<4> : tensor<1']
+  after the TTIR passes: []
+M4: tuple tl.reduce: hint r0 (true), load through r1
+  loads []; error: AcceleratorError: CUDA error: misaligned address
+  the hint's operation, front end: []
+  after the TTIR passes: []
+M5: tuple tl.associative_scan: hint r0 (true), load through r1
+  loads []; error: AcceleratorError: CUDA error: misaligned address
+  the hint's operation, front end: []
+  after the TTIR passes: []
+M6: noinline helper returning two scalars: hint s0 (true), load through s1 + 4i
+  loads []; error: AcceleratorError: CUDA error: misaligned address
+  the hint's operation, front end: []
+  after the TTIR passes: []
+M7: loop results: hint r0 (true), load through r1
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: ['} {tt.divisibility = dense<4> : tensor<1xi32>} loc(#loc39)']
+  after the TTIR passes: ['} {tt.divisibility = dense<4> : tensor<1xi32>} loc(#loc39)']
+M8: loop results: hint r1 (false), load through r1
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: ['} {tt.divisibility = dense<4> : tensor<1xi32>} loc(#loc39)']
+  after the TTIR passes: ['} {tt.divisibility = dense<4> : tensor<1xi32>} loc(#loc39)']
+M9: runtime if results: hint r0 (true), load through r1
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: ['} {tt.divisibility = dense<4> : tensor<1xi32>} loc(#loc7)']
+  after the TTIR passes: ['} {tt.divisibility = dense<4> : tensor<1xi32>} loc(#loc7)']
+M10: runtime if results: hint r1 (false), load through r1
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: ['} {tt.divisibility = dense<4> : tensor<1xi32>} loc(#loc7)']
+  after the TTIR passes: ['} {tt.divisibility = dense<4> : tensor<1xi32>} loc(#loc7)']
+M11: r1 = b + d (one operation): hint r1 (false), load through r1 (control)
+  loads []; error: AcceleratorError: CUDA error: misaligned address
+  the hint's operation, front end: []
+  after the TTIR passes: []
+M12: r1 = an inlined helper's result: hint r1 (false), load through r1
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: ['%r1 = tt.call @__main__.add_d__i32S64S_i32(%b_3, %d) {tt.divisibility = dense<4> : tensor<1xi32>} : (tensor<64xi32>, i32']
+  after the TTIR passes: []
+M13: r1 = tl.max(..., axis=1) (an inlined library function): hint r1 (false), load through r1
+  loads ['ld.global.b32', 'ld.global.v2.b32']; correct
+  the hint's operation, front end: ['%r1_4 = tt.call @triton.language.standard.max__i32S64_2S_c1_cFalse_cTrue_cFalse(%r1) {tt.divisibility = dense<4> : tenso']
+  after the TTIR passes: []
+M14: tl.split of a value computed in the kernel: hint r0 (true), load through r1
+  loads []; error: AcceleratorError: CUDA error: misaligned address
+  the hint's operation, front end: []
+  after the TTIR passes: []

@@ -1,0 +1,13 @@
+PASS  shipped: 510 files; none in a folder the text scan skips
+PASS  packages: every package of lean/lake-manifest.json made afresh at its pinned commit, with no build output
+PASS  sandbox: shows only the copy, /usr, /etc (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only) and the system's /usr/bin/python3.12; no network
+sandbox <scratch>: 510 shipped files; an allowlist sandbox (bwrap), no network
+PASS  build: lake build TVA (Mathlib built from its pinned source)
+PASS  library: library hygiene; leanchecker TVA re-checks every library declaration
+FAIL  gate vec_add_f32: FAIL  build      lake build VecAdd: error: ../kernels/vec_add_f32/lean/VecAdd.lean:155:78: Application type mismatch: The argument | error: ../kernels/vec_add_f32/lean/VecAdd.lean:160:10: Tactic `introN` failed: There are no additional binders or `let` bindings in the goal to introduce | error: ../k
+FAIL  gate vec_add_f32 (shipped files): the shipped gate.json is stale (the result, the items assumption:faithful, conditions, map, model … differ from the recomputed gate); the shipped certificate.json names a gate other than the recomputed one
+PASS  lint library 7 author: regular
+FAIL  lint library 7 lr-7a: - docs/library-review/round-7/lr-7a/report.md: placeholders (TODO) are left | - docs/library-review/round-7/lr-7a/report.md § Verdicts: `- **L<n>** ACCEPT — <reason>` or `REOPEN — <what is wrong>`: '**L7** TODO — TODO' | - docs/library-review/round-7/lr-7a/report.md § Verdicts: `- **L<n>** ACCEPT — 
+PASS  lint vec_add_f32 reviewer r-vecadd: regular
+PASS  audit: independent
+release check FAIL (8 of 10 steps pass); release.json is in <scratch> (the sandbox was removed; --keep keeps it)

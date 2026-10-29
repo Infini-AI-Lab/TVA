@@ -1,0 +1,7 @@
+(output of: cd lean && lake env lean <this folder>/gate_resolve.lean; exit 0, one unused-variable warning, every example checks)
+gate_resolve.lean:44:10: warning: Variable name `p` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _p
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`

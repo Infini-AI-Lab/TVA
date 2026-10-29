@@ -12,9 +12,9 @@ microscaling instructions or on an emulation.
 The library does not guess these. A `Platform` gives each such operation as a *relation*
 between operands and results; nothing about it is defined. A claim quantifies over platforms,
 and the accuracy facts a proof needs are separate, reviewable rules about `P`
-(`TVA.Rules.Num.*`: for example "`P.math .exp2` is within 2 ulp"). A per-element relation also
-lets two occurrences of the same operation return different results; nothing assumes one global
-function.
+(`TVA.Rules.Num.*`: for example "`P.math .exp2` is within `rel·2^x + abs` of `2^x`"). A
+per-element relation also lets two occurrences of the same operation return different results;
+nothing assumes one global function.
 
 `Env` is what a running program can depend on besides memory: the platform and the kernel's
 `enable_fp_fusion` option (default `True`).
@@ -44,10 +44,12 @@ structure DotCfg where
   a : DType
   b : DType
   acc : DType
-  /-- The source's `input_precision`. When the source omits it, Triton uses the environment
-  variable `TRITON_F32_DEFAULT` if it is set, and otherwise `tf32` on sm_90
-  (`triton-3.8.0-core.py:2384-2388`). `Rules.Compiler.Faithful` covers only launches with Triton's
-  environment at its defaults, so an omitted `input_precision` is `tf32`. -/
+  /-- The source's `input_precision`. When the source omits it, Triton uses the knob
+  `triton.knobs.language.fp32_default` (whose default is the environment variable
+  `TRITON_F32_DEFAULT`) if it is set, and otherwise `tf32` on sm_90 (`ieee` with
+  `allow_tf32=False`; `triton-3.8.0-core.py:2384-2388`). `Rules.Compiler.Faithful` covers only
+  launches with Triton's knobs at their defaults and only the launch options `Launch` records (no
+  `allowed_dot_input_precisions`), so an omitted `input_precision` is `tf32`. -/
   precision : InputPrecision := .tf32
   maxImpreciseAcc : Nat := 0
   deriving DecidableEq, Repr

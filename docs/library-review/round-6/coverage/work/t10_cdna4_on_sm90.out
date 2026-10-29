@@ -1,0 +1,4 @@
+mfma_nonkdim=16 option=given: KeyError: 'Keyword argument matrix_instr_nonkdim was specified but unrecognised'
+mfma_nonkdim=16 option=absent: ran, max abs err 0.000e+00
+mfma_nonkdim=32 option=given: KeyError: 'Keyword argument matrix_instr_nonkdim was specified but unrecognised'
+mfma_nonkdim=32 option=absent: ran, max abs err 0.000e+00

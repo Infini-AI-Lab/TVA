@@ -1,0 +1,6 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+inputs x = 11*2^-1074, y = 2^-1021; IEEE / then IEEE +: y + 2*2^-1073; exact x/4 + y = y + 1.375*2^-1073 (one fma rounds it to y + 1*2^-1073)
+D1 x / 4.0 + y, fusion on:  PTX ['add.f64', 'div.rn.f64']; result y + 2*2^-1073
+D2 x / 4.0 + y, fusion off: PTX ['add.rn.f64', 'div.rn.f64']; result y + 2*2^-1073
+D3 x / d + y (runtime d = 4.0): PTX ['add.f64', 'div.rn.f64']; result y + 2*2^-1073
+D4 float32 x / 4.0 + y and tl.div_rn(x, 4.0) + y: PTX ['add.f32', 'div.full.f32', 'div.rn.f32']

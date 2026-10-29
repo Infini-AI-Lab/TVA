@@ -1,0 +1,10 @@
+Triton 3.8.0, NVIDIA H200 NVL
+| function | float16 | bfloat16 |
+|---|---|---|
+| tl.exp | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got fp16) | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got bf16) |
+| tl.math.exp2 | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got fp16) | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got bf16) |
+| tl.log | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got fp16) | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got bf16) |
+| tl.sqrt | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got fp16) | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got bf16) |
+| tl.math.rsqrt | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got fp16) | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got bf16) |
+| tl.sin | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got fp16) | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got bf16) |
+| tl.erf | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got fp16) | rejected: CompilationError (Expected dtype ['fp32', 'fp64'] but got bf16) |

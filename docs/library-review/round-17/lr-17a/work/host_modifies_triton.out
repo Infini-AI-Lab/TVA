@@ -1,0 +1,7 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+U0: control
+  {'first 4 stored': [1, 11, 21, 31], 'equals x + 1': True}
+U1: k._unsafe_update_src(source with x + 2)
+  {'first 4 stored': [2, 12, 22, 32], 'equals x + 1': False}
+U2: tl.arange = fake (returns tl.zeros)
+  {'first 4 stored': [1, -1, -1, -1], 'equals x + 1': False}

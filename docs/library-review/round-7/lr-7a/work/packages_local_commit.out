@@ -1,0 +1,8 @@
+local commits: mathlib 724ae5f0a9ab (upstream pin 56a005855ea1), batteries 7d4e7b741a64
+P0 lake_violations with the tree's manifest (control): [] (accepted)
+P1 lake_violations with both local commits pinned: [] (accepted)
+P2 make_packages: [] (the packages step passes)
+   made mathlib: HEAD 724ae5f0a9ab; Mathlib/Extra/Borrowed.lean present: True
+   made batteries: HEAD 7d4e7b741a64; Batteries/Extra/Borrowed.lean present: True
+P3 import_violations on `import Mathlib.Extra.Borrowed`: [] (accepted)
+P4 lake_violations with an inherited package from another URL: [] (accepted)

@@ -1,0 +1,9 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+TTIR: tt.fp_to_fp 2, arith.sitofp 3, arith.truncf 0
+int32 inputs: 4294967296
+bfloat16, rtz chain vs the round-4 rule (itof to float32, then cvt toward zero): 0 differ
+float16,  rtz chain vs the round-4 rule: 0 differ
+bfloat16, rtz chain vs the round-3 rule (one tl.itof, tl.ItofRel): 2147431680 outside it
+float16,  rtz chain vs the round-3 rule: 4294894593 outside it
+controls, default rounding vs tl.ItofRel: bfloat16 0 outside, float16 0 outside
+e.g. x = -2147483583: the rtz chain gives -2139095040.0, the nearest bfloat16 is -2147483648.0

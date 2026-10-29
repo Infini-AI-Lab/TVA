@@ -1,0 +1,10 @@
+n=           1 x=  0.5: signature={'out': '*i64', 'n': 'constexpr', 'x': 'fp32'} constants={(1,): 1} attrs={(0,): [['tt.divisibility', 16]], (1,): []}
+n=           1 x= True: signature={'out': '*i64', 'n': 'constexpr', 'x': 'u1'} constants={(1,): 1} attrs={(0,): [['tt.divisibility', 16]], (1,): []}
+n=           7 x=  0.5: signature={'out': '*i64', 'n': 'i32', 'x': 'fp32'} constants={} attrs={(0,): [['tt.divisibility', 16]], (1,): []}
+n=           7 x= True: signature={'out': '*i64', 'n': 'i32', 'x': 'u1'} constants={} attrs={(0,): [['tt.divisibility', 16]], (1,): []}
+n=          16 x=  0.5: signature={'out': '*i64', 'n': 'i32', 'x': 'fp32'} constants={} attrs={(0,): [['tt.divisibility', 16]], (1,): [['tt.divisibility', 16]]}
+n=          16 x= True: signature={'out': '*i64', 'n': 'i32', 'x': 'u1'} constants={} attrs={(0,): [['tt.divisibility', 16]], (1,): [['tt.divisibility', 16]]}
+n=  2147483648 x=  0.5: signature={'out': '*i64', 'n': 'i64', 'x': 'fp32'} constants={} attrs={(0,): [['tt.divisibility', 16]], (1,): [['tt.divisibility', 16]]}
+n=  2147483648 x= True: signature={'out': '*i64', 'n': 'i64', 'x': 'u1'} constants={} attrs={(0,): [['tt.divisibility', 16]], (1,): [['tt.divisibility', 16]]}
+n=          -1 x=  0.5: signature={'out': '*i64', 'n': 'i32', 'x': 'fp32'} constants={} attrs={(0,): [['tt.divisibility', 16]], (1,): []}
+n=          -1 x= True: signature={'out': '*i64', 'n': 'i32', 'x': 'u1'} constants={} attrs={(0,): [['tt.divisibility', 16]], (1,): []}

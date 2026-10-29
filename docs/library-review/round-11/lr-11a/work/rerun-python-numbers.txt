@@ -1,0 +1,51 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+A1: e = 1e-7; x * e, x bfloat16 [1, 2, 3, 1000]
+  stored [1.0000000116860974e-07, 2.0000000233721948e-07, 3.000000106112566e-07, 0.00010000000474974513]
+A1p: x * 1e-7 in place
+  stored [0.0, 0.0, 0.0, 0.0]
+A2: e = 1e-300; x * e, x float32: dtype float64 (static_assert), value
+  the static_assert on y.dtype held; stored [0.0, 0.0, 0.0, 0.0]
+A2p: x * 1e-300 in place: dtype float32 (static_assert), value
+  the static_assert on y.dtype held; stored [0.0, 0.0, 0.0, 0.0]
+A3: a = -7; b = 2; a // b
+  stored -3
+A3p: -7 // 2 in place
+  stored -4
+A4: lo, hi = -7, 2; lo // hi
+  stored -3
+A5: k = 0; k -= 7; k // 2
+  stored -3
+A6: static_range: m = j - 7; m // 2 (j = 0)
+  stored -3
+A7: c: tl.constexpr = -7; c // 2
+  stored -4
+A8: half(-7), a literal passed to a helper
+  stored -4
+A8a: a = -7; half(a)
+  stored -3
+A9: F = False; if F and tl.atomic_add(c, 1) > 0 (8 programs): count of atomics
+  atomics in the condition: 8, in the branch: 0
+A9p: if False and tl.atomic_add(c, 1) > 0 in place: count of atomics
+  atomics in the condition: 0, in the branch: 0
+A10: F = False; if F: tl.static_assert(False)
+  rejected on the host: CompileTimeAssertionFailure:             ^
+A10p: if False: tl.static_assert(False) in place
+  compiled and ran; stored 1
+A11: B = BLOCK; tl.arange(0, B)
+  rejected on the host: CompilationError: arange's arguments must be of type tl.constexpr
+A11c: B: tl.constexpr = BLOCK; tl.arange(0, B)
+  compiled and ran; stored [1, 1, 1, 1, 1, 1, 1, 1]
+A12: z = -0.0; store z: the bits stored
+  stored 0.0 (bits 0x00000000)
+A13: n = None; d = tl.float16; if n is None: store tl.full([1], 1, d)
+  stored 1.0 (bits 0x3f800000)
+A14: s = "abc"
+  rejected on the host: CompilationError: TypeError("cannot convert abc of type <class 'str'> to tensor")
+B1: max(1.0, F) with the constexpr F = nan
+  rejected on the host: CompilationError: constexpr max does not support NaN values
+B2: min(1.0, -0.0)
+  rejected on the host: CompilationError: constexpr min does not support negative zero
+B3: max(1.0, 2.0) (control)
+  compiled and ran; stored 2.0
+B4: a = 3; min(a, 5): an int32 tensor
+  compiled and ran; stored 3.0

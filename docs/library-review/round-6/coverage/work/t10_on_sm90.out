@@ -1,0 +1,5 @@
+capability (9, 0)
+mxfp8: ran, max abs err vs reference 5.078e-02, max |reference| 1.410e+02, tutorial's tolerance (atol=rtol=1e-3) met: True
+mixed: ran, max abs err vs reference 3.125e-02, max |reference| 1.321e+02, tutorial's tolerance (atol=rtol=1e-3) met: True
+mxfp4: OutOfResources: out of resource: shared memory, Required: 287864, Hardware limit: 232448. Reducing block sizes or `num_stages` may help.
+nvfp4: OutOfResources: out of resource: shared memory, Required: 297080, Hardware limit: 232448. Reducing block sizes or `num_stages` may help.

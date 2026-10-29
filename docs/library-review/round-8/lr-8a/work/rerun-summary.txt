@@ -1,0 +1,90 @@
+Re-run of the round-8 evidence by lr-8a, 2026-10-28, Triton 3.8.0, NVIDIA H200 NVL (GPU 0); run by rerun.sh.
+Each script was run in full; its output compared with the shipped output file.
+hint-loops: identical to output.txt
+hint-rank2: identical to output.txt
+runtime-if: identical to output.txt
+scalar-args: differs from output.txt in 1 lines (diff below)
+    137c137
+    <   0-d CUDA tensor torch.tensor(5): parameter *i64 (IR !tt.ptr<i64> {tt.divisibility = 16 : i32}); stored 139879365214208 (== the tensor's address: True)
+    ---
+    >   0-d CUDA tensor torch.tensor(5): parameter *i64 (IR !tt.ptr<i64> {tt.divisibility = 16 : i32}); stored 140667223277568 (== the tensor's address: True)
+desc-scratch: differs from output.txt in 2 lines (diff below)
+    22c22
+    <   {"side stream": 224247680, "allocator saw": [224247680]}
+    ---
+    >   {"side stream": 195988608, "allocator saw": [195988608]}
+    42c42
+    <   y elements wrong: 1024
+    ---
+    >   y elements wrong: 1023
+autotune-launch: differs from output.txt in 7 lines (diff below)
+    5c5
+    <   runs on x at the first call: 3876
+    ---
+    >   runs on x at the first call: 3884
+    16c16
+    <   first call: {'hook calls': {'config pre_hook BLOCK=128': 1298, 'autotuner pre_hook': 2940, 'autotuner post_hook': 2940, 'config pre_hook BLOCK=256': 1643, 'autotuner pre_hook (reset_only)': 1}, 'last three': ['autotuner post_hook', 'autotuner pre_hook (reset_only)', 'config pre_hook BLOCK=256']}
+    ---
+    >   first call: {'hook calls': {'config pre_hook BLOCK=128': 1198, 'autotuner pre_hook': 2601, 'autotuner post_hook': 2601, 'config pre_hook BLOCK=256': 1404, 'autotuner pre_hook (reset_only)': 1}, 'last three': ['autotuner post_hook', 'autotuner pre_hook (reset_only)', 'config pre_hook BLOCK=256']}
+    21c21
+    <   first call, key n=65536: 4117
+    ---
+    >   first call, key n=65536: 4424
+    23,24c23,24
+    <   call with n=32768 (new key): 5124
+    <   call with n=65535 (new key): 4804
+    ---
+    >   call with n=32768 (new key): 4857
+    >   call with n=65535 (new key): 4726
+    30c30
+    <   pruned to two configs: 3214
+    ---
+    >   pruned to two configs: 3199
+    33c33
+    <   runs on x at the first call in this process: 3740
+    ---
+    >   runs on x at the first call in this process: 4149
+compiled-launch: identical to output.txt
+other-writers: differs from output.txt in 7 lines (diff below)
+    9c9
+    <   claimed launch duration ms (median): 0.817696
+    ---
+    >   claimed launch duration ms (median): 1.231744
+    11c11
+    <   fraction of the claimed launch's time (program 0) during the other's (median): 0.936
+    ---
+    >   fraction of the claimed launch's time (program 0) during the other's (median): 0.971
+    18c18
+    <   claimed launch duration ms (median): 1.61536
+    ---
+    >   claimed launch duration ms (median): 1.55744
+    20c20
+    <   fraction of the claimed launch's time (program 0) during the other's (median): 0.76
+    ---
+    >   fraction of the claimed launch's time (program 0) during the other's (median): 0.788
+    27,29c27,29
+    <   claimed launch duration ms (median): 1.196672
+    <   other launch duration ms (median): 1.228928
+    <   fraction of the claimed launch's time (program 0) during the other's (median): 0.949
+    ---
+    >   claimed launch duration ms (median): 1.131424
+    >   other launch duration ms (median): 1.227008
+    >   fraction of the claimed launch's time (program 0) during the other's (median): 0.965
+promotion table.py: identical to table.tsv (40240 lines)
+promotion rules.py: 40240 lines compared, 0 differ
+promotion device.py: identical to device-output.txt
+promotion constants.py: identical to constants-output.txt
+promotion lean_compare.py: 40236 distinct front-end cases; 37896 compared with the library; 0 differ; 2340 skipped (all operands Python numbers: Python's own arithmetic)
+  status: hint-loops exit=0 secs=69
+  status: hint-rank2 exit=0 secs=62
+  status: runtime-if exit=0 secs=39
+  status: scalar-args exit=0 secs=35
+  status: desc-scratch exit=0 secs=25
+  status: autotune-launch exit=0 secs=33
+  status: compiled-launch exit=0 secs=52
+  status: other-writers exit=0 secs=11
+  status: promotion-table exit=0 secs=3
+  status: promotion-rules exit=0
+  status: promotion-device exit=0
+  status: promotion-constants exit=0
+  status: done

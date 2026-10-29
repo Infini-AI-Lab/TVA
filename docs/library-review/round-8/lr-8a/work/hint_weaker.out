@@ -1,0 +1,25 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+W1: 1-D p = x + arange(128), multiple_of(p, 16), x 16-byte aligned
+  library's reading: false; weaker reading: true
+  result: correct; loads: ld.global.v4.b32
+W2: the same, x 4 bytes past a 16-byte boundary
+  library's reading: false; weaker reading: false
+  result: error: CUDA error: misaligned address; loads: ld.global.v4.b32
+W3: 1-D max_contiguous(multiple_of(offs, 16), 16) on offs = arange(128), x aligned
+  library's reading: false; weaker reading: true
+  result: correct; loads: ld.global.v4.b32
+W4: the same, x 4 bytes past (the hint is on offs, which stays true)
+  library's reading: false; weaker reading: true
+  result: correct; loads: ld.global.b32
+W5: [16, 64] fp16 rows, max_contiguous(multiple_of(p, [1, 16]), [1, 16]), S = 64
+  library's reading: false; weaker reading: true
+  result: correct; loads: ld.global.v4.b32
+W6: the same, S = 36
+  library's reading: false; weaker reading: false
+  result: error: CUDA error: misaligned address; loads: ld.global.v4.b32
+W7: rr = [0..7], max_contiguous(multiple_of(rr, 1), 1)
+  library's reading: false; weaker reading: true
+  result: correct; loads: ld.global.b32
+W8: rr = [0..7], max_contiguous(rr, 1) (hint-rank2 C1)
+  library's reading: false; weaker reading: false (alone: needs rr's own contiguity)
+  result: error: CUDA error: misaligned address; loads: ld.global.v4.b32

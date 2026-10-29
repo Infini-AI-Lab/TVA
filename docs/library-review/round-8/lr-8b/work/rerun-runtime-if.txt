@@ -1,0 +1,70 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+R1: runtime if/else on an int1 scalar, stores and atomics in both branches
+  IR: scf.if x1, atomic_rmw x2
+  stores as the taken branch only: True; then-count 22 (expected 22), else-count 42 (expected 42)
+
+R2: an atomic or an out-of-bounds store only in the untaken branch
+  flag=0: atomic count 0 (expected 0); IR: scf.if x1, atomic_rmw x1
+  flag=7: atomic count 64 (expected 64); IR: scf.if x1, atomic_rmw x1
+  loaded condition: atomic count 5 (expected 5)
+  untaken branch stores 2**40 elements out of bounds: no fault (flag=0)
+
+R2f: control for R2: the out-of-bounds store in the taken branch
+  error: AcceleratorError: CUDA error: an illegal memory access was encountered
+
+R3: if on an int32/int64 or fp32 runtime scalar
+  int n=0 (i32): taken=False; IR: scf.if x1, cmpi ne x1
+  int n=2 (i32): taken=True; IR: scf.if x1, cmpi ne x1
+  int n=256 (i32): taken=True; IR: scf.if x1, cmpi ne x1
+  int n=-1 (i32): taken=True; IR: scf.if x1, cmpi ne x1
+  int n=4294967296 (i64): taken=True; IR: scf.if x1, cmpi ne x1
+  int n=-1099511627776 (i64): taken=True; IR: scf.if x1, cmpi ne x1
+  float x=0.0: taken=False; IR: scf.if x1, cmpf une x1
+  float x=-0.0: taken=False; IR: scf.if x1, cmpf une x1
+  float x=nan: taken=True; IR: scf.if x1, cmpf une x1
+  float x=0.5: taken=True; IR: scf.if x1, cmpf une x1
+  float x=1e-45: taken=True; IR: scf.if x1, cmpf une x1
+  float x=-inf: taken=True; IR: scf.if x1, cmpf une x1
+
+R4: if on a block (tensor) condition
+  block of 4 as the condition: rejected on the host: UnsupportedLanguageConstruct: Boolean value of Tensor with more than one value is ambiguous; buffers untouched: True
+  block of 1 (5): branch then; warnings at compile time: ['If conditional called with multidimensional Tensor instead of scalar; please use "if (v > 0).item()" instead']; IR: scf.if x1
+  block of 1 (-5): branch else; warnings at compile time: (none: same kernel, already compiled); IR: scf.if x1
+
+R5: names defined in one or both branches, with different types
+  name assigned only in the then branch, used after: rejected on the host: CompilationError: NameError('y is not defined'); buffers untouched: True
+  live-in name redefined with another dtype in one branch: rejected on the host: CompilationError: AssertionError('initial value for `y` is of type int32[], but the then block redefines it as fp32[]'); buffers untouched: True
+  name defined in both branches with different dtypes: rejected on the host: CompilationError: AssertionError('Mismatched type for y between then block (int32) and else block (fp32)'); buffers untouched: True
+  name defined in both branches with different shapes: rejected on the host: CompilationError: AssertionError("Mismatched type for y between then block (<['4'], int32>) and else block (<['8'], int32>)"); buffers untouched: True
+  live-in changed in one branch, new name in both: merged correctly: True; IR: scf.if x1
+
+R6: early return in a runtime if at the kernel's top level
+  return in then: programs that return ran nothing after it: True; count 32 (expected 32); IR: cf.cond_br x1, atomic_rmw x1
+  return in else: counts [10, 54, 10] (expected [10, 54, 10]); IR: cf.cond_br x1, atomic_rmw x3
+  return at top level: counts [64, 0] (expected [64, 0]); IR: atomic_rmw x1
+  kernel returning a value: rejected on the host: RuntimeError: PassManager::run failed; buffers untouched: True; compiler diagnostic: evidence/runtime-if/run.py:168:5: error: failed to legalize operation 'tt.return' that was explicitly marked illegal: "tt.return"(%5) : (i32) -> () | evidence/runtime-if/run.py:165:1: error: Failures have been detected while processing an MLIR pass pipeline
+
+R7: return nested in ifs, in loops, in static_range, and in helpers
+  return in an if nested in a runtime if: counts [32, 16, 48] (expected [32, 16, 48]); IR: cf.cond_br x2, atomic_rmw x3
+  return in a runtime if in a for loop: rejected on the host: UnsupportedLanguageConstruct: Cannot have `return` statements inside `while` or `for` statements in triton.; buffers untouched: True
+  return in a runtime if in a while loop: rejected on the host: UnsupportedLanguageConstruct: Cannot have `return` statements inside `while` or `for` statements in triton.; buffers untouched: True
+  return directly in a for body: rejected on the host: CompilationError: AssertionError('We use SCF, so the loop body should only have one block'); buffers untouched: True
+  return in a runtime if in tl.static_range: counts [7, 6, 5, 4] (expected [7, 6, 5, 4]); IR: cf.cond_br x4, atomic_rmw x4
+  helper with an early return, called at top level: correct True; IR: cf.cond_br x1, tt.call x1
+  the same helper called in a for loop: accepted (no error); correct True; IR: cf.cond_br x1, tt.call x1; tt.call after the passes (ttir): 1
+  helper with a return in a runtime if in its own for loop: rejected on the host: UnsupportedLanguageConstruct: Cannot have `return` statements inside `while` or `for` statements in triton.; buffers untouched: True
+
+R8: conditional expression x if c else y with a runtime condition
+  x if c else y with atomics on both sides: a=32, b=32 (expected 32, 32); IR: scf.if x1, atomic_rmw x2
+  x if c else y with a block condition: rejected on the host: RuntimeError: error encountered during parsing; buffers untouched: True; compiler diagnostic: evidence/runtime-if/run.py:265:9: error: 'scf.if' op operand #0 must be 1-bit signless integer, but got 'tensor<4xi1>'
+  x if c else y with an int32 and an fp32 side: rejected on the host: CompilationError: AssertionError('Ternary expression with dynamic condition has inconsistent types int32 and fp32'); buffers untouched: True
+
+R9: elif chains; and/or/not on runtime scalars
+  elif chain: programs 0,1 -> [1, 1]; elif condition's atomic ran 62 times (expected 62); values 2: 3 (expected 3), 3+4: 59 (expected 59); IR: scf.if x3, atomic_rmw x1
+  `and` of two runtime conditions with an atomic in each: a=64, b=64, branch taken 0 (expected 0); IR: scf.if x1, atomic_rmw x3
+  `or` of two runtime conditions with an atomic in each: a=64, b=64, branch taken 64 (expected 64); IR: scf.if x1, atomic_rmw x3
+  `<runtime with atomic> and False`: atomic ran 64, branch taken 0; IR: atomic_rmw x1
+  `n and m` on int32 scalars: rejected on the host: CompilationError: ValueError('Cannot bitcast data-type of size 32 to data-type of size 1'); buffers untouched: True
+  `not n` on an int32 scalar: rejected on the host: CompilationError: ValueError('Cannot bitcast data-type of size 32 to data-type of size 1'); buffers untouched: True
+  `not c` on an int1 scalar: correct True; IR: scf.if x1

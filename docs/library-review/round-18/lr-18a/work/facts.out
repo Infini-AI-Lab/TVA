@@ -1,0 +1,37 @@
+facts.py (lr-18a): tools/tvr.py sha256 38cde42e17f4b038
+
+- control: the tree's page: facts listed: 38
+-   the section's tables (facts_section_tables): 1
+-   a field citing `MathAcc P …`: Rules.Num.MathAcc is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   a field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+-   a field citing `ExpF32 P`: PASS
+-   the audit's fact-page check about num.md: nothing
+
+- the shapes' table under a setext heading (`Shapes, not citable` underlined with `---`) right after the section's heading, in place of the facts' table, which moves to a later `##` section: facts listed: 2
+-   the section's tables (facts_section_tables): 1
+-   a field citing `MathAcc P …`: PASS
+-   a field citing `DivRn P .binary32`: PASS
+-   a field citing `ExpF32 P`: Rules.Num.ExpF32 is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   the audit's fact-page check about num.md: nothing
+
+- the shapes' table inside an HTML comment (the rendered page shows no table) in place of the facts' table: facts listed: 2
+-   the section's tables (facts_section_tables): 1
+-   a field citing `MathAcc P …`: PASS
+-   a field citing `DivRn P .binary32`: PASS
+-   a field citing `ExpF32 P`: Rules.Num.ExpF32 is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   the audit's fact-page check about num.md: nothing
+
+- the shapes' table inside a fenced code block (the rendered page shows code, not a table) in place of the facts' table: facts listed: 2
+-   the section's tables (facts_section_tables): 1
+-   a field citing `MathAcc P …`: PASS
+-   a field citing `DivRn P .binary32`: PASS
+-   a field citing `ExpF32 P`: Rules.Num.ExpF32 is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   the audit's fact-page check about num.md: nothing
+
+- the shapes' table inside an HTML comment before the facts' table: facts listed: 2
+-   the section's tables (facts_section_tables): 2
+-   a field citing `MathAcc P …`: PASS
+-   a field citing `DivRn P .binary32`: PASS
+-   a field citing `ExpF32 P`: Rules.Num.ExpF32 is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+-   the audit's fact-page check about num.md: ['docs/rules/num.md: the section "Facts the library states" holds 2 tables; the gate reads only the first as the facts a kernel may cite, so keep one table there and put any other in another section (library issue L95)']
+

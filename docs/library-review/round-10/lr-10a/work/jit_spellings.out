@@ -1,0 +1,4 @@
+triton 3.8.0, NVIDIA H200 NVL
+- k_calls_h (helper h = triton.jit(_h)): type JITFunction; stored 57 (expected 57)
+- k_alias (@J, J = triton.jit): type JITFunction; stored 105 (expected 105)
+- k_call = triton.jit(_k): type JITFunction; stored 15 (expected 15)

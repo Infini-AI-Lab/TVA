@@ -1,0 +1,47 @@
+evidence/num-div-f64 re-run in full by lr-14a outside the tree (an unchanged copy of run.py, the float-layer driver rebuilt from lean/TVA/Math/Defs.lean), Triton 3.8.0, H200 NVL, GPU 0, 2026-10-28: out.txt, identical byte for byte to the evidence's out.txt
+
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| inputs | kernel | records | against Format.div .rn (FloatV.divRn) |
+|---|---|---|---|
+| uniform | div | 67108864 | agree |
+| struct | div | 67108864 | agree |
+| near1 | div | 33554432 | agree |
+| binade1 | div | 33554432 | agree |
+| subnormal-dividend | div | 33554432 | agree |
+| subnormal-quotient | div | 67108864 | agree |
+| subnormal-divisor | div | 16777216 | agree |
+| pow2 | div | 16777216 | agree |
+| overflow | div | 16777216 | agree |
+| near-exact | div | 33554432 | agree |
+| midpoint | div | 4194304 | agree |
+| specials | div | 1296 | agree |
+| struct, tl.fdiv | fdiv | 16777216 | agree |
+| x / 1.0 (constant) | const | 4194304 | agree |
+| x / -1.0 (constant) | const | 4194304 | agree |
+| x / 2.0 (constant) | const | 4194304 | agree |
+| x / 0.5 (constant) | const | 4194304 | agree |
+| x / 3.0 (constant) | const | 4194304 | agree |
+| x / 0.1 (constant) | const | 4194304 | agree |
+| x / 7.0 (constant) | const | 4194304 | agree |
+| x / 5e-324 (constant) | const | 4194304 | agree |
+| x / 8.98846567431158e+307 (constant) | const | 4194304 | agree |
+| x / 1e+308 (constant) | const | 4194304 | agree |
+| x / 0.3333333333333333 (constant) | const | 4194304 | agree |
+
+Total records: 452986128
+
+## Division instructions in the PTX
+- `const` by -1.0: `div.rn.f64`
+- `const` by 5e-324: `div.rn.f64`
+- `const` by 0.1: `div.rn.f64`
+- `const` by 0.3333333333333333: `div.rn.f64`
+- `const` by 0.5: `div.rn.f64`
+- `const` by 1.0: no division instruction (the compiler folds it)
+- `const` by 2.0: `div.rn.f64`
+- `const` by 3.0: `div.rn.f64`
+- `const` by 7.0: `div.rn.f64`
+- `const` by 8.98846567431158e+307: `div.rn.f64`
+- `const` by 1e+308: `div.rn.f64`
+- `div`: `div.rn.f64`
+- `fdiv`: `div.rn.f64`

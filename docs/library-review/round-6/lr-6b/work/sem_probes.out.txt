@@ -1,0 +1,19 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+Q1 int / int
+  (2**40+1) / 1 (int64): 1099511627776.0  Python: 1099511627777.0
+  16777217 / 1 (int32): 16777216.0  Python: 16777217.0
+  16777217 / 3 (int32 / Python int): 5592405.5  float32 of Python's: 5592405.5
+  TTIR divisions: ['f32', 'f32', 'f32']
+Q2 -0.0 as a tensor of its own
+  other=-0.0: 0x0; stored -0.0: 0x0; tl.fma(-1, +0, -0.0): 0x0; tl.full(-0.0): 0x0  (0x0 = +0, 0x80000000 = -0)
+Q3 the order of a call's arguments
+  source: tl.store(out_ptr, tl.load(a_ptr), mask=tl.load(m_ptr) > 0); TTIR load order: ['m (keyword)', 'a (positional)']
+Q4 a conditional expression with a tensor condition, 4 programs
+  counter 4 (4 = only the taken side runs, 44 = both); scf.if in TTIR: True; atomics in TTIR: 2
+Q5 `and` on scalar tensors
+  int32 `x and y`: rejected on the host (CompilationError: ValueError('Cannot bitcast data-type of size 32 to data-type of size 1'))
+  int1 (x = 2 != 0, y = 0 != 0): and 0, or 1, not x 0
+Q6 the dtype of an operator with a Python float
+  TTIR products: ['f64', 'f32', 'f16']; int32 3 * 1e-40 = 2.9999999999999998e-40 (stored to float64); float32 3 * 1e-40 = 2.999983830334428e-40; float16 3 * 1e-40 = 0.0
+Q7 integer -7 // 2 = -3, -7 % 2 = -1 (C: -3, -1; Python: -4, 1)
+Q8 while-condition atomic: counter 4 (4 = tests 0,1,2,3), iterations 3; for-body atomic x3: counter 3

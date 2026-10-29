@@ -1,0 +1,6 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, python 3.13.9, machine x86_64
+plain (the model's values): {'0.1 f32': '3dcccccd', '1e-40 f32': '000116c2', 'arg y=0.1': '3dcccccd', 'A+B f64': '3fd3333333333334', 'C*1e300 f64': '3ddb7cdfd9d7bda3', '1.5 bf16': '3fc0', '2.0*0.75 bf16': '3fc0', '1.5e-6 bf16': '3606'}
+locale_en_DK: ERROR (exit -6) python: <path>:5837: llvm::APFloat::APFloat(const fltSemantics &, StringRef): Assertion `StatusOrErr && "Invalid floating point representation"' failed.
+round_toward_zero: differs from plain in 4 of 8 words: {'0.1 f32': '3dcccccc (plain 3dcccccd)', 'arg y=0.1': '3dcccccc (plain 3dcccccd)', 'A+B f64': '3fd3333333333333 (plain 3fd3333333333334)', '1.5e-6 bf16': '3586 (plain 3606)'}
+ftz_daz: differs from plain in 2 of 8 words: {'1e-40 f32': '00000000 (plain 000116c2)', 'C*1e300 f64': '0000000000000000 (plain 3ddb7cdfd9d7bda3)'}
+words that differ from the plain process's: 6

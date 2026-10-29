@@ -1,0 +1,9 @@
+A: model = fun x => x + 4536642005803190292
+   Kernels.Demo.model 0 = 4536642005803190292
+   constJson hash line: Kernels.Demo.model 9216286579760591762-16081895171158148313
+   item digest from this cone line (sha256): 8cc0f7b442763da3
+B: model = fun x => x + 3061831643823180776
+   Kernels.Demo.model 0 = 3061831643823180776
+   constJson hash line: Kernels.Demo.model 9216286579760591762-16081895171158148313
+   item digest from this cone line (sha256): 8cc0f7b442763da3
+the two cone lines are identical: True

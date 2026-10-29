@@ -1,0 +1,35 @@
+params.py (lr-18a): tools/tvr.py sha256 38cde42e17f4b038, tools/claim_reader.lean.in sha256 8e1888db2fbf5319
+
+- control: `structure Assumptions (K : Claim.Behaviour Inst) (P : Platform)`: shape PASS (as `tvr check` judges it: exit code 0, one result line); reader exit code 0, 1 TVR_JSON line(s); other output: none
+-   fields the reader lists: ['spec', 'div']
+-   field spec: flags: {'K': True, 'P': False, 'head': 'TVA.Claim.Meets'}
+-   field div: flags: {'K': False, 'P': True, 'head': 'Eq'}
+-   axioms: PASS
+-   usage: PASS
+-   namespace: PASS
+-   kinds: FAIL ['spec: a [kernel] assumption may not mention K, P or a TVA.Rules fact', 'div: a [kernel] assumption may not mention K, P or a TVA.Rules fact']
+
+- K with a default: `structure Assumptions (K : Claim.Behaviour Inst := fun _ _ _ => True) (P : Platform)`: the kernel does not compile: <scratch>/lean/OptK.lean:28:38: error: Application type mismatch: The argument
+- K and P as `variable (K : Claim.Behaviour Inst) (P : Platform)`, then `structure Assumptions : Prop`: shape PASS (as `tvr check` judges it: exit code 0, one result line); reader exit code 0, 1 TVR_JSON line(s); other output: none
+-   fields the reader lists: ['spec', 'div']
+-   field spec: flags: {'K': True, 'P': False, 'head': 'TVA.Claim.Meets'}
+-   field div: flags: {'K': False, 'P': True, 'head': 'Eq'}
+-   axioms: PASS
+-   usage: PASS
+-   namespace: PASS
+-   kinds: FAIL ['spec: a [kernel] assumption may not mention K, P or a TVA.Rules fact', 'div: a [kernel] assumption may not mention K, P or a TVA.Rules fact']
+
+- an `inductive Assumptions (K …) (P …) : Prop` (not a structure) holding the specification; `main` matches on it: shape PASS (as `tvr check` judges it: exit code 0, one result line); reader exit code 0, 1 TVR_JSON line(s); other output: ['PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected', 'backtrace:', '~/.elan/toolchains/leanprover--lean4---v4.35.0/bin/../lib/lean/libleanshared.so(+0x9621e05) [0x7fd5d0a21e05]']
+-   fields the reader lists: []
+-   axioms: PASS
+-   usage: FAIL {'unused': [], 'destructured': True}
+-   namespace: PASS
+-   kinds: PASS
+
+- the same inductive; `main` applies a `private` lemma that matches on it: shape PASS (as `tvr check` judges it: exit code 0, one result line); reader exit code 0, 1 TVR_JSON line(s); other output: ['PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected', 'backtrace:', '~/.elan/toolchains/leanprover--lean4---v4.35.0/bin/../lib/lean/libleanshared.so(+0x9621e05) [0x7f4b97021e05]']
+-   fields the reader lists: []
+-   axioms: PASS
+-   usage: PASS
+-   namespace: PASS
+-   kinds: PASS
+

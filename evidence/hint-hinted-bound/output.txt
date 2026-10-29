@@ -1,0 +1,13 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+G1: a = tl.arange(0, 512); y = tl.multiple_of(a + s, 16)
+  loads ['ld.global.v4.b32']; values correct
+G2: a = tl.max_contiguous(tl.multiple_of(tl.arange(0, 512), 4), 4); y = tl.multiple_of(a + s, 16)
+  loads ['ld.global.b32']; values correct
+G3: a = tl.max_contiguous(tl.multiple_of(tl.arange(0, 512), 8), 8); y = tl.multiple_of(a + s, 16)
+  loads ['ld.global.v2.b32']; values correct
+G4: a = tl.multiple_of(tl.arange(0, 512), 512); y = tl.multiple_of(a + s, 16)
+  loads ['ld.global.v4.b32']; values correct
+G5: a = tl.max_contiguous(tl.multiple_of(tl.arange(0, 512), 4), 4).to(tl.int64); y = tl.multiple_of(a + s, 16)
+  loads ['ld.global.b32']; values correct
+G6: a = tl.max_contiguous(tl.multiple_of(tl.arange(0, 512), 4), 4); y = tl.multiple_of(s + a, 16)
+  loads ['ld.global.b32']; values correct

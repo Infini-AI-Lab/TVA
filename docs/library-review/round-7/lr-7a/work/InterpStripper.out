@@ -1,0 +1,3 @@
+7
+"\" -- "
+../docs/library-review/round-7/lr-7a/work/InterpStripper.lean:3:58: error(lean.unknownIdentifier): Unknown constant `Lean.Elab.Tactic.TacticM`

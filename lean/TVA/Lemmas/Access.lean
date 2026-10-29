@@ -9,13 +9,18 @@ Most Triton loads and stores touch elements of one buffer: lane `i` addresses el
 lanes' addresses `addrs` (`tl.addrs ptrs mask`). From it:
 
 * the footprint is `b.elems (Buf.img g en)`: the bytes of the elements touched
-  (`accBytes_of`);
+  (`Buf.Addrs.accBytes`);
 * `safe_load_buf`: a load gives each enabled lane its element and each disabled lane `other`;
 * `safe_store_buf`: a store to distinct elements leaves each one holding its value, nothing else
   changed, and every present byte still present.
 
-An access pattern (a 1-D block, a row of a matrix, a 2-D tile: `TVA.Lemmas.Block`) then only
-proves `Buf.Addrs` once, by computing `g` and `en`.
+An access pattern then only proves `Buf.Addrs` once, by computing `g` and `en`: from its lanes'
+pointers and mask (`Buf.addrs_of_get`, `Buf.addrs_of_get_all`), or by the pattern's own lemma:
+the 1-D block `offs p B` of `TVA.Lemmas.Block` (`addrs_block`), a block pointer
+(`BlockPtr.addrs_buf`, `TVA.Lemmas.BlockPtr`) or a tensor descriptor (`TensorDesc.addrs_buf`,
+`TVA.Lemmas.Desc`), these two of any rank. A 2-D tile of pointer arithmetic (a row of a matrix,
+`offs_m[:, None] * stride + offs_n[None, :]`) has no lemma of its own: its `g` and `en` go through
+`Buf.addrs_of_get`.
 -/
 namespace TVA
 
@@ -136,7 +141,8 @@ theorem safe_load_buf (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Option (Tens
     exact (hv' i).2 (by rw [hA i, he]; rfl) o ho
 
 /-- **Store to distinct buffer elements.** Afterwards each enabled lane's element holds its
-value, nothing outside the elements changed, and every present byte is still present. -/
+value, nothing outside the elements changed, and every present byte is still present. The rest
+of the program may not write the elements again. -/
 theorem safe_store_buf (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Option (Tensor s Bool)}
     {vals : Tensor s d.Val} {g : Idx s → Nat} {en : Idx s → Bool}
     (hA : b.Addrs (tl.addrs ptrs mask) g en) (hin : ∀ i, en i = true → g i < b.len)
@@ -144,14 +150,16 @@ theorem safe_store_buf (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Option (Ten
     (hv : b.Valid m) (hW : b.elems (Buf.img g en) ⊆ W) {k : Unit → Prog α}
     (hk : ∀ m', (∀ i, en i = true → m'.read d (b.ptr (g i : Int)).addr = some (vals.get i)) →
       (∀ x, x ∉ b.elems (Buf.img g en) → m' x = m x) → (∀ x, m x ≠ none → m' x ≠ none) →
-      Safe E R W Q m' (k ())) :
+      Safe E R (W \ b.elems (Buf.img g en)) Q m' (k ())) :
     Safe E R W Q m (tl.store ptrs vals mask >>= k) := by
   have hok : StoreOk m d (tl.addrs ptrs mask) := by
     intro i a ha
     rw [hA i] at ha
     split_ifs at ha with he
     · cases ha; exact b.writable hv (hin i he)
-  refine safe_store_any hok (by rw [hA.accBytes]; exact hW) (fun order hperm => hk _ ?_ ?_ ?_)
+  refine safe_store_any hok (by rw [hA.accBytes]; exact hW) (fun order hperm => ?_)
+  rw [hA.accBytes]
+  refine hk _ ?_ ?_ ?_
   · intro i he
     have ha : tl.addrs ptrs mask i = some (b.ptr (g i : Int)).addr := by rw [hA i, if_pos he]
     exact writeAll_read (hA.distinct hinj) hok order (hperm.nodup_iff.mpr (enabled_nodup _)) i _
@@ -205,19 +213,22 @@ private theorem safe_rmwSeq_buf (b : Buf d) {ptrs : Tensor s (Ptr d)}
     ∀ (L : List (Idx s)), L.Nodup →
     (∀ i ∈ L, (ptrs.get i).addr = (b.ptr (g i : Int)).addr ∧ g i < b.len) →
     (∀ i ∈ L, ∀ j ∈ L, g i = g j → i = j) →
-    (∀ i ∈ L, Mem.span d (b.ptr (g i : Int)).addr ⊆ R ∧ Mem.span d (b.ptr (g i : Int)).addr ⊆ W) →
+    ∀ (W : Set Int), (∀ i ∈ L, Mem.span d (b.ptr (g i : Int)).addr ⊆ W ∧
+      Disjoint (Mem.span d (b.ptr (g i : Int)).addr) R) →
     ∀ (acc : Idx s → d.Val) (m₀ : Mem) {f : (Idx s → d.Val) → Prog β}, b.Valid m₀ →
     (∀ acc' m', (∀ i ∈ L, ∃ n, m₀.read d (b.ptr (g i : Int)).addr = some (acc' i) ∧ upd i (acc' i) n ∧
         m'.read d (b.ptr (g i : Int)).addr = some n) →
       (∀ i, i ∉ L → acc' i = acc i) →
       (∀ x, (∀ i ∈ L, x ∉ Mem.span d (b.ptr (g i : Int)).addr) → m' x = m₀ x) →
-      b.Valid m' → (∀ x, m₀ x ≠ none → m' x ≠ none) → Safe E R W Q' m' (f acc')) →
+      b.Valid m' → (∀ x, m₀ x ≠ none → m' x ≠ none) →
+      Safe E R (W \ {x | ∃ i ∈ L, x ∈ Mem.span d (b.ptr (g i : Int)).addr}) Q' m' (f acc')) →
     Safe E R W Q' m₀ ((tl.rmwSeq ptrs upd sem sc L acc).bind f)
-  | [], _, _, _, _, acc, m₀, f, hv, hf => by
+  | [], _, _, _, W, _, acc, m₀, f, hv, hf => by
     simp only [tl.rmwSeq, Prog.ret_bind]
-    exact hf acc m₀ (fun _ h => absurd h List.not_mem_nil) (fun _ _ => rfl) (fun _ _ => rfl) hv
+    have h := hf acc m₀ (fun _ h => absurd h List.not_mem_nil) (fun _ _ => rfl) (fun _ _ => rfl) hv
       (fun _ h => h)
-  | i :: rest, hnd, hL, hinj, hRW, acc, m₀, f, hv, hf => by
+    simpa using h
+  | i :: rest, hnd, hL, hinj, W, hRW, acc, m₀, f, hv, hf => by
     have hi := hL i List.mem_cons_self
     have hrestL : ∀ j ∈ rest, (ptrs.get j).addr = (b.ptr (g j : Int)).addr ∧ g j < b.len :=
       fun j hj => hL j (List.mem_cons_of_mem _ hj)
@@ -236,10 +247,26 @@ private theorem safe_rmwSeq_buf (b : Buf d) {ptrs : Tensor s (Ptr d)}
     have hw := b.writable hv hi.2
     have hv₁ : b.Valid (m₀.write d (b.ptr (g i : Int)).addr new) :=
       Buf.valid_of_agree hv fun x hx => Mem.write_present _ (hv.2.2.2 x hx)
+    have hset : (W \ Mem.span d (b.ptr (g i : Int)).addr) \
+        {x | ∃ j ∈ rest, x ∈ Mem.span d (b.ptr (g j : Int)).addr} =
+        W \ {x | ∃ j ∈ i :: rest, x ∈ Mem.span d (b.ptr (g j : Int)).addr} := by
+      ext x
+      simp only [Set.mem_sdiff, Set.mem_setOf_eq, List.mem_cons]
+      constructor
+      · rintro ⟨⟨hxW, hxi⟩, hxr⟩
+        refine ⟨hxW, ?_⟩
+        rintro ⟨j, rfl | hj, hx⟩
+        · exact hxi hx
+        · exact hxr ⟨j, hj, hx⟩
+      · rintro ⟨hxW, hx⟩
+        exact ⟨⟨hxW, fun h => hx ⟨i, Or.inl rfl, h⟩⟩, fun ⟨j, hj, h⟩ => hx ⟨j, Or.inr hj, h⟩⟩
     refine safe_rmwSeq_buf b htot rest (List.nodup_cons.mp hnd).2 hrestL
       (fun j hj j' hj' => hinj j (List.mem_cons_of_mem _ hj) j' (List.mem_cons_of_mem _ hj'))
-      (fun j hj => hRW j (List.mem_cons_of_mem _ hj)) _ _ hv₁
-      fun acc' m' hdone hother hframe hv' hpres => hf acc' m' ?_ ?_ ?_ hv' ?_
+      (W \ Mem.span d (b.ptr (g i : Int)).addr)
+      (fun j hj => ⟨fun x hx => ⟨(hRW j (List.mem_cons_of_mem _ hj)).1 hx,
+          fun hx' => Set.disjoint_left.mp (hdis j hj) hx' hx⟩, (hRW j (List.mem_cons_of_mem _ hj)).2⟩)
+      _ _ hv₁
+      fun acc' m' hdone hother hframe hv' hpres => hset ▸ hf acc' m' ?_ ?_ ?_ hv' ?_
     · intro j hj
       rcases List.mem_cons.mp hj with rfl | hj
       · refine ⟨new, ?_, ?_, ?_⟩
@@ -261,22 +288,27 @@ private theorem safe_rmwSeq_buf (b : Buf d) {ptrs : Tensor s (Ptr d)}
 
 /-- **Tensor atomic on owned buffer elements.** Each enabled lane updates its own element of
 `b` once, from the element's value before the atomic. The rule gives the old values (the
-result) and the new contents; nothing outside the elements changes. This covers atomics on
+result) and the new contents; nothing outside the elements changes. The elements are outside the
+read footprint, and the rest of the program may not touch them again. This covers atomics on
 memory no other program touches (`TVA.Lemmas.Independent`); shared atomics need
-`TVA.Lemmas.Shared`. -/
+`TVA.Lemmas.Shared`. The rule is about `tl.atomicWith`, which `tl.atomic_xchg`, `atomic_cas`,
+`atomic_max`, `atomic_min`, `atomic_and`, `atomic_or` and `atomic_xor` are; `tl.atomic_add` is
+`.env fun e => tl.atomicWith ptrs (fun i => tl.addUpd e d (vals.get i)) mask sem sc` (a float
+addition rounds as the platform says), so unfold it and apply the constructor `Safe.env` first,
+then this rule with `upd := fun i => tl.addUpd E d (vals.get i)`. -/
 theorem safe_atomic_buf (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Option (Tensor s Bool)}
     {upd : Idx s → d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} {g : Idx s → Nat}
     {en : Idx s → Bool}
     (hA : b.Addrs (tl.addrs ptrs mask) g en) (hin : ∀ i, en i = true → g i < b.len)
     (hinj : ∀ i j, en i = true → en j = true → g i = g j → i = j)
     (htot : ∀ i o, ∃ n, upd i o n) (hv : b.Valid m)
-    (hR : b.elems (Buf.img g en) ⊆ R) (hW : b.elems (Buf.img g en) ⊆ W)
+    (hW : b.elems (Buf.img g en) ⊆ W) (hRd : Disjoint (b.elems (Buf.img g en)) R)
     {k : Tensor s d.Val → Prog α}
     (hk : ∀ (old : Tensor s d.Val) (m' : Mem),
       (∀ i, en i = true → ∃ n, m.read d (b.ptr (g i : Int)).addr = some (old.get i) ∧
         upd i (old.get i) n ∧ m'.read d (b.ptr (g i : Int)).addr = some n) →
       (∀ x, x ∉ b.elems (Buf.img g en) → m' x = m x) → (∀ x, m x ≠ none → m' x ≠ none) →
-      Safe E R W Q m' (k old)) :
+      Safe E R (W \ b.elems (Buf.img g en)) Q m' (k old)) :
     Safe E R W Q m (tl.atomicWith ptrs upd mask sem sc >>= k) := by
   have hen : ∀ i, i ∈ enabled (tl.addrs ptrs mask) ↔ en i = true := by
     intro i
@@ -291,10 +323,17 @@ theorem safe_atomic_buf (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Option (Te
   refine safe_rmwSeq_buf b htot order (hperm.nodup_iff.mpr (enabled_nodup _))
     (fun i hi => ⟨hptr i ((hmem i).mp hi), hin i ((hmem i).mp hi)⟩)
     (fun i hi j hj => hinj i j ((hmem i).mp hi) ((hmem j).mp hj))
-    (fun i hi => ⟨fun x hx => hR ⟨_, ⟨i, (hmem i).mp hi, rfl⟩, hx⟩,
-      fun x hx => hW ⟨_, ⟨i, (hmem i).mp hi, rfl⟩, hx⟩⟩) junk m hv
-    fun acc' m' hdone _ hframe _ hpres => hk ⟨acc'⟩ m' (fun i he => hdone i ((hmem i).mpr he))
-      (fun x hx => hframe x fun i hi hxi => hx ⟨_, ⟨i, (hmem i).mp hi, rfl⟩, hxi⟩) hpres
+    W (fun i hi => ⟨fun x hx => hW ⟨_, ⟨i, (hmem i).mp hi, rfl⟩, hx⟩,
+      Set.disjoint_left.mpr fun x hx => Set.disjoint_left.mp hRd ⟨_, ⟨i, (hmem i).mp hi, rfl⟩, hx⟩⟩)
+    junk m hv fun acc' m' hdone _ hframe _ hpres => ?_
+  have hset : {x | ∃ i ∈ order, x ∈ Mem.span d (b.ptr (g i : Int)).addr} = b.elems (Buf.img g en) := by
+    ext x
+    constructor
+    · rintro ⟨i, hi, hx⟩; exact ⟨_, ⟨i, (hmem i).mp hi, rfl⟩, hx⟩
+    · rintro ⟨_, ⟨i, he, rfl⟩, hx⟩; exact ⟨i, (hmem i).mpr he, hx⟩
+  rw [hset]
+  exact hk ⟨acc'⟩ m' (fun i he => hdone i ((hmem i).mpr he))
+    (fun x hx => hframe x fun i hi hxi => hx ⟨_, ⟨i, (hmem i).mp hi, rfl⟩, hxi⟩) hpres
 
 end Rules
 

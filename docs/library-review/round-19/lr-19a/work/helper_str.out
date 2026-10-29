@@ -1,0 +1,3 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+S1 pick(o, 'x[y'); pick(o+1, 'x_y'): stored [2, 2], Python's meaning [2, 1]: DIFFERS
+S2 pick(o, 'x_y'); pick(o+1, 'x[y'): stored [1, 1], Python's meaning [1, 2]: DIFFERS

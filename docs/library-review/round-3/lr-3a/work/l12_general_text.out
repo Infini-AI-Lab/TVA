@@ -1,0 +1,6 @@
+rules: 44, page problems: []
+1. unindented paragraphs the parser puts inside a rule:
+   [atomic]: 'No construct of [exclusions.md](exclusions.md) is used. In particular: no'
+2. the last paragraph of §3 changed ('No construct of exclusions.md is used' -> 'may be used'):
+   map naming ['mask']: digest parts that change: none
+   map naming ['atomic']: digest parts that change: ['atomic']

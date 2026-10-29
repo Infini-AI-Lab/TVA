@@ -1,0 +1,555 @@
+== node types
+  Add: 187
+  And: 5
+  AnnAssign: 6
+  Assign: 415
+  Attribute: 404
+  AugAssign: 45
+  BinOp: 400
+  BitAnd: 6
+  BoolOp: 5
+  Call: 364
+  Compare: 65
+  Constant: 308
+  Div: 7
+  Eq: 19
+  Expr: 39
+  FloorDiv: 29
+  For: 20
+  Gt: 7
+  GtE: 8
+  If: 25
+  IfExp: 5
+  List: 69
+  Load: 2390
+  Lt: 30
+  LtE: 1
+  Mod: 17
+  Mult: 167
+  Name: 2247
+  Not: 2
+  Return: 7
+  Slice: 76
+  Store: 520
+  Sub: 32
+  Subscript: 78
+  Tuple: 112
+  USub: 2
+  UnaryOp: 4
+  While: 1
+  keyword: 123
+== statement types
+  AnnAssign: 6
+  Assign: 415
+  AugAssign: 45
+  Expr: 39
+  For: 20
+  If: 25
+  Return: 7
+  While: 1
+== assign targets
+  Name: 399
+  Tuple: 16
+  tuple 2 names <- Call ?: 11
+  tuple 2 names <- Tuple 2: 3
+  tuple 3 names <- Call ?: 2
+== annotated assignments
+  ('06-fused-attention.py:_attn_fwd_inner', 88, 'BM: tl.constexpr = acc.shape[0]')
+  ('06-fused-attention.py:_attn_fwd_inner', 89, 'BN: tl.constexpr = acc.shape[1]')
+  ('06-fused-attention.py:_attn_bwd', 383, 'LN2: tl.constexpr = 0.6931471824645996')
+  ('06-fused-attention.py:_attn_bwd', 407, 'MASK_BLOCK_M1: tl.constexpr = BLOCK_M1 // BLK_SLICE_FACTOR')
+  ('06-fused-attention.py:_attn_bwd', 460, 'MASK_BLOCK_N2: tl.constexpr = BLOCK_N2 // BLK_SLICE_FACTOR')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 216, 'MIXED_PREC: tl.constexpr = ELEM_PER_BYTE_A == 1 and ELEM_PER_BYTE_B == 2')
+== augmented assignments
+  Add target Name: 40
+  Mult target Name: 3
+  Sub target Name: 2
+== binary operators
+  Add: 147
+  BitAnd: 6
+  Div: 7
+  FloorDiv: 29
+  Mod: 17
+  Mult: 164
+  Sub: 30
+== unary operators
+  Not: 2
+  USub: 2
+== comparisons
+  Eq: 19
+  Gt: 7
+  GtE: 8
+  Lt: 30
+  LtE: 1
+== bool ops
+  And x2: 4
+  And x4: 1
+== conditional expressions
+  ('06-fused-attention.py:_attn_fwd', 189, 'tl.float8e5 if FP8_OUTPUT else tl.float16')
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 253, 'tl.float8e4nv if FP8 else tl.float16')
+  ('09-persistent-matmul.py:matmul_kernel_tma', 210, 'tl.float8e4nv if FP8_OUTPUT else tl.float16')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 401, 'tl.float8e4nv if FP8_OUTPUT else tl.float16')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 535, 'BLOCK_SIZE_N if not EPILOGUE_SUBTILE else BLOCK_SIZE_N // 2')
+== calls (callee: {(n positional, keywords, starred)})
+  (bhid * N_CTX).to: [(1, (), False)]
+  (stride_h * (bhid % H) + stride_z * (bhid // H)).to: [(1, (), False)]
+  _attn_bwd_dkdv: [(19, ('MASK',), False)]
+  _attn_bwd_dq: [(17, ('MASK',), False)]
+  _attn_fwd_inner: [(19, (), False)]
+  _compute_pid: [(5, (), False)]
+  _maybe_make_tensor_desc: [(1, ('shape', 'strides', 'block_shape'), False)]
+  a_desc.load: [(1, (), False)]
+  a_scale_desc.load: [(1, (), False)]
+  acc.reshape: [(1, (), False)]
+  acc.reshape([BM, 2, BN // 2]).permute: [(3, (), False)]
+  acc.reshape([BM, 2, BN // 2]).permute(0, 2, 1).split: [(0, (), False)]
+  acc.to: [(1, (), False)]
+  acc0.to: [(1, (), False)]
+  acc1.to: [(1, (), False)]
+  accumulator.to: [(1, (), False)]
+  b_desc.load: [(1, (), False)]
+  b_scale_desc.load: [(1, (), False)]
+  c_desc.store: [(2, (), False)]
+  desc_k.load: [(1, (), False)]
+  desc_o.store: [(2, (), False)]
+  desc_q.load: [(1, (), False)]
+  desc_v.load: [(1, (), False)]
+  ds.to: [(1, (), False)]
+  dsT.to: [(1, (), False)]
+  float: [(1, (), False)]
+  isinstance: [(2, (), False)]
+  leaky_relu: [(1, (), False)]
+  min: [(2, (), False)]
+  p.to: [(1, (), False)]
+  ppT.to: [(1, (), False)]
+  range: [(1, (), False), (2, (), False), (3, (), False)]
+  scale_a.reshape: [(5, (), False)]
+  scale_a.reshape(rep_m, rep_k, 32, 4, 4).trans: [(5, (), False)]
+  scale_a.reshape(rep_m, rep_k, 32, 4, 4).trans(0, 3, 2, 1, 4).reshape: [(2, (), False)]
+  scale_b.reshape: [(5, (), False)]
+  scale_b.reshape(rep_n, rep_k, 32, 4, 4).trans: [(5, (), False)]
+  scale_b.reshape(rep_n, rep_k, 32, 4, 4).trans(0, 3, 2, 1, 4).reshape: [(2, (), False)]
+  tl.arange: [(2, (), False)]
+  tl.assume: [(1, (), False)]
+  tl.cdiv: [(2, (), False)]
+  tl.dot: [(2, (), False), (3, (), False)]
+  tl.dot(do, vT).to: [(1, (), False)]
+  tl.dot(v, tl.trans(do)).to: [(1, (), False)]
+  tl.dot_scaled: [(7, (), False)]
+  tl.exp: [(1, (), False)]
+  tl.join: [(2, (), False)]
+  tl.join(acc0, acc1).permute: [(3, (), False)]
+  tl.join(acc0, acc1).permute(0, 2, 1).reshape: [(1, (), False)]
+  tl.load: [(1, ('mask', 'other'), False), (1, ('mask',), False), (1, (), False)]
+  tl.load(DO + off_hz * HEAD_DIM * N_CTX + off_m[:, None] * HEAD_DIM + off_n[None, :]).to: [(1, (), False)]
+  tl.load(X + cols, mask=cols < N, other=0.0).to: [(1, (), False)]
+  tl.load(X + cols, mask=mask, other=0.0).to: [(1, (), False)]
+  tl.load(group_a_ptrs + g).to: [(1, (), False)]
+  tl.load(group_b_ptrs + g).to: [(1, (), False)]
+  tl.load(group_c_ptrs + g).to: [(1, (), False)]
+  tl.make_tensor_descriptor: [(1, ('shape', 'strides', 'block_shape'), False), (4, (), False)]
+  tl.math.exp2: [(1, (), False)]
+  tl.math.log2: [(1, (), False)]
+  tl.max: [(1, ('axis',), False), (2, (), False)]
+  tl.max_contiguous: [(2, (), False)]
+  tl.maximum: [(2, (), False)]
+  tl.multiple_of: [(2, (), False)]
+  tl.num_programs: [(1, (), False)]
+  tl.permute: [(2, (), False)]
+  tl.pointer_type: [(1, (), False)]
+  tl.program_id: [(0, ('axis',), False), (1, (), False)]
+  tl.rand: [(2, (), False)]
+  tl.range: [(1, ('warp_specialize',), False), (2, ('num_stages', 'disallow_acc_multi_buffer'), False), (3, ('flatten', 'warp_specialize'), False), (3, ('flatten',), False), (3, ('num_stages',), False), (3, ('warp_specialize',), False)]
+  tl.reshape: [(2, (), False)]
+  tl.split: [(1, (), False)]
+  tl.sqrt: [(1, (), False)]
+  tl.static_assert: [(1, (), False)]
+  tl.store: [(2, ('mask',), False), (2, (), False)]
+  tl.sum: [(1, ('axis',), False), (2, (), False)]
+  tl.trans: [(1, (), False)]
+  tl.where: [(3, (), False)]
+  tl.zeros: [(1, ('dtype',), False)]
+== attributes read
+  T: 9
+  arange: 40
+  assume: 8
+  cdiv: 23
+  constexpr: 6
+  dot: 16
+  dot_scaled: 3
+  dtype: 3
+  element_ty: 3
+  exp: 1
+  exp2: 4
+  float16: 11
+  float32: 25
+  float8e4nv: 8
+  float8e5: 3
+  int64: 2
+  join: 1
+  load: 58
+  log2: 1
+  make_tensor_descriptor: 7
+  math: 5
+  max: 3
+  max_contiguous: 4
+  maximum: 2
+  multiple_of: 6
+  num_programs: 1
+  permute: 4
+  pointer_type: 3
+  program_id: 20
+  rand: 1
+  range: 7
+  reshape: 8
+  shape: 2
+  split: 3
+  sqrt: 1
+  static_assert: 3
+  store: 27
+  sum: 7
+  tensor_descriptor: 1
+  to: 30
+  trans: 5
+  where: 11
+  zeros: 18
+== subscript slices
+  (:, None): 41
+  (None, :): 35
+  0: 1
+  1: 1
+== free names (module level or builtins)
+  _attn_bwd_dkdv: ['06-fused-attention.py:_attn_bwd']
+  _attn_bwd_dq: ['06-fused-attention.py:_attn_bwd']
+  _attn_fwd_inner: ['06-fused-attention.py:_attn_fwd']
+  _compute_pid: ['09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_persistent', '09-persistent-matmul.py:matmul_kernel_tma_persistent']
+  _maybe_make_tensor_desc: ['06-fused-attention.py:_attn_fwd']
+  float: ['02-fused-softmax.py:softmax_kernel', '06-fused-attention.py:_attn_fwd']
+  isinstance: ['06-fused-attention.py:_maybe_make_tensor_desc']
+  leaky_relu: ['03-matrix-multiplication.py:matmul_kernel']
+  min: ['03-matrix-multiplication.py:matmul_kernel', '09-persistent-matmul.py:_compute_pid', '09-persistent-matmul.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel_tma']
+  range: ['03-matrix-multiplication.py:matmul_kernel', '05-layer-norm.py:_layer_norm_bwd_dwdb', '05-layer-norm.py:_layer_norm_fwd_fused', '06-fused-attention.py:_attn_bwd_dkdv', '06-fused-attention.py:_attn_bwd_dq', '08-grouped-gemm.py:grouped_matmul_tma_kernel', '09-persistent-matmul.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_persistent', '09-persistent-matmul.py:matmul_kernel_tma_persistent']
+  tl: ['01-vector-add.py:add_kernel', '02-fused-softmax.py:softmax_kernel', '03-matrix-multiplication.py:leaky_relu', '03-matrix-multiplication.py:matmul_kernel', '04-low-memory-dropout.py:_dropout', '04-low-memory-dropout.py:_seeded_dropout', '05-layer-norm.py:_layer_norm_bwd_dwdb', '05-layer-norm.py:_layer_norm_fwd_fused', '06-fused-attention.py:_attn_bwd', '06-fused-attention.py:_attn_bwd_dkdv', '06-fused-attention.py:_attn_bwd_dq', '06-fused-attention.py:_attn_bwd_preprocess', '06-fused-attention.py:_attn_fwd', '06-fused-attention.py:_attn_fwd_inner', '06-fused-attention.py:_maybe_make_tensor_desc', '08-grouped-gemm.py:grouped_matmul_tma_kernel', '09-persistent-matmul.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_persistent', '09-persistent-matmul.py:matmul_kernel_tma', '09-persistent-matmul.py:matmul_kernel_tma_persistent', '10-block-scaled-matmul.py:block_scaled_matmul_kernel']
+== constant kinds
+  NoneType: 76
+  bool: 6
+  float: 21
+  int: 195
+  str: 10
+== for loops
+  ('02-fused-softmax.py:softmax_kernel', 90, 'row_idx', 'tl.range(row_start, n_rows, row_step, num_stages=num_stages)')
+  ('03-matrix-multiplication.py:matmul_kernel', 298, 'k', 'range(0, tl.cdiv(K, BLOCK_SIZE_K))')
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 68, 'off', 'range(0, N, BLOCK_SIZE)')
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 75, 'off', 'range(0, N, BLOCK_SIZE)')
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 86, 'off', 'range(0, N, BLOCK_SIZE)')
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 211, 'i', 'range(0, M, BLOCK_SIZE_M)')
+  ('06-fused-attention.py:_attn_fwd_inner', 69, 'start_n', 'tl.range(lo, hi, BLOCK_N, warp_specialize=warp_specialize)')
+  ('06-fused-attention.py:_attn_bwd_dkdv', 290, 'blk_idx', 'range(num_steps)')
+  ('06-fused-attention.py:_attn_bwd_dq', 344, 'blk_idx', 'range(num_steps)')
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 256, 'g', 'range(group_size)')
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 307, 'kk', 'range(0, tl.cdiv(k, BLOCK_SIZE_K))')
+  ('09-persistent-matmul.py:matmul_kernel', 143, 'k', 'range(0, tl.cdiv(K, BLOCK_SIZE_K))')
+  ('09-persistent-matmul.py:matmul_kernel_tma', 229, 'k', 'tl.range(k_tiles, warp_specialize=WARP_SPECIALIZE)')
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 312, 'tile_id', 'tl.range(start_pid, num_tiles, NUM_SMS, flatten=True)')
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 324, 'ki', 'range(k_tiles)')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 414, 'tile_id', 'tl.range(start_pid, num_tiles, NUM_SMS, flatten=True, warp_specialize=WARP_SPECIALIZE)')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 420, 'ki', 'range(k_tiles)')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 543, 'tile_id', 'tl.range(start_pid, num_tiles, NUM_SMS, flatten=FLATTEN, warp_specialize=WARP_SPECIALIZE)')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 549, 'ki', 'range(k_tiles)')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 219, 'k', 'tl.range(0, tl.cdiv(K, BLOCK_K), num_stages=NUM_STAGES, disallow_acc_multi_buffer=disallow_acc_multi_buffer)')
+== returns
+  ('03-matrix-multiplication.py:leaky_relu', 'value'): 1
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'value'): 1
+  ('06-fused-attention.py:_attn_bwd_dq', 'value'): 1
+  ('06-fused-attention.py:_attn_fwd_inner', 'value'): 1
+  ('06-fused-attention.py:_maybe_make_tensor_desc', 'value'): 2
+  ('09-persistent-matmul.py:_compute_pid', 'value'): 1
+== decorators
+  triton.autotune(configs=get_autotune_config(), key=['M', 'N', 'K']): 1
+  triton.autotune(configs=list(filter(keep, configs)), key=['N_CTX', 'HEAD_DIM', 'FP8_OUTPUT: 1
+  triton.autotune(configs=matmul_get_configs(), key=['M', 'N', 'K']): 2
+  triton.autotune(configs=matmul_get_configs(pre_hook=matmul_tma_set_block_size_hook), key=[: 1
+  triton.autotune(configs=matmul_tma_persistent_get_configs(), key=['M', 'N', 'K', 'WARP_SPE: 1
+  triton.autotune(configs=matmul_tma_persistent_get_configs(pre_hook=matmul_tma_set_block_si: 1
+  triton.autotune(tma_configs, key=['group_size']): 1
+  triton.jit: 17
+  triton.jit(launch_metadata=_matmul_launch_metadata): 6
+== parameters (where, name, annotation)
+  ('01-vector-add.py:add_kernel', 'x_ptr', None)
+  ('01-vector-add.py:add_kernel', 'y_ptr', None)
+  ('01-vector-add.py:add_kernel', 'output_ptr', None)
+  ('01-vector-add.py:add_kernel', 'n_elements', None)
+  ('01-vector-add.py:add_kernel', 'BLOCK_SIZE', 'tl.constexpr')
+  ('02-fused-softmax.py:softmax_kernel', 'output_ptr', None)
+  ('02-fused-softmax.py:softmax_kernel', 'input_ptr', None)
+  ('02-fused-softmax.py:softmax_kernel', 'input_row_stride', None)
+  ('02-fused-softmax.py:softmax_kernel', 'output_row_stride', None)
+  ('02-fused-softmax.py:softmax_kernel', 'n_rows', None)
+  ('02-fused-softmax.py:softmax_kernel', 'n_cols', None)
+  ('02-fused-softmax.py:softmax_kernel', 'BLOCK_SIZE', 'tl.constexpr')
+  ('02-fused-softmax.py:softmax_kernel', 'num_stages', 'tl.constexpr')
+  ('03-matrix-multiplication.py:matmul_kernel', 'a_ptr', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'b_ptr', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'c_ptr', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'M', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'N', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'K', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'stride_am', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'stride_ak', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'stride_bk', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'stride_bn', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'stride_cm', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'stride_cn', None)
+  ('03-matrix-multiplication.py:matmul_kernel', 'BLOCK_SIZE_M', 'tl.constexpr')
+  ('03-matrix-multiplication.py:matmul_kernel', 'BLOCK_SIZE_N', 'tl.constexpr')
+  ('03-matrix-multiplication.py:matmul_kernel', 'BLOCK_SIZE_K', 'tl.constexpr')
+  ('03-matrix-multiplication.py:matmul_kernel', 'GROUP_SIZE_M', 'tl.constexpr')
+  ('03-matrix-multiplication.py:matmul_kernel', 'ACTIVATION', 'tl.constexpr')
+  ('03-matrix-multiplication.py:leaky_relu', 'x', None)
+  ('04-low-memory-dropout.py:_dropout', 'x_ptr', None)
+  ('04-low-memory-dropout.py:_dropout', 'x_keep_ptr', None)
+  ('04-low-memory-dropout.py:_dropout', 'output_ptr', None)
+  ('04-low-memory-dropout.py:_dropout', 'n_elements', None)
+  ('04-low-memory-dropout.py:_dropout', 'p', None)
+  ('04-low-memory-dropout.py:_dropout', 'BLOCK_SIZE', 'tl.constexpr')
+  ('04-low-memory-dropout.py:_seeded_dropout', 'x_ptr', None)
+  ('04-low-memory-dropout.py:_seeded_dropout', 'output_ptr', None)
+  ('04-low-memory-dropout.py:_seeded_dropout', 'n_elements', None)
+  ('04-low-memory-dropout.py:_seeded_dropout', 'p', None)
+  ('04-low-memory-dropout.py:_seeded_dropout', 'seed', None)
+  ('04-low-memory-dropout.py:_seeded_dropout', 'BLOCK_SIZE', 'tl.constexpr')
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'X', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'Y', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'W', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'B', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'Mean', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'Rstd', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'stride', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'N', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'eps', None)
+  ('05-layer-norm.py:_layer_norm_fwd_fused', 'BLOCK_SIZE', 'tl.constexpr')
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 'DW', None)
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 'DB', None)
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 'FINAL_DW', None)
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 'FINAL_DB', None)
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 'M', None)
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 'N', None)
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 'BLOCK_SIZE_M', 'tl.constexpr')
+  ('05-layer-norm.py:_layer_norm_bwd_dwdb', 'BLOCK_SIZE_N', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'acc', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'l_i', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'm_i', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'q', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'desc_k', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'desc_v', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'offset_y', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'dtype', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'start_m', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'qk_scale', None)
+  ('06-fused-attention.py:_attn_fwd_inner', 'BLOCK_M', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'HEAD_DIM', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'BLOCK_N', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'STAGE', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'offs_m', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'offs_n', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'N_CTX', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'warp_specialize', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd_inner', 'IS_HOPPER', 'tl.constexpr')
+  ('06-fused-attention.py:_maybe_make_tensor_desc', 'desc_or_ptr', None)
+  ('06-fused-attention.py:_maybe_make_tensor_desc', 'shape', None)
+  ('06-fused-attention.py:_maybe_make_tensor_desc', 'strides', None)
+  ('06-fused-attention.py:_maybe_make_tensor_desc', 'block_shape', None)
+  ('06-fused-attention.py:_attn_fwd', 'sm_scale', None)
+  ('06-fused-attention.py:_attn_fwd', 'M', None)
+  ('06-fused-attention.py:_attn_fwd', 'Z', None)
+  ('06-fused-attention.py:_attn_fwd', 'H', None)
+  ('06-fused-attention.py:_attn_fwd', 'desc_q', None)
+  ('06-fused-attention.py:_attn_fwd', 'desc_k', None)
+  ('06-fused-attention.py:_attn_fwd', 'desc_v', None)
+  ('06-fused-attention.py:_attn_fwd', 'desc_o', None)
+  ('06-fused-attention.py:_attn_fwd', 'N_CTX', None)
+  ('06-fused-attention.py:_attn_fwd', 'HEAD_DIM', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd', 'BLOCK_M', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd', 'BLOCK_N', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd', 'FP8_OUTPUT', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd', 'STAGE', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd', 'warp_specialize', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_fwd', 'IS_HOPPER', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_preprocess', 'O', None)
+  ('06-fused-attention.py:_attn_bwd_preprocess', 'DO', None)
+  ('06-fused-attention.py:_attn_bwd_preprocess', 'Delta', None)
+  ('06-fused-attention.py:_attn_bwd_preprocess', 'Z', None)
+  ('06-fused-attention.py:_attn_bwd_preprocess', 'H', None)
+  ('06-fused-attention.py:_attn_bwd_preprocess', 'N_CTX', None)
+  ('06-fused-attention.py:_attn_bwd_preprocess', 'BLOCK_M', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_preprocess', 'HEAD_DIM', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'dk', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'dv', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'Q', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'k', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'v', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'sm_scale', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'DO', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'M', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'D', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'stride_tok', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'stride_d', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'H', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'N_CTX', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'BLOCK_M1', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'BLOCK_N1', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'HEAD_DIM', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'start_n', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'start_m', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'num_steps', None)
+  ('06-fused-attention.py:_attn_bwd_dkdv', 'MASK', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_dq', 'dq', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'q', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'K', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'V', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'do', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'm', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'D', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'stride_tok', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'stride_d', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'H', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'N_CTX', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'BLOCK_M2', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_dq', 'BLOCK_N2', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_dq', 'HEAD_DIM', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd_dq', 'start_m', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'start_n', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'num_steps', None)
+  ('06-fused-attention.py:_attn_bwd_dq', 'MASK', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd', 'Q', None)
+  ('06-fused-attention.py:_attn_bwd', 'K', None)
+  ('06-fused-attention.py:_attn_bwd', 'V', None)
+  ('06-fused-attention.py:_attn_bwd', 'sm_scale', None)
+  ('06-fused-attention.py:_attn_bwd', 'DO', None)
+  ('06-fused-attention.py:_attn_bwd', 'DQ', None)
+  ('06-fused-attention.py:_attn_bwd', 'DK', None)
+  ('06-fused-attention.py:_attn_bwd', 'DV', None)
+  ('06-fused-attention.py:_attn_bwd', 'M', None)
+  ('06-fused-attention.py:_attn_bwd', 'D', None)
+  ('06-fused-attention.py:_attn_bwd', 'stride_z', None)
+  ('06-fused-attention.py:_attn_bwd', 'stride_h', None)
+  ('06-fused-attention.py:_attn_bwd', 'stride_tok', None)
+  ('06-fused-attention.py:_attn_bwd', 'stride_d', None)
+  ('06-fused-attention.py:_attn_bwd', 'H', None)
+  ('06-fused-attention.py:_attn_bwd', 'N_CTX', None)
+  ('06-fused-attention.py:_attn_bwd', 'BLOCK_M1', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd', 'BLOCK_N1', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd', 'BLOCK_M2', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd', 'BLOCK_N2', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd', 'BLK_SLICE_FACTOR', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd', 'HEAD_DIM', 'tl.constexpr')
+  ('06-fused-attention.py:_attn_bwd', 'CAUSAL', 'tl.constexpr')
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'group_a_ptrs', None)
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'group_b_ptrs', None)
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'group_c_ptrs', None)
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'group_gemm_sizes', None)
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'g_lds', None)
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'group_size', None)
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'NUM_SM', 'tl.constexpr')
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'BLOCK_SIZE_M', 'tl.constexpr')
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'BLOCK_SIZE_N', 'tl.constexpr')
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'BLOCK_SIZE_K', 'tl.constexpr')
+  ('08-grouped-gemm.py:grouped_matmul_tma_kernel', 'FP8', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel', 'a_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'b_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'c_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'M', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'N', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'K', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'stride_am', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'stride_ak', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'stride_bk', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'stride_bn', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'stride_cm', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'stride_cn', None)
+  ('09-persistent-matmul.py:matmul_kernel', 'BLOCK_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel', 'BLOCK_SIZE_N', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel', 'BLOCK_SIZE_K', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel', 'GROUP_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'a_desc', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'b_desc', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'c_desc', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'M', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'N', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'K', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'BLOCK_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'BLOCK_SIZE_N', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'BLOCK_SIZE_K', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'GROUP_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'FP8_OUTPUT', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma', 'WARP_SPECIALIZE', 'tl.constexpr')
+  ('09-persistent-matmul.py:_compute_pid', 'tile_id', None)
+  ('09-persistent-matmul.py:_compute_pid', 'num_pid_in_group', None)
+  ('09-persistent-matmul.py:_compute_pid', 'num_pid_m', None)
+  ('09-persistent-matmul.py:_compute_pid', 'GROUP_SIZE_M', None)
+  ('09-persistent-matmul.py:_compute_pid', 'NUM_SMS', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'a_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'b_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'c_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'M', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'N', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'K', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'stride_am', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'stride_ak', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'stride_bk', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'stride_bn', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'stride_cm', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'stride_cn', None)
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'BLOCK_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'BLOCK_SIZE_N', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'BLOCK_SIZE_K', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'GROUP_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_persistent', 'NUM_SMS', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'a_desc', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'b_desc', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'c_desc', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'M', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'N', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'K', None)
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'BLOCK_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'BLOCK_SIZE_N', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'BLOCK_SIZE_K', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'GROUP_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'FP8_OUTPUT', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'EPILOGUE_SUBTILE', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'NUM_SMS', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_tma_persistent', 'WARP_SPECIALIZE', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'a_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'b_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'c_ptr', None)
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'M', None)
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'N', None)
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'K', None)
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'BLOCK_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'BLOCK_SIZE_N', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'BLOCK_SIZE_K', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'GROUP_SIZE_M', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'EPILOGUE_SUBTILE', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'NUM_SMS', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'WARP_SPECIALIZE', 'tl.constexpr')
+  ('09-persistent-matmul.py:matmul_kernel_descriptor_persistent', 'FLATTEN', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'a_desc', None)
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'a_scale_desc', None)
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'b_desc', None)
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'b_scale_desc', None)
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'c_desc', None)
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'M', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'N', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'K', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'output_type', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'ELEM_PER_BYTE_A', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'ELEM_PER_BYTE_B', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'VEC_SIZE', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'BLOCK_M', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'BLOCK_N', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'BLOCK_K', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'rep_m', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'rep_n', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'rep_k', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'NUM_STAGES', 'tl.constexpr')
+  ('10-block-scaled-matmul.py:block_scaled_matmul_kernel', 'disallow_acc_multi_buffer', 'tl.constexpr')

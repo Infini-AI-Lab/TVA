@@ -1,0 +1,29 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+
+== Rank 3, shape [2, 4, 8]: every permutation ==
+tl.permute(x, dims)   : 6 of 6 permutations equal torch.permute
+tl.trans(x, dims)     : 6 of 6 permutations equal torch.permute
+tl.permute(x, *dims)  : 6 of 6 permutations equal torch.permute
+tl.trans(x)           : equals torch.permute with dims [0, 2, 1] (the last two axes swapped): True
+
+== Rank 3, shape [16, 32, 64]: every permutation ==
+tl.permute(x, dims)   : 6 of 6 permutations equal torch.permute
+tl.trans(x, dims)     : 6 of 6 permutations equal torch.permute
+tl.permute(x, *dims)  : 6 of 6 permutations equal torch.permute
+tl.trans(x)           : equals torch.permute with dims [0, 2, 1] (the last two axes swapped): True
+
+== Rank 4, shape [2, 2, 4, 8]: every permutation ==
+tl.permute(x, dims)   : 24 of 24 permutations equal torch.permute
+tl.trans(x, dims)     : 24 of 24 permutations equal torch.permute
+tl.permute(x, *dims)  : 24 of 24 permutations equal torch.permute
+tl.trans(x)           : equals torch.permute with dims [0, 1, 3, 2] (the last two axes swapped): True
+
+== Rank 4, shape [4, 8, 16, 32]: every permutation ==
+tl.permute(x, dims)   : 24 of 24 permutations equal torch.permute
+tl.trans(x, dims)     : 24 of 24 permutations equal torch.permute
+tl.permute(x, *dims)  : 24 of 24 permutations equal torch.permute
+tl.trans(x)           : equals torch.permute with dims [0, 1, 3, 2] (the last two axes swapped): True
+
+== Rank 2, shape [8, 16] ==
+tl.trans(x)           : equals torch.permute with dims [1, 0]: True
+x.T                   : equals torch.permute with dims [1, 0]: True

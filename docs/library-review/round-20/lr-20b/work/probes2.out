@@ -1,0 +1,5 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+  c = -1e-50: tl.full -> 80, tl.where -> 80 (litF8: 80)
+  c = 1e-50: tl.full -> 00, tl.where -> 00 (litF8: 00)
+  c = -1e-45: tl.full -> rejected on the host (RuntimeError), tl.where -> rejected on the host (RuntimeError) (litF8: none (rejected))
+  c = 1.0000000000009095: tl.full -> 3c, tl.where -> 3c (litF8: 3c (1.0))

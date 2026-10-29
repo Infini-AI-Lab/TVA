@@ -1,0 +1,33 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+tl.float8e5    x * 1.0                          RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e5    1.0 * x                          RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e5    x / 1.0                          RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e5    x - 0.0                          RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e5    x * 1                            RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e5    x + 0.0                          rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e5    x * 2.0                          rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e5    x + x                            rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e5    x * x                            rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e5    x - x                            rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e5    x / 2.0                          rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e5    tl.where(i < 0, x, 1.0) * 1.0    RAN: 1/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->3c, 0x80->3c, 0x01->3c
+tl.float8e5    x * -1.0                         rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e5    -x                               rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e5    tl.full([256], 1.5, DT) * tl.full([256], 2.0, DT) RAN: 1/256 patterns stored unchanged; e.g. 0x3c->42, 0x40->42, 0x80->42, 0x01->42
+tl.float8e5    tl.full([256], 1.5, DT) + 0.5    RAN: 1/256 patterns stored unchanged; e.g. 0x3c->40, 0x40->40, 0x80->40, 0x01->40
+tl.float8e4nv  x * 1.0                          RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e4nv  1.0 * x                          RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e4nv  x / 1.0                          RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e4nv  x - 0.0                          RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e4nv  x * 1                            RAN: 256/256 patterns stored unchanged; e.g. 0x3c->3c, 0x40->40, 0x80->80, 0x01->01
+tl.float8e4nv  x + 0.0                          rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e4nv  x * 2.0                          rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e4nv  x + x                            rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e4nv  x * x                            rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e4nv  x - x                            rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e4nv  x / 2.0                          rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e4nv  tl.where(i < 0, x, 1.0) * 1.0    RAN: 1/256 patterns stored unchanged; e.g. 0x3c->38, 0x40->38, 0x80->38, 0x01->38
+tl.float8e4nv  x * -1.0                         rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e4nv  -x                               rejected on the host: RuntimeError: PassManager::run failed
+tl.float8e4nv  tl.full([256], 1.5, DT) * tl.full([256], 2.0, DT) RAN: 1/256 patterns stored unchanged; e.g. 0x3c->44, 0x40->44, 0x80->44, 0x01->44
+tl.float8e4nv  tl.full([256], 1.5, DT) + 0.5    RAN: 1/256 patterns stored unchanged; e.g. 0x3c->40, 0x40->40, 0x80->40, 0x01->40

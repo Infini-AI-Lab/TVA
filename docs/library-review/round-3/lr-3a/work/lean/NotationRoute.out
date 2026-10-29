@@ -1,0 +1,4 @@
+def Kernels.NotationRoute.line : {s : Shape} →
+  {f : Math.Float.Format} → Tensor s (FloatV f) → Tensor s (FloatV f) → Prog (Tensor s (FloatV f)) :=
+fun {s} {f} x y => tl.add x y
+exit 0

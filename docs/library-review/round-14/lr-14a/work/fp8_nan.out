@@ -1,0 +1,13 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+| inputs | count | float8e4nv results (bits) | float8e5 results (bits) |
+|---|---|---|---|
+| float16 NaN, sign + | 1023 | [127] | [127] |
+| float16 NaN, sign - | 1023 | [127] | [127] |
+| float16 +inf | 1 | [126] | [123] |
+| float16 -inf | 1 | [254] | [251] |
+| bfloat16 NaN, sign + | 127 | [127] | [127] |
+| bfloat16 NaN, sign - | 127 | [127] | [127] |
+| bfloat16 +inf | 1 | [126] | [123] |
+| bfloat16 -inf | 1 | [254] | [251] |
+| float32 NaN, sign + | 69631 | [127] | [127] |
+| float32 NaN, sign - | 69631 | [127] | [127] |

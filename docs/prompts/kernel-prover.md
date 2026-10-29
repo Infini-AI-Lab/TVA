@@ -8,6 +8,7 @@ In `kernels/{{kernel}}/`, write a claim that Lean checks:
 ```lean
 theorem main : ∀ (K : Claim.Behaviour Inst) (P : Platform), Assumptions K P → Spec K
 theorem consistent : Claim.Consistent Assumptions
+theorem satisfiable : Claim.Satisfiable Inst.ok Pre
 ```
 
 Then answer the reviewers' findings until they accept it.
@@ -19,27 +20,37 @@ Then answer the reviewers' findings until they accept it.
 ## Your scope
 
 You write:
-- **the model**: the kernel's source transcribed into the `tl.*` vocabulary by
-  `docs/TRANSCRIPTION.md`, keeping the source's line structure and names;
-- **the model map** (`model-map.json`): every code line of the kernel, mapped to model text with
-  the transcription rules it applies, or dropped with a listed reason;
+- **the model**: the kernel's source transcribed into the `tl.*` vocabulary, keeping the source's
+  line structure and names, and meaning what the source does by `docs/SEMANTICS.md`
+  (`docs/TRANSCRIPTION.md` has worked patterns and pitfalls);
+- **the model map** (`model-map.json`): every code line of the kernel, mapped to model text, or
+  dropped with your reason and the condition that makes the drop hold; and in `kernel.json`, every
+  function of the source and every code line outside a function, the header of each unused
+  function included (a `def` runs at import), classed as kernel lines (what the launch runs or
+  reads: the imports of `triton` and `triton.language as tl`, the JIT functions) or host lines. A
+  kernel that reads any other module-level value (a `tl.constexpr(…)` global, a dtype) is outside
+  the supported subset (`docs/SEMANTICS.md`);
 - **the conditions** (`Inst`, `Inst.ok`, `Pre`): the instances and inputs covered. Cover the
   kernel's real use, and state each narrowing and why;
 - **the specification** (`Post`): what the outputs are. A tolerance must be explicit,
   computable and meaningful at the largest covered sizes;
 - **the assumptions** (`Assumptions K P`), of two kinds only:
-  - `[rule]`: a library rule or device fact from `TVA.Rules.*`, cited as the library states
-    it. It may mention only the library's constants, `K`, `P`, and your `Inst`, `Inst.ok`,
-    `model` and `launch`;
-  - `[kernel]`: an unproved fact about your own values, mentioning neither `K` nor `P`. Prefer
-    proving it;
-- **the proof**: `main` and `consistent`, with only the axioms `propext`, `Classical.choice`
-  and `Quot.sound`;
+  - `[rule]`: a library rule or device fact from `TVA.Rules.*`, cited by its name as the library
+    states it, applied to `P`: a fact `docs/rules/num.md`'s "Facts the library states" lists, as
+    listed, or `Compiler.Faithful P (model d) (launch d) (K d)` (never a shape such as `MathAcc`
+    with constants). It may mention only the library's constants, `P`, your `Inst`, `Inst.ok`,
+    `model` and `launch`, and `K` in `Compiler.Faithful`;
+  - `[kernel]`: a fact about your own values, mentioning neither `K` nor `P`. It is a closed
+    statement, so `consistent` proves it; the reviewers judge whether it is needed, clear, and
+    about what your write-up says. Prefer a lemma proved on its own;
+- **the proof**: `main`, `consistent` and `satisfiable` (one covered instance and memory), with
+  only the axioms `propext`, `Classical.choice` and `Quot.sound`;
 - **the write-up** (`README.md`): Specification, Conditions, Assumptions, Proof and
   Narrowings, in words, matching the Lean.
 
 You do not write device or compiler facts, and you never choose accuracy constants. If the
-kernel needs something the library does not have (a fact, an operation, a transcription rule),
+kernel needs something the library does not have (a fact, an operation, the meaning of a
+construct),
 stop and ask for it as a **library request** in your notes. Do not work around it with a
 `[kernel]` assumption. Never edit the library (`lean/TVA`, `docs/`), other kernels, or a
 reviewer's files.
@@ -58,8 +69,8 @@ Read these in `~/fpv/tva`:
 |---|---|
 | `docs/PROVER_GUIDE.md` | how to write each part, and the proof route with the rule for each line: **read it first** |
 | `docs/REVIEW_PROTOCOL.md` | §1–§2 your scope and independence; §5 assumption kinds; §7 the model map; §8 the gate; §9 the review rounds and responses; §11 the exact format of your response and notes |
-| `docs/TRANSCRIPTION.md` | the rule for each source construct |
-| `docs/SEMANTICS.md` | what each `tl.*` operation means |
+| `docs/SEMANTICS.md` | what each source construct means, and how Triton's front end evaluates the source |
+| `docs/TRANSCRIPTION.md` | guidance: worked patterns, the usual pitfalls, common reasons to drop a line |
 | `docs/LIBRARY.md` | the library's modules and lemmas |
 | `docs/rules/compiler-faithful.md`, `docs/rules/num.md` | the rules you cite as `[rule]` |
 | `docs/exclusions.md` | what is out of scope |

@@ -1,0 +1,4 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+B1: loads ['ld.global.v4.b32']; correct
+B2: loads ['ld.global.b32']; correct
+B3: loads ['ld.global.b32']; correct

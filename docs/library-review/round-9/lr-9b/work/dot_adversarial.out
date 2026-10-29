@@ -1,0 +1,78 @@
+| case | dtype | shape | path | elements with room | outside the fact | largest error / bound |
+|---|---|---|---|---|---|---|
+| S subnormal x large | float16 | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float16 | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0147 |
+| S subnormal x large | float16 | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float16 | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.0147 |
+| S subnormal x large | float16 | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float16 | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0116 |
+| S subnormal x large | float16 | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float16 | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.0125 |
+| S subnormal x large | bfloat16 | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large, one unit term | bfloat16 | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large | bfloat16 | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large, one unit term | bfloat16 | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large | bfloat16 | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large, one unit term | bfloat16 | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large | bfloat16 | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large, one unit term | bfloat16 | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large | float8e4nv | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float8e4nv | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large | float8e4nv | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float8e4nv | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large | float8e4nv | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float8e4nv | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large | float8e4nv | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float8e4nv | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large | float8e5 | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float8e5 | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large | float8e5 | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float8e5 | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.0624 |
+| S subnormal x large | float8e5 | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float8e5 | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| S subnormal x large | float8e5 | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.0000 |
+| S subnormal x large, one unit term | float8e5 | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.0222 |
+| W window, acc 1 | float16 | 16x16x16, 1 warps | mma.sync | 256 | 0 | 0.1094 |
+| W window, acc -1 | float16 | 16x16x16, 1 warps | mma.sync | 256 | 0 | 0.1094 |
+| W window, acc 1 | float16 | 64x64x16, 4 warps | wgmma | 4096 | 0 | 0.1094 |
+| W window, acc -1 | float16 | 64x64x16, 4 warps | wgmma | 4096 | 0 | 0.1094 |
+| W window, acc 1 | float16 | 16x16x64, 1 warps | mma.sync | 256 | 0 | 0.1193 |
+| W window, acc -1 | float16 | 16x16x64, 1 warps | mma.sync | 256 | 0 | 0.0739 |
+| W window, acc 1 | float16 | 64x64x64, 4 warps | wgmma | 4096 | 0 | 0.1193 |
+| W window, acc -1 | float16 | 64x64x64, 4 warps | wgmma | 4096 | 0 | 0.0739 |
+| W window, acc 1 | float16 | 16x16x512, 1 warps | mma.sync | 256 | 0 | 0.1226 |
+| W window, acc -1 | float16 | 16x16x512, 1 warps | mma.sync | 256 | 0 | 0.0623 |
+| W window, acc 1 | float16 | 64x64x512, 4 warps | wgmma | 4096 | 0 | 0.1226 |
+| W window, acc -1 | float16 | 64x64x512, 4 warps | wgmma | 4096 | 0 | 0.0623 |
+| W window, acc 1 | float16 | 16x16x2048, 1 warps | mma.sync | 256 | 0 | 0.1229 |
+| W window, acc -1 | float16 | 16x16x2048, 1 warps | mma.sync | 256 | 0 | 0.0610 |
+| W window, acc 1 | bfloat16 | 16x16x16, 1 warps | mma.sync | 256 | 0 | 0.1094 |
+| W window, acc -1 | bfloat16 | 16x16x16, 1 warps | mma.sync | 256 | 0 | 0.1094 |
+| W window, acc 1 | bfloat16 | 64x64x16, 4 warps | wgmma | 4096 | 0 | 0.1094 |
+| W window, acc -1 | bfloat16 | 64x64x16, 4 warps | wgmma | 4096 | 0 | 0.1094 |
+| W window, acc 1 | bfloat16 | 16x16x64, 1 warps | mma.sync | 256 | 0 | 0.1193 |
+| W window, acc -1 | bfloat16 | 16x16x64, 1 warps | mma.sync | 256 | 0 | 0.0739 |
+| W window, acc 1 | bfloat16 | 64x64x64, 4 warps | wgmma | 4096 | 0 | 0.1193 |
+| W window, acc -1 | bfloat16 | 64x64x64, 4 warps | wgmma | 4096 | 0 | 0.0739 |
+| W window, acc 1 | bfloat16 | 16x16x512, 1 warps | mma.sync | 256 | 0 | 0.1226 |
+| W window, acc -1 | bfloat16 | 16x16x512, 1 warps | mma.sync | 256 | 0 | 0.0623 |
+| W window, acc 1 | bfloat16 | 64x64x512, 4 warps | wgmma | 4096 | 0 | 0.1226 |
+| W window, acc -1 | bfloat16 | 64x64x512, 4 warps | wgmma | 4096 | 0 | 0.0623 |
+| W window, acc 1 | bfloat16 | 16x16x2048, 1 warps | mma.sync | 256 | 0 | 0.1229 |
+| W window, acc -1 | bfloat16 | 16x16x2048, 1 warps | mma.sync | 256 | 0 | 0.0610 |
+| W window, acc 1 | float8e4nv | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| W window, acc 1 | float8e4nv | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.4360 |
+| W window, acc 1 | float8e4nv | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| W window, acc 1 | float8e4nv | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.4143 |
+| W window, acc 1 | float8e4nv | 16x16x1024, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| W window, acc 1 | float8e4nv | 64x64x1024, 4 warps | wgmma | 4096 | 0 | 0.3487 |
+| W window, acc 1 | float8e5 | 16x16x32, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| W window, acc 1 | float8e5 | 64x64x32, 4 warps | wgmma | 4096 | 0 | 0.4360 |
+| W window, acc 1 | float8e5 | 16x16x256, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| W window, acc 1 | float8e5 | 64x64x256, 4 warps | wgmma | 4096 | 0 | 0.4143 |
+| W window, acc 1 | float8e5 | 16x16x1024, 1 warps | mma.sync | 256 | 0 | 0.0000 |
+| W window, acc 1 | float8e5 | 64x64x1024, 4 warps | wgmma | 4096 | 0 | 0.3487 |
+| Z subnormal products | float32 | 16x16x16, 1 warps | fma | 256 | 0 | 0.1045 |
+| Z subnormal products | float32 | 64x64x16, 4 warps | fma | 4096 | 0 | 0.1335 |
+| Z subnormal products | float32 | 16x16x64, 1 warps | fma | 256 | 0 | 0.0250 |
+| Z subnormal products | float32 | 64x64x64, 4 warps | fma | 4096 | 0 | 0.0295 |

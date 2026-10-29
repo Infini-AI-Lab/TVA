@@ -1,0 +1,99 @@
+# R: evidence/gate-round7 Part U, rerun
+# Part U: the tool's functions on small inputs
+
+## U1 (L39): code lines, round 6 against round 7
+K1 a triple-quoted argument:
+  1: round 6 code | round 7 code | @triton.jit
+  2: round 6 code | round 7 code | def k(c, x_ptr):
+  3: round 6 code | round 7 code |     x = tl.load(x_ptr)
+  4: round 6 ---- | round 7 code |     tl.device_print("""x""", tl.atomic_add(c, 1))
+  5: round 6 code | round 7 code |     tl.store(x_ptr, x)
+K2 triple quotes in two comments:
+  1: round 6 code | round 7 code | @triton.jit
+  2: round 6 code | round 7 code | def k(c, x_ptr):
+  3: round 6 ---- | round 7 code |     x = tl.load(x_ptr)  # """
+  4: round 6 ---- | round 7 code |     tl.atomic_add(c, 1)
+  5: round 6 ---- | round 7 code |     tl.store(x_ptr, x)  # """
+K3 a docstring (control):
+  1: round 6 code | round 7 code | @triton.jit
+  2: round 6 code | round 7 code | def k(c, x_ptr):
+  3: round 6 ---- | round 7 ---- |     """Adds one.
+  4: round 6 ---- | round 7 ---- |     tl.atomic_add(c, 1) is how it would read
+  5: round 6 ---- | round 7 ---- |     """
+  6: round 6 code | round 7 code |     tl.atomic_add(c, 1)
+K4 an empty triple-quoted string after `;`:
+  1: round 6 code | round 7 code | def k(x_ptr, c_ptr):
+  2: round 6 ---- | round 7 code |     x = tl.atomic_add(c_ptr, 2)  ; s = """"""
+  3: round 6 code | round 7 code |     tl.store(x_ptr, x)
+K5 a bare non-ASCII string, then code:
+  1: round 6 code | round 7 code | def k(c):
+  2: round 6 code | round 7 code |     'é' ; tl.atomic_add(c, 1)
+  3: round 6 code | round 7 ---- |     'a bare string'
+  4: round 6 code | round 7 code |     x = f(
+  5: round 6 ---- | round 7 code |         """two
+  6: round 6 ---- | round 7 code |         lines""",
+  7: round 6 code | round 7 code |     )
+a source that does not parse: (None, 'invalid syntax (<unknown>, line 1)')
+
+## U2 (L38): the manifest check
+the real manifest: no problem
+the namespace of lr-6a's injection: ['lean.namespace must be a dotted name of ASCII letters, digits, `_` and `\'` (found \'Nat), True := fun _ => trivial\\n#eval IO.println "x"\\n#exit\\n--\')']
+a module with a line break: ["lean.module must be a dotted name of ASCII letters, digits, `_` and `'` (found 'VecAdd\\n#exit')"]
+a namespace with a space: ["lean.namespace must be a dotted name of ASCII letters, digits, `_` and `'` (found 'Kernels.Vec Add')"]
+a source file outside the kernel folder: ["source.file must be a path inside the kernel folder (found '../../../README.md')"]
+
+## U3 (L40): the library hygiene's view of Lean code (comments removed, literals kept)
+a command after a string holding --: ['meta code']
+a command after a char literal of a quote: ['meta code']
+a raw string holding a quote and --: ['meta code']
+a guillemet name holding --: ['meta code']
+a nested comment: nothing flagged
+a docstring naming syntax (prose): nothing flagged
+a line comment naming run_cmd: nothing flagged
+the library as it is: nothing flagged
+
+# M1: map coverage when the ranges leave lines out
+ranges [[29, 54]]: uncovered code lines [52] -> map FAIL
+ranges [[29, 51], [53, 54]]: uncovered code lines [] -> map PASS
+ranges []: uncovered code lines [] -> map PASS
+  line 52 is code: True: 'output = x + y'
+
+# M2: claim.md's source column against the gate's line numbers
+form feed: the source parses: True; code lines [1, 2, 4, 5, 6]
+  line 4: Python reads 'x = tl.load(x_ptr)'; claim.md shows 'in it'
+  line 5: Python reads 'tl.atomic_add(c_ptr, 1)'; claim.md shows 'x = tl.load(x_ptr)'
+  line 6: Python reads 'tl.store(x_ptr, x)'; claim.md shows 'tl.atomic_add(c_ptr, 1)'
+line separator U+2028: the source parses: True; code lines [1, 2, 4, 5, 6]
+  line 4: Python reads 'x = tl.load(x_ptr)'; claim.md shows 'in it'
+  line 5: Python reads 'tl.atomic_add(c_ptr, 1)'; claim.md shows 'x = tl.load(x_ptr)'
+  line 6: Python reads 'tl.store(x_ptr, x)'; claim.md shows 'tl.atomic_add(c_ptr, 1)'
+next line U+0085: the source parses: True; code lines [1, 2, 4, 5, 6]
+  line 4: Python reads 'x = tl.load(x_ptr)'; claim.md shows 'in it'
+  line 5: Python reads 'tl.atomic_add(c_ptr, 1)'; claim.md shows 'x = tl.load(x_ptr)'
+  line 6: Python reads 'tl.store(x_ptr, x)'; claim.md shows 'tl.atomic_add(c_ptr, 1)'
+
+# M3: more code-line cases (L39)
+a string statement, then code after `;`: 1: code 'def k(c):'; 2: code '"""doc"""; tl.atomic_add(c, 1)'
+a bare f-string statement: 1: code 'def k(c):'; 2: code "f'{tl.atomic_add(c, 1)}'"
+a string statement continued by a backslash: 1: code 'def k(c):'; 2: ---- "'a' \\"; 3: ---- "'b'"; 4: code 'tl.atomic_add(c, 1)'
+a bytes statement: 1: code 'def k(c):'; 2: ---- "b'x'"; 3: code 'tl.atomic_add(c, 1)'
+
+# H1: the library hygiene's comment stripper on Lean interpolated strings
+a char literal of a quote inside an interpolation, then `--` inside the string:
+  text 'def s : String := s!"{\'"\'} -- " #eval 7'
+  stripped 'def s : String := s!"{\'"\'}'
+  flagged: nothing
+a string literal inside an interpolation (control):
+  text 'def s : String := s!"{"a"} -- x" #eval 8'
+  stripped 'def s : String := s!"{"a"} -- x" #eval 8'
+  flagged: ['meta code']
+
+# N1: manifest_problems on plain names that are special in Lean
+namespace '_root_': accepted
+namespace 'end': accepted
+namespace 'Kernels.VecAdd.end': accepted
+namespace 'TVA': accepted
+namespace '_': accepted
+
+# G1: the release check's comparison on a certificate no ledger supports
+shipped gate.json = recomputed, certificate.json naming it with no reviewer: gate_mismatch -> [] (the gate step passes)

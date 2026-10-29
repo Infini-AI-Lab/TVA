@@ -1,0 +1,1 @@
+40236 distinct front-end cases; 37896 compared with the library; 0 differ; 2340 skipped (all operands Python numbers: Python's own arithmetic)

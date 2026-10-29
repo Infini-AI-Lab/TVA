@@ -1,0 +1,7 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+E4 float32 on 2^28 random pairs (a third subnormal): + 0, * 0, tl.div_rn 0 differ from IEEE (155170369 results zero or subnormal)
+E5 tl.fma float16: 20000 triples, 0 differ from the exact result rounded to nearest even (6468 subnormal results; 1923 inputs changed when converted, expected 0)
+E5 tl.fma bfloat16: 20000 triples, 0 differ from the exact result rounded to nearest even (2199 subnormal results; 1683 inputs changed when converted, expected 0)
+E5 tl.fma float32: 20000 triples, 0 differ from the exact result rounded to nearest even (3185 subnormal results; 2182 inputs changed when converted, expected 0)
+E5 tl.fma float64: 20000 triples, 0 differ from the exact result rounded to nearest even (2568 subnormal results; 0 inputs changed when converted, expected 0)
+E6 float64 on 2^24 random pairs (a third subnormal), against numpy: + 0, * 0, / 0 differ

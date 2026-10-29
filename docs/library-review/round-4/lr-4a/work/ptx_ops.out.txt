@@ -1,0 +1,53 @@
+triton 3.8.0 NVIDIA H200 NVL
+add f16                      add.f16
+add bf16                     add.bf16
+add f32                      add.f32
+add f64                      add.f64
+sub f16                      sub.f16
+sub bf16                     sub.bf16
+sub f32                      sub.f32
+sub f64                      sub.f64
+mul f16                      mul.f16
+mul bf16                     mul.bf16
+mul f32                      mul.f32
+mul f64                      mul.f64
+fma f16                      fma.rn.f16
+fma bf16                     fma.rn.bf16
+fma f32                      fma.rn.f32
+fma f64                      fma.rn.f64
+div f16                      cvt.f32.f16 div.full.f32
+div bf16                     cvt.f32.bf16 div.full.f32
+div f32                      div.full.f32
+div f64                      div.rn.f64
+div_rn f16                   rejected: CompilationError
+div_rn bf16                  rejected: CompilationError
+div_rn f32                   div.rn.f32
+div_rn f64                   rejected: CompilationError
+sqrt_rn f16                  rejected: CompilationError
+sqrt_rn bf16                 rejected: CompilationError
+sqrt_rn f32                  sqrt.rn.f32
+sqrt_rn f64                  rejected: CompilationError
+sqrt f16                     rejected: CompilationError
+sqrt bf16                    rejected: CompilationError
+sqrt f32                     sqrt.approx.ftz.f32
+sqrt f64                     sqrt.rn.f64
+exp f16                      rejected: CompilationError
+exp bf16                     rejected: CompilationError
+exp f32                      ex2.approx.f32 mul.f32
+exp f64                      abs.ftz.f32 add.f64 add.rn.f64 fma.rn.f64 mul.f64
+exp2 f16                     rejected: CompilationError
+exp2 bf16                    rejected: CompilationError
+exp2 f32                     ex2.approx.ftz.f32
+exp2 f64                     abs.f64 abs.ftz.f32 add.f64 add.rn.f64 fma.rn.f64 mul.f64 sub.f64
+cvt f32->f16                 cvt.rn.f16.f32
+cvt f32->bf16                cvt.rn.bf16.f32
+cvt f64->f32                 cvt.rn.f32.f64
+cvt f64->f16                 cvt.rn.f16.f64
+cvt f64->bf16                cvt.rn.bf16.f64
+cvt f16->bf16                cvt.f32.f16 cvt.rn.bf16.f32
+cvt bf16->f16                cvt.f32.bf16 cvt.rn.f16.f32
+cvt f16->f32                 cvt.f32.f16
+cvt bf16->f32                cvt.f32.bf16
+cvt f32->f64                 cvt.f64.f32
+cvt f16->f64                 cvt.f64.f16
+cvt bf16->f64                cvt.f64.bf16

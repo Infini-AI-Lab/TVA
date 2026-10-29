@@ -1,0 +1,51 @@
+A1: flagged (as the rule asks) - fpv, two slashes, sibling
+A2: flagged (as the rule asks) - fpv, dot, sibling
+A3: flagged (as the rule asks) - fpv, tva, dot-dot, sibling
+A4: flagged (as the rule asks) - fpv, backslash, sibling
+A5: flagged (as the rule asks) - fpv, %2f, sibling
+A6: flagged (as the rule asks) - fpv, &#47;, sibling
+A7: flagged (as the rule asks) - fpv, JSON \u002f, sibling
+A8: flagged (as the rule asks) - fpv, \x2f, sibling
+A9: flagged (as the rule asks) - fpv, fullwidth solidus (NFKC), sibling
+A10: flagged (as the rule asks) - FPV then Otherproj, upper case
+A11: flagged (as the rule asks) - fpv, &#x2F;, sibling
+A12: flagged (as the rule asks) - fpv, JSON \/, sibling
+B1: passed  (NOT as the rule asks) - shell: home, then "fpv" quoted, then sibling
+B2: passed  (NOT as the rule asks) - shell: home/fpv/, then the sibling quoted
+B3: passed  (NOT as the rule asks) - shell: home/fpv'' (empty quotes)/sibling
+B4: flagged (as the rule asks) - shell: home/fpv/ then backslash-newline then sibling
+B5: passed  (NOT as the rule asks) - shell: absolute home, fpv, then the sibling in single quotes, then x
+B6: passed  (NOT as the rule asks) - HTML named entity &sol; as the separator (Markdown renders it as /)
+B7: flagged (as the rule asks) - Python octal escape \057 as the separator
+B8: flagged (as the rule asks) - Python \N{SOLIDUS} as the separator
+B9: passed  (NOT as the rule asks) - shell brace expansion: home, fpv, then {sibling,x}
+B10: passed  (NOT as the rule asks) - shell glob home/fpv/[o]therproj
+C1: passed  (NOT as the rule asks) - ${HOME:-${X}} (nested expansion) then a sibling directly under home
+C2: passed  (NOT as the rule asks) - %USERPROFILE% then a backslash path
+C3: passed  (NOT as the rule asks) - PowerShell $HOME then a backslash path
+C4: passed  (NOT as the rule asks) - `echo ~` (backquotes) then one component
+C5: passed  (NOT as the rule asks) - $(…) nested three deep then one component
+C6: flagged (as the rule asks) - Makefile $(HOME) then a sibling
+C7: flagged (as the rule asks) - %7E (escaped tilde) then a sibling
+C8: flagged (as the rule asks) - file://localhost then a home path
+C9: flagged (as the rule asks) - a Markdown link to home, fpv, sibling
+C10: flagged (as the rule asks) - absolute: root, fpv, sibling
+C11: flagged (as the rule asks) - home/../someone/sibling
+C12: flagged (as the rule asks) - home path with a doubled slash
+C13: flagged (as the rule asks) - tilde-user then sibling
+C14: flagged (as the rule asks) - home, fpv, tva, two dot-dots, sibling
+K1: passed  (as the rule asks) - control: home/fpv/tva/docs
+K2: passed  (as the rule asks) - control: fpv/<name> and fpv/… placeholders
+K3: passed  (as the rule asks) - control: a web URL whose path holds fpv then sibling
+K4: passed  (as the rule asks) - control: a relative path x/home/someone/sibling (no home)
+K5: passed  (as the rule asks) - control: round-<N>/author and {kernel}/review
+part 1: 41 probes, 12 not as the rule asks
+part 2 baseline: exit 0, independent
+E1: passed  (NOT as the rule asks) - docs: shell, home then "fpv" quoted then sibling (B1)
+E2: passed  (NOT as the rule asks) - docs: shell, home/fpv/ then the sibling quoted (B2)
+E3: passed  (NOT as the rule asks) - docs: &sol; as the separator (B6)
+E4: passed  (NOT as the rule asks) - docs: Python octal escapes as the separator (B7)
+E5: passed  (NOT as the rule asks) - primitives: a new pinned file with a path into a sibling
+E6: passed  (NOT as the rule asks) - kernel source (pinned by kernel.json) with a path into a sibling
+E7: flagged (as the rule asks) - control-check: docs, plain home, fpv, sibling
+part 2: 7 cases, 6 not as the rule asks

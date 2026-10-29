@@ -1,0 +1,6 @@
+triton 3.8.0, NVIDIA H200 NVL
+T1 int x, float32 result: 7fc00000 ffc00000 7fc00000 ffc00000 ffc00000 | litF32: 7fc00000 ffc00000 7fc00000 ffc00000 ffc00000 | differ: 0
+T2 float16 (true side): 7e00 fe00 | litF16: 7e00 fe00 | differ: 0
+T2 bfloat16 (true side): 7fc0 ffc0 | litBF16: 7fc0 ffc0 | differ: 0
+T3 Python doubles: fff8000000000000 fff8000000000000 7ff8000000000000
+T3 C = inf constexpr, float32: ffc00000 ffc00000 7fc00000 | litF32: ffc00000 ffc00000 7fc00000 | differ: 0

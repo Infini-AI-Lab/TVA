@@ -160,6 +160,71 @@
       "source": "triton-3.8.0-GetEnv.h",
       "sha256": "d44ef05827327cb771df949dac47ec593657a3cceb117a1c7be3bd78c65592c2",
       "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/include/triton/Tools/Sys/GetEnv.h"
+    },
+    {
+      "source": "triton-3.8.0-jit.py",
+      "sha256": "38b8151fcceec1a0210a696775b7c64d7fac5e9b69eee2dda7e93c1e2a377509",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/runtime/jit.py"
+    },
+    {
+      "source": "triton-3.8.0-compiler.py",
+      "sha256": "28ff26b7e752df455c410418d72fd0afc5b3bfa952ca4bca95b1cfd5a31a0e2f",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/compiler/compiler.py"
+    },
+    {
+      "source": "triton-3.8.0-AxisInfo.h",
+      "sha256": "4fa890e44c49e09a106c875003354e6c2e77bef5b48c7c5b4ff19843a4e4c5d6",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/include/triton/Analysis/AxisInfo.h"
+    },
+    {
+      "source": "triton-3.8.0-ElementwiseOpToLLVMBase.h",
+      "sha256": "4984bca77ae5ef37c427c57131ba317c42f916afbc60200541c13c978a5203fe",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/include/triton/Conversion/TritonGPUToLLVM/ElementwiseOpToLLVMBase.h"
+    },
+    {
+      "source": "triton-3.8.0-specialize.cc",
+      "sha256": "ca3aec77099c3553db648eb460f1d1130ae955a44030d07739d97e9af45d6b0b",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/src/specialize.cc"
+    },
+    {
+      "source": "triton-3.8.0-autotuner.py",
+      "sha256": "119055c98dfef66a1ae8a72e4bdf44185993ee24902ced5086caa7f9de9cef16",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/runtime/autotuner.py"
+    },
+    {
+      "source": "triton-3.8.0-allocation.py",
+      "sha256": "6581b8b5e4057cd8eb25cac3bf3fd0338e200a5aee2f849626be158f68030d6c",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/runtime/_allocation.py"
+    },
+    {
+      "source": "triton-3.8.0-nvidia-driver.py",
+      "sha256": "966a8105ff35077006b103266c3d8d292a56ad096a2d0dd6833027efb4bd1d50",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/third_party/nvidia/backend/driver.py"
+    },
+    {
+      "source": "triton-3.8.0-TMALowering.cpp",
+      "sha256": "9d90e63fbc3c4a59e3bae699760f0bc78df130a72183e85d846e2d163ec74ddd",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Dialect/TritonNvidiaGPU/Transforms/TMALowering.cpp"
+    },
+    {
+      "source": "triton-3.8.0-TMAUtilities.h",
+      "sha256": "4f5047cf6630f8168d75e88c0b3cb934f62df69087a4df38ba5d6282b118e1bc",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/include/triton/Dialect/TritonNvidiaGPU/Transforms/TMAUtilities.h"
+    },
+    {
+      "source": "triton-3.8.0-GlobalScratchMemoryAllocation.cpp",
+      "sha256": "6c4879f065e181aa902c62d412b4bad6916cfb4dc59bfcf9418d1b2510cabd7f",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Conversion/TritonGPUToLLVM/GlobalScratchMemoryAllocation.cpp"
+    },
+    {
+      "source": "triton-3.8.0-TritonGPUToLLVM-Utility.cpp",
+      "sha256": "a5c63a3aced836005095e5655d2ea652ce8c9fd184d52dcc6babccf335b6c709",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Conversion/TritonGPUToLLVM/Utility.cpp"
+    },
+    {
+      "source": "triton-3.8.0-backends-compiler.py",
+      "sha256": "c5d3403b88b5bb728f8ac78c55163198e418430f126c842892c68cb4b6baaa78",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/backends/compiler.py"
     }
   ],
   "api_exports": [

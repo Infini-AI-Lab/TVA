@@ -1,0 +1,2 @@
+NotationRoute.lean: hygiene hits: none; declarations: ['Kernels.NotationRoute.line', 'Kernels.NotationRoute.line_is_addc']; any with root TVA: False
+ShadowRoute.lean: hygiene hits: none; declarations: ['Kernels.ShadowRoute.tl.add', 'Kernels.ShadowRoute.line', 'Kernels.ShadowRoute.line_is_addc']; any with root TVA: False

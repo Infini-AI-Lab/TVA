@@ -1,0 +1,9 @@
+Triton 3.8.0, NVIDIA H200 NVL
+| c | tl.store(p8, c) | tl.store(p8, float32 tensor c) | tl.store(p8, tl.full([16], c, tl.float8e5)) |
+|---|---|---|---|
+| inf | `7b` | `7b` | `7c` |
+| -inf | `fb` | `fb` | `fc` |
+| 1e+39 | rejected: RuntimeError | `7b` | `7c` |
+| -1e+39 | rejected: RuntimeError | `fb` | `fc` |
+| 1000000.0 | `7b` | `7b` | rejected: RuntimeError |
+| 57344.0 | `7b` | `7b` | `7b` |

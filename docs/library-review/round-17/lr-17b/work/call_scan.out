@@ -1,0 +1,56 @@
+functions scanned: 23
+node kinds: Add 187, And 5, AnnAssign 6, Assign 415, Attribute 533, AugAssign 45, BinOp 400, BitAnd 6, BoolOp 5, Call 386, Compare 65, Constant 337, Dict 2, Div 7, Eq 19, Expr 39, FloorDiv 29, For 20, FunctionDef 23, Gt 7, GtE 8, If 25, IfExp 5, List 77, Load 2677, Lt 30, LtE 1, Mod 17, Mult 167, Name 2397, Not 2, Return 7, Slice 76, Store 520, Sub 32, Subscript 78, Tuple 112, USub 2, UnaryOp 4, While 1, arg 278, arguments 23, keyword 148
+<obj>.autotune: 8; keywords ['configs', 'key', 'prune_configs_by']
+<obj>.jit: 6; keywords ['launch_metadata']
+<obj>.load: 16
+<obj>.permute: 2
+<obj>.reshape: 6
+<obj>.split: 1
+<obj>.store: 10
+<obj>.to: 30
+<obj>.trans: 2
+_attn_bwd_dkdv: 2; keywords ['MASK']
+_attn_bwd_dq: 2; keywords ['MASK']
+_attn_fwd_inner: 2
+_compute_pid: 6
+_maybe_make_tensor_desc: 5; keywords ['block_shape', 'shape', 'strides']
+filter: 1
+float: 2
+get_autotune_config: 1
+isinstance: 1
+leaky_relu: 1
+list: 1
+matmul_get_configs: 3; keywords ['pre_hook']
+matmul_tma_persistent_get_configs: 2; keywords ['pre_hook']
+min: 4
+range: 13
+tl.arange: 40
+tl.assume: 8
+tl.cdiv: 23
+tl.dot: 16
+tl.dot_scaled: 3
+tl.exp: 1
+tl.join: 1
+tl.load: 42; keywords ['mask', 'other']
+tl.make_tensor_descriptor: 7; keywords ['block_shape', 'shape', 'strides']
+tl.math.exp2: 4
+tl.math.log2: 1
+tl.max: 3; keywords ['axis']
+tl.max_contiguous: 4
+tl.maximum: 2
+tl.multiple_of: 6
+tl.num_programs: 1
+tl.permute: 2
+tl.pointer_type: 3
+tl.program_id: 20; keywords ['axis']
+tl.rand: 1
+tl.range: 7; keywords ['disallow_acc_multi_buffer', 'flatten', 'num_stages', 'warp_specialize']
+tl.reshape: 2
+tl.split: 2
+tl.sqrt: 1
+tl.static_assert: 3
+tl.store: 17; keywords ['mask']
+tl.sum: 7; keywords ['axis']
+tl.trans: 3
+tl.where: 11
+tl.zeros: 18; keywords ['dtype']

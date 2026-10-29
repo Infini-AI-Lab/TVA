@@ -1,0 +1,15 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+E1: runtime if, both branches return; then the pair hint on offs
+  loads ['ld.global.v2.b32']; values WRONG in 137 of 256
+E2: the same without the hint (control)
+  loads ['ld.global.b8']; values correct
+E3: if FLAG: return (FLAG true); then tl.atomic_add(c, 1), 8 programs
+  c = 0 after 8 programs
+E4: helper: if FLAG: return -7; return 0 (FLAG true); h() // 2
+  stored -3
+E5: helper: if FLAG: return -7; return -7 (FLAG true); h() // 2
+  stored -4
+E6: helper: return -7 (control); h() // 2
+  stored -4
+E7: runtime if, both branches return; then tl.static_assert(False)
+  rejected on the host: CompileTimeAssertionFailure: visited

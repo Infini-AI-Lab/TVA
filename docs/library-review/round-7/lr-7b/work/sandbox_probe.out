@@ -1,0 +1,31 @@
+toolchain leanprover/lean4:v4.35.0; system Python /usr/bin/python3.12; elan parts bound: ['.elan/bin', '.elan/toolchains/leanprover--lean4---v4.35.0', '.elan/settings.toml']
+toolchain folder is a link: False
+root: ['bin', 'dev', 'etc', 'home', 'lib', 'lib64', 'proc', 'sbin', 'tmp', 'usr']
+HOME: <home> ['.elan']
+HOME/.elan: ['bin', 'settings.toml', 'toolchains']
+HOME/.elan/toolchains: ['leanprover--lean4---v4.35.0']
+/var : absent (FileNotFoundError)
+/opt : absent (FileNotFoundError)
+/srv : absent (FileNotFoundError)
+/mnt : absent (FileNotFoundError)
+/run : absent (FileNotFoundError)
+/sys : absent (FileNotFoundError)
+/root : absent (FileNotFoundError)
+/scratch : absent (FileNotFoundError)
+/data : absent (FileNotFoundError)
+/tmp : []
+/dev : ['core', 'fd', 'full', 'null', 'ptmx', 'pts', 'random', 'shm', 'stderr', 'stdin', 'stdout', 'tty', 'urandom', 'zero']
+/dev/shm : []
+<home>/.triton : absent (FileNotFoundError)
+<home>/.cache : absent (FileNotFoundError)
+<home>/.config : absent (FileNotFoundError)
+pids visible in /proc: [1, 2]
+environment: ['HOME', 'LANG', 'PATH', 'PWD']
+sys.path: ['/usr/lib64/python312.zip', '/usr/lib64/python3.12', '/usr/lib64/python3.12/lib-dynload']
+sys.flags isolated, no_site: 1 1
+network: none ( OSError )
+/usr : not writable ( OSError )
+/etc : not writable ( OSError )
+elan settings: read-only ( OSError )
+
+lean --version inside: error: no default toolchain configured. run `elan default stable` to install & configure the latest Lean 4 stable release.

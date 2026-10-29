@@ -213,17 +213,19 @@ theorem safe_load_block (b : Buf d) (hfit : Fits p B) (hn : n < 2 ^ 31) (hlen : 
     (by rw [img_block]; exact hR) fun v hv' _ => hk v fun l hl => hv' (l, ()) (by simpa using hl)
 
 /-- **Block store.** Afterwards the tile holds the values, nothing else changed, and every
-present byte is still present. -/
+present byte is still present. The rest of the program may not write the tile again. -/
 theorem safe_store_block (b : Buf d) (hfit : Fits p B) (hn : n < 2 ^ 31) (hlen : n ≤ b.len)
     (hv : b.Valid m) (hW : b.tile p B n ⊆ W) {vals : Tensor [B - 0] d.Val} {k : Unit → Prog α}
     (hk : ∀ m', (∀ l : Fin (B - 0), p * B + l < n →
         m'.read d (b.ptr ((p * B + l : Nat) : Int)).addr = some (vals.get (l, ()))) →
       (∀ x, x ∉ b.tile p B n → m' x = m x) → (∀ x, m x ≠ none → m' x ≠ none) →
-      Safe E R W Q m' (k ())) :
+      Safe E R (W \ b.tile p B n) Q m' (k ())) :
     Safe E R W Q m (tl.store (b.ptr 0 + offs p B) vals (some (mask p B n)) >>= k) := by
   refine safe_store_buf b (addrs_block b hfit hn) (fun _ h => by simp at h; omega) ?_ hv
-    (by rw [img_block]; exact hW) fun m' h1 h2 h3 => hk m' (fun l hl => h1 (l, ()) (by simpa using hl))
-      (fun x hx => h2 x (by rw [img_block]; exact hx)) h3
+    (by rw [img_block]; exact hW) fun m' h1 h2 h3 => by
+      rw [img_block]
+      exact hk m' (fun l hl => h1 (l, ()) (by simpa using hl))
+        (fun x hx => h2 x (by rw [img_block]; exact hx)) h3
   rintro ⟨l, ⟨⟩⟩ ⟨l', ⟨⟩⟩ - - h
   have : (l : Nat) = l' := by simp only at h; omega
   rw [Fin.ext this]

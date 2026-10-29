@@ -1,14 +1,16 @@
 {
   "entries": [
-    {"src": [29], "drop": "decl", "note": "the model is the `Kernel` `add_kernel`"},
-    {"src": ["30-36"], "model": "def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZE : Nat) : Kernel where", "note": "the three pointers are `*fp32`; `n_elements` is `int32` (Triton passes an integer argument below 2^31 as `int32`; `Inst.ok` has n + BLOCK_SIZE ≤ 2^31); the constexpr `BLOCK_SIZE` is a Lean parameter"},
-    {"src": [39], "model": "let pid := tl.program_id ctx 0", "note": "axis 0 of the 1-D grid"},
-    {"src": [44], "model": "let block_start := pid * (IntV.ofNat BLOCK_SIZE : I32)", "note": "the constexpr becomes an `int32` constant; `int32` product"},
-    {"src": [45], "model": "let offsets := block_start + tl.arange 0 BLOCK_SIZE", "note": "scalar + tensor, `int32`"},
-    {"src": [47], "model": "let mask := offsets.ltS n_elements", "note": "the scalar `n_elements` broadcast against every lane, signed `int32` comparison"},
-    {"src": [50], "model": "let x ← tl.load (x_ptr + offsets) (some mask)", "note": "mask as in the source, no `other`"},
-    {"src": [51], "model": "let y ← tl.load (y_ptr + offsets) (some mask)", "note": "mask as in the source, no `other`"},
-    {"src": [52], "model": "let output ← tl.add x y", "note": "IEEE `tl.add`: both operands are loaded values, no product feeds the addition"},
-    {"src": [54], "model": "tl.store (output_ptr + offsets) output (some mask)", "note": "`output` is already `float32`, the pointer's dtype; mask as in the source"}
+    {"src": [23], "drop": "import", "note": "binds `triton`, Triton's own module, which the decorator `@triton.jit` of line 29 names (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); it adds no step to the program"},
+    {"src": [24], "drop": "import", "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 34 and 39–54 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"},
+    {"src": [29], "drop": "decl", "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); no other statement of the module binds `add_kernel`; the model is the `Kernel` `add_kernel`"},
+    {"src": ["30-36"], "model": "def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZE : Nat) : Kernel where", "note": "the three pointers are `*fp32` (the host passes `float32` tensors); `n_elements` is an `int32`: an integer argument in `[-2^31, 2^31)` other than `1` is a runtime `int32` (SEMANTICS.md, Scalar arguments; `Inst.ok.n_lt`), and at `n = 1` it is the constant `1`, which line 47 makes an `int32` tensor before comparing, so the model is the same (`model`'s docstring); the constexpr `BLOCK_SIZE` is a Lean parameter; no parameter has a default"},
+    {"src": [39], "model": "let pid := tl.program_id ctx 0", "note": "axis 0 of the 1-D grid, an `int32`"},
+    {"src": [44], "model": "let block_start := pid * (IntV.ofNat BLOCK_SIZE : I32)", "note": "the constexpr `BLOCK_SIZE`, an operand of `*` with the `int32` tensor `pid`, is built in `int32`, modulo `2^32` (SEMANTICS.md, Constants; `IntV.ofNat` of a natural number is `IntV.ofInt` of it); the product is the wrapping `int32` product, which does not wrap on covered instances (`Block.Fits`)"},
+    {"src": [45], "model": "let offsets := block_start + tl.arange 0 BLOCK_SIZE", "note": "the `int32` scalar `block_start` added to every lane of the `int32` `tl.arange` (the library's scalar–tensor `+`); wrapping, which does not happen on covered instances"},
+    {"src": [47], "model": "let mask := offsets.ltS n_elements", "note": "`int32` tensor against the `int32` scalar `n_elements`, broadcast to every lane: the signed `int32` comparison; at `n = 1` the constant `1` first becomes an `int32` tensor (SEMANTICS.md, Constants: everywhere else; Operators and promotion: a comparison), the same comparison"},
+    {"src": [50], "model": "let x ← tl.load (x_ptr + offsets) (some mask)", "note": "`x_ptr + offsets` advances the `*fp32` pointer by each lane's `int32` offset, in elements; mask as in the source, no `other` (disabled lanes are unspecified), no performance-only argument"},
+    {"src": [51], "model": "let y ← tl.load (y_ptr + offsets) (some mask)", "note": "as line 50: mask as in the source, no `other`"},
+    {"src": [52], "model": "let output ← tl.add x y", "note": "IEEE `tl.add`: both operands are loaded `float32` values, no product feeds the addition (SEMANTICS.md, Float `+` and `-`), and no promotion (both `float32`)"},
+    {"src": [54], "model": "tl.store (output_ptr + offsets) output (some mask)", "note": "`output` is already `float32`, the pointer's dtype, so no conversion; mask as in the source"}
   ]
 }

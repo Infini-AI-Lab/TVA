@@ -1,0 +1,9 @@
+add.f32  overflow 1221, plain 10774, subnormal 2962, tie 1689, tie+overflow 575, zero 2779
+sub.f32  plain 13092, subnormal 722, tie 3651, tie+overflow 1, zero 2534
+mul.f32  overflow 1972, plain 5286, subnormal 8361, tie 143, tie+overflow 32, tie+subnormal 836, to-zero 794, zero 2576
+fma.f32  overflow 2108, plain 8812, subnormal 3488, tie 436, to-zero 1542, zero 3614
+div.f32  overflow 1741, plain 7916, subnormal 6233, tie+subnormal 1112, to-zero 754, zero 565, zero divisor 1679
+add.f64  overflow 1235, plain 11025, subnormal 2949, tie 1516, tie+overflow 665, zero 2610
+mul.f64  overflow 1977, plain 5181, subnormal 8756, tie 67, tie+overflow 7, tie+subnormal 790, to-zero 756, zero 2466
+fma.f64  overflow 2072, plain 8942, subnormal 3304, tie 387, to-zero 1707, zero 3588
+div.f64  overflow 1796, plain 7936, subnormal 5967, tie+subnormal 1098, to-zero 931, zero 576, zero divisor 1696

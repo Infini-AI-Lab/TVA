@@ -1,0 +1,5 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+control RESULT 16777216
+A RESULT 16777217
+B RESULT 16777217
+the claimed launch C = 1.0 should store 16777216 (x is an int32 tensor, C a float: the product is float32, stored into int32); 16777217 means it ran the code compiled for C = 1

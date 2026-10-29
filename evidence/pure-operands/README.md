@@ -4,6 +4,10 @@ Library evidence (not a kernel's), for library issue L14. Triton 3.8.0 (`~/fpv/t
 2.11.0+cu130), NVIDIA H200 NVL (sm_90), GPU 0, 2026-10-27, compiled without `debug`
 (`TRITON_DEBUG` unset). Script: [run.py](run.py); output: [out.txt](out.txt).
 
+**Since round 6** (library issue L36), TRANSCRIPTION.md is guidance and states no rule; the facts this
+evidence establishes are stated in [SEMANTICS.md](../../docs/SEMANTICS.md), "How the front end evaluates the source" (operators on
+aggregates, expressions with no effect).
+
 **Question.** The drops `compile-check`, `no-op:print` and `dead` need a *pure* expression
 ([TRANSCRIPTION.md](../../docs/TRANSCRIPTION.md) §10), one that has no effect and is never
 undefined. Round 2 listed the operators (`+`, `==`, `<`, `is not`, subscripts, …) as pure. Is that

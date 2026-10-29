@@ -1,0 +1,108 @@
+in-scope functions scanned: 23
+call shapes (callee, positional count, keywords): uses, functions
+  <expr>.load  pos=1  kw=[]: 16 uses; ['06-fused-attention.py:_attn_fwd', '06-fused-attention.py:_attn_fwd_inner', '08-grouped-gemm.py:grouped_matmul_tma_kernel']
+  <expr>.permute  pos=3  kw=[]: 2 uses; ['06-fused-attention.py:_attn_fwd_inner']
+  <expr>.reshape  pos=1  kw=[]: 2 uses; ['06-fused-attention.py:_attn_fwd_inner']
+  <expr>.reshape  pos=2  kw=[]: 2 uses; ['10-block-scaled-matmul.py:block_scaled_matmul_kernel']
+  <expr>.reshape  pos=5  kw=[]: 2 uses; ['10-block-scaled-matmul.py:block_scaled_matmul_kernel']
+  <expr>.split  pos=0  kw=[]: 1 uses; ['06-fused-attention.py:_attn_fwd_inner']
+  <expr>.store  pos=2  kw=[]: 10 uses; ['06-fused-attention.py:_attn_fwd', '08-grouped-gemm.py:grouped_matmul_tma_kernel', '09-persistent-matmul.py:matmul_kernel_descriptor_persistent']
+  <expr>.to  pos=1  kw=[]: 30 uses; ['03-matrix-multiplication.py:matmul_kernel', '05-layer-norm.py:_layer_norm_fwd_fused', '06-fused-attention.py:_attn_bwd']
+  <expr>.trans  pos=5  kw=[]: 2 uses; ['10-block-scaled-matmul.py:block_scaled_matmul_kernel']
+  _attn_bwd_dkdv  pos=19  kw=['MASK']: 2 uses; ['06-fused-attention.py:_attn_bwd']
+  _attn_bwd_dq  pos=17  kw=['MASK']: 2 uses; ['06-fused-attention.py:_attn_bwd']
+  _attn_fwd_inner  pos=19  kw=[]: 2 uses; ['06-fused-attention.py:_attn_fwd']
+  _compute_pid  pos=5  kw=[]: 6 uses; ['09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_persistent', '09-persistent-matmul.py:matmul_kernel_tma_persistent']
+  _maybe_make_tensor_desc  pos=1  kw=['block_shape', 'shape', 'strides']: 5 uses; ['06-fused-attention.py:_attn_fwd']
+  filter  pos=2  kw=[]: 1 uses; ['06-fused-attention.py:_attn_fwd']
+  float  pos=1  kw=[]: 2 uses; ['02-fused-softmax.py:softmax_kernel', '06-fused-attention.py:_attn_fwd']
+  get_autotune_config  pos=0  kw=[]: 1 uses; ['03-matrix-multiplication.py:matmul_kernel']
+  isinstance  pos=2  kw=[]: 1 uses; ['06-fused-attention.py:_maybe_make_tensor_desc']
+  leaky_relu  pos=1  kw=[]: 1 uses; ['03-matrix-multiplication.py:matmul_kernel']
+  list  pos=1  kw=[]: 1 uses; ['06-fused-attention.py:_attn_fwd']
+  matmul_get_configs  pos=0  kw=[]: 2 uses; ['09-persistent-matmul.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel_persistent']
+  matmul_get_configs  pos=0  kw=['pre_hook']: 1 uses; ['09-persistent-matmul.py:matmul_kernel_tma']
+  matmul_tma_persistent_get_configs  pos=0  kw=[]: 1 uses; ['09-persistent-matmul.py:matmul_kernel_descriptor_persistent']
+  matmul_tma_persistent_get_configs  pos=0  kw=['pre_hook']: 1 uses; ['09-persistent-matmul.py:matmul_kernel_tma_persistent']
+  min  pos=2  kw=[]: 4 uses; ['03-matrix-multiplication.py:matmul_kernel', '09-persistent-matmul.py:_compute_pid', '09-persistent-matmul.py:matmul_kernel']
+  range  pos=1  kw=[]: 6 uses; ['06-fused-attention.py:_attn_bwd_dkdv', '06-fused-attention.py:_attn_bwd_dq', '08-grouped-gemm.py:grouped_matmul_tma_kernel']
+  range  pos=2  kw=[]: 3 uses; ['03-matrix-multiplication.py:matmul_kernel', '08-grouped-gemm.py:grouped_matmul_tma_kernel', '09-persistent-matmul.py:matmul_kernel']
+  range  pos=3  kw=[]: 4 uses; ['05-layer-norm.py:_layer_norm_bwd_dwdb', '05-layer-norm.py:_layer_norm_fwd_fused']
+  tl.arange  pos=2  kw=[]: 40 uses; ['01-vector-add.py:add_kernel', '02-fused-softmax.py:softmax_kernel', '03-matrix-multiplication.py:matmul_kernel']
+  tl.assume  pos=1  kw=[]: 8 uses; ['03-matrix-multiplication.py:matmul_kernel']
+  tl.cdiv  pos=2  kw=[]: 23 uses; ['03-matrix-multiplication.py:matmul_kernel', '08-grouped-gemm.py:grouped_matmul_tma_kernel', '09-persistent-matmul.py:matmul_kernel']
+  tl.dot  pos=2  kw=[]: 9 uses; ['06-fused-attention.py:_attn_bwd_dkdv', '06-fused-attention.py:_attn_bwd_dq', '06-fused-attention.py:_attn_fwd_inner']
+  tl.dot  pos=3  kw=[]: 7 uses; ['03-matrix-multiplication.py:matmul_kernel', '06-fused-attention.py:_attn_fwd_inner', '09-persistent-matmul.py:matmul_kernel']
+  tl.dot_scaled  pos=7  kw=[]: 3 uses; ['10-block-scaled-matmul.py:block_scaled_matmul_kernel']
+  tl.exp  pos=1  kw=[]: 1 uses; ['02-fused-softmax.py:softmax_kernel']
+  tl.join  pos=2  kw=[]: 1 uses; ['06-fused-attention.py:_attn_fwd_inner']
+  tl.load  pos=1  kw=[]: 23 uses; ['06-fused-attention.py:_attn_bwd', '06-fused-attention.py:_attn_bwd_dkdv', '06-fused-attention.py:_attn_bwd_dq']
+  tl.load  pos=1  kw=['mask']: 7 uses; ['01-vector-add.py:add_kernel', '04-low-memory-dropout.py:_dropout', '04-low-memory-dropout.py:_seeded_dropout']
+  tl.load  pos=1  kw=['mask', 'other']: 12 uses; ['02-fused-softmax.py:softmax_kernel', '03-matrix-multiplication.py:matmul_kernel', '05-layer-norm.py:_layer_norm_bwd_dwdb']
+  tl.make_tensor_descriptor  pos=1  kw=['block_shape', 'shape', 'strides']: 6 uses; ['08-grouped-gemm.py:grouped_matmul_tma_kernel', '09-persistent-matmul.py:matmul_kernel_descriptor_persistent']
+  tl.make_tensor_descriptor  pos=4  kw=[]: 1 uses; ['06-fused-attention.py:_maybe_make_tensor_desc']
+  tl.math.exp2  pos=1  kw=[]: 4 uses; ['06-fused-attention.py:_attn_bwd_dkdv', '06-fused-attention.py:_attn_bwd_dq', '06-fused-attention.py:_attn_fwd_inner']
+  tl.math.log2  pos=1  kw=[]: 1 uses; ['06-fused-attention.py:_attn_fwd']
+  tl.max  pos=1  kw=['axis']: 1 uses; ['02-fused-softmax.py:softmax_kernel']
+  tl.max  pos=2  kw=[]: 2 uses; ['06-fused-attention.py:_attn_fwd_inner']
+  tl.max_contiguous  pos=2  kw=[]: 4 uses; ['09-persistent-matmul.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel_persistent']
+  tl.maximum  pos=2  kw=[]: 2 uses; ['06-fused-attention.py:_attn_fwd_inner']
+  tl.multiple_of  pos=2  kw=[]: 6 uses; ['06-fused-attention.py:_attn_fwd_inner', '09-persistent-matmul.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel_persistent']
+  tl.num_programs  pos=1  kw=[]: 1 uses; ['02-fused-softmax.py:softmax_kernel']
+  tl.permute  pos=2  kw=[]: 2 uses; ['09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_tma_persistent']
+  tl.pointer_type  pos=1  kw=[]: 3 uses; ['08-grouped-gemm.py:grouped_matmul_tma_kernel']
+  tl.program_id  pos=0  kw=['axis']: 10 uses; ['01-vector-add.py:add_kernel', '03-matrix-multiplication.py:matmul_kernel', '04-low-memory-dropout.py:_dropout']
+  tl.program_id  pos=1  kw=[]: 10 uses; ['02-fused-softmax.py:softmax_kernel', '05-layer-norm.py:_layer_norm_bwd_dwdb', '05-layer-norm.py:_layer_norm_fwd_fused']
+  tl.rand  pos=2  kw=[]: 1 uses; ['04-low-memory-dropout.py:_seeded_dropout']
+  tl.range  pos=1  kw=['warp_specialize']: 1 uses; ['09-persistent-matmul.py:matmul_kernel_tma']
+  tl.range  pos=2  kw=['disallow_acc_multi_buffer', 'num_stages']: 1 uses; ['10-block-scaled-matmul.py:block_scaled_matmul_kernel']
+  tl.range  pos=3  kw=['flatten']: 1 uses; ['09-persistent-matmul.py:matmul_kernel_persistent']
+  tl.range  pos=3  kw=['flatten', 'warp_specialize']: 2 uses; ['09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_tma_persistent']
+  tl.range  pos=3  kw=['num_stages']: 1 uses; ['02-fused-softmax.py:softmax_kernel']
+  tl.range  pos=3  kw=['warp_specialize']: 1 uses; ['06-fused-attention.py:_attn_fwd_inner']
+  tl.reshape  pos=2  kw=[]: 2 uses; ['09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_tma_persistent']
+  tl.split  pos=1  kw=[]: 2 uses; ['09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_tma_persistent']
+  tl.sqrt  pos=1  kw=[]: 1 uses; ['05-layer-norm.py:_layer_norm_fwd_fused']
+  tl.static_assert  pos=1  kw=[]: 3 uses; ['06-fused-attention.py:_attn_bwd_dkdv', '06-fused-attention.py:_attn_bwd_dq', '06-fused-attention.py:_attn_fwd']
+  tl.store  pos=2  kw=[]: 7 uses; ['05-layer-norm.py:_layer_norm_fwd_fused', '06-fused-attention.py:_attn_bwd', '06-fused-attention.py:_attn_bwd_preprocess']
+  tl.store  pos=2  kw=['mask']: 10 uses; ['01-vector-add.py:add_kernel', '02-fused-softmax.py:softmax_kernel', '03-matrix-multiplication.py:matmul_kernel']
+  tl.sum  pos=1  kw=['axis']: 6 uses; ['02-fused-softmax.py:softmax_kernel', '05-layer-norm.py:_layer_norm_bwd_dwdb', '05-layer-norm.py:_layer_norm_fwd_fused']
+  tl.sum  pos=2  kw=[]: 1 uses; ['06-fused-attention.py:_attn_fwd_inner']
+  tl.trans  pos=1  kw=[]: 3 uses; ['06-fused-attention.py:_attn_bwd_dkdv', '06-fused-attention.py:_attn_bwd_dq']
+  tl.where  pos=3  kw=[]: 11 uses; ['03-matrix-multiplication.py:leaky_relu', '04-low-memory-dropout.py:_dropout', '04-low-memory-dropout.py:_seeded_dropout']
+  tl.zeros  pos=1  kw=['dtype']: 18 uses; ['03-matrix-multiplication.py:matmul_kernel', '05-layer-norm.py:_layer_norm_bwd_dwdb', '05-layer-norm.py:_layer_norm_fwd_fused']
+  triton.autotune  pos=0  kw=['configs', 'key']: 5 uses; ['03-matrix-multiplication.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel_persistent']
+  triton.autotune  pos=0  kw=['configs', 'key', 'prune_configs_by']: 2 uses; ['06-fused-attention.py:_attn_fwd', '09-persistent-matmul.py:matmul_kernel_descriptor_persistent']
+  triton.autotune  pos=1  kw=['key']: 1 uses; ['08-grouped-gemm.py:grouped_matmul_tma_kernel']
+  triton.jit  pos=0  kw=['launch_metadata']: 6 uses; ['09-persistent-matmul.py:matmul_kernel', '09-persistent-matmul.py:matmul_kernel_descriptor_persistent', '09-persistent-matmul.py:matmul_kernel_persistent']
+for statements:
+  02-fused-softmax.py:90: for row_idx in tl.range(row_start, n_rows, row_step, num_stages=num_stages)
+  03-matrix-multiplication.py:298: for k in range(0, tl.cdiv(K, BLOCK_SIZE_K))
+  05-layer-norm.py:68: for off in range(0, N, BLOCK_SIZE)
+  05-layer-norm.py:75: for off in range(0, N, BLOCK_SIZE)
+  05-layer-norm.py:86: for off in range(0, N, BLOCK_SIZE)
+  05-layer-norm.py:211: for i in range(0, M, BLOCK_SIZE_M)
+  06-fused-attention.py:69: for start_n in tl.range(lo, hi, BLOCK_N, warp_specialize=warp_specialize)
+  06-fused-attention.py:290: for blk_idx in range(num_steps)
+  06-fused-attention.py:344: for blk_idx in range(num_steps)
+  08-grouped-gemm.py:256: for g in range(group_size)
+  08-grouped-gemm.py:307: for kk in range(0, tl.cdiv(k, BLOCK_SIZE_K))
+  09-persistent-matmul.py:143: for k in range(0, tl.cdiv(K, BLOCK_SIZE_K))
+  09-persistent-matmul.py:229: for k in tl.range(k_tiles, warp_specialize=WARP_SPECIALIZE)
+  09-persistent-matmul.py:312: for tile_id in tl.range(start_pid, num_tiles, NUM_SMS, flatten=True)
+  09-persistent-matmul.py:324: for ki in range(k_tiles)
+  09-persistent-matmul.py:414: for tile_id in tl.range(start_pid, num_tiles, NUM_SMS, flatten=True, warp_specialize=WARP_SPECIALIZE)
+  09-persistent-matmul.py:420: for ki in range(k_tiles)
+  09-persistent-matmul.py:543: for tile_id in tl.range(start_pid, num_tiles, NUM_SMS, flatten=FLATTEN, warp_specialize=WARP_SPECIALIZE)
+  09-persistent-matmul.py:549: for ki in range(k_tiles)
+  10-block-scaled-matmul.py:219: for k in tl.range(0, tl.cdiv(K, BLOCK_K), num_stages=NUM_STAGES, disallow_acc_multi_buffer=disallow_acc_multi_buffer)
+returns:
+  03-matrix-multiplication.py:326 in leaky_relu: return tl.where(x >= 0, x, 0.01 * x)
+  06-fused-attention.py:110 in _attn_fwd_inner: return (acc, l_i, m_i)
+  06-fused-attention.py:171 in _maybe_make_tensor_desc: return desc_or_ptr
+  06-fused-attention.py:173 in _maybe_make_tensor_desc: return tl.make_tensor_descriptor(desc_or_ptr, shape, strides, block_shape)
+  06-fused-attention.py:317 in _attn_bwd_dkdv: return (dk, dv)
+  06-fused-attention.py:365 in _attn_bwd_dq: return dq
+  09-persistent-matmul.py:280 in _compute_pid: return (pid_m, pid_n)
+statements after an if with a return in a branch: none
+returns inside a tl.static_range body: none

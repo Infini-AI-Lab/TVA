@@ -1,0 +1,172 @@
+A.cvt.f16.f32                cvt:f16:f32:rn:0         all         65536 inputs  agree  [1 s]
+A.cvt.f16.f64                cvt:f16:f64:rn:0         all         65536 inputs  agree  [0 s]
+A.cvt.f16.bf16               cvt:f16:bf16:rn:0        all         65536 inputs  agree  [0 s]
+A.cvt.f16.e4m3.sat1          cvt:f16:e4m3:rn:1        all         65536 inputs  agree  [0 s]
+A.cvt.f16.e4m3.sat0          cvt:f16:e4m3:rn:0        all         65536 inputs  DIFFER in 1 chunks (14720+ inputs)  [0 s]
+    chunk 0: 14720 inputs differ, 14720 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 5f41: library 7f, device 7e
+    input 5f42: library 7f, device 7e
+    input 5f43: library 7f, device 7e
+    input 5f44: library 7f, device 7e
+    input 5f45: library 7f, device 7e
+    input 5f46: library 7f, device 7e
+A.cvt.f16.e5m2.sat1          cvt:f16:e5m2:rn:1        all         65536 inputs  agree  [0 s]
+A.cvt.f16.e5m2.sat0          cvt:f16:e5m2:rn:0        all         65536 inputs  DIFFER in 1 chunks (258+ inputs)  [0 s]
+    chunk 0: 258 inputs differ, 258 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 7b80: library 7c, device 7b
+    input 7b81: library 7c, device 7b
+    input 7b82: library 7c, device 7b
+    input 7b83: library 7c, device 7b
+    input 7b84: library 7c, device 7b
+    input 7b85: library 7c, device 7b
+A.cvt.bf16.f32               cvt:bf16:f32:rn:0        all         65536 inputs  agree  [0 s]
+A.cvt.bf16.f64               cvt:bf16:f64:rn:0        all         65536 inputs  agree  [0 s]
+A.cvt.bf16.f16               cvt:bf16:f16:rn:0        all         65536 inputs  agree  [0 s]
+A.cvt.bf16.e4m3.sat1         cvt:bf16:e4m3:rn:1       all         65536 inputs  agree  [0 s]
+A.cvt.bf16.e4m3.sat0         cvt:bf16:e4m3:rn:0       all         65536 inputs  DIFFER in 1 chunks (30512+ inputs)  [0 s]
+    chunk 0: 30512 inputs differ, 30512 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 43e9: library 7f, device 7e
+    input 43ea: library 7f, device 7e
+    input 43eb: library 7f, device 7e
+    input 43ec: library 7f, device 7e
+    input 43ed: library 7f, device 7e
+    input 43ee: library 7f, device 7e
+A.cvt.bf16.e5m2.sat1         cvt:bf16:e5m2:rn:1       all         65536 inputs  agree  [0 s]
+A.cvt.bf16.e5m2.sat0         cvt:bf16:e5m2:rn:0       all         65536 inputs  DIFFER in 1 chunks (28706+ inputs)  [0 s]
+    chunk 0: 28706 inputs differ, 28706 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 4770: library 7c, device 7b
+    input 4771: library 7c, device 7b
+    input 4772: library 7c, device 7b
+    input 4773: library 7c, device 7b
+    input 4774: library 7c, device 7b
+    input 4775: library 7c, device 7b
+A.cvt.e5m2.f16               cvtfin:e5m2:f16          all           256 inputs  agree  (finite inputs)  [0 s]
+A.cvt.e5m2.bf16              cvtfin:e5m2:bf16         all           256 inputs  agree  (finite inputs)  [0 s]
+A.cvt.e5m2.f32               cvtfin:e5m2:f32          all           256 inputs  agree  (finite inputs)  [0 s]
+A.cvt.e4m3.f16               cvtfin:e4m3:f16          all           256 inputs  agree  (finite inputs)  [0 s]
+A.cvt.e4m3.bf16              cvtfin:e4m3:bf16         all           256 inputs  agree  (finite inputs)  [0 s]
+A.cvt.e4m3.f32               cvtfin:e4m3:f32          all           256 inputs  agree  (finite inputs)  [0 s]
+C.neg.f16                    neg:f16                  all         65536 inputs  agree  [0 s]
+C.abs.f16                    abs:f16                  all         65536 inputs  agree  [0 s]
+C.neg.bf16                   neg:bf16                 all         65536 inputs  agree  [0 s]
+C.abs.bf16                   abs:bf16                 all         65536 inputs  agree  [0 s]
+D.itof.s8.f16                itof:s8:f16              all           256 inputs  agree  [0 s]
+D.itof.s8.bf16               itof:s8:bf16             all           256 inputs  agree  [0 s]
+D.itof.s8.f32                itof:s8:f32              all           256 inputs  agree  [0 s]
+D.itof.u8.f16                itof:u8:f16              all           256 inputs  agree  [0 s]
+D.itof.u8.bf16               itof:u8:bf16             all           256 inputs  agree  [0 s]
+D.itof.u8.f32                itof:u8:f32              all           256 inputs  agree  [0 s]
+D.itof.s16.f16               itof:s16:f16             all         65536 inputs  agree  [0 s]
+D.itof.s16.bf16              itof:s16:bf16            all         65536 inputs  agree  [0 s]
+D.itof.s16.f32               itof:s16:f32             all         65536 inputs  agree  [0 s]
+D.itof.u16.f16               itof:u16:f16             all         65536 inputs  agree  [0 s]
+D.itof.u16.bf16              itof:u16:bf16            all         65536 inputs  agree  [0 s]
+D.itof.u16.f32               itof:u16:f32             all         65536 inputs  agree  [0 s]
+D.ftoi.f16.s8                ftoi:f16:s8              all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.f16.u8                ftoi:f16:u8              all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.f16.s16               ftoi:f16:s16             all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.f16.u16               ftoi:f16:u16             all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.f16.s32               ftoi:f16:s32             all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.f16.u32               ftoi:f16:u32             all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.f16.s64               ftoi:f16:s64             all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.f16.u64               ftoi:f16:u64             all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.bf16.s8               ftoi:bf16:s8             all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.bf16.u8               ftoi:bf16:u8             all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.bf16.s16              ftoi:bf16:s16            all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.bf16.u16              ftoi:bf16:u16            all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.bf16.s32              ftoi:bf16:s32            all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.bf16.u32              ftoi:bf16:u32            all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.bf16.s64              ftoi:bf16:s64            all         65536 inputs  agree  (in-range inputs)  [0 s]
+D.ftoi.bf16.u64              ftoi:bf16:u64            all         65536 inputs  agree  (in-range inputs)  [0 s]
+B.add.f32                    add:f32                  file     16777216 inputs  agree  [8 s]
+B.sub.f32                    sub:f32                  file     16777216 inputs  agree  [8 s]
+B.mul.f32                    mul:f32                  file     16777216 inputs  agree  [8 s]
+B.div.f32                    div:f32                  file     16777216 inputs  agree  [8 s]
+B.fma.f32                    fma:f32                  file     16777216 inputs  agree  [9 s]
+B.add.f64                    add:f64                  file      4194304 inputs  agree  [11 s]
+B.sub.f64                    sub:f64                  file      4194304 inputs  agree  [12 s]
+B.mul.f64                    mul:f64                  file      4194304 inputs  agree  [10 s]
+B.div.f64                    div:f64                  file      4194304 inputs  agree  [10 s]
+B.fma.f64                    fma:f64                  file      4194304 inputs  agree  [14 s]
+B.fma.f16                    fma:f16                  file      4194304 inputs  agree  [3 s]
+B.fma.bf16                   fma:bf16                 file      4194304 inputs  agree  [7 s]
+A.cvt.f64.f32                cvt:f64:f32:rn:0         file      4194304 inputs  agree  [6 s]
+A.cvt.f64.f16                cvt:f64:f16:rn:0         file      4194304 inputs  agree  [6 s]
+A.cvt.f64.bf16               cvt:f64:bf16:rn:0        file      4194304 inputs  agree  [6 s]
+D.itof.s64.f16               itof:s64:f16             file      4194304 inputs  agree  [3 s]
+D.itof.s64.bf16              itof:s64:bf16            file      4194304 inputs  agree  [3 s]
+D.itof.s64.f32               itof:s64:f32             file      4194304 inputs  agree  [3 s]
+D.itof.s64.f64               itof:s64:f64             file      4194304 inputs  agree  [4 s]
+D.itof.u64.f16               itof:u64:f16             file      4194304 inputs  agree  [2 s]
+D.itof.u64.bf16              itof:u64:bf16            file      4194304 inputs  agree  [3 s]
+D.itof.u64.f32               itof:u64:f32             file      4194304 inputs  agree  [3 s]
+D.itof.u64.f64               itof:u64:f64             file      4194304 inputs  agree  [4 s]
+B.lt.f32                     lt:f32                   file     16777216 inputs  agree  [5 s]
+B.le.f32                     le:f32                   file     16777216 inputs  agree  [4 s]
+B.eq.f32                     eq:f32                   file     16777216 inputs  agree  [4 s]
+B.ne.f32                     ne:f32                   file     16777216 inputs  agree  [4 s]
+B.max.f32                    max:f32                  file     16777216 inputs  agree  [5 s]
+B.min.f32                    min:f32                  file     16777216 inputs  agree  [5 s]
+B.maxnan.f32                 maxnan:f32               file     16777216 inputs  agree  [4 s]
+B.minnan.f32                 minnan:f32               file     16777216 inputs  agree  [4 s]
+A.cvt.f32.e4m3.sat0.sample   cvt:f32:e4m3:rn:0        file      4194304 inputs  DIFFER in 4 chunks (1711569+ inputs)  [17 s]
+    chunk 0: 428718 inputs differ, 428718 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 7a700000: library 7f, device 7e
+    input d198c3d2: library 7f, device fe
+    input 77154960: library 7f, device 7e
+    input cba03c79: library 7f, device fe
+    input 47820967: library 7f, device 7e
+    input c7000000: library 7f, device fe
+    chunk 1: 428006 inputs differ, 428006 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input ca588000: library 7f, device fe
+    input e3c95cd1: library 7f, device fe
+    input f7c00000: library 7f, device fe
+    input 66254e23: library 7f, device 7e
+    input 5e7dab6b: library 7f, device 7e
+    input 665828c0: library 7f, device 7e
+    chunk 2: 426602 inputs differ, 426602 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 5cbae60e: library 7f, device 7e
+    input 4fa4de11: library 7f, device 7e
+    input 4fa5ce77: library 7f, device 7e
+    input de97b3dc: library 7f, device fe
+    input 67f9b1b5: library 7f, device 7e
+    input d653dbc0: library 7f, device fe
+    chunk 3: 428243 inputs differ, 428243 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 74303e00: library 7f, device 7e
+    input 4e130700: library 7f, device 7e
+    input 7062d520: library 7f, device 7e
+    input 5db57700: library 7f, device 7e
+    input df54432f: library 7f, device fe
+    input 7f000000: library 7f, device 7e
+A.cvt.f32.e5m2.sat0.sample   cvt:f32:e5m2:rn:0        file      4194304 inputs  DIFFER in 4 chunks (1624771+ inputs)  [18 s]
+    chunk 0: 407047 inputs differ, 407047 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 7a700000: library 7c, device 7b
+    input d198c3d2: library fc, device fb
+    input 77154960: library 7c, device 7b
+    input cba03c79: library fc, device fb
+    input 47820967: library 7c, device 7b
+    input d77eb6a7: library fc, device fb
+    chunk 1: 406509 inputs differ, 406509 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input ca588000: library fc, device fb
+    input e3c95cd1: library fc, device fb
+    input f7c00000: library fc, device fb
+    input 66254e23: library 7c, device 7b
+    input 5e7dab6b: library 7c, device 7b
+    input 665828c0: library 7c, device 7b
+    chunk 2: 404911 inputs differ, 404911 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 5cbae60e: library 7c, device 7b
+    input 4fa4de11: library 7c, device 7b
+    input 4fa5ce77: library 7c, device 7b
+    input de97b3dc: library fc, device fb
+    input 67f9b1b5: library 7c, device 7b
+    input d653dbc0: library fc, device fb
+    chunk 3: 406304 inputs differ, 406304 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 74303e00: library 7c, device 7b
+    input 4e130700: library 7c, device 7b
+    input 7062d520: library 7c, device 7b
+    input 5db57700: library 7c, device 7b
+    input df54432f: library fc, device fb
+    input 7f000000: library 7c, device 7b
+B.sqrt.f32                   sqrt:f32                 all    4294967296 inputs  agree  [510 s]
+A.cvt.f32.e4m3.sat1          cvt:f32:e4m3:rn:1        all    4294967296 inputs  agree  [927 s]
+A.cvt.f32.e5m2.rz.sat0       cvt:f32:e5m2:rz:0        all    4294967296 inputs  agree  [820 s]

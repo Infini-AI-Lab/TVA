@@ -1,0 +1,17 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| from | to | finite inputs with abs(x) <= maxVal compared | differ from the Lean `cvtWith .rn` | first difference (input bits, device, Lean) |
+|---|---|---|---|---|
+| f16 | e4m3 | 48642 | 0 | None |
+| f16 | e5m2 | 62978 | 0 | None |
+| bf16 | e4m3 | 34754 | 0 | None |
+| bf16 | e5m2 | 36546 | 0 | None |
+| f32 | e4m3 | 208514 | 0 | None |
+| f32 | e5m2 | 219266 | 0 | None |
+
+| from | to, rounding | non-NaN inputs compared | differ from the Lean `Format.cvt` | first difference |
+|---|---|---|---|---|
+| f32 | float16, rn | 391682 | 0 | None |
+| f32 | float16, rz | 391682 | 0 | None |
+| f32 | bfloat16, rn | 391682 | 0 | None |
+| f32 | bfloat16, rz | 391682 | 0 | None |

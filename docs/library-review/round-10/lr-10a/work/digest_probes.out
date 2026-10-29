@@ -1,0 +1,16 @@
+- R1: field statements {"div": "TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-22)) (2 ^ (-148))", "own": "Kernels.Demo.model 0 = Kernels.Demo.model 0"}
+  roots of assumption:div ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32', 'Kernels.Demo.Inst']
+  item digests {assumption:div: 4ebf930deaa17893, assumption:own: d1b7614d7cd494f9, conditions: 11b571264863a919, map: ee42d2f139cdbed0, model: 71e1433a03ea4691, spec: 1590e5fb3db7f03f}
+- R2: field statements {"div": "TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-40)) (2 ^ (-148))", "own": "Kernels.Demo.model 0 = Kernels.Demo.model 0"}
+  roots of assumption:div ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32', 'Kernels.Demo.Inst']
+  item digests {assumption:div: 4ebf930deaa17893, assumption:own: d1b7614d7cd494f9, conditions: 11b571264863a919, map: ee42d2f139cdbed0, model: 71e1433a03ea4691, spec: 1590e5fb3db7f03f}
+- R3: field statements {"div": "∀ (x : ℕ), TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-22)) (2 ^ (-148))", "own": "Kernels.Demo.model 0 = Kernels.Demo.model 0"}
+  roots of assumption:div ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32', 'Kernels.Demo.Inst']
+  item digests {assumption:div: 4ebf930deaa17893, assumption:own: d1b7614d7cd494f9, conditions: 11b571264863a919, map: ee42d2f139cdbed0, model: 71e1433a03ea4691, spec: 1590e5fb3db7f03f}
+- K2: field statements {"div": "TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-22)) (2 ^ (-148))", "own": "Kernels.Demo.model 0 ≤ Kernels.Demo.model 0 + 1"}
+  roots of assumption:div ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32', 'Kernels.Demo.Inst']
+  item digests {assumption:div: 4ebf930deaa17893, assumption:own: d1b7614d7cd494f9, conditions: 11b571264863a919, map: ee42d2f139cdbed0, model: 71e1433a03ea4691, spec: 1590e5fb3db7f03f}
+
+- R1 against R2: statements that differ: div; the same digest for assumption:div, assumption:own, conditions, map, model, spec; different for no item
+- R1 against R3: statements that differ: div; the same digest for assumption:div, assumption:own, conditions, map, model, spec; different for no item
+- R1 against K2: statements that differ: own; the same digest for assumption:div, assumption:own, conditions, map, model, spec; different for no item

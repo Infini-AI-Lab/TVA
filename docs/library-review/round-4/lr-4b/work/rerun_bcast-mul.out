@@ -1,0 +1,27 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+index, fusion=True: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+index, fusion=False: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+expand_dims, fusion=True: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+expand_dims, fusion=False: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+broadcast_to, fusion=True: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+broadcast_to, fusion=False: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+one side broadcast_to, fusion=True: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+one side broadcast_to, fusion=False: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+tl.reduce with a + b, fusion=True: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+tl.reduce with a + b, fusion=False: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+method x.sum, fusion=True: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+method x.sum, fusion=False: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+keep_dims=True, fusion=True: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+keep_dims=True, fusion=False: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+factors swapped, fusion=True: tt.dot after combine: False; outputs no IEEE tree gives: 56/256
+factors swapped, fusion=False: tt.dot after combine: False; outputs no IEEE tree gives: 0/256
+reshape instead of expand, fusion=True: tt.dot after combine: False; outputs no IEEE tree gives: 56/256
+reshape instead of expand, fusion=False: tt.dot after combine: False; outputs no IEEE tree gives: 0/256
+tl.reduce with a + b + 0.0, fusion=True: tt.dot after combine: False; outputs no IEEE tree gives: 56/256
+tl.reduce with a + b + 0.0, fusion=False: tt.dot after combine: False; outputs no IEEE tree gives: 0/256
+dtype=tl.float32 on the sum, fusion=True: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+dtype=tl.float32 on the sum, fusion=False: tt.dot after combine: True; outputs no IEEE tree gives: 49/256
+index spelling on float16, fusion=False: rejected on the host: RuntimeError: PassManager::run failed
+index spelling on bfloat16, fusion=False: rejected on the host: RuntimeError: PassManager::run failed
+index spelling with M = 8, N = 16: tt.dot after combine: False
+index spelling with M = 16, N = 8: tt.dot after combine: False

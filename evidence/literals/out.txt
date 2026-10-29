@@ -1,0 +1,12 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+9364 literals
+six-decimal text: C's snprintf("%f") and Python's "%f" differ on 0 of the float32 values
+bf16: tl.full differs from FloatV.litBF16: 0; x * c differs from it: 0; other= differs from own type then convert: 0; literals where the operation's constant and other='s differ: 3202
+ f16: tl.full differs from FloatV.litF16: 0; x * c differs from it: 0; other= differs from own type then convert: 0; literals where the operation's constant and other='s differ: 0
+ f32: tl.full differs from FloatV.litF32: 0; x * c differs from it: 0; other= differs from own type then convert: 0; literals where the operation's constant and other='s differ: 0
+ f64: tl.full differs from FloatV.litF64: 0; x * c differs from it: 0; other= differs from own type then convert: 0; literals where the operation's constant and other='s differ: 9294
+c = 1e-07: bf16 0x0, f16 0x2, f32 0x33d6bf95, f64 0x3e7ad7f29abcaf48
+c = -1e-07: bf16 0x8000, f16 0x8002, f32 0xb3d6bf95, f64 0xbe7ad7f29abcaf48
+c = 1.23456e-05: bf16 0x3749, f16 0xcf, f32 0x374f1ff3, f64 0x3ee9e3fe580f5494
+c = 0.1: bf16 0x3dcd, f16 0x2e66, f32 0x3dcccccd, f64 0x3fb999999999999a
+c = 3.14159265: bf16 0x4049, f16 0x4248, f32 0x40490fdb, f64 0x400921fb53c8d4f1

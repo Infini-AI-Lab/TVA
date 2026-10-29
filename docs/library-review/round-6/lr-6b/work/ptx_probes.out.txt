@@ -1,0 +1,6 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+R1 tl.fma bfloat16: ['fma.rn.bf16']
+R1 tl.fma float16: ['fma.rn.f16']
+R2 (f16 a * f16 b).to(f32) + f32 c: ['add.f32', 'cvt.f32.f16', 'mul.f16']
+R3 bfloat16 +, -, *, a*b+c: ['add.bf16', 'fma.rn.bf16', 'mul.bf16', 'sub.bf16']
+R3 float16 +, -, *, a*b+c: ['add.f16', 'fma.rn.f16', 'mul.f16', 'sub.f16']

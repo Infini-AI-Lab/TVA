@@ -1,0 +1,37 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+| c | dtype | tl.full(c) | f32 loaded .to | f32 const .to | tl.where(.., c) | load other=c | ops in tl.full PTX |
+|---|---|---|---|---|---|---|---|
+| inf | float8e5 | `7c` | `7b` | `7b` | `7c` | `7b` | `cvt.u64.u32`, `mov.b16` |
+| inf | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| -inf | float8e5 | `fc` | `fb` | `fb` | `fc` | `fb` | `cvt.u64.u32`, `mov.b16` |
+| -inf | float8e4nv | error: RuntimeError | `fe` | `fe` | error: RuntimeError | `fe` | none |
+| nan | float8e5 | `7e` | `7f` | `7f` | `7e` | `7f` | `cvt.u64.u32`, `mov.b16` |
+| nan | float8e4nv | error: RuntimeError | `7f` | `7f` | error: RuntimeError | `7f` | none |
+| 1000000.0 | float8e5 | error: RuntimeError | `7b` | `7b` | error: RuntimeError | `7b` | none |
+| 1000000.0 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| -1000000.0 | float8e5 | error: RuntimeError | `fb` | `fb` | error: RuntimeError | `fb` | none |
+| -1000000.0 | float8e4nv | error: RuntimeError | `fe` | `fe` | error: RuntimeError | `fe` | none |
+| 1000.0 | float8e5 | error: RuntimeError | `64` | `64` | error: RuntimeError | `64` | none |
+| 1000.0 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| 470.0 | float8e5 | error: RuntimeError | `5f` | `5f` | error: RuntimeError | `5f` | none |
+| 470.0 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| 448.0 | float8e5 | `5f` | `5f` | `5f` | `5f` | `5f` | `cvt.u64.u32`, `mov.b16` |
+| 448.0 | float8e4nv | `7e` | `7e` | `7e` | `7e` | `7e` | `cvt.u64.u32`, `mov.b16` |
+| 460.0 | float8e5 | error: RuntimeError | `5f` | `5f` | error: RuntimeError | `5f` | none |
+| 460.0 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| 65536.0 | float8e5 | error: RuntimeError | `7b` | `7b` | error: RuntimeError | `7b` | none |
+| 65536.0 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| 61440.0 | float8e5 | error: RuntimeError | `7b` | `7b` | error: RuntimeError | `7b` | none |
+| 61440.0 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| 60000.0 | float8e5 | error: RuntimeError | `7b` | `7b` | error: RuntimeError | `7b` | none |
+| 60000.0 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| 57344.0 | float8e5 | `7b` | `7b` | `7b` | `7b` | `7b` | `cvt.u64.u32`, `mov.b16` |
+| 57344.0 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| 0.1 | float8e5 | error: RuntimeError | `2e` | `2e` | error: RuntimeError | `2e` | none |
+| 0.1 | float8e4nv | error: RuntimeError | `1d` | `1d` | error: RuntimeError | `1d` | none |
+| 1.0 | float8e5 | `3c` | `3c` | `3c` | `3c` | `3c` | `cvt.u64.u32`, `mov.b16` |
+| 1.0 | float8e4nv | `38` | `38` | `38` | `38` | `38` | `cvt.u64.u32`, `mov.b16` |
+| 3e+38 | float8e5 | error: RuntimeError | `7b` | `7b` | error: RuntimeError | `7b` | none |
+| 3e+38 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | `7e` | none |
+| 1e+39 | float8e5 | `7c` | `7b` | `7b` | `7c` | error: RuntimeError | `cvt.u64.u32`, `mov.b16` |
+| 1e+39 | float8e4nv | error: RuntimeError | `7e` | `7e` | error: RuntimeError | error: RuntimeError | none |

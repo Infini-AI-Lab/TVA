@@ -1,0 +1,2 @@
+B.sqrt.f32                   sqrt:f32                 all    4294967296 inputs  agree  [320 s]
+A.cvt.f32.e5m2.rz.sat0       cvt:f32:e5m2:rz:0        all    4294967296 inputs  agree  [594 s]

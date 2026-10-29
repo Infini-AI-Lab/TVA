@@ -1,0 +1,14 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| descriptor | inputs | pairs checked | outside the fact | largest error / bound | instruction |
+|---|---|---|---|---|---|
+| host 2-D | random | 16645761 | 0 | 0.5000 | cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group |
+| in-kernel 2-D | random | 16645565 | 0 | 0.5000 | cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group |
+| host 2-D | subnormal | 8388978 | 0 | 0.0000 | cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group |
+| in-kernel 2-D | subnormal | 8387205 | 0 | 0.0000 | cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group |
+| host 2-D | cancel | 16777216 | 0 | 0.0000 | cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group |
+| in-kernel 2-D | cancel | 16777216 | 0 | 0.0000 | cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group |
+| host 2-D | edge | 16399328 | 0 | 0.5000 | cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group |
+| in-kernel 2-D | edge | 16400074 | 0 | 0.5000 | cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.bulk_group |
+
+Total outside the fact: 0

@@ -1,0 +1,66 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| dtype | c | where it is built | byte stored | fp8 instructions in the PTX |
+|---|---|---|---|---|
+| float8e5 | inf | `tl.full(shape, c, fp8)` | `7c` | none: a folded constant |
+| float8e5 | inf | `tl.where(m, c, x_fp8)` | `7c` | none: a folded constant |
+| float8e5 | inf | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | inf | `tl.load(p_fp8, mask, other=c)` | `7b` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | inf | `tl.store(p_fp8, float32 tensor of c)` | `7b` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | inf | `tl.full(shape, c, float32).to(fp8)` | `7b` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | -inf | `tl.full(shape, c, fp8)` | `fc` | none: a folded constant |
+| float8e5 | -inf | `tl.where(m, c, x_fp8)` | `fc` | none: a folded constant |
+| float8e5 | -inf | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | -inf | `tl.load(p_fp8, mask, other=c)` | `fb` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | -inf | `tl.store(p_fp8, float32 tensor of c)` | `fb` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | -inf | `tl.full(shape, c, float32).to(fp8)` | `fb` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | nan | `tl.full(shape, c, fp8)` | `7e` | none: a folded constant |
+| float8e5 | nan | `tl.where(m, c, x_fp8)` | `7e` | none: a folded constant |
+| float8e5 | nan | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | nan | `tl.load(p_fp8, mask, other=c)` | `7f` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | nan | `tl.store(p_fp8, float32 tensor of c)` | `7f` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | nan | `tl.full(shape, c, float32).to(fp8)` | `7f` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | 1000.0 | `tl.full(shape, c, fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | 1000.0 | `tl.where(m, c, x_fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | 1000.0 | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | 1000.0 | `tl.load(p_fp8, mask, other=c)` | `64` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | 1000.0 | `tl.store(p_fp8, float32 tensor of c)` | `64` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | 1000.0 | `tl.full(shape, c, float32).to(fp8)` | `64` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | 60000.0 | `tl.full(shape, c, fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | 60000.0 | `tl.where(m, c, x_fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | 60000.0 | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e5 | 60000.0 | `tl.load(p_fp8, mask, other=c)` | `7b` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | 60000.0 | `tl.store(p_fp8, float32 tensor of c)` | `7b` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e5 | 60000.0 | `tl.full(shape, c, float32).to(fp8)` | `7b` | `cvt.rn.satfinite.e5m2x2.f32` |
+| float8e4nv | inf | `tl.full(shape, c, fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | inf | `tl.where(m, c, x_fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | inf | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | inf | `tl.load(p_fp8, mask, other=c)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | inf | `tl.store(p_fp8, float32 tensor of c)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | inf | `tl.full(shape, c, float32).to(fp8)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | -inf | `tl.full(shape, c, fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | -inf | `tl.where(m, c, x_fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | -inf | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | -inf | `tl.load(p_fp8, mask, other=c)` | `fe` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | -inf | `tl.store(p_fp8, float32 tensor of c)` | `fe` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | -inf | `tl.full(shape, c, float32).to(fp8)` | `fe` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | nan | `tl.full(shape, c, fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | nan | `tl.where(m, c, x_fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | nan | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | nan | `tl.load(p_fp8, mask, other=c)` | `7f` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | nan | `tl.store(p_fp8, float32 tensor of c)` | `7f` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | nan | `tl.full(shape, c, float32).to(fp8)` | `7f` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | 1000.0 | `tl.full(shape, c, fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | 1000.0 | `tl.where(m, c, x_fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | 1000.0 | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | 1000.0 | `tl.load(p_fp8, mask, other=c)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | 1000.0 | `tl.store(p_fp8, float32 tensor of c)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | 1000.0 | `tl.full(shape, c, float32).to(fp8)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | 60000.0 | `tl.full(shape, c, fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | 60000.0 | `tl.where(m, c, x_fp8)` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | 60000.0 | `x_fp8 + c` | rejected on the host (RuntimeError) | PassManager::run failed |
+| float8e4nv | 60000.0 | `tl.load(p_fp8, mask, other=c)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | 60000.0 | `tl.store(p_fp8, float32 tensor of c)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+| float8e4nv | 60000.0 | `tl.full(shape, c, float32).to(fp8)` | `7e` | `cvt.rn.satfinite.e4m3x2.f32` |
+
+`CvtSatF32E5m2` (`tl.cvt8` of the float32 constant): +inf -> `7b`, -inf -> `fb`, NaN -> a NaN, 1000 -> `64`, 60000 -> `7b`; `CvtSatF32E4m3`: +inf, 1000, 60000 -> `7e`, -inf -> `fe`, NaN -> `7f`.

@@ -1,0 +1,135 @@
+problems: []
+rules: 44
+[helper] 2 lines; names []
+[call] 6 lines; names []
+[implicit] 2 lines; names []
+[convert] 6 lines; names []
+[itof-narrow] 8 lines; names []
+[shift] 3 lines; names []
+[literal] 28 lines; names ['convert', 'implicit']
+[index] 2 lines; names []
+[pointer] 2 lines; names []
+[float-prog] 2 lines; names []
+[permute] 5 lines; names []
+[mask] 2 lines; names []
+[broadcast] 1 lines; names []
+[block-ptr] 3 lines; names []
+[desc] 3 lines; names []
+[atomic] 2 lines; names []
+[fusion] 13 lines; names []
+[dot-add] 2 lines; names []
+[dot-scaled-add] 1 lines; names []
+[sum-bcast-mul] 13 lines; names ['implicit', 'reduce']
+[reshape-reorder] 3 lines; names []
+[reduce] 13 lines; names ['argmax']
+[argmax] 6 lines; names []
+[dot] 4 lines; names []
+[dot-scaled] 6 lines; names []
+[sort] 1 lines; names []
+[histogram] 1 lines; names []
+[scan] 8 lines; names []
+[range] 3 lines; names []
+[static-range] 1 lines; names []
+[while] 1 lines; names []
+[bool-ops] 1 lines; names []
+[hint] 10 lines; names []
+[no-op:debug_barrier] 3 lines; names []
+[no-op:print] 11 lines; names ['pure']
+[no-op:cache] 1 lines; names []
+[no-op:range-kw] 4 lines; names []
+[no-op:gdc] 10 lines; names []
+[decl] 1 lines; names []
+[config] 7 lines; names ['pure']
+[compile-check] 18 lines; names ['pure']
+[dead] 2 lines; names ['pure']
+[comment] 1 lines; names []
+[pure] 45 lines; names []
+
+== general text of the page (non-blank lines, first 80 chars):
+  | # Transcription rules
+  | How a Triton source becomes a TVA model. This page is part of the library:
+  | - the **kernel prover** follows it;
+  | - the **kernel reviewer** checks the model against the source by it, and trusts 
+  |   what Triton 3.8.0 does;
+  | - **library review** checks that ([LIBRARY_REVIEW.md](LIBRARY_REVIEW.md)).
+  | What each `tl.*` operation means is in [SEMANTICS.md](SEMANTICS.md).
+  | A construct this page does not cover cannot be transcribed yet. The prover asks 
+  | a rule, and a kernel reviewer who finds one files `UNSUPPORTED`. A rule marked *
+  | under a library issue ([library-review/ISSUES.md](library-review/ISSUES.md)): a 
+  | it waits for the issue's resolution.
+  | **Rule identities.** Each rule below starts with its identity in brackets, such 
+  | Every entry of a kernel's model map names the rules it applies (`"rules": ["mask
+  | dropped line names its drop reason, which is a rule too ([REVIEW_PROTOCOL.md](RE
+  | §7). A rule's text may name other rules, and then they apply as well. The gate f
+  | every rule a map names into the kernel's `map` and `model` digests, so a change 
+  | exactly the kernels that use it. The kernel reviewer checks that each entry name
+  | applies.
+  | **Where a rule ends.** A rule is its list item: the line that starts with its id
+  | lines indented under it. The first unindented line after it (a heading, another 
+  | row or a paragraph) ends it. Every line of this page outside a rule is *general 
+  | introduction, the paragraphs that open a section (§1, §5, §10), the closing para
+  | The general text, [exclusions.md](exclusions.md) and [SEMANTICS.md](SEMANTICS.md
+  | each operation a model line calls means ([call]) and which conversions the model
+  | every model: a change to any of them re-opens every kernel's `map` and `model`. 
+  | the page: an unindented line that directly continues a rule's paragraph is an er
+  | page shows as one rule is what the digests treat as one.
+  | ## 1. The model's shape
+  | The kernel is a `Kernel` whose `body : Ctx → Prog Unit` is a `do` block. It keep
+  | line structure and names, one model line per source line where possible. A `tl.c
+  | argument is a Lean parameter (`BLOCK_SIZE : Nat`). Every operation is a `TVA.tl.
+  | `TVA.*` definition, and every name in a model line means what the library says. 
+  | Lean gives no name another meaning: it declares nothing in the `TVA` namespace, 
+  | component `tl`, nothing whose name, as the kernel writes it, is also a library n
+  | or a library namespace it opens, no instance of a library class (`SortKey`, `Cmp
+  | or on a library type, and no notation, `open … renaming` or `export` (library is
+  | declaration would change an operation's meaning without changing the model's tex
+  | reviewer reads all of the kernel's Lean for this, and the gate's `hygiene` and `
+  | back it up. An operation missing from `TVA.Lang.Ops` is not defined in the kerne
+  | adds it.
+  | ## 2. Values and types
+  | ## 3. Memory
+  | No construct of [exclusions.md](exclusions.md) is used. In particular: no
+  | `inline_asm_elementwise` replaced by "equivalent" code, no pointers to pointers,
+  | same bytes through both pointers and descriptors, and no aggregate class (a clas
+  | Triton's `_aggregate`).
+  | ## 4. Float addition: IEEE or fusable
+  | ## 5. Shapes the compiler rewrites
+  | These are transcribed in their rewritten form, whatever `enable_fp_fusion` says.
+  | ## 6. Reductions, `tl.dot`, sorting, scans
+  | ## 7. Control flow
+  | ## 8. Compiler hints
+  | ## 9. The launch
+  | `launch d` gives the host's grid formula, and `program_id` reads the right axis.
+  | `Launch.Valid` asks for fewer than `2^31` programs: Triton's launcher skips larg
+  | an error ([SEMANTICS.md](SEMANTICS.md), "Launches"). `blocks` lists every block 
+  | source on the instance. `Launch.Valid` checks only the shapes listed, so an empt
+  | passes it. `num_ctas` is the source's (`1`), `debug` is `false`, and `launch_pdl
+  | (`pdl = false`): a kernel launched with programmatic dependent launch may start 
+  | previous kernel has finished writing, and `Launch.Valid` excludes it. With `@tri
+  | `Inst` ranges over the configs the autotuner may pick.
+  | The host code is within the scope of `Rules.Compiler.Faithful`
+  | ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"), and the ker
+  | it against these four points:
+  | 1. **The launch runs alone.** Nothing else writes global memory while it runs: n
+  |    any stream or device, no host copy, and no next launch on its stream with `la
+  |    the kernel calls `gdc_launch_dependents()`.
+  | 2. **Triton's knobs are at their defaults**, however they would be set: no envir
+  |    the rule names, and no assignment to `triton.knobs` (such as `triton.knobs.la
+  |    or `triton.knobs.runtime.debug`).
+  | 3. **No hook is installed** (`triton.knobs.runtime.*_hook`, the compilation and 
+  |    listeners, a `JITFunction`'s pre-run hooks).
+  | 4. **Only the launch options `Launch` records** are given, at the launch or in a
+  |    `triton.Config`: `enable_fp_fusion`, `debug`, `num_ctas`, `launch_pdl`, and `
+  |    `num_stages`, `maxnreg`, `launch_cooperative_grid`, which do not change the m
+  |    `ir_override`, `allowed_dot_input_precisions`, `enable_reflect_ftz`, `extern_
+  |    `ptx_options`, `arch` or any other compile option.
+  | So an omitted `input_precision` of `tl.dot` is `tf32`, and an omitted `enable_fp
+  | ## 10. What may be dropped
+  | The model map's drop reasons ([REVIEW_PROTOCOL.md](REVIEW_PROTOCOL.md) §7). Each
+  | dropped line names it as its `drop`. Anything else that is dropped is a mismatch
+
+== suspicious lines inside rules: indented by 1 space or a tab, or a code fence
+
+== general text names these rules (closure added to every map): ['call']
+
+== general text includes exclusions.md: True ; SEMANTICS.md: True

@@ -1,0 +1,3 @@
+one-branch name, unused after: ran; correct
+live-in redefined in both branches with another dtype: rejected: CompilationError AssertionError('initial value for `y` is of type int32[], but the then block redefines it as fp32[]')
+triton 3.8.0 NVIDIA H200 NVL

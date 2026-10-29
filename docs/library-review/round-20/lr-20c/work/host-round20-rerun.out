@@ -1,0 +1,15 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+G0 (the call on the capturing stream): returned without an error; after the capture, before any replay, o[0], o[-1] = -7.0, -7.0; reset to -7 and replayed once: 2.0, 2.0
+G1 (the call on another stream, capture mode global): returned without an error; after the capture, before any replay, o[0], o[-1] = 2.0, 2.0; reset to -7 and replayed once: -7.0, -7.0
+G2 (the call on another stream, capture mode thread_local): returned without an error; after the capture, before any replay, o[0], o[-1] = 2.0, 2.0; reset to -7 and replayed once: -7.0, -7.0
+G3 (the call on another stream, capture mode relaxed): returned without an error; after the capture, before any replay, o[0], o[-1] = 2.0, 2.0; reset to -7 and replayed once: -7.0, -7.0
+M0 (control): stored [2.0, 4.0, 6.0] …: 2·x (the source's)
+M1 (kmod.double = kmod.triple): stored [3.0, 6.0, 9.0] …: 3·x
+M2 (kmod.k.fn.__globals__['double'] = kmod.triple): stored [3.0, 6.0, 9.0] …: 3·x
+M3 (tl.exp = tl.log): stored [0.0, 0.693147, 1.098612] …: log x
+M4 (kmod.k._unsafe_update_src(<k storing 5·x>)): stored [5.0, 10.0, 15.0] …: 5·x
+D0 (plain): returned; lane 0 stored -2147483648 (wrapping: -2147483648)
+D1 (kmod.add_i32.debug = True): AcceleratorError: CUDA error: device-side assert triggered  [device: kmod.py:41: unknown: block: [0,0,0], thread: [64,0,0] Assertion `int32 overflow detected for operation add` failed.]
+Pgen (first process): recorded 2 compiles; the first's options give enable_reflect_ftz = False; the data now names the plain launch's key
+P1 (second process: preload, then a plain launch): a plain launch stored exp2(-130) = 7.346839692639297e-40 (2^-130)
+P0 (control: a plain launch, no preload): a plain launch stored exp2(-130) = 0.0 (0, the model)

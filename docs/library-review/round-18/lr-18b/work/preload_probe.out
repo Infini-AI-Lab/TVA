@@ -1,0 +1,4 @@
+Triton 3.8.0, NVIDIA H200 NVL, torch 2.11.0+cu130
+- G: recorded 2 compiles; the first's options name enable_reflect_ftz = False; the key is the plain launch's
+- P: a plain k[(1,)](x, y) stored exp2(-130) = 7.346839692639297e-40 (0.0 is the model's; 2^-130 = 7.346839692639297e-40)
+- C: a plain k[(1,)](x, y) stored exp2(-130) = 0.0 (0.0 is the model's; 2^-130 = 7.346839692639297e-40)

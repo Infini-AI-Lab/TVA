@@ -1,0 +1,31 @@
+## base: the kernel, updated for round 3 in the copy
+gate ok: True
+
+## X1: the last paragraph of section 3 (general text, by the page's introduction) loses its aggregate clause
+gate ok: True
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+
+## X2 (control): the same edit, with the map naming [atomic] (digests against the map naming [atomic])
+gate ok: True
+  item map: CHANGED
+  item model: CHANGED
+  item spec: unchanged
+  item conditions: unchanged
+
+## X3: SEMANTICS.md 'Constants' (which value a literal is) changes
+gate ok: True
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+
+## X4: SEMANTICS.md 'tl.maximum' (the bf16 conversion the model writes) changes
+gate ok: True
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+

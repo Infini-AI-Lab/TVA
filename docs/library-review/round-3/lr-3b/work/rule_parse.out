@@ -1,0 +1,73 @@
+rules: 44; problems: []
+references per rule:
+  [compile-check] -> ['pure']
+  [dead] -> ['pure']
+  [no-op:print] -> ['pure']
+  [reduce] -> ['argmax']
+
+last paragraph of section 3 in the general text: False
+last paragraph of section 3 in rule texts: ['atomic']
+
+---- the text of rule [atomic] as the digest folds it:
+- **[atomic]** Atomics keep the source's `sem` and `scope`. The result of a masked-off atomic lane
+  never decides control flow or an address.
+
+No construct of [exclusions.md](exclusions.md) is used. In particular: no
+`inline_asm_elementwise` replaced by "equivalent" code, no pointers to pointers, no access to the
+same bytes through both pointers and descriptors, and no aggregate class (a class made with
+Triton's `_aggregate`).
+
+
+---- general text of the page (non-blank lines):
+  # Transcription rules
+  How a Triton source becomes a TVA model. This page is part of the library:
+  - the **kernel prover** follows it;
+  - the **kernel reviewer** checks the model against the source by it, and trusts that each rule is
+    what Triton 3.8.0 does;
+  - **library review** checks that ([LIBRARY_REVIEW.md](LIBRARY_REVIEW.md)).
+  What each `tl.*` operation means is in [SEMANTICS.md](SEMANTICS.md).
+  A construct this page does not cover cannot be transcribed yet. The prover asks the library for
+  a rule, and a kernel reviewer who finds one files `UNSUPPORTED`. A rule marked **(open: L<n>)** is
+  under a library issue ([library-review/ISSUES.md](library-review/ISSUES.md)): a kernel that needs
+  it waits for the issue's resolution.
+  **Rule identities.** Each rule below starts with its identity in brackets, such as `[mask]`.
+  Every entry of a kernel's model map names the rules it applies (`"rules": ["mask", "call"]`), and a
+  dropped line names its drop reason, which is a rule too ([REVIEW_PROTOCOL.md](REVIEW_PROTOCOL.md)
+  §7). A rule's text may name other rules, and then they apply as well. The gate folds the text of
+  every rule a map names into the kernel's `map` and `model` digests, so a change to a rule re-opens
+  exactly the kernels that use it. The text outside the rules (this introduction, §1, the last
+  paragraph of §3, §9) and [exclusions.md](exclusions.md) apply to every model, and a change to
+  them re-opens every kernel's `map` and `model`. The kernel reviewer checks that each entry names
+  every rule it applies.
+  ## 1. The model's shape
+  The kernel is a `Kernel` whose `body : Ctx → Prog Unit` is a `do` block. It keeps the source's
+  line structure and names, one model line per source line where possible. A `tl.constexpr`
+  argument is a Lean parameter (`BLOCK_SIZE : Nat`). Every operation is a `TVA.tl.*` or another
+  `TVA.*` definition. The model declares nothing in the `TVA` or `tl` namespaces and no instance of
+  a library class (`SortKey`, `CmpKey`, `HintVal`, …): such a declaration would change an
+  operation's meaning without changing the model's text. An operation missing from `TVA.Lang.Ops`
+  is not defined in the kernel: the library adds it.
+  ## 2. Values and types
+  ## 3. Memory
+  ## 4. Float addition: IEEE or fusable
+  ## 5. Shapes the compiler rewrites
+  These are transcribed in their rewritten form, whatever `enable_fp_fusion` says.
+  ## 6. Reductions, `tl.dot`, sorting, scans
+  ## 7. Control flow
+  ## 8. Compiler hints
+  ## 9. The launch
+  `launch d` gives the host's grid formula, and `program_id` reads the right axis.
+  `Launch.Valid` asks for fewer than `2^31` programs: Triton's launcher skips larger grids without
+  an error ([SEMANTICS.md](SEMANTICS.md), "Launches"). `blocks` lists every block shape of the
+  source on the instance. `Launch.Valid` checks only the shapes listed, so an empty or partial list
+  passes it. `num_ctas` is the source's (`1`), `debug` is `false`, and `launch_pdl` is not set
+  (`pdl = false`): a kernel launched with programmatic dependent launch may start before the
+  previous kernel has finished writing, and `Launch.Valid` excludes it. With `@triton.autotune`,
+  `Inst` ranges over the configs the autotuner may pick.
+  Triton's environment is at its defaults: `Rules.Compiler.Faithful` covers only kernels compiled
+  and launched without the environment variables it names ([rules/compiler-faithful.md](rules/compiler-faithful.
+  So an omitted `input_precision` of `tl.dot` is `tf32`, whatever `TRITON_F32_DEFAULT` might say,
+  and an omitted `enable_fp_fusion` is `true`.
+  ## 10. What may be dropped
+  The model map's drop reasons ([REVIEW_PROTOCOL.md](REVIEW_PROTOCOL.md) §7). Each is a rule, and a
+  dropped line names it as its `drop`. Anything else that is dropped is a mismatch.

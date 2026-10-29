@@ -1,0 +1,17 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+E1: load, shape [32, 32], stride 32 (control)
+  as the model
+E2: load, shape [0, 32]: model: every lane the padding 0
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+E3: load, shape [32, 0]: model: every lane the padding 0
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+E4: load, shape [32, 32], leading stride 0: model: row 0 in every row
+  as the model
+E5: store, shape [0, 32]: model: nothing written
+  error: AcceleratorError: CUDA error: an illegal instruction was encountered
+E6: host-built TensorDescriptor, shape [0, 32], load: model: every lane the padding 0
+  error: AssertionError: shape must be positive
+E7: in-kernel, shape [0, 32], built but not accessed (runtime branch not taken): model: y[0] = 5
+  as the model
+E8: load, shape [1, 32], leading stride 2^40 elements (only row 0 in bounds): model: row 0, then padding
+  as the model

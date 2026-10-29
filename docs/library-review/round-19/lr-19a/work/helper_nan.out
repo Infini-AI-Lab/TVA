@@ -1,0 +1,10 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+repr(float('nan')) = nan ; repr(-float('nan')) = nan
+H1 store_c(o, nan); store_c(o+1, -nan): stored ['7fc00000', '7fc00000'], library (litF32/litBF16 of each call's double) ['7fc00000', 'ffc00000']: DIFFERS from SEMANTICS 'Constants'
+H2 store_c(o, -nan); store_c(o+1, nan): stored ['ffc00000', 'ffc00000'], library (litF32/litBF16 of each call's double) ['ffc00000', '7fc00000']: DIFFERS from SEMANTICS 'Constants'
+H3 A: constexpr = nan, B: constexpr = inf - inf; store_c(o, A); store_c(o+1, B): stored ['7fc00000', '7fc00000'], library (litF32/litBF16 of each call's double) ['7fc00000', 'ffc00000']: DIFFERS from SEMANTICS 'Constants'
+H4 keywords: store_c(o, c=nan); store_c(p=o+1, c=-nan): stored ['7fc00000', '7fc00000'], library (litF32/litBF16 of each call's double) ['7fc00000', 'ffc00000']: DIFFERS from SEMANTICS 'Constants'
+H5 bfloat16: store_c_bf16(o, nan); store_c_bf16(o+1, -nan): stored ['7fc0', '7fc0'], library (litF32/litBF16 of each call's double) ['7fc0', 'ffc0']: DIFFERS from SEMANTICS 'Constants'
+H6 tl.where in a helper: store_where(o, -nan); store_where(o+1, nan): stored ['ffc00000', 'ffc00000'], library (litF32/litBF16 of each call's double) ['ffc00000', '7fc00000']: DIFFERS from SEMANTICS 'Constants'
+C1 control, no helper: tl.full(nan), tl.full(-nan): stored ['7fc00000', 'ffc00000'], library (litF32/litBF16 of each call's double) ['7fc00000', 'ffc00000']: as SEMANTICS 'Constants' states
+C2 control, infinities through the helper: stored ['7f800000', 'ff800000'], library (litF32/litBF16 of each call's double) ['7f800000', 'ff800000']: as SEMANTICS 'Constants' states

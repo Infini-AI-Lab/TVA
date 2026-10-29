@@ -1,0 +1,15 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| conversion | inputs (every pattern) | differ from the exact rounding (NaN: not a NaN) | first difference (input, device, reference) |
+|---|---|---|---|
+| f32 -> f16, rtne | 4294967296 | 0 | None |
+| f32 -> f16, rtz | 4294967296 | 0 | None |
+| f32 -> bf16, rtne | 4294967296 | 0 | None |
+| f32 -> bf16, rtz | 4294967296 | 0 | None |
+| f32 -> f64 -> f32 | 4294967296 | 0 | None |
+| f16 -> f32 | 65536 | 0 | None |
+| f16 -> f64 | 65536 | 0 | None |
+| f16 -> bf16, rtne | 65536 | 0 | None |
+| bf16 -> f32 | 65536 | 0 | None |
+| bf16 -> f64 | 65536 | 0 | None |
+| bf16 -> f16, rtne | 65536 | 0 | None |

@@ -8,9 +8,12 @@ import Mathlib.Data.Fintype.Lattice
 
 **Theorem `independent`.** Suppose each program of a launch, run *alone* from the initial memory,
 is `Safe` with read footprint `R i` and write footprint `W i`, and ends in a memory satisfying
-`Q i`. Suppose also that no program writes a byte another program reads or writes. Then:
+`Q i`. Suppose also that no program writes a byte another program reads or writes, and that each
+program's read and write footprints are disjoint (it does not read back or update in place what
+it writes, library issue L15). Then:
 
-* the launch is well behaved: no interleaving reaches undefined behaviour or a data race;
+* the launch is well behaved: no interleaving reaches undefined behaviour, a data race between
+  programs, or a conflict within a program;
 * it cannot hang;
 * every outcome is a normal end whose final memory agrees, on each program's footprint, with a
   memory satisfying that program's `Q i`, and equals the initial memory wherever no program
@@ -22,17 +25,6 @@ reasons about one program at a time, sequentially, on the initial memory.
 namespace TVA
 
 open Classical
-
-/-- Every step either leaves the program's state alone or is a step of it. -/
-theorem Step.frame {α : Type} {E : Env} {m m' : Mem} {p p' : Prog α} {e : Event}
-    (h : Step E m p (.next m' p' e)) : ∀ x, x ∉ e.writes → m' x = m x := by
-  cases h with
-  | store order _ _ => exact fun x hx => writeAll_frame _ _ _ _ hx
-  | rmw old new _ _ => exact fun x hx => Mem.write_frame _ _ _ _ hx
-  | load => exact fun _ _ => rfl
-  | pick => exact fun _ _ => rfl
-  | loop => exact fun _ _ => rfl
-  | env => exact fun _ _ => rfl
 
 /-- A sequence that, at each step, stays put or descends in a relation that is accessible from
 its start, descends only finitely often. -/
@@ -67,6 +59,32 @@ theorem eventually_no_descent {β : Type*} {r : β → β → Prop} (x : Nat →
     · push Not at hc
       exact ⟨n₀, le_rfl, fun m hm => hc m hm⟩
 
+/-- Extending a trace by one event adds, as possible conflicts within a program, only pairs
+ending at the new event. -/
+theorem intraRace_snoc {N : Nat} {tr : List (Fin N × Event)} {j : Fin N} {e : Event}
+    (h : IntraRace (tr ++ [(j, e)])) :
+    IntraRace tr ∨ ∃ (a : Nat) (f : Event), tr[a]? = some (j, f) ∧ f.Conflict e ∧ ¬ Event.SameAtomic f e := by
+  obtain ⟨a, b, x, y, hab, ha, hb, hij, hcon, hsame⟩ := h
+  by_cases hb' : b < tr.length
+  · left
+    rw [List.getElem?_append_left hb'] at hb
+    rw [List.getElem?_append_left (by omega)] at ha
+    exact ⟨a, b, x, y, hab, ha, hb, hij, hcon, hsame⟩
+  · right
+    have hbl : b = tr.length := by
+      rcases Nat.lt_or_ge b (tr.length + 1) with h | h
+      · omega
+      · rw [List.getElem?_eq_none (by simp; omega)] at hb; cases hb
+    subst hbl
+    rw [List.getElem?_append_right le_rfl] at hb
+    simp at hb
+    subst hb
+    rw [List.getElem?_append_left hab] at ha
+    obtain ⟨i, f⟩ := x
+    simp only at hij
+    subst hij
+    exact ⟨a, f, ha, hcon, hsame⟩
+
 section
 variable {N : Nat} (E : Env) (R W : Fin N → Set Int) (Q : Fin N → Mem → Prop) (init : Mem)
 
@@ -75,15 +93,19 @@ elsewhere. -/
 noncomputable def localMem (c : Config N) (i : Fin N) : Mem :=
   fun x => if x ∈ R i ∪ W i then c.mem x else init x
 
-/-- The invariant of a launch of independent programs. -/
+/-- The invariant of a launch of independent programs. Program `i` is safe in its own view with
+the bytes it has not yet written as write footprint; its events so far wrote none of those. -/
 structure Inv (tr : List (Fin N × Event)) (c : Config N) : Prop where
-  safe : ∀ i, Safe E (R i) (W i) (fun _ m => Q i m) (localMem R W init c i) (c.progs i)
+  safe : ∀ i, ∃ Wc, Wc ⊆ W i ∧ (∀ (n : Nat) (e : Event), tr[n]? = some (i, e) → Disjoint e.writes Wc) ∧
+    Safe E (R i) Wc (fun _ m => Q i m) (localMem R W init c i) (c.progs i)
   frame : ∀ x, (∀ i, x ∉ W i) → c.mem x = init x
-  good : ∀ (n : Nat) (j : Fin N) (e : Event), tr[n]? = some (j, e) → e.reads ⊆ R j ∧ e.writes ⊆ W j
+  good : ∀ (n : Nat) (j : Fin N) (e : Event), tr[n]? = some (j, e) →
+    e.reads ⊆ R j ∪ e.writes ∧ e.writes ⊆ W j
+  clean : ¬ IntraRace tr
 
 variable {E R W Q init}
 
-theorem inv_step (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j))
+theorem inv_step (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j)) (hRW : ∀ i, Disjoint (R i) (W i))
     {tr : List (Fin N × Event)} {c c' : Config N} {j : Fin N} {e : Event}
     (hinv : Inv E R W Q init tr c) (hs : LStep E c (j, e) c') :
     Inv E R W Q init (tr ++ [(j, e)]) c' ∧
@@ -92,42 +114,64 @@ theorem inv_step (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j))
   cases hs with
   | step _ hstep =>
     rename_i m' p'
-    have hsafe := hinv.safe j
-    obtain ⟨m₁', m₂', p'', e', ho, hs2, hag, hfr⟩ :=
-      hsafe.transfer (m₁ := c.mem) (fun x hx => by simp [localMem, hx]) hstep
-    cases ho
-    obtain ⟨m3, p3, e3, ho2, hR, hW, hsafe'⟩ := hsafe.step hs2
-    simp only [Out.next.injEq] at ho2
-    obtain ⟨h1, h2, h3⟩ := ho2
-    subst h1 h2 h3
-    have hframe2 := Step.frame hs2
-    have hloc : localMem R W init ⟨m', Function.update c.progs j p'⟩ j = m₂' := by
+    obtain ⟨Wc, hWc, hhist, hsafe⟩ := hinv.safe j
+    obtain ⟨hR, hW, hs2, hsafe'⟩ := hsafe.stepT (m := c.mem) (fun x hx => by
+      have : x ∈ R j ∪ W j := hx.elim Or.inl (fun h => Or.inr (hWc h))
+      simp [localMem, this]) hstep
+    have hframe := Step.frame hstep
+    have hloc : localMem R W init ⟨m', Function.update c.progs j p'⟩ j =
+        Mem.mix (localMem R W init c j) m' e.writes := by
       funext x
       by_cases hx : x ∈ R j ∪ W j
-      · simp only [localMem, hx, ite_true]; exact hag x hx
-      · simp only [localMem, hx, ite_false]
-        have hxw : x ∉ e.writes := fun hw => hx (Or.inr (hW hw))
-        rw [hframe2 x hxw]; simp [localMem, hx]
+      · simp only [localMem, hx, ite_true]
+        by_cases hxe : x ∈ e.writes
+        · rw [Mem.mix_in hxe]
+        · rw [Mem.mix_out hxe, hframe x hxe]; simp [localMem, hx]
+      · have hxe : x ∉ e.writes := fun h => hx (Or.inr (hWc (hW h)))
+        simp only [localMem, hx, ite_false]
+        rw [Mem.mix_out hxe]; simp [localMem, hx]
     have hother : ∀ i, i ≠ j → localMem R W init ⟨m', Function.update c.progs j p'⟩ i =
         localMem R W init c i := by
       intro i hij
       funext x
       by_cases hx : x ∈ R i ∪ W i
       · simp only [localMem, hx, ite_true]
-        have hxw : x ∉ e.writes := fun hw => Set.disjoint_left.mp (hdisj j i hij.symm) (hW hw) hx
-        exact hfr x hxw
+        exact hframe x fun hw => Set.disjoint_left.mp (hdisj j i hij.symm) (hWc (hW hw)) hx
       · simp [localMem, hx]
-    refine ⟨⟨?_, ?_, ?_⟩, ?_, ?_⟩
-    · intro i
-      by_cases hij : i = j
+    refine ⟨⟨fun i => ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
+    · by_cases hij : i = j
       · subst hij
-        rw [hloc]
-        simpa using hsafe'
-      · rw [hother i hij]
-        simpa [Function.update_of_ne hij] using hinv.safe i
+        refine ⟨Wc \ e.writes, Set.sdiff_subset.trans hWc, fun n f hn => ?_, ?_⟩
+        · by_cases hlt : n < tr.length
+          · rw [List.getElem?_append_left hlt] at hn
+            exact (hhist n f hn).mono_right Set.sdiff_subset
+          · have hn' : n = tr.length := by
+              rcases Nat.lt_or_ge n (tr.length + 1) with h | h
+              · omega
+              · rw [List.getElem?_eq_none (by simp; omega)] at hn; cases hn
+            subst hn'
+            rw [List.getElem?_append_right le_rfl] at hn
+            simp at hn
+            subst hn
+            exact Set.disjoint_sdiff_right
+        · rw [hloc]; simpa using hsafe'
+      · obtain ⟨Wi, hWi, hhi, hsi⟩ := hinv.safe i
+        refine ⟨Wi, hWi, fun n f hn => ?_, ?_⟩
+        · by_cases hlt : n < tr.length
+          · rw [List.getElem?_append_left hlt] at hn
+            exact hhi n f hn
+          · have hn' : n = tr.length := by
+              rcases Nat.lt_or_ge n (tr.length + 1) with h | h
+              · omega
+              · rw [List.getElem?_eq_none (by simp; omega)] at hn; cases hn
+            subst hn'
+            rw [List.getElem?_append_right le_rfl] at hn
+            simp at hn
+            exact absurd hn.1.symm hij
+        · rw [hother i hij]; simpa [Function.update_of_ne hij] using hsi
     · intro x hx
-      have hxw : x ∉ e.writes := fun hw => hx j (hW hw)
-      simp only; rw [hfr x hxw]; exact hinv.frame x hx
+      have hxw : x ∉ e.writes := fun hw => hx j (hWc (hW hw))
+      simp only; rw [hframe x hxw]; exact hinv.frame x hx
     · intro n i e₀ hn
       by_cases hlt : n < tr.length
       · rw [List.getElem?_append_left hlt] at hn
@@ -140,21 +184,37 @@ theorem inv_step (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j))
         rw [List.getElem?_append_right le_rfl] at hn
         simp at hn
         obtain ⟨rfl, rfl⟩ := hn
-        exact ⟨hR, hW⟩
+        exact ⟨hR, hW.trans hWc⟩
+    · intro hrace
+      rcases intraRace_snoc hrace with h | ⟨a, f, ha, hcon, -⟩
+      · exact hinv.clean h
+      · obtain ⟨hfr, hfw⟩ := hinv.good a j f ha
+        have hfe : Disjoint f.writes e.writes := (hhist a f ha).mono_right hW
+        have hfR : Disjoint f.writes (R j) := ((hRW j).symm).mono_left hfw
+        have heR : Disjoint e.writes (R j) := ((hRW j).symm).mono_left (hW.trans hWc)
+        rcases hcon with ⟨z, hzf, hze⟩ | ⟨z, hzf, hze⟩
+        · rcases hze with hze | hze
+          · rcases hR hze with hz | hz
+            · exact Set.disjoint_left.mp hfR hzf hz
+            · exact Set.disjoint_left.mp hfe hzf hz
+          · exact Set.disjoint_left.mp hfe hzf hze
+        · rcases hfr hzf with hz | hz
+          · exact Set.disjoint_left.mp heR hze hz
+          · exact Set.disjoint_left.mp hfe hz hze
     · refine ⟨e, ?_⟩
       simp only [Function.update_self]
       rw [hloc]; exact hs2
     · intro i hij
       exact ⟨hother i hij, Function.update_of_ne hij _ _⟩
 
-theorem inv_reach (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j)) {c₀ c : Config N}
-    {tr : List (Fin N × Event)} (h0 : Inv E R W Q init [] c₀) (hr : Reach E c₀ tr c) :
-    Inv E R W Q init tr c := by
+theorem inv_reach (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j)) (hRW : ∀ i, Disjoint (R i) (W i))
+    {c₀ c : Config N} {tr : List (Fin N × Event)} (h0 : Inv E R W Q init [] c₀)
+    (hr : Reach E c₀ tr c) : Inv E R W Q init tr c := by
   induction hr with
   | refl => exact h0
   | @tail c₂ c₃ tr₁ ev _ hs ih =>
     obtain ⟨j, e⟩ := ev
-    exact (inv_step hdisj ih hs).1
+    exact (inv_step hdisj hRW ih hs).1
 
 /-- No event of a trace satisfying the invariant conflicts across programs. -/
 theorem no_interRace (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j))
@@ -162,22 +222,28 @@ theorem no_interRace (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j))
   rintro ⟨a, b, ⟨i, x⟩, ⟨j, y⟩, -, ha, hb, hij, hcon, -, -⟩
   obtain ⟨hxr, hxw⟩ := hinv.good a i x ha
   obtain ⟨hyr, hyw⟩ := hinv.good b j y hb
+  have hy : y.reads ∪ y.writes ⊆ R j ∪ W j := by
+    rintro z (hz | hz)
+    · rcases hyr hz with h | h
+      · exact Or.inl h
+      · exact Or.inr (hyw h)
+    · exact Or.inr (hyw hz)
+  have hx : x.reads ⊆ R i ∪ W i := fun z hz => (hxr hz).elim Or.inl (fun h => Or.inr (hxw h))
   rcases hcon with ⟨z, hzx, hzy⟩ | ⟨z, hzx, hzy⟩
-  · rcases hzy with hzy | hzy
-    · exact Set.disjoint_left.mp (hdisj i j hij) (hxw hzx) (Or.inl (hyr hzy))
-    · exact Set.disjoint_left.mp (hdisj i j hij) (hxw hzx) (Or.inr (hyw hzy))
-  · exact Set.disjoint_left.mp (hdisj j i (Ne.symm hij)) (hyw hzy) (Or.inl (hxr hzx))
+  · exact Set.disjoint_left.mp (hdisj i j hij) (hxw hzx) (hy hzy)
+  · exact Set.disjoint_left.mp (hdisj j i (Ne.symm hij)) (hyw hzy) (hx hzx)
 
 end
 
 /-- **Independent programs.** Programs that are each safe alone, from the initial memory, with
-footprints no other program writes into, make a well-behaved launch. Its only outcomes are
+footprints no other program writes into and read footprints disjoint from their own write
+footprints, make a well-behaved launch. Its only outcomes are
 normal ends whose memory agrees with each program's own final memory on that program's footprint
 and with the initial memory where nobody writes. -/
 theorem independent {k : Kernel} {L : Launch} {E : Env} {init : Mem}
     {R W : Fin L.size → Set Int} {Q : Fin L.size → Mem → Prop}
     (hsafe : ∀ i, Safe E (R i) (W i) (fun _ m => Q i m) init (k.body (L.ctx i)))
-    (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j)) :
+    (hdisj : ∀ i j, i ≠ j → Disjoint (W i) (R j ∪ W j)) (hRW : ∀ i, Disjoint (R i) (W i)) :
     WellBehaved E k L init ∧
     ∀ o, Outcomes E k L init o → ∃ fin, o = .ok fin ∧
       (∀ i, ∃ m, Q i m ∧ ∀ x ∈ R i ∪ W i, fin x = m x) ∧
@@ -185,24 +251,26 @@ theorem independent {k : Kernel} {L : Launch} {E : Env} {init : Mem}
   have hloc0 : ∀ i, localMem R W init (Config.start k L init) i = init := by
     intro i; funext x; simp [localMem, Config.start]
   have h0 : Inv E R W Q init [] (Config.start k L init) := by
-    refine ⟨fun i => ?_, fun x _ => rfl, fun n j e h => by simp at h⟩
+    refine ⟨fun i => ⟨W i, le_rfl, fun n e h => by simp at h, ?_⟩, fun x _ => rfl,
+      fun n j e h => by simp at h, fun ⟨a, _, _, _, _, ha, _⟩ => by simp at ha⟩
     rw [hloc0]
     simpa [Config.start] using hsafe i
   have hinv : ∀ tr c, Reach E (Config.start k L init) tr c → Inv E R W Q init tr c :=
-    fun tr c hr => inv_reach hdisj h0 hr
+    fun tr c hr => inv_reach hdisj hRW h0 hr
   have hnoub : ∀ tr c, Reach E (Config.start k L init) tr c → ¬ c.StuckUB E := by
     rintro tr c hr ⟨i, hub⟩
-    obtain ⟨_, _, _, _, ho, -⟩ :=
-      ((hinv tr c hr).safe i).transfer (m₁ := c.mem) (fun x hx => by simp [localMem, hx]) hub
-    cases ho
-  refine ⟨fun tr c hr => ⟨hnoub tr c hr, no_interRace hdisj (hinv tr c hr)⟩, ?_⟩
+    obtain ⟨Wc, hWc, -, hs⟩ := (hinv tr c hr).safe i
+    exact hs.no_ub (m := c.mem) (fun x hx => by
+      have : x ∈ R i ∪ W i := hx.elim Or.inl (fun h => Or.inr (hWc h))
+      simp [localMem, this]) hub
+  refine ⟨fun tr c hr => ⟨hnoub tr c hr, no_interRace hdisj (hinv tr c hr), (hinv tr c hr).clean⟩, ?_⟩
   intro o ho
   cases o with
   | ok fin =>
     obtain ⟨tr, c, hr, hdone, hmem⟩ := ho
     have hI := hinv tr c hr
     refine ⟨fin, rfl, fun i => ?_, fun x hx => hmem ▸ hI.frame x hx⟩
-    have hs := hI.safe i
+    obtain ⟨Wc, -, -, hs⟩ := hI.safe i
     rw [hdone i] at hs
     cases hs with
     | ret hq => exact ⟨_, hq, fun x hx => by simp [localMem, hx, hmem]⟩
@@ -227,7 +295,7 @@ theorem independent {k : Kernel} {L : Launch} {E : Env} {init : Mem}
     have hstepS : ∀ n, Safe.Next E (S (ev n).1 (n + 1)) (S (ev n).1 n) ∧
         ∀ i, i ≠ (ev n).1 → S i (n + 1) = S i n := by
       intro n
-      obtain ⟨-, hnext, hothers⟩ := inv_step (j := (ev n).1) (e := (ev n).2) hdisj
+      obtain ⟨-, hnext, hothers⟩ := inv_step (j := (ev n).1) (e := (ev n).2) hdisj hRW
         (hinv _ _ (hreach n)) (by simpa using hev n)
       refine ⟨hnext, fun i hij => ?_⟩
       obtain ⟨h1, h2⟩ := hothers i hij
@@ -235,8 +303,8 @@ theorem independent {k : Kernel} {L : Launch} {E : Env} {init : Mem}
     have hT : ∀ i, ∃ T, ∀ m, T ≤ m → ¬ Safe.Next E (S i (m + 1)) (S i m) := by
       intro i
       have hacc : Acc (Safe.Next E) (S i 0) := by
-        have := ((hinv _ _ (hreach 0)).safe i).acc
-        simpa [S] using this
+        obtain ⟨Wc, -, -, hs⟩ := (hinv _ _ (hreach 0)).safe i
+        simpa [S] using hs.acc
       have hmono : ∀ n, S i (n + 1) = S i n ∨ Safe.Next E (S i (n + 1)) (S i n) := by
         intro n
         by_cases hij : i = (ev n).1

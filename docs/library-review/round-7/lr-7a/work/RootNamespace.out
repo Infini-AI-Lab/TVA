@@ -1,0 +1,9 @@
+../docs/library-review/round-7/lr-7a/work/RootNamespace.lean:6:10: warning: Variable name `n` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _n
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ns ++ Assumptions = _root_.Assumptions; found: false
+../docs/library-review/round-7/lr-7a/work/RootNamespace.lean:9:0: error: Assumptions is not a structure
+exit 1

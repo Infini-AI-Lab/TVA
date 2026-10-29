@@ -1,0 +1,5 @@
+num-atomic-add: re-run output identical to evidence/num-atomic-add/out.txt
+num-cvt8: re-run output identical to evidence/num-cvt8/out.txt
+num-dot-scaled: re-run output identical to evidence/num-dot-scaled/out.txt
+num-math-f32: re-run output identical to evidence/num-math-f32/out.txt
+num-dot: re-run output identical to evidence/num-dot/out.txt

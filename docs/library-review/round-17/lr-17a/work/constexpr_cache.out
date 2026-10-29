@@ -1,0 +1,13 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+X0: MODE = '1' alone, fresh cache (expected 10)
+  stored [[10]]
+X1: process 1: MODE = 1; process 2: MODE = '1' (expected 20, then 10)
+  stored [[20], [20]]
+X2: one process: MODE = 1, then MODE = '1' (expected 20, then 10)
+  stored [[20, 20]]
+X3: process 1: MODE = '1'; process 2: MODE = 1 (expected 10, then 20)
+  stored [[10], [10]]
+X4: process 1: MODE = None; process 2: MODE = 'None' (expected 20, then 10)
+  stored [[20], [20]]
+X5: process 1: MODE = 2.5; process 2: MODE = '2.5' (expected 20, then 10)
+  stored [[20], [20]]

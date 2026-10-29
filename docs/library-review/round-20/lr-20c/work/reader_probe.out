@@ -1,0 +1,15 @@
+## R1: a private field holding the specification
+- the kernel compiles
+- the shape step: PASS
+- the reader's fields: ['spec']; field_types: {}
+- field_uses (K, P): []
+- kinds: ['spec: not tagged [rule] or [kernel]']
+- usage: unused: spec; axioms of main: []
+
+## R2: a [kernel] field that is an earlier field
+- the kernel does not compile: ["failed to generate projection `Kernels.Demo.Assumptions.Q` for the 'Prop'-valued type `Assumptions`, field must be a proof, but it has type"]
+
+## R3: the word PANIC in a field's docstring
+- the kernel compiles
+- the shape step: FAIL: the claim reader panicked (library issue L106): TVR_JSON {"axioms":{"consistent":[],"main":["sorryAx"],"satisfiable":[]},"binders":[["Kernels.Demo.Post","fin"],
+

@@ -1,0 +1,15 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, 2026-10-28
+
+## K: the order of a call's arguments (atomics in the TTIR, in emission order)
+K1 tl.store(out, <atomic_add>, mask=<atomic_xor> >= 0): ['xor', 'add']
+K2 tl.store(out + <atomic_max>, v, mask=<atomic_and> >= 0, cache_modifier=...); tl.atomic_add(c, <atomic_or>, mask=<atomic_xchg> >= 0): ['and', 'max', 'exch', 'or', 'add']
+
+## C: x if flag > 0 else y, flag a runtime int32, 4 programs; each side adds to one counter
+C flag=5: counter 4 (only the taken side: 4; both sides: 404); runtime branch in TTIR: True
+C flag=-5: counter 400 (only the taken side: 400; both sides: 404); runtime branch in TTIR: True
+
+## M: launch_metadata=
+M1 without a launch hook: metadata function ran 0 times
+M2 PTX with and without launch_metadata identical: True; results identical: True
+M3 with a launch-enter hook that reads the metadata: metadata function ran 1 times; the hook saw name='probe', flops=2000
+M4 hook removed again: metadata function ran 1 times in all

@@ -1,0 +1,6 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+PTX division instructions: ['div.full.f32']
+pairs 1073741824, covered by DivFull (finite, y != 0, |x/y| <= 2^126) 997554956
+covered pairs with a non-finite result: 0
+covered pairs outside 2^-22*|x/y| + 2^-148: 0 (per kind [0, 0, 0, 0, 0, 0]); re-checked exactly near the bound: 0
+largest error: 2.0851 ulp of the quotient at x=-541195709186048.0, y=6.392674368269146e-24, result -8.465872190901566e+37, x/y=-8.465873248172031e+37

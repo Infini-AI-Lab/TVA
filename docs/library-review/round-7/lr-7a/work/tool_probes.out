@@ -1,0 +1,36 @@
+# S1 (L42): gate_staleness on a passing round-7 gate
+just after the gate: not stale
+the source file and the write-up changed after the gate: not stale
+then the kernel's Lean file changed: ['a kernel file changed after it ran']
+the same Lean change with its old mtime put back: not stale
+
+# O1 (L40): leanOptions in lean/lakefile.toml
+'autoImplicit = false': accepted
+'debug.skipKernelTC = true': refused
+'"debug.skipKernelTC" = true': refused
+'[leanOptions.debug] / skipKernelTC = true': refused
+'maxHeartbeats = 0': accepted
+'pp.all = true': accepted
+'linter.all = "on"': refused
+'maxRecDepth = 1.5': refused
+'backward.synthInstance.canonInstances = false': refused
+
+# P1 (L43): rule pages for modules of lean/TVA/Rules
+modules: ['TVA.Rules.Compiler', 'TVA.Rules.Num', 'TVA.Rules.Num.Deep.Log2', 'TVA.Rules.Num.Exp2']
+  rule_page(TVA.Rules.Compiler) = docs/rules/compiler-faithful.md
+  rule_page(TVA.Rules.Num) = docs/rules/num.md
+  rule_page(TVA.Rules.Num.Deep.Log2) = docs/rules/num.md
+  rule_page(TVA.Rules.Num.Exp2) = docs/rules/num.md
+  rule_page(TVA.Rules) = None
+  rule_page(TVA.Lemmas.Num) = None
+fact_page_problems: none
+with Rules/Extra/Y.lean and an unclaimed docs/rules/extra.md: ['tools/tvr.py: RULE_PAGES gives no page for the module TVA.Rules.Extra.Y or any module above it', 'tools/tvr.py: the page docs/rules/extra.md is the rule page of no module in RULE_PAGES']
+
+# F1 (L41): shipped_problems
+docs/.lake/note.md: ['docs/.lake/note.md: shipped inside a folder the text scan skips (.lake)']
+kernels/k/lean/.lake/x.md: ['kernels/k/lean/.lake/x.md: shipped inside a folder the text scan skips (.lake)']
+a/__pycache__/m.cpython-312.pyc: ['a/__pycache__/m.cpython-312.pyc: shipped inside a folder the text scan skips (__pycache__)']
+x/.venv/y: ['x/.venv/y: shipped inside a folder the text scan skips (.venv)']
+sub/repo/: ['sub/repo/: a nested git repository inside TVA (git ships none of its files)']
+docs/lake/note.md: shipped, scanned
+docs/.lakefile: shipped, scanned

@@ -1,0 +1,47 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+M = N = 128, blocks 32 x 32 float32
+
+D1: two descriptors in the kernel, no allocator set
+  raised: RuntimeError: Kernel requires a runtime memory allocation, but no allocator was set. Use triton.set_allocator to specify an allocator.
+  output bytes changed: 0
+
+D2: recording allocator; kernels with 1, 2, 3 descriptors; several grids
+  {"kernel": "one", "grid": [1, 1], "requests": 1, "size": [128], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 128, "global_scratch_align": 128, "programs x scratch_size": 128, "result correct": true}
+  {"kernel": "one", "grid": [4, 4], "requests": 1, "size": [2048], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 128, "global_scratch_align": 128, "programs x scratch_size": 2048, "result correct": true}
+  {"kernel": "one", "grid": [2, 3], "requests": 1, "size": [768], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 128, "global_scratch_align": 128, "programs x scratch_size": 768, "result correct": true}
+  {"kernel": "one", "grid": [4, 4], "requests": 1, "size": [2048], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 128, "global_scratch_align": 128, "programs x scratch_size": 2048, "result correct": true}
+  {"kernel": "two", "grid": [1, 1], "requests": 1, "size": [256], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 256, "global_scratch_align": 128, "programs x scratch_size": 256, "result correct": true}
+  {"kernel": "two", "grid": [4, 4], "requests": 1, "size": [4096], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 256, "global_scratch_align": 128, "programs x scratch_size": 4096, "result correct": true}
+  {"kernel": "two", "grid": [2, 3], "requests": 1, "size": [1536], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 256, "global_scratch_align": 128, "programs x scratch_size": 1536, "result correct": true}
+  {"kernel": "two", "grid": [4, 4], "requests": 1, "size": [4096], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 256, "global_scratch_align": 128, "programs x scratch_size": 4096, "result correct": true}
+  {"kernel": "three", "grid": [1, 1], "requests": 1, "size": [384], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 384, "global_scratch_align": 128, "programs x scratch_size": 384, "result correct": true}
+  {"kernel": "three", "grid": [4, 4], "requests": 1, "size": [6144], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 384, "global_scratch_align": 128, "programs x scratch_size": 6144, "result correct": true}
+  {"kernel": "three", "grid": [2, 3], "requests": 1, "size": [2304], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 384, "global_scratch_align": 128, "programs x scratch_size": 2304, "result correct": true}
+  {"kernel": "three", "grid": [4, 4], "requests": 1, "size": [6144], "alignment": [128], "stream is the launch's": true, "global_scratch_size": 384, "global_scratch_align": 128, "programs x scratch_size": 6144, "result correct": true}
+  {"kernel": "two, num_ctas=2", "grid": [4, 4], "requests": 1, "size": [8192], "global_scratch_size": 256, "programs x num_ctas x scratch_size": 8192, "result correct": true}
+  {"side stream": 195988608, "allocator saw": [195988608]}
+  requests during warmup: 0
+
+D3-one: bytes written, one descriptor
+  0xa5: {'scratch bytes': 2048, 'per program': 128, 'changed per program (min, max)': [128, 128], 'changed bytes by offset within a program (first, last)': [0, 127], 'guard around scratch unchanged': True, 'input x (with guards) unchanged': True, 'output y correct': True, 'guards around y unchanged': True, 'z (with guards) unchanged': True}
+  0x5a: {'scratch bytes': 2048, 'per program': 128, 'changed per program (min, max)': [128, 128], 'changed bytes by offset within a program (first, last)': [0, 127], 'guard around scratch unchanged': True, 'input x (with guards) unchanged': True, 'output y correct': True, 'guards around y unchanged': True, 'z (with guards) unchanged': True}
+  bytes written within a program's scratch (union of both sentinels): 128
+
+D3-two: bytes written, two descriptors
+  0xa5: {'scratch bytes': 4096, 'per program': 256, 'changed per program (min, max)': [256, 256], 'changed bytes by offset within a program (first, last)': [0, 255], 'guard around scratch unchanged': True, 'input x (with guards) unchanged': True, 'output y correct': True, 'guards around y unchanged': True, 'z (with guards) unchanged': True}
+  0x5a: {'scratch bytes': 4096, 'per program': 256, 'changed per program (min, max)': [256, 256], 'changed bytes by offset within a program (first, last)': [0, 255], 'guard around scratch unchanged': True, 'input x (with guards) unchanged': True, 'output y correct': True, 'guards around y unchanged': True, 'z (with guards) unchanged': True}
+  bytes written within a program's scratch (union of both sentinels): 256
+
+D3-three: bytes written, three descriptors
+  0xa5: {'scratch bytes': 6144, 'per program': 384, 'changed per program (min, max)': [384, 384], 'changed bytes by offset within a program (first, last)': [0, 383], 'guard around scratch unchanged': True, 'input x (with guards) unchanged': True, 'output y correct': True, 'guards around y unchanged': True, 'z correct': True}
+  0x5a: {'scratch bytes': 6144, 'per program': 384, 'changed per program (min, max)': [384, 384], 'changed bytes by offset within a program (first, last)': [0, 383], 'guard around scratch unchanged': True, 'input x (with guards) unchanged': True, 'output y correct': True, 'guards around y unchanged': True, 'z correct': True}
+  bytes written within a program's scratch (union of both sentinels): 384
+
+D4: allocator returns the first bytes of the input x
+  x elements overwritten: 1024
+  y elements wrong: 1023
+  first overwritten x indices: [0, 1, 2, 3]
+
+D5: descriptors built on the host, no allocator
+  global_scratch_size: 0
+  result correct: True

@@ -1,0 +1,10 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+D1: loads ['ld.global.v2.b32']; launch: AcceleratorError: CUDA error: misaligned address
+D2: loads ['ld.global.v2.b32']; launch: AcceleratorError: CUDA error: misaligned address
+D3: loads ['ld.global.b8']; values correct
+D4: loads ['ld.global.b8']; values correct
+D5: rejected on the host: CompileTimeAssertionFailure: visited
+D6: loads ['ld.global.b8']; values correct
+D7: loads ['ld.global.v2.b32']; values WRONG in 137 of 256
+D8: loads ['ld.global.b8']; values correct
+D9: loads ['ld.global.v2.b32']; values WRONG in 137 of 256

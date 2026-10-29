@@ -1,0 +1,34 @@
+tvr: tools/tvr.py sha256 c6ce200dc5302615, tools/claim_reader.lean.in sha256 e1e0bec2575fb232; Python 3.13.9
+
+# Part S (L106): the claim reader refuses an `Assumptions` that is not a structure, and the gate's shape step a reader that panicked
+
+## a structure with a `[kernel]` field that is the specification itself (control)
+
+- the kernel: compiles
+- the tree's reader: exit 0, 1 result line(s), no PANIC line
+-   the gate's shape step (`tvr.reader_result`): PASS
+-   the round's-start shape step (exit 0, one result line): PASS, the claim's fields: ['spec']
+- the round's-start reader: exit 0, 1 result line(s), no PANIC line
+-   the gate's shape step (`tvr.reader_result`): PASS
+-   the round's-start shape step (exit 0, one result line): PASS, the claim's fields: ['spec']
+
+## lr-18a's: an `inductive` with one constructor whose argument is the specification
+
+- the kernel: compiles
+- the tree's reader: exit 1, 0 result line(s), no PANIC line; error: TVR: Assumptions must be a structure (library issue L106)
+-   the gate's shape step (`tvr.reader_result`): FAIL: the claim does not have the protocol's shape: <scratch>/lean/readerInduct.lean:248:0: error: TVR: Assumptions must be a structure
+-   the round's-start shape step (exit 0, one result line): FAIL
+- the round's-start reader: exit 0, 1 result line(s), a PANIC line: PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected
+-   the gate's shape step (`tvr.reader_result`): FAIL: the claim reader panicked (library issue L106): PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected
+-   the round's-start shape step (exit 0, one result line): PASS, the claim's fields: []
+
+## a `def` whose body is the specification
+
+- the kernel: compiles
+- the tree's reader: exit 1, 0 result line(s), no PANIC line; error: TVR: Assumptions must be a structure (library issue L106)
+-   the gate's shape step (`tvr.reader_result`): FAIL: the claim does not have the protocol's shape: <scratch>/lean/readerDef.lean:248:0: error: TVR: Assumptions must be a structure (l
+-   the round's-start shape step (exit 0, one result line): FAIL
+- the round's-start reader: exit 1, 0 result line(s), a PANIC line: PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected; error: Assumptions is not a structure
+-   the gate's shape step (`tvr.reader_result`): FAIL: the claim reader panicked (library issue L106): PANIC at Lean.getStructureInfo Lean.Structure:139:4: structure expected
+-   the round's-start shape step (exit 0, one result line): FAIL
+

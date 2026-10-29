@@ -1,0 +1,130 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+P1: int / int: both operands converted to float32 first, then float32 division.
+  int32 / int32 -> float32: x/1 for x in [16777217, 16777219, 2147483647, -2147483648, 7, -7]: device [16777216.0, 16777220.0, 2147483648.0, -2147483648.0, 7.0, -7.0]; the float32 nearest x: equal
+  int64 / int64 -> float32: x/1 for x in [9007199254740993, 16777217, 4611687117939015681, -9223372036854775808, 7]: device [9007199254740992.0, 16777216.0, 4.611687117939016e+18, -9.223372036854776e+18, 7.0]; the float32 nearest x: equal
+  uint32 / uint32 -> float32: x/1 for x in [4294967295, 16777217, 7]: device [4294967296.0, 16777216.0, 7.0]; the float32 nearest x: equal
+  int8 / int8 -> float32: x/1 for x in [127, -128, 7]: device [127.0, -128.0, 7.0]; the float32 nearest x: equal
+  int32: 7/2, -7/2, 1/3, 0/0 -> [3.5, -3.5, 0.3333333432674408, nan]
+
+P2: `//` and `%` on integers: C's truncation, signed or unsigned by the promoted type.
+  int8 (all pairs): 65279 pairs with b != 0 (and not MIN // -1): `//` differs from C's truncation in 0, `%` in 0
+    b = 0 (256 x): x // 0 takes the values [-1]; x % 0 = x for 1; examples (x, x // 0, x % 0) [(-128, -1, -1), (-77, -1, -1), (-26, -1, -1), (25, -1, -1), (76, -1, -1), (127, -1, -1)]
+    MIN // -1 = -128, MIN % -1 = 0 (MIN = -128)
+  uint8 (all pairs): 65280 pairs with b != 0: `//` differs from C's truncation in 0, `%` in 0
+    b = 0 (256 x): x // 0 takes the values [255]; x % 0 = x for 1; examples (x, x // 0, x % 0) [(0, 255, 255), (51, 255, 255), (102, 255, 255), (153, 255, 255), (204, 255, 255), (255, 255, 255)]
+  int16 (edge pairs): 3191 pairs with b != 0 (and not MIN // -1): `//` differs from C's truncation in 0, `%` in 0
+    b = 0 (57 x): x // 0 takes the values [-1]; x % 0 = x for 1; examples (x, x // 0, x % 0) [(-32768, -1, -1), (-15881, -1, -1), (-6560, -1, -1), (2, -1, -1), (11501, -1, -1), (32766, -1, -1)]
+    MIN // -1 = -32768, MIN % -1 = 0 (MIN = -32768)
+  int32 (edge pairs): 3191 pairs with b != 0 (and not MIN // -1): `//` differs from C's truncation in 0, `%` in 0
+    b = 0 (57 x): x // 0 takes the values [-1]; x % 0 = x for 1; examples (x, x // 0, x % 0) [(-2147483648, -1, -1), (-1198134126, -1, -1), (-547837348, -1, -1), (0, -1, -1), (792611645, -1, -1), (2147483646, -1, -1)]
+    MIN // -1 = -2147483648, MIN % -1 = 0 (MIN = -2147483648)
+  int64 (edge pairs): 3191 pairs with b != 0 (and not MIN // -1): `//` differs from C's truncation in 0, `%` in 0
+    b = 0 (57 x): x // 0 takes the values [-1, 4294967295]; x % 0 = x for 1; examples (x, x // 0, x % 0) [(-9223372036854775808, -1, -1), (-4905838966868889277, -1, -1), (-1389886215053094794, -1, -1), (0, 4294967295, 4294967295), (3145341918264132135, -1, -1), (9223372036854775806, -1, -1)]
+    MIN // -1 = -9223372036854775808, MIN % -1 = 0 (MIN = -9223372036854775808)
+  uint32 (edge pairs): 2352 pairs with b != 0: `//` differs from C's truncation in 0, `%` in 0
+    b = 0 (49 x): x // 0 takes the values [4294967295]; x % 0 = x for 1; examples (x, x // 0, x % 0) [(0, 4294967295, 4294967295), (207717502, 4294967295, 4294967295), (1258953551, 4294967295, 4294967295), (2181067122, 4294967295, 4294967295), (2921023507, 4294967295, 4294967295), (4094797355, 4294967295, 4294967295)]
+  uint64 (edge pairs): 2352 pairs with b != 0: `//` differs from C's truncation in 0, `%` in 0
+    b = 0 (49 x): x // 0 takes the values [4294967295, 18446744073709551615]; x % 0 = x for 1; examples (x, x // 0, x % 0) [(0, 4294967295, 4294967295), (2034199838040225252, 18446744073709551615, 18446744073709551615), (6148914691236517205, 18446744073709551615, 18446744073709551615), (9173035291755160034, 18446744073709551615, 18446744073709551615), (12187583207184964316, 18446744073709551615, 18446744073709551615), (17733094492223577996, 18446744073709551615, 18446744073709551615)]
+
+P3: Integer promotion: widths, signedness, int1.
+  int32 + int64 -> int64: [-5, -1, 7] + [2^40, 0, -2^40] = [1099511627771, -1, -1099511627769] (sign extension: [2^40-5, -1, 7-2^40])
+  uint32 + int32 -> uint32: [2^32-1, 2^31, 5] + [1, -1, -6] = [0, 2147483647, 4294967295]
+  uint32 < int32 (compared as uint32): [2^32-1, 2^31, 5] < [1, -1, -6] = [False, True, True]
+  int8 + uint8 -> uint8: all 65536 pairs, (a + b) mod 256 differs in 0
+  int8 < uint8 (as uint8): all 65536 pairs, (a mod 256 < b) differs in 0
+  int1 + int1 -> int1: [F,F,T,T] + [F,T,F,T] = [False, True, True, False]
+  int1 * int1 -> int1: [False, False, False, True]
+  int1 + int8 -> int8 (int1 zero-extended): [T,F,T] + [-1,-1,127] = [0, -1, -128]
+
+P4: Mixed float dtypes: exact conversion to the promoted type, then one IEEE operation in it.
+  fp16 + bf16 -> fp16 (not fp32): all 65536 fp16 x 68 bf16 (random and special): differs from fp16(x + fp16(y)) in 0
+  fp16 0.0 + bf16 [1e38, 3e-39, 1+2^-7] -> fp16: [inf, 0.0, 1.0078125]
+  fp16 0.0 / bf16 [1e38, 3e-39, 1+2^-7] -> fp32 (`/` widens): [1.0030883968610123e-38, 3.2997076959603235e+38, 0.9922480583190918]
+  fp16 * fp32 -> fp32: all fp16 x 9 fp32 values: differs from float32(x) * y in 0
+  int32 + fp32 -> fp32: [2^24+1, 2^24+3, -(2^24+1), 2^31-1, 3] + 0.0 = [16777216.0, 16777220.0, -16777216.0, 2147483648.0, 3.0]
+  int32 + fp16 -> fp16: [65504, 65519, 65520, 2049, 2051, -65520] + 0.0 = [65504.0, 65504.0, inf, 2048.0, 2052.0, -inf]
+  fp8e5 + fp16 -> fp16: 256 fp8e5 x 260 fp16: differs from fp16(float32(x) + float32(y)) in 0
+  fp8e4nv + fp16 -> fp16: 256 fp8e4nv x 260 fp16: differs from fp16(float32(x) + float32(y)) in 0
+  fp8e5 + fp8e4nv -> fp16: all 65536 pairs: differs from fp16(float32(x) + float32(y)) in 0
+  fp8e5 + fp8e5 -> fp8e5: RuntimeError: PassManager::run failed
+  fp8e4nv + fp8e4nv -> fp8e4nv: RuntimeError: PassManager::run failed
+
+P5: tl.where with a condition that is not int1.
+  int8 condition, all 256 values: differs from c != 0 in 0
+  int32 condition [0, 1, -1, 2, 256, 2147483647, -2147483648, 65536]: [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  float32 condition [0.0, -0.0, 1.0, nan, 1e-45, -1e-45, inf, 0.5]: [0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  tl.where(c, fp16, fp32) -> fp32: [1.0, 1.0]
+
+P6: and / or / not.
+  int32 and int32: rejected: CompilationError: ValueError('Cannot bitcast data-type of size 32 to data-type of size 1')
+  int32 or int32: rejected: CompilationError: ValueError('Cannot bitcast data-type of size 32 to data-type of size 1')
+  int1 and int1: [F,F,T,T] and [F,T,F,T] = [False, False, False, True]
+  int1 or int1: [False, True, True, True]
+  not int1: not [F,F,T,T] = [True, True, False, False]
+  not int32: rejected: CompilationError: ValueError('Cannot bitcast data-type of size 32 to data-type of size 1')
+  int32 and True (the constant is dropped; the result is x): [0, 1, 2, -1] -> [0, 1, 2, -1]
+
+P7: min / max: builtin on scalars, integer signedness, NaN and signed zeros.
+  builtin min(3, -5) on int32 arguments = -5; tl.minimum = -5
+  builtin min(-2147483648, 2147483647) on int32 arguments = -2147483648; tl.minimum = -2147483648
+  builtin min(7, 7) on int32 arguments = 7; tl.minimum = 7
+  builtin max(3, -5) = 3
+  tl.minimum on uint32: [2^32-1, 0, 5], [1, 2^31, 5] -> [1, 0, 5]
+  tl.minimum on int32: [-1, -2^31, 5], [1, 2^31-1, 5] -> [-1, -2147483648, 5]
+  tl.minimum(uint32, int32) -> uint32: [2^32-1, 7], [1, -1] -> [1, 7]
+  tl.minimum(uint8 x, -1) -> int32 (the constant keeps its own type): x = 0..255 -> [-1]
+  tl.minimum fp32: (nan,1) (1,nan) (nan,nan) (-0,+0) (+0,-0) (-0,-0) (+0,+0) -> ['+1.0', '+1.0', '+nan', '-0.0', '-0.0', '-0.0', '+0.0']
+  tl.maximum fp32: (nan,1) (1,nan) (nan,nan) (-0,+0) (+0,-0) (-0,-0) (+0,+0) -> ['+1.0', '+1.0', '+nan', '+0.0', '+0.0', '-0.0', '+0.0']
+  tl.minimum(propagate_nan=ALL) fp32: (nan,1) (1,nan) (nan,nan) (-0,+0) (+0,-0) (-0,-0) (+0,+0) -> ['+nan', '+nan', '+nan', '-0.0', '-0.0', '-0.0', '+0.0']
+  tl.minimum(bf16, bf16) -> fp32: [1.0, 1.0, nan, -0.0, -0.0, -0.0, 0.0]
+
+P8: Comparisons with a Python int constant: the constant keeps its own type (to_tensor first).
+  uint8 x < -1 (as int32), x = 0..255: values [False]
+  uint8 x + (-1): rejected: CompilationError: ValueError('Cannot perform a binary operation between an unsigned tensor and a negative scalar. Perform a explicit cast on one of them.')
+  int8 x < 200 (as int32), x = -128..127: values [True]
+  uint32 x == -1 (as uint32: -1 is 2^32-1): x = [2^32-1, 0, 2^31] -> [True, False, False]
+  int32 x < 2**31 (the constant is uint32, so as uint32): x = [-1, 0, 2^31-1, -2^31] -> [False, True, True, False]
+  int32 x == 16777216.0 (as float32): x = [2^24+1, 2^24, 2^24+2] -> [True, True, False]
+  fp16 x < 0.1 (as float32): x = [fp16 0.0999755859375, 0.10009765625] -> [True, False]
+
+P9: Shifts by the width or more, and by a negative amount (a tensor amount).
+  int8: amounts 0..7: differs from (x << s mod 2^8) and (x >> s, arithmetic) in 0 of 32
+    shift amount -1: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-128, 0, -1)]
+    shift amount 8: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-128, 0, -1)]
+    shift amount 9: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-128, 0, -1)]
+    shift amount 10: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-128, 0, -1)]
+    shift amount 16: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-128, 0, -1)]
+    shift amount 127: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-128, 0, -1)]
+  uint8: amounts 0..7: differs from (x << s mod 2^8) and (x >> s, logical) in 0 of 32
+    shift amount 8: (x, x << s, x >> s) = [(1, 0, 0), (255, 0, 0), (5, 0, 0), (128, 0, 0)]
+    shift amount 9: (x, x << s, x >> s) = [(1, 0, 0), (255, 0, 0), (5, 0, 0), (128, 0, 0)]
+    shift amount 10: (x, x << s, x >> s) = [(1, 0, 0), (255, 0, 0), (5, 0, 0), (128, 0, 0)]
+    shift amount 16: (x, x << s, x >> s) = [(1, 0, 0), (255, 0, 0), (5, 0, 0), (128, 0, 0)]
+    shift amount 255: (x, x << s, x >> s) = [(1, 0, 0), (255, 0, 0), (5, 0, 0), (128, 0, 0)]
+  int32: amounts 0..31: differs from (x << s mod 2^32) and (x >> s, arithmetic) in 0 of 128
+    shift amount -1: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-2147483648, 0, -1)]
+    shift amount 32: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-2147483648, 0, -1)]
+    shift amount 33: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-2147483648, 0, -1)]
+    shift amount 34: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-2147483648, 0, -1)]
+    shift amount 64: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-2147483648, 0, -1)]
+    shift amount 2147483647: (x, x << s, x >> s) = [(1, 0, 0), (-1, 0, -1), (5, 0, 0), (-2147483648, 0, -1)]
+  uint32: amounts 0..31: differs from (x << s mod 2^32) and (x >> s, logical) in 0 of 128
+    shift amount 32: (x, x << s, x >> s) = [(1, 0, 0), (4294967295, 0, 0), (5, 0, 0), (2147483648, 0, 0)]
+    shift amount 33: (x, x << s, x >> s) = [(1, 0, 0), (4294967295, 0, 0), (5, 0, 0), (2147483648, 0, 0)]
+    shift amount 34: (x, x << s, x >> s) = [(1, 0, 0), (4294967295, 0, 0), (5, 0, 0), (2147483648, 0, 0)]
+    shift amount 64: (x, x << s, x >> s) = [(1, 0, 0), (4294967295, 0, 0), (5, 0, 0), (2147483648, 0, 0)]
+    shift amount 4294967295: (x, x << s, x >> s) = [(1, 0, 0), (4294967295, 0, 0), (5, 0, 0), (2147483648, 0, 0)]
+  int8 x >> uint8 y -> uint8 (x converted to uint8; the shift is arithmetic because x's own dtype is signed): [-1, -128, 64] >> 1 = [255, 192, 32] (logical would be [127, 64, 32])
+  int32 x << 32 (a constant amount; the front end warns): x = [1, 5] -> [16776640, 16776640]
+
+P10: Unary minus on unsigned and on the minimum; `~` on int1.
+  -x on uint8, all 256: differs from (-x) mod 256 in 0
+  -x on int32 [-2^31, 5, 0] = [-2147483648, -5, 0]
+  -x on int8 [-128, 127] = [-128, -127]
+  ~x on int1 [F, T] = [True, False]
+  -x on int1 [F, T] = [False, True]
+  -x on fp32 [+0, -0, nan, 1] = ['-0.0', '+0.0', '-nan', '-1.0'] (sign flipped: fneg)
+
+P11: A Python float constant with an integer tensor: the float type wins (float32 here).
+  int32 x * 0.1 -> fp32: x = [16777217, 16777219, 3, -7, 2147483647, -2147483648, 10]: device [1677721.625, 1677722.0, 0.30000001192092896, -0.699999988079071, 214748368.0, -214748368.0, 1.0]; float32(x) * float32(0.1) rounded: equal

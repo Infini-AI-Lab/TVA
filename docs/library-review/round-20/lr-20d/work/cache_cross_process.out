@@ -1,0 +1,7 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, python 3.13.9
+X1 tl.exp = tl.log in A; tl.exp(2.0): A (outside the scope) -> 0.6931471824645996; B (defaults, shared cache) -> 0.6931471824645996; C (defaults, fresh cache) -> 7.389056205749512: B ran A's code
+X2 fp32_default = 'ieee' from Python, propagate_env False, in A; tl.dot(1 + 2^-12, I)[0, 0]: A (outside the scope) -> 0x1.0010000000000p+0; B (defaults, shared cache) -> 0x1.0010000000000p+0; C (defaults, fresh cache) -> 0x1.0000000000000p+0: B ran A's code
+X3 setup: dump run -> 6.0; .ttir files edited: 1
+X3 TRITON_KERNEL_OVERRIDE=1 in A (the .ttir adds 2.0); 5.0 + 1.0: A (outside the scope) -> 7.0; B (defaults, shared cache) -> 7.0; C (defaults, fresh cache) -> 6.0: B ran A's code
+X4 (control) TRITON_F32_DEFAULT=ieee in A's environment; tl.dot(1 + 2^-12, I)[0, 0]: A (outside the scope) -> 0x1.0010000000000p+0; B (defaults, shared cache) -> 0x1.0000000000000p+0; C (defaults, fresh cache) -> 0x1.0000000000000p+0: B ran its own code
+cases where B, inside every scope, ran code A compiled outside it: 3 of 4

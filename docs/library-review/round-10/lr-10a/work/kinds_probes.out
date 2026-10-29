@@ -1,0 +1,15 @@
+- V0: [rule] div : TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) (2 ^ (-22)) (2 ^ (-148))
+  constants the statement mentions (in scope): ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32']
+  axioms PASS; usage PASS; namespace PASS; kinds PASS
+- V1: [rule] div : TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) Kernels.Demo.tol (2 ^ (-148))
+  constants the statement mentions (in scope): ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32', 'Kernels.Demo.tol']
+  axioms PASS; usage PASS; namespace PASS; kinds FAIL div: a [rule] must cite a TVA.Rules fact with no constant of the kernel's own (tol)
+- V2: [rule] div : TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) Kernels.Demo.tol✝ (2 ^ (-148))
+  constants the statement mentions (in scope): ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32', '_private.KindsV2.0.Kernels.Demo.tol']
+  axioms PASS; usage PASS; namespace PASS; kinds PASS
+- V3: [rule] div : TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) Kernels._tol (2 ^ (-148))
+  constants the statement mentions (in scope): ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32', 'Kernels._tol']
+  axioms PASS; usage PASS; namespace PASS; kinds PASS
+- V4: [rule] div : TVA.Rules.Num.DivAcc P TVA.Math.Float.Format.binary32 (2 ^ 126) _tol (2 ^ (-148))
+  constants the statement mentions (in scope): ['TVA.Rules.Num.DivAcc', 'TVA.Math.Float.Format.binary32', '_tol']
+  axioms PASS; usage PASS; namespace PASS; kinds PASS

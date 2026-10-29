@@ -1,0 +1,4 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, python 3.13.9
+control (knob at its default throughout): ['0x1.0000000000000p+0']
+Z1 propagate_env True: launch with the knob 'ieee' -> 0x1.0010000000000p+0; knob now None, variable set: False; then a launch at the default -> 0x1.0010000000000p+0 (the ieee code: DIFFERS from the control)
+Z2 propagate_env False: launch with the knob 'ieee' -> 0x1.0010000000000p+0; knob now None, variable set: False; then a launch at the default -> 0x1.0010000000000p+0 (the ieee code: DIFFERS from the control)

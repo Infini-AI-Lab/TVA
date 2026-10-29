@@ -1,0 +1,8 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+C1 if <atomic> is not None: counter 4 (4: the atomic ran in every program); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+C2 1 if <atomic> is None else 2: counter 4 (4: the atomic ran in every program); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+C3 elif <atomic> is not None (FLAG=False): counter 4 (4: the atomic ran in every program); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 1; scf.if in TTIR: 0
+C4 if FLAG and <atomic> is not None (FLAG=False): counter 0 (4: the atomic ran in every program); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+P1 if FLAG (FLAG=True): counter 0 (4: the atomic ran in every program); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+P2 if N > 4 (N=8): counter 0 (4: the atomic ran in every program); outputs [1, 1, 1, 1]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0
+P3 1 if FLAG else 2 (FLAG=False): counter 0 (4: the atomic ran in every program); outputs [2, 2, 2, 2]; tt.atomic_rmw in TTIR: 0; scf.if in TTIR: 0

@@ -1,0 +1,7 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+kernel: stores 2 if isinstance(C, float), else 1; then x * C, x = 2^24 + 1 (int32), stored into int32 (a float C computes in float32)
+one process, in this order: C=1: stored [1, 16777217], Python's meaning [1, 16777217]; C=1.0: stored [1, 16777217], Python's meaning [2, 16777216] DIFFERS
+one process, in this order: C=1.0: stored [2, 16777216], Python's meaning [2, 16777216]; C=1: stored [2, 16777216], Python's meaning [1, 16777217] DIFFERS
+one process, in this order: C=1.0: stored [2, 16777216], Python's meaning [2, 16777216]; C=True: stored [2, 16777216], Python's meaning [1, 16777217] DIFFERS
+one process, in this order: C=0: stored [1, 0], Python's meaning [1, 0]; C=0.0: stored [1, 0], Python's meaning [2, 0] DIFFERS; C=False: stored [1, 0], Python's meaning [1, 0]
+one process, in this order: C=-0.0: stored [2, 0], Python's meaning [2, 0]; C=0: stored [2, 0], Python's meaning [1, 0] DIFFERS

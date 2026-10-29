@@ -1,0 +1,456 @@
+## A: the kernel, updated in the copy (its map names no rules)
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+
+  library files in the map digest: docs/SEMANTICS.md, docs/exclusions.md, lean/TVA/Lang/Mem.lean, lean/TVA/Lang/Ops.lean, lean/TVA/Lang/Platform.lean, lean/TVA/Lang/Prog.lean, lean/TVA/Lang/Scalar.lean, lean/TVA/Lang/Tensor.lean, lean/TVA/Lemmas/Buf.lean, lean/TVA/Math/Float/Format.lean, lean/TVA/Sem/Launch.lean
+  library files in the model digest: docs/SEMANTICS.md, docs/exclusions.md, lean/TVA/Lang/Mem.lean, lean/TVA/Lang/Ops.lean, lean/TVA/Lang/Platform.lean, lean/TVA/Lang/Prog.lean, lean/TVA/Lang/Scalar.lean, lean/TVA/Lang/Tensor.lean, lean/TVA/Lemmas/Buf.lean, lean/TVA/Math/Float/Format.lean, lean/TVA/Sem/Launch.lean
+  library files in the spec digest: docs/SEMANTICS.md, docs/exclusions.md, lean/TVA/Claim.lean, lean/TVA/Lang/Mem.lean, lean/TVA/Lang/Ops.lean, lean/TVA/Lang/Scalar.lean, lean/TVA/Lemmas/Access.lean, lean/TVA/Lemmas/Buf.lean, lean/TVA/Math/Bytes.lean, lean/TVA/Math/Float/Format.lean
+  library files in the conditions digest: docs/SEMANTICS.md, docs/exclusions.md, lean/TVA/Lang/Mem.lean, lean/TVA/Lang/Scalar.lean, lean/TVA/Lemmas/Buf.lean, lean/TVA/Math/Bytes.lean
+  library files in the assumption:faithful digest: docs/SEMANTICS.md, docs/exclusions.md, docs/rules/compiler-faithful.md, lean/TVA/Claim.lean, lean/TVA/Lang/Mem.lean, lean/TVA/Lang/Ops.lean, lean/TVA/Lang/Platform.lean, lean/TVA/Lang/Prog.lean, lean/TVA/Lang/Scalar.lean, lean/TVA/Lang/Tensor.lean, lean/TVA/Lemmas/Buf.lean, lean/TVA/Math/Bytes.lean, lean/TVA/Math/Float/Format.lean, lean/TVA/Rules/Compiler.lean, lean/TVA/Sem/Launch.lean, lean/TVA/Sem/Step.lean
+
+## B: a pitfall of TRANSCRIPTION.md changes (guidance)
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## C: TRANSCRIPTION.md replaced by one line
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## D: a sentence of exclusions.md (a fact page) changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: CHANGED
+  item conditions: CHANGED
+  item assumption:faithful: CHANGED
+
+## J: a sentence of SEMANTICS.md (a fact page) changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: CHANGED
+  item conditions: CHANGED
+  item assumption:faithful: CHANGED
+
+## E: a map entry names `rules` that nothing defines (free labels, unchecked)
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## E2: a drop reason in free text
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## E3: an entry with neither model text nor a drop reason
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: FAIL: entry 0 (src [29]): an entry has model text or a drop reason, one of them
+  item map: CHANGED
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## E4: the entry of source line 52 removed
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: FAIL: uncovered source lines [52]
+  item map: CHANGED
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## E5: an entry without `src`
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: FAIL: entry 10: `src` is a non-empty list of line numbers and ranges "a-b"
+  item map: CHANGED
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## F: the kernel's Lean adds a theorem through run_cmd and addDeclCore (doCheck := false)
+gate ok: False
+  hygiene: FAIL: lean/VecAdd.lean:280: a kernel or compiler bypass (addDeclCore); lean/VecAdd.lean:280: a kernel or compiler bypass (doCheck); lean/VecAdd.lean:281: a kernel or compiler b
+  build: FAIL: not run (hygiene or independence failed)
+  replay: FAIL: not run (the build did not run or failed)
+  shape: FAIL: not checked (the build did not run or failed)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: CHANGED
+  item conditions: CHANGED
+  item assumption:faithful: CHANGED
+
+## G: the same, with the copy's tool not running the hygiene list
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: FAIL: leanchecker VecAdd rejects the compiled kernel: leanchecker found a problem in VecAdd | uncaught exception: while replaying declaration 'Kernels.VecAdd.extraFalse': | (ke
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## H: everything restored
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## K: the docstring of TVA.tl.add, which the model uses, changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: CHANGED
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## K2: the same docstring, whitespace only (the file is hashed whole)
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: CHANGED
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## K3: a comment at the end of lean/TVA/Lang/Ops.lean
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: CHANGED
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## K4: a comment at the end of lean/TVA/Lemmas/Softmax.lean, a module no item reaches
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## K5: a comment in the kernel's proof
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## Y: the module docstring of TVA.Claim changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: CHANGED
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## Z: the docstring of the field TVA.Launch.blocks changes (no term projects it)
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## AA: the rule page docs/rules/compiler-faithful.md changes
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## AB: the rule page docs/rules/num.md changes (the kernel cites no TVA.Rules.Num fact)
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## L: the kernel declares tl.add in its own namespace (it means tl.addc)
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.tl.add (a name with a component `tl`, the namespace of the library's operations)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## M: the kernel declares a local notation tl.add
+gate ok: False
+  hygiene: FAIL: lean/VecAdd.lean:273: a notation or alias that changes what a name means (notation); lean/VecAdd.lean:273: an instance outside the claim reader's view, or one erased (loc
+  build: FAIL: not run (hygiene or independence failed)
+  replay: FAIL: not run (the build did not run or failed)
+  shape: FAIL: not checked (the build did not run or failed)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: CHANGED
+  item model: CHANGED
+  item spec: CHANGED
+  item conditions: CHANGED
+  item assumption:faithful: CHANGED
+
+## N: the kernel declares an instance on a library type (+ on F32 is subtraction)
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.instHAddF32_vecAdd (an instance; a kernel declares none)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## O: the kernel declares lane_tile, a name of the library namespace Block that it opens
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.lane_tile (written `lane_tile`, it can be read as `TVA.Block.lane_tile`)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## Q: the kernel declares def Launch.mk (model text Launch.mk … would set debug := true)
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.Launch.mk (written `Launch.mk`, it can be read as `TVA.Launch.mk`)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## R: the kernel declares an instance on core types (/ on Nat, as in the grid formula)
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.instHDivNatK (an instance; a kernel declares none)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## S: the kernel declares tℓ.add (U+2113), a look-alike of tl.add
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.tℓ.add (a name with a character other than ASCII letters, digits, `_`, `'`, `!` and `?`, which can look like another name)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## T: a local binder tl : Ops before the model line let output ← tl.add x y
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.add_kernel (binds `tl`, so model text `tl.…` there is a field of the binder, not the library's `tl`)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: CHANGED
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: CHANGED
+
+## U: a binder tℓ (a look-alike of tl) with a default value
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.lookBinder (binds `tℓ`, so model text `tℓ.…` there is a field of the binder, not the library's `tl`)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## V: open TVA with Block on the next line, and theorem lane_tile
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.lane_tile (written `lane_tile`, it can be read as `TVA.Block.lane_tile`)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## W: the kernel declares min, which at the root is the alias of Min.min
+gate ok: False
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: FAIL: declares Kernels.VecAdd.min (written `min`, it can be read as `Min.min`, which `min` names at the root)
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## X: control: set_option pp.notation (a printing option) passes hygiene
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+
+## AD: everything restored
+gate ok: True
+  hygiene: pass: no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, or option beyond limits, printing and linters
+  build: pass: lake build VecAdd
+  replay: pass: leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+  namespace: pass: the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a libr
+  map: pass: 10 entries cover every code line of [[29, 54]]
+  item map: unchanged
+  item model: unchanged
+  item spec: unchanged
+  item conditions: unchanged
+  item assumption:faithful: unchanged
+

@@ -19,6 +19,14 @@ them the same way, so they add no semantics of their own:
   undefined behaviour unless that memory is valid;
 * `store(value, boundary_check)`: masked-off lanes are not written;
 * `advance(offsets)`: adds to the offsets (`int64`).
+
+A block pointer is an aggregate (`_block_ptr` is made with Triton's `_aggregate`, `core.py:1828`),
+but Triton's own: its methods are the fixed code above (`advance`, `load`, `store`, which
+`tl.advance`, `tl.load` and `tl.store` call), not `@triton.jit` functions of the kernel's, and it
+defines no operator. So the exclusion of aggregates (`docs/exclusions.md`) is about the classes a
+kernel or a library other than Triton's language defines, and block pointers are covered through
+these operations (library issue L30). An operator, comparison or subscript applied to a block
+pointer has no meaning in the library.
 -/
 namespace TVA
 

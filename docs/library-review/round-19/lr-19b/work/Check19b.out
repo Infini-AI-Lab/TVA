@@ -1,0 +1,9 @@
+'TVA.Math.Float.Format.toRat_of_isInf' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.maxVal_lt_inf' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.cvt_rz_sat' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.sqrtMag_rn_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.sqrt_rn_err' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.FloatV.sqrtRn_err' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.IntV.toInt_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.IntV.toInt_cast_unsigned' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0

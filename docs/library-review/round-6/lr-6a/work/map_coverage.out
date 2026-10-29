@@ -1,0 +1,35 @@
+the tool's loop (tools/tvr.py, check):
+      missing, in_doc = [], False
+      for a, b in ranges:
+          for i in range(a, b + 1):
+              t = src_lines[i - 1].strip() if i <= len(src_lines) else ""
+              q = t.count('"""')
+              if in_doc or q:
+                  if q % 2 == 1:
+                      in_doc = not in_doc
+                  continue
+              if t and not t.startswith("#") and i not in covered:
+                  missing.append(i)
+
+## K1: a call whose string argument is triple-quoted
+  1: @triton.jit                                                  required
+  2: def k(c, x_ptr):                                             required
+  3:     x = tl.load(x_ptr)                                       required
+  4:     tl.device_print("""x""", tl.atomic_add(c, 1))            not required, but Python reads code here
+  5:     tl.store(x_ptr, x)                                       required
+
+## K2: triple quotes in two comments
+  1: @triton.jit                                                  required
+  2: def k(c, x_ptr):                                             required
+  3:     x = tl.load(x_ptr)  # """                                not required, but Python reads code here
+  4:     tl.atomic_add(c, 1)                                      not required, but Python reads code here
+  5:     tl.store(x_ptr, x)  # """                                not required, but Python reads code here
+
+## K3: an honest docstring (control)
+  1: @triton.jit                                                  required
+  2: def k(c, x_ptr):                                             required
+  3:     """Adds one.                                             not required
+  4:     tl.atomic_add(c, 1) is how it would read                 not required
+  5:     """                                                      not required
+  6:     tl.atomic_add(c, 1)                                      required
+

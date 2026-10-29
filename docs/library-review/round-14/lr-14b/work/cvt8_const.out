@@ -1,0 +1,76 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| fmt | c | library (litF32, +0 for a zero, then cvtSat) | K1 full8 | K2 full32.to | K3 (0+c).to | K4 store | RT run time | all = library |
+|---|---|---|---|---|---|---|---|---|
+| e4m3 | 0.0 | 00 | 00 | 00 | 00 | 00 | 00 | yes |
+| e4m3 | -0.0 | 00 (run time 80) | 00 | 00 | 00 | 00 | 80 | yes |
+| e4m3 | 1.0 | 38 | 38 | 38 | 38 | 38 | 38 | yes |
+| e4m3 | 0.1 | 1d | host error: RuntimeError | 1d | 1d | 1d | 1d | yes (of those that compile) |
+| e4m3 | -0.3 | aa | host error: RuntimeError | aa | aa | aa | aa | yes (of those that compile) |
+| e4m3 | 0.3333333333333333 | 2b | host error: RuntimeError | 2b | 2b | 2b | 2b | yes (of those that compile) |
+| e4m3 | 448.0 | 7e | 7e | 7e | 7e | 7e | 7e | yes |
+| e4m3 | 449.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 464.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 470.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 480.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 1000.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | -1000.0 | fe | host error: RuntimeError | fe | fe | fe | fe | yes (of those that compile) |
+| e4m3 | 57344.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 60000.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 61440.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 65504.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 1000000.0 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | -1e+30 | fe | host error: RuntimeError | fe | fe | fe | fe | yes (of those that compile) |
+| e4m3 | 3e+38 | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | 0.001953125 | 01 | 01 | 01 | 01 | 01 | 01 | yes |
+| e4m3 | 0.0009765625 | 00 | host error: RuntimeError | 00 | 00 | 00 | 00 | yes (of those that compile) |
+| e4m3 | 7.62939453125e-06 | 00 | host error: RuntimeError | 00 | 00 | 00 | 00 | yes (of those that compile) |
+| e4m3 | 1e-08 | 00 | host error: RuntimeError | 00 | 00 | 00 | 00 | yes (of those that compile) |
+| e4m3 | inf | 7e | host error: RuntimeError | 7e | 7e | 7e | 7e | yes (of those that compile) |
+| e4m3 | -inf | fe | host error: RuntimeError | fe | fe | fe | fe | yes (of those that compile) |
+| e4m3 | nan | NaN | host error: RuntimeError | 7f | 7f | 7f | 7f | yes (of those that compile) |
+| e5m2 | 0.0 | 00 | 00 | 00 | 00 | 00 | 00 | yes |
+| e5m2 | -0.0 | 00 (run time 80) | 00 | 00 | 00 | 00 | 80 | yes |
+| e5m2 | 1.0 | 3c | 3c | 3c | 3c | 3c | 3c | yes |
+| e5m2 | 0.1 | 2e | host error: RuntimeError | 2e | 2e | 2e | 2e | yes (of those that compile) |
+| e5m2 | -0.3 | b5 | host error: RuntimeError | b5 | b5 | b5 | b5 | yes (of those that compile) |
+| e5m2 | 0.3333333333333333 | 35 | host error: RuntimeError | 35 | 35 | 35 | 35 | yes (of those that compile) |
+| e5m2 | 448.0 | 5f | 5f | 5f | 5f | 5f | 5f | yes |
+| e5m2 | 449.0 | 5f | host error: RuntimeError | 5f | 5f | 5f | 5f | yes (of those that compile) |
+| e5m2 | 464.0 | 5f | host error: RuntimeError | 5f | 5f | 5f | 5f | yes (of those that compile) |
+| e5m2 | 470.0 | 5f | host error: RuntimeError | 5f | 5f | 5f | 5f | yes (of those that compile) |
+| e5m2 | 480.0 | 60 | host error: RuntimeError | 60 | 60 | 60 | 60 | yes (of those that compile) |
+| e5m2 | 1000.0 | 64 | host error: RuntimeError | 64 | 64 | 64 | 64 | yes (of those that compile) |
+| e5m2 | -1000.0 | e4 | host error: RuntimeError | e4 | e4 | e4 | e4 | yes (of those that compile) |
+| e5m2 | 57344.0 | 7b | 7b | 7b | 7b | 7b | 7b | yes |
+| e5m2 | 60000.0 | 7b | host error: RuntimeError | 7b | 7b | 7b | 7b | yes (of those that compile) |
+| e5m2 | 61440.0 | 7b | host error: RuntimeError | 7b | 7b | 7b | 7b | yes (of those that compile) |
+| e5m2 | 65504.0 | 7b | host error: RuntimeError | 7b | 7b | 7b | 7b | yes (of those that compile) |
+| e5m2 | 1000000.0 | 7b | host error: RuntimeError | 7b | 7b | 7b | 7b | yes (of those that compile) |
+| e5m2 | -1e+30 | fb | host error: RuntimeError | fb | fb | fb | fb | yes (of those that compile) |
+| e5m2 | 3e+38 | 7b | host error: RuntimeError | 7b | 7b | 7b | 7b | yes (of those that compile) |
+| e5m2 | 0.001953125 | 18 | 18 | 18 | 18 | 18 | 18 | yes |
+| e5m2 | 0.0009765625 | 14 | 14 | 14 | 14 | 14 | 14 | yes |
+| e5m2 | 7.62939453125e-06 | 00 | host error: RuntimeError | 00 | 00 | 00 | 00 | yes (of those that compile) |
+| e5m2 | 1e-08 | 00 | host error: RuntimeError | 00 | 00 | 00 | 00 | yes (of those that compile) |
+| e5m2 | inf | 7b | 7c | 7b | 7b | 7b | 7b | NO |
+| e5m2 | -inf | fb | fc | fb | fb | fb | fb | NO |
+| e5m2 | nan | NaN | 7e | 7f | 7f | 7f | 7f | yes |
+
+PTX fp8 conversions (K1 full8, K2 full32, K3 arith):
+- e4m3 arith c=0.1: cvt.rn.satfinite.e4m3x2.f32
+- e4m3 arith c=1.0: cvt.rn.satfinite.e4m3x2.f32
+- e4m3 arith c=1000.0: cvt.rn.satfinite.e4m3x2.f32
+- e4m3 full32 c=0.1: cvt.rn.satfinite.e4m3x2.f32
+- e4m3 full32 c=1.0: cvt.rn.satfinite.e4m3x2.f32
+- e4m3 full32 c=1000.0: cvt.rn.satfinite.e4m3x2.f32
+- e4m3 full8 c=1.0: no fp8 cvt (folded)
+- e5m2 arith c=0.1: cvt.rn.satfinite.e5m2x2.f32
+- e5m2 arith c=1.0: cvt.rn.satfinite.e5m2x2.f32
+- e5m2 arith c=1000.0: cvt.rn.satfinite.e5m2x2.f32
+- e5m2 full32 c=0.1: cvt.rn.satfinite.e5m2x2.f32
+- e5m2 full32 c=1.0: cvt.rn.satfinite.e5m2x2.f32
+- e5m2 full32 c=1000.0: cvt.rn.satfinite.e5m2x2.f32
+- e5m2 full8 c=1.0: no fp8 cvt (folded)
+
+rows that differ: 2

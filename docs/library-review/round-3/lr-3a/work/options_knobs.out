@@ -1,0 +1,12 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+{"case": "D0", "env_at_compile": [], "c00": 16.0, "c00_minus_16_times_2^8": 0.0, "ttgir_inputPrecision": ["tf32"]}
+{"case": "D1", "env_at_compile": [], "c00": 16.00390625, "c00_minus_16_times_2^8": 1.0, "ttgir_inputPrecision": ["(default: ieee)"]}
+{"case": "D2", "env_at_compile": [], "c00": 16.00390625, "c00_minus_16_times_2^8": 1.0, "ttgir_inputPrecision": ["(default: ieee)"]}
+{"case": "D3", "env_at_compile": ["TRITON_F32_DEFAULT"], "c00": 16.00390625, "c00_minus_16_times_2^8": 1.0, "ttgir_inputPrecision": ["(default: ieee)"]}
+{"case": "A0", "env_at_compile": [], "y_minus_x_distinct": [1.0]}
+{"case": "A1", "env_at_compile": [], "y_minus_x_distinct": [2.0]}
+{"case": "A2", "env_at_compile": [], "y_minus_x_distinct": [-1.0]}
+{"case": "E0", "env_at_compile": [], "x": [-130.0, -126.0, -149.0, 0.0], "exp2": ["0x0.0p+0", "0x1.0000000000000p-126", "0x0.0p+0", "0x1.0000000000000p+0"], "ptx_ex2": ["ex2.approx.ftz.f32"]}
+{"case": "E1", "env_at_compile": [], "x": [-130.0, -126.0, -149.0, 0.0], "exp2": ["0x1.0000000000000p-130", "0x1.0000000000000p-126", "0x1.0000000000000p-149", "0x1.0000000000000p+0"], "ptx_ex2": ["ex2.approx.f32"]}
+{"case": "S0", "env_at_compile": [], "compiled_debug": false, "result": "returned, y = 0.0"}
+{"case": "S1", "env_at_compile": [], "result": "raised AcceleratorError: CUDA error: device-side assert triggered"}

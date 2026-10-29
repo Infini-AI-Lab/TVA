@@ -1,0 +1,43 @@
+tvr: tools/tvr.py sha256 51a1e0f8accb4fa1, tools/claim_reader.lean.in sha256 f62126cbd840b89b
+
+## G1 (L52): a hand-written accept line in a kernel's ledger
+- the reviewers' last acceptances are at the old gate; certificate now: False
+- after the line: certificate: True
+- certificate.json written by `tvr` from that ledger: present
+- release check: certificate_mismatch(shipped, regenerated): the same
+- release check: ledger_problems: none
+- the reviewer's recorded round-2 filing accepts: all
+- REVIEW.md's status lines: ['- Certificate: **GRANTED**.', '- Recorded files: all unchanged since they were recorded.']
+
+## G2 (L52): `tvr record library ROUND WHO --no-lint` on the current round
+- lint of that report: ['docs/library-review/round-10/lr-x/report.md: the sections must be exactly Verdicts, New issues, Re-ran, Not checked, in this order (found: none)', 'docs/library-review/round-10/lr-x/report.md § Verdicts: one verdict per issue of round 10 (L7, L36, L40, L48, L50, L51, L52, L53, L54, L55, L56)']
+- tvr record library 10 lr-x --no-lint: recorded docs/library-review/round-10/lr-x: 1 file(s) (not linted: a record from before the ledger)
+- release check: the lint commands it runs for round 10 (release_records): [['lint', 'library', '10', 'lr-10a']]
+- release check: records_problems on round 10: none
+
+## G3 (L52): a recorded library report changed, and its line in the library ledger edited
+- records_problems after the change: ['docs/library-review/round-7/lr-7a/report.md: changed after it was recorded in docs/library-review/ledger.jsonl']
+- records_problems after the ledger line is edited too: none
+
+## G4 (L53): lean/lean-toolchain changed after the gate ran
+- a gate recorded now: not stale
+- lean/lean-toolchain now leanprover/lean4:v4.36.0 (the audit's lake check): accepted
+- the gate: not stale
+- the certificate's gate condition (cert_state's `full` needs ok and not stale): True
+
+## G5 (L50): which functions `jit_functions` finds
+- a decorator `@triton.jit` (control): {'k': [[3, 5]]}
+- `triton.jit(f)` called, not a decorator: {}
+- an aliased decorator (`from triton import jit as J`): {}
+- a `@triton.constexpr_function` helper: {'k': [[8, 10]]}
+
+## G6 (L50): the map check when a helper is made by `triton.jit(_h)` and the ranges leave it out
+- source lines: {1: 'import triton', 2: 'import triton.language as tl', 5: 'def _h(x):', 6: '    return x + 1', 9: 'h = triton.jit(_h)', 12: '@triton.jit', 13: 'def k(p):', 14: '    tl.store(p, h(tl.load(p)))'}
+- map_problems with ranges [[12, 14]] (the kernel `k` only; `_h`, which `k` calls, outside): ([], [])
+
+## G7 (L7): a feature branch of Mathlib's repository as `inputRev`
+- branches of Mathlib's repository: 71
+- upstream_problem(inputRev 'feat/abel-sym-module', its head 4cbd77f5e9fe): None (accepted)
+- upstream_problem(inputRev 'ci-dev/marcelo/parsteps4-broken', its head db39b98485d4): None (accepted)
+- the audit's check of Mathlib's inputRev: only that it equals the lakefile's `rev`: lake_violations
+

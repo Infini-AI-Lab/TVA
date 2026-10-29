@@ -1,0 +1,74 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+tl.float8e5    full  1e-46          device 00       constIn? 00    same
+tl.float8e5    full  -1e-46         device 80       constIn? 80    same
+tl.float8e5    full  1e-50          device 00       constIn? 00    same
+tl.float8e5    full  -1e-50         device 80       constIn? 80    same
+tl.float8e5    full  2.0**-149      device rejected constIn? none  same
+tl.float8e5    full  -(2.0**-149)   device rejected constIn? none  same
+tl.float8e5    full  3              device 42       constIn? 42    same
+tl.float8e5    full  -3             device c2       constIn? c2    same
+tl.float8e5    full  448            device 5f       constIn? 5f    same
+tl.float8e5    full  449            device rejected constIn? none  same
+tl.float8e5    full  16777217       device rejected constIn? none  same
+tl.float8e5    full  2**200         device 7c       constIn? 7c    same
+tl.float8e5    full  -(2**200)      device fc       constIn? fc    same
+tl.float8e5    full  10**400        device rejected constIn? 7c    DIFFER (device rejects: no outcome, a model value there is never used)
+tl.float8e5    full  True           device 3c       constIn? 3c    same
+tl.float8e5    full  False          device 00       constIn? 00    same
+tl.float8e5    full  0.25           device 34       constIn? 34    same
+tl.float8e5    full  -0.0           device 00       constIn? 00    same
+tl.float8e5    where 1e-46          device 00       constIn? 00    same
+tl.float8e5    where -1e-46         device 80       constIn? 80    same
+tl.float8e5    where 1e-50          device 00       constIn? 00    same
+tl.float8e5    where -1e-50         device 80       constIn? 80    same
+tl.float8e5    where 2.0**-149      device rejected constIn? none  same
+tl.float8e5    where -(2.0**-149)   device rejected constIn? none  same
+tl.float8e5    where 3              device 42       constIn? 42    same
+tl.float8e5    where -3             device c2       constIn? c2    same
+tl.float8e5    where 448            device 5f       constIn? 5f    same
+tl.float8e5    where 449            device rejected constIn? none  same
+tl.float8e5    where 16777217       device rejected constIn? none  same
+tl.float8e5    where 2**200         device rejected constIn? 7c    DIFFER (device rejects: no outcome, a model value there is never used)
+tl.float8e5    where -(2**200)      device rejected constIn? fc    DIFFER (device rejects: no outcome, a model value there is never used)
+tl.float8e5    where 10**400        device rejected constIn? 7c    DIFFER (device rejects: no outcome, a model value there is never used)
+tl.float8e5    where True           device 3c       constIn? 3c    same
+tl.float8e5    where False          device 00       constIn? 00    same
+tl.float8e5    where 0.25           device 34       constIn? 34    same
+tl.float8e5    where -0.0           device 00       constIn? 00    same
+tl.float8e4nv  full  1e-46          device 00       constIn? 00    same
+tl.float8e4nv  full  -1e-46         device 80       constIn? 80    same
+tl.float8e4nv  full  1e-50          device 00       constIn? 00    same
+tl.float8e4nv  full  -1e-50         device 80       constIn? 80    same
+tl.float8e4nv  full  2.0**-149      device rejected constIn? none  same
+tl.float8e4nv  full  -(2.0**-149)   device rejected constIn? none  same
+tl.float8e4nv  full  3              device 44       constIn? 44    same
+tl.float8e4nv  full  -3             device c4       constIn? c4    same
+tl.float8e4nv  full  448            device 7e       constIn? 7e    same
+tl.float8e4nv  full  449            device rejected constIn? none  same
+tl.float8e4nv  full  16777217       device rejected constIn? none  same
+tl.float8e4nv  full  2**200         device rejected constIn? none  same
+tl.float8e4nv  full  -(2**200)      device rejected constIn? none  same
+tl.float8e4nv  full  10**400        device rejected constIn? none  same
+tl.float8e4nv  full  True           device 38       constIn? 38    same
+tl.float8e4nv  full  False          device 00       constIn? 00    same
+tl.float8e4nv  full  0.25           device 28       constIn? 28    same
+tl.float8e4nv  full  -0.0           device 00       constIn? 00    same
+tl.float8e4nv  where 1e-46          device 00       constIn? 00    same
+tl.float8e4nv  where -1e-46         device 80       constIn? 80    same
+tl.float8e4nv  where 1e-50          device 00       constIn? 00    same
+tl.float8e4nv  where -1e-50         device 80       constIn? 80    same
+tl.float8e4nv  where 2.0**-149      device rejected constIn? none  same
+tl.float8e4nv  where -(2.0**-149)   device rejected constIn? none  same
+tl.float8e4nv  where 3              device 44       constIn? 44    same
+tl.float8e4nv  where -3             device c4       constIn? c4    same
+tl.float8e4nv  where 448            device 7e       constIn? 7e    same
+tl.float8e4nv  where 449            device rejected constIn? none  same
+tl.float8e4nv  where 16777217       device rejected constIn? none  same
+tl.float8e4nv  where 2**200         device rejected constIn? none  same
+tl.float8e4nv  where -(2**200)      device rejected constIn? none  same
+tl.float8e4nv  where 10**400        device rejected constIn? none  same
+tl.float8e4nv  where True           device 38       constIn? 38    same
+tl.float8e4nv  where False          device 00       constIn? 00    same
+tl.float8e4nv  where 0.25           device 28       constIn? 28    same
+tl.float8e4nv  where -0.0           device 00       constIn? 00    same
+differences: 4

@@ -1,0 +1,61 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-28
+
+== A. Launches the host rejects with an error, before any program runs ==
+A1 shared memory: pipelined 256x256x128 float16 tl.dot loop, num_stages=6
+    host error: OutOfResources: out of resource: shared memory, Required: 786432, Hardware limit: 232448. Reducing block sizes or `n
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.14 s
+A2 threads: num_warps=64 (2048 threads per program)
+    host error: OutOfResources: out of resource: threads, Required: 2048, Hardware limit: 1024. Reducing block sizes or `num_stages`
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.03 s
+A3 tl.dot below its minimum size: float16 operands, K = 8
+    host error: CompilationError: at 9:52: ... Input shapes should have M >= 1, N >= 1 and K >= 16
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.04 s
+A4 a dtype the target lacks: x.to(tl.float8e4b8)
+    host error: CompilationError: at 5:39: ... type fp8e4b8 not supported in this architecture. The supported fp8 dtypes are ('fp8e4b15', 'fp8e4nv', 'fp8e5')
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.03 s
+A5 a tl.static_assert that fails (B = 24)
+    host error: CompileTimeAssertionFailure: at 3:4: ... B must be a multiple of 16
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.02 s
+A6 grid (1, 65536, 1): y above CUDA's limit
+    host error: RuntimeError: Triton Error [CUDA]: invalid argument
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+A7 grid (1, 1, 65536): z above CUDA's limit
+    host error: RuntimeError: Triton Error [CUDA]: invalid argument
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+A8 grid (2^31, 1, 1): x does not fit the launcher's C int
+    host error: OverflowError: signed integer is greater than maximum
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+
+== B. Launches with no program: they return without an error ==
+B1 grid (0, 1, 1)
+    host error: none
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+B2 grid (5, 0, 3)
+    host error: none
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+
+== C. The program count: the launcher's guard gridX * gridY * gridZ > 0 is computed in C int ==
+C1 grid (2^31 - 1, 1, 1) = 2^31 - 1 programs
+    host error: none
+    programs run: 2147483647 (expected 2147483647): as expected; memory unchanged: False; device usable after: yes; 1.42 s
+C2 grid (65535, 32768, 1) = 2^31 - 2^15 programs
+    host error: none
+    programs run: 2147450880 (expected 2147450880): as expected; memory unchanged: False; device usable after: yes; 1.43 s
+C3 grid (2^14, 2^14, 2) = 2^29 programs
+    host error: none
+    programs run: 536870912 (expected 536870912): as expected; memory unchanged: False; device usable after: yes; 0.36 s
+C4 grid (2^30, 2, 1) = 2^31 programs (wraps to -2^31)
+    host error: none
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+C5 grid (2^15, 2^15, 2) = 2^31 programs (wraps to -2^31)
+    host error: none
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+C6 grid (2^16 + 1, 2^15, 1) = 2^31 + 2^15 programs (wraps negative)
+    host error: none
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+C7 grid (2^16, 2^15, 2) = 2^32 programs (wraps to 0)
+    host error: none
+    programs run: 0 (expected 0): as expected; memory unchanged: True; device usable after: yes; 0.00 s
+C8 grid (6700417, 641, 1) = 2^32 + 1 programs (wraps to 1, so the guard passes)
+    host error: none
+    programs run: 4294967297 (expected 4294967297): as expected; memory unchanged: False; device usable after: yes; 2.84 s

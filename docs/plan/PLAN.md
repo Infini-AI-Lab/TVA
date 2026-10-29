@@ -85,13 +85,14 @@ gates show what they need from the library.
 2. **Device-fact pages**: one per target, listing each fact's operation, format, lowering,
    constants and evidence. Kernels name their target in `kernel.json`, and the gate checks that
    each cited fact is the target's.
-3. **Transcription rules with ids**: each rule of [TRANSCRIPTION.md](../TRANSCRIPTION.md) gets
-   an id, and each model-map entry names the rule it applies. A kernel reviewer then checks
-   each entry against one rule.
+3. ~~**Transcription rules with ids**~~: done in round 3, then withdrawn in round 6 (library
+   issue L36, user, 2026-10-28): [TRANSCRIPTION.md](../TRANSCRIPTION.md) is guidance, every fact
+   about Triton is in [SEMANTICS.md](../SEMANTICS.md), and the kernel reviewer judges each model
+   line by what it means.
 4. **Library review in the tool**: `tvr` commands for library issues and library rounds, the
    same interface as kernel review (a ledger, filings, a generated status page).
 5. **Coverage audit of the library**: every `tl.*` construct Triton 3.8.0 documents has a
-   meaning and a transcription rule, or is in [exclusions.md](../exclusions.md).
+   meaning in [SEMANTICS.md](../SEMANTICS.md), or is in [exclusions.md](../exclusions.md).
 
 ## Next, in order
 

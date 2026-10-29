@@ -1,0 +1,13 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+N1: a name only the then branch defines, used only there
+  ran; flag 2: [100, 101, 102, 103]; flag -2: [-1, -1, -1, -1]
+N2: a name only the then branch defines, used after the if
+  rejected on the host: CompilationError: NameError('y is not defined')
+N3: a name defined before, reassigned (same dtype) in one branch
+  ran; flag 2: [11, 12, 13, 14]; flag -2: [1, 2, 3, 4]
+N4: a name defined before (int32), reassigned to a float in both branches
+  rejected on the host: CompilationError: AssertionError('initial value for `y` is of type int32[], but the then block redefines it as fp32[]')
+N5: a new name defined in both branches, one dtype
+  ran; flag 2: [100, 101, 102, 103]; flag -2: [200, 201, 202, 203]
+N6: a new name, int32 in one branch and float32 in the other
+  rejected on the host: CompilationError: AssertionError('Mismatched type for y between then block (int32) and else block (fp32)')

@@ -1,0 +1,9 @@
+flagged: control: $HOME/...
+flagged: control: ~/fpv/tva/../...
+flagged: ${HOME:-}/... (parameter expansion with a default)
+flagged: ${HOME%/}/... (parameter expansion, suffix removed)
+flagged: $(echo ~)/... (command substitution)
+flagged: `echo ~`/... (backquote substitution)
+flagged: "$(printenv HOME)"/...
+flagged: JSON \u002F escapes
+flagged: control: JSON \/ escapes

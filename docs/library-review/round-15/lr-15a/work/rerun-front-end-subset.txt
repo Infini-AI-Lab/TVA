@@ -1,0 +1,81 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+W1: tl.where(keep, x, 0.0), x int32 [16777217, 3, -5, 7], keep [1, 0, 1, 1]: dtype float32 (static_assert); stored to float32
+  the static_assert held; stored [16777216.0, 0.0, -5.0, 7.0]
+W1i: W1's result stored into an int32 buffer
+  the static_assert held; stored [16777216, 0, -5, 7]
+W2: tl.where(keep, x, 0), x int32: dtype int32 (static_assert)
+  the static_assert held; stored [16777217, 0, -5, 7]
+W3: tl.where(m, 0, -1.0e6), both values Python numbers: dtype float32 (static_assert)
+  the static_assert held; stored [0.0, -1000000.0, 0.0, 0.0]
+W4: tl.where(keep, x, 0.0), x bfloat16 [1.5, 2, 3, 4]: dtype bfloat16 (static_assert)
+  the static_assert held; stored [1.5, 0.0, 3.0, 4.0]
+W5: tl.where(keep, x, 0.0), x float16 [1.5, 2, 3, 4]: dtype float16 (static_assert)
+  the static_assert held; stored [1.5, 0.0, 3.0, 4.0]
+C1: c: tl.constexpr = -7; c // 2
+  stored -4
+C2: c = 1; then c: tl.constexpr = -7
+  rejected on the host: CompilationError: ValueError('c is already defined. constexpr cannot be reassigned.')
+C3: c: tl.constexpr = -7; c += 0; c // 2
+  stored -3
+C4: BLOCK = BLOCK * 1 (BLOCK a tl.constexpr parameter); tl.arange(0, BLOCK)
+  rejected on the host: CompilationError: arange's arguments must be of type tl.constexpr
+C5: bare e: tl.constexpr; e = 1e-7; x * e, x bfloat16 [1, 2, 3, 1000]
+  stored [0.0, 0.0, 0.0, 0.0]
+C5c: e = 1e-7; x * e, x bfloat16 (control: no annotation)
+  stored [1.0000000116860974e-07, 2.0000000233721948e-07, 3.000000106112566e-07, 0.00010000000474974513]
+C6: a: tl.int64 = 2**31 - 1; a + 1
+  stored -2147483648
+C7: BM: tl.constexpr = x.shape[0]; tl.arange(0, BM)
+  compiled and ran; stored [1, 1, 1, 1, 1, 1, 1, 1]
+C8: P: tl.constexpr = A == 1 and B == 2 (A = 1, B = 2); if P: store 1 else: tl.static_assert(False)
+  compiled and ran; stored 1
+C9: for j in tl.static_range(2): b: tl.constexpr = 4; store b
+  rejected on the host: CompilationError: ValueError('b is already defined. constexpr cannot be reassigned.')
+R1: for i in range(tl.atomic_add(c, 1) * 0), 8 programs: atomics run
+  atomics: 16 in 8 programs; trips [0, 0, 0, 0, 0, 0, 0, 0]
+R2: for i in range(0, tl.atomic_add(c, 1) * 0), 8 programs: atomics run
+  atomics: 8 in 8 programs; trips [0, 0, 0, 0, 0, 0, 0, 0]
+R3: for i in tl.range(tl.atomic_add(c, 1) * 0), 8 programs: atomics run
+  atomics: 8 in 8 programs; trips [0, 0, 0, 0, 0, 0, 0, 0]
+R4: for i in range(tl.atomic_add(c, 1)), one program, c = 5 before: trips; c after
+  trips 6; c after: 7
+D1: h(x) with def h(x, e=1e-7): x * e, x bfloat16 [1, 2, 3, 1000]
+  stored [0.0, 0.0, 0.0, 0.0]
+D2: h(x, 1e-7)
+  stored [0.0, 0.0, 0.0, 0.0]
+D3: e = 1e-7; h(x, e)
+  stored [1.0000000116860974e-07, 2.0000000233721948e-07, 3.000000106112566e-07, 0.00010000000474974513]
+D4: h(x) with def h(x, e: tl.constexpr = 1e-7)
+  stored [0.0, 0.0, 0.0, 0.0]
+P1: def g(n: tl.constexpr): n // 2; a = -7; g(a)
+  stored -3
+P2: g(-7)
+  stored -4
+L1: for i in range(0, n): t = i * 2; store t after the loop (n = 4)
+  rejected on the host: CompilationError: NameError('t is not defined')
+L2: s = 0; for i in range(0, n): s += i; store i after the loop (n = 4)
+  compiled and ran; stored [16776272, 6]
+L3: s = 0; for i in range(0, n): s += i; store s after the loop (n = 4)
+  compiled and ran; stored [6, -99]
+L4: j = 0; while j < n: u = j; j += 1; store u after the loop (n = 4)
+  rejected on the host: CompilationError: NameError('u is not defined')
+Z1: for i in range(0, n): tl.atomic_add(c, 1), n = 0, 8 programs: atomics run
+  atomics: 0 in 8 programs
+Z2: the same with n = 1
+  atomics: 8 in 8 programs
+U1: a, b = 1, 2, 3; store a and b
+  compiled and ran; stored [1, 2]
+O1: tl.load(p + i, mask=i < 1, other=1 + 2**-11 + 2**-30), p float16 [2, 2, 2, 2]: the bits
+  stored bits ['0x4000', '0x3c00', '0x3c00', '0x3c00']; the float16 nearest to the double: 0x3c01; the float16 nearest to its float32 (a tie, to even): 0x3c00
+S1: tl.cumsum(x, 0, dtype=tl.bfloat16), x bfloat16 [1, 2**-8, 2**-8, 2**-8]
+  the static_assert on the dtype held; stored [1.0, 1.0, 1.0078125, 1.0078125]
+S1d: tl.cumsum(x, 0), the same x (default)
+  the static_assert on the dtype held; stored [1.0, 1.00390625, 1.0078125, 1.01171875]
+S2: tl.cumsum(x, 0, dtype=tl.int8), x int8 [100, 100, 100, 100]
+  the static_assert on the dtype held; stored [100.0, -56.0, 44.0, -112.0]
+S2d: tl.cumsum(x, 0), the same x (default)
+  the static_assert on the dtype held; stored [100.0, 200.0, 300.0, 400.0]
+S3: tl.cumsum(x, 0, dtype=tl.float32), x float16 [2048, 1, 1, 1]
+  the static_assert on the dtype held; stored [2048.0, 2049.0, 2050.0, 2051.0]
+S3d: tl.cumsum(x, 0), the same x (default)
+  the static_assert on the dtype held; stored [2048.0, 2048.0, 2050.0, 2050.0]

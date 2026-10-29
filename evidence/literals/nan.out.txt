@@ -1,0 +1,38 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+N1. NaNs and infinities written in the source (tl.full and tl.where: bit for bit; other=: up to NaN payload)
+  float('nan')                       double 7ff8000000000000: bf16 7fc0 other 7fc0; f16 7e00 other 7e00; f32 7fc00000 other 7fc00000; f64 7ff8000000000000 other 7ff8000000000000
+  -float('nan')                      double fff8000000000000: bf16 ffc0 other ffc0; f16 fe00 other fe00; f32 ffc00000 other ffc00000; f64 fff8000000000000 other fff8000000000000
+  float('-nan')                      double fff8000000000000: bf16 ffc0 other ffc0; f16 fe00 other fe00; f32 ffc00000 other ffc00000; f64 fff8000000000000 other fff8000000000000
+  float('NaN')                       double 7ff8000000000000: bf16 7fc0 other 7fc0; f16 7e00 other 7e00; f32 7fc00000 other 7fc00000; f64 7ff8000000000000 other 7ff8000000000000
+  -(-float('nan'))                   double 7ff8000000000000: bf16 7fc0 other 7fc0; f16 7e00 other 7e00; f32 7fc00000 other 7fc00000; f64 7ff8000000000000 other 7ff8000000000000
+  float('inf') - float('inf')        double fff8000000000000: bf16 ffc0 other ffc0; f16 fe00 other fe00; f32 ffc00000 other ffc00000; f64 fff8000000000000 other fff8000000000000
+  -(float('inf') - float('inf'))     double 7ff8000000000000: bf16 7fc0 other 7fc0; f16 7e00 other 7e00; f32 7fc00000 other 7fc00000; f64 7ff8000000000000 other 7ff8000000000000
+  float('inf') * 0.0                 double fff8000000000000: bf16 ffc0 other ffc0; f16 fe00 other fe00; f32 ffc00000 other ffc00000; f64 fff8000000000000 other fff8000000000000
+  0.0 * float('-inf')                double fff8000000000000: bf16 ffc0 other ffc0; f16 fe00 other fe00; f32 ffc00000 other ffc00000; f64 fff8000000000000 other fff8000000000000
+  float('nan') + 1.0                 double 7ff8000000000000: bf16 7fc0 other 7fc0; f16 7e00 other 7e00; f32 7fc00000 other 7fc00000; f64 7ff8000000000000 other 7ff8000000000000
+  -float('nan') * 2.0                double fff8000000000000: bf16 ffc0 other ffc0; f16 fe00 other fe00; f32 ffc00000 other ffc00000; f64 fff8000000000000 other fff8000000000000
+  float('inf') / float('inf')        double fff8000000000000: bf16 ffc0 other ffc0; f16 fe00 other fe00; f32 ffc00000 other ffc00000; f64 fff8000000000000 other fff8000000000000
+  float('inf')                       double 7ff0000000000000: bf16 7f80 other 7f80; f16 7c00 other 7c00; f32 7f800000 other 7f800000; f64 7ff0000000000000 other 7ff0000000000000
+  -float('inf')                      double fff0000000000000: bf16 ff80 other ff80; f16 fc00 other fc00; f32 ff800000 other ff800000; f64 fff0000000000000 other fff0000000000000
+  N1 differences: 0
+N2. 306 NaN doubles (quiet and signalling, both signs) as tl.constexpr arguments, batches of 16, each in a process with an empty cache; tl.full, bit for bit
+  bf16: 0 of 306 differ from FloatV.litBF16
+  f16: 0 of 306 differ from FloatV.litF16
+  f32: 0 of 306 differ from FloatV.litF32
+  f64: 0 of 306 differ from FloatV.litF64
+  e.g. 7ff8000000000000: bf16 7fc0, f16 7e00, f32 7fc00000, f64 7ff8000000000000
+  e.g. fff8000000000000: bf16 ffc0, f16 fe00, f32 ffc00000, f64 fff8000000000000
+  e.g. 7ff4000000000000: bf16 7fc0, f16 7f00, f32 7fe00000, f64 7ff4000000000000
+  e.g. 7ff0000000000001: bf16 7fc0, f16 7e00, f32 7fc00000, f64 7ff0000000000001
+  e.g. fff0000020000000: bf16 ffc0, f16 fe00, f32 ffc00001, f64 fff0000020000000
+  e.g. 7fffffffffffffff: bf16 7fc0, f16 7fff, f32 7fffffff, f64 7fffffffffffffff
+N3. the cache (tl.full([1], C, tl.float32), C a tl.constexpr)
+  one process, empty cache: C = float('nan') stores 7fc00000, then C = -float('nan') stores 7fc00000
+  a second process, the same cache folder: C = -float('nan') stores 7fc00000
+  one process, empty cache: C = -float('nan') stores ffc00000, then C = float('nan') stores ffc00000
+N4. runtime scalar arguments holding a NaN, stored as passed
+  x: 7ff8000000000000 -> 7fc00000, fff8000000000000 -> ffc00000, 7ff4000000000000 -> 7fe00000, fff4000000000000 -> ffe00000, 7ff0000000000001 -> 7fc00000, 7ff8000000012345 -> 7fc00000, fff80000a0000000 -> ffc00005, 7fffffffffffffff -> 7fffffff; differs from FloatV.hostF32: 0
+  x: tl.float32: 7ff8000000000000 -> 7fc00000, fff8000000000000 -> ffc00000, 7ff4000000000000 -> 7fe00000, fff4000000000000 -> ffe00000, 7ff0000000000001 -> 7fc00000, 7ff8000000012345 -> 7fc00000, fff80000a0000000 -> ffc00005, 7fffffffffffffff -> 7fffffff; differs from FloatV.hostF32: 0
+  x: tl.float64: 7ff8000000000000 -> 7ff8000000000000, fff8000000000000 -> fff8000000000000, 7ff4000000000000 -> 7ff4000000000000, fff4000000000000 -> fff4000000000000, 7ff0000000000001 -> 7ff0000000000001, 7ff8000000012345 -> 7ff8000000012345, fff80000a0000000 -> fff80000a0000000, 7fffffffffffffff -> 7fffffffffffffff; differs from the double: 0
+  x: tl.float16: 7ff8000000000000 -> 7e00, fff8000000000000 -> fe00, 7ff4000000000000 -> 7e00, fff4000000000000 -> fe00, 7ff0000000000001 -> 7e00, 7ff8000000012345 -> 7e00, fff80000a0000000 -> fe00, 7fffffffffffffff -> 7e00
+  x: tl.bfloat16: 7ff8000000000000 -> 7fc0, fff8000000000000 -> ffc0, 7ff4000000000000 -> 7fe0, fff4000000000000 -> ffe0, 7ff0000000000001 -> 7fc0, 7ff8000000012345 -> 7fc0, fff80000a0000000 -> ffc0, 7fffffffffffffff -> 7fff; differs from the top 16 bits of FloatV.hostF32: 0

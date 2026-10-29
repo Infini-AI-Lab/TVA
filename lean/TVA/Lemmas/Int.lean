@@ -8,9 +8,14 @@ Index arithmetic in Triton is `tl.int32` (or `tl.int64`) and wraps. A proof show
 wrap and then computes with mathematical integers. `IntV.SFits w x`: `x` is in the signed
 `w`-bit range. Within it:
 
-* `toInt_ofInt`, `toInt_ofNat`: literals and casts keep their value;
+* `toInt_ofInt`, `toInt_ofNat`: a literal (`IntV.ofInt`, `IntV.ofNat`) in range keeps its value;
 * `toInt_add`, `toInt_sub`, `toInt_mul`: operations are the integer ones;
-* `lt_eq`, `le_eq`: comparisons are the integer ones (always).
+* `lt_eq`, `le_eq`: comparisons of signed integers are the integer ones, in any range (for either
+  signedness, unsigned included, `IntV.lt_toInt` for `<` and `IntV.le_toInt` for `<=`, in
+  `TVA.Lemmas.SharedAcc`).
+
+And at any value: `toInt_cast` (a widening cast `x.to(tl.int64)` of a signed integer keeps its
+value: sign extension), `toInt_cast_unsigned` (the same for an unsigned one: zero extension).
 -/
 namespace TVA
 
@@ -80,6 +85,18 @@ theorem le_eq (a b : IntV true w) : a.le b = decide (a.toInt ≤ b.toInt) := by
   simp only [le, toInt, ite_true]
   rw [Bool.eq_iff_iff, decide_eq_true_iff]
   exact BitVec.sle_iff_toInt_le
+
+/-- **A widening cast of a signed integer keeps its value** (`IntV.cast`: sign extension). -/
+theorem toInt_cast {w' : Nat} (a : IntV true w) (h : w ≤ w') : (a.cast : IntV true w').toInt = a.toInt := by
+  simp only [IntV.cast, IntV.toInt, ite_true]
+  exact BitVec.toInt_signExtend_of_le h
+
+/-- **A widening cast of an unsigned integer keeps its value** (`IntV.cast`: zero extension). -/
+theorem toInt_cast_unsigned {w' : Nat} (a : IntV false w) (h : w ≤ w') :
+    (a.cast : IntV false w').toInt = a.toInt := by
+  simp only [IntV.cast, IntV.toInt, Bool.false_eq_true, ite_false]
+  rw [BitVec.toNat_setWidth,
+    Nat.mod_eq_of_lt (lt_of_lt_of_le a.bits.isLt (Nat.pow_le_pow_right (by norm_num) h))]
 
 /-- `int32` facts with the width fixed. -/
 theorem I32.toInt_ofInt {x : Int} (h : -(2 ^ 31 : Int) ≤ x ∧ x < 2 ^ 31) :

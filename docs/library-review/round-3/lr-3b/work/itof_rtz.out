@@ -1,0 +1,5 @@
+Triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL
+rn  chain: elements not the bf16 nearest: 0 of 65536
+rtz chain: elements not the bf16 nearest: 32128 of 65536
+x = 259: rtz chain gives 258.0, tl.itof allows only 260.0
+TTIR of the rtz chain has tt.fp_to_fp: True | sitofp: True

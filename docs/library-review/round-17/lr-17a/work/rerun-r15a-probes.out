@@ -1,0 +1,23 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+B0: r = load + step, no hint (control)
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+B1: r = load + step (control), pair hint on r
+  {'loads': ['ld.global.v4.b32'], 'values': 'correct'}
+B2: r carried by a for loop, pair hint after the loop
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+B3: r merged by a runtime if, pair hint after the if
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+B4: r returned by an inlined helper, pair hint on it
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+B5: r = tl.split(loaded [512, 2])[0], pair hint on it
+  {'loads': ['ld.global.b8', 'ld.global.v2.b32'], 'values': 'correct'}
+A1: for t in range(0, 3): c: tl.constexpr = -7; acc += c // 2
+  stored -12
+A2: runtime if, both branches c: tl.constexpr = ..., c used after the if
+  rejected on the host: CompilationError: NameError('c is not defined')
+A3: the same, c used inside each branch (control)
+  stored -4
+K1: tl.cdiv(n, 128), n int32 = 2**31 - 1 and 1000
+  n=2147483647: stored -16777215 (Python ceil: 16777216); n=1000: stored 8 (Python ceil: 8)
+K2: tl.cdiv(n, 4), n int32 = -5
+  n=-5: stored 0 (Python ceil: -1)

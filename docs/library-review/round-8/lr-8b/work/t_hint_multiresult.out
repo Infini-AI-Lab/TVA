@@ -1,0 +1,5 @@
+triton 3.8.0 NVIDIA H200 NVL 2.11.0+cu130
+HINT=0 no hint; HINT=1 tl.multiple_of(a, 4) (true of a, false of b); HINT=2 tl.multiple_of(b, 2) (true of b)
+HINT=0: loads ['ld.global.b32']; correct; ttir: ['%outLHS, %outRHS = tt.split %z_2 : tensor<64x2xi32> -> tensor<64xi32> loc(#loc5)']
+HINT=1: loads ['ld.global.v4.b32']; error: CUDA error: misaligned address; ttir: ['%outLHS, %outRHS = tt.split %z_2 {tt.divisibility = dense<4> : tensor<1xi32>} : tensor<64x2xi32> -> tensor<64xi32> loc(#loc5)']
+HINT=2: loads ['ld.global.v2.b32']; correct; ttir: ['%outLHS, %outRHS = tt.split %z_2 {tt.divisibility = dense<2> : tensor<1xi32>} : tensor<64x2xi32> -> tensor<64xi32> loc(#loc5)']

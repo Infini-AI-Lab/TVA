@@ -1,0 +1,4 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+A1 one address x16 lanes: 16 (16); [16] block, 4 warps: [1] (1); [16,16] repeating 16 addresses: [16] (16)
+A2 atomic_cas: memory -0.0 vs cmp +0.0 -> memory 0x80000000 (0x80000000 = no swap); memory NaN vs the same NaN bits -> memory 0x40e00000 (0x40e00000 = 7.0, swapped)
+A3 int8 -128 >> uint8 1 = 0xc0 (0xc0: arithmetic on uint8); 0xF0 >> uint8 1 = 0x78 (0x78: logical)

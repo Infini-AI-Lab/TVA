@@ -11,7 +11,7 @@ semantics (`TVA.Sem`) and the lemmas can see them:
 |---|---|
 | `load d s addrs k` | `tl.load`: read the elements at the enabled addresses (`some a`); disabled lanes (`none`) are not accessed and get unspecified values |
 | `store d s addrs vals k` | `tl.store`: write each enabled lane's value, in an unspecified order (it matters only for duplicate addresses) |
-| `rmw d a upd sem scope k` | one element of `tl.atomic_*`: read the old value, write a new one related to it by `upd`, return the old value |
+| `rmw d a upd sem scope k` | one element of `tl.atomic_*`: read the old value, write a new one related to it by `upd`, return the old value; the step may happen after later steps that do not depend on the old value (`Step.defer`) |
 | `pick P k` | a value the program cannot predict, constrained by `P` (masked-out loads, rounding choices, reduction trees, platform results). It is undefined behaviour when nothing satisfies `P` |
 | `ub` | undefined behaviour |
 | `loop init body k` | a `while` loop: run `body` until it returns `inr b` |
@@ -20,10 +20,17 @@ semantics (`TVA.Sem`) and the lemmas can see them:
 `Prog` is a monad, so a model is written in `do` notation. It follows the source line by line,
 and the reviewer compares the two.
 
-A program is sequential, as the Triton documentation presents it: each operation sees the
-effects of the program's earlier operations. The threads that implement a program are not part
-of the language, so `tl.debug_barrier()` has no meaning here (a debugging aid; user,
-2026-10-26: "we do not need debug semantics here").
+The constructors follow the source in order, but a program is not sequential for global
+memory (library issue L15, user decision 2026-10-27). The threads that implement a program
+access memory with no barrier between its operations, so a load need not see a store the program
+made before it, and two stores to the same bytes may land in either order. The semantics does
+not order them: a model in which two accesses of one program touch the same bytes and at least
+one writes them, unless both are atomics on the same bytes, is not well behaved (`IntraRace`,
+`TVA.Sem.Launch`), and no claim covers it. A program's atomics on the same bytes do not
+conflict, and they may be performed in any order their dependences allow (`Step.defer`).
+`tl.debug_barrier()` keeps no meaning here (a debugging aid; user, 2026-10-26: "we do not need
+debug semantics here"), and `num_stages` stays dropped: the reuse of a program's own data that
+pipelining could reorder is excluded.
 -/
 namespace TVA
 

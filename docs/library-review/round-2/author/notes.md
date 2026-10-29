@@ -102,8 +102,8 @@ builds (`lake build TVA`), and every `TVA` constant depends only on `propext`,
     - a file that is not UTF-8 is a problem, and so is a symbolic link out of TVA;
     - names are matched on words and word pieces (split at `_`, case changes and digits), and
       at the start or end of a one-case piece;
-    - home paths are tested by whole component after normalising `..`, so `fpv/tva-old` and
-      `fpv/tva/../x` fail;
+    - home paths are tested by whole component after normalising `..`, so `…/tva-old` and
+      `…/tva/../x` fail;
     - another absolute path of two components or more outside the system directories fails;
     - a relative path whose `..` leaves TVA from its file's folder fails;
     - Triton's own pinned files (primitives, tutorials, a kernel's source, each checked by

@@ -1,0 +1,61 @@
+in-scope functions scanned: 23
+decorators (SEMANTICS 'The supported subset', Functions; an autotune's arguments run on the host): triton.autotune x8, triton.jit x23
+.T: 9 uses in 6 functions -- S: Shape changes
+.dtype: 3 uses in 3 functions -- S: Expressions with no effect
+.element_ty: 3 uses in 3 functions -- S: Expressions with no effect
+.load: 16 uses in 7 functions -- S: Tensor descriptors (tl.desc_load); TVA.Lang.Desc
+.permute: 2 uses in 1 functions -- S: Shape changes
+.reshape: 6 uses in 2 functions -- S: Shape changes
+.shape: 2 uses in 1 functions -- S: Expressions with no effect
+.split: 1 uses in 1 functions -- S: Shape changes
+.store: 10 uses in 6 functions -- S: Tensor descriptors (tl.desc_store); TVA.Lang.Desc
+.to: 30 uses in 15 functions -- S: Float conversions, x.to(int), x.to(float), Operators and promotion (tl.convert); Pointers
+.trans: 2 uses in 1 functions -- S: Shape changes
+float: 2 uses in 2 functions -- S: Python's builtins
+helper _attn_bwd_dkdv: 2 uses in 1 functions; keywords ['MASK'] -- S: Helpers are inlined (a @triton.jit function of the same file)
+helper _attn_bwd_dq: 2 uses in 1 functions; keywords ['MASK'] -- S: Helpers are inlined (a @triton.jit function of the same file)
+helper _attn_fwd_inner: 2 uses in 1 functions -- S: Helpers are inlined (a @triton.jit function of the same file)
+helper _compute_pid: 6 uses in 3 functions -- S: Helpers are inlined (a @triton.jit function of the same file)
+helper _maybe_make_tensor_desc: 5 uses in 1 functions; keywords ['block_shape', 'shape', 'strides'] -- S: Helpers are inlined (a @triton.jit function of the same file)
+helper leaky_relu: 1 uses in 1 functions -- S: Helpers are inlined (a @triton.jit function of the same file)
+isinstance: 1 uses in 1 functions -- S: Python's builtins
+min: 4 uses in 4 functions -- S: Operators and promotion (Python's min and max)
+range: 13 uses in 10 functions -- S: Loops and unrolling, Loops
+tl.arange: 40 uses in 14 functions -- S: Values, Index arithmetic; TVA.tl.arange
+tl.assume: 8 uses in 1 functions -- S: Compiler hints; TVA.tl.assume
+tl.cdiv: 23 uses in 8 functions -- S: tl.cdiv (round 17)
+tl.constexpr: 104 uses in 20 functions -- S: The supported subset (annotations, parameters)
+tl.dot: 16 uses in 10 functions -- S: tl.dot; TVA.tl.dot
+tl.dot_scaled: 3 uses in 1 functions -- S: tl.dot_scaled; TVA.Lang.Scaled
+tl.exp: 1 uses in 1 functions -- S: tl.exp, exp2, …; TVA.tl.exp
+tl.float16: 11 uses in 10 functions -- S: Values
+tl.float32: 25 uses in 15 functions -- S: Values
+tl.float8e4nv: 8 uses in 6 functions -- S: Values
+tl.float8e5: 3 uses in 2 functions -- S: Values
+tl.int64: 2 uses in 1 functions -- S: Values
+tl.join: 1 uses in 1 functions -- S: Shape changes; Tensor.join
+tl.load: 42 uses in 14 functions; keywords ['mask', 'other'] -- S: tl.load; TVA.tl.load
+tl.make_tensor_descriptor: 7 uses in 3 functions; keywords ['block_shape', 'shape', 'strides'] -- S: Tensor descriptors; TVA.Lang.Desc
+tl.math.exp2: 4 uses in 3 functions -- S: tl.exp, exp2, …; TVA.tl.exp2
+tl.math.log2: 1 uses in 1 functions -- S: tl.exp, exp2, log, log2, …; TVA.tl.log2
+tl.max: 3 uses in 2 functions; keywords ['axis'] -- S: reductions, index reductions; TVA.tl.max1/max0/maxAll
+tl.max_contiguous: 4 uses in 2 functions -- S: Compiler hints; TVA.tl.max_contiguous(N), max_contiguous_multiple_of(N)
+tl.maximum: 2 uses in 1 functions -- S: tl.maximum, tl.minimum; Operators and promotion; TVA.tl.maximum
+tl.multiple_of: 6 uses in 3 functions -- S: Compiler hints; TVA.tl.multiple_of(N), multiple_of1
+tl.num_programs: 1 uses in 1 functions -- TVA.tl.num_programs
+tl.permute: 2 uses in 2 functions -- S: Shape changes; Tensor.permute
+tl.pointer_type: 3 uses in 1 functions -- S: Values, Pointers (tl.intToPtr)
+tl.program_id: 20 uses in 17 functions; keywords ['axis'] -- S: Values, Launches; TVA.tl.program_id
+tl.rand: 1 uses in 1 functions -- S: Random numbers; TVA.Lang.Random
+tl.range: 7 uses in 7 functions; keywords ['disallow_acc_multi_buffer', 'flatten', 'num_stages', 'warp_specialize'] -- S: Loops and unrolling, Loops; TVA.tl.forRange
+tl.reshape: 2 uses in 2 functions -- S: Shape changes; Tensor.reshape, TVA.tl.reshape_any
+tl.split: 2 uses in 2 functions -- S: Shape changes; Tensor.split
+tl.sqrt: 1 uses in 1 functions -- S: tl.exp, …, sqrt; TVA.tl.sqrt
+tl.static_assert: 3 uses in 3 functions -- S: tl.static_assert
+tl.store: 17 uses in 12 functions; keywords ['mask'] -- S: tl.store; TVA.tl.store
+tl.sum: 7 uses in 5 functions; keywords ['axis'] -- S: reductions; TVA.tl.sum/sum1/sum0 (and the c forms)
+tl.tensor_descriptor: 1 uses in 1 functions -- S: Python's builtins (isinstance)
+tl.trans: 3 uses in 2 functions -- S: Shape changes; Tensor.trans, Tensor.permute
+tl.where: 11 uses in 9 functions -- S: Operators and promotion (tl.where); TVA.tl.where
+tl.zeros: 18 uses in 12 functions; keywords ['dtype'] -- TVA.tl.zeros; S: Constants (tl.full)
+names without a stated meaning: none

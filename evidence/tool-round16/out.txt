@@ -1,0 +1,158 @@
+tvr: tools/tvr.py sha256 2a390f9dca6f5ae1, tools/claim_reader.lean.in sha256 3fecc3f2be58ee48; git version 2.52.0; Python 3.13.9
+
+# Part F (L62): the arguments of a `Compiler.Faithful` field
+
+- F1 (lr-13a): a whole claim, `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model false) (launch d) (K d)`: the claim reader elaborates main, consistent, satisfiable and Spec (shape PASS)
+-   axioms: PASS
+-   usage: PASS
+-   namespace: PASS
+-   kinds: FAIL ["faithful: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model false) (Kernels.Demo.launch d) (K d)`"]
+- `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel", "var": 0}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 0}, {"fn": "K", "pp": "K d", "var": 0}]
+  kinds: PASS
+- `otherModel : ∀ d e : Inst, d.ok → Rules.Compiler.Faithful P (model e) (launch d) (K d)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model e", "type": "TVA.Kernel", "var": 1}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 0}, {"fn": "K", "pp": "K d", "var": 0}]
+  kinds: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model e) (Kernels.Demo.launch d) (K d)`
+- `otherLaunch : ∀ d e : Inst, d.ok → Rules.Compiler.Faithful P (model d) (launch e) (K d)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel", "var": 0}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch e", "type": "TVA.Launch", "var": 1}, {"fn": "K", "pp": "K d", "var": 0}]
+  kinds: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch e) (K d)`
+- `otherK : ∀ d e : Inst, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K e)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel", "var": 0}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 0}, {"fn": "K", "pp": "K e", "var": 1}]
+  kinds: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (K e)`
+- `chosen : ∀ (h : ∃ d : Inst, d.ok) (d : Inst), d.ok → Rules.Compiler.Faithful P (model (Classical.choose h)) (launch d) (K d)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model (Classical.choose h)", "type": "TVA.Kernel"}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 1}, {"fn": "K", "pp": "K d", "var": 1}]
+  kinds: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model (Classical.choose h)) (Kernels.Demo.launch d) (K d)`
+- `fixed : ∀ d, d.ok → Rules.Compiler.Faithful P (model ⟨0⟩) (launch d) (K d)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model { n := 0 }", "type": "TVA.Kernel"}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 0}, {"fn": "K", "pp": "K d", "var": 0}]
+  kinds: a [rule] may mention no constant of the kernel's own but Inst, Inst.ok, model, launch (found Inst.mk); Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model { n := 0 }) (Kernels.Demo.launch d) (K d)`
+- `written : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (Launch.grid1 1 [[1]]) (K d)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel", "var": 0}, {"pp": "TVA.Launch.grid1 1 [[1]]", "type": "TVA.Launch"}, {"fn": "K", "pp": "K d", "var": 0}]
+  kinds: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model d) (TVA.Launch.grid1 1 [[1]]) (K d)`
+- `eta : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (fun init o => K d init o)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel", "var": 0}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 0}, {"pp": "fun init o => K d init o"}]
+  kinds: Compiler.Faithful is cited only as `Faithful P (model x) (launch x) (K x)`, with the kernel's own model and launch and one variable x the statement binds (library issue L62), not as `Faithful P (Kernels.Demo.model d) (Kernels.Demo.launch d) (fun init o => K d init o)`
+- `noOk : ∀ d, Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel", "var": 0}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 0}, {"fn": "K", "pp": "K d", "var": 0}]
+  kinds: PASS
+- `renamed : ∀ (d e : Inst), d.ok → d = e → Rules.Compiler.Faithful P (model e) (launch e) (K e)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model e", "type": "TVA.Kernel", "var": 1}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch e", "type": "TVA.Launch", "var": 1}, {"fn": "K", "pp": "K e", "var": 1}]
+  kinds: PASS
+
+# Part L (L62): a [rule] field cites a fact docs/rules/num.md lists
+
+- the facts the tree's docs/rules/num.md lists (38): MathTotal, DivTotal, CvtTotal, DotTotal, AtomicAddTotal, DotScaledTotal, ExpF32, Exp2F32, LogF32, Log2F32, SqrtF32, RsqrtF32, ExpF32NegInf, Exp2F32NegInf, DivFull, DivRn as P .binary64, CvtF32E4m3, CvtF32E5m2, CvtF16E4m3, CvtF16E5m2, CvtBF16E4m3, CvtBF16E5m2, CvtSatF32E4m3, CvtSatF32E5m2, CvtSatF16E4m3, CvtSatF16E5m2, CvtSatBF16E4m3, CvtSatBF16E5m2, DotF16, DotBF16, DotE4m3, DotE5m2, DotE4m3E5m2, DotE5m2E4m3, DotF32Ieee, DotScaledE4m3, DotScaledE4m3E2m1, AtomicAddF32
+- `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"fn": "Kernels.Demo.model", "pp": "Kernels.Demo.model d", "type": "TVA.Kernel", "var": 0}, {"fn": "Kernels.Demo.launch", "pp": "Kernels.Demo.launch d", "type": "TVA.Launch", "var": 0}, {"fn": "K", "pp": "K d", "var": 0}]
+  kinds: PASS
+- `div : Rules.Num.DivFull P`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}]
+  kinds: PASS
+- `exp2 : ∀ d : Inst, d.ok → Rules.Num.Exp2F32 P`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}]
+  kinds: PASS
+- `dot : Rules.Num.DotF16 P`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}]
+  kinds: PASS
+- `tot : Rules.Num.MathTotal P .exp .binary32`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "TVA.MathFn.exp", "pp": "TVA.MathFn.exp", "type": "TVA.MathFn"}, {"const": "TVA.Math.Float.Format.binary32", "pp": "TVA.Math.Float.Format.binary32", "type": "TVA.Math.Float.Format"}]
+  kinds: PASS
+- `d64 : Rules.Num.DivRn P .binary64`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "TVA.Math.Float.Format.binary64", "pp": "TVA.Math.Float.Format.binary64", "type": "TVA.Math.Float.Format"}]
+  kinds: PASS
+- `d64full : Rules.Num.DivRn P TVA.Math.Float.Format.binary64`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "TVA.Math.Float.Format.binary64", "pp": "TVA.Math.Float.Format.binary64", "type": "TVA.Math.Float.Format"}]
+  kinds: PASS
+- `d32 : Rules.Num.DivRn P .binary32`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "TVA.Math.Float.Format.binary32", "pp": "TVA.Math.Float.Format.binary32", "type": "TVA.Math.Float.Format"}]
+  kinds: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- `exp9a : Rules.Num.MathAcc P .exp .binary32 Set.univ (2 ^ (-24 : Int)) (2 ^ (-150 : Int))`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "TVA.MathFn.exp", "pp": "TVA.MathFn.exp", "type": "TVA.MathFn"}, {"const": "TVA.Math.Float.Format.binary32", "pp": "TVA.Math.Float.Format.binary32", "type": "TVA.Math.Float.Format"}, {"fn": "Set.univ", "pp": "Set.univ", "type": "Set"}, {"pp": "2 ^ (-24)", "type": "Real"}, {"pp": "2 ^ (-150)", "type": "Real"}]
+  kinds: Rules.Num.MathAcc is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+- `fam : Rules.Num.DotF8 P .f8e4nv .f8e5`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"const": "TVA.DType.f8e4nv", "pp": "TVA.DType.f8e4nv", "type": "TVA.DType"}, {"const": "TVA.DType.f8e5", "pp": "TVA.DType.f8e5", "type": "TVA.DType"}]
+  kinds: Rules.Num.DotF8 is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+- `helper : Rules.Num.DivRnF32 P`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}]
+  kinds: Rules.Num.DivRnF32 is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+- `helperTot : Rules.Num.DivAccTotal P (2 ^ (-40 : Int))`
+  arguments as the reader gives them: [{"platform": true, "pp": "P", "type": "TVA.Platform"}, {"pp": "2 ^ (-40)", "type": "Rat"}]
+  kinds: Rules.Num.DivAccTotal is not among the facts docs/rules/num.md's "Facts the library states" lists (a shape with constants the field chooses never is): cite a listed fact by its name, or ask the library for one
+- num.md with the heading's parenthetical changed: facts listed: 38
+-   `ExpF32 P`: PASS
+-   the audit's fact-page check about it: nothing
+- num.md with `ExpF32` written as `TVA.Rules.Num.ExpF32`: facts listed: 38
+-   `ExpF32 P`: PASS
+-   the audit's fact-page check about it: nothing
+- num.md with the section renamed: facts listed: none (None)
+-   `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+-   the audit's fact-page check about it: ['docs/rules/num.md: no section "Facts the library states" with a table whose first column names the facts a kernel may cite, so the gate\'s kinds check accepts no fact but Compiler.Faithful (library issue L62)']
+- num.md with the table removed: facts listed: none (None)
+-   `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+-   the audit's fact-page check about it: ['docs/rules/num.md: no section "Facts the library states" with a table whose first column names the facts a kernel may cite, so the gate\'s kinds check accepts no fact but Compiler.Faithful (library issue L62)']
+- num.md with the page missing: facts listed: none (None)
+-   `ExpF32 P`: docs/rules/num.md has no section "Facts the library states" with a table of facts, so the gate accepts no fact but Compiler.Faithful (it fails closed)
+-   the audit's fact-page check about it: ['docs/rules/num.md: no section "Facts the library states" with a table whose first column names the facts a kernel may cite, so the gate\'s kinds check accepts no fact but Compiler.Faithful (library issue L62)']
+
+# Part M (L79): every code line outside a function is classed
+
+- lr-13a's source (work/globals.py, extended with a class and a main block): code lines outside every function: [1, 2, 3, 5, 6, 23, 25, 31, 32]
+- lr-13a's manifest: kernel lines [[9, 13]], host lines [[16, 20], [23, 28]]: ['the code lines 1–3, 5–6, 31–32, outside every function, lie neither in the kernel lines nor in the host lines: put a line whose value the launch reads (a global the kernel names: a `tl.constexpr`, a dtype, an import) in the kernel lines, and the others in source.host']
+- the module's lines in the kernel lines [[1, 13]], the rest host: passes
+- the module's lines in the host lines (the gate passes; the reviewer judges SCALE and OUT_T): passes
+- all but the main block classed: ['the code lines 31–32, outside every function, lie neither in the kernel lines nor in the host lines: put a line whose value the launch reads (a global the kernel names: a `tl.constexpr`, a dtype, an import) in the kernel lines, and the others in source.host']
+- vec-add's code lines outside every function: [21, 23, 24, 26, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 135]
+- vec-add's manifest as shipped (ranges [[23, 24], [29, 54]], host [[21, 21], [26, 26], [62, 78], [84, 93], [107, 129], [135, 135]]): passes
+- claim.md §2 with kernel lines [[21, 26], [29, 54]] and host lines [[62, 135]]: The code outside every function (it runs when Python executes the module), as the manifest classes it: in the kernel lines, lines 21, 23–24, 26; in the host lines, lines 84–93, 135. The gate checks that every such line is in one of these (library issue L79). Judge that every module-level value the claimed launch reads lies in the kernel lines, mapped there: a name the kernel lines use that the module binds (a `tl.constexpr(…)` global, a dtype, a module such as `tl`), and that the host lines bind nothing the launch reads.
+
+# Part R (L81): every role folder of a kernel's review/ follows from its ledger
+
+- vec-add as shipped: role folders the events do not account for: none
+- tvr start vec_add_f32 reviewer r-two before r-two is assigned: (1, 'tvr: r-two is not assigned to vec_add_f32: the coordinator assigns reviewers (`tvr assign vec_add_f32 r-two`), and a folder of a reviewer no assignment names fails the records step (library issue L81)')
+- tvr lint vec_add_f32 reviewer r-two before r-two is assigned: (1, "not regular:\n  - r-two is not assigned to vec_add_f32 (`tvr assign vec_add_f32 r-two` is the coordinator's), so no filing of r-two can be recorded")
+- tvr assign r-two: ok
+- tvr file r-two (a blocking finding): recorded kernels/vec_add_f32/review/round-2/r-two/filing.json: 1 event(s)
+- tvr file r-vecadd (filing-2, accept all): recorded kernels/vec_add_f32/review/round-2/r-vecadd/filing-2.json: 1 event(s)
+- certificate with r-two's lines: False
+- R1 (lr-13a): r-two's 3 events removed; kernel_record_problems: ['kernels/vec_add_f32/review/round-2/r-two: the folder of a reviewer no `assign` event of kernels/vec_add_f32/review/ledger.jsonl names']
+- R1: certificate: False
+- R1: the records step, about kernels/: ['kernels/vec_add_f32/review/round-2/r-two: the folder of a reviewer no `assign` event of kernels/vec_add_f32/review/ledger.jsonl names']
+- R1: tvr lint vec_add_f32 reviewer r-two: (1, "not regular:\n  - r-two is not assigned to vec_add_f32 (`tvr assign vec_add_f32 r-two` is the coordinator's), so no filing of r-two can be recorded")
+- R2: r-two's file and raise removed, its assign kept; kernel_record_problems: none
+- R2: the current round's folders not yet recorded (unrecorded_current): ['kernels/vec_add_f32/review/round-2/r-two: a filing or response of the current round that is not recorded yet']
+- R2: certificate: False
+- R2: the records step, about kernels/: none
+- R2: what the release check lints there: [['lint', 'vec_add_f32', 'reviewer', 'r-two'], ['lint', 'vec_add_f32', 'reviewer', 'r-vecadd']]
+- the ledger restored: kernel_record_problems: none
+- R3: review/round-1/r-two/ (r-two assigned in round 2, nothing recorded there): ['kernels/vec_add_f32/review/round-1/r-two: a record of round 1 (the ledger is at round 2) that no event of kernels/vec_add_f32/review/ledger.jsonl records']
+- R4: review/round-02/, review/notes.md and review/round-2/stray.json: ["kernels/vec_add_f32/review/notes.md: in the kernel's review/ folder, but no record `tvr` writes (the ledger, the certificate, the snapshots, round-N/<who>/)", "kernels/vec_add_f32/review/round-02: in the kernel's review/ folder, but no record `tvr` writes (the ledger, the certificate, the snapshots, round-N/<who>/)", "kernels/vec_add_f32/review/round-2/stray.json: in the kernel's review/ folder, but no record `tvr` writes (the ledger, the certificate, the snapshots, round-N/<who>/)"]
+
+# Part C (L82): cited names in capitals, and old events re-derived with today's defaults
+
+- a page citing `docs/DESIGN`: ['docs/page.md: cites docs/DESIGN, which does not exist']
+- a page citing `docs/DESIGN.md`: passes
+- a page citing `docs/DESIGNS.md`: ['docs/page.md: cites docs/DESIGNS.md, which does not exist']
+- a page citing `evidence/NUM-DIV-F64/README.md`: ['docs/page.md: cites evidence/NUM-DIV-F64/README.md, which does not exist']
+- a page citing `docs/library-review/round-N/author/notes.md`: passes
+- a page citing `evidence/<topic>/README.md`: passes
+- a page citing `docs/rules/*.md`: passes
+- a page citing `evidence/num-div-f32/...`: passes
+- the tree's citations: every cited file exists
+- vec-add's ledger as shipped: events no recorded file gives: none
+- the same with DOC's default made blocking (its round-1 DOC finding gave no `blocking`): ['kernels/vec_add_f32/review/ledger.jsonl: event 2 (file by r-vecadd): the events after it are not what its recorded filing gives (event 3 differs)', 'kernels/vec_add_f32/review/ledger.jsonl: event 3 (raise F1 by r-vecadd): no recorded filing or response gives it', 'kernels/vec_add_f32/review/ledger.jsonl: event 4 (accept by r-vecadd): no recorded filing or response gives it']
+
+# Part G (L7): git reads no repository's configuration but the one it is given
+
+- the repository's .git/config: [core] | 	repositoryformatversion = 0 | 	filemode = true | 	bare = false | 	logallrefupdates = true | [url "https://example.invalid/"] | 	insteadOf = https://github.com/
+- control: a plain `git ls-remote` run inside it: (128, "fatal: unable to access 'https://example.invalid/leanprover-community/mathlib4/': Could not resolve host: example.invalid")
+- outside any repository: the tool's _git ls-remote https://github.com/leanprover-community/mathlib4 refs/tags/v4.35.0: (0, '56a005855ea17e0b0958f73ec801ae140b0a1679\trefs/tags/v4.35.0')
+- outside any repository: upstream_problem(Mathlib's URL, v4.35.0, its pin, tag): accepted
+- inside the repository: the tool's _git ls-remote https://github.com/leanprover-community/mathlib4 refs/tags/v4.35.0: (0, '56a005855ea17e0b0958f73ec801ae140b0a1679\trefs/tags/v4.35.0')
+- inside the repository: upstream_problem(Mathlib's URL, v4.35.0, its pin, tag): accepted
+- in a subfolder of the repository: the tool's _git ls-remote https://github.com/leanprover-community/mathlib4 refs/tags/v4.35.0: (0, '56a005855ea17e0b0958f73ec801ae140b0a1679\trefs/tags/v4.35.0')
+- in a subfolder of the repository: upstream_problem(Mathlib's URL, v4.35.0, its pin, tag): accepted
+- _git -C <a folder inside the repository, not one itself> rev-parse --git-dir: (128, 'fatal: not a git repository (or any of the parent directories): .git')
+- _git -C <the repository> config --get its insteadOf (a git given a repository reads it): (0, 'https://github.com/')
+- _git -C <tva> rev-parse --show-toplevel (TVA's own repository, for shipped_files): (0, '<tva>')
+- the folder every git runs in (<git home>/cwd) holds: nothing
+- inside the repository: upstream_problem(Mathlib's URL, master, its pin, branch) (a clone of master's history): accepted
+

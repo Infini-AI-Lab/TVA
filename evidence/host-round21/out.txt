@@ -1,0 +1,29 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, python 3.13.9, machine x86_64, gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-14)
+
+K. scope 11: compile-time values that share Triton's key (one process each line)
+K5 controls, each value the first launch of its process on a fresh cache directory: C = 1 -> 16777217, C = 1.0 -> 16777216, C = 2 -> 33554434, C = 2.0 -> 33554432
+K1 fresh cache directory, C = 2 then C = 2.0: [33554434, 33554434] (C = 2.0 alone: 33554432): the second ran the first value's code
+K1 fresh cache directory, C = 2.0 then C = 2: [33554432, 33554432] (C = 2 alone: 33554434): the second ran the first value's code
+K2 C = 1, then a fresh cache directory set in the process, then C = 1.0: [16777217, 'cache directory set to a fresh one', 16777217]: C = 1.0 ran C = 1's code
+K3 fresh cache directory, (A, B) = ('a-b', 'c') then ('a', 'b-c'): [31, 31] (('a', 'b-c') alone: 13): the second ran the first's code
+K4 fresh process and cache directory, autotune over C = 1 and C = 1.0: {'chosen': '1.0', 'stored': 16777217, 'benchmark runs': 2} (C = 1.0 alone: 16777216): the chosen config ran the benchmarked C = 1's code
+
+X. scope 12: code compiled outside the scope, found later (A outside; B, C, D inside every scope)
+X1 tl.exp = tl.log in A; tl.exp(2.0): A -> [0.6931471824645996]; B (same directory) -> [0.6931471824645996]; C (fresh directory) -> [7.389056205749512]; D (same directory, TRITON_ALWAYS_COMPILE=1) -> [7.389056205749512]: B ran A's code, D its own
+X2 fp32_default = 'ieee' from Python in A; tl.dot(1 + 2^-12, I)[0, 0]: A -> ['0x1.0010000000000p+0']; B (same directory) -> ['0x1.0010000000000p+0']; C (fresh directory) -> ['0x1.0000000000000p+0']; D (same directory, TRITON_ALWAYS_COMPILE=1) -> ['0x1.0000000000000p+0']: B ran A's code, D its own
+X3 fesetround(FE_TOWARDZERO) in A; tl.full([1], 0.1, tl.float32) and the others of envk: A -> [{'0.1': '3dcccccc', 'y=0.1': '3dcccccc', '1e-40': '000116c2', 'A+B': '3fd3333333333333'}]; B (same directory) -> [{'0.1': '3dcccccc', 'y=0.1': '3dcccccd', '1e-40': '000116c2', 'A+B': '3fd3333333333333'}]; C (fresh directory) -> [{'0.1': '3dcccccd', 'y=0.1': '3dcccccd', '1e-40': '000116c2', 'A+B': '3fd3333333333334'}]; D (same directory, TRITON_ALWAYS_COMPILE=1) -> [{'0.1': '3dcccccd', 'y=0.1': '3dcccccd', '1e-40': '000116c2', 'A+B': '3fd3333333333334'}]: B ran A's code, D its own
+X4 A runs as python -I -O; kd with n = 3: A -> ['1.0']; B (same directory) -> ['1.0']; C (fresh directory) -> ['rejected on the host (CompilationError)']; D (same directory, TRITON_ALWAYS_COMPILE=1) -> ['rejected on the host (CompilationError)']: B ran A's code, D its own
+X5 one process: knob 'ieee', dotk, knob deleted, dotk: ['0x1.0010000000000p+0', 'knob deleted, now None', '0x1.0010000000000p+0'] (the default's own code: 0x1.0000000000000p+0): the second launch ran the ieee code
+X5 one process with TRITON_ALWAYS_COMPILE=1: knob 'ieee', dotk, knob deleted, dotk: ['0x1.0010000000000p+0', 'knob deleted, now None', '0x1.0010000000000p+0'] (the default's own code: 0x1.0000000000000p+0): the second launch ran the ieee code
+
+H. the host process's own state (each line in a process of its own, fresh cache directory)
+H1 python -I: kd with n = 3 -> rejected on the host (CompilationError)
+H1 python -I -O: kd with n = 3 -> 1.0
+H1 python -I -OO: kd with n = 3 -> 1.0
+H1 python -s, PYTHONOPTIMIZE=1: kd with n = 3 -> 1.0
+H2/H3 plain process: ['MXCSR FTZ False, DAZ False', {'0.1': '3dcccccd', 'y=0.1': '3dcccccd', '1e-40': '000116c2', 'A+B': '3fd3333333333334'}]
+H2 fesetround(FE_TOWARDZERO): MXCSR FTZ False, DAZ False; envk words that differ from the plain process: {'0.1': '3dcccccc (plain 3dcccccd)', 'y=0.1': '3dcccccc (plain 3dcccccd)', 'A+B': '3fd3333333333333 (plain 3fd3333333333334)'}
+H3 _mm_setcsr(FTZ | DAZ): MXCSR FTZ True, DAZ True; envk words that differ from the plain process: {'1e-40': '00000000 (plain 000116c2)'}
+H3 a shared library built with -ffast-math loaded: MXCSR FTZ True, DAZ True; envk words that differ from the plain process: {'1e-40': '00000000 (plain 000116c2)'}
+
+launches that ran code compiled for other values or outside the scope (K1-K4, X1-X5): 11 of 11

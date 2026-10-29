@@ -1,0 +1,6 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+H1: exp2(-130) = 7.346839692639297e-40 (2^-130); compiled with enable_reflect_ftz=False
+H2: exp2(-130) = 0.0 (0); compiled with enable_reflect_ftz=True
+H3: x*y+z = 0.0 (fused: 2^-24 = 5.960464477539063e-08; unfused: 0.0); fma in PTX: False; compiled with enable_fp_fusion=False
+H4: x*y+z = 5.960464477539063e-08 (fused: 2^-24 = 5.960464477539063e-08; unfused: 0.0); fma in PTX: True; compiled with enable_fp_fusion=True
+H5: x*y+z = 5.960464477539063e-08 (fused: 2^-24 = 5.960464477539063e-08; unfused: 0.0); fma in PTX: True; compiled with enable_fp_fusion=True

@@ -1,0 +1,10 @@
+| from | to | inputs | in range | differ from Lean |
+|---|---|---|---|---|
+| F16 | E4 | 65536 | 48642 | 0 |
+| F16 | E5 | 65536 | 62978 | 0 |
+| BF16 | E4 | 65536 | 34754 | 0 |
+| BF16 | E5 | 65536 | 36546 | 0 |
+| F32 | E4 | 65551 | 34760 | 0 |
+| F32 | E5 | 65551 | 36553 | 0 |
+
+Total in-range inputs where the device differs from the Lean rounding: 0

@@ -1,0 +1,7 @@
+"litF64 nan = 7ff8000000000000, litF32 nan = 7fffffff, litF16 nan = 7fff, litBF16 nan = 7fff"
+"litF64 -nan = fff8000000000000, litF32 -nan = 7fffffff, litF16 -nan = 7fff, litBF16 -nan = 7fff"
+(true, true, true, false)
+(126, 123, 127, 127, 7)
+(true, false, true, false, true, true, true)
+(1 / 2, 6, -6, 1 / 512, 448, 1 / 65536, 57344)
+"2fffffff"

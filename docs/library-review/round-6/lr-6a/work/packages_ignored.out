@@ -1,0 +1,13 @@
+## P1: the real Mathlib checkout (read-only)
+  Mathlib/__pycache__/Lemmas.lean: ignored by .gitignore:8:**/__pycache__/
+  Mathlib/Analysis/FloatErrLocal.lean: not ignored
+  Mathlib/Logic/Basic.lean: not ignored
+  git status --porcelain --untracked-files=all prints 0 line(s)
+## P2: a scratch repository, the command of package_problems
+  two module files added, one under __pycache__, one listed in .git/info/exclude: git status prints 0 line(s) ''
+  with --ignored it prints: ['!! Mathlib/Analysis/FloatErrLocal.lean', '!! Mathlib/__pycache__/Lemmas.lean']
+## P3: TVA's import check
+  import_violations (roots ('TVA', 'Mathlib')): none
+## P4: Lean resolves the import
+  compiled Mathlib.__pycache__.Lemmas: exit 0 
+  importing file: exit 0; output 'lr6aProbeLemma : 2 + 2 = 4' 

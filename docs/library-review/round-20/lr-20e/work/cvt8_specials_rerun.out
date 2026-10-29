@@ -1,0 +1,30 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| from | to | input | patterns | results (bits, count) | as CvtSat says |
+|---|---|---|---|---|---|
+| float32 | float8e4nv | +inf | 1 | `7e` × 1 | yes |
+| float32 | float8e4nv | -inf | 1 | `fe` × 1 | yes |
+| float32 | float8e4nv | NaN, sign 0 | 8388607 | `7f` × 8388607 | yes |
+| float32 | float8e4nv | NaN, sign 1 | 8388607 | `7f` × 8388607 | yes |
+| float32 | float8e5 | +inf | 1 | `7b` × 1 | yes |
+| float32 | float8e5 | -inf | 1 | `fb` × 1 | yes |
+| float32 | float8e5 | NaN, sign 0 | 8388607 | `7f` × 8388607 | yes |
+| float32 | float8e5 | NaN, sign 1 | 8388607 | `7f` × 8388607 | yes |
+| float16 | float8e4nv | +inf | 1 | `7e` × 1 | yes |
+| float16 | float8e4nv | -inf | 1 | `fe` × 1 | yes |
+| float16 | float8e4nv | NaN, sign 0 | 1023 | `7f` × 1023 | yes |
+| float16 | float8e4nv | NaN, sign 1 | 1023 | `7f` × 1023 | yes |
+| float16 | float8e5 | +inf | 1 | `7b` × 1 | yes |
+| float16 | float8e5 | -inf | 1 | `fb` × 1 | yes |
+| float16 | float8e5 | NaN, sign 0 | 1023 | `7f` × 1023 | yes |
+| float16 | float8e5 | NaN, sign 1 | 1023 | `7f` × 1023 | yes |
+| bfloat16 | float8e4nv | +inf | 1 | `7e` × 1 | yes |
+| bfloat16 | float8e4nv | -inf | 1 | `fe` × 1 | yes |
+| bfloat16 | float8e4nv | NaN, sign 0 | 127 | `7f` × 127 | yes |
+| bfloat16 | float8e4nv | NaN, sign 1 | 127 | `7f` × 127 | yes |
+| bfloat16 | float8e5 | +inf | 1 | `7b` × 1 | yes |
+| bfloat16 | float8e5 | -inf | 1 | `fb` × 1 | yes |
+| bfloat16 | float8e5 | NaN, sign 0 | 127 | `7f` × 127 | yes |
+| bfloat16 | float8e5 | NaN, sign 1 | 127 | `7f` × 127 | yes |
+
+rows not as CvtSat says: 0

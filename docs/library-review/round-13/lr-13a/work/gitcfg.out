@@ -1,0 +1,5 @@
+- the repository's .git/config: [core] | 	repositoryformatversion = 0 | 	filemode = true | 	bare = false | 	logallrefupdates = true | [url "https://example.invalid/"] | 	insteadOf = https://github.com/
+- outside any repository: _git ls-remote https://github.com/leanprover-community/mathlib4 refs/tags/v4.35.0: (0, '56a005855ea17e0b0958f73ec801ae140b0a1679\trefs/tags/v4.35.0')
+- outside any repository: upstream_problem(Mathlib's URL, v4.35.0, its pin, tag): accepted
+- inside the repository: _git ls-remote https://github.com/leanprover-community/mathlib4 refs/tags/v4.35.0: (128, "fatal: unable to access 'https://example.invalid/leanprover-community/mathlib4/': Could not resolve host: example.invalid")
+- inside the repository: upstream_problem(Mathlib's URL, v4.35.0, its pin, tag): cannot read the refs of https://github.com/leanprover-community/mathlib4 (fatal: unable to access 'https://example.invalid/leanprover-community/mathlib4/': Could not resolve host: example.invali)

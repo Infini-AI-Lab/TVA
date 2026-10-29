@@ -12,7 +12,8 @@ tensor, element `D.elemAt (c i)` of `b`, where `c i` are the lane's coordinates
 * `safe_desc_store`: in-bounds lanes are written (to distinct elements), nothing else changes;
 * `safe_desc_atomic`: each in-bounds lane reduces its own element once (owned elements only:
   shared descriptor reductions race, see `TVA.Lang.Desc`);
-* `safe_desc_gather`, `safe_desc_scatter`: the row-indexed forms.
+* `safe_desc_gather`, `safe_desc_scatter`: the row-indexed forms;
+* `safe_make_tensor_descriptor`: a descriptor built in the kernel (no memory access).
 -/
 namespace TVA
 
@@ -70,6 +71,17 @@ end RedOp
 section Rules
 variable {d : DType} {E : Env} {R W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem}
 
+/-- **`tl.make_tensor_descriptor`** in the kernel: no memory access; the descriptor of the
+arguments' values when no shape entry or stride is negative. -/
+theorem safe_make_tensor_descriptor {base : Ptr d} {shape : List I32} {strides : List I64}
+    {block : Shape} {padding : Padding} (hs : ∀ x ∈ shape, 0 ≤ x.toInt)
+    (ht : ∀ x ∈ strides, 0 ≤ x.toInt) {k : TensorDesc d → Prog α}
+    (hk : Safe E R W Q m (k ⟨base, shape.map (fun x => x.toInt.toNat),
+      strides.map (fun x => x.toInt.toNat), block, padding⟩)) :
+    Safe E R W Q m (tl.make_tensor_descriptor base shape strides block padding >>= k) := by
+  simp only [tl.make_tensor_descriptor, Prog.bind_eq, Prog.bind]
+  exact .pick ⟨_, hs, ht, rfl⟩ fun D hD => by rw [hD.2.2]; exact hk
+
 /-- **`desc.load`** from a buffer. -/
 theorem safe_desc_load (b : Buf d) {bs : Shape} {D : TensorDesc d} {offsets : List I32}
     (hbase : D.base = b.ptr 0) (hacc : D.Access (offsets.map IntV.toInt) bs)
@@ -111,14 +123,16 @@ theorem safe_desc_store (b : Buf d) {bs : Shape} {D : TensorDesc d} {offsets : L
           some (vals.get i)) →
       (∀ x, x ∉ b.elems (Buf.img (fun i : Idx bs => (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat)
         (fun i => D.inbAt (TensorDesc.coord (offsets.map IntV.toInt) i))) → m' x = m x) →
-      (∀ x, m x ≠ none → m' x ≠ none) → Safe E R W Q m' (k ())) :
+      (∀ x, m x ≠ none → m' x ≠ none) → Safe E R (W \ b.elems (Buf.img (fun i : Idx bs => (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat)
+        (fun i => D.inbAt (TensorDesc.coord (offsets.map IntV.toInt) i)))) Q m' (k ())) :
     Safe E R W Q m (tl.desc_store D offsets vals >>= k) := by
   simp only [tl.desc_store, Prog.bind_eq, Prog.bind]
   refine .pick ⟨(), hacc⟩ fun _ _ => ?_
   exact safe_store_buf b (D.addrs_buf b hbase _) hin hinj hv hW hk
 
 /-- **`desc.atomic_*`** on owned elements of a buffer: each in-bounds lane reduces its own
-element once. -/
+element once. The elements are outside the read footprint, and the rest of the program may not
+touch them again. -/
 theorem safe_desc_atomic (b : Buf d) {bs : Shape} {op : RedOp} {D : TensorDesc d}
     {offsets : List I32} {vals : Tensor bs d.Val}
     (hbase : D.base = b.ptr 0) (hacc : D.Access (offsets.map IntV.toInt) bs) (hop : op.Allowed d)
@@ -130,10 +144,10 @@ theorem safe_desc_atomic (b : Buf d) {bs : Shape} {op : RedOp} {D : TensorDesc d
       (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat =
         (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) j)).toNat → i = j)
     (hv : b.Valid m)
-    (hR : b.elems (Buf.img (fun i : Idx bs => (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat)
-      (fun i => D.inbAt (TensorDesc.coord (offsets.map IntV.toInt) i))) ⊆ R)
     (hW : b.elems (Buf.img (fun i : Idx bs => (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat)
       (fun i => D.inbAt (TensorDesc.coord (offsets.map IntV.toInt) i))) ⊆ W)
+    (hRd : Disjoint (b.elems (Buf.img (fun i : Idx bs => (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat)
+      (fun i => D.inbAt (TensorDesc.coord (offsets.map IntV.toInt) i)))) R)
     {k : Unit → Prog α}
     (hk : ∀ m', (∀ i, D.inbAt (TensorDesc.coord (offsets.map IntV.toInt) i) = true →
         ∃ o n, m.read d (b.ptr ((D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat : Int)).addr =
@@ -141,11 +155,12 @@ theorem safe_desc_atomic (b : Buf d) {bs : Shape} {op : RedOp} {D : TensorDesc d
           m'.read d (b.ptr ((D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat : Int)).addr = some n) →
       (∀ x, x ∉ b.elems (Buf.img (fun i : Idx bs => (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat)
         (fun i => D.inbAt (TensorDesc.coord (offsets.map IntV.toInt) i))) → m' x = m x) →
-      (∀ x, m x ≠ none → m' x ≠ none) → Safe E R W Q m' (k ())) :
+      (∀ x, m x ≠ none → m' x ≠ none) → Safe E R (W \ b.elems (Buf.img (fun i : Idx bs => (D.elemAt (TensorDesc.coord (offsets.map IntV.toInt) i)).toNat)
+        (fun i => D.inbAt (TensorDesc.coord (offsets.map IntV.toInt) i)))) Q m' (k ())) :
     Safe E R W Q m (tl.desc_atomic op D offsets vals >>= k) := by
   simp only [tl.desc_atomic, Prog.bind_eq, Prog.bind, Prog.bind_assoc]
   refine .pick ⟨(), hacc, hop⟩ fun _ _ => .env ?_
-  refine safe_atomic_buf b (D.addrs_buf b hbase _) hin hinj (fun i => htot (vals.get i)) hv hR hW
+  refine safe_atomic_buf b (D.addrs_buf b hbase _) hin hinj (fun i => htot (vals.get i)) hv hW hRd
     fun old m' hdone hframe hpres => ?_
   simp only [Prog.pure_eq, Prog.ret_bind]
   exact hk m' (fun i hi => by obtain ⟨n, h1, h2, h3⟩ := hdone i hi; exact ⟨_, n, h1, h2, h3⟩) hframe hpres
@@ -183,7 +198,8 @@ theorem safe_desc_scatter (b : Buf d) {M BN w : Nat} {D : TensorDesc d} {vals : 
         some (vals.get l)) →
       (∀ x, x ∉ b.elems (Buf.img (fun l : Idx [M, BN] => (D.elemAt (TensorDesc.rowCoord xs y l)).toNat)
         (fun _ => true)) → m' x = m x) →
-      (∀ x, m x ≠ none → m' x ≠ none) → Safe E R W Q m' (k ())) :
+      (∀ x, m x ≠ none → m' x ≠ none) → Safe E R (W \ b.elems (Buf.img (fun l : Idx [M, BN] => (D.elemAt (TensorDesc.rowCoord xs y l)).toNat)
+        (fun _ => true))) Q m' (k ())) :
     Safe E R W Q m (tl.desc_scatter D vals xs y >>= k) := by
   simp only [tl.desc_scatter, Prog.bind_eq, Prog.bind]
   refine .pick ⟨(), hacc, hall⟩ fun _ _ => ?_

@@ -1,0 +1,17 @@
+some 252
+none
+some 126
+some 0
+some 126
+none
+some 194
+some 56
+some 128
+Format.e4m3_u : Format.e4m3.u = 2 ^ (-4)
+Format.e5m2_eta : Format.e5m2.eta = 2 ^ (-17)
+@IntV.le_toInt : ∀ {sg : Bool} {w : ℕ} (x y : IntV sg w), x.le y = decide (x.toInt ≤ y.toInt)
+'TVA.Math.Float.Format.e4m3_u' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.e4m3_eta' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.e5m2_u' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.e5m2_eta' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.IntV.le_toInt' depends on axioms: [propext, Classical.choice, Quot.sound]

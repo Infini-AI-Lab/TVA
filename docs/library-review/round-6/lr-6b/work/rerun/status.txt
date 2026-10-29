@@ -1,0 +1,5 @@
+config-cond rc=0 4s output identical
+debug-calls rc=0 3s output differs
+pure-operands rc=0 3s output differs
+literals rc=0 76s output identical
+literals/int_full rc=0 output identical

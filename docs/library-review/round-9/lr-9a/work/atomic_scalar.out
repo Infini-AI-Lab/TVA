@@ -1,0 +1,51 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| form | sem, scope, old used | inputs | pairs checked | outside the fact | largest error / bound | atomic instructions |
+|---|---|---|---|---|---|---|
+| strided tensor | acq_rel, gpu, False | random | 4161209 | 0 | 0.5000 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | acq_rel, gpu, False | subnormal | 2097472 | 0 | 0.4996 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | acq_rel, gpu, False | near-normal | 4194304 | 0 | 0.5000 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | acq_rel, gpu, False | cancel | 4194304 | 0 | 0.2344 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | acq_rel, gpu, False | edge | 4100224 | 0 | 0.5000 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | relaxed, gpu, False | random | 4161293 | 0 | 0.5000 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | relaxed, gpu, False | subnormal | 2096583 | 0 | 0.4993 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | relaxed, gpu, False | near-normal | 4194304 | 0 | 0.5000 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | relaxed, gpu, False | cancel | 4194304 | 0 | 0.2344 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | relaxed, gpu, False | edge | 4100107 | 0 | 0.5000 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | acquire, gpu, False | random | 4161739 | 0 | 0.5000 | atom.global.gpu.acquire.add.f32 |
+| strided tensor | acquire, gpu, False | subnormal | 2098050 | 0 | 0.4996 | atom.global.gpu.acquire.add.f32 |
+| strided tensor | acquire, gpu, False | near-normal | 4194304 | 0 | 0.5000 | atom.global.gpu.acquire.add.f32 |
+| strided tensor | acquire, gpu, False | cancel | 4194304 | 0 | 0.2344 | atom.global.gpu.acquire.add.f32 |
+| strided tensor | acquire, gpu, False | edge | 4100437 | 0 | 0.5000 | atom.global.gpu.acquire.add.f32 |
+| strided tensor | release, gpu, False | random | 4161401 | 0 | 0.5000 | atom.global.gpu.release.add.f32 |
+| strided tensor | release, gpu, False | subnormal | 2097094 | 0 | 0.4993 | atom.global.gpu.release.add.f32 |
+| strided tensor | release, gpu, False | near-normal | 4194304 | 0 | 0.5000 | atom.global.gpu.release.add.f32 |
+| strided tensor | release, gpu, False | cancel | 4194304 | 0 | 0.2344 | atom.global.gpu.release.add.f32 |
+| strided tensor | release, gpu, False | edge | 4099723 | 0 | 0.5000 | atom.global.gpu.release.add.f32 |
+| strided tensor | acq_rel, cta, False | random | 4161537 | 0 | 0.5000 | atom.global.cta.acq_rel.add.f32 |
+| strided tensor | acq_rel, cta, False | subnormal | 2096787 | 0 | 0.4996 | atom.global.cta.acq_rel.add.f32 |
+| strided tensor | acq_rel, cta, False | near-normal | 4194304 | 0 | 0.5000 | atom.global.cta.acq_rel.add.f32 |
+| strided tensor | acq_rel, cta, False | cancel | 4194304 | 0 | 0.2344 | atom.global.cta.acq_rel.add.f32 |
+| strided tensor | acq_rel, cta, False | edge | 4099373 | 0 | 0.5000 | atom.global.cta.acq_rel.add.f32 |
+| strided tensor | acq_rel, sys, False | random | 4161212 | 0 | 0.5000 | atom.global.sys.acq_rel.add.f32 |
+| strided tensor | acq_rel, sys, False | subnormal | 2098203 | 0 | 0.4994 | atom.global.sys.acq_rel.add.f32 |
+| strided tensor | acq_rel, sys, False | near-normal | 4194304 | 0 | 0.5000 | atom.global.sys.acq_rel.add.f32 |
+| strided tensor | acq_rel, sys, False | cancel | 4194304 | 0 | 0.2344 | atom.global.sys.acq_rel.add.f32 |
+| strided tensor | acq_rel, sys, False | edge | 4099351 | 0 | 0.5000 | atom.global.sys.acq_rel.add.f32 |
+| strided tensor | relaxed, gpu, True | random | 4161306 | 0 | 0.5000 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | relaxed, gpu, True | subnormal | 2096163 | 0 | 0.4992 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | relaxed, gpu, True | near-normal | 4194304 | 0 | 0.5000 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | relaxed, gpu, True | cancel | 4194304 | 0 | 0.2344 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | relaxed, gpu, True | edge | 4100029 | 0 | 0.5000 | atom.global.gpu.relaxed.add.f32 |
+| strided tensor | acq_rel, gpu, True | random | 4161222 | 0 | 0.5000 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | acq_rel, gpu, True | subnormal | 2098610 | 0 | 0.4999 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | acq_rel, gpu, True | near-normal | 4194304 | 0 | 0.5000 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | acq_rel, gpu, True | cancel | 4194304 | 0 | 0.2344 | atom.global.gpu.acq_rel.add.f32 |
+| strided tensor | acq_rel, gpu, True | edge | 4100188 | 0 | 0.5000 | atom.global.gpu.acq_rel.add.f32 |
+| scalar | acq_rel, gpu, False | random | 1040403 | 0 | 0.4999 | atom.global.gpu.acq_rel.add.f32 |
+| scalar | acq_rel, gpu, False | subnormal | 524528 | 0 | 0.4982 | atom.global.gpu.acq_rel.add.f32 |
+| scalar | acq_rel, gpu, False | near-normal | 1048576 | 0 | 0.5000 | atom.global.gpu.acq_rel.add.f32 |
+| scalar | acq_rel, gpu, False | cancel | 1048576 | 0 | 0.2344 | atom.global.gpu.acq_rel.add.f32 |
+| scalar | acq_rel, gpu, False | edge | 1024903 | 0 | 0.5000 | atom.global.gpu.acq_rel.add.f32 |
+
+Total outside the fact (and old values not returned bit for bit): 0

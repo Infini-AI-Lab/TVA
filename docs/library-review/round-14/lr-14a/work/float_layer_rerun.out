@@ -1,0 +1,16 @@
+evidence/float-layer, part A, re-run by lr-14a outside the tree with the evidence's own build.sh steps, Driver.lean and run.py (unchanged copies), Triton 3.8.0, H200 NVL, GPU 0, 2026-10-28; the last test is a control (the non-saturating variant, which the device does not perform)
+
+A.cvt.f16.e4m3.sat1          cvt:f16:e4m3:rn:1        all         65536 inputs  agree  [1 s]
+A.cvt.f16.e5m2.sat1          cvt:f16:e5m2:rn:1        all         65536 inputs  agree  [0 s]
+A.cvt.bf16.e4m3.sat1         cvt:bf16:e4m3:rn:1       all         65536 inputs  agree  [0 s]
+A.cvt.bf16.e5m2.sat1         cvt:bf16:e5m2:rn:1       all         65536 inputs  agree  [0 s]
+A.cvt.f32.e4m3.sat1          cvt:f32:e4m3:rn:1        all    4294967296 inputs  agree  [429 s]
+A.cvt.f32.e5m2.sat1          cvt:f32:e5m2:rn:1        all    4294967296 inputs  agree  [467 s]
+A.cvt.f16.e4m3.sat0          cvt:f16:e4m3:rn:0        all         65536 inputs  DIFFER in 1 chunks (14720+ inputs)  [0 s]
+    chunk 0: 14720 inputs differ, 14720 of them where the library gives an infinity or NaN and the device the largest finite magnitude
+    input 5f41: library 7f, device 7e
+    input 5f42: library 7f, device 7e
+    input 5f43: library 7f, device 7e
+    input 5f44: library 7f, device 7e
+    input 5f45: library 7f, device 7e
+    input 5f46: library 7f, device 7e

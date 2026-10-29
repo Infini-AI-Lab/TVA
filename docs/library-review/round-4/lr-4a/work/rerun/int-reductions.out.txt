@@ -1,0 +1,56 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, sm_90, 2026-10-27
+
+== A. Every value of each small type in one block (32-bit types: 65536 adversarial values) ==
+dtype   | reduction                            | TTIR result type | value as int64 | r + 1000 (int32) | expected | ok
+int8    | tl.max(x)                            | i32              |            127 |             1127 |      127 | True
+int8    | tl.min(x)                            | i32              |           -128 |              872 |     -128 | True
+int8    | tl.sum(x)                            | i32              |           -128 |              872 |     -128 | True
+int8    | tl.max(x, 0, return_indices=True)    | (i8, i32)        |            127 |             1127 |      127 | True
+int8    | tl.argmax(x, 0)                      | (i8, i32)        |            117 |             1117 |      117 | True
+int16   | tl.max(x)                            | i32              |          32767 |            33767 |    32767 | True
+int16   | tl.min(x)                            | i32              |         -32768 |           -31768 |   -32768 | True
+int16   | tl.sum(x)                            | i32              |         -32768 |           -31768 |   -32768 | True
+int16   | tl.max(x, 0, return_indices=True)    | (i16, i32)       |          32767 |            33767 |    32767 | True
+int16   | tl.argmax(x, 0)                      | (i16, i32)       |          17148 |            18148 |    17148 | True
+uint8   | tl.max(x)                            | i32              |            255 |             1255 |      255 | True
+uint8   | tl.min(x)                            | i32              |              0 |             1000 |        0 | True
+uint8   | tl.sum(x)                            | i32              |          32640 |            33640 |    32640 | True
+uint8   | tl.max(x, 0, return_indices=True)    | (i8, i32)        |            255 |             1255 |      255 | True
+uint8   | tl.argmax(x, 0)                      | (i8, i32)        |             38 |             1038 |       38 | True
+uint16  | tl.max(x)                            | i32              |          65535 |            66535 |    65535 | True
+uint16  | tl.min(x)                            | i32              |              0 |             1000 |        0 | True
+uint16  | tl.sum(x)                            | i32              |     2147450880 |       2147451880 | 2147450880 | True
+uint16  | tl.max(x, 0, return_indices=True)    | (i16, i32)       |          65535 |            66535 |    65535 | True
+uint16  | tl.argmax(x, 0)                      | (i16, i32)       |          27727 |            28727 |    27727 | True
+int1    | tl.max(x)                            | i32              |              1 |             1001 |        1 | True
+int1    | tl.min(x)                            | i32              |              0 |             1000 |        0 | True
+int1    | tl.sum(x)                            | i32              |            128 |             1128 |      128 | True
+int1    | tl.max(x, 0, return_indices=True)    | (i1, i32)        |              1 |             1001 |        1 | True
+int1    | tl.argmax(x, 0)                      | (i1, i32)        |              0 |             1000 |        0 | True
+int32   | tl.max(x)                            | i32              |     2147483647 |      -2147482649 | 2147483647 | True
+int32   | tl.min(x)                            | i32              |    -2147483648 |      -2147482648 | -2147483648 | True
+int32   | tl.sum(x)                            | i32              |    -1122313226 |      -1122312226 | -1122313226 | True
+int32   | tl.max(x, 0, return_indices=True)    | (i32, i32)       |     2147483647 |      -2147482649 | 2147483647 | True
+int32   | tl.argmax(x, 0)                      | (i32, i32)       |          12354 |            13354 |    12354 | True
+uint32  | tl.max(x)                            | i32              |     4294967295 |              999 | 4294967295 | True
+uint32  | tl.min(x)                            | i32              |              0 |             1000 |        0 | True
+uint32  | tl.sum(x)                            | i32              |     2793213804 |      -1501752492 | 2793213804 | True
+uint32  | tl.max(x, 0, return_indices=True)    | (i32, i32)       |     4294967295 |              999 | 4294967295 | True
+uint32  | tl.argmax(x, 0)                      | (i32, i32)       |          50278 |            51278 |    50278 | True
+A: 0 result(s) differ from the library's statement
+
+== B. Sums that leave 32 bits: 2^17 copies of a large value ==
+int8    x         127 * 2^17: TTIR i32; sum as int64     16646144; int32 wrap of the exact sum     16646144: True
+int8    x        -128 * 2^17: TTIR i32; sum as int64    -16777216; int32 wrap of the exact sum    -16777216: True
+int16   x       32767 * 2^17: TTIR i32; sum as int64      -131072; int32 wrap of the exact sum      -131072: True
+int16   x      -32768 * 2^17: TTIR i32; sum as int64            0; int32 wrap of the exact sum            0: True
+uint8   x         255 * 2^17: TTIR i32; sum as int64     33423360; uint32 wrap of the exact sum     33423360: True
+uint16  x       65535 * 2^17: TTIR i32; sum as int64   4294836224; uint32 wrap of the exact sum   4294836224: True
+int32   x  2147483647 * 2^17: TTIR i32; sum as int64      -131072; int32 wrap of the exact sum      -131072: True
+uint32  x  4294967295 * 2^17: TTIR i32; sum as int64   4294836224; uint32 wrap of the exact sum   4294836224: True
+B: 0 result(s) differ
+
+== C. `r + 1000` on the value of tl.max(x, 0, return_indices=True) ==
+int8   : rejected on the host: CompilationError: ValueError('Scalar 1000 is out of range for type int8')
+uint8  : rejected on the host: CompilationError: ValueError('Scalar 1000 is out of range for type uint8')
+int16  : compiles; TTIR (i16, i32); r + 1000 = -31769

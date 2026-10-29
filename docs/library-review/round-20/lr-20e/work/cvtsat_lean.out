@@ -1,0 +1,8 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+float32  -> float8e4nv: 2598 inputs, 0 differ from FloatV.cvtSat .rn (up to NaN payload)
+float32  -> float8e5  : 2538 inputs, 0 differ from FloatV.cvtSat .rn (up to NaN payload)
+float16  -> float8e4nv: 2582 inputs, 0 differ from FloatV.cvtSat .rn (up to NaN payload)
+float16  -> float8e5  : 2510 inputs, 0 differ from FloatV.cvtSat .rn (up to NaN payload)
+bfloat16 -> float8e4nv: 2594 inputs, 0 differ from FloatV.cvtSat .rn (up to NaN payload)
+bfloat16 -> float8e5  : 2534 inputs, 0 differ from FloatV.cvtSat .rn (up to NaN payload)
+differences in all: 0

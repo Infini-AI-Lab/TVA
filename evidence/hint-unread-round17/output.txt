@@ -1,0 +1,23 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+N0: r = load, no hint (control)
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+N1: r = load + step, pair (16, 16) on r
+  {'loads': ['ld.global.v4.b32'], 'values': 'correct'}
+N2: r carried by a for loop, pair (16, 16) after the loop
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+N3: r merged by a runtime if, pair (16, 16) after the if
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+N4: r = inlined helper's result (a load), pair (16, 16) on it
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+N5: r = tl.split(loaded [512, 2])[0], pair (16, 16) on it
+  {'loads': ['ld.global.b8', 'ld.global.v2.b32'], 'values': 'correct'}
+N6: r = tl.arange(0, 512), pair (4, 4) on r (control)
+  {'loads': ['ld.global.b32'], 'values': 'correct'}
+N7: r = inlined helper's result (tl.arange(0, 512)), pair (4, 4) on it
+  {'loads': ['ld.global.v4.b32'], 'values': 'correct'}
+N8: r = inlined helper returning the pair (4, 4) on tl.arange(0, 512)
+  {'loads': ['ld.global.b32'], 'values': 'correct'}
+N9: r = load + 0, pair (16, 16) on r
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}
+N10: r = load * 1, pair (16, 16) on r
+  {'loads': ['ld.global.b8', 'ld.global.v4.b32'], 'values': 'correct'}

@@ -1,0 +1,12 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, Python 3.13.9
+x = [1, 2, 4, 8]
+C1. tl.exp
+  B alone, fresh cache folder: [2.7183, 7.3891, 54.5981, 2980.9578]
+  A (tl.exp = tl.log) on folder C: [0.0, 0.6931, 1.3863, 2.0794]
+  B, clean, then on folder C: [0.0, 0.6931, 1.3863, 2.0794]
+C2. TRITON_KERNEL_OVERRIDE
+  B alone, fresh cache folder: [2.0, 3.0, 5.0, 9.0]
+  A (TRITON_KERNEL_OVERRIDE=1, the .ttir edited to + 2.0) on folder C: [3.0, 4.0, 6.0, 10.0]
+  B, clean, then on folder C: [3.0, 4.0, 6.0, 10.0]
+C3. one process, a fresh cache folder: knobs.compilation.override = True (TRITON_OVERRIDE_DIR naming the edited .ttir) for a first launch, then the knob back to its default and a second launch
+  [first launch, second launch]: [[3.0, 4.0, 6.0, 10.0], [3.0, 4.0, 6.0, 10.0]]

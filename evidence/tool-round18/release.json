@@ -1,0 +1,81 @@
+{
+  "files": 919,
+  "ledgers": {
+    "docs/library-review/ledger.jsonl": {
+      "lines": 45,
+      "sha256": "e60306ee566843606cc06abd1781f6f57e99f6e49d723aa87f92ca5baed16009"
+    },
+    "kernels/vec_add_f32/review/ledger.jsonl": {
+      "lines": 14,
+      "sha256": "dadf4d14194420a41274e510640800ac5a63c33c1dff9cecab5072c9ed4cc7dc"
+    }
+  },
+  "masked": true,
+  "ok": false,
+  "python": "/usr/bin/python3.12",
+  "sandbox": "<dir>",
+  "steps": [
+    {
+      "detail": "919 files; none in a folder the text scan skips",
+      "ok": true,
+      "step": "shipped"
+    },
+    {
+      "detail": "every package of lean/lake-manifest.json made afresh from its upstream repository: Mathlib's commit is its inputRev's, the inherited packages are those Mathlib's manifest pins, every file is its commit's blob, and no build output",
+      "ok": true,
+      "step": "packages"
+    },
+    {
+      "detail": "shows only the copy, /usr, /etc (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only, no link) and the system's /usr/bin/python3.12; no network",
+      "ok": true,
+      "step": "sandbox"
+    },
+    {
+      "detail": "lake build TVA (Mathlib built from its pinned source)",
+      "ok": true,
+      "step": "build"
+    },
+    {
+      "detail": "library hygiene; leanchecker TVA re-checks every library declaration",
+      "ok": true,
+      "step": "library"
+    },
+    {
+      "detail": "PASS  map        12 entries cover every code line of [[23, 24], [29, 54]]; every function of the source lies in the kernel lines or the host lines, and every @triton.jit function in the kernel lines; every code line outside a function, and every unused function's header, lies in the kernel lines or the host lines | PASS  doc        README.md has the sections Specification, Conditions, Assumptions, Proof | gate PASS  digest da2091f0e278a1d8",
+      "ok": true,
+      "step": "gate vec_add_f32"
+    },
+    {
+      "detail": "every generated page the copy shipped (claim.md, REVIEW.md, kernels/README.md, REPORTS.md) is the one regenerated from the shipped files",
+      "ok": true,
+      "step": "pages"
+    },
+    {
+      "detail": "kernels/vec_add_f32/review/round-1/r-vecadd/work/Cover.lean: in a role folder that its own events record, but recorded by none of them (they were recorded before the tool named folders, and left this work file out: `tvr freeze vec_add_f32` records it once); kernels/vec_add_f32/review/round-1/r-vecadd/work/Print.lean: in a role folder that its own events record, but recorded by none of them (they were recorded before the tool named folders, and left this work file out: `tvr freeze vec_add_f32` records it once); kernels/vec_add_f32/review/round-1/r-vecadd/work/Spec.lean: in a role folder that its own events record, but recorded by none of them (they were recorded before the tool named folders, and left this work file out: `tvr freeze vec_add_f32` records it once); kernels/vec_add_f32/review/round-1/r-vecadd/work/offsets.py: in a role folder that its own events record, but recorded by none of them (they were recorded before the tool named folders, and left this work file out: `tvr freeze vec_add_f32` records it once)",
+      "ok": false,
+      "step": "records"
+    },
+    {
+      "detail": "regular",
+      "ok": true,
+      "step": "lint library 18 author"
+    },
+    {
+      "detail": "regular",
+      "ok": true,
+      "step": "lint vec_add_f32 reviewer r-vecadd"
+    },
+    {
+      "detail": "regular",
+      "ok": true,
+      "step": "lint vec_add_f32 reviewer r-vecadd2"
+    },
+    {
+      "detail": "independent",
+      "ok": true,
+      "step": "audit"
+    }
+  ],
+  "time": "2026-10-29T00:46:15Z",
+  "toolchain": "leanprover/lean4:v4.35.0"
+}

@@ -1,0 +1,25 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| from | input | pattern | to float8e4nv | to float8e5 |
+|---|---|---|---|---|
+| float32 | +qNaN | `7fc00000` | `7f` | `7f` |
+| float32 | +sNaN | `7f800001` | `7f` | `7f` |
+| float32 | +NaN all ones | `7fffffff` | `7f` | `7f` |
+| float32 | -qNaN | `ffc00000` | `7f` | `7f` |
+| float32 | -NaN (low payload) | `ff800001` | `7f` | `7f` |
+| float32 | +inf | `7f800000` | `7e` | `7b` |
+| float32 | -inf | `ff800000` | `fe` | `fb` |
+| float16 | +qNaN | `7e00` | `7f` | `7f` |
+| float16 | +sNaN | `7c01` | `7f` | `7f` |
+| float16 | +NaN all ones | `7fff` | `7f` | `7f` |
+| float16 | -qNaN | `fe00` | `7f` | `7f` |
+| float16 | -NaN (low payload) | `fc01` | `7f` | `7f` |
+| float16 | +inf | `7c00` | `7e` | `7b` |
+| float16 | -inf | `fc00` | `fe` | `fb` |
+| bfloat16 | +qNaN | `7fc0` | `7f` | `7f` |
+| bfloat16 | +sNaN | `7f81` | `7f` | `7f` |
+| bfloat16 | +NaN all ones | `7fff` | `7f` | `7f` |
+| bfloat16 | -qNaN | `ffc0` | `7f` | `7f` |
+| bfloat16 | -NaN (low payload) | `ff81` | `7f` | `7f` |
+| bfloat16 | +inf | `7f80` | `7e` | `7b` |
+| bfloat16 | -inf | `ff80` | `fe` | `fb` |

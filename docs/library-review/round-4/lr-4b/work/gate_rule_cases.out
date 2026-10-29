@@ -1,0 +1,6 @@
+lazy continuation (unindented, no blank line)                  tool: general; CommonMark: rule; DISAGREE, reported
+blank line, then unindented paragraph                          tool: general; CommonMark: general; agree
+blank line, then 2-space indented paragraph                    tool: rule; CommonMark: rule; agree
+blank line, then 1-space indented paragraph                    tool: rule; CommonMark: general; DISAGREE, not reported
+ordered item `2.` right after (cannot interrupt a paragraph)   tool: general; CommonMark: rule; DISAGREE, not reported
+bullet `- ` right after                                        tool: general; CommonMark: general; agree

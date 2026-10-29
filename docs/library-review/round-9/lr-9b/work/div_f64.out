@@ -1,0 +1,8 @@
+| inputs | pairs | differ from IEEE |
+|---|---|---|
+| random patterns | 67108864 | 0 |
+| subnormal dividends | 67108864 | 0 |
+| subnormal quotients | 67108864 | 0 |
+| divisors near 1 | 67108864 | 0 |
+
+Total differing from IEEE: 0

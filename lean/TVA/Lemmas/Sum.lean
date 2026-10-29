@@ -1,5 +1,5 @@
 import TVA.Lemmas.Tree
-import TVA.Lemmas.Num
+import TVA.Lemmas.FloatErr
 import TVA.Lang.Ops
 
 /-!

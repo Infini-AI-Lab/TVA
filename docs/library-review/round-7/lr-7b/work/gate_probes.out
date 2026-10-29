@@ -1,0 +1,27 @@
+## L39: code lines (tvr.code_lines) on further cases
+P1 a bare f-string holding an atomic: code lines [1, 2]
+P2 a docstring-like string with .format: code lines [1, 2, 3]
+P3 implicit concatenation over lines: code lines [1, 2, 3, 4]
+P4 a line continuation: code lines [1, 2, 3]
+P5 a string statement then code after `;`: code lines [1, 2]
+
+## Line numbers: Python's tokenizer and Lean count line breaks; str.splitlines counts more
+form feed U+000C in a comment: the atomic is on line 4 for Python (a code line: True); claim.md would show line 4 as 'x = tl.load(x_ptr)'
+U+001C in a comment: the atomic is on line 4 for Python (a code line: True); claim.md would show line 4 as 'x = tl.load(x_ptr)'
+line separator U+2028 in a comment: the atomic is on line 4 for Python (a code line: True); claim.md would show line 4 as 'x = tl.load(x_ptr)'
+next line U+0085 in a comment: the atomic is on line 4 for Python (a code line: True); claim.md would show line 4 as 'x = tl.load(x_ptr)'
+a Lean file with U+2028 in a comment: Lean puts `model` on line 3; splitlines()[2] is 'def x : Nat := 1'
+
+## L40: the library hygiene's reading of interpolated strings (tvr._uncommented)
+InterpStr.lean: library hygiene flags nothing; `#eval` left in the code: False; `open` left: False
+InterpOpen.lean: library hygiene flags nothing; `#eval` left in the code: False; `open` left: False
+library files with an interpolated string (s!, m!, f!): none
+
+## L38: names the manifest check accepts (keywords are plain names too)
+namespace 'Kernels.VecAdd': accepted
+namespace 'end': accepted
+namespace 'sorry': accepted
+namespace "Kernels.K'": accepted
+namespace '_root_.X': accepted
+namespace 'Kernels.K\n#exit': ["lean.namespace must be a dotted name of ASCII letters, digits, `_` and `'` (found 'Kernels.K\\n#exit')"]
+

@@ -1,0 +1,191 @@
+@FloatV.le_iff : ∀ {f : Format} {x y : FloatV f},
+  x.isNaN = false → y.isNaN = false → (x.le y = true ↔ x.toRat ≤ y.toRat)
+@FloatV.lt_iff : ∀ {f : Format} {x y : FloatV f},
+  x.isNaN = false → y.isNaN = false → (x.lt y = true ↔ x.toRat < y.toRat)
+@FloatV.eq_iff : ∀ {f : Format} {x y : FloatV f},
+  x.isNaN = false → y.isNaN = false → (x.eq y = true ↔ x.toRat = y.toRat)
+@FloatV.le_refl' : ∀ {f : Format} {x : FloatV f}, x.isNaN = false → x.le x = true
+@FloatV.le_trans' : ∀ {f : Format} {x y z : FloatV f},
+  x.isNaN = false → y.isNaN = false → z.isNaN = false → x.le y = true → y.le z = true → x.le z = true
+@FloatV.ext_pat : ∀ {f : Format} {x y : FloatV f}, x.pat = y.pat → x = y
+@FloatV.max_mem : ∀ {f : Format} {x y : FloatV f}, x.isNaN = false → y.isNaN = false → x.max y = x ∨ x.max y = y
+@FloatV.min_mem : ∀ {f : Format} {x y : FloatV f}, x.isNaN = false → y.isNaN = false → x.min y = x ∨ x.min y = y
+@FloatV.toRat_max : ∀ {f : Format} {x y : FloatV f},
+  x.isNaN = false → y.isNaN = false → (x.max y).toRat = max x.toRat y.toRat
+@FloatV.toRat_min : ∀ {f : Format} {x y : FloatV f},
+  x.isNaN = false → y.isNaN = false → (x.min y).toRat = min x.toRat y.toRat
+@FloatV.isNaN_of_mem : ∀ {f : Format} {x y r : FloatV f},
+  x.isNaN = false → y.isNaN = false → r = x ∨ r = y → r.isNaN = false
+@FloatV.MaxRel.mem : ∀ {f : Format} {isMax : Bool} {x y r : FloatV f},
+  FloatV.MaxRel isMax x y r → x.isNaN = false → y.isNaN = false → r = x ∨ r = y
+@FloatV.MaxRel.le : ∀ {f : Format} {x y r : FloatV f},
+  FloatV.MaxRel true x y r → x.isNaN = false → y.isNaN = false → x.le r = true ∧ y.le r = true
+@FloatV.MaxRel.ge : ∀ {f : Format} {x y r : FloatV f},
+  FloatV.MaxRel false x y r → x.isNaN = false → y.isNaN = false → r.le x = true ∧ r.le y = true
+@FloatV.negInf_toRat_le : ∀ {f : Format},
+  f.Regular →
+    f.specials = Specials.ieee →
+      ∀ {x : FloatV f},
+        x.isNaN = false → FloatV.negInf.toRat ≤ x.toRat ∧ (FloatV.negInf.toRat = x.toRat → x = FloatV.negInf)
+@FloatV.max_negInf_left : ∀ {f : Format},
+  f.Regular → f.specials = Specials.ieee → ∀ {x : FloatV f}, x.isNaN = false → FloatV.negInf.max x = x
+@FloatV.MaxRel.negInf_left : ∀ {f : Format},
+  f.Regular →
+    f.specials = Specials.ieee → ∀ {x r : FloatV f}, FloatV.MaxRel true FloatV.negInf x r → x.isNaN = false → r = x
+@FloatV.sub_negInf_left : ∀ {f : Format},
+  f.specials = Specials.ieee → ∀ {x : FloatV f}, x.isFinite = true → FloatV.negInf.sub x = FloatV.negInf
+@FloatV.sub_negInf_right : ∀ {f : Format},
+  f.specials = Specials.ieee → ∀ {x : FloatV f}, x.isFinite = true → x.sub FloatV.negInf = FloatV.posInf
+@FloatV.sub_negInf_negInf : ∀ {f : Format},
+  f.specials = Specials.ieee → f.Regular → (FloatV.negInf.sub FloatV.negInf).isNaN = true
+@Format.toRat_of_isInf : ∀ {f : Format},
+  f.Regular → ∀ {n : ℕ}, f.isInf n = true → f.toRat n = if f.sign n = true then -2 ^ (f.bias + 1) else 2 ^ (f.bias + 1)
+@Format.maxVal_lt_inf : ∀ {f : Format}, f.Regular → f.specials = Specials.ieee → f.maxVal < 2 ^ (f.bias + 1)
+@Format.cvt_rz_sat : ∀ {f : Format} (g : Format) {x : ℕ},
+  f.isInf x = false → f.cvt g RoundMode.rz true x = f.cvt g RoundMode.rz false x
+@Format.sqrt_rint_err : ∀ {t : ℚ},
+  0 ≤ t →
+    |↑(rint RoundMode.rn t.floor.toNat.sqrt (cmpq t ((↑t.floor.toNat.sqrt + 1 / 2) * (↑t.floor.toNat.sqrt + 1 / 2)))) -
+          √↑t| ≤
+      1 / 2
+@Format.one_le_maxVal : ∀ {f : Format}, f.Regular → 1 ≤ f.maxVal
+@Format.sqrtMag_rn_spec : ∀ {f : Format},
+  f.Regular →
+    ∀ {a : ℚ},
+      0 < a →
+        a ≤ f.maxVal →
+          f.sqrtMag RoundMode.rn a ≤ f.maxMag ∧ |↑(f.magVal (f.sqrtMag RoundMode.rn a)) - √↑a| ≤ √↑a * ↑f.u + ↑f.eta
+@Format.sqrt_rn_err : ∀ {f : Format},
+  f.Regular →
+    ∀ {x : ℕ},
+      f.isFinite x = true →
+        0 ≤ f.toRat x →
+          f.sqrt RoundMode.rn x < 2 ^ f.width ∧
+            f.isFinite (f.sqrt RoundMode.rn x) = true ∧
+              0 ≤ f.toRat (f.sqrt RoundMode.rn x) ∧
+                |↑(f.toRat (f.sqrt RoundMode.rn x)) - √↑(f.toRat x)| ≤ √↑(f.toRat x) * ↑f.u + ↑f.eta
+@FloatV.sqrtRn_err : ∀ {f : Format},
+  f.Regular →
+    ∀ {x : FloatV f},
+      x.isFinite = true →
+        0 ≤ x.toRat →
+          x.sqrtRn.isFinite = true ∧ 0 ≤ x.sqrtRn.toRat ∧ |x.sqrtRn.toReal - √x.toReal| ≤ √x.toReal * ↑f.u + ↑f.eta
+@Buf.Addrs.accBytes : ∀ {d : DType} {s : Shape} {b : Buf d} {addrs : Idx s → Option ℤ} {g : Idx s → ℕ}
+  {en : Idx s → Bool}, b.Addrs addrs g en → accBytes d addrs = b.elems (Buf.img g en)
+@Buf.addrs_of_get : ∀ {d : DType} {s : Shape} (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Tensor s Bool}
+  {g : Idx s → ℕ} {en : Idx s → Bool},
+  (∀ (i : Idx s), mask.get i = en i) →
+    (∀ (i : Idx s), en i = true → ptrs.get i = b.ptr ↑(g i)) → b.Addrs (tl.addrs ptrs (some mask)) g en
+@Buf.addrs_of_get_all : ∀ {d : DType} {s : Shape} (b : Buf d) {ptrs : Tensor s (Ptr d)} {g : Idx s → ℕ},
+  (∀ (i : Idx s), ptrs.get i = b.ptr ↑(g i)) → b.Addrs (tl.addrs ptrs none) g fun x => true
+@SafeA.atomic1 : ∀ {E : Env} {R : Set ℤ} {C : Set (DType × ℤ)} {W : Set ℤ} {α : Type}
+  {Q : α → List AtomicStep → Mem → Prop} {log : List AtomicStep} {m : Mem} {d : DType} {ptrs : Tensor [] (Ptr d)}
+  {upd : Idx [] → d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} {k : Tensor [] d.Val → Prog α},
+  Mem.Aligned d (ptrs.get ()).addr →
+    (d, (ptrs.get ()).addr) ∈ C →
+      sem = MemSem.acqRel →
+        sc ≠ Scope.cta →
+          (∀ (old : d.Val), ∃ new, upd () old new) →
+            (∀ (old new : d.Val),
+                upd () old new →
+                  SafeA E R W C Q (log ++ [{ d := d, a := (ptrs.get ()).addr, old := old, new := new }]) m
+                    (k (Tensor.scalar old))) →
+              SafeA E R W C Q log m (tl.atomicWith ptrs upd none sem sc >>= k)
+@SafeA.atomic : ∀ {E : Env} {R : Set ℤ} {C : Set (DType × ℤ)} {W : Set ℤ} {α : Type}
+  {Q : α → List AtomicStep → Mem → Prop} {log : List AtomicStep} {m : Mem} {s : Shape} {d : DType}
+  {ptrs : Tensor s (Ptr d)} {upd : Idx s → d.Val → d.Val → Prop} {mask : Option (Tensor s Bool)} {sem : MemSem}
+  {sc : Scope} {k : Tensor s d.Val → Prog α},
+  (∀ (i : Idx s), (tl.addrs ptrs mask i).isSome = true → Mem.Aligned d (ptrs.get i).addr ∧ (d, (ptrs.get i).addr) ∈ C) →
+    sem = MemSem.acqRel →
+      sc ≠ Scope.cta →
+        (∀ (i : Idx s) (old : d.Val), ∃ new, upd i old new) →
+          (∀ (order : List (Idx s)),
+              order.Perm (List.filter (fun i => (tl.addrs ptrs mask i).isSome) (Idx.all s)) →
+                ∀ (junk olds news : Idx s → d.Val),
+                  (∀ i ∈ order, upd i (olds i) (news i)) →
+                    SafeA E R W C Q
+                      (log ++
+                        List.map (fun i => { d := d, a := (ptrs.get i).addr, old := olds i, new := news i }) order)
+                      m (k { get := fun i => if i ∈ order then olds i else junk i })) →
+            SafeA E R W C Q log m (tl.atomicWith ptrs upd mask sem sc >>= k)
+@safe_atomic_buf : ∀ {d : DType} {s : Shape} {E : Env} {R W : Set ℤ} {α : Type} {Q : α → Mem → Prop} {m : Mem}
+  (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Option (Tensor s Bool)} {upd : Idx s → d.Val → d.Val → Prop}
+  {sem : MemSem} {sc : Scope} {g : Idx s → ℕ} {en : Idx s → Bool},
+  b.Addrs (tl.addrs ptrs mask) g en →
+    (∀ (i : Idx s), en i = true → g i < b.len) →
+      (∀ (i j : Idx s), en i = true → en j = true → g i = g j → i = j) →
+        (∀ (i : Idx s) (o : d.Val), ∃ n, upd i o n) →
+          b.Valid m →
+            b.elems (Buf.img g en) ⊆ W →
+              Disjoint (b.elems (Buf.img g en)) R →
+                ∀ {k : Tensor s d.Val → Prog α},
+                  (∀ (old : Tensor s d.Val) (m' : Mem),
+                      (∀ (i : Idx s),
+                          en i = true →
+                            ∃ n,
+                              m.read d (b.ptr ↑(g i)).addr = some (old.get i) ∧
+                                upd i (old.get i) n ∧ m'.read d (b.ptr ↑(g i)).addr = some n) →
+                        (∀ x ∉ b.elems (Buf.img g en), m' x = m x) →
+                          (∀ (x : ℤ), m x ≠ none → m' x ≠ none) → Safe E R (W \ b.elems (Buf.img g en)) Q m' (k old)) →
+                    Safe E R W Q m (tl.atomicWith ptrs upd mask sem sc >>= k)
+@safe_upToNaN : ∀ {E : Env} {R W : Set ℤ} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Shape} {f' : Format}
+  {v : Tensor s (FloatV f')} {k : Tensor s (FloatV f') → Prog α},
+  (∀ (r : Tensor s (FloatV f')), (∀ (i : Idx s), (v.get i).NaNEq (r.get i)) → Safe E R W Q m (k r)) →
+    Safe E R W Q m (tl.upToNaN v >>= k)
+@safe_cvt : ∀ {E : Env} {R W : Set ℤ} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Shape} {f g : Format}
+  {x : Tensor s (FloatV f)} {rnd : RoundMode} {k : Tensor s (FloatV g) → Prog α},
+  f.Std ∧ g.Std ∧ tl.RoundOk f g rnd →
+    (∀ (r : Tensor s (FloatV g)),
+        (∀ (i : Idx s), (FloatV.cvtWith rnd (x.get i)).NaNEq (r.get i)) → Safe E R W Q m (k r)) →
+      Safe E R W Q m (tl.cvt x rnd >>= k)
+@safe_dot_add : ∀ {E : Env} {R W : Set ℤ} {α : Type} {Q : α → Mem → Prop} {m : Mem} {cfg : DotCfg} {M N K : ℕ}
+  {a : Tensor [M, K] cfg.a.Val} {b : Tensor [K, N] cfg.b.Val} {c z : Tensor [M, N] cfg.acc.Val}
+  {k : Tensor [M, N] cfg.acc.Val → Prog α},
+  (∃ r, E.P.dot cfg a b c r) →
+    (∀ (r : Tensor [M, N] cfg.acc.Val),
+        (E.P.dot cfg a b c r ∨
+            ∃ d, E.P.dot cfg a b z d ∧ ∀ (i : Idx [M, N]), AccAdd E.fusion cfg.acc (d.get i) (c.get i) (r.get i)) →
+          Safe E R W Q m (k r)) →
+      Safe E R W Q m (tl.dot_add cfg a b c z >>= k)
+@safe_sum_bcast_mul : ∀ {E : Env} {R W : Set ℤ} {α : Type} {Q : α → Mem → Prop} {m : Mem} {d : DType} {M K N : ℕ}
+  {x : Tensor [M, K] d.Val} {y : Tensor [K, N] d.Val},
+  d = DType.f16 ∨ d = DType.bf16 ∨ d = DType.f32 ∨ d = DType.f64 →
+    0 < K →
+      ∀ {k : Tensor [M, N] d.Val → Prog α},
+        (∀ (r : Tensor [M, N] d.Val),
+            (∀ (i : Fin M) (j : Fin N),
+                  ∃ p,
+                    (∀ (k : ℕ) (hk : k < K), tl.MulRel d (x.get2 i ⟨k, hk⟩) (y.get2 ⟨k, hk⟩ j) (p k)) ∧
+                      ∃ t, Tree.Covers K t ∧ Tree.Eval (AccAdd E.fusion d) p t (r.get2 i j)) ∨
+                d.bytes ≤ 4 ∧
+                  16 ≤ M ∧
+                    16 ≤ N ∧
+                      E.P.dot { a := d, b := d, acc := d, precision := InputPrecision.ieee } x y
+                        (Tensor.full (d.ofBits 0)) r →
+              Safe E R W Q m (k r)) →
+          Safe E R W Q m (tl.sum_bcast_mul d x y >>= k)
+@IntV.toInt_cast : ∀ {w w' : ℕ} (a : IntV true w), w ≤ w' → a.cast.toInt = a.toInt
+@IntV.toInt_cast_unsigned : ∀ {w w' : ℕ} (a : IntV false w), w ≤ w' → a.cast.toInt = a.toInt
+@IntV.lt_toInt : ∀ {sg : Bool} {w : ℕ} (x y : IntV sg w), x.lt y = decide (x.toInt < y.toInt)
+@Safe.env : ∀ {E : Env} {R W : Set ℤ} {α : Type} {Q : α → Mem → Prop} {m : Mem} {k : Env → Prog α},
+  Safe E R W Q m (k E) → Safe E R W Q m (Prog.env k)
+@SafeA.env : ∀ {E : Env} {R W : Set ℤ} {C : Set (DType × ℤ)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
+  {log : List AtomicStep} {m : Mem} {k : Env → Prog α}, SafeA E R W C Q log m (k E) → SafeA E R W C Q log m (Prog.env k)
+'TVA.Math.Float.Format.toRat_of_isInf' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.maxVal_lt_inf' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.cvt_rz_sat' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.sqrtMag_rn_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Math.Float.Format.sqrt_rn_err' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.FloatV.sqrtRn_err' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.IntV.toInt_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.IntV.toInt_cast_unsigned' depends on axioms: [propext, Classical.choice, Quot.sound]
+["0x7fc00000", "0xffc00000", "0x7fc00000", "0xffc00001"]
+["0x7e00", "0xfe00", "0x7f00", "0x7fff"]
+["0x7fc0", "0xffc0", "0x7fc0"]
+["0x7ff0000000000001", "0xfff8000000000000"]
+some "0xffc00000"
+some "0xffc0"
+["0x7fffffff", "0x7fff", "0x7fff", "0x7f", "0x7f", "0x7fffffffffffffff"]
+true
+true
+true

@@ -1,0 +1,4 @@
+triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL, 2026-10-27
+A calls gdc_launch_dependents=True  (A's launch_pdl=False), B launch_pdl=False: runs where A's y != x_init + 1: 0 of 20; elements 0 of 83886080
+A calls gdc_launch_dependents=False (A's launch_pdl=False), B launch_pdl=True : runs where A's y != x_init + 1: 0 of 20; elements 0 of 83886080
+A calls gdc_launch_dependents=True  (A's launch_pdl=False), B launch_pdl=True : runs where A's y != x_init + 1: 20 of 20; elements 35225600 of 83886080

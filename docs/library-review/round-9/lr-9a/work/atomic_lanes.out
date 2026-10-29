@@ -1,0 +1,3 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+configurations: 116; with a cell not incremented exactly once per program: 0

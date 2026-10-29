@@ -1,0 +1,13 @@
+outside file: a fresh directory under the top-level directory 'var', then 'tmp'
+outside the sandbox: tvr audit of the copy: PASS
+release check: FAIL (masked by bwrap: True, 467 files)
+  PASS  packages: every package is a clean git checkout at the manifest's revision
+  PASS  build: lake build TVA
+  FAIL  gate vec_add_f32: FAIL  build      lake build VecAdd: error: ../kernels/vec_add_f32/lean/VecAdd.lean:155:78: Application type mismatch: The argument | error: ../kernels/vec_add_f
+  PASS  lint library 6 author: regular
+  FAIL  lint library 6 coverage: - docs/library-review/round-6/coverage/matrix.md § 09-persistent-matmul.py: matmul_kernel_tma_persistent: status is covered, gap or excluded: '| TODO | TODO | T
+  FAIL  lint library 6 lr-6a: - docs/library-review/round-6/lr-6a/report.md § Verdicts: `- **L<n>** ACCEPT — <reason>` or `REOPEN — <what is wrong>`: '**L31** TODO — TODO' | - docs/library-r
+  FAIL  lint library 6 lr-6b: - docs/library-review/round-6/lr-6b/report.md § Verdicts: `- **L<n>** ACCEPT — <reason>` or `REOPEN — <what is wrong>`: '**L31** TODO — TODO' | - docs/library-r
+  PASS  lint vec_add_f32 reviewer r-vecadd: regular
+  PASS  audit: independent
+top-level directories bound read-only into the sandbox besides the system ones: afs, data, hf, media, mnt, opt, root, scratch, srv, var

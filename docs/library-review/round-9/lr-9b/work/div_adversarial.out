@@ -1,0 +1,16 @@
+| divisor exponent | quotients | pairs | outside DivFull | largest error / bound |
+|---|---|---|---|---|
+| 0 | just above 1 | 117440512 | 0 | 0.6207 |
+| 0 | just below 2 | 100663296 | 0 | 0.5129 |
+| 0 | subnormal | 50331648 | 0 | 0.2497 |
+| 100 | just above 1 | 117440512 | 0 | 0.6207 |
+| 100 | just below 2 | 100663296 | 0 | 0.5129 |
+| 100 | subnormal | 50331648 | 0 | 0.0000 |
+| -100 | just above 1 | 117440512 | 0 | 0.6207 |
+| -100 | just below 2 | 100663296 | 0 | 0.5129 |
+| -100 | subnormal | 50331648 | 0 | 0.0000 |
+| -126 | just above 1 | 117440512 | 0 | 0.6207 |
+| -126 | just below 2 | 100663296 | 0 | 0.5129 |
+| -126 | subnormal | 50331648 | 0 | 0.0000 |
+
+Total outside DivFull: 0

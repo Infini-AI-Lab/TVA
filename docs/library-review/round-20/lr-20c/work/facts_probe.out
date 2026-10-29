@@ -1,0 +1,54 @@
+## control: the tree's page
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## a ```` (4 backticks) fence, a ``` line inside it (CommonMark: no closing fence, too short), the section, the next ## heading, then ```` closing it
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## a ``` fence, a ```python line inside it (CommonMark: a closing fence has no info string), the section, the next ## heading, then ``` closing it
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## a line ```a`b (CommonMark: no fence, a backtick fence's info string holds no backtick), then ``` opening a fence, the section, the next ## heading, ``` closing it
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## <script> before the heading, </script> after the next ## heading (the page shows neither heading nor table)
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## <pre> before the heading, </pre> after the next ## heading (the page shows them as preformatted text)
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: Rules.Num.DivRn is cited only as docs/rules/num.md's "Facts the library states" lists it (`DivRn P .binary64`)
+- the audit names num.md: no
+
+## a row starting `||`: GFM reads an empty first cell, tvr strips every leading `|`
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: PASS
+- the audit names num.md: no
+
+## inline HTML: a text line opening <details> before the table, and a cell with <sub> (protocol §2: HTML refused)
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: PASS
+- the audit names num.md: no
+
+## a struck-through first cell (GFM shows it struck out)
+- facts listed: 38
+- the section's problems: none
+- a [rule] field citing `DivRn P .binary32`: PASS
+- the audit names num.md: no
+

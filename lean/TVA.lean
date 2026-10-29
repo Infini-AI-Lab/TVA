@@ -5,6 +5,7 @@ import TVA.Lang.Mem
 import TVA.Lang.Platform
 import TVA.Lang.Prog
 import TVA.Lang.Ops
+import TVA.Lang.Promote
 import TVA.Lang.Desc
 import TVA.Lang.BlockPtr
 import TVA.Lang.Scan
@@ -14,10 +15,11 @@ import TVA.Sem.Launch
 import TVA.Claim
 import TVA.Rules.Compiler
 import TVA.Rules.Num
+import TVA.Rules.Num.Sm90
 import TVA.Lemmas.Mem
 import TVA.Lemmas.Buf
 import TVA.Lemmas.Int
-import TVA.Lemmas.Num
+import TVA.Lemmas.FloatErr
 import TVA.Lemmas.Tree
 import TVA.Lemmas.Sum
 import TVA.Lemmas.Safe
@@ -34,7 +36,11 @@ import TVA.Lemmas.Block
 import TVA.Lemmas.Claim
 import TVA.Lemmas.Consistency
 import TVA.Lemmas.Random
-import TVA.Lemmas.Fused
+import TVA.Lemmas.FusedErr
+import TVA.Lemmas.FloatMax
 import TVA.Lemmas.DotLoop
 import TVA.Lemmas.Scalar
 import TVA.Lemmas.Softmax
+import TVA.Lemmas.Sm90
+import TVA.Lemmas.SumFused
+import TVA.Lemmas.SharedAcc
