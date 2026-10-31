@@ -1,0 +1,14 @@
+{
+  "reviewer": "r-e5m2",
+  "kernel": "matmul_e5m2",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {"id": "F1", "note": "Settled. OutSpec's tolerance is now tol va vb K = errAt (prodV va vb K) (steps K), the order-aware recurrence E_{t+1} = (1 + rho)*E_t + rho*(|S_t| + B_t) + alpha with the library's relDot8 64 and absDot8 64, carried in AccInv and closed per step by err_step (the per-step DotE5m2 fact, |acc| <= |S_t| + E_t). It is never above the first tolerance (tol_le_tolA). Reject.lean proves, at every covered K >= 1, a finite input with room in float16 on which 0 (zero_rejected) and S - X_s for every step s (drop_rejected) lie outside OutSpec's float16 bound, and tol_spike gives rho*|X| + 200*alpha for one product in the last step, so S/2, -S and the float8e5 rounding 1.5 of 1.5625 are rejected there too (bound 0.02528 against an error of 0.0625, recomputed exactly). Statements printed with full names (work/names2.lean); their axioms are the three standard ones. What the bound still admits on some inputs (170.8% on one product in step 0 at K = 4096, about 2.3*|S| on the script's randn data) is the library's fp8 fact (L119), which the kernel cannot tighten, and the write-up states it."},
+    {"id": "F2", "note": "Settled. The README no longer says that no tighter bound follows from the fact, nor that Post stops rejecting a wrong sign or a read of another row or column; its Specification lists what is rejected at every covered size (with the lemmas) and what is not, and I recomputed its figures: 13.3% and 170.8% on one product in step 0, 7.3% and 72.8% on products of one sign, 0.124 for the pair input at K = 4096, the 0.026 bound for 1.25*1.25; the randn medians agree with my own simulation within the spread of 20 draws."},
+    {"id": "F3", "note": "Settled as library issue L119 (closed by the coordinator: the fact keeps its margin until a later library round). The kernel no longer depends on it for a meaningful tolerance (F1)."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 2: read every Lean file of the kernel again in full (Defs, Basic, Program, Reject, the root module; Arith unchanged): no instance, notation, renaming, local binder or kernel name that changes a library name; the model and launch are unchanged (model digest the same). The new definitions (prodV, partSum, partMag, stepMag, errAt, tol, tolA) mean what the docstrings and the README say. Two small points, non-blocking: (1) the K_le docstring of Inst.ok changed (it now cites the rejection lemmas) while the conditions digest stayed the same: the docstrings of a structure's fields are not in an item's digest, only the roots'; I re-read it and it is accurate. (2) That docstring says the tolerance rejects a zero result at every covered K; at K = 0 the exact result is 0, and zero_rejected needs K >= 1, as the README says."
+}

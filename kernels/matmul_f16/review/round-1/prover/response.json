@@ -1,0 +1,42 @@
+{
+  "kernel": "matmul_f16",
+  "round": 1,
+  "responses": [
+    {
+      "id": "F1",
+      "response": "REVISED",
+      "text": "The docstring of `model` now covers K = 1 as the loop bound of line 294: `tl.cdiv(K, BLOCK_SIZE_K)` is Python's `1` and goes straight to `range(0, 1)`. The bounds and the step are then three Python integers, so the induction variable is an `int32` and the loop runs one trip, as the model's `tl.forRange` from `0` to the `int32` `(1 + 63) // 64 = 1` gives. The map note of line 294 says the same.",
+      "changed": ["item:model", "item:map"]
+    },
+    {
+      "id": "F2",
+      "response": "REVISED",
+      "text": "The docstring of `Inst.ok.c_rows` now says that each row's `N` elements, `stride_cn` apart, lie within `stride_cm` (row-major, possibly padded), and that column-major and other transposed layouts of `c` are excluded too, though their rows do not overlap. The README says the same: in the Conditions table, and in the Narrowings bullet, now 'Rows of `c` within `stride_cm`'.",
+      "changed": ["item:conditions"]
+    },
+    {
+      "id": "F3",
+      "response": "REVISED",
+      "text": "Settled with F4: `Inst.ok.K_le` is now `K ≤ 2^13`, so the largest covered tolerance is 0.20% of Σ|a·b| (below 0.21%, the new lemma `tol_rel_lt`). The README's Specification now says that the bound is relative to Σ|a·b|, not to |S|: for zero-mean inputs such as the benchmark's randn, Σ|a·b| is about (2/π)K while |S| is typically √K. So the bound is about 4% of a typical |S| at K = 4096 and 12% at K = 2^13, and above about K = 34368 it would exceed a typical |S|. That is why the cap stops well below it.",
+      "changed": ["item:conditions", "item:spec"]
+    },
+    {
+      "id": "F4",
+      "response": "REVISED",
+      "text": "Took option (a). `Inst.ok.K_le` is now `K ≤ 2^13` (was `2^16`), and its docstring gives the reason. The new lemma `tol_rel_lt` (Defs.lean) proves `(1 + relDot16 64)^(steps K) − 1 < 21/10000` for every `K ≤ 2^13`. That is about half the largest relative error of a bfloat16 rounding (2^-8/(1+2^-8), about 0.39%), so Post still rejects a bfloat16-rounded result on some inputs. Above about K = 15745 it would not. The host's largest K is 4096, so the cap covers it twice over. The README's Specification, the Conditions table (`K_le` row, and the coverage paragraph `K ≤ 4096 ≤ 2^13`) and the Narrowings bullet now give 2^13, the 0.21% figure, the bfloat16 reason, and the zero-mean caveat (F3). The proof is unchanged in substance: `safe_program` derives the `K ≤ 2^16` that `acc_step` needs from `K_le`. `satisfiable` (K = 512) still holds. Gate PASS.",
+      "changed": ["item:conditions", "item:spec"]
+    },
+    {
+      "id": "F5",
+      "response": "REVISED",
+      "text": "The docstring of `tol` now quotes the figures as `tol` itself: about 1.0e-3·A at K = 4096 (the host's largest) and 2.0e-3·A at K = 2^13 (the largest covered, `tol_rel_lt`), plus at most 10^-34. It then states the cruder bound separately: 'and it is at most 2T·(ρ·A + α)'.",
+      "changed": ["item:spec"]
+    },
+    {
+      "id": "F6",
+      "response": "REVISED",
+      "text": "As F1: the docstring of `model` now covers K = 1 as the bound of `range(0, 1)`, and so does the map note of line 294. As suggested, the map notes of lines 269, 270 and 273 now say that on every launch the script makes, `stride_ak = stride_bn = stride_cn = 1`: `a` is contiguous, `b` and `c` are as allocated. So the condition is Python's `True`, which `tl.assume` makes the `int1` `true`, and that is the host's main path. The note of line 302 adds that `64 * 1` is Python's `64`, which the pointer addition makes an `int32`.",
+      "changed": ["item:model", "item:map"]
+    }
+  ]
+}

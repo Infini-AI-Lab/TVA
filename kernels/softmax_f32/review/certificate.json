@@ -1,0 +1,21 @@
+{
+  "gate": "b822ec44212cc840c335ee98bb583e2eae51a70d125d1868de611b728c8ec5e9",
+  "items": {
+    "assumption:div_full": "26039c682364b047f3d195e40ade9a9734abfd7e8db6b7fa9e50548980713509",
+    "assumption:div_total": "68bc0ff4ecfb9469c3756948fb63131c2085236f5dac4650ee630decafbafca6",
+    "assumption:exp_acc": "a452977f5777cb687fd018a2ac3f4194104dedd844a217f262c8f9fb5010dc27",
+    "assumption:exp_ninf": "4a9f697285a72314a412f25cabcf17be5ae2e2877522fa71f0e56bec62f3cf03",
+    "assumption:exp_total": "53469e64ea6f023729266e107cf2d3a27a05204f88dcc66733b5c7840dae1259",
+    "assumption:faithful": "2479993e1691cb4900120ab43d873452baf545b60c1f19730cb0eb8d665c05c6",
+    "conditions": "573ad1e9d67a9f161a19c10b899064d24873bc66ddee3bb415a125a3744abc98",
+    "map": "1c9186a92ce5e58531f4ec52e280f93cae962ca7bc0d92f8c157042969860d41",
+    "model": "92cb68c90bf7f6f7c874abb8bf5e2aa88f1cbefee1ef7f7951931ebec5dfb66c",
+    "spec": "1691dfb2c46a7d2f14c6e490ea9c56fae62cde32d56e692eeca8c4bfe034781f"
+  },
+  "kernel": "softmax_f32",
+  "reviewers": [
+    "r-softmax",
+    "r-softmax2"
+  ],
+  "time": "2026-10-31T10:57:41Z"
+}

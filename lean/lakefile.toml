@@ -1,6 +1,6 @@
 name = "TVA"
 version = "2.0.0"
-defaultTargets = ["TVA", "vec_add_f32"]
+defaultTargets = ["TVA", "vec_add_f32", "softmax_f32", "matmul_f16", "matmul_e5m2"]
 
 [[require]]
 name = "mathlib"
@@ -19,3 +19,18 @@ name = "TVA"
 name = "vec_add_f32"
 srcDir = "../kernels/vec_add_f32/lean"
 roots = ["VecAdd"]
+
+[[lean_lib]]
+name = "softmax_f32"
+srcDir = "../kernels/softmax_f32/lean"
+roots = ["Softmax"]
+
+[[lean_lib]]
+name = "matmul_f16"
+srcDir = "../kernels/matmul_f16/lean"
+roots = ["Matmul"]
+
+[[lean_lib]]
+name = "matmul_e5m2"
+srcDir = "../kernels/matmul_e5m2/lean"
+roots = ["MatmulE5m2"]

@@ -4,6 +4,7 @@
 
 | Finding | Kind | Target | State | Summary | Referred as |
 |---|---|---|---|---|---|
+| [matmul_e5m2#F3](../../kernels/matmul_e5m2/REVIEW.md#f3) | LIBRARY_REPORT | `decl:TVA.Rules.Num.relDot8` | CLOSED | relDot8's per-chunk 2^-7 is about twice the 33*2^-13 plus a rounding that DotE4m3's docstring derives; over the 128 chun | L119 |
 | [vec_add_f32#F2](../../kernels/vec_add_f32/REVIEW.md#f2) | LIBRARY_REPORT | `decl:TVA.I8` | CLOSED | TVA.I8's docstring says it is `tl.int32` values (the type of tl.program_id and tl.arange); I8 is IntV true 8, and the te |  |
 | [vec_add_f32#F3](../../kernels/vec_add_f32/REVIEW.md#f3) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | CLOSED | Scope 11's reuse clause names the source, compile-time values and settings, not the runtime arguments' specialisation; i |  |
 | [vec_add_f32#F4](../../kernels/vec_add_f32/REVIEW.md#f4) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | CLOSED | Scope 11 admits code compiled 'earlier for the same source, compile-time values and settings' without asking for the sam |  |

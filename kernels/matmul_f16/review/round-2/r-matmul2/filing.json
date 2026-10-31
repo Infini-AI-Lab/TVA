@@ -1,0 +1,23 @@
+{
+  "reviewer": "r-matmul2",
+  "kernel": "matmul_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {
+      "id": "F1",
+      "note": "Settled. The docstring of `model` now covers K = 1 at line 294: `tl.cdiv(1, 64)` is Python's 1, which goes straight to `range(0, 1)`, giving three Python integers, an `int32` induction variable and one trip, as the model's `tl.forRange` gives. The map note of line 294 says the same. Checked against SEMANTICS.md, Loops."
+    },
+    {
+      "id": "F2",
+      "note": "Settled. The docstring of `Inst.ok.c_rows`, the README's Conditions table and its Narrowings bullet ('Rows of c within stride_cm') now say that `c_rows` asks each row to lie within `stride_cm`, and that it excludes column-major and transposed layouts of `c`, though their rows do not overlap, as well as overlapping layouts. That is what `N * stride_cn <= stride_cm` says."
+    },
+    {
+      "id": "F3",
+      "note": "Settled with the narrowing to K <= 2^13. work/Cover.lean (round 2) checks tol(2^13, A) between 2.01e-3*A and 2.03e-3*A, and its absolute part below 10^-34. It also checks that at K = 2^13 a bfloat16-rounded result (1 for S = 1 + 2^-8 - 2^-10, A = S) lies outside OutSpec's finite-case bound, as the write-up says. The README now states that the bound is relative to sum|a*b|, about 12% of a typical randn |S| at 2^13. The host's largest K (4096) is still covered (sq_ok, every square row-major launch up to 4096)."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 2 re-check. The model is unchanged: printed with full names and explicit instances (work/Explicit.lean, work/Names.lean), it shows the same constants, with the same counts, as in round 1, all TVA.* or Lean's own auxiliaries. The `model` and `map` digests changed only through the `model` docstring and the map notes, which I read (lines 229-244, 269, 270, 273, 294, 302). The kernel's Lean declares the same constants as in round 1 plus the theorem `tol_rel_lt`. There is still no instance, notation, attribute, export, set_option or renaming, and the only `open` is `open TVA`. `safe_program` derives `K <= 2^16` from the new `K_le`. Axioms of main, consistent and satisfiable: propext, Classical.choice, Quot.sound. The `tol` docstring figures (1.0e-3*A at 4096, 2.0e-3*A at 2^13, plus at most 10^-34, and at most 2T*(rho*A + alpha)) are right. So are the README's (1.26e-4, 1.01e-3, 2.02e-3; 4% and 12% of a typical randn |S|; the crossovers near K = 15745 and 34368). The spec, the assumptions and the other conditions are unchanged. F4 (r-matmul's) is its raiser's to release; with K <= 2^13 I see nothing blocking in it."
+}

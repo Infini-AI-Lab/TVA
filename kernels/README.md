@@ -4,4 +4,7 @@
 
 | Kernel | What | Gate | Phase | Open blocking | Certificate |
 |---|---|---|---|---|---|
+| [matmul_e5m2](matmul_e5m2/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5) | PASS | [round 2: all reviewers have filed](matmul_e5m2/REVIEW.md) | 0 | GRANTED |
+| [matmul_f16](matmul_f16/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float16) | PASS | [round 2: all reviewers have filed](matmul_f16/REVIEW.md) | 0 | GRANTED |
+| [softmax_f32](softmax_f32/README.md) | Fused softmax, tutorial 02 (`softmax_kernel`, float32) | PASS | [round 3: all reviewers have filed](softmax_f32/REVIEW.md) | 0 | GRANTED |
 | [vec_add_f32](vec_add_f32/README.md) | Vector addition, tutorial 01 (`add_kernel`, float32) | PASS | [round 2: all reviewers have filed](vec_add_f32/REVIEW.md) | 0 | GRANTED |

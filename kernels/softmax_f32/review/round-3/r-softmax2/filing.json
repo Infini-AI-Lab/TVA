@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-softmax2",
+  "kernel": "softmax_f32",
+  "round": 3,
+  "findings": [],
+  "release": [
+    {
+      "id": "F8",
+      "note": "Settled. 'Covered in particular' now takes the n_rows limit from in_off: an input is covered while its last row starts below element 2^31. Its examples are right: 131072 × 16384, exactly 2^31 elements, and 169467 × 12672, 2^31 + 2176 elements. It says the limit is the last row's start, not the element count, and that the int32 product wraps beyond it. This matches Inst.ok."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": ""
+}

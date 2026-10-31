@@ -1,0 +1,14 @@
+{
+  "reviewer": "r-matmul",
+  "kernel": "matmul_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {"id": "F4", "note": "Settled by option (a). Inst.ok.K_le is now K <= 2^13, and the new lemma tol_rel_lt proves that the relative part of tol is below 0.21% on every covered K. That leaves room for a float16 half-ulp (2^-11) below the largest relative error of a bfloat16 rounding, 2^-8/(1+2^-8) (checked in work/Recheck.lean), so Post rejects a bfloat16-rounded result on some inputs at every covered size. With randn inputs the tolerance is at most about 12% of a typical |S|. The host's largest K (4096) is still covered, the README and the K_le docstring give the reason, and the proof only needed K <= 2^16 (Program.lean derives it from the new bound)."},
+    {"id": "F5", "note": "tol's docstring now quotes tol's own values (about 1.0e-3*A at K = 4096, 2.0e-3*A at K = 2^13, plus at most 10^-34) and states the bound 2T*(rho*A + alpha) separately. The figures check: (1+rho)^128 - 1 = 2.016e-3, and the alpha term at T = 128 is 9.95e-35."},
+    {"id": "F6", "note": "model's docstring and the map note of line 294 now cover K = 1 as the bound of range(0, 1). The map notes of lines 269, 270, 273 and 302 now say that stride_ak = stride_bn = stride_cn = 1 on every host launch (tl.assume(True), 64 * 1). The model's definitions are unchanged: the gate snapshots show the cone constants of matmul_kernel, model and launch with the same digests as in round 1."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 2. Between gates 71b09e4a7d289560 and 27825a0f1b176612, the snapshots differ only in Inst.ok.K_le and Inst.ok.mk (conditions, spec, assumption:faithful) and in the model and map digests (docstrings and map notes). tol_rel_lt, main, consistent and satisfiable depend only on propext, Classical.choice and Quot.sound."
+}

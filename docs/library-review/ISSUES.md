@@ -133,6 +133,7 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L116](#l116) | FIXED | 22 | user, 2026-10-29 | gap: the autotuner is not verified; for an autotuned tutorial kernel we pick one config when we set up its folder |
 | [L117](#l117) | FIXED | 23 | vec_add_f32#F3, vec_add_f32#F4 (r-vecadd, r-vecadd2) | soundness: condition 11's reuse clause does not ask for the same specialisation of the runtime arguments |
 | [L118](#l118) | FIXED | 23 | vec_add_f32#F2 (r-vecadd) | wording: the `int32` docstring sits on `I8` in `Lang/Scalar.lean`; two pages still say only "without `-O`" |
+| [L119](#l119) | CLOSED | — | matmul_e5m2#F3 (r-e5m2), matmul_e5m2#F4 (r-e5m2b) | accuracy: `relDot8`'s per-chunk constant `2^-7` is about twice the `33·2^-13` that num-dot's derivation gives |
 
 ## L1
 
@@ -2345,3 +2346,21 @@ condition 7 says. Round 23.
   decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
   release check and `vec_add_f32`'s gate. The kernel reviewers who reported it released their findings (`vec_add_f32`
   F2, F3, F4) at gate `5f65eb1f7a961315`.
+
+## L119
+
+**`relDot8` keeps a margin of about two over its derivation** (accuracy, not soundness;
+`matmul_e5m2` F3 by r-e5m2 and the second remedy of F4 by r-e5m2b, 2026-10-31). `relDot8 K =
+(1 + 2^-7)^⌈K/32⌉ − 1` (`lean/TVA/Rules/Num/Sm90.lean`) rounds up, to `2^-7`, the per-chunk
+`33·2^-13` that [evidence/num-dot](../../evidence/num-dot/README.md) derives for `wgmma`'s fp8
+accumulation (13 bits kept below the largest term). Compounded over `⌈K/32⌉` chunks, the constant
+passes `1` from `K = 2817`, so a tolerance built from `DotLoop.bound` over all of `Σ|a·b|` says
+nothing from there on; with the unrounded constant it would be about `0.67` at `K = 4096`.
+- **Settled by the coordinator** (2026-10-31). The fact is a bound with margin, as every fact of
+  [rules/num.md](../rules/num.md) is: no measured error was above `0.39` of it, and the ratio falls
+  as `K` grows. Making it tighter changes a device fact, which needs library review against the
+  evidence, and library rounds have stopped (the user's decision under L36). The kernel does not
+  need it: r-e5m2's F1 shows that the same fact, applied step by step against the exact partial
+  sums, gives a tolerance that rejects a zero result and a dropped step at every covered `K`, and
+  `matmul_e5m2` is revised that way. A tighter fp8 fact is left to a later library round, if a
+  kernel needs one.

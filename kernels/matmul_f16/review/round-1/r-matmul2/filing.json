@@ -1,0 +1,32 @@
+{
+  "reviewer": "r-matmul2",
+  "kernel": "matmul_f16",
+  "round": 1,
+  "findings": [
+    {
+      "kind": "DOC",
+      "target": "decl:Kernels.Matmul.model",
+      "summary": "model's docstring goes through each use of an argument equal to 1 but leaves out the loop bound of line 294 at K = 1, where tl.cdiv(1, 64) goes straight to range, not to a name",
+      "detail": "The docstring of `model` (and the map note of line 229-244) argues that an integer argument equal to `1`, a compile-time constant, gives the same model at every use, and lists how: an operand of an `int32` operation, `tl.cdiv(1, B)` assigned to a name, `tl.assume(True)`, `BLOCK_SIZE_K * 1` added to a pointer. At `K = 1`, `tl.cdiv(K, BLOCK_SIZE_K)` of line 294 is the compile-time `1`, and it is not assigned to a name: it is the bound of `range(0, 1)`. SEMANTICS.md, Loops: the induction variable has the promoted type of the bounds, and three Python integers give `int32` (Operators and promotion, Python numbers). So the loop runs one trip with an `int32` `k`, which is what the model's `tl.forRange 0 (idiv (1 + 63) 64) 1` gives. The conclusion holds; the argument leaves this use out. A clause on the range bound in the docstring, or in the map note of line 294, would fix it. The host never passes `K = 1`.",
+      "evidence": "source line 294; Defs.lean `model` docstring; SEMANTICS.md, Loops and Operators and promotion"
+    },
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/matmul_f16/README.md",
+      "summary": "README Narrowings says a 'column-major or otherwise overlapping layout of c' is not covered; a column-major c does not overlap, and c_rows excludes every layout where a row does not fit in stride_cm",
+      "detail": "`Inst.ok.c_rows` is `N * stride_cn <= stride_cm`. A column-major `c` (`stride_cm = 1`, `stride_cn = M`) or any transposed view has rows that share no element, and the kernel would store each element once, but `c_rows` excludes it. The narrowing itself is fine, since `matmul` always allocates a row-major `c`. The README's 'Rows of c apart' bullet ('A column-major or otherwise overlapping layout') and the field's docstring ('The rows of c do not overlap') make it sound as if only overlapping layouts are excluded. Suggested wording: `c_rows` asks that each row's `N` elements lie within `stride_cm` (row-major, possibly padded); column-major and other transposed layouts of `c` are not covered, even though they do not overlap.",
+      "evidence": "Defs.lean Inst.ok.c_rows and its docstring; README.md, Narrowings, 'Rows of c apart'"
+    },
+    {
+      "kind": "DOC",
+      "target": "item:spec",
+      "summary": "tol at the largest covered K (2^16) is 1.62% of sum|a*b|: for sign-cancelling data like randn that exceeds the typical |S| about 2.6 times; README could say so",
+      "detail": "`tol K A = ((1+rho)^T - 1)*A + T*(1+rho)^T*alpha`, with `T = cdiv(K, 64)`. Computed exactly, `(1+rho)^T - 1` is `1.259e-4` at K = 512, `1.0076e-3` at K = 4096 and `1.6244e-2` at K = 2^16. The README's numbers are right. Over the host's real use (K <= 4096) the bound means something: with randn inputs, `A ~ 2K/pi` and `|S| ~ sqrt(K)`, so `tol ~ 2.6` against `|S| ~ 64` at K = 4096 (4%). At K = 2^16, though, `tol ~ 678` against `|S| ~ 256`, so for cancelling data the claim does not even fix the sign of an output there. The bound is still the usual worst-case form relative to `sum|a*b|`, it rejects dropped or mis-indexed products (put all the weight on one product), and K = 2^16 is past the host's use. So this is not blocking. The README says 'keeps the tolerance meaningful (1.6% of sum|a*b| at 2^16)'; one sentence noting that for sign-cancelling data near K = 2^16 the bound can exceed |S| would keep downstream readers from reading more into it.",
+      "evidence": "work/Cover.lean (tol at K = 512 and 4096 checked by norm_num); exact values at K = 2^16 computed with Python fractions"
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Non-blocking remarks. (1) Names: every Lean file of the kernel was read in full. Printing `matmul_kernel` with full names and explicit instances (work/Names.lean, work/Explicit.lean) shows only TVA.* operations and instances (`TVA.IntV.instAdd`/`instMul`/`instSub`, `TVA.Tensor.instHAddIntV`, `instHMulIntV(_1)`, `TVA.instHAddPtrTensorIntV`, `TVA.instHAddTensorPtrIntV`, `TVA.tl.*`), core `Bind`/`Prod`, and two Lean-generated auxiliaries: `matmul_kernel._proof_1`, the `Fin 3` literal of `program_id`'s axis, and `matmul_kernel.match_1`, the tuple pattern of the loop state. The kernel files have no instance, notation, attribute, export, set_option or renaming, and their only `open` is `open TVA`. Axioms of main, consistent and satisfiable: propext, Classical.choice, Quot.sound. (2) Coverage: work/Cover.lean proves `Inst.ok` for every square launch `matmul` makes on row-major tensors with n from 1 to 4096 (`sq_ok`), which covers the test (512) and every benchmark size (256 to 4096, partial tiles included). (3) The unvisited line 307 names `leaky_relu`; only its own `def` binds it (checked with Python's ast, like `triton`, `tl` and `matmul_kernel`), so classing it as unused, with its header in the host lines, is sound."
+}

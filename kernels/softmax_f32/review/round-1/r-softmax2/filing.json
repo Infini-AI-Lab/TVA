@@ -1,0 +1,44 @@
+{
+  "reviewer": "r-softmax2",
+  "kernel": "softmax_f32",
+  "round": 1,
+  "findings": [
+    {
+      "kind": "SPEC_TOO_WEAK",
+      "target": "decl:Kernels.Softmax.relTol",
+      "summary": "relTol is about 4 times the library's sum bound: at BLOCK_SIZE = 2^14 the exact softmax rounded to bfloat16 meets Post, and rounded to float16 from 2048 on",
+      "detail": "Post bounds each output by relTol(BLOCK_SIZE)·σ + absTol with relTol B = (B + 4)·2^-22. At B = 2^14, the block size of 35 of the benchmark's 98 shapes (N = 8320 … 12672), relTol = 16388·2^-22 ≈ 3.907e-3, above bfloat16's largest relative rounding error 2^-8/(1 + 2^-8) ≈ 3.891e-3: a kernel whose every output is the exact softmax rounded to bfloat16 (subnormal ones within 2^-134, below absTol) meets Post on every covered input. From B = 2048 on (91 of the 98 shapes) relTol exceeds float16's 2^-11/(1 + 2^-11) ≈ 4.880e-4, and the exact softmax rounded to float16 (subnormal and flushed outputs within 2^-25, below absTol) meets it. So at the host's sizes the certificate does not tell this float32 softmax from one that keeps only a bfloat16 or float16 mantissa, which REVIEWER_GUIDE §3 names as the plausible wrong kernel a specification must reject. It is not forced by the library: the library's bound for a sum along any tree of B leaves is (1 + 2^-24)^(B-1) - 1 ≈ (B - 1)·2^-24 (sum_err_covers), and relTol is about 4 times that at every B from 1024 to 2^14 (the README's 'The relative part grows with BLOCK_SIZE because the row sum is a reduction along a tree … whose error the library bounds by the depth' reads as if relTol were that bound). The factor comes from exp_lane turning tl.exp's error, (2^-22 + 2^-23·|t|)·e^t by ExpF32, into an absolute 2^-23 per lane, which sum_rel sums over all B lanes against A ≥ 1 (hEA with e3 gives B·2^-23·A, twice the tree's term), and from final_bound rounding (13B + 20)·2^-26·(300/299) plus the 2^-22 terms up to (B + 4)·2^-22. The proof's own intermediate bounds give about 3.19e-3 at B = 2^14, already below bfloat16's; keeping each lane's error relative (with s_j = x_j - max, Σ_j |s_j|·e^(s_j) ≤ 2·max(1, ln B)·A) gives about (B + c)·2^-24 with c a few hundred, which also rejects float16 rounding for B ≤ 4096. Resolve: tighten relTol below 2^-8/(1 + 2^-8) at every covered B, and if the prover can, near the library's tree bound; or argue why the kernel's use does not need its largest rows closer than bfloat16.",
+      "evidence": "work/tolerance.lean (checked with lake env lean): maxRel 8 < relTol 16384, relTol 8192 < maxRel 8, maxRel 11 < relTol 2048, relTol 1024 < maxRel 11; final_bound's coefficient before its last step, proofRel B = 2^-22 + (1 + 2^-22)·(2^-22 + (13B + 20)·2^-26)·(300/299), is below 3.19e-3 and maxRel 8 at 16384 and below maxRel 11 at 2048; the tree bound (16383·2^-24)/(1 - 16383·2^-24) < relTol 16384 / 3.99. Benchmark block sizes: 16384 ×35, 8192 ×32, 4096 ×16, 2048 ×8, 1024 ×4, 512 ×2, 256 ×1.",
+      "affects": ["item:spec"]
+    },
+    {
+      "kind": "SPEC_TOO_WEAK",
+      "target": "decl:Kernels.Softmax.absTol",
+      "summary": "absTol = 2^-22 is the same for every row: any output with exact value below about 2.4e-7 may be 0, and at the test's shape it is 24 times the test's own atol",
+      "detail": "absTol = 2^-22 ≈ 2.38e-7 does not scale with the row, so Post says little about an output whose exact value σ is near or below it: every σ ≤ absTol/(1 - relTol) may come out as +0. A kernel that sets every lane with x - max < -16 to zero (σ ≤ e^-16 ≈ 1.13e-7) meets Post, as does one whose exp has an absolute error of 2^-23. On the benchmark's 4096 × 12672 torch.randn input (Σ e^x ≈ 12672·√e), absTol is 27% of σ at x = -4 (about 1600 elements) and 74% at x = -5. At the test's 1823 × 781 it is larger than the relative part for every output below 9.7e-4, which is most of them (σ ≈ 7.8e-4 at x = 0), so the tolerance there is about 2.4e-7 per output, 24 times the test's own torch.allclose atol (1e-8). The term is not forced. In final_bound the absolute part of the output's error is (1 + 2^-22)·2^-23/S + 2^-148 with S ≥ (1 - δ)·A (hD's derivation, hy'), and the proof drops the 1/A by A ≥ 1; 1/A is the exact softmax of the row's maximum, e^max/Σ_k e^(x_k), about 0.02 in the test and a few 10^-3 at 12672 columns. And ExpF32's error (2^-22 + 2^-23·X)·e^t + 2^-140 is relative for |t| up to about 104 (beyond, e^t < 2^-150), and DivFull's absolute term is 2^-148, so an absolute term near 2^-139, with a relative part that grows with x_max - x_j, is provable as well. Resolve: replace absTol by 2^-23·(1 + ε)·max_k softmaxRef xs n_cols k + 2^-148 (what final_bound has before it bounds 1/A by 1), or by a term of order 2^-139 with an adjusted relative part; or state and justify in the write-up that outputs below 2^-22 are not bounded.",
+      "evidence": "work/tolerance.lean: 113/10^9 < absTol/(1 - relTol 16384) (e^-16 < 1.13e-7 may be returned as 0); 23/10^8 < absTol. The randn figures are expectations (Σ e^x ≈ N·e^(1/2), P(z < -4) ≈ 3.2e-5).",
+      "affects": ["item:spec"]
+    },
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/softmax_f32/README.md",
+      "summary": "README, Conditions: 'every other shape with n_cols ≤ 2^14 and n_rows below 2^31 - num_programs' leaves out in_off/out_off, so it claims shapes the conditions exclude",
+      "detail": "The sentence 'Covered in particular: … every other shape with n_cols ≤ 2^14 and n_rows below 2^31 - num_programs' omits in_off and out_off: a contiguous input needs (n_rows - 1)·n_cols < 2^31, so a 2^18 × 2^14 input (2^32 elements, every argument an int32) is not covered, though the sentence says it is. The table and the Narrowings state the bound correctly; the sentence should add it, and say 'at most' for rows_grid (n_rows + num_programs ≤ 2^31). Worth saying too that this is the kernel's own limit, not only the proof's: row_idx * input_row_stride is an int32 product, which wraps for an input of 2^31 elements or more.",
+      "affects": ["item:conditions"]
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": [
+    "item:model",
+    "item:map",
+    "item:conditions",
+    "item:assumption:faithful",
+    "item:assumption:exp_total",
+    "item:assumption:exp_acc",
+    "item:assumption:exp_ninf",
+    "item:assumption:div_total",
+    "item:assumption:div_full"
+  ],
+  "notes": "Every name of the model, the conditions and the specification resolves to TVA.* or to a kernel definition read in full (work/names.lean, printed with pp.fullNames and, for the model, without notation and with instances: the operators of lines 92, 96, 107 and 108 are TVA.instHAddPtrIntV, TVA.instHAddPtrTensorIntV and TVA.IntV.instMul, line 98 is TVA.Tensor.ltS, and the only auxiliary declaration is softmax_kernel._proof_1 : NeZero (2 + 1), the Fin 3 literal). #print axioms main, consistent and satisfiable: propext, Classical.choice, Quot.sound. Assumptions is a structure with exactly (K : Claim.Behaviour Inst) (P : Platform). The two SPEC_TOO_WEAK findings share a cause (exp_lane's absolute 2^-23) and may share a fix."
+}
