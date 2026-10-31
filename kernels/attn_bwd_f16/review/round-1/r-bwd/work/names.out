@@ -1,0 +1,304 @@
+@[reducible] def Kernels.AttnBwd.dotCfg : TVA.DotCfg :=
+{ a := TVA.DType.f16, b := TVA.DType.f16, acc := TVA.DType.f32 }
+def Kernels.AttnBwd.attn_bwd_dkdv : Nat →
+  (BLOCK_N1 HEAD_DIM : Nat) →
+    TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32 →
+      TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32 →
+        TVA.Ptr TVA.DType.f16 →
+          TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F16 →
+            TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F16 →
+              TVA.F32 →
+                TVA.Ptr TVA.DType.f16 →
+                  TVA.Ptr TVA.DType.f32 →
+                    TVA.Ptr TVA.DType.f32 →
+                      TVA.I32 →
+                        TVA.I32 →
+                          TVA.I32 →
+                            TVA.I32 →
+                              TVA.I32 →
+                                TVA.I32 →
+                                  TVA.I32 →
+                                    Bool →
+                                      TVA.Prog
+                                        (Prod (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32)
+                                          (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32)) :=
+fun BLOCK_M1 BLOCK_N1 HEAD_DIM dk dv Q k v _sm_scale DO M D stride_tok stride_d _H _N_CTX start_n start_m num_steps
+    MASK =>
+  have offs_m := HAdd.hAdd start_m (TVA.tl.arange 0 BLOCK_M1);
+  have offs_n := HAdd.hAdd start_n (TVA.tl.arange 0 BLOCK_N1);
+  have offs_k := TVA.tl.arange 0 HEAD_DIM;
+  have qT_ptrs :=
+    HAdd.hAdd (HAdd.hAdd Q (HMul.hMul (offs_m.row HEAD_DIM) stride_tok)) (HMul.hMul (offs_k.col BLOCK_M1) stride_d);
+  have do_ptrs :=
+    HAdd.hAdd (HAdd.hAdd DO (HMul.hMul (offs_m.col HEAD_DIM) stride_tok)) (HMul.hMul (offs_k.row BLOCK_M1) stride_d);
+  have curr_m := start_m;
+  have step_m := TVA.IntV.ofNat BLOCK_M1;
+  Bind.bind
+    (TVA.tl.forRange (TVA.IntV.ofInt 0) num_steps (TVA.IntV.ofInt 1)
+      (Prod.mk dk (Prod.mk dv (Prod.mk offs_m (Prod.mk curr_m (Prod.mk qT_ptrs do_ptrs))))) fun _blk_idx x =>
+      Kernels.AttnBwd.attn_bwd_dkdv.match_1 BLOCK_M1 BLOCK_N1 HEAD_DIM
+        (fun x =>
+          TVA.Prog
+            (Prod (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32)
+              (Prod (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32)
+                (Prod (TVA.Tensor (List.cons BLOCK_M1 List.nil) TVA.I32)
+                  (Prod TVA.I32
+                    (Prod (TVA.Tensor (List.cons HEAD_DIM (List.cons BLOCK_M1 List.nil)) (TVA.Ptr TVA.DType.f16))
+                      (TVA.Tensor (List.cons BLOCK_M1 (List.cons HEAD_DIM List.nil)) (TVA.Ptr TVA.DType.f16))))))))
+        x fun dk dv _offs_m curr_m qT_ptrs do_ptrs =>
+        Bind.bind (TVA.tl.load qT_ptrs) fun qT =>
+          have offs_m := HAdd.hAdd curr_m (TVA.tl.arange 0 BLOCK_M1);
+          Bind.bind (TVA.tl.load (HAdd.hAdd M offs_m)) fun m =>
+            Bind.bind
+              (TVA.tl.dot Kernels.AttnBwd.dotCfg k qT
+                (TVA.tl.zeros (List.cons BLOCK_N1 (List.cons BLOCK_M1 List.nil)) TVA.DType.f32))
+              fun qkT =>
+              Bind.bind (TVA.tl.subc qkT (m.row BLOCK_N1)) fun __do_lift =>
+                Bind.bind (TVA.tl.exp2 __do_lift) fun pT =>
+                  have pT :=
+                    ite (Eq MASK Bool.true)
+                      (have mask := (offs_n.col BLOCK_M1).le (offs_m.row BLOCK_N1);
+                      TVA.tl.where mask pT
+                        (TVA.tl.full (List.cons BLOCK_N1 (List.cons BLOCK_M1 List.nil)) (TVA.FloatV.ofPat 0).litF32))
+                      pT;
+                  Bind.bind (TVA.tl.load do_ptrs) fun «do» =>
+                    have ppT := pT;
+                    Bind.bind (TVA.tl.cvt ppT) fun ppT =>
+                      Bind.bind (TVA.tl.dot_add Kernels.AttnBwd.dotCfg ppT «do» dv) fun dv =>
+                        Bind.bind (TVA.tl.load (HAdd.hAdd D offs_m)) fun Di =>
+                          Bind.bind
+                            (TVA.tl.dot Kernels.AttnBwd.dotCfg v «do».trans
+                              (TVA.tl.zeros (List.cons BLOCK_N1 (List.cons BLOCK_M1 List.nil)) TVA.DType.f32))
+                            fun __do_lift =>
+                            Bind.bind (TVA.tl.convert TVA.DType.f32 TVA.DType.f32 __do_lift) fun dpT =>
+                              Bind.bind (TVA.tl.subc dpT (Di.row BLOCK_N1)) fun __do_lift =>
+                                Bind.bind (TVA.tl.mul pT __do_lift) fun dsT =>
+                                  Bind.bind (TVA.tl.cvt dsT) fun dsT =>
+                                    Bind.bind (TVA.tl.dot_add Kernels.AttnBwd.dotCfg dsT qT.trans dk) fun dk =>
+                                      have curr_m := HAdd.hAdd curr_m step_m;
+                                      have qT_ptrs := HAdd.hAdd qT_ptrs (TVA.bc (HMul.hMul step_m stride_tok));
+                                      have do_ptrs := HAdd.hAdd do_ptrs (TVA.bc (HMul.hMul step_m stride_tok));
+                                      Pure.pure (Prod.mk dk ⋯))
+    fun __x =>
+    Kernels.AttnBwd.attn_bwd_dkdv.match_1 BLOCK_M1 BLOCK_N1 HEAD_DIM
+      (fun x =>
+        TVA.Prog
+          (Prod (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32)
+            (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32)))
+      __x fun dk dv _offs_m _curr_m _qT_ptrs _do_ptrs => Pure.pure (Prod.mk dk dv)
+def Kernels.AttnBwd.attn_bwd_dq : (BLOCK_M2 : Nat) →
+  Nat →
+    (HEAD_DIM : Nat) →
+      TVA.Tensor (List.cons BLOCK_M2 (List.cons HEAD_DIM List.nil)) TVA.F32 →
+        TVA.Tensor (List.cons BLOCK_M2 (List.cons HEAD_DIM List.nil)) TVA.F16 →
+          TVA.Ptr TVA.DType.f16 →
+            TVA.Ptr TVA.DType.f16 →
+              TVA.Tensor (List.cons BLOCK_M2 (List.cons HEAD_DIM List.nil)) TVA.F16 →
+                TVA.Tensor (List.cons BLOCK_M2 (List.cons 1 List.nil)) TVA.F32 →
+                  TVA.Ptr TVA.DType.f32 →
+                    TVA.I32 →
+                      TVA.I32 →
+                        TVA.I32 →
+                          TVA.I32 →
+                            TVA.I32 →
+                              TVA.I32 →
+                                TVA.I32 →
+                                  Bool →
+                                    TVA.Prog (TVA.Tensor (List.cons BLOCK_M2 (List.cons HEAD_DIM List.nil)) TVA.F32) :=
+fun BLOCK_M2 BLOCK_N2 HEAD_DIM dq q K V «do» m D stride_tok stride_d _H _N_CTX start_m start_n num_steps MASK =>
+  have offs_m := HAdd.hAdd start_m (TVA.tl.arange 0 BLOCK_M2);
+  have offs_n := HAdd.hAdd start_n (TVA.tl.arange 0 BLOCK_N2);
+  have offs_k := TVA.tl.arange 0 HEAD_DIM;
+  have kT_ptrs :=
+    HAdd.hAdd (HAdd.hAdd K (HMul.hMul (offs_n.row HEAD_DIM) stride_tok)) (HMul.hMul (offs_k.col BLOCK_N2) stride_d);
+  have vT_ptrs :=
+    HAdd.hAdd (HAdd.hAdd V (HMul.hMul (offs_n.row HEAD_DIM) stride_tok)) (HMul.hMul (offs_k.col BLOCK_N2) stride_d);
+  Bind.bind (TVA.tl.load (HAdd.hAdd D offs_m)) fun Di =>
+    have curr_n := start_n;
+    have step_n := TVA.IntV.ofNat BLOCK_N2;
+    Bind.bind
+      (TVA.tl.forRange (TVA.IntV.ofInt 0) num_steps (TVA.IntV.ofInt 1)
+        (Prod.mk dq (Prod.mk offs_n (Prod.mk curr_n (Prod.mk kT_ptrs vT_ptrs)))) fun _blk_idx x =>
+        Kernels.AttnBwd.attn_bwd_dq.match_1 BLOCK_M2 BLOCK_N2 HEAD_DIM
+          (fun x =>
+            TVA.Prog
+              (Prod (TVA.Tensor (List.cons BLOCK_M2 (List.cons HEAD_DIM List.nil)) TVA.F32)
+                (Prod (TVA.Tensor (List.cons BLOCK_N2 List.nil) TVA.I32)
+                  (Prod TVA.I32
+                    (Prod (TVA.Tensor (List.cons HEAD_DIM (List.cons BLOCK_N2 List.nil)) (TVA.Ptr TVA.DType.f16))
+                      (TVA.Tensor (List.cons HEAD_DIM (List.cons BLOCK_N2 List.nil)) (TVA.Ptr TVA.DType.f16)))))))
+          x fun dq offs_n curr_n kT_ptrs vT_ptrs =>
+          Bind.bind (TVA.tl.load kT_ptrs) fun kT =>
+            Bind.bind (TVA.tl.load vT_ptrs) fun vT =>
+              Bind.bind
+                (TVA.tl.dot Kernels.AttnBwd.dotCfg q kT
+                  (TVA.tl.zeros (List.cons BLOCK_M2 (List.cons BLOCK_N2 List.nil)) TVA.DType.f32))
+                fun qk =>
+                Bind.bind (TVA.tl.subc qk (m.bcastCols BLOCK_N2)) fun __do_lift =>
+                  Bind.bind (TVA.tl.exp2 __do_lift) fun p =>
+                    have offs_n := ite (Eq MASK Bool.true) (HAdd.hAdd curr_n (TVA.tl.arange 0 BLOCK_N2)) offs_n;
+                    have p :=
+                      ite (Eq MASK Bool.true)
+                        (have mask := (offs_n.row BLOCK_M2).le (offs_m.col BLOCK_N2);
+                        TVA.tl.where mask p
+                          (TVA.tl.full (List.cons BLOCK_M2 (List.cons BLOCK_N2 List.nil)) (TVA.FloatV.ofPat 0).litF32))
+                        p;
+                    Bind.bind
+                      (TVA.tl.dot Kernels.AttnBwd.dotCfg «do» vT
+                        (TVA.tl.zeros (List.cons BLOCK_M2 (List.cons BLOCK_N2 List.nil)) TVA.DType.f32))
+                      fun __do_lift =>
+                      Bind.bind (TVA.tl.convert TVA.DType.f32 TVA.DType.f32 __do_lift) fun dp =>
+                        Bind.bind (TVA.tl.subc dp (Di.col BLOCK_N2)) fun __do_lift =>
+                          Bind.bind (TVA.tl.mul p __do_lift) fun ds =>
+                            Bind.bind (TVA.tl.cvt ds) fun ds =>
+                              Bind.bind (TVA.tl.dot_add Kernels.AttnBwd.dotCfg ds kT.trans dq) fun dq =>
+                                have curr_n := HAdd.hAdd curr_n step_n;
+                                have kT_ptrs := HAdd.hAdd kT_ptrs (TVA.bc (HMul.hMul step_n stride_tok));
+                                have vT_ptrs := HAdd.hAdd vT_ptrs (TVA.bc (HMul.hMul step_n stride_tok));
+                                Pure.pure (Prod.mk dq (Prod.mk offs_n (Prod.mk curr_n (Prod.mk kT_ptrs vT_ptrs)))))
+      fun __x =>
+      Kernels.AttnBwd.attn_bwd_dq.match_1 BLOCK_M2 BLOCK_N2 HEAD_DIM
+        (fun x => TVA.Prog (TVA.Tensor (List.cons BLOCK_M2 (List.cons HEAD_DIM List.nil)) TVA.F32)) __x
+        fun dq _offs_n _curr_n _kT_ptrs _vT_ptrs => Pure.pure dq
+def Kernels.AttnBwd.attn_bwd : TVA.Ptr TVA.DType.f16 →
+  TVA.Ptr TVA.DType.f16 →
+    TVA.Ptr TVA.DType.f16 →
+      TVA.F32 →
+        TVA.Ptr TVA.DType.f16 →
+          TVA.Ptr TVA.DType.f16 →
+            TVA.Ptr TVA.DType.f16 →
+              TVA.Ptr TVA.DType.f16 →
+                TVA.Ptr TVA.DType.f32 →
+                  TVA.Ptr TVA.DType.f32 →
+                    TVA.I32 →
+                      TVA.I32 →
+                        TVA.I32 → TVA.I32 → TVA.I32 → TVA.I32 → Nat → Nat → Nat → Nat → Nat → Nat → Bool → TVA.Kernel :=
+fun Q K V sm_scale DO DQ DK DV M D stride_z stride_h stride_tok stride_d H N_CTX BLOCK_M1 BLOCK_N1 BLOCK_M2 BLOCK_N2
+    BLK_SLICE_FACTOR HEAD_DIM CAUSAL =>
+  {
+    body := fun ctx =>
+      have bhid := TVA.tl.program_id ctx 2;
+      have off_chz := TVA.IntV.cast (HMul.hMul bhid N_CTX);
+      Bind.bind (TVA.tl.irem (TVA.Tensor.scalar bhid) (TVA.Tensor.scalar H)) fun __do_lift =>
+        Bind.bind (TVA.tl.idiv (TVA.Tensor.scalar bhid) (TVA.Tensor.scalar H)) fun __do_lift_1 =>
+          have adj :=
+            TVA.IntV.cast (HAdd.hAdd (HMul.hMul stride_h __do_lift.item) (HMul.hMul stride_z __do_lift_1.item));
+          have pid := TVA.tl.program_id ctx 0;
+          have Q := HAdd.hAdd Q adj;
+          have K := HAdd.hAdd K adj;
+          have V := HAdd.hAdd V adj;
+          have DO := HAdd.hAdd DO adj;
+          have DQ := HAdd.hAdd DQ adj;
+          have DK := HAdd.hAdd DK adj;
+          have DV := HAdd.hAdd DV adj;
+          have M := HAdd.hAdd M off_chz;
+          have D := HAdd.hAdd D off_chz;
+          have offs_k := TVA.tl.arange 0 HEAD_DIM;
+          have start_n := HMul.hMul pid (TVA.IntV.ofNat BLOCK_N1);
+          have start_m := TVA.IntV.ofInt 0;
+          have MASK_BLOCK_M1 := HDiv.hDiv BLOCK_M1 BLK_SLICE_FACTOR;
+          have offs_n := HAdd.hAdd start_n (TVA.tl.arange 0 BLOCK_N1);
+          have dv := TVA.tl.zeros (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.DType.f32;
+          have dk := TVA.tl.zeros (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.DType.f32;
+          Bind.bind
+            (TVA.tl.load
+              (HAdd.hAdd (HAdd.hAdd K (HMul.hMul (offs_n.col HEAD_DIM) stride_tok))
+                (HMul.hMul (offs_k.row BLOCK_N1) stride_d)))
+            fun k =>
+            Bind.bind
+              (TVA.tl.load
+                (HAdd.hAdd (HAdd.hAdd V (HMul.hMul (offs_n.col HEAD_DIM) stride_tok))
+                  (HMul.hMul (offs_k.row BLOCK_N1) stride_d)))
+              fun v =>
+              Bind.bind
+                (ite (Eq CAUSAL Bool.true)
+                  (have start_m := start_n;
+                  have num_steps := TVA.IntV.ofNat (HDiv.hDiv BLOCK_N1 MASK_BLOCK_M1);
+                  Bind.bind
+                    (Kernels.AttnBwd.attn_bwd_dkdv MASK_BLOCK_M1 BLOCK_N1 HEAD_DIM dk dv Q k v sm_scale DO M D
+                      stride_tok stride_d H N_CTX start_n start_m num_steps Bool.true)
+                    fun __x =>
+                    Kernels.AttnBwd.attn_bwd.match_1 BLOCK_N1 HEAD_DIM
+                      (fun x =>
+                        TVA.Prog
+                          (Prod (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32)
+                            (Prod (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32) TVA.I32)))
+                      __x fun dk dv =>
+                      have start_m := HAdd.hAdd start_m (HMul.hMul num_steps (TVA.IntV.ofNat MASK_BLOCK_M1));
+                      Pure.pure (Prod.mk dk (Prod.mk dv start_m)))
+                  (Pure.pure (Prod.mk dk (Prod.mk dv start_m))))
+                fun __x =>
+                Kernels.AttnBwd.attn_bwd.match_5 BLOCK_N1 HEAD_DIM (fun x => TVA.Prog Unit) __x fun dk dv start_m =>
+                  Bind.bind
+                    (TVA.tl.idiv (TVA.Tensor.scalar (HSub.hSub N_CTX start_m))
+                      (TVA.Tensor.scalar (TVA.IntV.ofNat BLOCK_M1)))
+                    fun __do_lift =>
+                    have num_steps := __do_lift.item;
+                    Bind.bind
+                      (Kernels.AttnBwd.attn_bwd_dkdv BLOCK_M1 BLOCK_N1 HEAD_DIM dk dv Q k v sm_scale DO M D stride_tok
+                        stride_d H N_CTX start_n start_m num_steps Bool.false)
+                      fun __x =>
+                      Kernels.AttnBwd.attn_bwd.match_1 BLOCK_N1 HEAD_DIM (fun x => TVA.Prog Unit) __x fun dk dv =>
+                        have dv_ptrs :=
+                          HAdd.hAdd (HAdd.hAdd DV (HMul.hMul (offs_n.col HEAD_DIM) stride_tok))
+                            (HMul.hMul (offs_k.row BLOCK_N1) stride_d);
+                        Bind.bind (TVA.tl.cvt dv) fun __do_lift =>
+                          Bind.bind (TVA.tl.store dv_ptrs __do_lift) fun __r =>
+                            Bind.bind (TVA.tl.mul dk (TVA.bc sm_scale)) fun dk =>
+                              have dk_ptrs := HAdd.hAdd ⋯ ⋯;
+                              Bind.bind (TVA.tl.cvt dk) ⋯ }
+def Kernels.AttnBwd.model : Kernels.AttnBwd.Inst → TVA.Kernel :=
+fun d =>
+  Kernels.AttnBwd.attn_bwd (d.Q.ptr 0) (d.K.ptr 0) (d.V.ptr 0) (Kernels.AttnBwd.smF d) (d.DO.ptr 0) (d.DQ.ptr 0)
+    (d.DK.ptr 0) (d.DV.ptr 0) (d.M.ptr 0) (d.D.ptr 0) (TVA.IntV.ofNat (HMul.hMul (HMul.hMul d.H d.N_CTX) d.HEAD_DIM))
+    (TVA.IntV.ofNat (HMul.hMul d.N_CTX d.HEAD_DIM)) (TVA.IntV.ofNat d.HEAD_DIM) (TVA.IntV.ofNat 1) (TVA.IntV.ofNat d.H)
+    (TVA.IntV.ofNat d.N_CTX) 32 128 128 32 2 d.HEAD_DIM d.CAUSAL
+def Kernels.AttnBwd.launch : Kernels.AttnBwd.Inst → TVA.Launch :=
+fun d =>
+  {
+    grid :=
+      Matrix.vecCons (HDiv.hDiv d.N_CTX 128) (Matrix.vecCons 1 (Matrix.vecCons (Kernels.AttnBwd.G d) Matrix.vecEmpty)),
+    blocks := Kernels.AttnBwd.blocks d }
+def Kernels.AttnBwd.blocks : Kernels.AttnBwd.Inst → List TVA.Shape :=
+fun d =>
+  List.cons (List.cons 16 List.nil)
+    (List.cons (List.cons 32 List.nil)
+      (List.cons (List.cons 128 List.nil)
+        (List.cons (List.cons d.HEAD_DIM List.nil)
+          (List.cons (List.cons 1 (List.cons 16 List.nil))
+            (List.cons (List.cons 1 (List.cons 32 List.nil))
+              (List.cons (List.cons 16 (List.cons 1 List.nil))
+                (List.cons (List.cons 32 (List.cons 1 List.nil))
+                  (List.cons (List.cons 128 (List.cons 1 List.nil))
+                    (List.cons (List.cons 1 (List.cons d.HEAD_DIM List.nil))
+                      (List.cons (List.cons d.HEAD_DIM (List.cons 1 List.nil))
+                        (List.cons (List.cons d.HEAD_DIM (List.cons 16 List.nil))
+                          (List.cons (List.cons d.HEAD_DIM (List.cons 32 List.nil))
+                            (List.cons (List.cons 16 (List.cons d.HEAD_DIM List.nil))
+                              (List.cons (List.cons 32 (List.cons d.HEAD_DIM List.nil))
+                                (List.cons (List.cons 128 (List.cons 16 List.nil))
+                                  (List.cons (List.cons 128 (List.cons 32 List.nil))
+                                    (List.cons (List.cons 128 (List.cons d.HEAD_DIM List.nil)) List.nil)))))))))))))))))
+def Kernels.AttnBwd.ln2Pat : Nat :=
+4604418534330597376
+structure Kernels.AttnBwd.Assumptions (K : TVA.Claim.Behaviour Kernels.AttnBwd.Inst) (P : TVA.Platform) : Prop
+number of parameters: 2
+fields:
+  Kernels.AttnBwd.Assumptions.faithful : ∀ (d : Kernels.AttnBwd.Inst),
+      d.ok → TVA.Rules.Compiler.Faithful P (Kernels.AttnBwd.model d) (Kernels.AttnBwd.launch d) (K d)
+  Kernels.AttnBwd.Assumptions.dot : TVA.Rules.Num.DotF16 P
+  Kernels.AttnBwd.Assumptions.dot_total : TVA.Rules.Num.DotTotal P
+      { a := TVA.DType.f16, b := TVA.DType.f16, acc := TVA.DType.f32 }
+  Kernels.AttnBwd.Assumptions.exp2 : TVA.Rules.Num.Exp2F32 P
+  Kernels.AttnBwd.Assumptions.exp2_total : TVA.Rules.Num.MathTotal P TVA.MathFn.exp2 TVA.Math.Float.Format.binary32
+constructor:
+  Kernels.AttnBwd.Assumptions.mk {K : TVA.Claim.Behaviour Kernels.AttnBwd.Inst} {P : TVA.Platform}
+    (faithful :
+      ∀ (d : Kernels.AttnBwd.Inst),
+        d.ok → TVA.Rules.Compiler.Faithful P (Kernels.AttnBwd.model d) (Kernels.AttnBwd.launch d) (K d))
+    (dot : TVA.Rules.Num.DotF16 P)
+    (dot_total : TVA.Rules.Num.DotTotal P { a := TVA.DType.f16, b := TVA.DType.f16, acc := TVA.DType.f32 })
+    (exp2 : TVA.Rules.Num.Exp2F32 P)
+    (exp2_total : TVA.Rules.Num.MathTotal P TVA.MathFn.exp2 TVA.Math.Float.Format.binary32) :
+    Kernels.AttnBwd.Assumptions K P
+'Kernels.AttnBwd.main' depends on axioms: [propext, Classical.choice, Quot.sound]

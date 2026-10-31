@@ -1,0 +1,13 @@
+{
+  "reviewer": "r-fwd2",
+  "kernel": "attn_fwd_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {"id": "F4", "note": "Fixed in the docstrings and the README. AttnFwd.lean's module docstring cites the test at lines 631-695 and the benchmark at 698-780. testInst's docstring and README (Proof) call it a covered one-head instance (Z = H = 1), not a test shape. HeadOk's docstring and README (Specification) give the same estimate, below 23 (test) and 240 (benchmark) except with probability below 1e-6, with the Chernoff and union-bound argument. The README's tolerance at those values (0.43%, 2.9%) agrees with work/tol.py of round 1. No item digest changed."},
+    {"id": "F5", "note": "Referred to L123. docs/library-review/ISSUES.md records it faithfully: the fusion rule does not say whether a tl.maximum, tl.minimum or tl.where result carrying a product's value counts as a product. It cites lines 84 and 241 of this kernel and the reading the model follows."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 2: the prover's changes are docstrings and README only (gate 3031db2a50b0a036, no item digest changed). I also checked the line-87-to-95 corrections in Model.lean, RowAcc.lean, Step.lean and Inner.lean against the source."
+}

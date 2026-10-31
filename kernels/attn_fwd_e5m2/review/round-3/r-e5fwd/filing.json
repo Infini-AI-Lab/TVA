@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-e5fwd",
+  "kernel": "attn_fwd_e5m2",
+  "round": 3,
+  "findings": [],
+  "release": [
+    {
+      "id": "F6",
+      "note": "Settled. I checked the per-N_CTX table under 'Where Post does not tell o from 0' against my round-2 work/tol.out, and every range covers my figures. 0 meets Post on 99.5/100% (N = 128 non-causal) and 89.5% (D = 64) / 99.0% (D = 128) (N = 128 causal); 100% (1024 non-causal); 96.5/99.7% (1024 causal); 100% (4096 non-causal); 96.8/99.7% (4096 causal). Median |attnRef| is 0.049/0.065, 0.064/0.089, 0.017/0.026, 0.030/0.044, 0.009/0.014 and 0.022/0.032 in the same order. The floor is at least |attnRef| on 49/39%, 38/27%, 94/80%, 70/54%, 100/98% and 73/64%. The derived shares (the floor rejects 0 on 46-74% at N = 128 and on 7-46% on causal rows at 1024 and 4096, where Post rejects at most 13% and 3.5%) follow from the table. The attribution (the fp8 floor for non-causal rows at N >= 1024, DotE5m2 / L124 for the rest) is now right, in the Specification and in the Narrowings. The main table's new N = 128 row (tolO 0.15/0.54, tolV 1.9, |attnRef| 0.049/0.064), the one-key ranges and the benchmark's tolV of 5.3-6.8 also match my runs. One remark, not a finding: my benchmark sample at D = 128 has X up to 170.7, so pE up to about 2^8.1, about 270, where the README says 'up to 230'. It is a sample's maximum, and the conclusion is unchanged."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "On r-e5fwd2's F7 and F8 (not mine to release): F7 is answered by the same per-N_CTX table and wording, which cover my round-2 figures at test_op's N_CTX = 128. F8's new paragraph, 'What tolV checks', is correct. For nblk >= 1, magA >= magCp / (1 - ...) >= magCp >= 9/8*K + |attnRef|/8, so tolV >= 9/8*K + |attnRef|/8 + 2^-17. An average c of the row's own values has |c - attnRef| <= K, and its float8e5 rounding is within K + (K + |attnRef|)/8 + 2^-17 of attnRef. So tolV alone checks the key set and the range, not the weights, as the Specification and the Narrowings now say. Only README.md changed, and the gate and item digests are as in round 2 (53b679fa0085b99d), so my round-2 checks of the Lean stand."
+}

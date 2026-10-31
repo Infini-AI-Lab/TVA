@@ -1,0 +1,4 @@
+test: D=64 N=4096: per-head max of sigma*sum|q k| over 8 heads: 10.0, 10.8, 10.5, 10.5, 10.2, 10.4, 10.5, 10.4  (cap Xh = 512)
+test: D=128 N=4096: per-head max of sigma*sum|q k| over 8 heads: 16.9, 17.3, 17.5, 17.2, 17.0, 16.8, 17.0, 16.7  (cap Xh = 256)
+bench: D=64 N=16384: per-head max of sigma*sum|q k| over 6 heads: 112.4, 115.2, 112.1, 113.8, 108.7, 112.0  (cap Xh = 512)
+bench: D=128 N=16384: per-head max of sigma*sum|q k| over 6 heads: 185.6, 184.1, 196.1, 185.5, 187.9, 184.1  (cap Xh = 256)

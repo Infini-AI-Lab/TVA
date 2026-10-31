@@ -1,0 +1,25 @@
+{
+  "gate": "3031db2a50b0a0360092b7f2c585b8199c835e882168d32e4a484168020cf372",
+  "items": {
+    "assumption:div_full": "9bb3241e6d236a1ad13955c7e35409d47f171a77b344e1e8ee77af990c43128b",
+    "assumption:div_total": "4b093fa31a123492bbcea2d1f361168947729f493b165bcdaf91ffff88332787",
+    "assumption:dot": "632125571d404d572edf3013fed0574da60214185d99a28166c456ccf7ce11d4",
+    "assumption:dot_total": "a63e50e22fe63eef60fd66d31fba7cf66dfb7b76aa2ebb6179bd9aae3b5cb720",
+    "assumption:exp2": "d30b74f01ba7897d772b0ecbf249f423d8b1bf17aa79a6ee294b5862b28a2c15",
+    "assumption:exp2_ninf": "4388839fa7fbf5d620584bcfc2af07bb3e6bd0620ac0e3200964745a19a87b49",
+    "assumption:exp2_total": "3af229492352ba679529bcad44e2842c0184585550e1293ce7b1d39e47a2e4fd",
+    "assumption:faithful": "7b632a90276e677921fb8cfd3c0c926ed8bf38caaec320fddd1933f46a11a41c",
+    "assumption:log2": "80183fe8de731f9bcc1bc7526a4922de1d8dbe63e7706b6fb5810611aaefeaad",
+    "assumption:log2_total": "59816303c4acf1f509fbefe17ed969c9018dd1c617aac89be5b82ec690ebdeea",
+    "conditions": "c587de4b858eece0fea252853aee3b528c6c645531f94efc415291f498d197f5",
+    "map": "726c8b30b1cd3e2adcfb6a0c4bb3085b35021c43d81c3a9d7ec4b6c836625558",
+    "model": "e98ae22afef95f2e930e23201df6851ccb997ea81c525688de3fc3bca1faec15",
+    "spec": "1a8c8db50edcf8808e6d2a21767683907811664b76a5057318d0d52fa94d46af"
+  },
+  "kernel": "attn_fwd_f16",
+  "reviewers": [
+    "r-fwd",
+    "r-fwd2"
+  ],
+  "time": "2026-10-31T23:17:43Z"
+}

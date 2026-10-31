@@ -1,0 +1,6 @@
+E|r(z) r(z')| = 0.6329768788167334
+bench D=128 sm_scale=1.3 std=1.0: cap on sum|z z'| = 196.9; log10 P(one pair exceeds) <= -19.8
+bench D=64 sm_scale=1.3 std=1.0: cap on sum|z z'| = 393.8; log10 P(one pair exceeds) <= -110.1
+test D=128 sm_scale=0.5 std=0.5: cap on sum|z z'| = 2048.0; log10 P(one pair exceeds) <= -680.6
+test D=64 sm_scale=0.5 std=0.5: cap on sum|z z'| = 4096.0; log10 P(one pair exceeds) <= -1491.0
+benchmark's largest launch (Z=4, H=32, N=2^14): 3.44e+10 pairs, log10 = 10.5

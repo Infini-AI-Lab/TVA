@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-bwdpre2",
+  "kernel": "attn_bwd_pre_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {
+      "id": "F1",
+      "note": "README.md, Narrowings, 'The grid' now gives each maximum its own launch: the largest Z·H, 192, to the test (Z = 4, H = 48, N_CTX = 4096: 32 · 192 = 6144 programs), and the largest grid, 128 · 128 = 16384 programs, to the benchmark (N_CTX = 16384, Z·H = 128). Both are right, and no test launch has more programs."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 2 changed only that README sentence; the gate (74a1e051af7b1c1b) and every item digest are as I accepted them in round 1, so I accept all items again. r-bwdpre's round-1 F2 is the same wording point, settled by the same sentence."
+}

@@ -1,0 +1,19 @@
+{
+  "reviewer": "r-bwd",
+  "kernel": "attn_bwd_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {
+      "id": "F3",
+      "note": "README, Specification now gives the tolerance as r = ln2*(HEAD_DIM+2)*2^-22*A + 2^-11 + ((1+rho)^T - 1) plus the N_CTX*2^-25*mean|dO| floor and the eY term of dK and dQ, says that A depends on the inputs and no fixed percentage holds, and quotes about 0.8 to 1% for the benchmark at N_CTX = 2^14 (0.36% + 0.05% + 0.43% at HEAD_DIM 128). This agrees with Spec.lean and with my round-1 figures (work/premises.out). The Narrowings bullet now bounds only the accumulation part by 0.43%."
+    },
+    {
+      "id": "F4",
+      "note": "README, Narrowings now cites do.is_contiguous() (line 585) and the equal strides (line 586), says these fix the canonical stride on every dimension of size > 1, and names what is left out: a non-canonical stride(0) with BATCH = 1 or stride(1) with N_HEAD = 1, which the kernel multiplies by 0."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "The digests are those I accepted in round 1 (only README.md changed). The new sm_scale bullet is right: an int sm_scale is a compile-time 1 or an int32 parameter (SEMANTICS.md, Scalar arguments), not the float32 the model takes. A wording point too small for a finding: the layout bullet's 'exactly those launches' also has the empty launches as exceptions (N_CTX = 0, which n_mod allows, or BATCH or N_HEAD = 0), where torch's is_contiguous holds for any strides; they run no program, so nothing is lost."
+}

@@ -1,0 +1,135 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "AttnBwd",
+    "namespace": "Kernels.AttnBwd"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/06-fused-attention.py",
+    "host": [
+      [
+        16,
+        18
+      ],
+      [
+        22,
+        22
+      ],
+      [
+        24,
+        24
+      ],
+      [
+        27,
+        28
+      ],
+      [
+        31,
+        32
+      ],
+      [
+        35,
+        36
+      ],
+      [
+        39,
+        40
+      ],
+      [
+        43,
+        44
+      ],
+      [
+        47,
+        53
+      ],
+      [
+        113,
+        125
+      ],
+      [
+        128,
+        146
+      ],
+      [
+        149,
+        153
+      ],
+      [
+        156,
+        165
+      ],
+      [
+        168,
+        169
+      ],
+      [
+        176,
+        186
+      ],
+      [
+        248,
+        253
+      ],
+      [
+        503,
+        623
+      ],
+      [
+        626,
+        626
+      ],
+      [
+        628,
+        628
+      ],
+      [
+        631,
+        695
+      ],
+      [
+        698,
+        703
+      ],
+      [
+        705,
+        737
+      ],
+      [
+        739,
+        775
+      ],
+      [
+        778,
+        780
+      ]
+    ],
+    "ranges": [
+      [
+        20,
+        21
+      ],
+      [
+        266,
+        315
+      ],
+      [
+        319,
+        363
+      ],
+      [
+        366,
+        500
+      ]
+    ],
+    "sha256": "4ea8883061399de75d0ca973b446bed97abd9749bb9616aa7044e93256148db8",
+    "unused": [
+      "_attn_fwd_inner",
+      "_maybe_make_tensor_desc",
+      "_attn_fwd",
+      "_attn_bwd_preprocess"
+    ]
+  },
+  "title": "Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bwd_dq`, `float16`)"
+}

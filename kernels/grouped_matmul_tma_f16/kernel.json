@@ -1,0 +1,92 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "GroupedMatmulTma",
+    "namespace": "Kernels.GroupedMatmulTma"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/08-grouped-gemm.py",
+    "host": [
+      [
+        29,
+        30
+      ],
+      [
+        35,
+        35
+      ],
+      [
+        38,
+        39
+      ],
+      [
+        42,
+        43
+      ],
+      [
+        46,
+        49
+      ],
+      [
+        52,
+        72
+      ],
+      [
+        131,
+        173
+      ],
+      [
+        176,
+        183
+      ],
+      [
+        281,
+        326
+      ],
+      [
+        329,
+        357
+      ],
+      [
+        361,
+        371
+      ],
+      [
+        374,
+        378
+      ],
+      [
+        381,
+        383
+      ],
+      [
+        386,
+        449
+      ],
+      [
+        452,
+        520
+      ],
+      [
+        523,
+        524
+      ]
+    ],
+    "ranges": [
+      [
+        32,
+        33
+      ],
+      [
+        186,
+        278
+      ]
+    ],
+    "sha256": "c31676b7e2cc544dd99f6ae99b6de010212cd007e7aadd2b147d967b540e81af",
+    "unused": [
+      "grouped_matmul_kernel"
+    ]
+  },
+  "title": "Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16)"
+}

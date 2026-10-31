@@ -134,6 +134,11 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L117](#l117) | FIXED | 23 | vec_add_f32#F3, vec_add_f32#F4 (r-vecadd, r-vecadd2) | soundness: condition 11's reuse clause does not ask for the same specialisation of the runtime arguments |
 | [L118](#l118) | FIXED | 23 | vec_add_f32#F2 (r-vecadd) | wording: the `int32` docstring sits on `I8` in `Lang/Scalar.lean`; two pages still say only "without `-O`" |
 | [L119](#l119) | CLOSED | — | matmul_e5m2#F3 (r-e5m2), matmul_e5m2#F4 (r-e5m2b) | accuracy: `relDot8`'s per-chunk constant `2^-7` is about twice the `33·2^-13` that num-dot's derivation gives |
+| [L120](#l120) | OPEN | — | grouped_matmul_tma_f16#F2 (r-gmm2) | gap: nothing states that a descriptor the kernel builds again in a loop is rewritten only after the accesses through its old contents (a TMA store may still be in flight) |
+| [L121](#l121) | OPEN | — | grouped_matmul_tma_f16#F4 (r-gmm) | gap: scope 5 does not ask the allocator to return the `alignment` the launcher asks for the descriptor scratch |
+| [L122](#l122) | OPEN | — | attn_fwd_f16#F3 (r-fwd) | wording: "Performance-only arguments" says `num_stages` and `warp_specialize` are given by a model, but `Launch` and `tl.forRange` have no place for them and "Loops" says they change no outcome |
+| [L123](#l123) | OPEN | — | attn_fwd_f16#F5 (r-fwd2) | wording: the fusion rule does not say whether a `tl.maximum` or `tl.where` result that carries a product's value is a product |
+| [L124](#l124) | OPEN | — | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\|acc\|` too, so an accumulator fed back once per block compounds as `(1 + relDot8 64)^T` |
 
 ## L1
 
@@ -2364,3 +2369,90 @@ nothing from there on; with the unrounded constant it would be about `0.67` at `
   sums, gives a tolerance that rejects a zero result and a dropped step at every covered `K`, and
   `matmul_e5m2` is revised that way. A tighter fp8 fact is left to a later library round, if a
   kernel needs one.
+
+## L120
+
+**A descriptor the kernel builds again in a loop, while an earlier TMA store through it may be in
+flight** (gap; `grouped_matmul_tma_f16` F2 by r-gmm2, 2026-10-31). Tutorial 08's
+`grouped_matmul_tma_kernel` calls `tl.make_tensor_descriptor` for `a`, `b` and `c` once per group,
+inside `for g in range(group_size)`. Each program therefore rewrites its three scratch slots once
+per group, and the previous group's last `c_desc.store` may still be in flight when `c`'s slot is
+rewritten. SEMANTICS ("Tensor descriptors") gives a built descriptor its arguments' values and keeps
+the scratch outside the claim's memory, and [evidence/desc-scratch](../../evidence/desc-scratch/README.md)
+tests kernels that build each descriptor once. Nothing in the library states that a rebuild comes
+after the accesses through the old contents.
+- **What the coordinator saw** (2026-10-31; an observation, not library evidence):
+  - **The PTX.** In the PTX Triton 3.8.0 compiles for that kernel (config 128/128/64, 3 stages,
+    4 warps, sm_90a), each rebuild copies the new tensormap to global memory
+    (`tensormap.cp_fenceproxy.global.shared::cta…release.gpu`) and then runs
+    `cp.async.bulk.commit_group; cp.async.bulk.wait_group.read 0`. `a`'s and `b`'s slots are
+    rewritten and waited on first, so before `c`'s slot changes, every earlier bulk store has
+    finished reading its source. PTX does not say in so many words that the store's tensormap
+    has been read by then.
+  - **A stress run.** On an H200 NVL, one to three programs ran 64 to 256 groups of one 64- or
+    128-step tile each, 80 launches in all. No element was wrong or missing.
+- **Status.** The issue stays open for a later library round (a statement in SEMANTICS, with an
+  evidence folder), if the user starts one: library rounds have stopped (L36). Kernel review
+  trusts the library as it stands, so the `LIBRARY_REPORT` does not block the kernel.
+
+## L121
+
+**Scope 5 does not ask the allocator to honour the alignment the launcher passes** (gap;
+`grouped_matmul_tma_f16` F4 by r-gmm, 2026-10-31). For a kernel that builds descriptors, the
+launcher calls the allocator set by `triton.set_allocator` as `alloc_fn(size, alignment, stream)`,
+and uses the buffer it returns as the descriptors' scratch. For `grouped_matmul_tma_kernel`, the
+compiled kernel's metadata gives `global_scratch_align = 128`. Scope 5 of
+[rules/compiler-faithful.md](../rules/compiler-faithful.md) and SEMANTICS ("Tensor descriptors")
+ask only two things of the scratch: that it holds none of the launch's bytes, and that nothing else
+writes it during the launch. Neither asks that it have the alignment the launcher asks for.
+- **The tutorials' allocators.** Tutorials 06 and 08 return
+  `torch.empty(size, dtype=torch.int8, device="cuda")` and ignore `alignment`. PyTorch's caching
+  allocator returns blocks aligned to at least 512 bytes, so their buffers are aligned in practice,
+  but the rule does not require an allocator to be.
+- **Status.** Left open for a later library round (a condition in scope 5), if the user starts
+  one (L36). The `LIBRARY_REPORT` does not block the kernel.
+
+## L122
+
+**`num_stages` and `warp_specialize` are said to be "given by a model", but no model gives them**
+(wording; `attn_fwd_f16` F3 by r-fwd, 2026-10-31). SEMANTICS's "Performance-only arguments" lists
+`num_stages` (of a launch, a `triton.Config` or `tl.range`) and `warp_specialize` among the
+arguments that are "not performance-only, and given by a model". `Launch` and `tl.forRange` have no
+field for either, and SEMANTICS's "Loops" says they change no outcome of a well-behaved model, so a
+model leaves both out (as `attn_fwd_f16`'s does, rightly). The sentence should say what the two
+paragraphs mean together: they are not performance-only, because they change the order of a
+program's accesses, and a model omits them because a well-behaved model has no conflict within a
+program. Left open for a later library round, if the user starts one (L36); the `LIBRARY_REPORT`
+does not block.
+
+## L123
+
+**The fusion rule does not say whether a value carried through `tl.maximum` or `tl.where` is a
+product** (wording or gap; `attn_fwd_f16` F5 by r-fwd2, 2026-10-31). SEMANTICS's fusion rule says
+that an addition may fuse when an operand is a product, "computed by `*` … through any dataflow".
+It does not say whether the result of a `tl.maximum` or a `tl.where` whose value is a product's
+counts. In `_attn_fwd_inner`, `m_ij = tl.maximum(m_i, tl.max(qk, 1) * qk_scale)` feeds
+`m_i - m_ij` (line 84), and the epilogue's `m_i += tl.math.log2(l_i)` adds to a value carried from
+it. `attn_fwd_f16`'s model writes both as plain IEEE operations, which r-fwd2 judges right under
+its reading (a `tl.maximum` result is not a product). The library should say which reading holds,
+for `tl.maximum`, `tl.minimum` and `tl.where` (a select whose arm is a product may be folded into
+the addition before contraction). Left open for a later library round, if the user starts one (L36); the `LIBRARY_REPORT`
+does not block.
+
+## L124
+
+**The fp8 `tl.dot` facts compound over a fed-back accumulator** (sharpness; `attn_fwd_e5m2` F2 by
+r-e5fwd2, 2026-10-31). Not a doubt of the facts' truth. `DotE5m2` (and the other `DotE4m3…`
+facts) gives `DotAcc` with `relDot8 K = (1 + 2^-7)^⌈K/32⌉ − 1` of `|acc| + Σ|a·b|`, as
+`docs/rules/num.md`'s chunk model bounds each `wgmma` instruction by `33·2^-13` of the magnitudes'
+sum, the accumulator included. A kernel that feeds its accumulator back through
+`tl.dot(p, v, acc)` once per key block (tutorial 06's `_attn_fwd`; any fp8 K loop with
+`maxImpreciseAcc = 2^30`) can then prove only a bound growing as `(1 + relDot8 64)^T`: about `2.7`
+at `T = 64` blocks and `10^6` at `N_CTX = 2^16` in `attn_fwd_e5m2`'s tolerance. A score's
+`relDot8 D·Σ|q·k|`, inside an exponent, also lets each softmax weight move by a factor
+`2^(1.5·relDot8 D·X)`. r-e5fwd2 suggests, if the chunk model's evidence supports it, a per-instruction
+form such as the smaller of the present bound and `Σ|a·b| + 2^-13·|acc|` (a truncated product loses
+at most its own magnitude, the accumulator only its own truncation), which would bound such loops by
+about the terms' magnitudes. Left open for a later library round, if the user starts one (L36); the
+`LIBRARY_REPORT` does not block, and `attn_fwd_e5m2`'s write-up states the limit it puts on that
+claim's tolerance.

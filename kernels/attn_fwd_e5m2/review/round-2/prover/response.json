@@ -1,0 +1,21 @@
+{
+  "kernel": "attn_fwd_e5m2",
+  "round": 2,
+  "responses": [
+    {
+      "id": "F6",
+      "response": "CLARIFIED",
+      "text": "README only. In the Specification, the first bullet of 'Where Post does not tell o from 0' now has a table per N_CTX (128, 1024, 4096) and per causal or non-causal rows. It gives the share of elements where 0 meets Post (87-89.5% at D = 64, N = 128 causal; up to 100%), the median |attnRef| (0.008-0.094), and the share where the fp8 floor is at least |attnRef| (26-54% at N = 128, 54-93% on causal rows at 1024 and 4096, 78-100% on non-causal rows at N >= 1024). The ranges cover my evaluation and both reviewers' round-2 outputs. The text says that the fp8 floor explains the non-causal rows at N >= 1024, and that at N = 128 and on causal rows most of the gap is Num.DotE5m2's (pE and psiA, L124). The Narrowings say the same, with 87% to 100% in place of 97.7% to 100%. The main table adds N = 128 for test-like data. The benchmark figures (tolV 5.3-6.8, pE medians 3.4 and 94), the one-key row and N = 2^14 now match the reviewers' runs. The Lean, the spec and the item digests are unchanged (gate 53b679fa0085b99d)."
+    },
+    {
+      "id": "F7",
+      "response": "CLARIFIED",
+      "text": "As F6. The test-data figures are given per N_CTX, including test_op's N_CTX = 128: 0 meets Post on 87-89.5% there (D = 64 causal), the median |attnRef| reaches 0.094, and the fp8 floor is at least |attnRef| on 26-54%. The Narrowings now say that at N_CTX = 128 and on causal rows most of the gap is Num.DotE5m2's (L124), and that the fp8 floor explains the non-causal rows at N >= 1024. The conclusion is kept: on the test's data Post does not tell o from 0."
+    },
+    {
+      "id": "F8",
+      "response": "CLARIFIED",
+      "text": "The Specification's tolV bullet has a new paragraph, 'What tolV checks'. tolV >= 9/8*K + |attnRef|/8 + 2^-17 at every nblk >= 1, since magA >= magCp >= 9/8*K + |attnRef|/8. The float8e5 rounding of any average of the row's own values is within K + (K + |attnRef|)/8 + 2^-17 of attnRef. So any such average, for example the plain mean or one key's value, meets the tolV clause whatever q, k and sm_scale are. By itself tolV checks the key set (the causal mask) and the range of the row's values; the weights are checked only through tolO. The Narrowings repeat this in one clause."
+    }
+  ]
+}

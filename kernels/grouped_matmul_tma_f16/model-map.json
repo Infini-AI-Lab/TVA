@@ -1,0 +1,331 @@
+{
+ "entries": [
+  {
+   "src": [
+    32
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the decorator `@triton.jit` of line 186 names (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); the kernel's body does not name `triton`; it adds no step to the program"
+  },
+  {
+   "src": [
+    33
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 201–272 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    186
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); the folder's source has no `@triton.autotune` (SETUP.md); no other statement of the module binds `grouped_matmul_tma_kernel` (lines 323 and 376 only call it); the model is the `Kernel` `grouped_matmul_tma_kernel`"
+  },
+  {
+   "src": [
+    "187-208"
+   ],
+   "model": [
+    "def grouped_matmul_tma_kernel (group_a_ptrs group_b_ptrs group_c_ptrs : Ptr .i64)",
+    "(group_gemm_sizes g_lds : Ptr .i32) (group_size : I32)",
+    "(NUM_SM BLOCK_SIZE_M BLOCK_SIZE_N BLOCK_SIZE_K : Nat) : Kernel where"
+   ],
+   "note": "`group_a_ptrs`, `group_b_ptrs`, `group_c_ptrs` are `*int64` (the host passes `torch.tensor` of Python integers, `int64`: lines 308–310, 432–435, 502–505); `group_gemm_sizes` and `g_lds` are `*int32` (`dtype=torch.int32`, lines 311–312, 436–437, 506–508); `group_size` is an unannotated integer, `4` on every covered launch: an `int32` (SEMANTICS.md, Scalar arguments; `Inst.ok.G_le` keeps it below `2^31`; at `1` it would be the constant `1`, which gives the same model, `model`'s docstring); the constexprs `NUM_SM`, `BLOCK_SIZE_M`, `BLOCK_SIZE_N`, `BLOCK_SIZE_K` are Lean parameters (`model` passes `NUM_SM`, `128`, `128`, `64`); the constexpr `FP8` is `False` on every covered launch (`torch.float8_e4m3fn == group_A[0].dtype` with `float16` matrices, line 324; `torch.float8_e4m3fn == dtype` with `dtype=torch.float16`, lines 376, 447, 518) and only line 209 reads it, so the model has no parameter for it; no parameter has a default; lines 188, 192–193, 195–196, 198, 200, 202 and 206 are comments"
+  },
+  {
+   "src": [
+    209
+   ],
+   "drop": "config",
+   "note": "`dtype = tl.float8e4nv if FP8 else tl.float16` with the constexpr `FP8 = False` (line 324, 376 on covered launches): a conditional expression on a compile-time condition, whose `else` side alone is evaluated (SEMANTICS.md, How the front end evaluates the source), giving `dtype` the compile-time dtype `tl.float16`; nothing runs; its uses, lines 226–228 (`tl.pointer_type(dtype)`) and 271 (`.to(dtype)`), are written with `float16` in the model (`tl.intToPtr .f16`, `tl.cvt` into `F16`)"
+  },
+  {
+   "src": [
+    210
+   ],
+   "model": "let tile_idx := tl.program_id ctx 0",
+   "note": "axis 0 of the 1-D grid, an `int32`"
+  },
+  {
+   "src": [
+    211
+   ],
+   "model": "let last_problem_end : I32 := IntV.ofInt 0",
+   "note": "the Python `0` assigned to a name that the loop of line 212 carries is an `int32` scalar tensor (SEMANTICS.md, How the front end evaluates the source: a name assigned a Python number; TRANSCRIPTION.md, `i = 0` before a loop that carries `i`)"
+  },
+  {
+   "src": [
+    212
+   ],
+   "model": "let (_tile_idx, _last_problem_end) ← tl.forRange (IntV.ofInt 0 : I32) group_size (IntV.ofInt 1 : I32) (tile_idx, last_problem_end) fun g (tile_idx, last_problem_end) => do",
+   "note": "`range(group_size)` with one argument: from `0` to `group_size`, step `1` (SEMANTICS.md, Loops and unrolling: the iterator's arguments; `group_size` is a plain name, so its second evaluation runs nothing); the `int32` bounds give an `int32` induction variable `g`; the loop carries `tile_idx` (assigned through the `if` of line 220) and `last_problem_end` (line 278), both defined before it; neither is used after the loop, and the kernel ends there"
+  },
+  {
+   "src": [
+    214
+   ],
+   "model": "let gm ← tl.load1 (group_gemm_sizes + g * (IntV.ofInt 3 : I32))",
+   "note": "the `int32` product of `g` and the Python `3` (built in `int32`, the type of `g`), added to the `*int32` pointer; `tl.load` of a scalar pointer, no mask (`tl.load1`)"
+  },
+  {
+   "src": [
+    215
+   ],
+   "model": "let gn ← tl.load1 (group_gemm_sizes + g * (IntV.ofInt 3 : I32) + (IntV.ofInt 1 : I32))",
+   "note": "`(group_gemm_sizes + g * 3) + 1`: the pointer plus the `int32` product, then plus the `int32` constant `1`"
+  },
+  {
+   "src": [
+    216
+   ],
+   "model": "let gk ← tl.load1 (group_gemm_sizes + g * (IntV.ofInt 3 : I32) + (IntV.ofInt 2 : I32))",
+   "note": "as line 215, with `2`"
+  },
+  {
+   "src": [
+    217
+   ],
+   "model": "let num_m_tiles := (← tl.idiv (Tensor.scalar (gm + (IntV.ofNat (BLOCK_SIZE_M - 1) : I32))) (Tensor.scalar (IntV.ofNat BLOCK_SIZE_M : I32))).item",
+   "note": "`tl.cdiv(gm, BLOCK_SIZE_M)` is `(gm + (BLOCK_SIZE_M - 1)) // BLOCK_SIZE_M` (SEMANTICS.md, `tl.cdiv`): the constexpr `BLOCK_SIZE_M - 1` computed by Python and built in `int32` as an operand of `+` with the `int32` `gm`; the wrapping `int32` `+`, then the truncating `int32` `//` (`tl.idiv`); on covered instances `M g + 127 < 2^31` (`Inst.ok.M_le`)"
+  },
+  {
+   "src": [
+    218
+   ],
+   "model": "let num_n_tiles := (← tl.idiv (Tensor.scalar (gn + (IntV.ofNat (BLOCK_SIZE_N - 1) : I32))) (Tensor.scalar (IntV.ofNat BLOCK_SIZE_N : I32))).item",
+   "note": "as line 217, with `gn` and `BLOCK_SIZE_N` (`Inst.ok.N_le`)"
+  },
+  {
+   "src": [
+    219
+   ],
+   "model": "let num_tiles := num_m_tiles * num_n_tiles",
+   "note": "the wrapping `int32` product (below `2^31` on covered instances, `Inst.ok.tiles_lt`)"
+  },
+  {
+   "src": [
+    220
+   ],
+   "model": [
+    "let tile_idx ← if (IntV.le last_problem_end tile_idx && IntV.lt tile_idx (last_problem_end + num_tiles)) then do",
+    "else pure tile_idx"
+   ],
+   "note": "a runtime `if` (SEMANTICS.md, How the front end evaluates the source: a runtime `if`): `and` of two `int1` tensors evaluates both sides and is their `&`; `a >= b` on `int32` is the signed `b <= a` (`IntV.le`), `<` the signed `IntV.lt`; `last_problem_end + num_tiles` the wrapping `int32` sum; the branch assigns `tile_idx` (through the `while` of line 251), which the `if` merges: the taken branch's value, `tile_idx` unchanged when the condition is false (`else pure tile_idx`); the names the branch defines (lines 222–248) are new to it and used only in it"
+  },
+  {
+   "src": [
+    222
+   ],
+   "model": "let lda ← tl.load1 (g_lds + g * (IntV.ofInt 3 : I32))",
+   "note": "as line 214, from `g_lds`"
+  },
+  {
+   "src": [
+    223
+   ],
+   "model": "let ldb ← tl.load1 (g_lds + g * (IntV.ofInt 3 : I32) + (IntV.ofInt 1 : I32))",
+   "note": "as line 215, from `g_lds`"
+  },
+  {
+   "src": [
+    224
+   ],
+   "model": "let ldc ← tl.load1 (g_lds + g * (IntV.ofInt 3 : I32) + (IntV.ofInt 2 : I32))",
+   "note": "as line 216, from `g_lds`"
+  },
+  {
+   "src": [
+    226
+   ],
+   "model": "let a_ptr := tl.intToPtr .f16 (← tl.load1 (group_a_ptrs + g))",
+   "note": "the `*int64` pointer plus the `int32` `g`, a scalar load of an `int64`, then `.to(tl.pointer_type(dtype))` with `dtype = tl.float16` (line 209): the `int64` value read as the address of a `*fp16` pointer (`tl.intToPtr`, SEMANTICS.md, `x.to(tl.pointer_type(…))`)"
+  },
+  {
+   "src": [
+    227
+   ],
+   "model": "let b_ptr := tl.intToPtr .f16 (← tl.load1 (group_b_ptrs + g))",
+   "note": "as line 226, from `group_b_ptrs`"
+  },
+  {
+   "src": [
+    228
+   ],
+   "model": "let c_ptr := tl.intToPtr .f16 (← tl.load1 (group_c_ptrs + g))",
+   "note": "as line 226, from `group_c_ptrs`"
+  },
+  {
+   "src": [
+    "230-235"
+   ],
+   "model": [
+    "let a_desc ← tl.make_tensor_descriptor a_ptr [gm, gk]",
+    "[(← tl.convert .i32 .i64 (Tensor.scalar lda)).item, (← tl.convert .i32 .i64 (Tensor.scalar (IntV.ofInt 1 : I32))).item]",
+    "[BLOCK_SIZE_M, BLOCK_SIZE_K]"
+   ],
+   "note": "`tl.make_tensor_descriptor` in the kernel (SEMANTICS.md, Tensor descriptors; TRANSCRIPTION.md): the shape entries are `int32` (`gm`, `gk` are already), each stride is converted to `int64` (the `int32` `lda`, and the Python `1`, an `int32` tensor of its own type, each through `tl.convert .i32 .i64`, in the order the front end evaluates them); the block shape `[BLOCK_SIZE_M, BLOCK_SIZE_K]`; no `padding_option`, so the default `\"zero\"` (`tl.make_tensor_descriptor`'s default argument)"
+  },
+  {
+   "src": [
+    "237-242"
+   ],
+   "model": [
+    "let b_desc ← tl.make_tensor_descriptor b_ptr [gn, gk]",
+    "[(← tl.convert .i32 .i64 (Tensor.scalar ldb)).item, (← tl.convert .i32 .i64 (Tensor.scalar (IntV.ofInt 1 : I32))).item]",
+    "[BLOCK_SIZE_N, BLOCK_SIZE_K]"
+   ],
+   "note": "as lines 230–235, for `b` (`gn × gk`, row stride `ldb`)"
+  },
+  {
+   "src": [
+    "243-248"
+   ],
+   "model": [
+    "let c_desc ← tl.make_tensor_descriptor c_ptr [gm, gn]",
+    "[(← tl.convert .i32 .i64 (Tensor.scalar ldc)).item, (← tl.convert .i32 .i64 (Tensor.scalar (IntV.ofInt 1 : I32))).item]",
+    "[BLOCK_SIZE_M, BLOCK_SIZE_N]"
+   ],
+   "note": "as lines 230–235, for `c` (`gm × gn`, row stride `ldc`)"
+  },
+  {
+   "src": [
+    251
+   ],
+   "model": [
+    "tl.whileLoop tile_idx",
+    "(fun tile_idx => pure (IntV.le last_problem_end tile_idx && IntV.lt tile_idx (last_problem_end + num_tiles)))",
+    "fun tile_idx => do"
+   ],
+   "note": "a `while` loop (`tl.whileLoop`): the condition as line 220's, evaluated before each iteration; the loop carries `tile_idx` (line 275), defined before it; the names its body defines (lines 252–272) are new to the body and not used after it"
+  },
+  {
+   "src": [
+    252
+   ],
+   "model": "let k := gk",
+   "note": "`k` names the `int32` scalar `gk`"
+  },
+  {
+   "src": [
+    254
+   ],
+   "model": "let tile_idx_in_gemm := tile_idx - last_problem_end",
+   "note": "the wrapping `int32` difference"
+  },
+  {
+   "src": [
+    255
+   ],
+   "model": "let tile_m_idx := (← tl.idiv (Tensor.scalar tile_idx_in_gemm) (Tensor.scalar num_n_tiles)).item",
+   "note": "`int32` `//` (`tl.idiv`: truncating, undefined on a zero divisor; `num_n_tiles > 0` whenever the loop body runs)"
+  },
+  {
+   "src": [
+    256
+   ],
+   "model": "let tile_n_idx := (← tl.irem (Tensor.scalar tile_idx_in_gemm) (Tensor.scalar num_n_tiles)).item",
+   "note": "`int32` `%` (`tl.irem`)"
+  },
+  {
+   "src": [
+    259
+   ],
+   "model": "let offs_am := tile_m_idx * (IntV.ofNat BLOCK_SIZE_M : I32)",
+   "note": "the `int32` scalar times the constexpr, built in `int32`"
+  },
+  {
+   "src": [
+    260
+   ],
+   "model": "let offs_bn := tile_n_idx * (IntV.ofNat BLOCK_SIZE_N : I32)",
+   "note": "as line 259"
+  },
+  {
+   "src": [
+    262
+   ],
+   "model": "let accumulator := tl.zeros [BLOCK_SIZE_M, BLOCK_SIZE_N] .f32",
+   "note": "`+0.0` in every element"
+  },
+  {
+   "src": [
+    263
+   ],
+   "model": "let accumulator ← tl.forRange (IntV.ofInt 0 : I32) (← tl.idiv (Tensor.scalar (k + (IntV.ofNat (BLOCK_SIZE_K - 1) : I32))) (Tensor.scalar (IntV.ofNat BLOCK_SIZE_K : I32))).item (IntV.ofInt 1 : I32) accumulator fun kk accumulator => do",
+   "note": "`range(0, tl.cdiv(k, BLOCK_SIZE_K))` with two arguments: the bound `(k + (BLOCK_SIZE_K - 1)) // BLOCK_SIZE_K` (as line 217) evaluated once, before the loop; `int32` bounds and induction variable `kk`, step `1`; the loop carries `accumulator` (defined before it, line 262), used after it (line 271)"
+  },
+  {
+   "src": [
+    264
+   ],
+   "model": "let a : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] F16 ← tl.desc_load a_desc [offs_am, kk * (IntV.ofNat BLOCK_SIZE_K : I32)]",
+   "note": "`desc.load(offsets)` (`tl.desc_load`): the descriptor's block `[BLOCK_SIZE_M, BLOCK_SIZE_K]` at the `int32` offsets `offs_am` and `kk * BLOCK_SIZE_K` (the constexpr built in `int32`); lanes outside `gm × gk` hold the padding, `+0.0`"
+  },
+  {
+   "src": [
+    265
+   ],
+   "model": "let b : Tensor [BLOCK_SIZE_N, BLOCK_SIZE_K] F16 ← tl.desc_load b_desc [offs_bn, kk * (IntV.ofNat BLOCK_SIZE_K : I32)]",
+   "note": "as line 264, the block `[BLOCK_SIZE_N, BLOCK_SIZE_K]` of `b`"
+  },
+  {
+   "src": [
+    266
+   ],
+   "model": [
+    "let accumulator ← tl.dot_add { a := .f16, b := .f16, acc := .f32, precision := .tf32, maxImpreciseAcc := 0 } a b.trans accumulator",
+    "return accumulator"
+   ],
+   "note": "`accumulator += tl.dot(a, b.T)` is `accumulator = accumulator + tl.dot(a, b.T)`: `b.T` is the transpose (`Tensor.trans`); a `tl.dot` with the default zero accumulator whose product feeds only this `+` is `tl.dot_add` (SEMANTICS.md, combine-pass rewrites; TRANSCRIPTION.md): `float16` operands, `float32` result (the default `out_dtype`), no `input_precision` (the default, `tf32`) and no `max_num_imprecise_acc` (`0`); the loop body's value is the new accumulator"
+  },
+  {
+   "src": [
+    268
+   ],
+   "model": "let offs_cm := tile_m_idx * (IntV.ofNat BLOCK_SIZE_M : I32)",
+   "note": "as line 259"
+  },
+  {
+   "src": [
+    269
+   ],
+   "model": "let offs_cn := tile_n_idx * (IntV.ofNat BLOCK_SIZE_N : I32)",
+   "note": "as line 260"
+  },
+  {
+   "src": [
+    271
+   ],
+   "model": "let c : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] F16 ← tl.cvt accumulator",
+   "note": "`.to(dtype)` with `dtype = tl.float16` (line 209): one rounding of the `float32` accumulator to nearest even (`tl.cvt`, the default rounding)"
+  },
+  {
+   "src": [
+    272
+   ],
+   "model": "tl.desc_store c_desc [offs_cm, offs_cn] c",
+   "note": "`desc.store(offsets, value)` (`tl.desc_store`): `c` is already `float16`, the descriptor's dtype, and its shape is the descriptor's block; lanes outside `gm × gn` are not written"
+  },
+  {
+   "src": [
+    275
+   ],
+   "model": [
+    "let tile_idx := tile_idx + (IntV.ofNat NUM_SM : I32)",
+    "return tile_idx"
+   ],
+   "note": "`tile_idx += NUM_SM`: the constexpr built in `int32`, the wrapping `int32` sum (below `2^31` on covered instances, `Inst.ok.tiles_lt`); the body's value is the new `tile_idx`"
+  },
+  {
+   "src": [
+    278
+   ],
+   "model": [
+    "let last_problem_end := last_problem_end + num_tiles",
+    "return (tile_idx, last_problem_end)",
+    "return ()"
+   ],
+   "note": "the wrapping `int32` sum; the loop body's value is the carried pair (`tile_idx` as the `if` of line 220 left it); line 278 is the kernel's last line, so the kernel ends after the loop (`return ()`)"
+  }
+ ]
+}

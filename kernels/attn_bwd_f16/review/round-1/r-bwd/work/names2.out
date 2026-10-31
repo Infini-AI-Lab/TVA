@@ -1,0 +1,163 @@
+def Kernels.AttnBwd.attn_bwd : TVA.Ptr TVA.DType.f16 →
+  TVA.Ptr TVA.DType.f16 →
+    TVA.Ptr TVA.DType.f16 →
+      TVA.F32 →
+        TVA.Ptr TVA.DType.f16 →
+          TVA.Ptr TVA.DType.f16 →
+            TVA.Ptr TVA.DType.f16 →
+              TVA.Ptr TVA.DType.f16 →
+                TVA.Ptr TVA.DType.f32 →
+                  TVA.Ptr TVA.DType.f32 →
+                    TVA.I32 →
+                      TVA.I32 →
+                        TVA.I32 → TVA.I32 → TVA.I32 → TVA.I32 → Nat → Nat → Nat → Nat → Nat → Nat → Bool → TVA.Kernel :=
+fun Q K V sm_scale DO DQ DK DV M D stride_z stride_h stride_tok stride_d H N_CTX BLOCK_M1 BLOCK_N1 BLOCK_M2 BLOCK_N2
+    BLK_SLICE_FACTOR HEAD_DIM CAUSAL =>
+  {
+    body := fun ctx =>
+      have bhid := TVA.tl.program_id ctx 2;
+      have off_chz := TVA.IntV.cast (HMul.hMul bhid N_CTX);
+      Bind.bind (TVA.tl.irem (TVA.Tensor.scalar bhid) (TVA.Tensor.scalar H)) fun __do_lift =>
+        Bind.bind (TVA.tl.idiv (TVA.Tensor.scalar bhid) (TVA.Tensor.scalar H)) fun __do_lift_1 =>
+          have adj :=
+            TVA.IntV.cast (HAdd.hAdd (HMul.hMul stride_h __do_lift.item) (HMul.hMul stride_z __do_lift_1.item));
+          have pid := TVA.tl.program_id ctx 0;
+          have Q := HAdd.hAdd Q adj;
+          have K := HAdd.hAdd K adj;
+          have V := HAdd.hAdd V adj;
+          have DO := HAdd.hAdd DO adj;
+          have DQ := HAdd.hAdd DQ adj;
+          have DK := HAdd.hAdd DK adj;
+          have DV := HAdd.hAdd DV adj;
+          have M := HAdd.hAdd M off_chz;
+          have D := HAdd.hAdd D off_chz;
+          have offs_k := TVA.tl.arange 0 HEAD_DIM;
+          have start_n := HMul.hMul pid (TVA.IntV.ofNat BLOCK_N1);
+          have start_m := TVA.IntV.ofInt 0;
+          have MASK_BLOCK_M1 := HDiv.hDiv BLOCK_M1 BLK_SLICE_FACTOR;
+          have offs_n := HAdd.hAdd start_n (TVA.tl.arange 0 BLOCK_N1);
+          have dv := TVA.tl.zeros (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.DType.f32;
+          have dk := TVA.tl.zeros (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.DType.f32;
+          Bind.bind
+            (TVA.tl.load
+              (HAdd.hAdd (HAdd.hAdd K (HMul.hMul (offs_n.col HEAD_DIM) stride_tok))
+                (HMul.hMul (offs_k.row BLOCK_N1) stride_d)))
+            fun k =>
+            Bind.bind
+              (TVA.tl.load
+                (HAdd.hAdd (HAdd.hAdd V (HMul.hMul (offs_n.col HEAD_DIM) stride_tok))
+                  (HMul.hMul (offs_k.row BLOCK_N1) stride_d)))
+              fun v =>
+              Bind.bind
+                (ite (Eq CAUSAL Bool.true)
+                  (have start_m := start_n;
+                  have num_steps := TVA.IntV.ofNat (HDiv.hDiv BLOCK_N1 MASK_BLOCK_M1);
+                  Bind.bind
+                    (Kernels.AttnBwd.attn_bwd_dkdv MASK_BLOCK_M1 BLOCK_N1 HEAD_DIM dk dv Q k v sm_scale DO M D
+                      stride_tok stride_d H N_CTX start_n start_m num_steps Bool.true)
+                    fun __x =>
+                    Kernels.AttnBwd.attn_bwd.match_1 BLOCK_N1 HEAD_DIM
+                      (fun x =>
+                        TVA.Prog
+                          (Prod (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32)
+                            (Prod (TVA.Tensor (List.cons BLOCK_N1 (List.cons HEAD_DIM List.nil)) TVA.F32) TVA.I32)))
+                      __x fun dk dv =>
+                      have start_m := HAdd.hAdd start_m (HMul.hMul num_steps (TVA.IntV.ofNat MASK_BLOCK_M1));
+                      Pure.pure (Prod.mk dk (Prod.mk dv start_m)))
+                  (Pure.pure (Prod.mk dk (Prod.mk dv start_m))))
+                fun __x =>
+                Kernels.AttnBwd.attn_bwd.match_5 BLOCK_N1 HEAD_DIM (fun x => TVA.Prog Unit) __x fun dk dv start_m =>
+                  Bind.bind
+                    (TVA.tl.idiv (TVA.Tensor.scalar (HSub.hSub N_CTX start_m))
+                      (TVA.Tensor.scalar (TVA.IntV.ofNat BLOCK_M1)))
+                    fun __do_lift =>
+                    have num_steps := __do_lift.item;
+                    Bind.bind
+                      (Kernels.AttnBwd.attn_bwd_dkdv BLOCK_M1 BLOCK_N1 HEAD_DIM dk dv Q k v sm_scale DO M D stride_tok
+                        stride_d H N_CTX start_n start_m num_steps Bool.false)
+                      fun __x =>
+                      Kernels.AttnBwd.attn_bwd.match_1 BLOCK_N1 HEAD_DIM (fun x => TVA.Prog Unit) __x fun dk dv =>
+                        have dv_ptrs :=
+                          HAdd.hAdd (HAdd.hAdd DV (HMul.hMul (offs_n.col HEAD_DIM) stride_tok))
+                            (HMul.hMul (offs_k.row BLOCK_N1) stride_d);
+                        Bind.bind (TVA.tl.cvt dv) fun __do_lift =>
+                          Bind.bind (TVA.tl.store dv_ptrs __do_lift) fun __r =>
+                            Bind.bind (TVA.tl.mul dk (TVA.bc sm_scale)) fun dk =>
+                              have dk_ptrs :=
+                                HAdd.hAdd (HAdd.hAdd DK (HMul.hMul (offs_n.col HEAD_DIM) stride_tok))
+                                  (HMul.hMul (offs_k.row BLOCK_N1) stride_d);
+                              Bind.bind (TVA.tl.cvt dk) fun __do_lift =>
+                                Bind.bind (TVA.tl.store dk_ptrs __do_lift) fun __r =>
+                                  have start_m := HMul.hMul pid (TVA.IntV.ofNat BLOCK_M2);
+                                  have start_n := TVA.IntV.ofInt 0;
+                                  Bind.bind
+                                    (TVA.tl.idiv (TVA.Tensor.scalar N_CTX)
+                                      (TVA.Tensor.scalar (TVA.IntV.ofNat BLOCK_N2)))
+                                    fun __do_lift =>
+                                    have num_steps := __do_lift.item;
+                                    have MASK_BLOCK_N2 := HDiv.hDiv BLOCK_N2 BLK_SLICE_FACTOR;
+                                    have offs_m := HAdd.hAdd start_m (TVA.tl.arange 0 BLOCK_M2);
+                                    Bind.bind
+                                      (TVA.tl.load
+                                        (HAdd.hAdd (HAdd.hAdd Q (HMul.hMul (offs_m.col HEAD_DIM) stride_tok))
+                                          (HMul.hMul (offs_k.row BLOCK_M2) stride_d)))
+                                      fun q =>
+                                      have dq :=
+                                        TVA.tl.zeros (List.cons BLOCK_M2 (List.cons HEAD_DIM List.nil)) TVA.DType.f32;
+                                      Bind.bind
+                                        (TVA.tl.load
+                                          (HAdd.hAdd (HAdd.hAdd DO (HMul.hMul (offs_m.col HEAD_DIM) stride_tok))
+                                            (HMul.hMul (offs_k.row BLOCK_M2) stride_d)))
+                                        fun «do» =>
+                                        Bind.bind (TVA.tl.load (HAdd.hAdd M offs_m)) fun m =>
+                                          have m := m.unsqueeze1;
+                                          Bind.bind
+                                            (ite (Eq CAUSAL Bool.true)
+                                              (have end_n := HAdd.hAdd start_m (TVA.IntV.ofNat BLOCK_M2);
+                                              have num_steps := TVA.IntV.ofNat (HDiv.hDiv BLOCK_M2 MASK_BLOCK_N2);
+                                              Bind.bind
+                                                (Kernels.AttnBwd.attn_bwd_dq BLOCK_M2 MASK_BLOCK_N2 HEAD_DIM dq q K V
+                                                  «do» m D stride_tok stride_d H N_CTX start_m
+                                                  (HSub.hSub end_n (HMul.hMul num_steps (TVA.IntV.ofNat MASK_BLOCK_N2)))
+                                                  num_steps Bool.true)
+                                                fun dq =>
+                                                have end_n :=
+                                                  HSub.hSub end_n (HMul.hMul num_steps (TVA.IntV.ofNat MASK_BLOCK_N2));
+                                                Bind.bind
+                                                  (TVA.tl.idiv (TVA.Tensor.scalar end_n)
+                                                    (TVA.Tensor.scalar (TVA.IntV.ofNat BLOCK_N2)))
+                                                  fun __do_lift =>
+                                                  have num_steps := __do_lift.item;
+                                                  have start_n :=
+                                                    HSub.hSub end_n (HMul.hMul num_steps (TVA.IntV.ofNat BLOCK_N2));
+                                                  Pure.pure (Prod.mk dq (Prod.mk start_n num_steps)))
+                                              (Pure.pure (Prod.mk dq (Prod.mk start_n num_steps))))
+                                            fun __x =>
+                                            Kernels.AttnBwd.attn_bwd.match_3 BLOCK_M2 HEAD_DIM (fun x => TVA.Prog Unit)
+                                              __x fun dq start_n num_steps =>
+                                              Bind.bind
+                                                (Kernels.AttnBwd.attn_bwd_dq BLOCK_M2 BLOCK_N2 HEAD_DIM dq q K V «do» m
+                                                  D stride_tok stride_d H N_CTX start_m start_n num_steps Bool.false)
+                                                fun dq =>
+                                                have dq_ptrs :=
+                                                  HAdd.hAdd (HAdd.hAdd DQ (HMul.hMul (offs_m.col HEAD_DIM) stride_tok))
+                                                    (HMul.hMul (offs_k.row BLOCK_M2) stride_d);
+                                                Bind.bind
+                                                  (TVA.tl.mul dq
+                                                    (TVA.bc (TVA.FloatV.ofPat Kernels.AttnBwd.ln2Pat).litF32))
+                                                  fun dq =>
+                                                  Bind.bind (TVA.tl.cvt dq) fun __do_lift =>
+                                                    TVA.tl.store dq_ptrs __do_lift }
+def TVA.IntV.cast : {s : Bool} → {w : Nat} → {s' : Bool} → {w' : Nat} → TVA.IntV s w → TVA.IntV s' w' :=
+fun {s} {w} {s'} {w'} a => { bits := ite (Eq s Bool.true) (BitVec.signExtend w' a.bits) (BitVec.zeroExtend w' a.bits) }
+def TVA.Tensor.ptrAdd : {s : TVA.Shape} →
+  {d : TVA.DType} → {sg : Bool} → {w : Nat} → TVA.Ptr d → TVA.Tensor s (TVA.IntV sg w) → TVA.Tensor s (TVA.Ptr d) :=
+fun {s} {d} {sg} {w} p offs => TVA.Tensor.map (fun o => p.offset o.toInt) offs
+def TVA.Tensor.ptrAddT : {s : TVA.Shape} →
+  {d : TVA.DType} →
+    {sg : Bool} → {w : Nat} → TVA.Tensor s (TVA.Ptr d) → TVA.Tensor s (TVA.IntV sg w) → TVA.Tensor s (TVA.Ptr d) :=
+fun {s} {d} {sg} {w} ps offs => TVA.Tensor.map2 (fun p o => p.offset o.toInt) ps offs
+@[reducible] def TVA.bc : {s : TVA.Shape} → {α : Type} → α → TVA.Tensor s α :=
+fun {s} {α} a => TVA.Tensor.full a
+def TVA.FloatV.litF32 : TVA.F64 → TVA.F32 :=
+fun c => ite (Eq (TVA.FloatV.isZero c) Bool.true) (TVA.FloatV.ofPat 0) (TVA.FloatV.hostF32 c)

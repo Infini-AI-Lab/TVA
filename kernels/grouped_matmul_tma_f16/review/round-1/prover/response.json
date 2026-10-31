@@ -1,0 +1,28 @@
+{
+  "kernel": "grouped_matmul_tma_f16",
+  "round": 1,
+  "responses": [
+    {
+      "id": "F1",
+      "response": "CLARIFIED",
+      "text": "Right: the stated threshold counted the accumulation only. Recomputed in exact rationals: with rho = DotLoop.stepRel relDot16 64, (1 + rho)^T - 1 first reaches 2^-8/(1 + 2^-8) at T = 245 (K from 15617), and Post's whole relative bound on c with products of one sign, (1 + rho)^T - 1 + (1 + ((1 + rho)^T - 1))*2^-11, at T = 214 (K from 13633); at K = 2^13 it is 0.2528%, below bfloat16's 0.389%, so the claim is unchanged. README's Specification and Narrowings (K <= 2^13) now give Post's whole bound (5.20e-4, 7.43e-4, 0.253% at K = 128, 1024, 2^13) and the threshold K = 13633, with 15617 for the accumulation part alone. Nothing else changed."
+    },
+    {
+      "id": "F2",
+      "response": "REFERRED",
+      "text": "A question about the library's account of in-kernel descriptors (tl.make_tensor_descriptor pure in the model, the scratch left to Compiler.Faithful scope 5) when a program rebuilds its descriptors in a runtime loop while an earlier TMA store through the old one may be in flight. The coordinator logged it as library issue L120; the claim relies on the library as it stands.",
+      "issue": "L120"
+    },
+    {
+      "id": "F3",
+      "response": "CLARIFIED",
+      "text": "Right: the comparison left out Post's last float16 rounding. As in F1, recomputed exactly: Post allows (1 + rho)^T - 1 + (1 + ((1 + rho)^T - 1))*2^-11 relative to Sum|a*b| with products of one sign, 0.2528% at K = 2^13 (0.204% from the accumulation alone), below bfloat16's 0.389%; it reaches 0.389% at T = 214, i.e. from K = 13633 (64*213 + 1, the first K with 214 steps). The README sentences (Specification; Narrowings, K <= 2^13) now say so. Nothing else changed."
+    },
+    {
+      "id": "F4",
+      "response": "REFERRED",
+      "text": "A question about Compiler.Faithful's scope 5 (whether it should ask the allocator to honour the alignment the launcher passes); this kernel's host is not affected (alloc_fn returns a fresh torch.empty). The coordinator logged it as library issue L121.",
+      "issue": "L121"
+    }
+  ]
+}

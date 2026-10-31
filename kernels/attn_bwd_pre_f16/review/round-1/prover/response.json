@@ -1,0 +1,16 @@
+{
+  "kernel": "attn_bwd_pre_f16",
+  "round": 1,
+  "responses": [
+    {
+      "id": "F1",
+      "response": "CLARIFIED",
+      "text": "Wording only. README.md, Narrowings, 'The grid' now gives each maximum its own launch: the host's largest Z·H is 192 (the test's Z = 4, H = 48, with N_CTX = 4096: 32 · 192 programs), and its largest grid has 128 · 128 programs (the benchmark's N_CTX = 16384, with Z·H = 4 · 32 = 128). Nothing else changed; no item digest changed (gate 74a1e051af7b1c1b)."
+    },
+    {
+      "id": "F2",
+      "response": "CLARIFIED",
+      "text": "Wording only, the same fix as F1: README.md, Narrowings, 'The grid' now attributes the largest Z·H (192) to the test (Z = 4, H = 48, N_CTX = 4096: 32 · 192 programs) and the largest grid (128 · 128 programs) to the benchmark (N_CTX = 16384, Z·H = 128), so no launch is described as having both. Nothing else changed; no item digest changed (gate 74a1e051af7b1c1b)."
+    }
+  ]
+}

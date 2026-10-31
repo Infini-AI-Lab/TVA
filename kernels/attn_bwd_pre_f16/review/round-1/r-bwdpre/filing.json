@@ -1,0 +1,18 @@
+{
+  "reviewer": "r-bwdpre",
+  "kernel": "attn_bwd_pre_f16",
+  "round": 1,
+  "findings": [
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/attn_bwd_pre_f16/README.md",
+      "summary": "README Narrowings, 'The grid': 'the host's largest has Z·H = 192 and 128 · 128 programs' joins two maxima of different launches; no launch of the script has both",
+      "detail": "README.md, Narrowings, bullet 'The grid (bh_lt, grid_lt)'. The test's largest Z·H is 4·48 = 192 (N_CTX = 4096, so 32·192 = 6144 programs); the benchmark's largest grid is 128·128 = 16384 programs (N_CTX = 16384, Z·H = 4·32 = 128). The sentence can be read as one launch with both. Both bounds hold far inside bh_lt and grid_lt, so nothing in the claim changes. To resolve: say 'the test's largest Z·H is 192, and the benchmark's largest grid has 128 · 128 programs (Z·H = 128)'.",
+      "evidence": "Source lines 631-634 (test sizes), 706 and 718 (benchmark BATCH = 4, N_HEADS = 32, N_CTX up to 2^14), 600 (pre_grid = (N_CTX // 128, BATCH * N_HEAD))."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Checked with Lean (work/print_model.lean): the model, launch, Pre, Post, OutSpec, Assumptions and Spec printed with pp.fullNames and pp.notation off reach only TVA operations and instances (tl.program_id, tl.arange, tl.load, tl.cvt, tl.convert, tl.mul, tl.sum1c, tl.store, Tensor.col/row, the IntV, Tensor and Ptr HAdd/HMul instances) and the kernel's own definitions, all read in full; the launch's omitted fields are the structure's defaults (fusion true, debug false, numCtas 1, pdl false); #print axioms main/consistent/satisfiable shows only propext, Classical.choice, Quot.sound. Arithmetic (python3 -I, exact rationals): tol/B and the absolute part at HEAD_DIM 16, 64, 128, 256 are 46, 190, 382, 766 times 2^-24 and 76, 316, 636, 1276 times 2^-150, as the README's table says; the README's float16 example (HEAD_DIM 64) has tol 7.25e-4 below the 9.77e-4 error of the float16 rounding; every launch of the test and the benchmark meets row_fit, head_fit, grid_lt and bh_lt. Not a claim matter: SETUP.md (the coordinator's file) gives the launch as 'the tutorial's lines 597-602', while in source/ it is at lines 600-607."
+}

@@ -1,0 +1,18 @@
+{
+  "gate": "bcf71a93c1d432feefea676f5b540df2d195e753bd8123c093dad2582a22b722",
+  "items": {
+    "assumption:dot": "74986cb16115d05dabc7fa0591609db346b9b835da9298a6cc0f6d0afcdd6cf5",
+    "assumption:dot_total": "73fe8f036084bbac4aa11b4001802c606a111d6db3cbd171c1ba6be233eb0fbd",
+    "assumption:faithful": "ba5a46235b62b8bcd9c5c32c9da4f08428f0fd7e0e16e3fd800e3605f19f3093",
+    "conditions": "3fa9d4d3c595e059f6c468532cdba642bdae6b770df6c7d979c81a2619bda03b",
+    "map": "d7be69bb06530ee8540ebe863edba3d405dd6023d85f336e40599954851f9d0f",
+    "model": "f819312143dc7160a206224ea2a84652bb0926337a0c86c6a77b474201079d07",
+    "spec": "c7dc1e89d9ca1c2723abc0241e166fc75c6b2aaa3380c825ffdbc193dc9a6e26"
+  },
+  "kernel": "grouped_matmul_tma_f16",
+  "reviewers": [
+    "r-gmm",
+    "r-gmm2"
+  ],
+  "time": "2026-10-31T23:17:44Z"
+}

@@ -4,6 +4,11 @@
 
 | Finding | Kind | Target | State | Summary | Referred as |
 |---|---|---|---|---|---|
+| [attn_fwd_e5m2#F2](../../kernels/attn_fwd_e5m2/REVIEW.md#f2) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotE5m2` | CLOSED | DotE5m2's relDot8 charges every fp8 tl.dot 2^-7 per chunk of /acc/ too; fed back once per block it compounds as (1+relDo | L124 |
+| [attn_fwd_f16#F3](../../kernels/attn_fwd_f16/REVIEW.md#f3) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | CLOSED | 'Performance-only arguments' calls num_stages and warp_specialize 'given by a model', but Launch and tl.forRange hold ne | L122 |
+| [attn_fwd_f16#F5](../../kernels/attn_fwd_f16/REVIEW.md#f5) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | CLOSED | SEMANTICS 'Float + and -' does not say whether the value tl.maximum, tl.minimum or tl.where returns, when it is a produc | L123 |
+| [grouped_matmul_tma_f16#F2](../../kernels/grouped_matmul_tma_f16/REVIEW.md#f2) | LIBRARY_REPORT | `decl:TVA.tl.make_tensor_descriptor` | CLOSED | Does the evidence behind in-kernel descriptors cover descriptors rebuilt inside a runtime loop, rewriting a program's sc | L120 |
+| [grouped_matmul_tma_f16#F4](../../kernels/grouped_matmul_tma_f16/REVIEW.md#f4) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | CLOSED | Scope 5 (descriptor scratch) says nothing of the scratch's alignment, though the launcher passes the allocator an alignm | L121 |
 | [matmul_e5m2#F3](../../kernels/matmul_e5m2/REVIEW.md#f3) | LIBRARY_REPORT | `decl:TVA.Rules.Num.relDot8` | CLOSED | relDot8's per-chunk 2^-7 is about twice the 33*2^-13 plus a rounding that DotE4m3's docstring derives; over the 128 chun | L119 |
 | [vec_add_f32#F2](../../kernels/vec_add_f32/REVIEW.md#f2) | LIBRARY_REPORT | `decl:TVA.I8` | CLOSED | TVA.I8's docstring says it is `tl.int32` values (the type of tl.program_id and tl.arange); I8 is IntV true 8, and the te |  |
 | [vec_add_f32#F3](../../kernels/vec_add_f32/REVIEW.md#f3) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | CLOSED | Scope 11's reuse clause names the source, compile-time values and settings, not the runtime arguments' specialisation; i |  |

@@ -1,0 +1,4 @@
+test D=128 (Z=4, H=48, N=4096): mean 10.2, bound with prob >= 1 - 1e-6 over 3.2e+09 pairs: 22.6 (2^10 = 1024)
+test D=64  (Z=4, H=48, N=4096): mean 5.1, bound with prob >= 1 - 1e-6 over 3.2e+09 pairs: 14.8 (2^10 = 1024)
+bench D=128 (Z=4, H=32, N=2^14): mean 105.9, bound with prob >= 1 - 1e-6 over 3.4e+10 pairs: 239.8 (2^10 = 1024)
+bench D=64  (Z=4, H=32, N=2^14): mean 53.0, bound with prob >= 1 - 1e-6 over 3.4e+10 pairs: 159.6 (2^10 = 1024)

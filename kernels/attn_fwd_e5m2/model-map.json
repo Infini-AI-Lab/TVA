@@ -1,0 +1,596 @@
+{
+ "entries": [
+  {
+   "src": [
+    20
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the decorators `@triton.jit` of lines 47, 168 and 176 name (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); the kernel's bodies do not name `triton`; it adds no step to the program"
+  },
+  {
+   "src": [
+    21
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 48–245 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    47
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: a helper the kernel calls (lines 226 and 234), inlined at each call (SEMANTICS.md, helpers are inlined); no other statement of the module binds `_attn_fwd_inner`; the model is the function `attn_fwd_inner`, which `attn_fwd` calls where the source does"
+  },
+  {
+   "src": [
+    "48-53"
+   ],
+   "model": [
+    "def attn_fwd_inner {BLOCK_M HEAD_DIM BLOCK_N : Nat}",
+    "(acc : Tensor [BLOCK_M, HEAD_DIM] F32) (l_i m_i : Tensor [BLOCK_M] F32)",
+    "(q : Tensor [BLOCK_M, HEAD_DIM] F8E5) (desc_k desc_v : TensorDesc .f8e5)",
+    "(offset_y start_m : I32) (qk_scale : F32) (STAGE : Nat)",
+    "(offs_m : Tensor [BLOCK_M] I32) (offs_n : Tensor [BLOCK_N] I32) (N_CTX : I32) :",
+    "Prog (Tensor [BLOCK_M, HEAD_DIM] F32 × Tensor [BLOCK_M] F32 × Tensor [BLOCK_M] F32) := do"
+   ],
+   "note": "the parameters in the source's order, each with the value `_attn_fwd` passes (lines 226–231, 234–239): `acc`, `l_i`, `m_i` the `float32` blocks, `q` the `float8e5` block, `desc_k`, `desc_v` the descriptors, `offset_y` and `start_m` `int32` scalars, `qk_scale` the `float32` scalar of line 219; the constexprs `BLOCK_M`, `HEAD_DIM`, `BLOCK_N`, `STAGE` are Lean parameters; `offs_m`, `offs_n`, `N_CTX` are annotated `tl.constexpr` but receive `_attn_fwd`'s `int32` blocks and its runtime `int32` `N_CTX`, which they hold (an annotation on a helper's parameter changes nothing); `dtype` is `tl.float8e5` on every covered launch (line 187 with `FP8_OUTPUT = True`), `IS_HOPPER` is `True` (the H200) and `warp_specialize` is read only by line 69's scheduling keyword and line 87's condition, so the model has no parameter for these three (their uses: lines 64, 69, 87, 97, 101)"
+  },
+  {
+   "src": [
+    55
+   ],
+   "model": "let (lo, hi) ← if STAGE = 1 then",
+   "note": "a compile-time `if` on the constexpr `STAGE` (the Lean `if` on a `Nat` parameter)"
+  },
+  {
+   "src": [
+    56
+   ],
+   "model": "pure ((IntV.ofInt 0 : I32), start_m * (IntV.ofNat BLOCK_M : I32))",
+   "note": "the Python `0` assigned to `lo` holds the `int32` `+0` (it is a loop bound of line 69); `start_m * BLOCK_M` is an `int32` product, the constexpr built in `int32`, wrapping"
+  },
+  {
+   "src": [
+    57
+   ],
+   "model": "else if STAGE = 2 then do",
+   "note": "the second compile-time branch"
+  },
+  {
+   "src": [
+    58
+   ],
+   "model": [
+    "let lo := start_m * (IntV.ofNat BLOCK_M : I32)",
+    "let hi := (start_m + (IntV.ofInt 1 : I32)) * (IntV.ofNat BLOCK_M : I32)"
+   ],
+   "note": "the tuple assignment: two `int32` products of the constexpr built in `int32`, and `start_m + 1` in `int32`, wrapping"
+  },
+  {
+   "src": [
+    59
+   ],
+   "model": [
+    "let lo ← tl.multiple_of1 lo BLOCK_M",
+    "pure (lo, hi)"
+   ],
+   "note": "a hint on the value line 58 defines: a check (undefined behaviour if false) at its definition, before any use (SEMANTICS.md, Compiler hints); `tl.multiple_of1` checks it"
+  },
+  {
+   "src": [
+    "61-62"
+   ],
+   "model": "pure ((IntV.ofInt 0 : I32), N_CTX)",
+   "note": "the `else` branch (`STAGE` neither 1 nor 2: 3 on covered launches): `lo` the `int32` `+0`, `hi` the `int32` `N_CTX`"
+  },
+  {
+   "src": [
+    63
+   ],
+   "model": "let offsetk_y := offset_y + lo",
+   "note": "the `int32` `+`, wrapping"
+  },
+  {
+   "src": [
+    "64-65"
+   ],
+   "model": "let offsetv_y := offset_y * (IntV.ofNat HEAD_DIM : I32) + lo",
+   "note": "`dtype == tl.float8e5` compares two dtypes, which Python evaluates at compile time; `dtype` is `tl.float8e5` on every covered launch (line 187, `FP8_OUTPUT = True`), so the front end visits only line 65: the `int32` product of `offset_y` and the constexpr `HEAD_DIM` (built in `int32`), then the `int32` `+`, wrapping (`Inst.ok.elems_lt` keeps it from wrapping)"
+  },
+  {
+   "src": [
+    "66-67"
+   ],
+   "drop": "dead",
+   "note": "the `else` branch of line 64, which the front end never visits (`dtype == tl.float8e5` is true at compile time); it adds no step"
+  },
+  {
+   "src": [
+    69
+   ],
+   "model": [
+    "let (acc, l_i, m_i, _offsetk_y, _offsetv_y) ← tl.forRange lo hi (IntV.ofNat BLOCK_N : I32)",
+    "(acc, l_i, m_i, offsetk_y, offsetv_y) fun start_n (acc, l_i, m_i, offsetk_y, offsetv_y) => do"
+   ],
+   "note": "`tl.range(lo, hi, BLOCK_N)`: `int32` bounds, the constexpr step built in `int32`, an `int32` induction variable; the loop carries the five names the body assigns (`acc`, `l_i`, `m_i`, `offsetk_y`, `offsetv_y`); `warp_specialize=` is a scheduling keyword, which changes no result (SEMANTICS.md, Loops)"
+  },
+  {
+   "src": [
+    70
+   ],
+   "drop": "hint",
+   "note": "a hint on the loop's induction variable has no effect, and the model drops it (SEMANTICS.md, Compiler hints, Which value); the reassignment `start_n = …` binds the same value"
+  },
+  {
+   "src": [
+    72
+   ],
+   "model": [
+    "let k : Tensor [HEAD_DIM, BLOCK_N] F8E5 :=",
+    "(← tl.desc_load (bs := [BLOCK_N, HEAD_DIM]) desc_k [offsetk_y, (IntV.ofInt 0 : I32)]).trans"
+   ],
+   "note": "the descriptor load of the `[BLOCK_N, HEAD_DIM]` block (the descriptor's block shape) at `[offsetk_y, 0]`, the Python `0` an `int32`, then `.T`, `tl.trans`"
+  },
+  {
+   "src": [
+    73
+   ],
+   "model": "let qk ← tl.dot cfg8 q k (tl.zeros [BLOCK_M, BLOCK_N] .f32)",
+   "note": "`tl.dot(q, k)` of `float8e5` operands with no accumulator: the zero `float32` accumulator; the default `input_precision` (`tf32`) and `max_num_imprecise_acc` (for an fp8 × fp8 dot on sm_90, `2^30`) (`cfg8`)"
+  },
+  {
+   "src": [
+    74
+   ],
+   "model": "let (qk, m_ij) ← if STAGE = 2 then do",
+   "note": "a compile-time `if` on `STAGE`; both branches bind `qk` and `m_ij`"
+  },
+  {
+   "src": [
+    75
+   ],
+   "model": "let mask := (start_n + offs_n.row BLOCK_M).le (offs_m.col BLOCK_N)",
+   "note": "`offs_m[:, None] >= (start_n + offs_n[None, :])`: the scalar plus the row-broadcast block in `int32`, both sides broadcast to `[BLOCK_M, BLOCK_N]`, the signed `int32` comparison written as `b <= a`"
+  },
+  {
+   "src": [
+    76
+   ],
+   "model": [
+    "let qk ← tl.mul_add qk (bc qk_scale)",
+    "(Tensor.where_ mask (bc (FloatV.litF32 (FloatV.ofPat 0)))",
+    "(bc (FloatV.litF32 (FloatV.ofPat 0xC12E848000000000))))"
+   ],
+   "note": "`qk * qk_scale + tl.where(mask, 0, -1.0e6)`: an addition the product feeds (`tl.mul_add`, which `enable_fp_fusion` may fuse); `tl.where`'s scalars are built in its `float32` dtype (`+0` and `float32(-1e6)`, exact)"
+  },
+  {
+   "src": [
+    77
+   ],
+   "model": "let m_ij ← tl.maximum m_i (← tl.max1 true qk)",
+   "note": "`tl.max(qk, 1)`, the row maximum of the `float32` block (any tree, NaN propagating), then `tl.maximum`"
+  },
+  {
+   "src": [
+    78
+   ],
+   "model": [
+    "let qk ← tl.sub qk (m_ij.col BLOCK_N)",
+    "pure (qk, m_ij)"
+   ],
+   "note": "`qk -= m_ij[:, None]`: no product feeds it, the IEEE `-`"
+  },
+  {
+   "src": [
+    "79-80"
+   ],
+   "model": "let m_ij ← tl.maximum m_i (← tl.mul (← tl.max1 true qk) (bc qk_scale))",
+   "note": "the `else` branch (`STAGE` 1 or 3): the row maximum times the scalar, an IEEE product (it feeds `tl.maximum`, not an addition)"
+  },
+  {
+   "src": [
+    81
+   ],
+   "model": "let qk ← tl.subc (← tl.mul qk (bc qk_scale)) (m_ij.col BLOCK_N)",
+   "note": "`qk * qk_scale - m_ij[:, None]`: a subtraction the product feeds (`tl.subc`, which fusion may contract)"
+  },
+  {
+   "src": [
+    82
+   ],
+   "model": "let p ← tl.exp2 qk",
+   "note": "`tl.math.exp2` on `float32`"
+  },
+  {
+   "src": [
+    84
+   ],
+   "model": "let alpha ← tl.exp2 (← tl.sub m_i m_ij)",
+   "note": "the IEEE `-` (no product feeds it), then `tl.math.exp2`"
+  },
+  {
+   "src": [
+    85
+   ],
+   "model": "let l_ij ← tl.sum1 p",
+   "note": "`tl.sum(p, 1)` of a block that is not a product: `float32` additions in any tree"
+  },
+  {
+   "src": [
+    "87-94"
+   ],
+   "drop": "dead",
+   "note": "`not IS_HOPPER and warp_specialize and BLOCK_M == 128 and HEAD_DIM == 128` is a condition on constexprs, which Python evaluates at compile time; `IS_HOPPER` is `True` on every covered launch (the H200: `is_hopper()`, line 572), so it is false and the front end visits only the `else` branch, line 95; lines 88–93 are never visited"
+  },
+  {
+   "src": [
+    95
+   ],
+   "model": "let acc ← tl.mul acc (alpha.col HEAD_DIM)",
+   "note": "`acc * alpha[:, None]`: the IEEE product, `alpha` broadcast to `HEAD_DIM` columns"
+  },
+  {
+   "src": [
+    "97-98"
+   ],
+   "model": [
+    "let v : Tensor [BLOCK_N, HEAD_DIM] F8E5 :=",
+    "(← tl.desc_load (bs := [HEAD_DIM, BLOCK_N]) desc_v [(IntV.ofInt 0 : I32), offsetv_y]).trans"
+   ],
+   "note": "`dtype == tl.float8e5` is true at compile time (as line 64), so only line 98 is visited: the descriptor load of the `[HEAD_DIM, BLOCK_N]` block (the descriptor's block shape, lines 198–199 or the host's line 530 with the pre-hook's line 121) at `[0, offsetv_y]`, the Python `0` an `int32`, then `.T`, `tl.trans`"
+  },
+  {
+   "src": [
+    "99-100"
+   ],
+   "drop": "dead",
+   "note": "the `else` branch of line 97, never visited (`dtype == tl.float8e5` is true at compile time); it adds no step"
+  },
+  {
+   "src": [
+    101
+   ],
+   "model": "let p : Tensor [BLOCK_M, BLOCK_N] F8E5 ← tl.cvt8 p",
+   "note": "`p.to(dtype)` with `dtype = tl.float8e5`: `float32` to `float8e5` with the default rounding (`\"rtne\"`), the platform's conversion (`tl.cvt8`, `P.cvt`)"
+  },
+  {
+   "src": [
+    103
+   ],
+   "model": "let acc ← tl.dot cfg8 p v acc",
+   "note": "`tl.dot(p, v, acc)`: `float8e5` operands into the `float32` accumulator `acc`, the configuration of line 73 (`cfg8`)"
+  },
+  {
+   "src": [
+    106
+   ],
+   "model": "let l_i ← tl.mul_add l_i alpha l_ij",
+   "note": "`l_i * alpha + l_ij`: an addition the product feeds (`tl.mul_add`)"
+  },
+  {
+   "src": [
+    107
+   ],
+   "model": "let m_i := m_ij",
+   "note": "a rebinding"
+  },
+  {
+   "src": [
+    108
+   ],
+   "model": "let offsetk_y := offsetk_y + (IntV.ofNat BLOCK_N : I32)",
+   "note": "`+=` of the constexpr, built in `int32`"
+  },
+  {
+   "src": [
+    109
+   ],
+   "model": [
+    "let offsetv_y := offsetv_y + (IntV.ofNat BLOCK_N : I32)",
+    "pure (acc, l_i, m_i, offsetk_y, offsetv_y)"
+   ],
+   "note": "as line 108; the body's end returns the five carried names"
+  },
+  {
+   "src": [
+    110
+   ],
+   "model": "pure (acc, l_i, m_i)",
+   "note": "the helper's result after the loop"
+  },
+  {
+   "src": [
+    168
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: a helper `_attn_fwd` calls (lines 195–206), inlined at each call; no other statement of the module binds `_maybe_make_tensor_desc`; the model is `maybe_make_tensor_desc`"
+  },
+  {
+   "src": [
+    169
+   ],
+   "model": [
+    "def maybe_make_tensor_desc (desc_or_ptr : DescArg) (shape : List I32) (strides : List I64)",
+    "(block_shape : Shape) : Prog (TensorDesc .f8e5) :="
+   ],
+   "note": "the parameters: the descriptor argument as `_attn_fwd` receives it (`DescArg`: a host `TensorDescriptor` or a `float8e5` pointer), the `int32` shape, the `int64` strides and the compile-time block shape the calls pass"
+  },
+  {
+   "src": [
+    170
+   ],
+   "model": "match desc_or_ptr with",
+   "note": "`isinstance(desc_or_ptr, tl.tensor_descriptor)` is evaluated by Python at compile time: true of a host `TensorDescriptor`, false of a pointer (SEMANTICS.md, Python's builtins), so only one branch is visited; the `match` on the argument's kind picks it"
+  },
+  {
+   "src": [
+    171
+   ],
+   "model": "| .host D => pure D",
+   "note": "a host descriptor is returned as it is"
+  },
+  {
+   "src": [
+    "172-173"
+   ],
+   "model": "| .ptr p => tl.make_tensor_descriptor p shape strides block_shape",
+   "note": "the `else` branch: a descriptor built in the kernel from the pointer, with the call's shape, strides and block shape (the default padding `\"zero\"`)"
+  },
+  {
+   "src": [
+    176
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); no other statement of the module binds `_attn_fwd` (line 562 only launches it); the model is the `Kernel` `attn_fwd`"
+  },
+  {
+   "src": [
+    "177-186"
+   ],
+   "model": [
+    "def attn_fwd (sm_scale : F32) (M : Ptr .f32) (Z H : I32)",
+    "(desc_q desc_k desc_v desc_o : DescArg) (N_CTX : I32)",
+    "(HEAD_DIM BLOCK_M BLOCK_N STAGE : Nat) : Kernel where"
+   ],
+   "note": "`sm_scale` a Python `float`, the runtime `float32` scalar (`FloatV.hostF32` of the double, in `model`); `M` the `*fp32` pointer; `Z`, `H`, `N_CTX` `int32` (an integer argument other than `1`; at `1` the constant `1`, which gives the same model: `model`'s docstring); the four descriptor parameters `DescArg`s; the constexprs `HEAD_DIM`, `BLOCK_M`, `BLOCK_N`, `STAGE` Lean parameters (`model` passes `HEAD_DIM`, `128`, `64` and `3` or `1`); `FP8_OUTPUT` is `True`, `IS_HOPPER` `True` on every covered launch, and `warp_specialize` reaches only the helper, whose model does not read it, so the model has no parameter for these three; lines 177–186's `#` are comments"
+  },
+  {
+   "src": [
+    187
+   ],
+   "drop": "config",
+   "note": "`tl.float8e5 if FP8_OUTPUT else tl.float16` is evaluated at compile time; `FP8_OUTPUT = True` on every covered launch (`q.dtype` is `torch.float8_e5m2`, line 569), so `dtype` is `tl.float8e5`, which the model of each use fixes: the helper's `p.to(dtype)` (line 101) and dtype tests (lines 64, 97), and line 245's `acc.to(dtype)`"
+  },
+  {
+   "src": [
+    188
+   ],
+   "drop": "compile-check",
+   "note": "`tl.static_assert(BLOCK_N <= HEAD_DIM)` is checked at compile time: `64 <= HEAD_DIM` holds on every covered instance (`HEAD_DIM` is 64, 128 or 256, `Inst.ok.head_dim`); it adds no step"
+  },
+  {
+   "src": [
+    189
+   ],
+   "model": "let start_m := tl.program_id ctx 0",
+   "note": "axis 0 of the grid, an `int32`"
+  },
+  {
+   "src": [
+    190
+   ],
+   "model": "let off_hz := tl.program_id ctx 1",
+   "note": "axis 1 of the grid, an `int32`"
+  },
+  {
+   "src": [
+    191
+   ],
+   "model": "let off_z := (← tl.idiv (Tensor.scalar off_hz) (Tensor.scalar H)).item",
+   "note": "the `int32` `//`, truncating (`tl.idiv`, undefined on a zero divisor)"
+  },
+  {
+   "src": [
+    192
+   ],
+   "model": "let off_h := (← tl.irem (Tensor.scalar off_hz) (Tensor.scalar H)).item",
+   "note": "the `int32` `%` (`tl.irem`)"
+  },
+  {
+   "src": [
+    194
+   ],
+   "model": "let y_dim := Z * H * N_CTX",
+   "note": "`int32` products, wrapping"
+  },
+  {
+   "src": [
+    "195-196"
+   ],
+   "model": [
+    "let desc_q ← maybe_make_tensor_desc desc_q [y_dim, (IntV.ofNat HEAD_DIM : I32)]",
+    "[(IntV.ofNat HEAD_DIM : I64), (IntV.ofNat 1 : I64)] [BLOCK_M, HEAD_DIM]"
+   ],
+   "note": "the helper with `shape=[y_dim, HEAD_DIM]` (the constexpr built in `int32`, a shape entry), `strides=[HEAD_DIM, 1]` (built in `int64`, as `tl.make_tensor_descriptor` builds strides) and the compile-time `block_shape`"
+  },
+  {
+   "src": [
+    "197-199"
+   ],
+   "model": [
+    "let desc_v ← maybe_make_tensor_desc desc_v [(IntV.ofNat HEAD_DIM : I32), y_dim]",
+    "[(IntV.cast N_CTX : I64), (IntV.ofNat 1 : I64)] [HEAD_DIM, BLOCK_N]"
+   ],
+   "note": "`if FP8_OUTPUT:` is a compile-time `if` on a constexpr, `True` on every covered launch, so only lines 198–199 are visited: the helper with `shape=[HEAD_DIM, y_dim]` (the constexpr built in `int32`, a shape entry), `strides=[N_CTX, 1]` (built in `int64`, as `tl.make_tensor_descriptor` builds strides: the runtime `int32` `N_CTX` converted to `int64`, the `1` built in `int64`) and the compile-time `block_shape=[HEAD_DIM, BLOCK_N]`"
+  },
+  {
+   "src": [
+    "200-202"
+   ],
+   "drop": "dead",
+   "note": "the `else` branch of line 197, never visited (`FP8_OUTPUT` is `True` at compile time); it adds no step"
+  },
+  {
+   "src": [
+    "203-204"
+   ],
+   "model": [
+    "let desc_k ← maybe_make_tensor_desc desc_k [y_dim, (IntV.ofNat HEAD_DIM : I32)]",
+    "[(IntV.ofNat HEAD_DIM : I64), (IntV.ofNat 1 : I64)] [BLOCK_N, HEAD_DIM]"
+   ],
+   "note": "as lines 195–196, with the block shape `[BLOCK_N, HEAD_DIM]`"
+  },
+  {
+   "src": [
+    "205-206"
+   ],
+   "model": [
+    "let desc_o ← maybe_make_tensor_desc desc_o [y_dim, (IntV.ofNat HEAD_DIM : I32)]",
+    "[(IntV.ofNat HEAD_DIM : I64), (IntV.ofNat 1 : I64)] [BLOCK_M, HEAD_DIM]"
+   ],
+   "note": "as lines 195–196"
+  },
+  {
+   "src": [
+    208
+   ],
+   "model": "let offset_y := off_z * (N_CTX * H) + off_h * N_CTX",
+   "note": "`int32` arithmetic, wrapping"
+  },
+  {
+   "src": [
+    209
+   ],
+   "model": "let qo_offset_y := offset_y + start_m * (IntV.ofNat BLOCK_M : I32)",
+   "note": "the constexpr built in `int32`"
+  },
+  {
+   "src": [
+    211
+   ],
+   "model": "let offs_m := start_m * (IntV.ofNat BLOCK_M : I32) + tl.arange 0 BLOCK_M",
+   "note": "the `int32` scalar plus the `int32` block `tl.arange(0, BLOCK_M)`, broadcast"
+  },
+  {
+   "src": [
+    212
+   ],
+   "model": "let offs_n := tl.arange 0 BLOCK_N",
+   "note": "`tl.arange(0, BLOCK_N)`"
+  },
+  {
+   "src": [
+    214
+   ],
+   "model": "let m_i ← tl.sub (tl.zeros [BLOCK_M] .f32) (bc (FloatV.litF32 (FloatV.ofPat 0x7FF0000000000000)))",
+   "note": "`float(\"inf\")` is the Python `+∞` (a builtin call evaluated by Python), built in `float32` as an operand of `-` with a `float32` block; the IEEE `-`"
+  },
+  {
+   "src": [
+    215
+   ],
+   "model": "let l_i ← tl.add (tl.zeros [BLOCK_M] .f32) (bc (FloatV.litF32 (FloatV.ofPat 0x3FF0000000000000)))",
+   "note": "`1.0` built in `float32`; the IEEE `+`"
+  },
+  {
+   "src": [
+    216
+   ],
+   "model": "let acc := tl.zeros [BLOCK_M, HEAD_DIM] .f32",
+   "note": "`tl.zeros` with `dtype=tl.float32`"
+  },
+  {
+   "src": [
+    218
+   ],
+   "model": "let qk_scale := sm_scale",
+   "note": "the name holds the `float32` scalar"
+  },
+  {
+   "src": [
+    219
+   ],
+   "model": [
+    "let qk_scale := (← tl.mul (Tensor.scalar qk_scale)",
+    "(Tensor.scalar (FloatV.litF32 (FloatV.ofPat 0x3FF7154764EE6C2F)))).item"
+   ],
+   "note": "`qk_scale *= 1.44269504`: the Python float `1.44269504` (the double `0x3FF7154764EE6C2F`) built in `float32` as an operand of `*` with the `float32` scalar; an IEEE product (nothing adds to it); the comment is not code"
+  },
+  {
+   "src": [
+    221
+   ],
+   "model": "let q ← tl.desc_load (bs := [BLOCK_M, HEAD_DIM]) desc_q [qo_offset_y, (IntV.ofInt 0 : I32)]",
+   "note": "the `[BLOCK_M, HEAD_DIM]` block at `[qo_offset_y, 0]`"
+  },
+  {
+   "src": [
+    225
+   ],
+   "model": "let (acc, l_i, m_i) ← if STAGE &&& 1 ≠ 0 then",
+   "note": "`STAGE & 1` of the constexpr, computed at compile time: a compile-time `if`"
+  },
+  {
+   "src": [
+    "226-231"
+   ],
+   "model": [
+    "attn_fwd_inner acc l_i m_i q desc_k desc_v offset_y start_m qk_scale (4 - STAGE) offs_m offs_n N_CTX",
+    "else pure (acc, l_i, m_i)"
+   ],
+   "note": "the helper with the arguments in the source's order (`dtype`, `warp_specialize`, `IS_HOPPER` aside: see lines 48–53); `4 - STAGE` computed at compile time; the result's tuple rebinds `acc`, `l_i`, `m_i` (unchanged when the `if` is not taken)"
+  },
+  {
+   "src": [
+    233
+   ],
+   "model": "let (acc, l_i, m_i) ← if STAGE &&& 2 ≠ 0 then",
+   "note": "`STAGE & 2`, at compile time"
+  },
+  {
+   "src": [
+    "234-239"
+   ],
+   "model": "attn_fwd_inner acc l_i m_i q desc_k desc_v offset_y start_m qk_scale 2 offs_m offs_n N_CTX",
+   "note": "the helper with `STAGE = 2`, as lines 226–231"
+  },
+  {
+   "src": [
+    241
+   ],
+   "model": "let m_i ← tl.add m_i (← tl.log2 l_i)",
+   "note": "`m_i += tl.math.log2(l_i)`: `tl.math.log2` on `float32`, then the IEEE `+` (no product feeds it)"
+  },
+  {
+   "src": [
+    242
+   ],
+   "model": "let acc ← tl.div acc (l_i.col HEAD_DIM)",
+   "note": "`float32 / float32`, the platform's division (`P.div`), `l_i` broadcast to `HEAD_DIM` columns"
+  },
+  {
+   "src": [
+    243
+   ],
+   "model": "let m_ptrs := M + off_hz * N_CTX + offs_m",
+   "note": "`(M + off_hz * N_CTX) + offs_m`: the `int32` product, the scalar pointer offset, then the pointer block"
+  },
+  {
+   "src": [
+    244
+   ],
+   "model": "tl.store m_ptrs m_i",
+   "note": "`m_i` is already `float32`, the pointer's dtype: no conversion; no mask"
+  },
+  {
+   "src": [
+    245
+   ],
+   "model": [
+    "let o8 : Tensor [BLOCK_M, HEAD_DIM] F8E5 ← tl.cvt8 acc",
+    "tl.desc_store desc_o [qo_offset_y, (IntV.ofInt 0 : I32)] o8"
+   ],
+   "note": "`acc.to(dtype)` with `dtype = tl.float8e5`: `float32` to `float8e5` with the default rounding, the platform's conversion (`tl.cvt8`), evaluated before the store; the descriptor store of the block at `[qo_offset_y, 0]`"
+  }
+ ]
+}

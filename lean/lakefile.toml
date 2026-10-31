@@ -1,6 +1,6 @@
 name = "TVA"
 version = "2.0.0"
-defaultTargets = ["TVA", "vec_add_f32", "softmax_f32", "matmul_f16", "matmul_e5m2"]
+defaultTargets = ["TVA", "vec_add_f32", "softmax_f32", "matmul_f16", "matmul_e5m2", "attn_fwd_f16", "attn_fwd_e5m2", "attn_bwd_pre_f16", "attn_bwd_f16", "grouped_matmul_tma_f16"]
 
 [[require]]
 name = "mathlib"
@@ -34,3 +34,28 @@ roots = ["Matmul"]
 name = "matmul_e5m2"
 srcDir = "../kernels/matmul_e5m2/lean"
 roots = ["MatmulE5m2"]
+
+[[lean_lib]]
+name = "attn_fwd_f16"
+srcDir = "../kernels/attn_fwd_f16/lean"
+roots = ["AttnFwd"]
+
+[[lean_lib]]
+name = "attn_fwd_e5m2"
+srcDir = "../kernels/attn_fwd_e5m2/lean"
+roots = ["AttnFwdE5m2"]
+
+[[lean_lib]]
+name = "attn_bwd_pre_f16"
+srcDir = "../kernels/attn_bwd_pre_f16/lean"
+roots = ["AttnBwdPre"]
+
+[[lean_lib]]
+name = "attn_bwd_f16"
+srcDir = "../kernels/attn_bwd_f16/lean"
+roots = ["AttnBwd"]
+
+[[lean_lib]]
+name = "grouped_matmul_tma_f16"
+srcDir = "../kernels/grouped_matmul_tma_f16/lean"
+roots = ["GroupedMatmulTma"]

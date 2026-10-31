@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5fwd",
+  "kernel": "attn_fwd_e5m2",
+  "round": 3,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Third filing of round 3. It confirms the widened pE sentence in 'On the benchmark's data' against the figures in my second filing; I took no new samples. My medians are 3.33-3.38 (D = 64) and 87-95 (D = 128), inside 'about 3.4' and '87 to 100'. My maxima are 4.6-5.5 (D = 64) and 240-274 (D = 128). They are inside '4.5 to 5.5', and inside '190 to 270' to two significant figures. Nothing else changed and the gate is 53b679fa0085b99d, so every item stays accepted."
+}

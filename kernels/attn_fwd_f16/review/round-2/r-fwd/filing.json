@@ -1,0 +1,14 @@
+{
+  "reviewer": "r-fwd",
+  "kernel": "attn_fwd_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {"id": "F1", "note": "AttnFwd.lean's module docstring now gives the test as lines 631-695 and the benchmark as 698-780 (bench_flash_attention 739-775), as source/ has them; README's range is corrected too."},
+    {"id": "F2", "note": "HeadOk's docstring and README now give one figure with its argument: below 23 (test) and 240 (benchmark) except with probability below 1e-6. I re-checked the Chernoff and union bound numerically (work/chernoff.py: at most 1.1e-7 and 7.9e-7), and the README's tolerances at those values (0.43%, 2.9%) agree with my exact evaluation."},
+    {"id": "F3", "note": "L122 in docs/library-review/ISSUES.md records the report faithfully (the 'given by a model' sentence against Launch, tl.forRange and 'Loops', and that a model omits both); it is the library's to settle and does not block."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Gate unchanged at 3031db2a50b0a036 and no item digest changed; the prover's changes are docstrings and the write-up only, which I read (AttnFwd.lean, HeadOk's docstring, testInst's docstring, README). r-fwd2's round-1 findings (F4 wording, F5 the fusion reading of tl.maximum results, referred as L123) agree with my own reading of lines 84 and 241."
+}

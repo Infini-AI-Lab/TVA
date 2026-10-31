@@ -1,0 +1,34 @@
+{
+  "kernel": "attn_fwd_e5m2",
+  "round": 1,
+  "responses": [
+    {
+      "id": "F1",
+      "response": "REVISED",
+      "text": "Post now also gives a second bound for o: for every K bounding |vEff_j - attnRef| over the row's keys, |c - attnRef| <= tolV d init bh n e K (Model.magCp, magNext, magA, magD, tolV). It compares acc with attnRef * l_i over the computed p (lines 95 and 106 rescale both by the same alpha), so pE does not enter. It is proved through Mag.estep_real, Row.mag_tail and Mag.final_v (l_i >= 1/2 by Mag.lmin_real). Sampled medians at N = 1024 on benchmark-like data: tolV is 6.5 (D = 64) and 6.7 (D = 128), against tolO's 13.9 and 1.2e4. On a one-key row (a causal row's first query) tolV is 0.31*|attnRef|. The rest is stated plainly in the README, and 'meaningful on the test's shapes and data' is gone. The Specification has a section 'Where Post does not tell o from 0', and the Narrowings say the same. On the test's data Post still accepts 0 on 97.7-100% of the sampled elements. There p's fp8 rounding alone (2^-3 of each weight, line 101) allows about 0.05, which is at least |attnRef| on 81-100% of those elements, so no bound built from the per-lane facts can reject 0 there. On the benchmark's data, the score's relDot8 D gives pE of about 4.7 (D = 64) and 190 (D = 128), which leaves only a magnitude bound. On long rows both tolerances grow as (1 + relDot8 64)^nblk: for v = 1, tolO is 1.25 and tolV 2.55 at N = 4096, and 9.7e5 and 1.1e7 at N = 2^16. The library's part is L124.",
+      "changed": ["item:spec"]
+    },
+    {
+      "id": "F2",
+      "response": "REFERRED",
+      "text": "Referred to the library as L124: DotE5m2's relDot8 charges each fp8 tl.dot 2^-7 per chunk of |acc| too, so a fed-back accumulator compounds as (1 + relDot8 64)^T. The score's relDot8 D, inside an exponent, also moves each weight by a factor of up to 2^(1.5 * relDot8 D * X). The README cites L124 where the tolerances are loose.",
+      "issue": "L124"
+    },
+    {
+      "id": "F3",
+      "response": "CLARIFIED",
+      "text": "Four places now say first that only the first ceil(Z*H/HEAD_DIM) heads read v and every other head outputs +-0, which Post certifies: kernel.json's title (which kernels/README.md lists), the README's opening ('Read this first'), its paragraph on the kernel, and the root module's docstring."
+    },
+    {
+      "id": "F4",
+      "response": "REVISED",
+      "text": "(a) Taken as the second route: Post now takes the minimum, in effect, with a magnitude bound proved over the computed p. The bound is tolV (Model.magA, magD, tolV), in which pE does not enter at all. Lines 95 and 106 rescale acc and l_i by the same alpha. Per block, |acc - r*l_i| <= magA*l_i + magD (Mag.estep_real, Row.mag_tail). l_i >= 1/2 holds because the lane that sets the running maximum has p near 1 and a kept maximum has alpha near 1 (Mag.lmin_real). The division and the fp8 rounding then give Mag.final_v. Sampled medians at N = 1024: benchmark-like D = 128, tolV 6.7 (tolO 1.2e4); D = 64, tolV 6.5 (tolO 13.9). On a one-key row tolV is 0.31*|attnRef|; tolO was 0.56x to 2.4e3x. (b) The README states the rest in the Specification ('Where Post does not tell o from 0') and in the Narrowings. Post accepts o = 0 on 97.7-100% of the sampled elements of the test's and the benchmark's data, and the tolerances are loose at large N. On the test's data that is p's fp8 rounding itself (about 0.05, at least |attnRef| on 81-100% of the elements). Beyond it, and on the benchmark's data and on long rows, it is Num.DotE5m2, library issue L124.",
+      "changed": ["item:spec"]
+    },
+    {
+      "id": "F5",
+      "response": "CLARIFIED",
+      "text": "(a) As F3: kernel.json's title, the README's opening and its kernel paragraph, and the root docstring now say that only the first ceil(Z*H/HEAD_DIM) heads get their v and every other head outputs +-0. (b) 'meaningful on the test's shapes and data' is gone from the Specification and the Narrowings, which now say where Post does not tell o from 0. (c) The table gives the benchmark's D = 128 next to D = 64. At N = 1024, tolO is 1.2e4 and tolV 6.7 (D = 128), against 13.9 and 6.5 (D = 64). At N = 2^14, tolO is 1.0e5 and 90, and tolV 351 and 358."
+    }
+  ]
+}

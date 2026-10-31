@@ -1,0 +1,77 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "AttnFwdE5m2",
+    "namespace": "Kernels.AttnFwdE5m2"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/06-fused-attention.py",
+    "host": [
+      [
+        16,
+        18
+      ],
+      [
+        22,
+        44
+      ],
+      [
+        113,
+        149
+      ],
+      [
+        156,
+        156
+      ],
+      [
+        248,
+        253
+      ],
+      [
+        266,
+        278
+      ],
+      [
+        319,
+        330
+      ],
+      [
+        366,
+        380
+      ],
+      [
+        503,
+        780
+      ]
+    ],
+    "ranges": [
+      [
+        20,
+        21
+      ],
+      [
+        47,
+        110
+      ],
+      [
+        168,
+        173
+      ],
+      [
+        176,
+        245
+      ]
+    ],
+    "sha256": "4ea8883061399de75d0ca973b446bed97abd9749bb9616aa7044e93256148db8",
+    "unused": [
+      "keep",
+      "prune_invalid_configs",
+      "_attn_bwd_preprocess",
+      "_attn_bwd_dkdv",
+      "_attn_bwd_dq",
+      "_attn_bwd"
+    ]
+  },
+  "title": "Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first ⌈Z·H/HEAD_DIM⌉ heads read `v`, every other head outputs ±0"
+}

@@ -1,0 +1,24 @@
+{
+  "reviewer": "r-gmm2",
+  "kernel": "grouped_matmul_tma_f16",
+  "round": 1,
+  "findings": [
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/grouped_matmul_tma_f16/README.md",
+      "summary": "README's 'from about K = 15745' bf16 threshold is off: tol alone reaches 2^-8/(1+2^-8) from K = 15617; with Post's last float16 rounding term, from K = 13633",
+      "detail": "README, Specification (end of the tolerance paragraph) and Narrowings ('K <= 2^13') say the bound would stop rejecting a bfloat16 rounding 'from about K = 15745'. With rho = DotLoop.stepRel relDot16 64, (1 + rho)^T - 1 first reaches 2^-8/(1 + 2^-8) at T = 245 (K >= 15617), and Post's bound on c, tol + (|S| + tol)*2^-11, which is what a bfloat16-rounded result is compared against, reaches it at T = 214 (K >= 13633). The claim at the covered K <= 2^13 is right (total relative bound 0.253% < 0.389%); only the stated threshold is wrong. Resolve by stating the threshold of Post's own bound (about K = 13633) or dropping the number.",
+      "evidence": "work/tol.py (exact rationals): K=8192 gives (1+rho)^T-1 = 0.002039 and 0.002528 with the last float16 rounding; tol alone reaches the bfloat16 error at T=245, Post's bound at T=214."
+    },
+    {
+      "kind": "LIBRARY_REPORT",
+      "target": "decl:TVA.tl.make_tensor_descriptor",
+      "summary": "Does the evidence behind in-kernel descriptors cover descriptors rebuilt inside a runtime loop, rewriting a program's scratch slot while TMA stores through the previous one may be in flight?",
+      "detail": "SEMANTICS.md (Tensor descriptors) makes tl.make_tensor_descriptor pure in the model and leaves the scratch to Compiler.Faithful (scope 5), trusting TMA's asynchrony to the compiler. evidence/desc-scratch exercises straight-line kernels that build their descriptors once; its sources say each make_tensor_descriptor op has one scratch slot per program (no reuse across ops). Tutorial 08's grouped_matmul_tma_kernel builds a_desc, b_desc and c_desc inside the runtime if of line 220, once per trip of the loop of line 212, so a program rewrites the same three 128-byte slots for group g + 1 right after its last c_desc.store of group g, an asynchronous TMA store through the old descriptor. Whether Triton 3.8.0 orders that rewrite after the store has read its descriptor is the compiler's; no evidence I found runs this pattern. Not blocking: I took the library as right. A probe (a loop that rebuilds a store descriptor with a new base on every trip, checking every output) or a statement in SEMANTICS.md would settle it."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Model printed with pp.fullNames (work/Names.lean): every operation is TVA.* or a kernel helper; DotCfg defaults are precision tf32 and maxImpreciseAcc 0, so dot_total's printed cfg is the model's; main, consistent and satisfiable use only propext, Classical.choice and Quot.sound. The host's launches (test M = N = K <= 1024; square benchmark N <= 1024; batch benchmark M <= 1024, N = K = 8192; group_size 4; NUM_SM 132; strides multiples of 8; fresh allocations) all meet Inst.ok and Pre."
+}
