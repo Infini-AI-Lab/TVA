@@ -125,7 +125,7 @@
   ],
   "digest": "5f65eb1f7a961315165a854c6eea124c5b1b3452f2aabcc66bc2d40daa6e2e91",
   "files": {
-    "README.md": "d4ceddd6134ffe8c689511a4e9d0e4b164fddea511193c10d9da541c18d4343f",
+    "README.md": "2cf6a33f875cd9af7bab83c00a4e7d508b9ce16844fb3bcebd18c725ca38c578",
     "kernel.json": "94fef9de8d3b064c6c47f0aa3afc42393ba58963304caa68f610cd0592b5dbe8",
     "lean/VecAdd.lean": "3eea78c9a3ec3965ebb3c9ef713bf9c3f8d169ad9edd89f92bb5c6d4456f832e",
     "model-map.json": "b97cfe5fe1b42ee3ce93414e358df7d95059122c2dc553bfc9a115be916cf83d",
@@ -144,7 +144,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-10-31T07:16:36Z",
+  "time": "2026-10-31T07:47:07Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "84f0b4d50930c1f687944b15cba75fbe7973f32210c33b3e4bca863af9234cec"

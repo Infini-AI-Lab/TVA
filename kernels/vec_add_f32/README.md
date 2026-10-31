@@ -45,7 +45,8 @@ elements).
 | `x_len`, `y_len`, `output_len` | each buffer has at least `n` elements | the kernel accesses elements `0 … n−1` of each |
 | `output_x`, `output_y` | the first `n` elements of `output` share no byte with the first `n` elements of `x` (resp. `y`) | a program that reads and writes the same bytes, or two programs that touch bytes one of them writes, are not well behaved (see Narrowings) |
 
-`n` is the runtime argument `n_elements`. Its value is part of the instance, and the conditions
+`n` is the argument `n_elements`, a runtime argument at every `n` but `n = 1`, where Triton passes
+it as the compile-time constant `1` (below). Its value is part of the instance, and the conditions
 constrain it: `n < 2^31` (`n_lt`) and `n ≤ x.len`, `n ≤ y.len`, `n ≤ output.len` (`x_len`,
 `y_len`, `output_len`), as the user's decision of 2026-10-29 on library issue L117 asks ("for the
 viriable n_elements, its value should be merged into the assumptions of the prover. e.g., x.len >=
@@ -206,8 +207,10 @@ Modelling decisions:
   argument values, compile-time (`BLOCK_SIZE`, and `n_elements` at `n = 1`) and runtime (the three
   pointers, and `n_elements` at every other `n`), as the instance gives them, and the settings of the scope's other
   points (`Compiler.Faithful`'s point 11, in part (B), assumed); code a cache returns counts when it
-  is that code, for example for a repeated launch of the same instance. Only a launch of a
-  `CompiledKernel` runs code compiled for another launch's arguments (point 6), and there is none.
+  is that code, for example for a repeated launch of the same instance. Under point 11, only a
+  launch of a `CompiledKernel` runs code that is not the code compiled for its own arguments
+  (point 6), and there is none; this is the assumption, not a statement about Triton's caches (the
+  script's later launches run code the JIT compiled at its first launch).
 - `pid * BLOCK_SIZE` multiplies two `int32` values: the constexpr, an operand of `*` with an
   `int32` tensor, is built in `int32`. `block_start + tl.arange(…)` adds the scalar to every lane.
 - The loads have the source's `mask` and no `other`, so disabled lanes are unspecified; the
