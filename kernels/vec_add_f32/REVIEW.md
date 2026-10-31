@@ -6,27 +6,27 @@ Vector addition, tutorial 01 (`add_kernel`, float32). The claim sheet: [claim.md
 
 ## Status
 
-- Gate: **PASS**, digest `a2e8d45aaf58a6d2` (2026-10-29T07:29:23Z).
-- Phase: round 2: waiting for the prover (3 open finding(s)).
+- Gate: **PASS**, digest `5f65eb1f7a961315` (2026-10-31T07:16:36Z).
+- Phase: round 2: all reviewers have filed.
 - Reviewers: r-vecadd (all), r-vecadd2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-vecadd | r-vecadd2 |
 |---|---|---|---|
-| `assumption:faithful` | `87a47837dd8c` | accepted | accepted |
-| `conditions` | `d08be5b9cdf4` | accepted | accepted |
-| `map` | `48b842c21c2d` | accepted | accepted |
-| `model` | `aa40427c867c` | accepted | accepted |
-| `spec` | `6990eccb4ba5` | accepted | accepted |
+| `assumption:faithful` | `b50b996797f6` | accepted | accepted |
+| `conditions` | `8e766778801c` | accepted | accepted |
+| `map` | `f29709c72fab` | accepted | accepted |
+| `model` | `60be74de9c81` | accepted | accepted |
+| `spec` | `6b0f2e380fa0` | accepted | accepted |
 
 Round 1 is blind: findings are hidden until every assigned reviewer has filed.
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
-| [F2](#f2) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.I8` | r-vecadd | 2 | TVA.I8's docstring says it is `tl.int32` values (the type of tl.program_id and tl.arange); I8 is IntV true 8, and the te |
-| [F3](#f3) | OPEN (non-blocking) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | r-vecadd | 2 | Scope 11's reuse clause names the source, compile-time values and settings, not the runtime arguments' specialisation; i |
-| [F4](#f4) | OPEN (non-blocking) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | r-vecadd2 | 2 | Scope 11 admits code compiled 'earlier for the same source, compile-time values and settings' without asking for the sam |
+| [F2](#f2) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.I8` | r-vecadd | 2 | TVA.I8's docstring says it is `tl.int32` values (the type of tl.program_id and tl.arange); I8 is IntV true 8, and the te |
+| [F3](#f3) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | r-vecadd | 2 | Scope 11's reuse clause names the source, compile-time values and settings, not the runtime arguments' specialisation; i |
+| [F4](#f4) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | r-vecadd2 | 2 | Scope 11 admits code compiled 'earlier for the same source, compile-time values and settings' without asking for the sam |
 
 **Certificate: GRANTED**
 
@@ -36,8 +36,8 @@ Kernel review trusts the library; these are tracked in [docs/library-review/ISSU
 
 | Issue | State | Source | Summary |
 |---|---|---|---|
-| [L117](../../docs/library-review/ISSUES.md#l117) | OPEN | vec_add_f32#F3, vec_add_f32#F4 (r-vecadd, r-vecadd2) | soundness: condition 11's reuse clause does not ask for the same specialisation of the runtime arguments |
-| [L118](../../docs/library-review/ISSUES.md#l118) | OPEN | vec_add_f32#F2 (r-vecadd) | wording: the `int32` docstring sits on `I8` in `Lang/Scalar.lean`; two pages still say only "without `-O`" |
+| [L117](../../docs/library-review/ISSUES.md#l117) | FIXED | vec_add_f32#F3, vec_add_f32#F4 (r-vecadd, r-vecadd2) | soundness: condition 11's reuse clause does not ask for the same specialisation of the runtime arguments |
+| [L118](../../docs/library-review/ISSUES.md#l118) | FIXED | vec_add_f32#F2 (r-vecadd) | wording: the `int32` docstring sits on `I8` in `Lang/Scalar.lean`; two pages still say only "without `-O`" |
 
 ## Round 1
 
@@ -112,4 +112,19 @@ Point 11 (the rule page, 'Scope'; the same text in docs/SEMANTICS.md, 'Launches'
 *Evidence:* docs/rules/compiler-faithful.md, Scope 6 and 11; docs/SEMANTICS.md, Scalar arguments and Compile-time values Triton keys apart; docs/exclusions.md, the row on code taken from Triton's caches (for other compile-time values that share the launch's key)
 
 - **accepted** at gate `a2e8d45aaf58a6d2`: `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-vecadd files ([filing](review/round-2/r-vecadd/filing-5.json), [report](review/round-2/r-vecadd/report-5.md), [work](review/round-2/r-vecadd/work/))
+
+`2026-10-31T07:25:12Z`, at gate `5f65eb1f7a961315`. Notes: Non-blocking. Judged in full at gate 5f65eb1f7a961315, as if for the first time; filing.json to filing-4.json of this folder were made at older gates and are history. (1) What changed since gate a2e8d45aaf58a6d2: the two snapshots' cones hold every kernel constant (add_kernel, model, launch, Inst, Inst.ok, Pre, Post, Spec, Assumptions and its field) with the same hash; the changed entries are library ones only (TVA.I32, TVA.I8 and TVA.Rules.Compiler.Faithful, by docstring, and the files SEMANTICS.md, exclusions.md, compiler-faithful.md, Claim.lean, Lang/Scalar.lean, Rules/Compiler.lean), plus the README, which no digest holds. I read each of them as it is now; Faithful's statement is unchanged (debug = false, Launch.Valid, WellBehaved, ok/fault/hang). (2) work/Names5.lean prints the claim with full names and explicit instances: every operation of the model is TVA.* (tl.program_id, tl.arange, tl.load with other = none, tl.add, tl.store, Tensor.ltS, IntV.ofNat, IntV.instMul, Tensor.instHAddIntV, instHAddPtrTensorIntV, Prog.instMonad), the grid formula uses core Nat.instDiv, instSubNat and instAddNat, grid1 is given fusion true, Disjoint in Inst.ok is Mathlib's on Set Int, and the only other kernel constant is the generated add_kernel._proof_1 of the Fin 3 literal; Assumptions is a structure with exactly (K) (P) and one field in the library's Faithful form; main, consistent and satisfiable use only propext, Classical.choice and Quot.sound. (3) I re-ran work/Cover3.lean, work/Checks3.lean and work/AddCheck3.lean (recorded with filing-3, unchanged) under the library as it is now: all elaborate, Cover3's two offset bounds print true, and AddCheck3 still finds FloatV.add equal to both float32 references on all 600 pairs (0 mismatches). (4) Wording only, for a later edit: README, Modelling decisions, 'Only a launch of a CompiledKernel runs code compiled for another launch's arguments (point 6)' holds in the world point 11 assumes, where a JIT launch's cached code counts only when it is its own launch's code; read as a statement about Triton's caches it is not so (the benchmark's launches at 2^13 ... 2^27 take the code compiled at the 2^12 launch), so 'Under point 11, only ...' would read better. F4 is r-vecadd2's, and I do not release it.
+
+- **released F2**: L118 is fixed as I asked: lean/TVA/Lang/Scalar.lean:103 now gives I8 its own docstring ('`tl.int8` values.') and :106 gives I32 the int32 one ('the type of tl.program_id, tl.arange and most index arithmetic'); the bodies are unchanged (work/Names5.lean prints TVA.I32 = TVA.IntV Bool.true 32 and TVA.I8 = TVA.IntV Bool.true 8), and the model uses I32. The two pages L118 also names now say what point 7 says: the rule page's 'What it says' and TVA.Claim's module docstring give CPython 3.13 without -O or -OO and with PYTHONOPTIMIZE unset.
+- **released F3**: L117 is fixed, by the user's decision under L36, in every copy of point 11 (the docstring of Rules.Compiler.Faithful, docs/rules/compiler-faithful.md Scope 11 and What it does not cover, docs/SEMANTICS.md Parameters and arguments, A launch's compiled kernel and Launches, docs/exclusions.md, TVA.Claim): the code the launch runs is the code Triton compiles for that launch from its own argument values, compile-time and runtime, as the instance gives them, and the reuse clause is gone; cached code counts only when it is that code, 'for example' a repeated launch. So neither reading of F3 remains: code compiled for another specialisation of a runtime argument is no longer admitted, and a later launch at another size (the benchmark's 2^13 ... 2^27 after 2^12) is covered by the assumption, not shut out by the example. The runtime value n is part of the instance and Inst.ok constrains it (n < 2^31, n <= x.len, y.len, output.len), as the decision asks; the README's Conditions and Modelling decisions now say so.
+- **accepted** at gate `5f65eb1f7a961315`: `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-vecadd2 files ([filing](review/round-2/r-vecadd2/filing-4.json), [report](review/round-2/r-vecadd2/report-4.md), [work](review/round-2/r-vecadd2/work/))
+
+`2026-10-31T07:25:36Z`, at gate `5f65eb1f7a961315`. Notes: Non-blocking. (1) Judged in full at gate 5f65eb1f7a961315, as if for the first time; filing.json, filing-2.json and filing-3.json of this folder were made at older gates and are history. The snapshots of gates a2e8d45aaf58a6d2 and 5f65eb1f7a961315 differ only in library constants and files (TVA.I8, TVA.I32, TVA.Rules.Compiler.Faithful; SEMANTICS.md, exclusions.md, compiler-faithful.md, Claim.lean, Lang/Scalar.lean, Rules/Compiler.lean): no kernel constant changed, and model-map.json is as before (the map item's cone differs only in library files). The prover's revision is to README.md (the coordinator's note), which I re-read whole, the n_elements paragraph of Conditions and the point-11 bullet of Modelling decisions against the Lean and the rule page in particular. (2) L118 is settled as the library states it: work/Checks5.lean reads the docstrings, `tl.int8` values for TVA.I8 and the int32 text for TVA.I32; the definitions print as IntV true 8 and IntV true 32 (work/Names5.lean), and the model uses I32. The rule page and TVA.Claim now give point 7's host in full (without -O or -OO, PYTHONOPTIMIZE unset). (3) work/Names5.lean prints the claim with full names and explicit instances: every operation of the model is TVA.* (tl.program_id, tl.arange, tl.load with other = none, tl.add, tl.store, Tensor.ltS, IntV.ofNat, IntV.instMul, Tensor.instHAddIntV, instHAddPtrTensorIntV, Prog.instMonad), the grid formula uses core Nat.instDiv, instSubNat and instAddNat, grid1 is given fusion true, Disjoint is Mathlib's on Set Int, and the only other kernel constant is the Fin 3 literal's add_kernel._proof_1; Assumptions is a structure with exactly (K) (P) and one field in the library's Faithful form, whose statement prints as before (debug = false, Launch.Valid, WellBehaved, ok/fault/hang); main, consistent and satisfiable use only propext, Classical.choice and Quot.sound. (4) work/Checks5.lean: Inst.ok for every n < 2^31 with BLOCK_SIZE = 1024 and three buffers of at least n elements whose output bytes meet neither input, and for add(x, x); not for n = 2^31, an in-place output with n >= 1, or a y shorter than n; the last lane at the extremes (n = 2^31 - 1, BLOCK_SIZE 2^20 and 1), computed in int32 as the model does, is the true offset, 2^31 - 1 and 2^31 - 2; the grid is Python's (n + B - 1) // B at the host's sizes and the extremes; FloatV.add is exact for 1 + 2^-23 and 1 + 2^-10, ties to even, rounds up, keeps subnormals, overflows to +inf, gives -0 for -0 + -0 and NaN for inf - inf and a NaN operand. (5) Wording only, for the backlog: README, Conditions, says 'n is the runtime argument n_elements', where at n = 1 it is the compile-time constant (as the next paragraph and Modelling decisions say), so 'the argument n_elements' would be exact; README, Modelling decisions, 'Only a launch of a CompiledKernel runs code compiled for another launch's arguments' holds as point 11 reads it (code other than the code compiled for the launch's own values), but the script's benchmark launches do run the code the JIT compiled at its first launch, which is the same code; 'code that is not the code compiled for its own arguments' would say it without that reading.
+
+- **released F4**: Settled as the library now states it (round 23, L117). Point 11 of Compiler.Faithful's scope, on the rule page, in the docstring of Rules.Compiler.Faithful, in SEMANTICS.md (Launches) and in the exclusions.md row, no longer has the clause 'or earlier for the same source, compile-time values and settings': the code the launch runs is the code Triton 3.8.0 compiles for that launch, from the launch's own argument values, compile-time and runtime, as the claim's instance gives them, and code compiled earlier counts only when it is that code ('code compiled for another value of a runtime argument counts only when it is the code compiled for the launch's own', with K2's n = 1001 on code for n = 1024 as the case it excludes). So a JIT launch with n_elements = 98433 that ran the code compiled for 98432 (another divisibility class) is outside the assumption, as I asked, and the script's later launches at 2^12 ... 2^27 (the same class as 98432, BLOCK_SIZE = 1024) run code that is the code compiled for their own values, which counts. The value of n is part of the instance and Inst.ok constrains it (n < 2^31, n <= x.len, y.len, output.len), as the user's decision under L117 asks. Whether the fix is right is for library review; ISSUES.md still lists L117 as OPEN in round 23.
+- **accepted** at gate `5f65eb1f7a961315`: `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

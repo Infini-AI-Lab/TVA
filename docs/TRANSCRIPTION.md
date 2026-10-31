@@ -215,8 +215,8 @@ What most often makes a model differ from its source, and what a reviewer should
   no `preload`, Triton and the kernel's module as installed and written (the installed `triton`; no
   other code changes `tl.*`, Triton's classes and objects, a `JITFunction` or a name of the module,
   other than through Triton's API as the tutorials use it: `set_allocator`, a hook's `block_shape`),
-  and the kernel new (the code the launch runs compiled for it, not code compiled for other values
-  or settings and taken from Triton's caches)
+  and the kernel new (the code the launch runs is the code Triton compiles for its own argument
+  values and settings; code a cache returns counts when it is that code)
   ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"); `init` is the memory when
   the direct launch starts, not the caller's memory before the call ("Which launch"). Of these, the
   kernel and its launches (the options, `@triton.heuristics`, the

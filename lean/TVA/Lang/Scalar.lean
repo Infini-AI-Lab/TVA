@@ -100,9 +100,10 @@ def cast {s' : Bool} {w' : Nat} (a : IntV s w) : IntV s' w' :=
 
 end IntV
 
-/-- `tl.int32` values, the type of `tl.program_id`, `tl.arange` and most index arithmetic. -/
+/-- `tl.int8` values. -/
 abbrev I8 := IntV true 8
 abbrev I16 := IntV true 16
+/-- `tl.int32` values, the type of `tl.program_id`, `tl.arange` and most index arithmetic. -/
 abbrev I32 := IntV true 32
 abbrev I64 := IntV true 64
 abbrev U8 := IntV false 8

@@ -1,7 +1,7 @@
 {
   "build": {
     "lean/TVA.lean": "5be099ee865913eeeb786dbcf85806270a42a444f102d2fcc89617a9510f0584",
-    "lean/TVA/Claim.lean": "1386c4fd4208c69e9ac9d020ff130c71568078b6cd7b6e5d2d4a7a492033fbc3",
+    "lean/TVA/Claim.lean": "5c2b60d3b2177b61d808f37c83b8e5fb7cdead467e90a5619bab3fb3071da093",
     "lean/TVA/Lang/BlockPtr.lean": "5c121ff17dd9b6f3b49adbbd9572d7f87055bfaabba8ab60025d69ac19f2fe4f",
     "lean/TVA/Lang/Desc.lean": "f6f836aff2342615a2aac7752b46e621308d1edd71a3efe989f7fd12f93c29f6",
     "lean/TVA/Lang/Mem.lean": "6f3cd41173dee6b11c2f4550330d5b8cbaaf779f4789b679900b07280c9d4de7",
@@ -10,7 +10,7 @@
     "lean/TVA/Lang/Prog.lean": "87d39b382031ec61e680e201d04586eadcfa9bae0d60be4fe946bcae11d5db51",
     "lean/TVA/Lang/Promote.lean": "bd501e8309233c51bd9aa79eb5431703e6d14338ccbc8df0ba81805daac81f60",
     "lean/TVA/Lang/Random.lean": "523c2b7616ee3fd80e78deddcc09d32e823bad33ff224c34b14c5649e310bfa3",
-    "lean/TVA/Lang/Scalar.lean": "f0d8e3eee91be981d5cda86bb64cf80e0b8cbb6ecb8fc95feaf8e4035a807272",
+    "lean/TVA/Lang/Scalar.lean": "b0600f26c15ca7a5a05f8ef0dd7ad1b0f97fa01f38f39da145802e4d4d8e1d66",
     "lean/TVA/Lang/Scaled.lean": "c759687956828e7ca22df2e0fd76b619d28439d3e9bcf40cda88586f56160558",
     "lean/TVA/Lang/Scan.lean": "50f3f3e9632e64bdaad3633e555291ad32ef143f493bdbd37d64c21454cc4689",
     "lean/TVA/Lang/Tensor.lean": "78ecf6b061a6d9fb897b9fc5aa98f9c5526ede8e53c3291fa4569612ddd8518a",
@@ -47,7 +47,7 @@
     "lean/TVA/Math/Encoding.lean": "143fddb425da930e88dcc6486a0a841f04d77aeb15a599edffd7ae4e80c79568",
     "lean/TVA/Math/LittleEndian.lean": "5db9bb20becf6165928865b5b26e74c0c08f67dd867df9cec5767b8ab3778aa9",
     "lean/TVA/Math/Rounding.lean": "d9b4b60bd4ad6d16fe47a13c1e803b900c4e7d380f092e5614a82861dad5d9c6",
-    "lean/TVA/Rules/Compiler.lean": "5ed22588de4369b587c9cb54e98e0f7e3d057213fab28541dc56e414b1636812",
+    "lean/TVA/Rules/Compiler.lean": "24ff59ea326f1e0c51bff84a87c3bc420743f7d3cc7180afeb91cb6388753a4a",
     "lean/TVA/Rules/Num.lean": "b6e744d5e1c70ca2bdd36bf0538d24541134c1f51f103a901f735413d03b3cae",
     "lean/TVA/Rules/Num/Sm90.lean": "53afff946a81fb8a0043a96564b71e87ab0597a5cbf3c53fa5204a16285e8b54",
     "lean/TVA/Sem/Launch.lean": "05ff97e010e389d6c077066b779f2d4fd8903ea5ee3d5a71486c7e7307dc9c99",
@@ -123,20 +123,20 @@
       "ok": true
     }
   ],
-  "digest": "a2e8d45aaf58a6d2fa26116df5f0d1cdf997a20a1abac1e67ba2480ca58ecfe1",
+  "digest": "5f65eb1f7a961315165a854c6eea124c5b1b3452f2aabcc66bc2d40daa6e2e91",
   "files": {
-    "README.md": "00b58de0fb8e5dc258646ebe9298ac19522a5db2f890076e78bdf801d4e8b112",
+    "README.md": "d4ceddd6134ffe8c689511a4e9d0e4b164fddea511193c10d9da541c18d4343f",
     "kernel.json": "94fef9de8d3b064c6c47f0aa3afc42393ba58963304caa68f610cd0592b5dbe8",
     "lean/VecAdd.lean": "3eea78c9a3ec3965ebb3c9ef713bf9c3f8d169ad9edd89f92bb5c6d4456f832e",
     "model-map.json": "b97cfe5fe1b42ee3ce93414e358df7d95059122c2dc553bfc9a115be916cf83d",
     "source/01-vector-add.py": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3"
   },
   "items": {
-    "assumption:faithful": "87a47837dd8c1dfccd1fc984bd60340d94ccd3d612155066800d98ea33b791bf",
-    "conditions": "d08be5b9cdf49f20d1eff390f637d162c64d4603d129fd8f6b0d68f3cc89372d",
-    "map": "48b842c21c2db8c61e13b7216686c8f1f3596446bbabff7150aade7100ed3347",
-    "model": "aa40427c867c6acb8297c0532a431bc1ef599d2cb87bb4f0721a090fc0e98da4",
-    "spec": "6990eccb4ba50ff017b3403dd70019804315d812f0c6d24987c361cbc169b2a4"
+    "assumption:faithful": "b50b996797f64cce9d75b3730b9a508e620e59afffb5b4c4a3873963f291da49",
+    "conditions": "8e766778801c20c47b8405d522ab79c88400cfda15c9b137e38d0e6b49700790",
+    "map": "f29709c72fabf23750951640c504d8a7ab994e41d051eda78665f5bef399db5c",
+    "model": "60be74de9c8103f3e36f527bb83b3df672e92a54fbf9f92392318d9cca5a5790",
+    "spec": "6b0f2e380fa039d09dd881fdc69c9b380459d5e95723b9c9ac92df2fa0b25641"
   },
   "kernel": "vec_add_f32",
   "kinds": {
@@ -144,7 +144,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-10-29T07:29:23Z",
+  "time": "2026-10-31T07:16:36Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "84f0b4d50930c1f687944b15cba75fbe7973f32210c33b3e4bca863af9234cec"

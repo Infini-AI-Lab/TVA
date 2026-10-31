@@ -52,17 +52,20 @@ theorem satisfiable : TVA.Claim.Satisfiable Inst.ok Pre
   it ends (not the host, another kernel on any stream or device, or a later kernel that
   programmatic dependent launch lets start early; writes to other bytes do not matter); Triton at
   its defaults (no knob changed, no hook installed, no `kernel.debug` set from outside, no
-  `JITFunction.preload`); the H200, from an x86-64 host running CPython 3.13 without `-O` and in
-  the default floating-point environment (round to nearest even, no flush to zero); Triton 3.8.0 as
-  installed and the kernel's module as written (no code but Triton's own changes Triton's modules,
-  classes or objects or the kernel's `JITFunction`s, other than through Triton's API as the
-  in-scope tutorials use it, and none binds a name of the kernel's module but the module's own
-  statements); and the kernel new: the code the launch runs was compiled for it, from its own
-  source, compile-time values and these settings, not code compiled for other values or settings
-  and taken from Triton's caches (the `JITFunction`'s cache in the process, or the cache
-  directory). `Rules.Compiler.Faithful` states this scope
+  `JITFunction.preload`); the H200, from an x86-64 host running CPython 3.13 without `-O` or `-OO`
+  and with `PYTHONOPTIMIZE` unset, in the default floating-point environment (round to nearest
+  even, no flush to zero); Triton 3.8.0 as installed and the kernel's module as written (no code
+  but Triton's own changes Triton's modules, classes or objects or the kernel's `JITFunction`s,
+  other than through Triton's API as the in-scope tutorials use it, and none binds a name of the
+  kernel's module but the module's own statements); and the kernel new: the code the launch runs
+  is the code Triton 3.8.0 compiles for that launch, from its source, its own argument values
+  (compile-time and runtime, as the instance gives them) and these settings. Code a cache returns
+  (the `JITFunction`'s cache in the process, or the cache directory) counts when it is that code,
+  for example for a repeated launch of the same instance, and TVA does not verify the caches. A
+  runtime argument's value is part of the instance, and `Inst.ok` constrains it (for example
+  `n ≤ x.len` for a length `n_elements`). `Rules.Compiler.Faithful` states this scope
   (library issues L5, L17, L18, L19, L21, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104,
-  L105, L107, L109, L110, L116).
+  L105, L107, L109, L110, L116, L117).
 * **Other memory** (library issue L73). `Rules.Compiler.Faithful` also states that a valid,
   well-behaved launch within its scope writes no byte of global memory other than those `init`
   gives, except the scratch of the descriptors the kernel builds (its scope 5). A claim's `main`

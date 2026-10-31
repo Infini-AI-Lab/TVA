@@ -50,7 +50,7 @@ frame is part of the rule, and what anything else does to them is outside the cl
 
 **Scope.** The rule covers a launch only under the conditions below, in two parts (library issues
 L5, L17, L18, L19, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104, L105, L107, L109, L110,
-L116). The user's decisions, 2026-10-29: "To make the verifier easy, we do not verify triton
+L116, L117). The user's decisions, 2026-10-29: "To make the verifier easy, we do not verify triton
 cache.", "we assume the kernel is new.", "So basically, we want to verify the kernel itself, rather
 than triton installation or other code programmed by users." and, on the autotuner ("Which
 launch"), "actually we do not neccessarily cover autotune. we do verification basically for the
@@ -221,21 +221,24 @@ is still a finding:
    compiles the kernel, so such a change gives the launch another computation than its source's
    (`evidence/host-round20` M1–M4: `3·x` for the source's `2·x`, `log x` for `exp x`, `5·x` after
    `_unsafe_update_src` for `2·x`).
-- **11.** *The kernel is new* (library issues L98, L103, L109, L116). The code the launch runs was
-   compiled for it, from the kernel's own source, its compile-time values (its `tl.constexpr`
-   arguments, and an integer `1` or `None` passed to a parameter without annotation, which
-   `triton-3.8.0-specialize.cc` makes compile-time) and the settings the other conditions give, or
-   earlier for the same source, compile-time values and settings (a repeated launch of the same
-   instance). It is not code
-   compiled earlier, for other values or under other settings, and taken from Triton's caches, the
-   `JITFunction`'s cache in the process (`triton-3.8.0-jit.py:592-614`) or the cache directory
-   (`triton-3.8.0-compiler.py:244-270`). TVA does not verify Triton's caches. The assumption is
-   needed because the caches' keys equate some different
-   compile-time values and record no knob set from Python, no `TRITON_KERNEL_OVERRIDE`, no hook, no
-   change to Triton in memory and no state of the host process, so code taken from them may have
-   been compiled for other values or under other settings (`evidence/compile-keys`,
-   `evidence/host-round21` K1–K4 and X1–X5, and the library reviews of round 20;
-   `docs/rules/compiler-faithful.md`, "Scope" 11).
+- **11.** *The kernel is new* (library issues L98, L103, L109, L116, L117). The code the launch
+   runs is the code Triton 3.8.0 compiles for that launch, from the kernel's own source, the
+   launch's own argument values, compile-time and runtime, as the claim's instance gives them (the
+   compile-time ones are its `tl.constexpr` arguments, and an integer `1` or `None` passed to a
+   parameter without annotation, which `triton-3.8.0-specialize.cc` makes compile-time), and the
+   settings the other conditions give. Code compiled earlier counts when it is that code: code that
+   a cache returns, the `JITFunction`'s cache in the process (`triton-3.8.0-jit.py:592-614`) or the
+   cache directory (`triton-3.8.0-compiler.py:244-270`), for example for a repeated launch of the
+   same instance, and the code a `CompiledKernel` runs within scope 6. TVA does not verify Triton's
+   caches. A runtime argument's value is part of the claim's instance, and the prover's conditions
+   constrain it (for example `n ≤ x.len` for a length `n_elements`; the user's decision,
+   2026-10-29: "for the viriable n_elements, its value should be merged into the assumptions of the
+   prover. e.g., x.len >= n_elements, etc."). The assumption is needed because the caches' keys
+   equate some different compile-time values and record no knob set from Python, no
+   `TRITON_KERNEL_OVERRIDE`, no hook, no change to Triton in memory and no state of the host
+   process, so code taken from them may have been compiled for other values or under other
+   settings, and may not be that code (`evidence/compile-keys`, `evidence/host-round21` K1–K4 and
+   X1–X5, and the library reviews of round 20; `docs/rules/compiler-faithful.md`, "Scope" 11).
 
 **Which launch** (library issues L21, L116). The rule is about one direct launch of the kernel's
 `@triton.jit` function (`kernel[grid](…)`, or the launch of its `CompiledKernel` within scope 6),

@@ -5,6 +5,10 @@ findings, collected in [REPORTS.md](REPORTS.md)), from library review, and from 
 The process is in [../LIBRARY_REVIEW.md](../LIBRARY_REVIEW.md); kernel findings are cited as
 `<kernel>#F<n>` (each kernel's `REVIEW.md`).
 
+States: `OPEN` (to be fixed in the round named), `ACCEPTED` (fixed, and accepted by library
+review), `FIXED` (fixed in a round that no library review followed, by the user's decision under
+L36: rounds 21 to 23), `CLOSED` (settled by the coordinator, as its section says).
+
 The kernels of the first round (vec-add, grouped GEMM, flash attention) were cleared on
 2026-10-27 at the user's request, to restart from scratch. The issues they raised stand on their
 own; the cleared kernels' records are in the git history (commit `089d4c5`).
@@ -105,30 +109,30 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L92](#l92) | ACCEPTED | 17 | library review round 15 (lr-15a, lr-15b) | wording: names a runtime `if` does not merge, `Launch.fusion` and autotune configs, annotated and default values, names after a loop, the hint bound, a garbled checklist item |
 | [L93](#l93) | ACCEPTED | 17 | library review round 16 (lr-16b) | wording: the guides' lists of `Faithful`'s host conditions leave some out |
 | [L94](#l94) | ACCEPTED | 18 | library review round 16 (lr-16a) | soundness: the claim reader finds `K` and `P` by position, so instance parameters before them shift the `[kernel]`/`[rule]` checks |
-| [L95](#l95) | OPEN | 21 | library review round 16 (lr-16a, lr-16b) | gap: `stated_facts` reads every table under "Facts the library states", `###` subsections included, not only its table |
+| [L95](#l95) | FIXED | 21 | library review round 16 (lr-16a, lr-16b) | gap: `stated_facts` reads every table under "Facts the library states", `###` subsections included, not only its table |
 | [L96](#l96) | ACCEPTED | 18 | library review round 16 (lr-16a) | gap: the release check's `pages` step compares the regenerated pages with the live tree, not the checked copy |
 | [L97](#l97) | ACCEPTED | 18 | library review round 16 (lr-16a, lr-16b) | wording: evidence/tool-round16's output was written before the protocol's text was fixed |
 | [L98](#l98) | ACCEPTED | 20 | library review round 12 (lr-12a) | soundness: a Python NaN constant gets the canonical NaN, not the pattern Triton builds (sign and quiet payload) |
 | [L99](#l99) | ACCEPTED | 19 | library review round 12 (lr-12a, lr-12b) | wording: the float layer's account of ±∞, NaN, overflow, `u`, `sqrt_rn`, and its evidence README and build script |
 | [L100](#l100) | ACCEPTED | 19 | library review round 12 (lr-12b) | wording: names and docstrings in the proof kit that do not match their statements |
 | [L101](#l101) | ACCEPTED | 20 | library review round 14 (lr-14a, lr-14b) | wording: three evidence READMEs, fp8's missing `u`/`eta` constants, `replay_err`'s operands |
-| [L102](#l102) | OPEN | 21 | library review round 17 (lr-17a, lr-17b) | soundness: a helper whose returns differ, and a runtime conditional expression, make Python numbers scalar tensors of the front end's type |
-| [L103](#l103) | OPEN | 21 | library review rounds 17 and 19 (lr-17a, lr-19a) | soundness: Triton's caches and helper names do not tell some different compile-time values apart (`1`/`1.0`/`True`, `1`/`"1"`, NaNs, strings) |
-| [L104](#l104) | OPEN | 21 | library review rounds 17 and 18 (lr-17a, lr-18a, lr-18b) | soundness: `Faithful`'s scope never says that Triton and the kernel's module are used as installed and written |
+| [L102](#l102) | FIXED | 21 | library review round 17 (lr-17a, lr-17b) | soundness: a helper whose returns differ, and a runtime conditional expression, make Python numbers scalar tensors of the front end's type |
+| [L103](#l103) | FIXED | 21 | library review rounds 17 and 19 (lr-17a, lr-19a) | soundness: Triton's caches and helper names do not tell some different compile-time values apart (`1`/`1.0`/`True`, `1`/`"1"`, NaNs, strings) |
+| [L104](#l104) | FIXED | 21 | library review rounds 17 and 18 (lr-17a, lr-18a, lr-18b) | soundness: `Faithful`'s scope never says that Triton and the kernel's module are used as installed and written |
 | [L105](#l105) | ACCEPTED | 20 | library review round 18 (lr-18b) | soundness: `kernel.debug = True` and `JITFunction.preload` set compile options no scope point names |
 | [L106](#l106) | ACCEPTED | 20 | library review round 18 (lr-18a) | soundness: an `Assumptions` declared as an `inductive` passes the gate; the claim reader panics, reads no field and exits 0 |
 | [L107](#l107) | ACCEPTED | 20 | library review round 19 (lr-19b) | soundness: SEMANTICS states host-dependent values (CPython's float packing, x86-64's default NaN) without naming the host |
 | [L108](#l108) | ACCEPTED | 20 | library review rounds 17, 18 and 19 (lr-17a, lr-17b, lr-18a, lr-18b, lr-19a, lr-19b) | wording: `tl.cdiv`, two general SEMANTICS sentences, round 18's evidence, `freeze` paths, `|` in tables, half an ulp, `FloatV.nan`, `Int.lean`, LIBRARY.md, float-layer conclusion 4 |
-| [L109](#l109) | OPEN | 21 | library review round 20 (lr-20c, lr-20d) | soundness: a launch may run code compiled earlier, in its process or another, outside scopes 2, 3 and 10; Triton's keys do not record it |
-| [L110](#l110) | OPEN | 21 | library review round 20 (lr-20b, lr-20d) | soundness: the host scope 7 names admits `python -O` (which removes Triton's `assert` rejections) and a changed floating-point environment |
-| [L111](#l111) | OPEN | 21 | library review round 20 (lr-20e) | soundness: SEMANTICS says arithmetic in an fp8 dtype is always rejected, but MLIR folds `x * 1.0`, `x - 0.0` and arithmetic on fp8 constants, which then run |
-| [L112](#l112) | OPEN | 21 | library review round 20 (lr-20c) | gap: the claim reader misreports two claims, both failing closed (a `PANIC` substring; a `private` field) |
-| [L113](#l113) | OPEN | 21 | library review round 20 (lr-20f) | gap: the proof kit has no rule for `tl.convert` or `tl.sum0c`, and none named for `tl.store1` |
-| [L114](#l114) | OPEN | 21 | library review round 20 (lr-20a, lr-20b, lr-20e, lr-20f) | wording: the fp8 constants' prose and PROVER_GUIDE's list, num.md's "exact" division facts, four lemma docstrings |
+| [L109](#l109) | FIXED | 21 | library review round 20 (lr-20c, lr-20d) | soundness: a launch may run code compiled earlier, in its process or another, outside scopes 2, 3 and 10; Triton's keys do not record it |
+| [L110](#l110) | FIXED | 21 | library review round 20 (lr-20b, lr-20d) | soundness: the host scope 7 names admits `python -O` (which removes Triton's `assert` rejections) and a changed floating-point environment |
+| [L111](#l111) | FIXED | 21 | library review round 20 (lr-20e) | soundness: SEMANTICS says arithmetic in an fp8 dtype is always rejected, but MLIR folds `x * 1.0`, `x - 0.0` and arithmetic on fp8 constants, which then run |
+| [L112](#l112) | FIXED | 21 | library review round 20 (lr-20c) | gap: the claim reader misreports two claims, both failing closed (a `PANIC` substring; a `private` field) |
+| [L113](#l113) | FIXED | 21 | library review round 20 (lr-20f) | gap: the proof kit has no rule for `tl.convert` or `tl.sum0c`, and none named for `tl.store1` |
+| [L114](#l114) | FIXED | 21 | library review round 20 (lr-20a, lr-20b, lr-20e, lr-20f) | wording: the fp8 constants' prose and PROVER_GUIDE's list, num.md's "exact" division facts, four lemma docstrings |
 | [L115](#l115) | CLOSED | — | coordinator, 2026-10-29 (independence check) | independence: `TVA.Lemmas.Softmax` was written by an agent that had read another project's lemmas; removed |
-| [L116](#l116) | OPEN | 22 | user, 2026-10-29 | gap: the autotuner is not verified; for an autotuned tutorial kernel we pick one config when we set up its folder |
-| [L117](#l117) | OPEN | 23 | vec_add_f32#F3, vec_add_f32#F4 (r-vecadd, r-vecadd2) | soundness: condition 11's reuse clause does not ask for the same specialisation of the runtime arguments |
-| [L118](#l118) | OPEN | 23 | vec_add_f32#F2 (r-vecadd) | wording: the `int32` docstring sits on `I8` in `Lang/Scalar.lean`; two pages still say only "without `-O`" |
+| [L116](#l116) | FIXED | 22 | user, 2026-10-29 | gap: the autotuner is not verified; for an autotuned tutorial kernel we pick one config when we set up its folder |
+| [L117](#l117) | FIXED | 23 | vec_add_f32#F3, vec_add_f32#F4 (r-vecadd, r-vecadd2) | soundness: condition 11's reuse clause does not ask for the same specialisation of the runtime arguments |
+| [L118](#l118) | FIXED | 23 | vec_add_f32#F2 (r-vecadd) | wording: the `int32` docstring sits on `I8` in `Lang/Scalar.lean`; two pages still say only "without `-O`" |
 
 ## L1
 
@@ -1804,6 +1808,9 @@ and say so in §5 and the author's prompt. Round 18.
   (after up to three spaces), and when the section holds `<` followed by a letter, `/`, `!` or `?`;
   split a row as GFM does, or refuse a row starting `||`; and make protocol §2 say exactly this.
   Round 21.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate.
 
 ## L96
 
@@ -1946,6 +1953,9 @@ pitfall), or exclude both forms under L88. Round 20.
   one Python type; for a tuple, element by element", or exclude tuples from it, in SEMANTICS "The
   supported subset" (`return`) and "A helper's value", exclusions.md's row, TRANSCRIPTION's pitfall
   "A helper's value", and REVIEWER_GUIDE §1's list. Round 21.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate.
 
 ## L103
 
@@ -1996,6 +2006,10 @@ becomes a case of the rule. Round 20.
 - **User decision, 2026-10-29** (under L36): the kernel is assumed new and Triton's caches are not
   verified. Round 21 states scope 11 as that assumption, with no reviewer check, instead of the fix
   above; the helper copy-name rule of the subset stays.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate. Stated as part (B) of `Faithful`'s scope, by the user's decisions of 2026-10-29
+  (under L36).
 
 ## L104
 
@@ -2033,6 +2047,10 @@ host section and the rule page's checklist. Round 20.
   (d) the clause on the kernel module's names, unchanged. Round 21.
 - **User decision, 2026-10-29** (under L36): the cache-directory clause of the fix above is dropped
   (the kernel is assumed new, scope 11).
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate. Stated as part (B) of `Faithful`'s scope, by the user's decisions of 2026-10-29
+  (under L36).
 
 ## L105
 
@@ -2114,6 +2132,10 @@ exclusions.md and `TVA.Claim`'s docstring. Round 21.
 - **User decision, 2026-10-29** (under L36): the kernel is assumed new and Triton's caches are not
   verified. Code compiled earlier and reused through either cache is outside that assumption; round
   21 states it in scope 11, with no new scope condition or reviewer check, instead of the fix above.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate. Stated as part (B) of `Faithful`'s scope, by the user's decisions of 2026-10-29
+  (under L36).
 
 ## L110
 
@@ -2137,6 +2159,10 @@ exclusions.md's targets row, TRANSCRIPTION's host pitfall and `FloatV.hostF32`'s
 host as "CPython 3.13 run without `-O`/`-OO` and with `PYTHONOPTIMIZE` unset, in the default
 floating-point environment (round to nearest even; flush-to-zero and denormals-are-zero off: no
 `fesetround`, no `_mm_setcsr`, no loaded library that changes them)", with the reasons. Round 21.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate. Stated as part (B) of `Faithful`'s scope, by the user's decisions of 2026-10-29
+  (under L36).
 
 ## L111
 
@@ -2154,6 +2180,9 @@ exclusions.md citing this work file; replace the two sentences with "the backend
 host, except where MLIR's folders remove the operation first (`x * 1`, `1 * x`, `x / 1` and `x - 0`
 give `x`; an operation on two fp8 constants is computed at compile time); none of these forms is in
 the subset". No in-scope tutorial computes in fp8. Round 21.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate.
 
 ## L112
 
@@ -2165,6 +2194,9 @@ is listed in `fields` but its statement is not read (the reader looks it up as
 (`round-20/lr-20c/work/reader_probe.py` R1, R3). Fix: skip the `TVR_JSON ` line, or match Lean's
 `PANIC at ` at a line's start; read each field through `StructureFieldInfo.projFn`, or refuse a private
 field in the reader with a named error. Round 21.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate.
 
 ## L113
 
@@ -2177,6 +2209,9 @@ Fix: add `safe_convert` (premise `∀ i, ∃ r, ConvRel E.P d d' (x.get i) r`; c
 `lean/TVA/Lemmas/Ops.lean`, both proved as stated in `round-20/lr-20f/work/MissingRules.lean`; add
 `safe_store1`, or say in the module docstring that `safe_store` applies to `tl.store1`; list them in
 LIBRARY.md's `Ops` row. Round 21.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate.
 
 ## L114
 
@@ -2203,6 +2238,9 @@ LIBRARY.md's `Ops` row. Round 21.
   `|y| ≤ maxVal` ([lr-20f](round-20/lr-20f/report.md)).
 
 Round 21.
+- **Round 21** ([notes](round-21/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate.
 
 ## L115
 
@@ -2267,6 +2305,9 @@ not aware of the autotune":
 - "Which launch" and part (A) cover a direct launch of the JIT function; condition 11 reads as the
   user's decision says.
 Round 22.
+- **Round 22** ([notes](round-22/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate.
 
 ## L117
 
@@ -2287,6 +2328,10 @@ script uses is a multiple of 16), so its claim is not affected.
 - **User decision, 2026-10-29** (under L36): the runtime arguments' values are the instance's, and
   the prover's conditions constrain them; condition 11 is stated for the launch's own argument
   values, with no reuse clause. Round 23.
+- **Round 23** ([notes](round-23/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate. The kernel reviewers who reported it released their findings (`vec_add_f32`
+  F2, F3, F4) at gate `5f65eb1f7a961315`.
 
 ## L118
 
@@ -2296,3 +2341,7 @@ sits on `abbrev I8 := IntV true 8`, and `I32` has none; and the rule page and `T
 still say only "without `-O`" where condition 7 says without `-O` or `-OO` and with
 `PYTHONOPTIMIZE` unset. Fix: move the docstring to `I32` (and give `I8` its own), and say what
 condition 7 says. Round 23.
+- **Round 23** ([notes](round-23/author/notes.md)): fixed; no library review followed, by the user's
+  decision (under L36). Checked by `lake build TVA`, `tvr library-check`, `tvr lint`, `tvr audit`, the
+  release check and `vec_add_f32`'s gate. The kernel reviewers who reported it released their findings (`vec_add_f32`
+  F2, F3, F4) at gate `5f65eb1f7a961315`.

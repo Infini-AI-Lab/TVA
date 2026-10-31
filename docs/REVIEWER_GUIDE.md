@@ -166,8 +166,9 @@ programmed by users."). Points 1 (nothing else writes the claim's buffers), 2 (T
 environment variables), 3 (hooks), the environment's part of 4 (no `kernel.debug` set from outside,
 no `preload`), 7 (the H200 and an x86-64 host with CPython 3.13 without `-O`/`-OO` or
 `PYTHONOPTIMIZE`, in the default floating-point environment), 10 (Triton as installed, and no other code changing Triton or the
-kernel's module) and 11 (the kernel is new, not code compiled for other values or settings and
-taken from Triton's caches) are assumptions of
+kernel's module) and 11 (the kernel is new: the code the launch runs is the code Triton compiles
+for that launch's own argument values, compile-time and runtime, and settings; code a cache returns
+counts when it is that code) are assumptions of
 the rule, and you do not read host code for them. If the claim's own launches or the kernel's
 source visibly break one (the source sets a knob, rebinds a Triton name, or launches a second
 kernel that writes the claim's buffers), that is still a finding.
@@ -182,7 +183,12 @@ A claim is only as useful as the instances it covers. Do `Inst.ok` and `Pre` cov
 real use: the host code's sizes, strides, dtypes, alignment and configs, and realistic input values
 (NaN, infinities, large values, unless the kernel is not meant for them)? Is every narrowing stated
 in the write-up with its reason, such as a bound that `int32` indexing needs? Are the conditions
-satisfiable, and are they what the write-up says?
+satisfiable, and are they what the write-up says? A runtime argument's value is part of the
+instance, and the prover's conditions constrain it, for example `n ≤ x.len` for a length
+`n_elements` of the buffer `x` (the user's decision, 2026-10-29, library issue L117: "for the
+viriable n_elements, its value should be merged into the assumptions of the prover. e.g., x.len >=
+n_elements, etc."): point 11 assumes that the launch runs the code Triton compiles for those values,
+so judge the conditions on them as on any other.
 
 ## 3. The specification (`SPEC_TOO_WEAK`, `SPEC_WRONG`)
 

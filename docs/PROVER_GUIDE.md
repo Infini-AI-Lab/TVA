@@ -149,7 +149,13 @@ def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZ
   - buffer lengths;
   - disjointness of buffers that are written.
 
-  Keep it as wide as the kernel's real use.
+  Keep it as wide as the kernel's real use. A runtime argument's value is part of the instance,
+  and your conditions constrain it, for example `n ≤ x.len` for a length `n_elements` of the buffer
+  `x` (the user's decision, 2026-10-29, library issue L117: "for the viriable n_elements, its value
+  should be merged into the assumptions of the prover. e.g., x.len >= n_elements, etc."). Point 11
+  of `Compiler.Faithful`'s scope assumes that the launch runs the code Triton compiles for the
+  instance's own argument values, so the conditions, not Triton's caches, decide which values the
+  claim covers.
 - **The kernel and its launches stay within part (A) of `Compiler.Faithful`'s scope**
   ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope", and its checklist in "How a
   bundle cites it"), point by point: (4) only the launch options `Launch` records plus
@@ -165,7 +171,8 @@ def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZ
   Part (B), the environment (points 1, 2, 3, the environment's part of 4, 7, 10 and 11: other
   writers, knobs, hooks, `kernel.debug` and `preload`, the target and host (an H200; x86-64,
   CPython 3.13 without `-O`/`-OO` and with `PYTHONOPTIMIZE` unset, in the default floating-point
-  environment), Triton as installed and other code, the kernel new), is assumed and not checked:
+  environment), Triton as installed and other code, the kernel new: the code Triton compiles for the
+  launch's own argument values and settings), is assumed and not checked:
   the write-up says only that the claim
   relies on it (the user's decisions, 2026-10-29: "To make the verifier easy, we do not verify
   triton cache.", "we assume the kernel is new." and "So basically, we want to verify the kernel

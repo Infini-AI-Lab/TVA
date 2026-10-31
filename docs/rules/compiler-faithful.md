@@ -14,7 +14,7 @@ def Faithful (P : Platform) (k : Kernel) (L : Launch) (K : Mem → Outcome → P
 ## What it says
 
 Take the compiled kernel `K`, launched as `L` on an NVIDIA H200 (sm_90), driven from an x86-64 host
-running CPython 3.13 (without `-O`, in the default floating-point environment), from global memory `init`, without `debug`, with a valid launch (`Launch.Valid`: CUDA's grid limits, fewer than
+running CPython 3.13 (without `-O` or `-OO` and with `PYTHONOPTIMIZE` unset, in the default floating-point environment), from global memory `init`, without `debug`, with a valid launch (`Launch.Valid`: CUDA's grid limits, fewer than
 `2^31` programs, `num_ctas = 1`, no programmatic dependent launch, and block shapes Triton
 accepts), within the rule's scope (below; (A), the kernel and its launches, checked: only the
 options `Launch` records, wherever they are given, and no `@triton.heuristics`, the scratch of
@@ -23,7 +23,7 @@ given arguments in its specialisation, no host descriptor that rounds to tf32, n
 capture; (B), the environment, assumed and not checked: nothing else writes the launch's bytes,
 Triton's knobs at their defaults, no hook, no `debug` attribute set from outside and no `preload`,
 the H200 and the host as the target, Triton and the kernel's module as installed and written, and
-the kernel new, not code compiled for other values or settings taken from Triton's caches). If
+the kernel new: the code Triton compiles for the launch's own argument values and settings). If
 the model `k`'s launch is well behaved from `init` (on no interleaving undefined behaviour, a race between programs, or a conflict within one program: two
 accesses of a program to the same bytes, at least one writing them, unless both are atomics on
 the same bytes, library issue L15), then, with the semantics performing a program's atomics in
@@ -78,7 +78,7 @@ those bytes is outside the claim.
 ## Scope
 
 The rule covers a launch only under the conditions below, in two parts (library issues L5, L17, L18,
-L19, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104, L105, L107, L109, L110, L116). They are
+L19, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104, L105, L107, L109, L110, L116, L117). They are
 about the host, which `Launch` does not describe, so the claim's text states them (the hashed
 docstring of `Rules.Compiler.Faithful`). The user's decisions, 2026-10-29, under L36: "To make the
 verifier easy, we do not verify triton cache.", "we assume the kernel is new." and "So basically, we
@@ -300,25 +300,34 @@ visibly breaks one (the source sets a knob, or rebinds a Triton name) is still a
    change gives the launch another computation than its source's: `3·x` for the source's `2·x`,
    `log x` for `exp x`, `5·x` after `_unsafe_update_src` for `2·x`
    ([evidence/host-round20](../../evidence/host-round20/README.md) M1–M4).
-- **11.** **The kernel is new** (library issues L98, L103, L109, L116). The code the claimed launch
-   runs was compiled for it, from its own source, its compile-time values (its `tl.constexpr`
-   arguments, and an integer `1` or `None` passed to a parameter without annotation, which
-   `primitives/triton-3.8.0-specialize.cc` makes compile-time, [SEMANTICS.md](../SEMANTICS.md),
-   "Scalar arguments") and the settings the other conditions give, or earlier for the same source,
-   compile-time values and settings (a repeated launch of the same instance). It is not code
-   compiled earlier, for other values or under other settings, and taken from Triton's caches, the
+- **11.** **The kernel is new** (library issues L98, L103, L109, L116, L117). The code the claimed
+   launch runs is the code Triton 3.8.0 compiles for that launch, from the kernel's own source, the
+   launch's own argument values, compile-time and runtime, as the claim's instance gives them (the
+   compile-time ones are its `tl.constexpr` arguments, and an integer `1` or `None` passed to a
+   parameter without annotation, which `primitives/triton-3.8.0-specialize.cc` makes compile-time,
+   [SEMANTICS.md](../SEMANTICS.md), "Scalar arguments"), and the settings the other conditions
+   give. Code compiled earlier counts when it is that code: code that a cache returns, the
    `JITFunction`'s cache in the process (`primitives/triton-3.8.0-jit.py:592-614`) or the cache
    directory (`TRITON_CACHE_DIR`, else `.triton/cache` under `TRITON_HOME` or the home directory,
-   `primitives/triton-3.8.0-knobs.py:343-354`, `primitives/triton-3.8.0-compiler.py:244-270`). TVA
-   does not verify Triton's caches (the user's decisions, 2026-10-29, under L36: "To make the verifier
-   easy, we do not verify triton cache." and "we assume the kernel is new.").
+   `primitives/triton-3.8.0-knobs.py:343-354`, `primitives/triton-3.8.0-compiler.py:244-270`), for
+   example for a repeated launch of the same instance, and the code a `CompiledKernel` runs within
+   point 6. TVA does not verify Triton's caches (the user's decisions, 2026-10-29, under L36: "To
+   make the verifier easy, we do not verify triton cache." and "we assume the kernel is new.").
+
+   A runtime argument's value is part of the claim's instance, and the prover's conditions constrain
+   it, for example `n ≤ x.len` in `Inst.ok` for a length `n_elements` (the user's decision,
+   2026-10-29, under L36: "for the viriable n_elements, its value should be merged into the
+   assumptions of the prover. e.g., x.len >= n_elements, etc."). So code compiled for another value
+   of a runtime argument counts only when it is the code compiled for the launch's own: `n = 1001` on
+   code compiled for `n = 1024` wrote three elements past `n`
+   ([evidence/compiled-launch](../../evidence/compiled-launch/README.md) K2, point 6).
 
    The assumption is needed. The caches find compiled code by keys that equate some different
    compile-time values (in the process, values Python's `==` equates and every NaN; on disk, the
    `str`s of the values joined with `-`, `primitives/triton-3.8.0-compiler.py:71-76`) and that record
    no knob set from Python, no `TRITON_KERNEL_OVERRIDE`, no hook, no change to Triton in memory and no
    state of the host process (`primitives/triton-3.8.0-GetEnv.h:15-57`). So code taken from them may
-   have been compiled for other values or under other settings. The record:
+   have been compiled for other values or under other settings, and may not be that code. The record:
    [evidence/compile-keys](../../evidence/compile-keys/README.md) K1–K4 (`C = 1.0` after `C = 1` ran
    the integer kernel; `MODE = "1"` after `MODE = 1` ran `MODE = 1`'s code; `C = -float('nan')` after
    `C = float('nan')` stored `0x7fc00000`); [evidence/host-round21](../../evidence/host-round21/README.md)
@@ -405,9 +414,10 @@ judges that kernel, not the choice of config.
   `round_f32_to_tf32=True`, a call made during a CUDA graph capture or a replay of the graph. Part
   (B), assumed not to happen and not checked: another writer of the launch's bytes during the
   launch, a knob not at its default, a hook, a `debug` attribute set from outside or a `preload`, a
-  target other than the H200 or a host other than x86-64 with CPython 3.13 (or one run with `-O`, or
-  in another floating-point environment), Triton or the kernel's module changed by other code, and
-  code compiled for other values or settings taken from Triton's caches.
+  target other than the H200 or a host other than x86-64 with CPython 3.13 (or one run with `-O` or
+  `-OO` or with `PYTHONOPTIMIZE` set, or in another floating-point environment), Triton or the
+  kernel's module changed by other code, and code other than the code Triton compiles for the
+  launch's own argument values and settings (Triton's caches may return such code).
 - **The autotuner and the host code around the launch**: a call of a `@triton.autotune`d kernel,
   with its benchmark runs, key, pruning, `reset_to_zero` and `restore_value`, hooks, `do_bench` and
   choice, which TVA does not verify (above, "Which launch"), and what anything but the launch does
@@ -465,7 +475,8 @@ The reviewer checks five things:
   `@triton.autotune` is outside the supported subset ("Which launch"). Part (B) (points 1, 2, 3, the
   environment's part of 4, 7, 10 and 11) is assumed: the reviewer does not read host code for it,
   and files a finding only when the claim's own launch or kernel source visibly breaks it;
-- `d.ok` covers the instances the claim is about;
+- `d.ok` covers the instances the claim is about: a runtime argument's value is part of the
+  instance, and `d.ok` constrains it (for example `n ≤ x.len` for a length `n_elements`; point 11);
 - the bundle proves `Claim.Consistent Assumptions` (`exists_total_faithful` gives the behaviour
   for this rule), and `Claim.Satisfiable Inst.ok Pre`, that some covered instance and memory exist
   (library issue L71).

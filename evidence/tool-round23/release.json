@@ -1,0 +1,81 @@
+{
+  "files": 1224,
+  "ledgers": {
+    "docs/library-review/ledger.jsonl": {
+      "lines": 65,
+      "sha256": "80cf205b28c677f2075c8edc74f4c803c0b09ab71be3694cc71a29617cdcb651"
+    },
+    "kernels/vec_add_f32/review/ledger.jsonl": {
+      "lines": 26,
+      "sha256": "920f251b145f11dddd1732930835ed015fc534dfde215f9f62da80b8cbb30cb9"
+    }
+  },
+  "masked": true,
+  "ok": true,
+  "python": "/usr/bin/python3.12",
+  "sandbox": "<dir>",
+  "steps": [
+    {
+      "detail": "1224 files; none in a folder the text scan skips",
+      "ok": true,
+      "step": "shipped"
+    },
+    {
+      "detail": "every package of lean/lake-manifest.json made afresh from its upstream repository: Mathlib's commit is its inputRev's, the inherited packages are those Mathlib's manifest pins, every file is its commit's blob, and no build output",
+      "ok": true,
+      "step": "packages"
+    },
+    {
+      "detail": "shows only the copy, /usr, /etc (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only, no link) and the system's /usr/bin/python3.12; no network",
+      "ok": true,
+      "step": "sandbox"
+    },
+    {
+      "detail": "lake build TVA (Mathlib built from its pinned source)",
+      "ok": true,
+      "step": "build"
+    },
+    {
+      "detail": "library hygiene; leanchecker TVA re-checks every library declaration",
+      "ok": true,
+      "step": "library"
+    },
+    {
+      "detail": "PASS  map        12 entries cover every code line of [[23, 24], [29, 54]]; every function of the source lies in the kernel lines or the host lines, and every @triton.jit function in the kernel lines; every code line outside a function, and every unused function's header, lies in the kernel lines or the host lines | PASS  doc        README.md has the sections Specification, Conditions, Assumptions, Proof | gate PASS  digest 5f65eb1f7a961315",
+      "ok": true,
+      "step": "gate vec_add_f32"
+    },
+    {
+      "detail": "every generated page the copy shipped (claim.md, REVIEW.md, kernels/README.md, REPORTS.md) is the one regenerated from the shipped files",
+      "ok": true,
+      "step": "pages"
+    },
+    {
+      "detail": "every recorded file is as its ledger recorded it, nothing was added to a recorded folder, every event follows from a recorded file and every kernel's role folder from its events, and every library round before the last is recorded",
+      "ok": true,
+      "step": "records"
+    },
+    {
+      "detail": "regular",
+      "ok": true,
+      "step": "lint library 23 author"
+    },
+    {
+      "detail": "regular",
+      "ok": true,
+      "step": "lint vec_add_f32 reviewer r-vecadd"
+    },
+    {
+      "detail": "regular",
+      "ok": true,
+      "step": "lint vec_add_f32 reviewer r-vecadd2"
+    },
+    {
+      "detail": "independent",
+      "ok": true,
+      "step": "audit"
+    }
+  ],
+  "time": "2026-10-29T14:27:50Z",
+  "toolchain": "leanprover/lean4:v4.35.0"
+}

@@ -45,6 +45,14 @@ elements).
 | `x_len`, `y_len`, `output_len` | each buffer has at least `n` elements | the kernel accesses elements `0 … n−1` of each |
 | `output_x`, `output_y` | the first `n` elements of `output` share no byte with the first `n` elements of `x` (resp. `y`) | a program that reads and writes the same bytes, or two programs that touch bytes one of them writes, are not well behaved (see Narrowings) |
 
+`n` is the runtime argument `n_elements`. Its value is part of the instance, and the conditions
+constrain it: `n < 2^31` (`n_lt`) and `n ≤ x.len`, `n ≤ y.len`, `n ≤ output.len` (`x_len`,
+`y_len`, `output_len`), as the user's decision of 2026-10-29 on library issue L117 asks ("for the
+viriable n_elements, its value should be merged into the assumptions of the prover. e.g., x.len >=
+n_elements, etc."). `Compiler.Faithful`'s point 11 assumes that the launch runs the code Triton
+compiles for these values (Modelling decisions), so these conditions, not Triton's caches, decide
+which values of `n` the claim covers.
+
 `x` and `y` may overlap each other in any way (both are only read), and may be the same tensor
 (`add(x, x)`). `n = 0` is covered: the grid is empty and memory is unchanged. `n = 1` is covered:
 Triton then passes `n_elements` as the compile-time constant `1`, which the comparison of line 47
@@ -193,11 +201,13 @@ Modelling decisions:
 - `n_elements` is an `int32` (`IntV.ofNat n`): Triton passes an integer argument in
   `[-2^31, 2^31)` other than `1` as an `int32`, and at `n = 1` the constant `1`, which gives the
   same model (above). An `n` that is a multiple of 16 (`0` included) is also marked divisible by 16
-  for the compiler, which is true of it (SEMANTICS.md, "Scalar arguments"). The code a JIT launch
-  runs was compiled for it, or earlier for the same source, compile-time values and settings (a
-  repeated launch of the same instance; `Compiler.Faithful`'s point 11, in part (B)); only a launch of
-  a `CompiledKernel` needs arguments in another launch's specialisation (point 6), and there is
-  none.
+  for the compiler, which is true of it (SEMANTICS.md, "Scalar arguments"). The code a launch runs
+  is the code Triton 3.8.0 compiles for that launch, from the kernel's own source, the launch's own
+  argument values, compile-time (`BLOCK_SIZE`, and `n_elements` at `n = 1`) and runtime (the three
+  pointers, and `n_elements` at every other `n`), as the instance gives them, and the settings of the scope's other
+  points (`Compiler.Faithful`'s point 11, in part (B), assumed); code a cache returns counts when it
+  is that code, for example for a repeated launch of the same instance. Only a launch of a
+  `CompiledKernel` runs code compiled for another launch's arguments (point 6), and there is none.
 - `pid * BLOCK_SIZE` multiplies two `int32` values: the constexpr, an operand of `*` with an
   `int32` tensor, is built in `int32`. `block_start + tl.arange(…)` adds the scalar to every lane.
 - The loads have the source's `mask` and no `other`, so disabled lanes are unspecified; the

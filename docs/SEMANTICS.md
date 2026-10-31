@@ -142,9 +142,10 @@ names some only to say so. Each item points to the section that gives its meanin
   arguments": an `int`, `float`, `bool` or `None` argument, or a parameter annotated with a type
   listed there), a host `TensorDescriptor` ("Tensor descriptors"), or a parameter annotated
   `tl.constexpr` whose argument is a Python `int`, `float`, `bool`, `str` or `None` (a Lean
-  parameter of the model). It has no default value. That a launch runs code compiled for its own
-  compile-time values, not code from Triton's caches, `Compiler.Faithful`'s scope 11 assumes (the
-  kernel is new; "Compile-time values Triton keys apart").
+  parameter of the model). It has no default value. That a launch runs the code Triton compiles for
+  its own argument values, compile-time values included, and not other code from Triton's caches,
+  `Compiler.Faithful`'s scope 11 assumes (the kernel is new; "Compile-time values Triton keys
+  apart").
 - A helper's parameter holds what the call passes, by position or by keyword, or its default; an
   annotation on it has no effect ("Helpers are inlined"). A default is a literal (a number, `True`,
   `False`, `None` or a string), a tuple of literals, or a dtype of `tl`. Two calls of one helper
@@ -1213,7 +1214,7 @@ Each definition's docstring states its reading of the documentation. The non-obv
     ([evidence/host-round20](../evidence/host-round20/README.md) G0–G3).
   - `Compiler.Faithful` covers a launch only within its scope
     ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"; library issues L17–L19, L72,
-    L74, L76–L78, L91, L103–L105, L107, L109, L110, L116):
+    L74, L76–L78, L91, L103–L105, L107, L109, L110, L116, L117):
     in two parts (the user's decisions, 2026-10-29: "To make the verifier easy, we do not verify
     triton cache.", "we assume the kernel is new." and "So basically, we want to verify the kernel
     itself, rather than triton installation or other code programmed by users."):
@@ -1321,18 +1322,24 @@ Each definition's docstring states its reading of the documentation. The non-obv
         what these hold, and such a change gave `3·x` for the source's `2·x`, `log x` for `exp x` and
         `5·x` after `_unsafe_update_src` for `2·x`
         ([evidence/host-round20](../evidence/host-round20/README.md) M1–M4);
-      - **the kernel is new** (library issues L98, L103, L109, L116; the user's decisions, 2026-10-29:
-        "To make the verifier easy, we do not verify triton cache." and "we assume the kernel is
-        new."): the code the launch runs was compiled for it, from its own source, its compile-time
-        values (its `tl.constexpr` arguments, an integer `1` or `None` passed to a parameter without
-        annotation) and the settings the conditions above give, or earlier for the same source,
-        compile-time values and settings (a repeated launch of the same instance); it is not code
-        compiled earlier, for other values or under other settings, and taken from Triton's caches (the
-        `JITFunction`'s cache in the process, or the cache directory). TVA assumes this and does not verify Triton's caches: neither the gate, nor the
-        prover, nor the kernel reviewer checks it. The caches' keys equate some different compile-time values
-        and record no knob set from Python, no `TRITON_KERNEL_OVERRIDE`, no hook, no change to Triton in
-        memory and no state of the host process, so code taken from them may differ from the launch's
-        own ([evidence/compile-keys](../evidence/compile-keys/README.md) K1–K4,
+      - **the kernel is new** (library issues L98, L103, L109, L116, L117; the user's decisions,
+        2026-10-29: "To make the verifier easy, we do not verify triton cache." and "we assume the
+        kernel is new."): the code the launch runs is the code Triton 3.8.0 compiles for that launch,
+        from its own source, its own argument values, compile-time and runtime, as the claim's
+        instance gives them (the compile-time ones are its `tl.constexpr` arguments, an integer `1` or
+        `None` passed to a parameter without annotation), and the settings the conditions above give.
+        Code compiled earlier counts when it is that code: code that a cache returns (the
+        `JITFunction`'s cache in the process, or the cache directory), for example for a repeated
+        launch of the same instance, and the code a `CompiledKernel` runs within its specialisation
+        (above). TVA assumes this and does not verify Triton's caches: neither the gate, nor the
+        prover, nor the kernel reviewer checks it. A runtime argument's value is part of the
+        instance, and the prover's conditions constrain it (for example `n ≤ x.len` for a length
+        `n_elements`; the user's decision, 2026-10-29: "for the viriable n_elements, its value should
+        be merged into the assumptions of the prover. e.g., x.len >= n_elements, etc."). The caches'
+        keys equate some different compile-time values and record no knob set from Python, no
+        `TRITON_KERNEL_OVERRIDE`, no hook, no change to Triton in memory and no state of the host
+        process, so code taken from them may differ from the launch's own
+        ([evidence/compile-keys](../evidence/compile-keys/README.md) K1–K4,
         [evidence/host-round21](../evidence/host-round21/README.md) K1–K4 and X1–X5; "Compile-time
         values Triton keys apart").
   - **`launch_metadata=`** (an argument of `@triton.jit`, tutorial 09) changes no result, and a model
