@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5m2b",
+  "kernel": "matmul_e5m2",
+  "round": 2,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Confirmation of the README phrase fix at gate e127e9a2077f0921 (unchanged). 'That growth of the bound, by about 1 + rho + sigma per chunk' is errB's compounding factor. 'the error bound on a fed-back accumulator grows by at most a factor 1 + 2^-11 per chunk' is true: errM <= errL, and errL compounds by 1 + rho' + sigma = 1 + 2^-11, as in errL_le's closed form (1 + 2^-11)^n times the sum of the per-chunk terms. num.md states the growth in the same sense. Neither sentence is wrong or misleading."
+}

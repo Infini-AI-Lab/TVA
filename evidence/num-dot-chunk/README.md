@@ -26,8 +26,12 @@ the accumulator the previous one left. Otherwise Triton converts each fp8 operan
 (`cvt.rn.f16x2.e5m2x2`, `cvt.rn.f16x2.e4m3x2`, exact) and runs
 `mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32`, two per chunk of 32. An fp8 `tl.dot` with
 `K = 16` is rejected on the host, so `K` is a power of two of at least 32. `input_precision` makes no
-difference for fp8 operands ([evidence/num-dot](../num-dot/README.md) Part 3, bit for bit), so the
-script uses the default.
+difference for fp8 operands, so the script uses the default. [evidence/num-dot](../num-dot/README.md)
+Part 3 compared the results bit for bit for `float8e4nv × float8e4nv` and `float8e5 × float8e5` only
+(random inputs, both paths). For all four pairs, the two mixed ones included, on both paths, every
+`input_precision` gives the default's PTX and the default's bits:
+[evidence/num-dot-chunk-round26](../num-dot-chunk-round26/README.md) Part P (round 26, library issue
+L128).
 
 **The model** (the module docstring of `run.py`). One `wgmma` chunk, per output element: the terms
 are the accumulator `s` and the 32 exact products. Each nonzero term has an exponent field:
@@ -143,7 +147,15 @@ new facts' ratio stays below `0.47`. On `mma.sync` the errors are below `10^-4` 
    `33·(1 + 2^-13)·2^-13·Mj + 2^-13·|s j + c_j| + 34·2^-139`. The facts keep `2^-7` (a factor `1.94`
    over `33·(1 + 2^-13)·2^-13`, the margin `relDot8` kept over its per-chunk `33·2^-13`), `2^-12` (a
    factor 2) and `2^-126`. The measured chunk ratio reaches `0.468`: the bound is about twice the
-   largest error, as the margins say.
+   largest error, as the margins say. (Round 26, library issues L124 and L127: since every step is
+   relative to `Mj ≥ |s j|`, a bound composed from these steps compounds by up to about
+   `1 + 2^-7 + 2^-12` per chunk over a fed-back accumulator. That is the facts' form and margin, not
+   the device: by the same model every term and the sum are truncated toward zero, so no partial
+   value exceeds `|acc| + Σ_{i<j} Σ_chunk |a·b|` in magnitude, and a product loses at most
+   `min(|p|, u)`, so the device's error grows at most linearly in the chunks. The loss facts
+   `DotE4m3ChunkLoss`, … add the second bound `2·A_j + 2^-12·Mj + 2^-12·|s j + c_j| + 2^-126`,
+   `A_j = Σ_chunk |a·b|`, of the same partial values:
+   [evidence/num-dot-chunk-round26](../num-dot-chunk-round26/README.md).)
 3. **The order** is increasing `k` on both paths, chunk by chunk (Part E), and the model, run in that
    order, equals the device (conclusion 1).
 4. **`mma.sync`.** Each `float16` instruction keeps every term's bits down to at least `2^-23` of its

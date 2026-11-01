@@ -36,11 +36,16 @@ more than `24` times at every `K` and on both paths. For `bfloat16` it stays bel
 partners are too small, as said above.
 
 **Conclusions.**
-1. **`DotF16` and `DotBF16` do not hold** when a product with a subnormal operand has the largest
-   exponent field of its chunk while being far smaller. The products below the window's unit lose
+1. **`DotF16` and `DotBF16`, as stated before round 25** (relative to `|acc| + Σ|a·b|`), **do not
+   hold** when a product with a subnormal operand has the largest exponent field of its chunk while
+   being far smaller. The products below the window's unit lose
    their low bits, and the error is up to `53` (`float16`) and `13` (`bfloat16`) times the facts'
    bound on these inputs. With normal operands of the same products the error stays far inside the
-   bound. It happens on both instruction paths, wherever the product sits in the chunk.
+   bound. It happens on both instruction paths, wherever the product sits in the chunk. (Round 26,
+   library issue L132: the bound here and in the table's `error / bound` is the facts' as stated
+   before round 25. Since round 25 the names denote the facts restated relative to lifted
+   magnitudes (`DotLiftAcc`), which hold on these inputs, at `0.104` and `0.1025` of their bound:
+   [evidence/num-dot-sub16-round25](../num-dot-sub16-round25/README.md), Part F.)
 2. **What the data say about the window.** The `float16` losses fit a window of 25 bits below the
    field `2^0` that the subnormal product reads as: each of the 15 products loses its bits below
    `2^-25`. An earlier probe by the coordinator, with the large product `2^-24 · 2^15` and smaller

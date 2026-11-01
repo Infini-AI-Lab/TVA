@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-matmul",
+  "kernel": "matmul_f16",
+  "round": 3,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-acceptance after library round 26 (L124, L127-L133). Between gates 565503552a0c46d3 and 471e3872cf6cb659, the snapshots differ only in the whole-file digest of docs/rules/num.md, in assumption:dot, assumption:dot_total and spec. Every constant those items reach hashes as before: DotF16, DotLiftAcc, liftMag, minNormal8, relDot16, absDot16, DotTotal, DotLoop.bound, and the kernel's mag16, dotMag and tol. The two changed Lean files (Rules/Num/Dot8Chunk.lean, Lemmas/Dot8Chunk.lean) only add the fp8 loss facts and their lemmas, and neither is in these items' cones. In num.md, the DotF16/DotBF16 row of 'Facts the library states', the reviewer's table row for float16/bfloat16 operands, the DotLiftAcc and DotTotal rows, and the 16-bit bullet of the chunk model are unchanged. The chunk model's opening paragraph is reworded (L130): it still says 16 products per instruction for 16-bit operands on both paths, and only the fp8 count is corrected. Everything else is fp8."
+}

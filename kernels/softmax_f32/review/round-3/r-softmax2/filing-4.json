@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-softmax2",
+  "kernel": "softmax_f32",
+  "round": 3,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-accepting after library round 26 (L124, L127 to L133). The stale items changed only through docs/rules/num.md. Its diff adds the fp8 ChunkLoss facts and their section, and fixes wording in the tl.dot sections (L127, L130). Every removed or added line concerns tl.dot. The Lean changes are confined to the two Dot8Chunk files, which this kernel does not reach. The five facts it cites (MathTotal, DivTotal, ExpF32, ExpF32NegInf, DivFull) are unchanged: their Lean definitions, rows, reviewer-table entries, constants and the page's statements about them. So are the lemmas the specification's proof uses (sum_err_covers and the float lemmas)."
+}

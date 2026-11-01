@@ -6,7 +6,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 
 ## Status
 
-- Gate: **PASS**, digest `4d394d2b36c1c128` (2026-11-01T05:52:59Z).
+- Gate: **PASS**, digest `60ae4e7766871cbd` (2026-11-01T09:04:05Z).
 - Phase: round 5: all reviewers have filed.
 - Reviewers: r-e5fwd (all), r-e5fwd2 (all).
 - Certificate: **GRANTED**.
@@ -14,22 +14,22 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 
 | Item | Digest | r-e5fwd | r-e5fwd2 |
 |---|---|---|---|
-| `assumption:cvt` | `1e469a3c6b20` | accepted | accepted |
-| `assumption:cvt_total` | `ab11ba154a74` | accepted | accepted |
-| `assumption:div_full` | `fd34d8e94553` | accepted | accepted |
-| `assumption:div_total` | `4bdf5d5ecf96` | accepted | accepted |
-| `assumption:dot` | `74097c760476` | accepted | accepted |
-| `assumption:dot_total` | `c8d5f8a4e02f` | accepted | accepted |
-| `assumption:exp2` | `2db390009fda` | accepted | accepted |
-| `assumption:exp2_ninf` | `f528557f1fb9` | accepted | accepted |
-| `assumption:exp2_total` | `4684a484fde2` | accepted | accepted |
+| `assumption:cvt` | `359221207bf7` | accepted | accepted |
+| `assumption:cvt_total` | `d3dd5700e991` | accepted | accepted |
+| `assumption:div_full` | `7c99f269a360` | accepted | accepted |
+| `assumption:div_total` | `86ce72147b43` | accepted | accepted |
+| `assumption:dot` | `bcb4617c6831` | accepted | accepted |
+| `assumption:dot_total` | `66eae7b77fb9` | accepted | accepted |
+| `assumption:exp2` | `57eb7f577ca9` | accepted | accepted |
+| `assumption:exp2_ninf` | `336e24a777f1` | accepted | accepted |
+| `assumption:exp2_total` | `a10859cce02b` | accepted | accepted |
 | `assumption:faithful` | `eba025833640` | accepted | accepted |
-| `assumption:log2` | `738883561215` | accepted | accepted |
-| `assumption:log2_total` | `7f3931fee1ab` | accepted | accepted |
+| `assumption:log2` | `5db9272a7d58` | accepted | accepted |
+| `assumption:log2_total` | `0fddb38a5175` | accepted | accepted |
 | `conditions` | `b0121b83480b` | accepted | accepted |
 | `map` | `3a8a04772396` | accepted | accepted |
 | `model` | `af17db8da4c4` | accepted | accepted |
-| `spec` | `d6cd2c3e13f2` | accepted | accepted |
+| `spec` | `3eeaeb3c22ac` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -368,4 +368,57 @@ The table note now says the ranges come from three heads, widened to the reviewe
 `2026-11-01T05:56:43Z`, at gate `4d394d2b36c1c128`. Notes: Re-acceptance after library round 25 (L126), re-gate 4d394d2b36c1c128; the kernel's own files did not change. In the diff of docs/rules/num.md and lean/TVA/Rules, nothing these items rely on changed in meaning. (1) DotE5m2Chunk, DotF8Chunk, DotChunkAcc and the constants rhoChunk8, sigmaChunk8, alphaChunk8, chunks8, relDot8, absDot8, chunk8 and chunkSum8 are unchanged. Dot8Chunk.lean lost only the two moved definitions, and comments changed. (2) liftMag moved to Rules/Num.lean with the same body. minNormal8 gained .f16 = 2^-14 and .bf16 = 2^-126 and keeps .f8e5 = 2^-14 (and .f8e4nv = 2^-6). work/lift_check.lean checks by rfl that minNormal8 .f8e5 = 2^-14 and that liftMag .f8e5 q = if q = 0 then 0 else max |q| 2^-14, and prints DotChunkAcc unchanged (lift_check.out). (3) Sm90.lean changed only DotF16 and DotBF16 (now DotLiftAcc) and a DotScaledMx docstring. Exp2F32, Exp2F32NegInf, Log2F32 and CvtSatF32E5m2 are as before. num.md's rows for DivFull, the totals and DotE5m2Chunk are unchanged; the fp8 text changed only its explanation of the mma.sync path. (4) The spec's library names Dot8Chunk.errB, chunkLift8 and relLift8 are unchanged in lean/TVA/Lemmas/Dot8Chunk.lean. The snapshots' cones differ only by spec gaining the file Rules/Num.lean, where liftMag now lives. main still uses only propext, Classical.choice and Quot.sound.
 
 - **accepted** at gate `4d394d2b36c1c128`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T08:50:36Z` coordinator's note: Library round 26 (L124, L127-L133; docs/library-review/ISSUES.md), after the round 24/25 library review: new facts DotE4m3ChunkLoss etc. and lemmas added to lean/TVA/Rules/Num/Dot8Chunk.lean and lean/TVA/Lemmas/Dot8Chunk.lean, and docs/rules/num.md reworded and extended. No existing fact, constant or lemma changed; this kernel's reviewers re-accept the items that re-opened.
+
+### r-e5fwd files ([filing](review/round-5/r-e5fwd/filing-3.json), [report](review/round-5/r-e5fwd/report-3.md), [work](review/round-5/r-e5fwd/work/))
+
+`2026-11-01T08:52:49Z`, at gate `60ae4e7766871cbd`. Notes: Re-acceptance after library round 26, re-gate 60ae4e7766871cbd; the kernel's own files did not change. The diff of docs/rules/num.md and lean/TVA adds and removes nothing these items rely on. (1) The Lean diff only adds: the new facts DotChunkLoss, DotF8ChunkLoss, DotE5m2ChunkLoss and the others with kappaChunk8 and rhoLossChunk8, the lemmas chunkAbs8, errM, chain_errM, errM_le_errB, errL, DotChunkLoss.err, DotF8ChunkLoss.err and DotF8ChunkLoss.chunk, and their sm90ref lemmas. The only removed lines are a docstring bullet. DotE5m2Chunk, DotF8Chunk, DotChunkAcc, their constants, liftMag, minNormal8, and the spec's errB, chunkLift8, relLift8, psum and DotF8Chunk.err are untouched. (2) In num.md, the reviewer-checklist row for the fp8 tl.dot still lists DotE5m2Chunk and now also offers the ChunkLoss facts. DotE5m2Chunk's row and the rows of every other cited fact (CvtSatF32E5m2, Exp2F32, Exp2F32NegInf, Log2F32, DivFull and the totals) are unchanged. The removed lines are wording (L127, L130). Remark for the coordinator, not a finding, since the brief asks for findings only on what the items rely on: L127 corrected the library's sentence that the fed-back accumulator's compounding is the device's behaviour, 'not slack in the fact'. Per L127 the window's own model loses at most each truncated term, so the device's error grows at most linearly. The kernel's README still says it: lines 126 and 335-336, 'what the window allows ... not slack in the fact'. The prover may want to align that wording, and may cite DotE5m2ChunkLoss for a sharper bound.
+
+- **accepted** at gate `60ae4e7766871cbd`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd2 files ([filing](review/round-5/r-e5fwd2/filing-3.json), [report](review/round-5/r-e5fwd2/report-3.md), [work](review/round-5/r-e5fwd2/work/))
+
+`2026-11-01T08:53:01Z`, at gate `60ae4e7766871cbd`. Notes: This re-acceptance follows library round 26, at gate 60ae4e7766871cbd. The kernel's own files did not change. Nothing that the re-opened items (spec and the eleven num-fact assumptions) rely on changed in meaning.
+
+- In lean/TVA/Rules/Num/Dot8Chunk.lean the diff only adds lines: kappaChunk8, rhoLossChunk8, chunkAbs8, DotChunkLoss, DotF8ChunkLoss, the four ChunkLoss facts and their lemmas. In lean/TVA/Lemmas/Dot8Chunk.lean it adds errM, chain_errM, errM_le_errB, errL and the ChunkLoss err lemmas; the only deletion is a docstring bullet, which is reworded.
+- DotE5m2Chunk, DotF8Chunk, DotChunkAcc, rhoChunk8, sigmaChunk8, alphaChunk8, chunk8, chunkSum8, chunks8, chunkLift8, relLift8, psum and errB elaborate as before (work/lib26.out; errB's two equations and minNormal8 .f8e5 = 2^-14 are checked by rfl in work/lib26.lean). scoreErr and scoreE use these, so they are unchanged.
+- docs/rules/num.md adds the loss facts' section and rows, keeps the chunk facts' rows, and rewords the chunk-model opening (L130) and the compounding sentence (L127). No cited fact's listing or constant changed.
+- main, consistent and satisfiable use only propext, Classical.choice and Quot.sound.
+
+For the coordinator, not a finding (it is outside the items, as the brief limits findings to what the items rely on): the kernel's README, Specification, 'On rows spread over many blocks', still says the p*v accumulator's compounding 'is what the window allows (library issue L124, round 24), not slack in the fact'. Round 26 corrected the same sentence in docs/rules/num.md (L127): the compounding comes from the facts' form, and DotE5m2ChunkLoss now gives a sharper per-chunk bound. The README's 'What changed' section ('That is what the window allows (L124)') and Narrowings ('which the chunk facts' window allows') say the same. The prover may want to reword these, or note that the sharper fact exists.
+
+- **accepted** at gate `60ae4e7766871cbd`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd files ([filing](review/round-5/r-e5fwd/filing-4.json), [report](review/round-5/r-e5fwd/report-4.md), [work](review/round-5/r-e5fwd/work/))
+
+`2026-11-01T09:01:02Z`, at gate `60ae4e7766871cbd`. Notes: Check of the README's L127 rewording (diff against HEAD; gate 60ae4e7766871cbd). The rewording addresses the remark in my previous filing. The four changed passages (the opening, the pÂ·v bullet of 'What changed', the 'rows spread over many blocks' bullet, and the Narrowings) now say that the pÂ·v accumulator's compounding is DotE5m2Chunk's bound, from its form (each step relative to Mj >= |acc|) and its 2^-7 constant, not the device's behaviour, whose error grows at most linearly in the chunks. They cite L127. That agrees with num.md's 'How a kernel uses them' paragraph: compounding from the facts' form and margin, 'not from the device', the device truncating every term and the sum toward zero so its error grows at most linearly. It also agrees with L127. 'Round 26's DotE5m2ChunkLoss gives a sharper bound per chunk, which this claim does not cite' is true: num.md says the loss facts are the stronger, and claim.md's dot assumption cites DotE5m2Chunk. No figure changed: the 1.62% and 1.57% rates, the v = 1 tolO 19.3 against 17.8, and the 10^6 at 2^16 are as before. The claim's description is otherwise unchanged. A small wording point, not a finding: num.md calls 2^-7 about twice the window's worst chunk, so 'its 2^-7 margin' would be more exact as 'its constant 2^-7, about twice the window's worst chunk'. Every item stays accepted.
+
+- **accepted** at gate `60ae4e7766871cbd`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd2 files ([filing](review/round-5/r-e5fwd2/filing-4.json), [report](review/round-5/r-e5fwd2/report-4.md), [work](review/round-5/r-e5fwd2/work/))
+
+`2026-11-01T09:01:19Z`, at gate `60ae4e7766871cbd`. Notes: This filing checks the README rewording for L127. Only README.md changed (gate 60ae4e7766871cbd unchanged). The diff touches four places: 'Read this first', 'What changed' (the p*v tl.dot bullet), the Specification's 'On rows spread over many blocks', and Narrowings.
+
+The new sentences are true and agree with docs/rules/num.md's 'How a kernel uses them' paragraph and with L127:
+- the compounding comes from the cited fact's form (each step relative to M >= |acc|) and its margin, not from the device;
+- the device truncates every term and the sum toward zero, so its error grows at most linearly in the chunks;
+- round 26's DotE5m2ChunkLoss is the sharper (never weaker) per-chunk fact, and this claim does not cite it.
+
+No figure, no tolerance and no description of Post changed. No 'window allows' or 'not slack in the fact' wording remains in the README or the Lean docstrings.
+
+One small remark, not a finding: 'with a 2^-7 margin' (twice) compresses num.md's 'from their margin (2^-7 is about twice the window's worst chunk)'. It could be read as a margin of 2^-7 rather than a constant of 2^-7 with about a factor-2 margin. 'with its 2^-7 constant, about twice the window's worst chunk' would be exact.
+
+- **accepted** at gate `60ae4e7766871cbd`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd2 files ([filing](review/round-5/r-e5fwd2/filing-5.json), [report](review/round-5/r-e5fwd2/report-5.md), [work](review/round-5/r-e5fwd2/work/))
+
+`2026-11-01T09:04:47Z`, at gate `60ae4e7766871cbd`. Notes: Checked the two reworded README sentences (gate 60ae4e7766871cbd unchanged): 'with its constant 2^-7, about twice the window's worst chunk' and 'with the constant 2^-7, about twice the window's worst chunk'. Both agree with docs/rules/num.md ('2^-7 is about twice the window's worst chunk'). They are correct, and every item stays accepted.
+
+- **accepted** at gate `60ae4e7766871cbd`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd files ([filing](review/round-5/r-e5fwd/filing-5.json), [report](review/round-5/r-e5fwd/report-5.md), [work](review/round-5/r-e5fwd/work/))
+
+`2026-11-01T09:05:06Z`, at gate `60ae4e7766871cbd`. Notes: The two reworded sentences (README lines 127 and 337-338) now describe 2^-7 as DotE5m2Chunk's constant, 'about twice the window's worst chunk'. That is true and agrees with num.md's 'How a kernel uses them' paragraph. Nothing else in those passages changed, and the gate is 60ae4e7766871cbd, so every item stays accepted.
+
+- **accepted** at gate `60ae4e7766871cbd`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 

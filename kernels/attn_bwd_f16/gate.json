@@ -21,7 +21,7 @@
     "lean/TVA/Lemmas/Claim.lean": "8728d976b555d281bfebf9901cf82d015604bc7642f9c24b0cb7276ddebc2942",
     "lean/TVA/Lemmas/Consistency.lean": "7ab47bca832a86b6c483b279d87ed2cae8fa78d2f5876a018c1847cb80d6a5ea",
     "lean/TVA/Lemmas/Desc.lean": "f91390ef65e1eab413b83bbbb8e1ba7f19af990949c72f460374887866ea23df",
-    "lean/TVA/Lemmas/Dot8Chunk.lean": "072471456fac93d56dc0603ef8733a48da0913f9f974d4a81cd86315c2c2d83c",
+    "lean/TVA/Lemmas/Dot8Chunk.lean": "961a1fb8cf6b5ea0ddd98bcb3eb66ea39421ee6ff02153dc89339bd8ec86921e",
     "lean/TVA/Lemmas/DotLift.lean": "5fa4de37a74884b32cded31a630f69ef21942a5f08b76a7dc8b8f9b511665e1a",
     "lean/TVA/Lemmas/DotLoop.lean": "1bfa6405888e399b03f6cec7db1ee34c0dc050e98df594773dc485616d2ba175",
     "lean/TVA/Lemmas/FloatErr.lean": "09fe7f250a3b988ba7a4efcf997e65b12ac9e040edab7341c570bf79bd8efb46",
@@ -51,7 +51,7 @@
     "lean/TVA/Math/Rounding.lean": "d9b4b60bd4ad6d16fe47a13c1e803b900c4e7d380f092e5614a82861dad5d9c6",
     "lean/TVA/Rules/Compiler.lean": "24ff59ea326f1e0c51bff84a87c3bc420743f7d3cc7180afeb91cb6388753a4a",
     "lean/TVA/Rules/Num.lean": "f413053397de369e106217127cb6fea66c542d866910379ef6319058f6622e94",
-    "lean/TVA/Rules/Num/Dot8Chunk.lean": "3f25ef33e4cd17f09d920bc53014b10b313201dd504fb165da1eaf5e8ca5a990",
+    "lean/TVA/Rules/Num/Dot8Chunk.lean": "389af31f76432212a705b0425476e6e8152b450a788134f990d131f8c99f8df1",
     "lean/TVA/Rules/Num/Sm90.lean": "88f2782932f61c7e7aa4517f94f45a3ebedda447893a19c53e604bad81b96bd6",
     "lean/TVA/Sem/Launch.lean": "05ff97e010e389d6c077066b779f2d4fd8903ea5ee3d5a71486c7e7307dc9c99",
     "lean/TVA/Sem/Step.lean": "cd4f53042d571451bf9322306ea189cde68a96678776aedf9c4605227e3af0df",
@@ -126,7 +126,7 @@
       "ok": true
     }
   ],
-  "digest": "b28f50727b67c8a8ee948474266819a33ccde27bf45c58699fe79786fc7ce28f",
+  "digest": "e30b28fa701ed30a2e66aa7f50bf9708d5555dbee600892431dbdf1409ecdc85",
   "files": {
     "README.md": "3da1af2599c30a3af5d1dc6c5e3163d04da06591a69221367ebf7173f6a5854e",
     "kernel.json": "e05aba7248f22e450a40fa8d1bc39867b47876af372387a9acbd6df322549344",
@@ -145,15 +145,15 @@
     "source/06-fused-attention.py": "4ea8883061399de75d0ca973b446bed97abd9749bb9616aa7044e93256148db8"
   },
   "items": {
-    "assumption:dot": "b81b33788ad30d0829e0041b8bbb2f0225da21ae5717d6e19228eb954aab46fd",
-    "assumption:dot_total": "b4fe85491915abf8f65b9a6c23a22db40702e5ff5d88ec58efd6f064fe87ae9e",
-    "assumption:exp2": "f0b12c7c10b41eedc9735d2a12eb39fabde1b951cccfa35e3b8f57ec25b23ffc",
-    "assumption:exp2_total": "0406703f21c4ddd3b69a50b8c5c59b5894cd608f4c30cabdc95cb8171dd02938",
+    "assumption:dot": "c2ed7c4b26350c4a81a3856d9dbe93d45ddf359b442a68aa466fe69007310969",
+    "assumption:dot_total": "f109cebf6e66a9fdeda3f1ae07fdda6a577f1187f1a69a57c1c471e6d93f9e58",
+    "assumption:exp2": "714b30f76ac3b1c5e34231a8e9a7745e3f94d4c563d613978af79c3d397ecd88",
+    "assumption:exp2_total": "7a3d25528b35adb52f1d5eb0b5c9adfe4ba0a430463f4ee3e8d2b4d91d82bce4",
     "assumption:faithful": "4c343bd534fc8c73b14611a6343d946a65b2ff3547d440574ad8567a0937612d",
     "conditions": "1ea438ae16fd7af674d8226579aff647febadd9e349abe5b6e0ee478b60bc2b3",
     "map": "546ddbd1d4992b2254ca5e5252aaebcbe0bf1a89c8cf595ce5903498bd4f35e3",
     "model": "4fc657ef02109f8dca6a81b6b334962e8ad0e9e7d5f766c62fe65d5d17e694cc",
-    "spec": "d549665c8f368121b1767725d6fae95af2a2531a7bf82222cb421e346293b53e"
+    "spec": "61385b24caea62a2c5c90d1d74798c8022da8ce7a87918938dfb5b66d7aeddcc"
   },
   "kernel": "attn_bwd_f16",
   "kinds": {
@@ -165,7 +165,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-01T06:18:23Z",
+  "time": "2026-11-01T08:48:57Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "b94d0e68beded7d8c2fcf96c4bd89e62a7547cb24a1f00eb722e1312f953652a"

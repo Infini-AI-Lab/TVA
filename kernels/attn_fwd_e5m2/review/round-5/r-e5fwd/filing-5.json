@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5fwd",
+  "kernel": "attn_fwd_e5m2",
+  "round": 5,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "The two reworded sentences (README lines 127 and 337-338) now describe 2^-7 as DotE5m2Chunk's constant, 'about twice the window's worst chunk'. That is true and agrees with num.md's 'How a kernel uses them' paragraph. Nothing else in those passages changed, and the gate is 60ae4e7766871cbd, so every item stays accepted."
+}

@@ -7,7 +7,7 @@ The process is in [../LIBRARY_REVIEW.md](../LIBRARY_REVIEW.md); kernel findings 
 
 States: `OPEN` (to be fixed in the round named), `ACCEPTED` (fixed, and accepted by library
 review), `FIXED` (fixed in a round that no library review followed, by the user's decision under
-L36: rounds 21 to 25), `CLOSED` (settled by the coordinator, as its section says).
+L36: rounds 21 to 23 and 26; the fixes of rounds 24 and 25 were reviewed later), `CLOSED` (settled by the coordinator, as its section says).
 
 The kernels of the first round (vec-add, grouped GEMM, flash attention) were cleared on
 2026-10-27 at the user's request, to restart from scratch. The issues they raised stand on their
@@ -138,9 +138,17 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L121](#l121) | OPEN | — | grouped_matmul_tma_f16#F4 (r-gmm) | gap: scope 5 does not ask the allocator to return the `alignment` the launcher asks for the descriptor scratch |
 | [L122](#l122) | OPEN | — | attn_fwd_f16#F3 (r-fwd) | wording: "Performance-only arguments" says `num_stages` and `warp_specialize` are given by a model, but `Launch` and `tl.forRange` have no place for them and "Loops" says they change no outcome |
 | [L123](#l123) | OPEN | — | attn_fwd_f16#F5 (r-fwd2) | wording: the fusion rule does not say whether a `tl.maximum` or `tl.where` result that carries a product's value is a product |
-| [L124](#l124) | FIXED | 24 | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\|acc\|` too, so an accumulator fed back once per block compounds as `(1 + relDot8 64)^T` |
-| [L125](#l125) | FIXED | 24 | library author, round 24 (evidence/num-dot-chunk Part F) | soundness: `DotE4m3`, `DotE5m2`, `DotE4m3E5m2`, `DotE5m2E4m3` fail on `wgmma` when a product with a subnormal operand sets the window (up to 3.65 times `relDot8`'s bound); `matmul_e5m2` and `attn_fwd_e5m2` cite `DotE5m2` |
-| [L126](#l126) | FIXED | 25 | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
+| [L124](#l124) | FIXED | 26 | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\|acc\|` too, so an accumulator fed back once per block compounds as `(1 + relDot8 64)^T` |
+| [L125](#l125) | ACCEPTED | 24 | library author, round 24 (evidence/num-dot-chunk Part F) | soundness: `DotE4m3`, `DotE5m2`, `DotE4m3E5m2`, `DotE5m2E4m3` fail on `wgmma` when a product with a subnormal operand sets the window (up to 3.65 times `relDot8`'s bound); `matmul_e5m2` and `attn_fwd_e5m2` cite `DotE5m2` |
+| [L126](#l126) | ACCEPTED | 25 | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
+| [L127](#l127) | FIXED | 26 | round 24 review (lr-24a), with L124 (lr-24b) | wording: `docs/rules/num.md` ("How a kernel uses them") and L124 call the fed-back accumulator's compounding the device's behaviour, "not slack in the fact"; the window's own model loses at most each truncated term, so the device's error grows at most linearly |
+| [L128](#l128) | FIXED | 26 | round 24 review (lr-24a) | wording: `evidence/num-dot-chunk/README.md` cites num-dot Part 3 for `input_precision` on fp8, but Part 3 ran only the two unmixed pairs |
+| [L129](#l129) | FIXED | 26 | round 25 review (lr-25a) | wording: `evidence/num-dot-scaled/README.md` conclusion 2 extends the scaled-dot facts by num-dot's per-chunk derivation, which round 25 found holds only for normal operands |
+| [L130](#l130) | FIXED | 26 | round 25 review (lr-25a, lr-25b) | wording: the opening of `docs/rules/num.md`'s "`tl.dot` (the chunk model)" does not parse, and its "32 products per instruction for fp8" holds on `wgmma` only |
+| [L131](#l131) | FIXED | 26 | round 25 review (lr-25b) | wording: `docs/LIBRARY.md`'s "Kernels" section still says "(none yet)" |
+| [L132](#l132) | FIXED | 26 | round 25 review (lr-25b) | wording: `evidence/num-dot-sub16/README.md` conclusion 1 says `DotF16` and `DotBF16` do not hold, without "as stated before round 25" |
+| [L133](#l133) | FIXED | 26 | round 25 review (lr-25b) | wording: round 25's list of constants whose meaning changed leaves out the generic `DotChunkAcc` and the `liftMag_*` lemmas, which change meaning at `float16` and `bfloat16` (no kernel uses them there) |
+| [L134](#l134) | OPEN | — | library author, round 26 | sharpness: the fp8 chunk facts do not state that a partial value never grows past `|acc| + Σ|a·b|`; stating it (with evidence) would remove the remaining `1 + 2^-11` per chunk of a fed-back accumulator |
 
 ## L1
 
@@ -2464,14 +2472,33 @@ claim's tolerance.
   within a constant times the chunk's largest term, the accumulator included (the 13-bit window
   that `evidence/num-dot` Part 1 measures), with its own evidence. It lets `attn_fwd_e5m2` bound
   each score by the chunks' largest terms instead of `Σ|q·k|`. The accumulator fed back through
-  `tl.dot(p, v, acc)` still compounds as the window allows: that is the device's behaviour under
-  the measured window, not slack in the fact.
+  `tl.dot(p, v, acc)` still compounds under that fact. The coordinator wrote here that this was the
+  device's behaviour under the measured window, not slack in the fact; the round 24/25 library review
+  showed that this is wrong (L127, below): the window loses at most each truncated term.
 - **Fixed in round 24** (no library review follows, as for rounds 21 to 23): the facts `DotE4m3Chunk`,
   `DotE5m2Chunk`, `DotE4m3E5m2Chunk`, `DotE5m2E4m3Chunk` (`lean/TVA/Rules/Num/Dot8Chunk.lean`,
   `DotChunkAcc`, `DotF8Chunk`, `rhoChunk8 = 2^-7`, `sigmaChunk8 = 2^-12`, `alphaChunk8 = 2^-126`,
   `liftMag`, `chunk8`, `chunkSum8`), the lemmas of `lean/TVA/Lemmas/Dot8Chunk.lean`, `docs/rules/num.md`'s
   section and rows, and `evidence/num-dot-chunk` (a bit-exact model of `wgmma` on about `2·10^8`
   results; largest ratio to the bound `0.468`). The author's notes: `round-24/author/notes.md`.
+- **Round 24/25 library review (2026-11-01, user: "run one round of library review and fix."):**
+  lr-24a ACCEPT, lr-24b **REOPEN**. The chunk facts are true (both reviewers' adversarial tests:
+  about `3.5·10^7` more elements, none outside, largest ratio `0.44`), but a fed-back accumulator
+  still grows by `1 + 2^-7 + 2^-12` per chunk, and the sentence above that this is the device's
+  behaviour is wrong (L127). By the facts' own model a truncated term loses at most `min(|term|, u)`,
+  so each chunk is also within `B_alt = (1+2^-13)·Σ_chunk|a·b| + 2^-12·Mj + 2^-12·|s_j + c_j| + 2^-126`
+  (lr-24b's `work/fp8_alt.out`: every chunk within it, largest `0.82` on single-chunk dots checked
+  on the device). Round 26: bound each step by the smaller of the two (with a margin), extend the
+  evidence's per-chunk check to it, and give the lemmas (`errB`, `chain_err`) the minimum.
+- **Fixed in round 26** (no review follows; user, 2026-11-01: "run one round of library review and
+  fix."): new facts `DotE4m3ChunkLoss`, `DotE5m2ChunkLoss`, `DotE4m3E5m2ChunkLoss`,
+  `DotE5m2E4m3ChunkLoss` (`DotF8ChunkLoss`, shape `DotChunkLoss`, `lean/TVA/Rules/Num/Dot8Chunk.lean`):
+  the same partial values, each step within `min(2^-7·Mj, 2·A_j + 2^-12·Mj) + 2^-12·|s j + c_j| + 2^-126`
+  (`A_j = chunkAbs8`, the chunk's exact `Σ|a·b|`), so a fed-back accumulator grows by at most
+  `1 + 2^-11` per chunk. Each implies the old chunk fact (`DotF8ChunkLoss.chunk`); the existing facts
+  and lemmas are unchanged, and no kernel stops building. Lemmas `errM`, `chain_errM`,
+  `errM_le_errB`, `errL`, `DotChunkLoss.err`, `DotF8ChunkLoss.err`. Evidence
+  `evidence/num-dot-chunk-round26`: about `9.1·10^7` elements, none outside, largest ratio `0.487`.
 
 ## L125
 
@@ -2501,6 +2528,7 @@ fix and their re-proofs. The new chunk facts (L124) count a subnormal operand as
   lemma of the chunk facts, `Dot8Chunk.DotF8Chunk.liftAcc` (`relLift8`, `absLift8`, against
   `|acc| + Σ liftMag·liftMag`), not a device fact. `matmul_e5m2` and `attn_fwd_e5m2` no longer build
   until their provers cite `DotE5m2Chunk`; both are re-proved and re-reviewed.
+- **Accepted** by the round 24 library review (lr-24a and lr-24b, 2026-11-01).
 
 ## L126
 
@@ -2543,3 +2571,39 @@ wrong to call the issue closed on it.
   normal) equal to the device on about `3.4·10^8` results; largest ratio to the new bound `0.111`;
   the old bound fails up to `113.7` (`float16`) and `14.2` (`bfloat16`) times. `matmul_f16`,
   `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` no longer build until re-proved.
+- **Accepted** by the round 25 library review (lr-25a and lr-25b, 2026-11-01).
+
+## L127
+
+**`docs/rules/num.md` ("How a kernel uses them") and L124 call the fed-back accumulator's compounding the device's behaviour, "not slack in the fact"; the window's own model loses at most each truncated term, so the device's error grows at most linearly** (wording; round 24 review (lr-24a), with L124 (lr-24b)). Round 26. Fixed in round 26 (`round-26/author/notes.md`).
+
+## L128
+
+**`evidence/num-dot-chunk/README.md` cites num-dot Part 3 for `input_precision` on fp8, but Part 3 ran only the two unmixed pairs** (wording; round 24 review (lr-24a)). Round 26. Fixed in round 26 (`round-26/author/notes.md`).
+
+## L129
+
+**`evidence/num-dot-scaled/README.md` conclusion 2 extends the scaled-dot facts by num-dot's per-chunk derivation, which round 25 found holds only for normal operands** (wording; round 25 review (lr-25a)). Round 26. Fixed in round 26 (`round-26/author/notes.md`).
+
+## L130
+
+**The opening of `docs/rules/num.md`'s "`tl.dot` (the chunk model)" does not parse, and its "32 products per instruction for fp8" holds on `wgmma` only** (wording; round 25 review (lr-25a, lr-25b)). Round 26. Fixed in round 26 (`round-26/author/notes.md`).
+
+## L131
+
+**`docs/LIBRARY.md`'s "Kernels" section still says "(none yet)"** (wording; round 25 review (lr-25b)). Round 26. Fixed in round 26 (`round-26/author/notes.md`).
+
+## L132
+
+**`evidence/num-dot-sub16/README.md` conclusion 1 says `DotF16` and `DotBF16` do not hold, without "as stated before round 25"** (wording; round 25 review (lr-25b)). Round 26. Fixed in round 26 (`round-26/author/notes.md`).
+
+## L133
+
+**Round 25's list of constants whose meaning changed leaves out the generic `DotChunkAcc` and the `liftMag_*` lemmas, which change meaning at `float16` and `bfloat16` (no kernel uses them there)** (wording; round 25 review (lr-25b)). Round 26. Fixed in round 26 (`round-26/author/notes.md`).
+
+## L134
+
+**The fp8 chunk facts leave a fed-back accumulator `1 + 2^-11` per chunk** (sharpness; library
+author, round 26). By the window model a partial value never grows past `|acc| + Σ|a·b|` (no result
+in round 26's evidence did). Stating that, with evidence, would remove the remaining compounding.
+Open; not scheduled.

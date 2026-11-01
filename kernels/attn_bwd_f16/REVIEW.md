@@ -6,7 +6,7 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 
 ## Status
 
-- Gate: **PASS**, digest `b28f50727b67c8a8` (2026-11-01T06:18:23Z).
+- Gate: **PASS**, digest `e30b28fa701ed30a` (2026-11-01T08:48:57Z).
 - Phase: round 4: all reviewers have filed.
 - Reviewers: r-bwd (all), r-bwd2 (all).
 - Certificate: **GRANTED**.
@@ -14,15 +14,15 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 
 | Item | Digest | r-bwd | r-bwd2 |
 |---|---|---|---|
-| `assumption:dot` | `b81b33788ad3` | accepted | accepted |
-| `assumption:dot_total` | `b4fe85491915` | accepted | accepted |
-| `assumption:exp2` | `f0b12c7c10b4` | accepted | accepted |
-| `assumption:exp2_total` | `0406703f21c4` | accepted | accepted |
+| `assumption:dot` | `c2ed7c4b2635` | accepted | accepted |
+| `assumption:dot_total` | `f109cebf6e66` | accepted | accepted |
+| `assumption:exp2` | `714b30f76ac3` | accepted | accepted |
+| `assumption:exp2_total` | `7a3d25528b35` | accepted | accepted |
 | `assumption:faithful` | `4c343bd534fc` | accepted | accepted |
 | `conditions` | `1ea438ae16fd` | accepted | accepted |
 | `map` | `546ddbd1d499` | accepted | accepted |
 | `model` | `4fc657ef0210` | accepted | accepted |
-| `spec` | `d549665c8f36` | accepted | accepted |
+| `spec` | `61385b24caea` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -216,4 +216,17 @@ Three wording points in the README's new section, all non-blocking; the Lean and
 
 - **released F8**: The section 'What changed (library round 25)' now says it correctly. (1) lm is the old magnitude on zero and normal values. p16L and ds16L lift the bounds p16B and ds16B, not the values: they equal the bounds when these are at least 2^-14, are 2^-14 for a bound in [2^-24, 2^-14) even where the float16 P or dS is 0, and are 0 below 2^-24. This matches Spec.lean's lift16. (2) The Figures bullet lists every cell that moved. These are test HD128 non-causal dV (0.20 to 0.21), benchmark HD64 non-causal dV 90th (0.83 to 0.85), benchmark HD64 causal dV (0.49/0.60 to 0.50/0.61) and benchmark HD128 causal dK 90th (1.50 to 1.51). It also gives the causal dV maximum (0.91 to 0.92) and the four dQ 90th percentiles below the table's rounding (2.06 to 2.13, 3.27 to 3.30, 4.75 to 4.76, 15.92 to 15.93). All of these agree with my round-2 and round-3 runs of the script. (3) The worst dQ rows' absolute tolerance reads 9.2*10^-3 (I computed 0.0092498).
 - **accepted** at gate `b28f50727b67c8a8`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T08:50:41Z` coordinator's note: Library round 26 (L124, L127-L133; docs/library-review/ISSUES.md), after the round 24/25 library review: new facts DotE4m3ChunkLoss etc. and lemmas added to lean/TVA/Rules/Num/Dot8Chunk.lean and lean/TVA/Lemmas/Dot8Chunk.lean, and docs/rules/num.md reworded and extended. No existing fact, constant or lemma changed; this kernel's reviewers re-accept the items that re-opened.
+
+### r-bwd files ([filing](review/round-4/r-bwd/filing-2.json), [report](review/round-4/r-bwd/report-2.md))
+
+`2026-11-01T08:52:30Z`, at gate `e30b28fa701ed30a`. Notes: Re-acceptance after library round 26 (L124, L127-L133), gate e30b28fa701ed30a. The kernel's own files are unchanged: claim.md differs only in its header and digests. Comparing the b28f50727b67c8a8 and e30b28fa701ed30a snapshots, the cones of assumption:dot, dot_total, exp2, exp2_total and spec differ only in file:docs/rules/num.md. No declaration in any cone was added, removed or changed, so DotF16 (DotLiftAcc, relDot16, absDot16, liftMag, minNormal8), DotTotal, Exp2F32, MathTotal, DotLoop.stepRel and stepAbs, and every Spec.lean term mean what they meant. The Lean diff adds only fp8 material (the ChunkLoss facts, chunkAbs8, kappaChunk8, rhoLossChunk8, errM and its lemmas) in the two Dot8Chunk files. Its only removed lines are a docstring bullet in the lemma file. None of it is in this kernel's cones. In num.md, the rows of 'Facts the library states' for DotF16/DotBF16, Exp2F32 and MathTotal/DotTotal, the 'What a kernel reviewer checks' row for 16-bit dots, the DotLiftAcc definition row and the 16-bit bullet of the chunk model are unchanged. The changes are fp8 rows and sections, the weakening-lemma lists, the satisfiability list, and L130's rewording of the chunk model's opening paragraph. That paragraph still says 16 products per instruction for 16-bit operands on both paths, as the 16-bit bullet does.
+
+- **accepted** at gate `e30b28fa701ed30a`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-bwd2 files ([filing](review/round-4/r-bwd2/filing-2.json), [report](review/round-4/r-bwd2/report-2.md))
+
+`2026-11-01T08:52:44Z`, at gate `e30b28fa701ed30a`. Notes: Re-acceptance after library round 26, gate e30b28fa701ed30a. The kernel's files are unchanged. Every re-opened item (assumption:dot, dot_total, exp2, exp2_total, spec) re-opened only through file:docs/rules/num.md. No Lean file in their cones changed: against the round-25 commit, the Lean diff touches only Rules/Num/Dot8Chunk.lean and Lemmas/Dot8Chunk.lean, which add the fp8 loss facts and their lemmas. DotF16 (DotLiftAcc, relDot16, absDot16), DotTotal, Exp2F32, MathTotal, liftMag, minNormal8, DotLiftAcc, DotLift.dotAdd_step and DotLoop's stepRel and stepAbs are untouched. In num.md the rows in 'Facts the library states' for DotF16/DotBF16, Exp2F32 and MathTotal/DotTotal are unchanged, and so is the reviewer table's row for float16 dots. The changes are the following. The DotChunkLoss definition row and the fp8 loss-fact rows and sections are new. The listing date sentence now also names the loss facts. The fp8 reviewer row adds the loss facts. The fp8 chunk text is reworded (L127). The opening of the chunk model is reworded (L130). Its 16-bit statement, 16 products per instruction on both paths, means what it meant. The satisfiability list adds DotChunkLoss. The kernel cites none of the new facts. L127 to L133 are wording fixes; L133 concerns round 25's list, which my round-3 review already covered.
+
+- **accepted** at gate `e30b28fa701ed30a`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

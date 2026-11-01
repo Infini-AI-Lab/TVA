@@ -6,7 +6,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 
 ## Status
 
-- Gate: **PASS**, digest `7c52bcaa1a441cb2` (2026-11-01T06:39:14Z).
+- Gate: **PASS**, digest `11e67701bc53c248` (2026-11-01T08:47:08Z).
 - Phase: round 4: all reviewers have filed.
 - Reviewers: r-fwd (all), r-fwd2 (all).
 - Certificate: **GRANTED**.
@@ -14,20 +14,20 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 
 | Item | Digest | r-fwd | r-fwd2 |
 |---|---|---|---|
-| `assumption:div_full` | `4631d7560d74` | accepted | accepted |
-| `assumption:div_total` | `69ea588c5edd` | accepted | accepted |
-| `assumption:dot` | `4cc548e49980` | accepted | accepted |
-| `assumption:dot_total` | `b6c8f678e10d` | accepted | accepted |
-| `assumption:exp2` | `6430fff1b879` | accepted | accepted |
-| `assumption:exp2_ninf` | `23821e819de4` | accepted | accepted |
-| `assumption:exp2_total` | `f5411c14f37b` | accepted | accepted |
+| `assumption:div_full` | `0dee01844598` | accepted | accepted |
+| `assumption:div_total` | `87a54307dbd6` | accepted | accepted |
+| `assumption:dot` | `15eb22451474` | accepted | accepted |
+| `assumption:dot_total` | `a817b274cd49` | accepted | accepted |
+| `assumption:exp2` | `6a84738be8a0` | accepted | accepted |
+| `assumption:exp2_ninf` | `471b7d70cd9b` | accepted | accepted |
+| `assumption:exp2_total` | `718f88401d68` | accepted | accepted |
 | `assumption:faithful` | `7b632a90276e` | accepted | accepted |
-| `assumption:log2` | `f4fb4d46203f` | accepted | accepted |
-| `assumption:log2_total` | `bec368f8e13a` | accepted | accepted |
+| `assumption:log2` | `aaaf77beb593` | accepted | accepted |
+| `assumption:log2_total` | `4788be145e72` | accepted | accepted |
 | `conditions` | `c587de4b858e` | accepted | accepted |
 | `map` | `726c8b30b1cd` | accepted | accepted |
 | `model` | `e98ae22afef9` | accepted | accepted |
-| `spec` | `fa28d3f728d8` | accepted | accepted |
+| `spec` | `c53c09256a85` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -223,4 +223,17 @@ Model.lean, absA's docstring: 'the p.v tl.dot's relDot16 64 = 66*2^-22 times the
 - **released F8**: Fixed. With absA = 2^-37 and kapA = 2^-29, tolF is at most 4.23e-8 over the covered sizes (work/tol.out, D=256, N=2^16, X=2^10). The README sentence now reads 'up to the two absolute terms', and the tolF paragraph gives the threshold tolF/(1 - tolO): at most 5.54e-8, below float16's smallest subnormal 2^-24 = 5.96e-8. At that threshold tolO*attnAbs + tolF equals attnAbs, so it is below 2^-24 too, and the bound holds the output within one subnormal step, as the README says.
 - **released F9**: Fixed with F7's change. absA is now 2^-37. Its docstring's per-block rest is 64*(2^-14*(2^-25 + 2^-125) + 2^-28) = 2^-22 + 2^-33 + 2^-133, so 'at most 2^-22 + 2^-32' holds. Times relDot16 64 that is 66*2^-44 + 66*2^-54, about 0.516*2^-37: 'about 0.52*2^-37' is right (work/check_spec.lean checks it between 0.51 and 0.53 of absA). kapA's docstring also checks: 66*2^-36*8/7 = 0.589*2^-29 <= 2^-29, with psi16 <= 0.0965 <= 1/7 at the largest D and X.
 - **accepted** at gate `7c52bcaa1a441cb2`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T08:50:30Z` coordinator's note: Library round 26 (L124, L127-L133; docs/library-review/ISSUES.md), after the round 24/25 library review: new facts DotE4m3ChunkLoss etc. and lemmas added to lean/TVA/Rules/Num/Dot8Chunk.lean and lean/TVA/Lemmas/Dot8Chunk.lean, and docs/rules/num.md reworded and extended. No existing fact, constant or lemma changed; this kernel's reviewers re-accept the items that re-opened.
+
+### r-fwd files ([filing](review/round-4/r-fwd/filing-2.json), [report](review/round-4/r-fwd/report-2.md), [work](review/round-4/r-fwd/work/))
+
+`2026-11-01T08:52:22Z`, at gate `11e67701bc53c248`. Notes: Re-acceptance after library round 26, gate 11e67701bc53c248. The re-opened items (the nine rule assumptions other than faithful, and spec) changed only through docs/rules/num.md. Its diff adds the fp8 loss facts DotE4m3ChunkLoss and the rest, with their rows, section and constants. It also rewords the fp8 accumulator sentence (L127) and the opening of 'tl.dot (the chunk model)' (L130, which still says 16 products per instruction for 16-bit operands on both paths). The rows of DotF16, Exp2F32, Exp2F32NegInf, Log2F32, DivFull and the totality rules, the mapping row for 16-bit tl.dot, and the 16-bit statements are unchanged. The Lean changes are confined to the two Dot8Chunk files, which no item of this kernel reaches. The kernel's own files did not change.
+
+- **accepted** at gate `11e67701bc53c248`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-fwd2 files ([filing](review/round-4/r-fwd2/filing-2.json), [report](review/round-4/r-fwd2/report-2.md), [work](review/round-4/r-fwd2/work/))
+
+`2026-11-01T08:52:25Z`, at gate `11e67701bc53c248`. Notes: Re-acceptance after library round 26, gate 11e67701bc53c248. My ten re-opened items (spec and nine assumptions) changed only through docs/rules/num.md, and the kernel's files are unchanged. The num.md diff adds the fp8 loss facts (DotChunkLoss and the four DotE*ChunkLoss: definitions row, weakening lists, reviewer-table fp8 row, 'Facts the library states' rows, two new paragraphs, Satisfiability) and fixes wording: L127 (the fed-back fp8 accumulator) and L130 (the opening of 'tl.dot (the chunk model)': 16 products per instruction for 16-bit operands on both paths, which is what it said before). The Lean diff is in lean/TVA/Rules/Num/Dot8Chunk.lean and lean/TVA/Lemmas/Dot8Chunk.lean only. It adds definitions and lemmas, and the one deleted text is a docstring line. Nothing this kernel cites or its spec uses changed in Lean, in num.md's listings or in its constants: DotF16 (DotLiftAcc, liftMag, relDot16, absDot16), DotTotal, Exp2F32, Exp2F32NegInf, MathTotal, Log2F32, DivFull and DivTotal, the reviewer-table rows for these operations, and the 16-bit chunk-model bullet.
+
+- **accepted** at gate `11e67701bc53c248`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 

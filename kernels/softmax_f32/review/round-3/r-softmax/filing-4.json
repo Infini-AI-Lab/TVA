@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-softmax",
+  "kernel": "softmax_f32",
+  "round": 3,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Library round 26 (L124, L127–L133) re-opened the five Num assumption items through docs/rules/num.md alone. Its diff adds the fp8 chunk-loss facts DotE4m3ChunkLoss … and their section and rows, and fixes the tl.dot wording (L127, L130). The Lean diff touches only Rules/Num/Dot8Chunk.lean and Lemmas/Dot8Chunk.lean, and only adds to them. MathTotal, DivTotal, ExpF32 (rel 2^-22 + 2^-23·X on [−X, X], abs 2^-140), ExpF32NegInf (+0 at negInfF32) and DivFull (qmax 2^126, 2^-22, 2^-148) keep their definitions, their rows in 'Facts the library states' and in the operation table, and their constants. The satisfiability paragraph still lists DivFull and the …Total rules for Platform.sm90ref. No lemma the specification's proof uses changed."
+}

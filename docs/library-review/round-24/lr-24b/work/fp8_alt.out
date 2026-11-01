@@ -1,0 +1,100 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| operands | case | path | elements or chunks | largest step / facts' bound | largest step / B_alt |
+|---|---|---|---|---|---|
+| float8e4nv x float8e4nv | single, accdom1, 64 x 64, 4 warps | wgmma | 4096 | 0.2348 | 0.8155 |
+| float8e4nv x float8e4nv | single, accdom, 64 x 64, 4 warps | wgmma | 4096 | 0.0892 | 0.4327 |
+| float8e4nv x float8e4nv | single, accsmallp, 64 x 64, 4 warps | wgmma | 4096 | 0.0898 | 0.3226 |
+| float8e4nv x float8e4nv | single, random, 64 x 64, 4 warps | wgmma | 4096 | 0.0842 | 0.3939 |
+| float8e4nv x float8e4nv | single, accdom1, 128 x 64, 8 warps | wgmma | 8192 | 0.2348 | 0.8155 |
+| float8e4nv x float8e4nv | single, accdom, 128 x 64, 8 warps | wgmma | 8192 | 0.1034 | 0.5015 |
+| float8e4nv x float8e4nv | single, accsmallp, 128 x 64, 8 warps | wgmma | 8192 | 0.0903 | 0.4885 |
+| float8e4nv x float8e4nv | single, random, 128 x 64, 8 warps | wgmma | 8192 | 0.0743 | 0.3365 |
+| float8e4nv x float8e4nv | single, accdom1, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e4nv x float8e4nv | single, accdom, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0001 |
+| float8e4nv x float8e4nv | single, accsmallp, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0005 |
+| float8e4nv x float8e4nv | single, random, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0004 |
+| float8e4nv x float8e4nv | single, accdom1, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e4nv x float8e4nv | single, accdom, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e4nv x float8e4nv | single, accsmallp, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0006 |
+| float8e4nv x float8e4nv | single, random, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0005 |
+| float8e5 x float8e5 | single, accdom1, 64 x 64, 4 warps | wgmma | 4096 | 0.2197 | 0.8053 |
+| float8e5 x float8e5 | single, accdom, 64 x 64, 4 warps | wgmma | 4096 | 0.0987 | 0.4981 |
+| float8e5 x float8e5 | single, accsmallp, 64 x 64, 4 warps | wgmma | 4096 | 0.0618 | 0.3560 |
+| float8e5 x float8e5 | single, random, 64 x 64, 4 warps | wgmma | 4096 | 0.0679 | 0.3457 |
+| float8e5 x float8e5 | single, accdom1, 128 x 64, 8 warps | wgmma | 8192 | 0.2197 | 0.8053 |
+| float8e5 x float8e5 | single, accdom, 128 x 64, 8 warps | wgmma | 8192 | 0.1070 | 0.5557 |
+| float8e5 x float8e5 | single, accsmallp, 128 x 64, 8 warps | wgmma | 8192 | 0.0677 | 0.3958 |
+| float8e5 x float8e5 | single, random, 128 x 64, 8 warps | wgmma | 8192 | 0.0614 | 0.4441 |
+| float8e5 x float8e5 | single, accdom1, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e5 x float8e5 | single, accdom, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0001 |
+| float8e5 x float8e5 | single, accsmallp, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0004 |
+| float8e5 x float8e5 | single, random, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0003 |
+| float8e5 x float8e5 | single, accdom1, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e5 x float8e5 | single, accdom, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e5 x float8e5 | single, accsmallp, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0004 |
+| float8e5 x float8e5 | single, random, 16 x 64, 1 warps | mma.sync | 1024 | 0.0001 | 0.0002 |
+| float8e4nv x float8e5 | single, accdom1, 64 x 64, 4 warps | wgmma | 4096 | 0.2348 | 0.8155 |
+| float8e4nv x float8e5 | single, accdom, 64 x 64, 4 warps | wgmma | 4096 | 0.1007 | 0.4920 |
+| float8e4nv x float8e5 | single, accsmallp, 64 x 64, 4 warps | wgmma | 4096 | 0.0891 | 0.3881 |
+| float8e4nv x float8e5 | single, random, 64 x 64, 4 warps | wgmma | 4096 | 0.0828 | 0.3437 |
+| float8e4nv x float8e5 | single, accdom1, 128 x 64, 8 warps | wgmma | 8192 | 0.2348 | 0.8155 |
+| float8e4nv x float8e5 | single, accdom, 128 x 64, 8 warps | wgmma | 8192 | 0.1105 | 0.5182 |
+| float8e4nv x float8e5 | single, accsmallp, 128 x 64, 8 warps | wgmma | 8192 | 0.0831 | 0.4453 |
+| float8e4nv x float8e5 | single, random, 128 x 64, 8 warps | wgmma | 8192 | 0.0871 | 0.4807 |
+| float8e4nv x float8e5 | single, accdom1, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e4nv x float8e5 | single, accdom, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0001 |
+| float8e4nv x float8e5 | single, accsmallp, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0004 |
+| float8e4nv x float8e5 | single, random, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0004 |
+| float8e4nv x float8e5 | single, accdom1, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e4nv x float8e5 | single, accdom, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e4nv x float8e5 | single, accsmallp, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0005 |
+| float8e4nv x float8e5 | single, random, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0004 |
+| float8e5 x float8e4nv | single, accdom1, 64 x 64, 4 warps | wgmma | 4096 | 0.2197 | 0.8053 |
+| float8e5 x float8e4nv | single, accdom, 64 x 64, 4 warps | wgmma | 4096 | 0.0904 | 0.5319 |
+| float8e5 x float8e4nv | single, accsmallp, 64 x 64, 4 warps | wgmma | 4096 | 0.0700 | 0.3568 |
+| float8e5 x float8e4nv | single, random, 64 x 64, 4 warps | wgmma | 4096 | 0.0650 | 0.3287 |
+| float8e5 x float8e4nv | single, accdom1, 128 x 64, 8 warps | wgmma | 8192 | 0.2197 | 0.8053 |
+| float8e5 x float8e4nv | single, accdom, 128 x 64, 8 warps | wgmma | 8192 | 0.1020 | 0.5063 |
+| float8e5 x float8e4nv | single, accsmallp, 128 x 64, 8 warps | wgmma | 8192 | 0.0769 | 0.4051 |
+| float8e5 x float8e4nv | single, random, 128 x 64, 8 warps | wgmma | 8192 | 0.0757 | 0.3666 |
+| float8e5 x float8e4nv | single, accdom1, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e5 x float8e4nv | single, accdom, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0001 |
+| float8e5 x float8e4nv | single, accsmallp, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0005 |
+| float8e5 x float8e4nv | single, random, 32 x 32, 2 warps | mma.sync | 1024 | 0.0000 | 0.0003 |
+| float8e5 x float8e4nv | single, accdom1, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e5 x float8e4nv | single, accdom, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0000 |
+| float8e5 x float8e4nv | single, accsmallp, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0004 |
+| float8e5 x float8e4nv | single, random, 16 x 64, 1 warps | mma.sync | 1024 | 0.0000 | 0.0002 |
+| float8e4nv x float8e4nv | chain, softmax, 128 x 64, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.0783 | 0.1880 |
+| float8e4nv x float8e4nv | chain, accdom, 128 x 64, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1241 | 0.2987 |
+| float8e4nv x float8e4nv | chain, softmax, 128 x 128, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.0857 | 0.0945 |
+| float8e4nv x float8e4nv | chain, accdom, 128 x 128, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1287 | 0.2030 |
+| float8e5 x float8e5 | chain, softmax, 128 x 64, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.0895 | 0.1321 |
+| float8e5 x float8e5 | chain, accdom, 128 x 64, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1606 | 0.3397 |
+| float8e5 x float8e5 | chain, softmax, 128 x 128, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1079 | 0.2032 |
+| float8e5 x float8e5 | chain, accdom, 128 x 128, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1556 | 0.2574 |
+| float8e4nv x float8e5 | chain, softmax, 128 x 64, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.0723 | 0.1402 |
+| float8e4nv x float8e5 | chain, accdom, 128 x 64, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1410 | 0.2360 |
+| float8e4nv x float8e5 | chain, softmax, 128 x 128, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.0607 | 0.1094 |
+| float8e4nv x float8e5 | chain, accdom, 128 x 128, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1417 | 0.2738 |
+| float8e5 x float8e4nv | chain, softmax, 128 x 64, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.0938 | 0.1613 |
+| float8e5 x float8e4nv | chain, accdom, 128 x 64, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1625 | 0.2087 |
+| float8e5 x float8e4nv | chain, softmax, 128 x 128, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1210 | 0.1031 |
+| float8e5 x float8e4nv | chain, accdom, 128 x 128, T = 32 | wgmma | 4096 chunks, model = device on 2048/2048 dots | 0.1365 | 0.2020 |
+
+Totals: elements or chunks, largest ratio to the facts' step bound, largest ratio to B_alt (chains: model = device dots)
+| float8e4nv x float8e4nv | mma.sync | single K=32 | 8192 | 0.0000 | 0.0006 |
+| float8e4nv x float8e4nv | wgmma | chains K=64 | 16384 | 0.1287 | 0.2987, model = device 8192/8192 |
+| float8e4nv x float8e4nv | wgmma | single K=32 | 49152 | 0.2348 | 0.8155 |
+| float8e4nv x float8e5 | mma.sync | single K=32 | 8192 | 0.0000 | 0.0005 |
+| float8e4nv x float8e5 | wgmma | chains K=64 | 16384 | 0.1417 | 0.2738, model = device 8192/8192 |
+| float8e4nv x float8e5 | wgmma | single K=32 | 49152 | 0.2348 | 0.8155 |
+| float8e5 x float8e4nv | mma.sync | single K=32 | 8192 | 0.0000 | 0.0005 |
+| float8e5 x float8e4nv | wgmma | chains K=64 | 16384 | 0.1625 | 0.2087, model = device 8192/8192 |
+| float8e5 x float8e4nv | wgmma | single K=32 | 49152 | 0.2197 | 0.8053 |
+| float8e5 x float8e5 | mma.sync | single K=32 | 8192 | 0.0001 | 0.0004 |
+| float8e5 x float8e5 | wgmma | chains K=64 | 16384 | 0.1606 | 0.3397, model = device 8192/8192 |
+| float8e5 x float8e5 | wgmma | single K=32 | 49152 | 0.2197 | 0.8053 |
+
+(run time 36 s)

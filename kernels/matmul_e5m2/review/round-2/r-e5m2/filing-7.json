@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5m2",
+  "kernel": "matmul_e5m2",
+  "round": 2,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Confirmation at gate e127e9a2077f0921 of the README fix to my earlier wording remark. 'That growth of the bound, by about 1 + rho + sigma per chunk' names what grows: the tolerance errAt, whose step multiplies the previous bound by 1 + rho + sigma. 'the error bound on a fed-back accumulator grows by at most a factor 1 + 2^-11 per chunk' is true of DotE5m2ChunkLoss: its second arm gives the composed bound the factor 1 + sigma + rho' = 1 + 2^-11 (errL), and errM is at most errL. My remark is settled."
+}

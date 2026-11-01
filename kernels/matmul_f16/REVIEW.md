@@ -6,7 +6,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 
 ## Status
 
-- Gate: **PASS**, digest `565503552a0c46d3` (2026-11-01T05:56:49Z).
+- Gate: **PASS**, digest `471e3872cf6cb659` (2026-11-01T08:45:33Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-matmul (all), r-matmul2 (all).
 - Certificate: **GRANTED**.
@@ -14,13 +14,13 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 
 | Item | Digest | r-matmul | r-matmul2 |
 |---|---|---|---|
-| `assumption:dot` | `6e3d61c2a958` | accepted | accepted |
-| `assumption:dot_total` | `241abaa42064` | accepted | accepted |
+| `assumption:dot` | `706c85369e58` | accepted | accepted |
+| `assumption:dot_total` | `28868cd31206` | accepted | accepted |
 | `assumption:faithful` | `6cf79da61917` | accepted | accepted |
 | `conditions` | `5d4073a65cc3` | accepted | accepted |
 | `map` | `b1821d933822` | accepted | accepted |
 | `model` | `8a58b105aede` | accepted | accepted |
-| `spec` | `ee2e6ed0da26` | accepted | accepted |
+| `spec` | `ec2a163bc3fb` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -171,4 +171,17 @@ L125 withdrew the fp8 whole-dot facts. On wgmma a chunk is aligned to the larges
 `2026-11-01T06:02:19Z`, at gate `565503552a0c46d3`. Notes: Round 3, after library round 25 (L126). (1) assumption:dot is still the right fact. DotF16 is listed, as restated, in num.md's 'Facts the library states' and in the reviewer's table for float16 operands into float32 with maxImpreciseAcc = 0 and any precision. It is now 'forall p, DotLiftAcc P <f16, f16, f32, p, 0> relDot16 absDot16', with relDot16 and absDot16 unchanged. The field's docstring and the README state it as DotLiftAcc, with L = |acc| + sum liftMag a * liftMag b. (2) spec: the tolerance is the same function tol K A, and A is now dotMag = sum mag16(va k) * mag16(vb k). mag16 is the library's liftMag .f16 by definition (rfl, checked in work/Lift.lean), so the specification counts magnitudes as the cited fact does. With no subnormal operand, mag16 q = |q| (work/Lift.lean, mag16_of_normal), so every figure of round 2 stands: 1.26e-4 at K = 512, 1.01e-3 at 4096, below 0.21% up to 2^13, and the rejection of a bfloat16-rounded result on normal one-sign inputs. The README's bound on a lifted term, |x*y| + 2^-14*(|x| + |y|) + 2^-28, is proved in work/Lift.lean (mag16_mul_le). Post still rejects a kernel that flushes subnormal float16 operands to zero: one product 2^-15 * 1 errs by 2^-15 against tol(2^13, 2^-14) < 2^-15 (work/Lift.lean). On the host's randn inputs a subnormal float16 is rare (about 5e-5 of values), and it adds at most about 2^-14*|partner| to A, so the tolerance's meaning at the host's sizes is unchanged. (3) assumption:dot_total re-opened only through the files docs/rules/num.md and lean/TVA/Rules/Num.lean; DotTotal and its listing are unchanged. (4) The kernel's Lean changes are the new defs mag16 and dotMag (dotAbs removed), the lemmas in Basic.lean (partA over liftV, acc_step on the restated fact) and a docstring in Program.lean. There is no instance, notation, attribute or export. The model, launch, conditions and map are unchanged (the gate snapshots show their items' digests as before). main, consistent and satisfiable depend only on propext, Classical.choice and Quot.sound. (5) F7 (r-matmul2's LIBRARY_REPORT on DotF16) is REFERRED to L126, which round 25 fixed by restating DotF16 relative to lifted magnitudes, and the claim is re-proved on it, so the report is settled. Its release is r-matmul2's.
 
 - **accepted** at gate `565503552a0c46d3`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T08:50:20Z` coordinator's note: Library round 26 (L124, L127-L133; docs/library-review/ISSUES.md), after the round 24/25 library review: new facts DotE4m3ChunkLoss etc. and lemmas added to lean/TVA/Rules/Num/Dot8Chunk.lean and lean/TVA/Lemmas/Dot8Chunk.lean, and docs/rules/num.md reworded and extended. No existing fact, constant or lemma changed; this kernel's reviewers re-accept the items that re-opened.
+
+### r-matmul files ([filing](review/round-3/r-matmul/filing-2.json), [report](review/round-3/r-matmul/report-2.md), [work](review/round-3/r-matmul/work/))
+
+`2026-11-01T08:52:29Z`, at gate `471e3872cf6cb659`. Notes: Re-acceptance after library round 26 (L124, L127-L133). Between gates 565503552a0c46d3 and 471e3872cf6cb659, the snapshots differ only in the whole-file digest of docs/rules/num.md, in assumption:dot, assumption:dot_total and spec. Every constant those items reach hashes as before: DotF16, DotLiftAcc, liftMag, minNormal8, relDot16, absDot16, DotTotal, DotLoop.bound, and the kernel's mag16, dotMag and tol. The two changed Lean files (Rules/Num/Dot8Chunk.lean, Lemmas/Dot8Chunk.lean) only add the fp8 loss facts and their lemmas, and neither is in these items' cones. In num.md, the DotF16/DotBF16 row of 'Facts the library states', the reviewer's table row for float16/bfloat16 operands, the DotLiftAcc and DotTotal rows, and the 16-bit bullet of the chunk model are unchanged. The chunk model's opening paragraph is reworded (L130): it still says 16 products per instruction for 16-bit operands on both paths, and only the fp8 count is corrected. Everything else is fp8.
+
+- **accepted** at gate `471e3872cf6cb659`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-matmul2 files ([filing](review/round-3/r-matmul2/filing-2.json), [report](review/round-3/r-matmul2/report-2.md), [work](review/round-3/r-matmul2/work/))
+
+`2026-11-01T08:52:33Z`, at gate `471e3872cf6cb659`. Notes: Library round 26 re-check (gate 471e3872cf6cb659). The three re-opened items (assumption:dot, assumption:dot_total, spec) went stale only through docs/rules/num.md. The diff against HEAD leaves the DotF16 row of 'Facts the library states' (DotLiftAcc, relDot16, absDot16, a subnormal float16 counted at 2^-14), the DotTotal row, the fp16/bf16 row of 'What a kernel reviewer checks' and the 16-bit bullet of the chunk-model section unchanged. The section's opening is reworded (L130) to say what it said before for 16-bit operands: 16 products per instruction on both paths. Everything else is fp8 (the loss facts, L124; the fed-back accumulator wording, L127). The Lean changes are additions to the two Dot8Chunk files; the only removed lines are a module docstring's. Rules/Num.lean (DotLiftAcc, liftMag, minNormal8), Rules/Num/Sm90.lean (DotF16, relDot16, absDot16), DotLoop and DotLift are unchanged, as are the Dot8Chunk lemmas the proof uses (liftMag_nonneg, liftMag_zero, abs_mul_le_liftMag). The kernel's files did not change. Nothing these items rely on changed in meaning.
+
+- **accepted** at gate `471e3872cf6cb659`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

@@ -1,0 +1,931 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+lr-25b 16-bit adversarial tests (DotLiftAcc bound, old bound, model on both paths)
+
+| format | case (kind, M, N, K, warps, layout) | instructions | elements | outside | model = device | ratio | outside old | old ratio |
+|---|---|---|---|---|---|---|---|---|
+| float16 | ('winmix', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0450 | 0 | 0.589 |
+| float16 | ('negsub', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0313 | 14 | 21.859 |
+| float16 | ('edge', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0186 | 0 | 0.019 |
+| float16 | ('subsub', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0112 | 0 | 0.019 |
+| float16 | ('accdom', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0347 | 0 | 0.035 |
+| float16 | ('cancel', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0134 | 0 | 0.013 |
+| float16 | ('subacc', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0209 | 0 | 0.021 |
+| float16 | ('bits', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0410 | 0 | 0.041 |
+| float16 | ('under', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0268 | 0 | 0.027 |
+| float16 | ('winmix', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0113 | 0 | 0.011 |
+| float16 | ('negsub', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0046 | 0 | 0.007 |
+| float16 | ('edge', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0046 | 0 | 0.005 |
+| float16 | ('subsub', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0034 | 0 | 0.008 |
+| float16 | ('accdom', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0208 | 0 | 0.021 |
+| float16 | ('cancel', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0068 | 0 | 0.007 |
+| float16 | ('subacc', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0055 | 0 | 0.005 |
+| float16 | ('bits', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0167 | 0 | 0.017 |
+| float16 | ('under', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0133 | 0 | 0.013 |
+| float16 | ('winmix', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0020 | 0 | 0.002 |
+| float16 | ('negsub', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0029 | 0 | 0.004 |
+| float16 | ('edge', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0039 | 0 | 0.004 |
+| float16 | ('subsub', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0012 | 0 | 0.003 |
+| float16 | ('accdom', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0144 | 0 | 0.014 |
+| float16 | ('cancel', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0033 | 0 | 0.003 |
+| float16 | ('subacc', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0002 | 0 | 0.000 |
+| float16 | ('huge', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0024 | 0 | 0.002 |
+| float16 | ('bits', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0121 | 0 | 0.012 |
+| float16 | ('under', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0044 | 0 | 0.004 |
+| float16 | ('winmix', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0285 | 0 | 0.171 |
+| float16 | ('negsub', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0448 | 14 | 3.524 |
+| float16 | ('edge', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0269 | 0 | 0.027 |
+| float16 | ('subsub', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0100 | 0 | 0.018 |
+| float16 | ('accdom', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0416 | 0 | 0.042 |
+| float16 | ('cancel', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0173 | 0 | 0.017 |
+| float16 | ('subacc', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0146 | 0 | 0.015 |
+| float16 | ('bits', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0315 | 0 | 0.032 |
+| float16 | ('under', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0266 | 0 | 0.027 |
+| float16 | ('winmix', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0114 | 0 | 0.013 |
+| float16 | ('negsub', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0068 | 0 | 0.019 |
+| float16 | ('edge', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0045 | 0 | 0.005 |
+| float16 | ('subsub', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0029 | 0 | 0.006 |
+| float16 | ('accdom', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0227 | 0 | 0.023 |
+| float16 | ('cancel', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0075 | 0 | 0.008 |
+| float16 | ('subacc', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0061 | 0 | 0.006 |
+| float16 | ('bits', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0196 | 0 | 0.020 |
+| float16 | ('under', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0120 | 0 | 0.012 |
+| float16 | ('winmix', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0047 | 0 | 0.005 |
+| float16 | ('negsub', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0014 | 0 | 0.003 |
+| float16 | ('edge', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0057 | 0 | 0.006 |
+| float16 | ('subsub', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0018 | 0 | 0.004 |
+| float16 | ('accdom', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0097 | 0 | 0.010 |
+| float16 | ('cancel', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0047 | 0 | 0.005 |
+| float16 | ('subacc', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0002 | 0 | 0.000 |
+| float16 | ('huge', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0017 | 0 | 0.002 |
+| float16 | ('bits', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0137 | 0 | 0.014 |
+| float16 | ('under', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0044 | 0 | 0.004 |
+| float16 | ('winmix', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0370 | 0 | 0.285 |
+| float16 | ('negsub', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0266 | 0 | 0.320 |
+| float16 | ('edge', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0395 | 0 | 0.040 |
+| float16 | ('subsub', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0103 | 0 | 0.018 |
+| float16 | ('accdom', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0347 | 0 | 0.035 |
+| float16 | ('cancel', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0164 | 0 | 0.016 |
+| float16 | ('subacc', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0151 | 0 | 0.015 |
+| float16 | ('bits', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0380 | 0 | 0.038 |
+| float16 | ('under', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0355 | 0 | 0.035 |
+| float16 | ('winmixT', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0339 | 0 | 0.647 |
+| float16 | ('winmix', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0122 | 0 | 0.012 |
+| float16 | ('negsub', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0050 | 0 | 0.015 |
+| float16 | ('edge', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0058 | 0 | 0.006 |
+| float16 | ('subsub', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0031 | 0 | 0.007 |
+| float16 | ('accdom', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0227 | 0 | 0.023 |
+| float16 | ('cancel', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0076 | 0 | 0.008 |
+| float16 | ('subacc', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0055 | 0 | 0.005 |
+| float16 | ('bits', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0195 | 0 | 0.020 |
+| float16 | ('under', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0148 | 0 | 0.015 |
+| float16 | ('winmixT', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0082 | 0 | 0.008 |
+| float16 | ('winmix', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0081 | 0 | 0.009 |
+| float16 | ('negsub', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0012 | 0 | 0.002 |
+| float16 | ('edge', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0023 | 0 | 0.002 |
+| float16 | ('subsub', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0014 | 0 | 0.003 |
+| float16 | ('accdom', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0117 | 0 | 0.012 |
+| float16 | ('cancel', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0050 | 0 | 0.005 |
+| float16 | ('subacc', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0004 | 0 | 0.001 |
+| float16 | ('huge', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0017 | 0 | 0.002 |
+| float16 | ('bits', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0178 | 0 | 0.018 |
+| float16 | ('under', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0042 | 0 | 0.004 |
+| float16 | ('winmixT', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0046 | 0 | 0.005 |
+| float16 | ('winmix', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0188 | 0 | 0.508 |
+| float16 | ('negsub', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0132 | 1 | 1.097 |
+| float16 | ('edge', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0318 | 0 | 0.032 |
+| float16 | ('subsub', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0102 | 0 | 0.019 |
+| float16 | ('accdom', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0365 | 0 | 0.036 |
+| float16 | ('cancel', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0136 | 0 | 0.014 |
+| float16 | ('subacc', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0146 | 0 | 0.015 |
+| float16 | ('bits', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0424 | 0 | 0.042 |
+| float16 | ('under', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0290 | 0 | 0.029 |
+| float16 | ('winmix', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0080 | 0 | 0.008 |
+| float16 | ('negsub', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0093 | 0 | 0.071 |
+| float16 | ('edge', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0107 | 0 | 0.011 |
+| float16 | ('subsub', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0045 | 0 | 0.008 |
+| float16 | ('accdom', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0202 | 0 | 0.020 |
+| float16 | ('cancel', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0080 | 0 | 0.008 |
+| float16 | ('subacc', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0039 | 0 | 0.004 |
+| float16 | ('bits', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0227 | 0 | 0.023 |
+| float16 | ('under', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0132 | 0 | 0.013 |
+| float16 | ('winmix', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0039 | 0 | 0.004 |
+| float16 | ('negsub', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0011 | 0 | 0.002 |
+| float16 | ('edge', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0013 | 0 | 0.001 |
+| float16 | ('subsub', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0012 | 0 | 0.002 |
+| float16 | ('accdom', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0136 | 0 | 0.014 |
+| float16 | ('cancel', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0037 | 0 | 0.004 |
+| float16 | ('subacc', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0004 | 0 | 0.001 |
+| float16 | ('huge', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0017 | 0 | 0.002 |
+| float16 | ('bits', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0127 | 0 | 0.013 |
+| float16 | ('under', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0053 | 0 | 0.005 |
+| float16 | ('winmix', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0342 | 0 | 0.646 |
+| float16 | ('negsub', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0146 | 0 | 0.510 |
+| float16 | ('edge', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0262 | 0 | 0.026 |
+| float16 | ('subsub', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0112 | 0 | 0.019 |
+| float16 | ('accdom', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| float16 | ('cancel', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0163 | 0 | 0.016 |
+| float16 | ('subacc', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0203 | 0 | 0.020 |
+| float16 | ('bits', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0361 | 0 | 0.036 |
+| float16 | ('under', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0329 | 0 | 0.033 |
+| float16 | ('winmix', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0121 | 0 | 0.013 |
+| float16 | ('negsub', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0076 | 0 | 0.023 |
+| float16 | ('edge', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0067 | 0 | 0.007 |
+| float16 | ('subsub', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0027 | 0 | 0.005 |
+| float16 | ('accdom', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0208 | 0 | 0.021 |
+| float16 | ('cancel', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0098 | 0 | 0.010 |
+| float16 | ('subacc', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0053 | 0 | 0.005 |
+| float16 | ('bits', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0240 | 0 | 0.024 |
+| float16 | ('under', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0120 | 0 | 0.012 |
+| float16 | ('winmix', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0041 | 0 | 0.004 |
+| float16 | ('negsub', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0009 | 0 | 0.003 |
+| float16 | ('edge', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0054 | 0 | 0.005 |
+| float16 | ('subsub', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0013 | 0 | 0.003 |
+| float16 | ('accdom', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0136 | 0 | 0.014 |
+| float16 | ('cancel', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0048 | 0 | 0.005 |
+| float16 | ('subacc', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0003 | 0 | 0.001 |
+| float16 | ('huge', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0023 | 0 | 0.002 |
+| float16 | ('bits', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0169 | 0 | 0.017 |
+| float16 | ('under', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0047 | 0 | 0.005 |
+| float16 | ('winmix', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0266 | 0 | 0.480 |
+| float16 | ('negsub', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0148 | 0 | 0.774 |
+| float16 | ('edge', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0172 | 0 | 0.017 |
+| float16 | ('subsub', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0128 | 0 | 0.018 |
+| float16 | ('accdom', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0347 | 0 | 0.035 |
+| float16 | ('cancel', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0123 | 0 | 0.012 |
+| float16 | ('subacc', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0155 | 0 | 0.016 |
+| float16 | ('bits', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0372 | 0 | 0.037 |
+| float16 | ('under', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0405 | 0 | 0.041 |
+| float16 | ('winmix', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0127 | 0 | 0.014 |
+| float16 | ('negsub', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0056 | 0 | 0.017 |
+| float16 | ('edge', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0062 | 0 | 0.006 |
+| float16 | ('subsub', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0041 | 0 | 0.008 |
+| float16 | ('accdom', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0208 | 0 | 0.021 |
+| float16 | ('cancel', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0074 | 0 | 0.007 |
+| float16 | ('subacc', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0059 | 0 | 0.006 |
+| float16 | ('bits', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0221 | 0 | 0.022 |
+| float16 | ('under', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0131 | 0 | 0.013 |
+| float16 | ('winmix', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0071 | 0 | 0.008 |
+| float16 | ('negsub', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0024 | 0 | 0.004 |
+| float16 | ('edge', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0026 | 0 | 0.003 |
+| float16 | ('subsub', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0013 | 0 | 0.003 |
+| float16 | ('accdom', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0102 | 0 | 0.010 |
+| float16 | ('cancel', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0034 | 0 | 0.003 |
+| float16 | ('subacc', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0002 | 0 | 0.001 |
+| float16 | ('huge', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0019 | 0 | 0.002 |
+| float16 | ('bits', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0116 | 0 | 0.012 |
+| float16 | ('under', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0046 | 0 | 0.005 |
+| float16 | ('winmix', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0380 | 0 | 0.167 |
+| float16 | ('negsub', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0162 | 0 | 0.073 |
+| float16 | ('edge', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0139 | 0 | 0.014 |
+| float16 | ('subsub', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0115 | 0 | 0.019 |
+| float16 | ('accdom', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0486 | 0 | 0.049 |
+| float16 | ('cancel', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0126 | 0 | 0.013 |
+| float16 | ('subacc', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0166 | 0 | 0.017 |
+| float16 | ('bits', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0368 | 0 | 0.037 |
+| float16 | ('under', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0329 | 0 | 0.033 |
+| float16 | ('winmix', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0115 | 0 | 0.013 |
+| float16 | ('negsub', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0054 | 0 | 0.011 |
+| float16 | ('edge', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0068 | 0 | 0.007 |
+| float16 | ('subsub', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0037 | 0 | 0.007 |
+| float16 | ('accdom', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0227 | 0 | 0.023 |
+| float16 | ('cancel', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0090 | 0 | 0.009 |
+| float16 | ('subacc', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0058 | 0 | 0.006 |
+| float16 | ('bits', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0269 | 0 | 0.027 |
+| float16 | ('under', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0133 | 0 | 0.013 |
+| float16 | ('winmix', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0064 | 0 | 0.007 |
+| float16 | ('negsub', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0020 | 0 | 0.004 |
+| float16 | ('edge', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0053 | 0 | 0.005 |
+| float16 | ('subsub', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0012 | 0 | 0.003 |
+| float16 | ('accdom', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0136 | 0 | 0.014 |
+| float16 | ('cancel', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0042 | 0 | 0.004 |
+| float16 | ('subacc', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0003 | 0 | 0.001 |
+| float16 | ('huge', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0023 | 0 | 0.002 |
+| float16 | ('bits', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0132 | 0 | 0.013 |
+| float16 | ('under', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0046 | 0 | 0.005 |
+| float16 | ('winmix', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0241 | 0 | 0.060 |
+| float16 | ('negsub', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0167 | 19 | 2.263 |
+| float16 | ('edge', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0206 | 0 | 0.021 |
+| float16 | ('subsub', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0100 | 0 | 0.015 |
+| float16 | ('accdom', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0416 | 0 | 0.042 |
+| float16 | ('cancel', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0154 | 0 | 0.015 |
+| float16 | ('subacc', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0222 | 0 | 0.022 |
+| float16 | ('bits', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0329 | 0 | 0.033 |
+| float16 | ('under', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0319 | 0 | 0.032 |
+| float16 | ('winmix', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0082 | 0 | 0.009 |
+| float16 | ('negsub', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0077 | 0 | 0.018 |
+| float16 | ('edge', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0126 | 0 | 0.013 |
+| float16 | ('subsub', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0032 | 0 | 0.006 |
+| float16 | ('accdom', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0246 | 0 | 0.025 |
+| float16 | ('cancel', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0070 | 0 | 0.007 |
+| float16 | ('subacc', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0079 | 0 | 0.008 |
+| float16 | ('bits', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0197 | 0 | 0.020 |
+| float16 | ('under', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0141 | 0 | 0.014 |
+| float16 | ('winmix', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0085 | 0 | 0.009 |
+| float16 | ('negsub', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0023 | 0 | 0.004 |
+| float16 | ('edge', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0048 | 0 | 0.005 |
+| float16 | ('subsub', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0014 | 0 | 0.003 |
+| float16 | ('accdom', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0107 | 0 | 0.011 |
+| float16 | ('cancel', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0051 | 0 | 0.005 |
+| float16 | ('subacc', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0004 | 0 | 0.001 |
+| float16 | ('huge', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0017 | 0 | 0.002 |
+| float16 | ('bits', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0149 | 0 | 0.015 |
+| float16 | ('under', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0070 | 0 | 0.007 |
+| float16 | ('winmix', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0245 | 0 | 0.124 |
+| float16 | ('negsub', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0160 | 0 | 0.155 |
+| float16 | ('edge', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0332 | 0 | 0.033 |
+| float16 | ('subsub', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0102 | 0 | 0.017 |
+| float16 | ('accdom', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0416 | 0 | 0.042 |
+| float16 | ('cancel', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0131 | 0 | 0.013 |
+| float16 | ('subacc', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0158 | 0 | 0.016 |
+| float16 | ('bits', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0343 | 0 | 0.034 |
+| float16 | ('under', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0280 | 0 | 0.028 |
+| float16 | ('winmix', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0096 | 0 | 0.010 |
+| float16 | ('negsub', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0063 | 0 | 0.047 |
+| float16 | ('edge', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0054 | 0 | 0.005 |
+| float16 | ('subsub', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0029 | 0 | 0.006 |
+| float16 | ('accdom', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0205 | 0 | 0.021 |
+| float16 | ('cancel', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0081 | 0 | 0.008 |
+| float16 | ('subacc', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0045 | 0 | 0.004 |
+| float16 | ('bits', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0186 | 0 | 0.019 |
+| float16 | ('under', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0141 | 0 | 0.014 |
+| float16 | ('winmix', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0059 | 0 | 0.006 |
+| float16 | ('negsub', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0015 | 0 | 0.003 |
+| float16 | ('edge', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0032 | 0 | 0.003 |
+| float16 | ('subsub', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0011 | 0 | 0.002 |
+| float16 | ('accdom', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0102 | 0 | 0.010 |
+| float16 | ('cancel', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0043 | 0 | 0.004 |
+| float16 | ('subacc', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0004 | 0 | 0.001 |
+| float16 | ('huge', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0018 | 0 | 0.002 |
+| float16 | ('bits', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0160 | 0 | 0.016 |
+| float16 | ('under', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0047 | 0 | 0.005 |
+| float16 | ('winmix', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0262 | 5 | 7.073 |
+| float16 | ('negsub', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0354 | 0 | 0.637 |
+| float16 | ('edge', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0137 | 0 | 0.014 |
+| float16 | ('subsub', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0093 | 0 | 0.016 |
+| float16 | ('accdom', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0347 | 0 | 0.035 |
+| float16 | ('cancel', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0154 | 0 | 0.015 |
+| float16 | ('subacc', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0149 | 0 | 0.015 |
+| float16 | ('bits', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0333 | 0 | 0.033 |
+| float16 | ('under', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0368 | 0 | 0.037 |
+| float16 | ('winmixT', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0291 | 0 | 0.776 |
+| float16 | ('winmix', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0111 | 0 | 0.012 |
+| float16 | ('negsub', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0053 | 0 | 0.008 |
+| float16 | ('edge', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0061 | 0 | 0.006 |
+| float16 | ('subsub', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0039 | 0 | 0.008 |
+| float16 | ('accdom', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0208 | 0 | 0.021 |
+| float16 | ('cancel', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0087 | 0 | 0.009 |
+| float16 | ('subacc', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0057 | 0 | 0.006 |
+| float16 | ('bits', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0265 | 0 | 0.027 |
+| float16 | ('under', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0144 | 0 | 0.014 |
+| float16 | ('winmixT', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0083 | 0 | 0.009 |
+| float16 | ('winmix', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0079 | 0 | 0.008 |
+| float16 | ('negsub', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0016 | 0 | 0.003 |
+| float16 | ('edge', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0060 | 0 | 0.006 |
+| float16 | ('subsub', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0015 | 0 | 0.003 |
+| float16 | ('accdom', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0116 | 0 | 0.012 |
+| float16 | ('cancel', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0038 | 0 | 0.004 |
+| float16 | ('subacc', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0002 | 0 | 0.000 |
+| float16 | ('huge', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0020 | 0 | 0.002 |
+| float16 | ('bits', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0115 | 0 | 0.012 |
+| float16 | ('under', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0043 | 0 | 0.004 |
+| float16 | ('winmixT', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0087 | 0 | 0.009 |
+| float16 | ('winmix', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0244 | 0 | 0.027 |
+| float16 | ('negsub', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0160 | 0 | 0.227 |
+| float16 | ('edge', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0499 | 0 | 0.050 |
+| float16 | ('subsub', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0097 | 0 | 0.017 |
+| float16 | ('accdom', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0416 | 0 | 0.042 |
+| float16 | ('cancel', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0170 | 0 | 0.017 |
+| float16 | ('subacc', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0151 | 0 | 0.015 |
+| float16 | ('bits', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0325 | 0 | 0.033 |
+| float16 | ('under', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0235 | 0 | 0.023 |
+| float16 | ('winmixT', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0345 | 2 | 1.561 |
+| float16 | ('winmix', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0126 | 0 | 0.013 |
+| float16 | ('negsub', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0043 | 0 | 0.007 |
+| float16 | ('edge', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0073 | 0 | 0.007 |
+| float16 | ('subsub', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0036 | 0 | 0.007 |
+| float16 | ('accdom', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0265 | 0 | 0.027 |
+| float16 | ('cancel', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0086 | 0 | 0.009 |
+| float16 | ('subacc', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| float16 | ('huge', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0040 | 0 | 0.004 |
+| float16 | ('bits', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0195 | 0 | 0.019 |
+| float16 | ('under', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0193 | 0 | 0.019 |
+| float16 | ('winmixT', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0068 | 0 | 0.008 |
+| float16 | ('winmix', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0064 | 0 | 0.007 |
+| float16 | ('negsub', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0019 | 0 | 0.004 |
+| float16 | ('edge', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0035 | 0 | 0.003 |
+| float16 | ('subsub', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0010 | 0 | 0.002 |
+| float16 | ('accdom', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0102 | 0 | 0.010 |
+| float16 | ('cancel', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0037 | 0 | 0.004 |
+| float16 | ('subacc', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0002 | 0 | 0.000 |
+| float16 | ('huge', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0019 | 0 | 0.002 |
+| float16 | ('bits', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0118 | 0 | 0.012 |
+| float16 | ('under', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0046 | 0 | 0.005 |
+| float16 | ('winmixT', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 256 | 0 | 256/256 | 0.0037 | 0 | 0.004 |
+| float16 | ('winmix', 64, 64, 32, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0159 | 0 | 0.016 |
+| float16 | ('winmixT', 64, 64, 32, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0148 | 0 | 0.025 |
+| float16 | ('negsub', 64, 64, 32, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0166 | 0 | 0.302 |
+| float16 | ('edge', 64, 64, 32, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0110 | 0 | 0.011 |
+| float16 | ('winmix', 64, 64, 128, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0130 | 0 | 0.014 |
+| float16 | ('winmixT', 64, 64, 128, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0077 | 0 | 0.008 |
+| float16 | ('negsub', 64, 64, 128, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0032 | 0 | 0.007 |
+| float16 | ('edge', 64, 64, 128, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0034 | 0 | 0.003 |
+| float16 | ('winmix', 64, 64, 32, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0164 | 0 | 0.016 |
+| float16 | ('winmixT', 64, 64, 32, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0152 | 0 | 0.029 |
+| float16 | ('negsub', 64, 64, 32, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0118 | 0 | 0.068 |
+| float16 | ('edge', 64, 64, 32, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0277 | 0 | 0.028 |
+| float16 | ('winmix', 64, 64, 128, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0112 | 0 | 0.012 |
+| float16 | ('winmixT', 64, 64, 128, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0104 | 0 | 0.011 |
+| float16 | ('negsub', 64, 64, 128, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0031 | 0 | 0.008 |
+| float16 | ('edge', 64, 64, 128, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0052 | 0 | 0.005 |
+| float16 | ('winmix', 64, 64, 32, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0172 | 0 | 0.027 |
+| float16 | ('winmixT', 64, 64, 32, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0170 | 0 | 0.017 |
+| float16 | ('negsub', 64, 64, 32, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0177 | 0 | 0.794 |
+| float16 | ('edge', 64, 64, 32, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0069 | 0 | 0.007 |
+| float16 | ('winmix', 64, 64, 128, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0078 | 0 | 0.008 |
+| float16 | ('winmixT', 64, 64, 128, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0072 | 0 | 0.007 |
+| float16 | ('negsub', 64, 64, 128, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0024 | 0 | 0.005 |
+| float16 | ('edge', 64, 64, 128, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0033 | 0 | 0.003 |
+| float16 | ('winmix', 128, 128, 32, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0138 | 0 | 0.083 |
+| float16 | ('winmixT', 128, 128, 32, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0172 | 0 | 0.055 |
+| float16 | ('negsub', 128, 128, 32, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0097 | 0 | 0.059 |
+| float16 | ('edge', 128, 128, 32, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0098 | 0 | 0.010 |
+| float16 | ('winmix', 128, 128, 128, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0045 | 0 | 0.005 |
+| float16 | ('winmixT', 128, 128, 128, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0042 | 0 | 0.005 |
+| float16 | ('negsub', 128, 128, 128, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0050 | 0 | 0.015 |
+| float16 | ('edge', 128, 128, 128, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0044 | 0 | 0.004 |
+| float16 | ('winmix', 128, 128, 32, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0142 | 0 | 0.024 |
+| float16 | ('winmixT', 128, 128, 32, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0194 | 0 | 0.044 |
+| float16 | ('negsub', 128, 128, 32, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0096 | 0 | 0.027 |
+| float16 | ('edge', 128, 128, 32, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0141 | 0 | 0.014 |
+| float16 | ('winmix', 128, 128, 128, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0105 | 0 | 0.012 |
+| float16 | ('winmixT', 128, 128, 128, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0106 | 0 | 0.011 |
+| float16 | ('negsub', 128, 128, 128, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0021 | 0 | 0.005 |
+| float16 | ('edge', 128, 128, 128, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0060 | 0 | 0.006 |
+| float16 | ('winmix', 128, 128, 32, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0213 | 0 | 0.052 |
+| float16 | ('winmixT', 128, 128, 32, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0128 | 0 | 0.013 |
+| float16 | ('negsub', 128, 128, 32, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0065 | 0 | 0.060 |
+| float16 | ('edge', 128, 128, 32, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0109 | 0 | 0.011 |
+| float16 | ('winmix', 128, 128, 128, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0089 | 0 | 0.010 |
+| float16 | ('winmixT', 128, 128, 128, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0102 | 0 | 0.011 |
+| float16 | ('negsub', 128, 128, 128, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0028 | 0 | 0.005 |
+| float16 | ('edge', 128, 128, 128, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 512 | 0 | 512/512 | 0.0032 | 0 | 0.003 |
+| float16 | ('winmix', 32, 32, 32, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0138 | 0 | 0.015 |
+| float16 | ('winmixT', 32, 32, 32, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0276 | 0 | 0.030 |
+| float16 | ('negsub', 32, 32, 32, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0112 | 0 | 0.052 |
+| float16 | ('edge', 32, 32, 32, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0157 | 0 | 0.016 |
+| float16 | ('winmix', 32, 32, 128, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0081 | 0 | 0.009 |
+| float16 | ('winmixT', 32, 32, 128, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0046 | 0 | 0.005 |
+| float16 | ('negsub', 32, 32, 128, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0023 | 0 | 0.004 |
+| float16 | ('edge', 32, 32, 128, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0046 | 0 | 0.005 |
+| float16 | ('winmix', 32, 32, 32, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0196 | 0 | 0.020 |
+| float16 | ('winmixT', 32, 32, 32, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0199 | 0 | 0.034 |
+| float16 | ('negsub', 32, 32, 32, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0103 | 0 | 0.023 |
+| float16 | ('edge', 32, 32, 32, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0191 | 0 | 0.019 |
+| float16 | ('winmix', 32, 32, 128, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0046 | 0 | 0.005 |
+| float16 | ('winmixT', 32, 32, 128, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0042 | 0 | 0.005 |
+| float16 | ('negsub', 32, 32, 128, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0027 | 0 | 0.004 |
+| float16 | ('edge', 32, 32, 128, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0029 | 0 | 0.003 |
+| float16 | ('winmix', 32, 32, 32, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0166 | 0 | 0.018 |
+| float16 | ('winmixT', 32, 32, 32, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0162 | 0 | 0.061 |
+| float16 | ('negsub', 32, 32, 32, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0065 | 0 | 0.067 |
+| float16 | ('edge', 32, 32, 32, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0113 | 0 | 0.011 |
+| float16 | ('winmix', 32, 32, 128, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0053 | 0 | 0.006 |
+| float16 | ('winmixT', 32, 32, 128, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0083 | 0 | 0.009 |
+| float16 | ('negsub', 32, 32, 128, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0020 | 0 | 0.005 |
+| float16 | ('edge', 32, 32, 128, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 512 | 0 | 512/512 | 0.0068 | 0 | 0.007 |
+| float16 | ('kloop', 'winmix', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0049 | 0 | 0.005 |
+| float16 | ('kloop', 'negsub', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0006 | 0 | 0.001 |
+| float16 | ('kloop', 'accdom', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0087 | 0 | 0.009 |
+| float16 | ('kloop+=', 'winmix', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0069 | 0 | 0.007 |
+| float16 | ('kloop+=', 'negsub', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0026 | 0 | 0.004 |
+| float16 | ('kloop+=', 'accdom', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0090 | 0 | 0.009 |
+| float16 | ('kloop', 'winmix', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0072 | 0 | 0.008 |
+| float16 | ('kloop', 'negsub', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0011 | 0 | 0.002 |
+| float16 | ('kloop', 'accdom', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0095 | 0 | 0.009 |
+| float16 | ('kloop+=', 'winmix', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0073 | 0 | 0.008 |
+| float16 | ('kloop+=', 'negsub', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0026 | 0 | 0.005 |
+| float16 | ('kloop+=', 'accdom', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0088 | 0 | 0.009 |
+| float16 | ('kloop', 'winmix', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0047 | 0 | 0.005 |
+| float16 | ('kloop', 'negsub', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0026 | 0 | 0.005 |
+| float16 | ('kloop', 'accdom', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0090 | 0 | 0.009 |
+| float16 | ('kloop+=', 'winmix', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0010 | 0 | 0.001 |
+| float16 | ('kloop+=', 'negsub', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0019 | 0 | 0.003 |
+| float16 | ('kloop+=', 'accdom', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0100 | 0 | 0.010 |
+| float16 | ('kloop', 'winmix', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0068 | 0 | 0.008 |
+| float16 | ('kloop', 'negsub', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0017 | 0 | 0.003 |
+| float16 | ('kloop', 'accdom', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0085 | 0 | 0.009 |
+| float16 | ('kloop+=', 'winmix', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0065 | 0 | 0.007 |
+| float16 | ('kloop+=', 'negsub', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0021 | 0 | 0.003 |
+| float16 | ('kloop+=', 'accdom', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0090 | 0 | 0.009 |
+| float16 | ('kloop', 'winmix', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0011 | 0 | 0.001 |
+| float16 | ('kloop', 'negsub', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0005 | 0 | 0.001 |
+| float16 | ('kloop', 'accdom', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0100 | 0 | 0.010 |
+| float16 | ('kloop+=', 'winmix', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0067 | 0 | 0.007 |
+| float16 | ('kloop+=', 'negsub', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0006 | 0 | 0.001 |
+| float16 | ('kloop+=', 'accdom', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0093 | 0 | 0.009 |
+| float16 | ('kloop', 'winmix', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0064 | 0 | 0.007 |
+| float16 | ('kloop', 'negsub', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0030 | 0 | 0.005 |
+| float16 | ('kloop', 'accdom', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0088 | 0 | 0.009 |
+| float16 | ('kloop+=', 'winmix', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0077 | 0 | 0.009 |
+| float16 | ('kloop+=', 'negsub', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0022 | 0 | 0.004 |
+| float16 | ('kloop+=', 'accdom', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 | 2048 | 0 | 2048/2048 | 0.0090 | 0 | 0.009 |
+| float16 | ('kloop', 'winmix', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0073 | 0 | 0.008 |
+| float16 | ('kloop', 'negsub', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0025 | 0 | 0.004 |
+| float16 | ('kloop', 'accdom', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0099 | 0 | 0.010 |
+| float16 | ('kloop+=', 'winmix', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0086 | 0 | 0.009 |
+| float16 | ('kloop+=', 'negsub', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0004 | 0 | 0.001 |
+| float16 | ('kloop+=', 'accdom', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0078 | 0 | 0.008 |
+| float16 | ('kloop', 'winmix', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0072 | 0 | 0.008 |
+| float16 | ('kloop', 'negsub', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0006 | 0 | 0.001 |
+| float16 | ('kloop', 'accdom', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0094 | 0 | 0.009 |
+| float16 | ('kloop+=', 'winmix', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0073 | 0 | 0.008 |
+| float16 | ('kloop+=', 'negsub', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0023 | 0 | 0.005 |
+| float16 | ('kloop+=', 'accdom', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 | 2048 | 0 | 2048/2048 | 0.0083 | 0 | 0.008 |
+| bfloat16 | ('winmix', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0559 | 0 | 0.939 |
+| bfloat16 | ('negsub', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0114 | 0 | 0.148 |
+| bfloat16 | ('edge', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.1304 | 0 | 0.130 |
+| bfloat16 | ('subsub', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0346 | 0 | 0.035 |
+| bfloat16 | ('cancel', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0097 | 0 | 0.010 |
+| bfloat16 | ('subacc', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0192 | 0 | 0.019 |
+| bfloat16 | ('bits', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 42 | 0 | 42/42 | 0.0210 | 0 | 0.021 |
+| bfloat16 | ('under', 64, 16, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0101 | 0 | 0.019 |
+| bfloat16 | ('negsub', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0044 | 0 | 0.006 |
+| bfloat16 | ('edge', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0333 | 0 | 0.034 |
+| bfloat16 | ('subsub', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0283 | 0 | 0.028 |
+| bfloat16 | ('cancel', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0064 | 0 | 0.006 |
+| bfloat16 | ('subacc', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0022 | 0 | 0.002 |
+| bfloat16 | ('bits', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 16, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0028 | 0 | 0.003 |
+| bfloat16 | ('negsub', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0011 | 0 | 0.002 |
+| bfloat16 | ('edge', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0096 | 0 | 0.010 |
+| bfloat16 | ('subsub', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0116 | 0 | 0.012 |
+| bfloat16 | ('cancel', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0034 | 0 | 0.003 |
+| bfloat16 | ('subacc', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0009 | 0 | 0.001 |
+| bfloat16 | ('bits', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 16, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n16k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0448 | 0 | 0.318 |
+| bfloat16 | ('negsub', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0110 | 0 | 0.490 |
+| bfloat16 | ('edge', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0755 | 0 | 0.077 |
+| bfloat16 | ('subsub', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0484 | 0 | 0.048 |
+| bfloat16 | ('cancel', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0107 | 0 | 0.011 |
+| bfloat16 | ('subacc', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0160 | 0 | 0.016 |
+| bfloat16 | ('bits', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 66 | 0 | 66/66 | 0.0209 | 0 | 0.021 |
+| bfloat16 | ('under', 64, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0096 | 0 | 0.016 |
+| bfloat16 | ('negsub', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0038 | 0 | 0.006 |
+| bfloat16 | ('edge', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0315 | 0 | 0.032 |
+| bfloat16 | ('subsub', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0264 | 0 | 0.026 |
+| bfloat16 | ('cancel', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0063 | 0 | 0.006 |
+| bfloat16 | ('subacc', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0021 | 0 | 0.002 |
+| bfloat16 | ('bits', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0030 | 0 | 0.003 |
+| bfloat16 | ('negsub', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0010 | 0 | 0.001 |
+| bfloat16 | ('edge', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0066 | 0 | 0.007 |
+| bfloat16 | ('subsub', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0111 | 0 | 0.011 |
+| bfloat16 | ('cancel', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0029 | 0 | 0.003 |
+| bfloat16 | ('subacc', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0003 | 0 | 0.000 |
+| bfloat16 | ('bits', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0534 | 3 | 1.851 |
+| bfloat16 | ('negsub', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0087 | 0 | 0.466 |
+| bfloat16 | ('edge', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0725 | 0 | 0.074 |
+| bfloat16 | ('subsub', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| bfloat16 | ('cancel', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0116 | 0 | 0.012 |
+| bfloat16 | ('subacc', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0151 | 0 | 0.015 |
+| bfloat16 | ('bits', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 72 | 0 | 72/72 | 0.0242 | 0 | 0.024 |
+| bfloat16 | ('under', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 64, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0521 | 0 | 0.449 |
+| bfloat16 | ('winmix', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0092 | 0 | 0.022 |
+| bfloat16 | ('negsub', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0039 | 0 | 0.006 |
+| bfloat16 | ('edge', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0229 | 0 | 0.023 |
+| bfloat16 | ('subsub', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0264 | 0 | 0.026 |
+| bfloat16 | ('cancel', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0077 | 0 | 0.008 |
+| bfloat16 | ('subacc', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0020 | 0 | 0.002 |
+| bfloat16 | ('bits', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 64, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0116 | 0 | 0.027 |
+| bfloat16 | ('winmix', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0021 | 0 | 0.002 |
+| bfloat16 | ('negsub', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0008 | 0 | 0.001 |
+| bfloat16 | ('edge', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0103 | 0 | 0.010 |
+| bfloat16 | ('subsub', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0125 | 0 | 0.013 |
+| bfloat16 | ('cancel', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0035 | 0 | 0.004 |
+| bfloat16 | ('subacc', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0004 | 0 | 0.000 |
+| bfloat16 | ('bits', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 64, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0026 | 0 | 0.003 |
+| bfloat16 | ('winmix', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0553 | 6 | 4.649 |
+| bfloat16 | ('negsub', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0097 | 0 | 0.599 |
+| bfloat16 | ('edge', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0695 | 0 | 0.071 |
+| bfloat16 | ('subsub', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| bfloat16 | ('cancel', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0155 | 0 | 0.015 |
+| bfloat16 | ('subacc', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0198 | 0 | 0.020 |
+| bfloat16 | ('bits', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 53 | 0 | 53/53 | 0.0196 | 0 | 0.020 |
+| bfloat16 | ('under', 128, 32, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0104 | 0 | 0.014 |
+| bfloat16 | ('negsub', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0030 | 0 | 0.006 |
+| bfloat16 | ('edge', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0273 | 0 | 0.027 |
+| bfloat16 | ('subsub', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0264 | 0 | 0.026 |
+| bfloat16 | ('cancel', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0148 | 0 | 0.015 |
+| bfloat16 | ('subacc', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0021 | 0 | 0.002 |
+| bfloat16 | ('bits', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 128, 32, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0026 | 0 | 0.003 |
+| bfloat16 | ('negsub', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0007 | 0 | 0.002 |
+| bfloat16 | ('edge', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0093 | 0 | 0.009 |
+| bfloat16 | ('subsub', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0121 | 0 | 0.012 |
+| bfloat16 | ('cancel', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0035 | 0 | 0.003 |
+| bfloat16 | ('subacc', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0003 | 0 | 0.000 |
+| bfloat16 | ('bits', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 128, 32, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n32k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0655 | 1 | 2.240 |
+| bfloat16 | ('negsub', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0131 | 0 | 0.529 |
+| bfloat16 | ('edge', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0687 | 0 | 0.070 |
+| bfloat16 | ('subsub', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| bfloat16 | ('cancel', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0085 | 0 | 0.008 |
+| bfloat16 | ('subacc', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0164 | 0 | 0.016 |
+| bfloat16 | ('bits', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 53 | 0 | 53/53 | 0.0185 | 0 | 0.019 |
+| bfloat16 | ('under', 256, 64, 16, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0102 | 0 | 0.026 |
+| bfloat16 | ('negsub', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0044 | 0 | 0.007 |
+| bfloat16 | ('edge', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0335 | 0 | 0.034 |
+| bfloat16 | ('subsub', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0208 | 0 | 0.021 |
+| bfloat16 | ('cancel', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0070 | 0 | 0.007 |
+| bfloat16 | ('subacc', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0018 | 0 | 0.002 |
+| bfloat16 | ('bits', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 256, 64, 64, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0021 | 0 | 0.002 |
+| bfloat16 | ('negsub', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0008 | 0 | 0.002 |
+| bfloat16 | ('edge', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0075 | 0 | 0.008 |
+| bfloat16 | ('subsub', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0111 | 0 | 0.011 |
+| bfloat16 | ('cancel', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0036 | 0 | 0.004 |
+| bfloat16 | ('subacc', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0013 | 0 | 0.001 |
+| bfloat16 | ('bits', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 256, 64, 256, 8, 'plain') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0688 | 14 | 8.659 |
+| bfloat16 | ('negsub', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0128 | 0 | 0.054 |
+| bfloat16 | ('edge', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0813 | 0 | 0.083 |
+| bfloat16 | ('subsub', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| bfloat16 | ('cancel', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0119 | 0 | 0.012 |
+| bfloat16 | ('subacc', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0151 | 0 | 0.015 |
+| bfloat16 | ('bits', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 42 | 0 | 42/42 | 0.0184 | 0 | 0.018 |
+| bfloat16 | ('under', 64, 256, 16, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0108 | 0 | 0.023 |
+| bfloat16 | ('negsub', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0041 | 0 | 0.006 |
+| bfloat16 | ('edge', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0334 | 0 | 0.034 |
+| bfloat16 | ('subsub', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0264 | 0 | 0.026 |
+| bfloat16 | ('cancel', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0073 | 0 | 0.007 |
+| bfloat16 | ('subacc', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0028 | 0 | 0.003 |
+| bfloat16 | ('bits', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 256, 64, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0030 | 0 | 0.004 |
+| bfloat16 | ('negsub', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0008 | 0 | 0.002 |
+| bfloat16 | ('edge', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0100 | 0 | 0.010 |
+| bfloat16 | ('subsub', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0135 | 0 | 0.014 |
+| bfloat16 | ('cancel', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0045 | 0 | 0.004 |
+| bfloat16 | ('subacc', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0008 | 0 | 0.001 |
+| bfloat16 | ('bits', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 256, 256, 4, 'plain') | wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0514 | 20 | 6.581 |
+| bfloat16 | ('negsub', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0116 | 0 | 0.392 |
+| bfloat16 | ('edge', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0945 | 0 | 0.095 |
+| bfloat16 | ('subsub', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| bfloat16 | ('cancel', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0122 | 0 | 0.012 |
+| bfloat16 | ('subacc', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0173 | 0 | 0.017 |
+| bfloat16 | ('bits', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 85 | 0 | 85/85 | 0.0226 | 0 | 0.023 |
+| bfloat16 | ('under', 16, 32, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0103 | 0 | 0.014 |
+| bfloat16 | ('negsub', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0028 | 0 | 0.006 |
+| bfloat16 | ('edge', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0233 | 0 | 0.023 |
+| bfloat16 | ('subsub', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0226 | 0 | 0.023 |
+| bfloat16 | ('cancel', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0065 | 0 | 0.006 |
+| bfloat16 | ('subacc', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0019 | 0 | 0.002 |
+| bfloat16 | ('bits', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 16, 32, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0029 | 0 | 0.003 |
+| bfloat16 | ('negsub', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0011 | 0 | 0.002 |
+| bfloat16 | ('edge', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0065 | 0 | 0.007 |
+| bfloat16 | ('subsub', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0116 | 0 | 0.012 |
+| bfloat16 | ('cancel', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0040 | 0 | 0.004 |
+| bfloat16 | ('subacc', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0004 | 0 | 0.000 |
+| bfloat16 | ('bits', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 16, 32, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0618 | 0 | 0.258 |
+| bfloat16 | ('negsub', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0124 | 0 | 0.043 |
+| bfloat16 | ('edge', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0890 | 0 | 0.090 |
+| bfloat16 | ('subsub', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| bfloat16 | ('cancel', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0137 | 0 | 0.014 |
+| bfloat16 | ('subacc', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0187 | 0 | 0.019 |
+| bfloat16 | ('bits', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 71 | 0 | 71/71 | 0.0196 | 0 | 0.020 |
+| bfloat16 | ('under', 32, 16, 16, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0105 | 0 | 0.019 |
+| bfloat16 | ('negsub', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0028 | 0 | 0.006 |
+| bfloat16 | ('edge', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0365 | 0 | 0.037 |
+| bfloat16 | ('subsub', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0245 | 0 | 0.025 |
+| bfloat16 | ('cancel', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0074 | 0 | 0.007 |
+| bfloat16 | ('subacc', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0026 | 0 | 0.003 |
+| bfloat16 | ('bits', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 1 | 0 | 1/1 | 0.0050 | 0 | 0.005 |
+| bfloat16 | ('under', 32, 16, 64, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0022 | 0 | 0.003 |
+| bfloat16 | ('negsub', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0010 | 0 | 0.002 |
+| bfloat16 | ('edge', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0082 | 0 | 0.008 |
+| bfloat16 | ('subsub', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0111 | 0 | 0.011 |
+| bfloat16 | ('cancel', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0035 | 0 | 0.004 |
+| bfloat16 | ('subacc', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0005 | 0 | 0.000 |
+| bfloat16 | ('bits', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 32, 16, 256, 1, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0607 | 0 | 0.376 |
+| bfloat16 | ('negsub', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0126 | 0 | 0.071 |
+| bfloat16 | ('edge', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0790 | 0 | 0.080 |
+| bfloat16 | ('subsub', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| bfloat16 | ('cancel', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0125 | 0 | 0.013 |
+| bfloat16 | ('subacc', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0144 | 0 | 0.014 |
+| bfloat16 | ('bits', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 57 | 0 | 57/57 | 0.0255 | 0 | 0.026 |
+| bfloat16 | ('under', 32, 128, 16, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0112 | 0 | 0.024 |
+| bfloat16 | ('negsub', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0034 | 0 | 0.006 |
+| bfloat16 | ('edge', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0265 | 0 | 0.027 |
+| bfloat16 | ('subsub', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0245 | 0 | 0.025 |
+| bfloat16 | ('cancel', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0074 | 0 | 0.007 |
+| bfloat16 | ('subacc', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0021 | 0 | 0.002 |
+| bfloat16 | ('bits', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 32, 128, 64, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0022 | 0 | 0.002 |
+| bfloat16 | ('negsub', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0008 | 0 | 0.002 |
+| bfloat16 | ('edge', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0096 | 0 | 0.010 |
+| bfloat16 | ('subsub', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0111 | 0 | 0.011 |
+| bfloat16 | ('cancel', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0038 | 0 | 0.004 |
+| bfloat16 | ('subacc', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0002 | 0 | 0.000 |
+| bfloat16 | ('bits', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 32, 128, 256, 4, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmix', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0456 | 0 | 0.679 |
+| bfloat16 | ('negsub', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0133 | 0 | 0.075 |
+| bfloat16 | ('edge', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.1072 | 0 | 0.109 |
+| bfloat16 | ('subsub', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0415 | 0 | 0.042 |
+| bfloat16 | ('cancel', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0157 | 0 | 0.016 |
+| bfloat16 | ('subacc', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0134 | 0 | 0.013 |
+| bfloat16 | ('bits', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 64 | 0 | 64/64 | 0.0255 | 0 | 0.025 |
+| bfloat16 | ('under', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 64, 64, 16, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0768 | 4 | 2.113 |
+| bfloat16 | ('winmix', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0100 | 0 | 0.013 |
+| bfloat16 | ('negsub', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0031 | 0 | 0.006 |
+| bfloat16 | ('edge', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0340 | 0 | 0.034 |
+| bfloat16 | ('subsub', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0245 | 0 | 0.025 |
+| bfloat16 | ('cancel', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0063 | 0 | 0.006 |
+| bfloat16 | ('subacc', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0020 | 0 | 0.002 |
+| bfloat16 | ('bits', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 64, 64, 64, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0114 | 0 | 0.021 |
+| bfloat16 | ('winmix', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0026 | 0 | 0.003 |
+| bfloat16 | ('negsub', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0006 | 0 | 0.001 |
+| bfloat16 | ('edge', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0076 | 0 | 0.008 |
+| bfloat16 | ('subsub', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0159 | 0 | 0.016 |
+| bfloat16 | ('cancel', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0044 | 0 | 0.004 |
+| bfloat16 | ('subacc', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0005 | 0 | 0.000 |
+| bfloat16 | ('bits', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 64, 64, 256, 2, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0023 | 0 | 0.003 |
+| bfloat16 | ('winmix', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0375 | 0 | 0.216 |
+| bfloat16 | ('negsub', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0095 | 0 | 0.681 |
+| bfloat16 | ('edge', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0713 | 0 | 0.072 |
+| bfloat16 | ('subsub', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0484 | 0 | 0.048 |
+| bfloat16 | ('cancel', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0135 | 0 | 0.014 |
+| bfloat16 | ('subacc', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0133 | 0 | 0.013 |
+| bfloat16 | ('bits', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 29 | 0 | 29/29 | 0.0201 | 0 | 0.020 |
+| bfloat16 | ('under', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 16, 16, 16, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0456 | 0 | 0.383 |
+| bfloat16 | ('winmix', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0107 | 0 | 0.012 |
+| bfloat16 | ('negsub', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0040 | 0 | 0.006 |
+| bfloat16 | ('edge', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0287 | 0 | 0.029 |
+| bfloat16 | ('subsub', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0208 | 0 | 0.021 |
+| bfloat16 | ('cancel', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0060 | 0 | 0.006 |
+| bfloat16 | ('subacc', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0019 | 0 | 0.002 |
+| bfloat16 | ('bits', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 16, 16, 64, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0112 | 0 | 0.013 |
+| bfloat16 | ('winmix', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0019 | 0 | 0.002 |
+| bfloat16 | ('negsub', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0008 | 0 | 0.001 |
+| bfloat16 | ('edge', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0071 | 0 | 0.007 |
+| bfloat16 | ('subsub', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('accdom', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0116 | 0 | 0.012 |
+| bfloat16 | ('cancel', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0027 | 0 | 0.003 |
+| bfloat16 | ('subacc', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('huge', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0005 | 0 | 0.000 |
+| bfloat16 | ('bits', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 0 | 0 | 0/0 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('under', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0000 | 0 | 0.000 |
+| bfloat16 | ('winmixT', 16, 16, 256, 8, 'plain') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 256 | 0 | 256/256 | 0.0025 | 0 | 0.003 |
+| bfloat16 | ('winmix', 64, 64, 32, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0197 | 0 | 0.062 |
+| bfloat16 | ('winmixT', 64, 64, 32, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0200 | 0 | 0.247 |
+| bfloat16 | ('negsub', 64, 64, 32, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0065 | 0 | 0.015 |
+| bfloat16 | ('edge', 64, 64, 32, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0628 | 0 | 0.063 |
+| bfloat16 | ('winmix', 64, 64, 128, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0053 | 0 | 0.006 |
+| bfloat16 | ('winmixT', 64, 64, 128, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0056 | 0 | 0.007 |
+| bfloat16 | ('negsub', 64, 64, 128, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0020 | 0 | 0.003 |
+| bfloat16 | ('edge', 64, 64, 128, 4, 'aT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0129 | 0 | 0.013 |
+| bfloat16 | ('winmix', 64, 64, 32, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0282 | 0 | 0.132 |
+| bfloat16 | ('winmixT', 64, 64, 32, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0239 | 0 | 0.110 |
+| bfloat16 | ('negsub', 64, 64, 32, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0089 | 0 | 0.015 |
+| bfloat16 | ('edge', 64, 64, 32, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0575 | 0 | 0.058 |
+| bfloat16 | ('winmix', 64, 64, 128, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0054 | 0 | 0.006 |
+| bfloat16 | ('winmixT', 64, 64, 128, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0053 | 0 | 0.006 |
+| bfloat16 | ('negsub', 64, 64, 128, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0021 | 0 | 0.003 |
+| bfloat16 | ('edge', 64, 64, 128, 4, 'abT') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0153 | 0 | 0.015 |
+| bfloat16 | ('winmix', 64, 64, 32, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0224 | 0 | 0.118 |
+| bfloat16 | ('winmixT', 64, 64, 32, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0358 | 0 | 0.149 |
+| bfloat16 | ('negsub', 64, 64, 32, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0071 | 0 | 0.015 |
+| bfloat16 | ('edge', 64, 64, 32, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0490 | 0 | 0.050 |
+| bfloat16 | ('winmix', 64, 64, 128, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0059 | 0 | 0.007 |
+| bfloat16 | ('winmixT', 64, 64, 128, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0052 | 0 | 0.006 |
+| bfloat16 | ('negsub', 64, 64, 128, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0018 | 0 | 0.003 |
+| bfloat16 | ('edge', 64, 64, 128, 4, 'areg32') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0118 | 0 | 0.012 |
+| bfloat16 | ('winmix', 128, 128, 32, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0286 | 0 | 0.120 |
+| bfloat16 | ('winmixT', 128, 128, 32, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0249 | 0 | 0.145 |
+| bfloat16 | ('negsub', 128, 128, 32, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0061 | 0 | 0.033 |
+| bfloat16 | ('edge', 128, 128, 32, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0471 | 0 | 0.047 |
+| bfloat16 | ('winmix', 128, 128, 128, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0059 | 0 | 0.006 |
+| bfloat16 | ('winmixT', 128, 128, 128, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0050 | 0 | 0.008 |
+| bfloat16 | ('negsub', 128, 128, 128, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0020 | 0 | 0.003 |
+| bfloat16 | ('edge', 128, 128, 128, 8, 'aT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0139 | 0 | 0.014 |
+| bfloat16 | ('winmix', 128, 128, 32, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0314 | 0 | 0.249 |
+| bfloat16 | ('winmixT', 128, 128, 32, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0208 | 0 | 0.054 |
+| bfloat16 | ('negsub', 128, 128, 32, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0077 | 0 | 0.011 |
+| bfloat16 | ('edge', 128, 128, 32, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0544 | 0 | 0.055 |
+| bfloat16 | ('winmix', 128, 128, 128, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0059 | 0 | 0.006 |
+| bfloat16 | ('winmixT', 128, 128, 128, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0047 | 0 | 0.006 |
+| bfloat16 | ('negsub', 128, 128, 128, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0023 | 0 | 0.003 |
+| bfloat16 | ('edge', 128, 128, 128, 8, 'abT') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0179 | 0 | 0.018 |
+| bfloat16 | ('winmix', 128, 128, 32, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0247 | 0 | 0.073 |
+| bfloat16 | ('winmixT', 128, 128, 32, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0183 | 0 | 0.125 |
+| bfloat16 | ('negsub', 128, 128, 32, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0067 | 0 | 0.018 |
+| bfloat16 | ('edge', 128, 128, 32, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0399 | 0 | 0.040 |
+| bfloat16 | ('winmix', 128, 128, 128, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0049 | 0 | 0.006 |
+| bfloat16 | ('winmixT', 128, 128, 128, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0045 | 0 | 0.005 |
+| bfloat16 | ('negsub', 128, 128, 128, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0015 | 0 | 0.003 |
+| bfloat16 | ('edge', 128, 128, 128, 8, 'areg32') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 512 | 0 | 512/512 | 0.0130 | 0 | 0.013 |
+| bfloat16 | ('winmix', 32, 32, 32, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0233 | 0 | 0.094 |
+| bfloat16 | ('winmixT', 32, 32, 32, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0190 | 0 | 0.221 |
+| bfloat16 | ('negsub', 32, 32, 32, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0067 | 0 | 0.035 |
+| bfloat16 | ('edge', 32, 32, 32, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0516 | 0 | 0.052 |
+| bfloat16 | ('winmix', 32, 32, 128, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0069 | 0 | 0.008 |
+| bfloat16 | ('winmixT', 32, 32, 128, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0047 | 0 | 0.006 |
+| bfloat16 | ('negsub', 32, 32, 128, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0022 | 0 | 0.003 |
+| bfloat16 | ('edge', 32, 32, 128, 2, 'aT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0122 | 0 | 0.012 |
+| bfloat16 | ('winmix', 32, 32, 32, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0374 | 0 | 0.294 |
+| bfloat16 | ('winmixT', 32, 32, 32, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0238 | 0 | 0.117 |
+| bfloat16 | ('negsub', 32, 32, 32, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0048 | 0 | 0.014 |
+| bfloat16 | ('edge', 32, 32, 32, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0522 | 0 | 0.053 |
+| bfloat16 | ('winmix', 32, 32, 128, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0054 | 0 | 0.007 |
+| bfloat16 | ('winmixT', 32, 32, 128, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0064 | 0 | 0.007 |
+| bfloat16 | ('negsub', 32, 32, 128, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0017 | 0 | 0.003 |
+| bfloat16 | ('edge', 32, 32, 128, 2, 'abT') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0133 | 0 | 0.013 |
+| bfloat16 | ('winmix', 32, 32, 32, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0210 | 0 | 0.048 |
+| bfloat16 | ('winmixT', 32, 32, 32, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0216 | 0 | 0.071 |
+| bfloat16 | ('negsub', 32, 32, 32, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0086 | 0 | 0.024 |
+| bfloat16 | ('edge', 32, 32, 32, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0399 | 0 | 0.040 |
+| bfloat16 | ('winmix', 32, 32, 128, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0056 | 0 | 0.009 |
+| bfloat16 | ('winmixT', 32, 32, 128, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0054 | 0 | 0.006 |
+| bfloat16 | ('negsub', 32, 32, 128, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0021 | 0 | 0.003 |
+| bfloat16 | ('edge', 32, 32, 128, 2, 'areg32') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 512 | 0 | 512/512 | 0.0130 | 0 | 0.013 |
+| bfloat16 | ('kloop', 'winmix', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0013 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'negsub', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0005 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'accdom', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0087 | 0 | 0.009 |
+| bfloat16 | ('kloop+=', 'winmix', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0014 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'negsub', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0003 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'accdom', 128, 64, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0102 | 0 | 0.010 |
+| bfloat16 | ('kloop', 'winmix', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0013 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'negsub', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0003 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'accdom', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0109 | 0 | 0.011 |
+| bfloat16 | ('kloop+=', 'winmix', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0011 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'negsub', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0004 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'accdom', 128, 64, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0097 | 0 | 0.010 |
+| bfloat16 | ('kloop', 'winmix', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0013 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'negsub', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0005 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'accdom', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0087 | 0 | 0.009 |
+| bfloat16 | ('kloop+=', 'winmix', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0011 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'negsub', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0004 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'accdom', 64, 128, 'BK=64', 'K=512', 4, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0094 | 0 | 0.009 |
+| bfloat16 | ('kloop', 'winmix', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0011 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'negsub', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0003 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'accdom', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0107 | 0 | 0.011 |
+| bfloat16 | ('kloop+=', 'winmix', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0013 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'negsub', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0004 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'accdom', 64, 128, 'BK=64', 'K=512', 4, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0097 | 0 | 0.010 |
+| bfloat16 | ('kloop', 'winmix', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0014 | 0 | 0.002 |
+| bfloat16 | ('kloop', 'negsub', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0005 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'accdom', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0099 | 0 | 0.010 |
+| bfloat16 | ('kloop+=', 'winmix', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0013 | 0 | 0.002 |
+| bfloat16 | ('kloop+=', 'negsub', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0005 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'accdom', 128, 128, 'BK=64', 'K=512', 8, 'ns=3') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0104 | 0 | 0.010 |
+| bfloat16 | ('kloop', 'winmix', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0013 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'negsub', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0005 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'accdom', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0090 | 0 | 0.009 |
+| bfloat16 | ('kloop+=', 'winmix', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0013 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'negsub', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0004 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'accdom', 128, 128, 'BK=64', 'K=512', 8, 'ns=4') | wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 | 2048 | 0 | 2048/2048 | 0.0097 | 0 | 0.010 |
+| bfloat16 | ('kloop', 'winmix', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0014 | 0 | 0.002 |
+| bfloat16 | ('kloop', 'negsub', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0005 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'accdom', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0087 | 0 | 0.009 |
+| bfloat16 | ('kloop+=', 'winmix', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0011 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'negsub', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0005 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'accdom', 32, 64, 'BK=64', 'K=512', 2, 'ns=3') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0099 | 0 | 0.010 |
+| bfloat16 | ('kloop', 'winmix', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0012 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'negsub', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0006 | 0 | 0.001 |
+| bfloat16 | ('kloop', 'accdom', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0104 | 0 | 0.010 |
+| bfloat16 | ('kloop+=', 'winmix', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0011 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'negsub', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0003 | 0 | 0.001 |
+| bfloat16 | ('kloop+=', 'accdom', 32, 64, 'BK=64', 'K=512', 2, 'ns=4') | mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 | 2048 | 0 | 2048/2048 | 0.0092 | 0 | 0.009 |
+
+Totals per format and path: elements, outside the fact, model = device, outside the old bound, largest ratio, largest old ratio
+| bfloat16 | mma.sync | 101683 | 0 | 101683/101683 | 24 | 0.1072 | 6.581 |
+| bfloat16 | wgmma | 183112 | 0 | 183112/183112 | 24 | 0.1304 | 8.659 |
+| float16 | mma.sync | 108288 | 0 | 108288/108288 | 26 | 0.0499 | 7.073 |
+| float16 | wgmma | 192000 | 0 | 192000/192000 | 29 | 0.0450 | 21.859 |
+
+(run time 233 s)

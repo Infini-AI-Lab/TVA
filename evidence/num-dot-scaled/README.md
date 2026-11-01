@@ -49,8 +49,14 @@ Excluded scale bytes (`a = b = 1.0`, scale of `b` `1.0`): `0x00` gives `0` (the 
 1. Both facts hold on every element checked, for both `fast_math` values and every shape and
    `K` tested, with margin: no error above `0.11` of the bound.
 2. The emulation is a `bfloat16` `tl.dot` after an exact scaling, so the facts take `DotBF16`'s
-   constants; `evidence/num-dot` tests that dot up to `K = 2048`, and its per-chunk derivation
-   covers every `K`.
+   constants. On `scaledDomBF16` every scaled value is `0` or a normal `bfloat16` value, so that dot
+   has no subnormal operand and its lifted magnitudes are `|a·b|`. The 25-bit window of
+   [evidence/num-dot-sub16-round25](../num-dot-sub16-round25/README.md) (its bit-level model, equal to
+   the device on every element tested, and its derivation, which covers every `K`) then bounds the
+   dot by `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K`, and its Part G3 checks these facts on window
+   inputs (at most `0.0057` of the bound). (Until round 26 this conclusion cited `evidence/num-dot`'s
+   per-chunk derivation, "every term down to `2^-23` of the largest", which round 25 found holds only
+   for normal operands, as here; library issue L129.)
 3. The domain is needed: outside `scaledDomBF16` the `bfloat16` multiplication by the scale can
    underflow or overflow. Scale `0x00` is read as `0`, not `2^-127`, and `0xFF` is NaN, so
    `e8m0Dom` excludes both.

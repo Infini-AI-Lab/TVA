@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5fwd",
+  "kernel": "attn_fwd_e5m2",
+  "round": 5,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Check of the README's L127 rewording (diff against HEAD; gate 60ae4e7766871cbd). The rewording addresses the remark in my previous filing. The four changed passages (the opening, the p·v bullet of 'What changed', the 'rows spread over many blocks' bullet, and the Narrowings) now say that the p·v accumulator's compounding is DotE5m2Chunk's bound, from its form (each step relative to Mj >= |acc|) and its 2^-7 constant, not the device's behaviour, whose error grows at most linearly in the chunks. They cite L127. That agrees with num.md's 'How a kernel uses them' paragraph: compounding from the facts' form and margin, 'not from the device', the device truncating every term and the sum toward zero so its error grows at most linearly. It also agrees with L127. 'Round 26's DotE5m2ChunkLoss gives a sharper bound per chunk, which this claim does not cite' is true: num.md says the loss facts are the stronger, and claim.md's dot assumption cites DotE5m2Chunk. No figure changed: the 1.62% and 1.57% rates, the v = 1 tolO 19.3 against 17.8, and the 10^6 at 2^16 are as before. The claim's description is otherwise unchanged. A small wording point, not a finding: num.md calls 2^-7 about twice the window's worst chunk, so 'its 2^-7 margin' would be more exact as 'its constant 2^-7, about twice the window's worst chunk'. Every item stays accepted."
+}

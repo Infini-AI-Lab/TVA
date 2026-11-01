@@ -6,7 +6,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 ## Status
 
-- Gate: **PASS**, digest `5e4b5331abc9b970` (2026-11-01T05:51:37Z).
+- Gate: **PASS**, digest `e127e9a2077f0921` (2026-11-01T09:03:07Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-e5m2 (all), r-e5m2b (all).
 - Certificate: **GRANTED**.
@@ -14,15 +14,15 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 | Item | Digest | r-e5m2 | r-e5m2b |
 |---|---|---|---|
-| `assumption:cvt` | `0300298adb2f` | accepted | accepted |
-| `assumption:cvt_total` | `1850e4bbdd79` | accepted | accepted |
-| `assumption:dot` | `09801184af69` | accepted | accepted |
-| `assumption:dot_total` | `bcb81cec9f8d` | accepted | accepted |
+| `assumption:cvt` | `744a748008a7` | accepted | accepted |
+| `assumption:cvt_total` | `ee243df15fde` | accepted | accepted |
+| `assumption:dot` | `efd5335e8dec` | accepted | accepted |
+| `assumption:dot_total` | `4374a900b991` | accepted | accepted |
 | `assumption:faithful` | `a6f11c176fc0` | accepted | accepted |
 | `conditions` | `91a8ae003d59` | accepted | accepted |
 | `map` | `517f928841e0` | accepted | accepted |
 | `model` | `7a67c16d2d9a` | accepted | accepted |
-| `spec` | `556af3ea216f` | accepted | accepted |
+| `spec` | `3ea1f796c295` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -164,4 +164,41 @@ The paragraph 'What the tolerance means, and where it stops meaning much' lists 
 `2026-11-01T05:57:59Z`, at gate `5e4b5331abc9b970`. Notes: Re-acceptance after library round 25 (L126), gate 5e4b5331abc9b970; the kernel's files did not change. From the diff of the rules and num.md: liftMag moved to TVA.Rules.Num with the same definition (0 for 0, else max |q| (minNormal8 d)); minNormal8 keeps 2^-14 for float8e5 and 2^-6 for float8e4nv and only gains float16 and bfloat16 cases, which this kernel never uses. DotE5m2Chunk, DotF8Chunk, DotChunkAcc and the constants 2^-7, 2^-12, 2^-126 are unchanged, as are CvtF32E5m2 (CvtRn binary32 e5m2), CvtTotal and DotTotal; their num.md rows are unchanged. Only DotF16, DotBF16 (now DotLiftAcc) and docstrings changed, none cited here. Checked in work/names4.lean: minNormal8 .f8e5 = 2^-14, minNormal8 .f8e4nv = 2^-6 and the unfolding of liftMag .f8e5 hold by rfl; liftV, dotLift and the five assumptions print as before; main uses only propext, Classical.choice and Quot.sound. So spec and the assumptions cvt, cvt_total, dot and dot_total mean what I accepted in round 24.
 
 - **accepted** at gate `5e4b5331abc9b970`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T08:50:25Z` coordinator's note: Library round 26 (L124, L127-L133; docs/library-review/ISSUES.md), after the round 24/25 library review: new facts DotE4m3ChunkLoss etc. and lemmas added to lean/TVA/Rules/Num/Dot8Chunk.lean and lean/TVA/Lemmas/Dot8Chunk.lean, and docs/rules/num.md reworded and extended. No existing fact, constant or lemma changed; this kernel's reviewers re-accept the items that re-opened.
+
+### r-e5m2b files ([filing](review/round-2/r-e5m2b/filing-5.json), [report](review/round-2/r-e5m2b/report-5.md), [work](review/round-2/r-e5m2b/work/))
+
+`2026-11-01T08:52:54Z`, at gate `e127e9a2077f0921`. Notes: Library round 26 re-acceptance at gate e127e9a2077f0921. Nothing the re-opened items rely on changed in meaning. In Rules/Num/Dot8Chunk.lean the diff adds the module docstring's loss-bound paragraph, chunkAbs8, DotChunkLoss, kappaChunk8, rhoLossChunk8, DotF8ChunkLoss, the four loss facts, DotChunkLoss.chunkAcc, DotChunkLoss.mono and DotF8ChunkLoss.chunk. It removes no line, so DotE5m2Chunk, DotF8Chunk, DotChunkAcc, chunk8, chunkSum8 and rhoChunk8, sigmaChunk8 and alphaChunk8 (2^-7, 2^-12, 2^-126) are unchanged. In Lemmas/Dot8Chunk.lean only a docstring bullet changed; the rest is new lemmas. DotF8Chunk.err, errB, chain_err and the liftMag lemmas the kernel uses are unchanged. CvtF32E5m2, CvtTotal and DotTotal are untouched. In num.md the fp8 tl.dot listing row still lists DotE5m2Chunk and adds the loss facts as an alternative. The reviewer-check rows for DotE5m2Chunk, the e5m2 conversion and the totality facts are unchanged. The rest is new loss-fact text and rows, plus the L127 and L130 rewording. The work file Round26 prints these definitions, checks the constants and minNormal8 .f8e5, and shows main, consistent and satisfiable depend only on propext, Classical.choice and Quot.sound.
+
+- **accepted** at gate `e127e9a2077f0921`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2 files ([filing](review/round-2/r-e5m2/filing-5.json), [report](review/round-2/r-e5m2/report-5.md), [work](review/round-2/r-e5m2/work/))
+
+`2026-11-01T08:53:25Z`, at gate `e127e9a2077f0921`. Notes: Re-acceptance after library round 26 (L124, L127-L133), gate e127e9a2077f0921; the kernel's files did not change. The Lean diff only adds: chunkAbs8, DotChunkLoss, kappaChunk8, rhoLossChunk8, DotF8ChunkLoss and the four ...ChunkLoss facts, with DotChunkLoss.chunkAcc, DotChunkLoss.mono and DotF8ChunkLoss.chunk in Rules/Num/Dot8Chunk.lean, and errM, chain_errM, errM_le_errB, errL, DotChunkLoss.err, DotF8ChunkLoss.err and the reference-platform lemmas in Lemmas/Dot8Chunk.lean. The only removed lines are in module docstrings. DotE5m2Chunk, DotF8Chunk, DotChunkAcc, rhoChunk8 = 2^-7, sigmaChunk8 = 2^-12, alphaChunk8 = 2^-126, liftMag, minNormal8, DotLoop.bound, CvtF32E5m2, CvtTotal and DotTotal are unchanged. In num.md the rows for DotE5m2Chunk, CvtF32E5m2 and the total rules are unchanged. The fp8 entry of the reviewer's table now also allows the loss facts. The wording changes (L127, L130) and the new sections state no new meaning for the fact cited here. Checked in work/names5.lean: the constants and minNormal8 .f8e5 hold by rfl, DotE5m2ChunkLoss gives DotE5m2Chunk, the cited facts, spec definitions and assumptions print as before, and main, zero_rejected and drop_rejected use only propext, Classical.choice and Quot.sound. Non-blocking, no finding: the README calls the tolerance the device's allowed error. After L127 it is best read as the error the cited fact allows. The library now also offers the sharper DotE5m2ChunkLoss, which this claim need not use.
+
+- **accepted** at gate `e127e9a2077f0921`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2 files ([filing](review/round-2/r-e5m2/filing-6.json), [report](review/round-2/r-e5m2/report-6.md), [work](review/round-2/r-e5m2/work/))
+
+`2026-11-01T09:01:14Z`, at gate `e127e9a2077f0921`. Notes: Confirmation of the README rewording for L127, gate e127e9a2077f0921. Only the README changed; claim.md differs only in generated digests and timestamps, and no figure changed. The new sentences are true and agree with num.md's paragraph ending 'The loss facts, next, state a second bound for each step from this.' and with L127. The tolerance is the error DotE5m2Chunk allows: tol is errAt, the fact composed chunk by chunk. A large partial sum costs about rho + sigma of itself per chunk: errAt's step has rho*max(|S_j|, m_j) + sigma*|S_(j+1)|. The growth of about 1 + rho + sigma per chunk comes from the fact's form (M >= |s|) and its margin (2^-7 against the window's 33*(1 + 2^-13)*2^-13), not from the device, whose truncation toward zero keeps its error linear in the chunks. DotE5m2ChunkLoss's second arm, 2*A_j + 2^-12*M + 2^-12*|s + c| + 2^-126, is that fact's statement, and the composed bound's factor is at most 1 + sigma + rho' = 1 + 2^-11 (errL). The claim does not cite it. Non-blocking: 'a fed-back accumulator grows by at most 1 + 2^-11 per chunk' means the bound composed for it, as L124's own text puts it; the paragraph's first sentence makes that clear.
+
+- **accepted** at gate `e127e9a2077f0921`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2b files ([filing](review/round-2/r-e5m2b/filing-6.json), [report](review/round-2/r-e5m2b/report-6.md), [work](review/round-2/r-e5m2b/work/))
+
+`2026-11-01T09:01:38Z`, at gate `e127e9a2077f0921`. Notes: Confirmation of the README rewording for L127 at gate e127e9a2077f0921 (digest unchanged). The new sentences are true and agree with num.md's paragraph in How a kernel uses them and with L127. They say the tolerance is the error DotE5m2Chunk allows, not the device's error. They say its growth of about 1 + rho + sigma per chunk comes from the fact's form (each chunk relative to M >= |s|) and its 2^-7 margin (about twice the window's worst chunk), not from the device, whose truncation toward zero keeps its error at most linear in the chunks. That matches errB: (1 + rho + sigma) errB j + rho max|S j| (m j) + sigma |S (j+1)| + alpha. DotE5m2ChunkLoss's second arm is stated correctly as 2 A_j + 2^-12 M + 2^-12 |s + c| + 2^-126, with growth at most 1 + 2^-11 per chunk: errM <= errL, which compounds by 1 + rho' + sigma. The claim does cite DotE5m2Chunk and not the loss fact, and the tolerance is unchanged. The diff changes no figure (13.7%, 2753, 179.3%, 6.3%, 73.9%, the 0.133 to 0.137 and 1.708 to 1.793 rows). No leftover sentence calls the tolerance the device's error. claim.md differs from the last commit only in round-26 digests and its timestamp. Wording note, not a finding: 'a fed-back accumulator grows by at most 1 + 2^-11 per chunk' means the bound on its error, as the paragraph's frame (the tolerance's growth) makes clear.
+
+- **accepted** at gate `e127e9a2077f0921`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2 files ([filing](review/round-2/r-e5m2/filing-7.json), [report](review/round-2/r-e5m2/report-7.md), [work](review/round-2/r-e5m2/work/))
+
+`2026-11-01T09:04:51Z`, at gate `e127e9a2077f0921`. Notes: Confirmation at gate e127e9a2077f0921 of the README fix to my earlier wording remark. 'That growth of the bound, by about 1 + rho + sigma per chunk' names what grows: the tolerance errAt, whose step multiplies the previous bound by 1 + rho + sigma. 'the error bound on a fed-back accumulator grows by at most a factor 1 + 2^-11 per chunk' is true of DotE5m2ChunkLoss: its second arm gives the composed bound the factor 1 + sigma + rho' = 1 + 2^-11 (errL), and errM is at most errL. My remark is settled.
+
+- **accepted** at gate `e127e9a2077f0921`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2b files ([filing](review/round-2/r-e5m2b/filing-7.json), [report](review/round-2/r-e5m2b/report-7.md), [work](review/round-2/r-e5m2b/work/))
+
+`2026-11-01T09:05:00Z`, at gate `e127e9a2077f0921`. Notes: Confirmation of the README phrase fix at gate e127e9a2077f0921 (unchanged). 'That growth of the bound, by about 1 + rho + sigma per chunk' is errB's compounding factor. 'the error bound on a fed-back accumulator grows by at most a factor 1 + 2^-11 per chunk' is true: errM <= errL, and errL compounds by 1 + rho' + sigma = 1 + 2^-11, as in errL_le's closed form (1 + 2^-11)^n times the sum of the per-chunk terms. num.md states the growth in the same sense. Neither sentence is wrong or misleading.
+
+- **accepted** at gate `e127e9a2077f0921`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

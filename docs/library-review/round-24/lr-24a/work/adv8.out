@@ -1,0 +1,688 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+## Part P: input_precision
+
+| operands | M x N, warps | K | path | input_precision | PTX equal to the default's |
+|---|---|---|---|---|---|
+| e5 x e5 | 64 x 64, 4 | 64 | wgmma | tf32x3 | True |
+| e5 x e5 | 64 x 64, 4 | 64 | wgmma | ieee | True |
+| e5 x e5 | 64 x 64, 4 | 64 | wgmma | bf16x3 | True |
+| e5 x e5 | 64 x 64, 4 | 64 | wgmma | bf16x6 | True |
+| e5 x e5 | 16 x 16, 1 | 64 | mma.sync | tf32x3 | True |
+| e5 x e5 | 16 x 16, 1 | 64 | mma.sync | ieee | True |
+| e5 x e5 | 16 x 16, 1 | 64 | mma.sync | bf16x3 | True |
+| e5 x e5 | 16 x 16, 1 | 64 | mma.sync | bf16x6 | True |
+| e4 x e4 | 64 x 64, 4 | 64 | wgmma | tf32x3 | True |
+| e4 x e4 | 64 x 64, 4 | 64 | wgmma | ieee | True |
+| e4 x e4 | 64 x 64, 4 | 64 | wgmma | bf16x3 | True |
+| e4 x e4 | 64 x 64, 4 | 64 | wgmma | bf16x6 | True |
+| e4 x e4 | 16 x 16, 1 | 64 | mma.sync | tf32x3 | True |
+| e4 x e4 | 16 x 16, 1 | 64 | mma.sync | ieee | True |
+| e4 x e4 | 16 x 16, 1 | 64 | mma.sync | bf16x3 | True |
+| e4 x e4 | 16 x 16, 1 | 64 | mma.sync | bf16x6 | True |
+| e4 x e5 | 64 x 64, 4 | 64 | wgmma | tf32x3 | True |
+| e4 x e5 | 64 x 64, 4 | 64 | wgmma | ieee | True |
+| e4 x e5 | 64 x 64, 4 | 64 | wgmma | bf16x3 | True |
+| e4 x e5 | 64 x 64, 4 | 64 | wgmma | bf16x6 | True |
+| e4 x e5 | 16 x 16, 1 | 64 | mma.sync | tf32x3 | True |
+| e4 x e5 | 16 x 16, 1 | 64 | mma.sync | ieee | True |
+| e4 x e5 | 16 x 16, 1 | 64 | mma.sync | bf16x3 | True |
+| e4 x e5 | 16 x 16, 1 | 64 | mma.sync | bf16x6 | True |
+| e5 x e4 | 64 x 64, 4 | 64 | wgmma | tf32x3 | True |
+| e5 x e4 | 64 x 64, 4 | 64 | wgmma | ieee | True |
+| e5 x e4 | 64 x 64, 4 | 64 | wgmma | bf16x3 | True |
+| e5 x e4 | 64 x 64, 4 | 64 | wgmma | bf16x6 | True |
+| e5 x e4 | 16 x 16, 1 | 64 | mma.sync | tf32x3 | True |
+| e5 x e4 | 16 x 16, 1 | 64 | mma.sync | ieee | True |
+| e5 x e4 | 16 x 16, 1 | 64 | mma.sync | bf16x3 | True |
+| e5 x e4 | 16 x 16, 1 | 64 | mma.sync | bf16x6 | True |
+
+## Part X: extremes
+
+| case | operands | path | K | in room | outside the facts | non-finite in room | model = device | largest ratio |
+|---|---|---|---|---|---|---|---|---|
+| accumulator near the float32 maximum | e5 x e5 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0077 |
+| operands near the maxima | e5 x e5 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0773 |
+| both subnormal, subnormal float32 accumulators | e5 x e5 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0000 |
+| mostly zero products, subnormal accumulators | e5 x e5 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0001 |
+| accumulator near the float32 maximum | e5 x e5 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0001 |
+| operands near the maxima | e5 x e5 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0083 |
+| both subnormal, subnormal float32 accumulators | e5 x e5 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0000 |
+| mostly zero products, subnormal accumulators | e5 x e5 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0037 |
+| accumulator near the float32 maximum | e5 x e5 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| operands near the maxima | e5 x e5 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0001 |
+| both subnormal, subnormal float32 accumulators | e5 x e5 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| mostly zero products, subnormal accumulators | e5 x e5 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| accumulator near the float32 maximum | e5 x e5 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| operands near the maxima | e5 x e5 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| both subnormal, subnormal float32 accumulators | e5 x e5 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| mostly zero products, subnormal accumulators | e5 x e5 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| accumulator near the float32 maximum | e4 x e4 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0077 |
+| operands near the maxima | e4 x e4 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.1827 |
+| both subnormal, subnormal float32 accumulators | e4 x e4 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0000 |
+| mostly zero products, subnormal accumulators | e4 x e4 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0073 |
+| accumulator near the float32 maximum | e4 x e4 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0001 |
+| operands near the maxima | e4 x e4 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0507 |
+| both subnormal, subnormal float32 accumulators | e4 x e4 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0000 |
+| mostly zero products, subnormal accumulators | e4 x e4 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0087 |
+| accumulator near the float32 maximum | e4 x e4 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| operands near the maxima | e4 x e4 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| both subnormal, subnormal float32 accumulators | e4 x e4 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| mostly zero products, subnormal accumulators | e4 x e4 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| accumulator near the float32 maximum | e4 x e4 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| operands near the maxima | e4 x e4 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| both subnormal, subnormal float32 accumulators | e4 x e4 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| mostly zero products, subnormal accumulators | e4 x e4 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| accumulator near the float32 maximum | e4 x e5 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0077 |
+| operands near the maxima | e4 x e5 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0586 |
+| both subnormal, subnormal float32 accumulators | e4 x e5 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0000 |
+| mostly zero products, subnormal accumulators | e4 x e5 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0150 |
+| accumulator near the float32 maximum | e4 x e5 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0001 |
+| operands near the maxima | e4 x e5 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0093 |
+| both subnormal, subnormal float32 accumulators | e4 x e5 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0000 |
+| mostly zero products, subnormal accumulators | e4 x e5 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0063 |
+| accumulator near the float32 maximum | e4 x e5 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| operands near the maxima | e4 x e5 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| both subnormal, subnormal float32 accumulators | e4 x e5 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| mostly zero products, subnormal accumulators | e4 x e5 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| accumulator near the float32 maximum | e4 x e5 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| operands near the maxima | e4 x e5 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| both subnormal, subnormal float32 accumulators | e4 x e5 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| mostly zero products, subnormal accumulators | e4 x e5 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| accumulator near the float32 maximum | e5 x e4 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0077 |
+| operands near the maxima | e5 x e4 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0636 |
+| both subnormal, subnormal float32 accumulators | e5 x e4 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0000 |
+| mostly zero products, subnormal accumulators | e5 x e4 | wgmma | 32 | 4096 | 0 | 0 | 4096/4096 | 0.0076 |
+| accumulator near the float32 maximum | e5 x e4 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0001 |
+| operands near the maxima | e5 x e4 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0098 |
+| both subnormal, subnormal float32 accumulators | e5 x e4 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0000 |
+| mostly zero products, subnormal accumulators | e5 x e4 | wgmma | 256 | 4096 | 0 | 0 | 4096/4096 | 0.0052 |
+| accumulator near the float32 maximum | e5 x e4 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| operands near the maxima | e5 x e4 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| both subnormal, subnormal float32 accumulators | e5 x e4 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| mostly zero products, subnormal accumulators | e5 x e4 | mma.sync | 32 | 256 | 0 | 0 | - | 0.0000 |
+| accumulator near the float32 maximum | e5 x e4 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| operands near the maxima | e5 x e4 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| both subnormal, subnormal float32 accumulators | e5 x e4 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+| mostly zero products, subnormal accumulators | e5 x e4 | mma.sync | 256 | 256 | 0 | 0 | - | 0.0000 |
+
+## Part O: chunk membership and order on wgmma (K = 256)
+
+Per element (row of a): +B and -B at random k, a small s at a random k, the other products random and smaller; B/s = 2^14 (s lost unless its chunk comes after both B's chunks) or 2^8 (kept). Device against the model.
+
+| operands | M x N, warps | a | b | B/s | path | elements | model = device |
+|---|---|---|---|---|---|---|---|
+| e5 x e5 | 64 x 64, 4 | ld | ld | 2^14 | wgmma | 8192 | 8192 |
+| e5 x e5 | 64 x 64, 4 | ld | ld | 2^8 | wgmma | 8192 | 8192 |
+| e5 x e5 | 64 x 64, 4 | ldT | ld | 2^14 | wgmma | 8192 | 8192 |
+| e5 x e5 | 64 x 64, 4 | ldT | ld | 2^8 | wgmma | 8192 | 8192 |
+| e5 x e5 | 64 x 64, 4 | reg | ldT | 2^14 | wgmma | 8192 | 8192 |
+| e5 x e5 | 64 x 64, 4 | reg | ldT | 2^8 | wgmma | 8192 | 8192 |
+| e5 x e5 | 64 x 64, 4 | ldT | ldT | 2^14 | wgmma | 8192 | 8192 |
+| e5 x e5 | 64 x 64, 4 | ldT | ldT | 2^8 | wgmma | 8192 | 8192 |
+| e5 x e5 | 128 x 64, 8 | ld | ld | 2^14 | wgmma | 16384 | 16384 |
+| e5 x e5 | 128 x 64, 8 | ld | ld | 2^8 | wgmma | 16384 | 16384 |
+| e5 x e5 | 128 x 64, 8 | ldT | ld | 2^14 | wgmma | 16384 | 16384 |
+| e5 x e5 | 128 x 64, 8 | ldT | ld | 2^8 | wgmma | 16384 | 16384 |
+| e5 x e5 | 128 x 64, 8 | reg | ldT | 2^14 | wgmma | 16384 | 16384 |
+| e5 x e5 | 128 x 64, 8 | reg | ldT | 2^8 | wgmma | 16384 | 16384 |
+| e5 x e5 | 128 x 64, 8 | ldT | ldT | 2^14 | wgmma | 16384 | 16384 |
+| e5 x e5 | 128 x 64, 8 | ldT | ldT | 2^8 | wgmma | 16384 | 16384 |
+| e4 x e4 | 64 x 64, 4 | ld | ld | 2^14 | wgmma | 8192 | 8192 |
+| e4 x e4 | 64 x 64, 4 | ld | ld | 2^8 | wgmma | 8192 | 8192 |
+| e4 x e4 | 64 x 64, 4 | ldT | ld | 2^14 | wgmma | 8192 | 8192 |
+| e4 x e4 | 64 x 64, 4 | ldT | ld | 2^8 | wgmma | 8192 | 8192 |
+| e4 x e4 | 64 x 64, 4 | reg | ldT | 2^14 | wgmma | 8192 | 8192 |
+| e4 x e4 | 64 x 64, 4 | reg | ldT | 2^8 | wgmma | 8192 | 8192 |
+| e4 x e4 | 64 x 64, 4 | ldT | ldT | 2^14 | wgmma | 8192 | 8192 |
+| e4 x e4 | 64 x 64, 4 | ldT | ldT | 2^8 | wgmma | 8192 | 8192 |
+| e4 x e4 | 128 x 64, 8 | ld | ld | 2^14 | wgmma | 16384 | 16384 |
+| e4 x e4 | 128 x 64, 8 | ld | ld | 2^8 | wgmma | 16384 | 16384 |
+| e4 x e4 | 128 x 64, 8 | ldT | ld | 2^14 | wgmma | 16384 | 16384 |
+| e4 x e4 | 128 x 64, 8 | ldT | ld | 2^8 | wgmma | 16384 | 16384 |
+| e4 x e4 | 128 x 64, 8 | reg | ldT | 2^14 | wgmma | 16384 | 16384 |
+| e4 x e4 | 128 x 64, 8 | reg | ldT | 2^8 | wgmma | 16384 | 16384 |
+| e4 x e4 | 128 x 64, 8 | ldT | ldT | 2^14 | wgmma | 16384 | 16384 |
+| e4 x e4 | 128 x 64, 8 | ldT | ldT | 2^8 | wgmma | 16384 | 16384 |
+| e4 x e5 | 64 x 64, 4 | ld | ld | 2^14 | wgmma | 8192 | 8192 |
+| e4 x e5 | 64 x 64, 4 | ld | ld | 2^8 | wgmma | 8192 | 8192 |
+| e4 x e5 | 64 x 64, 4 | ldT | ld | 2^14 | wgmma | 8192 | 8192 |
+| e4 x e5 | 64 x 64, 4 | ldT | ld | 2^8 | wgmma | 8192 | 8192 |
+| e4 x e5 | 64 x 64, 4 | reg | ldT | 2^14 | wgmma | 8192 | 8192 |
+| e4 x e5 | 64 x 64, 4 | reg | ldT | 2^8 | wgmma | 8192 | 8192 |
+| e4 x e5 | 64 x 64, 4 | ldT | ldT | 2^14 | wgmma | 8192 | 8192 |
+| e4 x e5 | 64 x 64, 4 | ldT | ldT | 2^8 | wgmma | 8192 | 8192 |
+| e4 x e5 | 128 x 64, 8 | ld | ld | 2^14 | wgmma | 16384 | 16384 |
+| e4 x e5 | 128 x 64, 8 | ld | ld | 2^8 | wgmma | 16384 | 16384 |
+| e4 x e5 | 128 x 64, 8 | ldT | ld | 2^14 | wgmma | 16384 | 16384 |
+| e4 x e5 | 128 x 64, 8 | ldT | ld | 2^8 | wgmma | 16384 | 16384 |
+| e4 x e5 | 128 x 64, 8 | reg | ldT | 2^14 | wgmma | 16384 | 16384 |
+| e4 x e5 | 128 x 64, 8 | reg | ldT | 2^8 | wgmma | 16384 | 16384 |
+| e4 x e5 | 128 x 64, 8 | ldT | ldT | 2^14 | wgmma | 16384 | 16384 |
+| e4 x e5 | 128 x 64, 8 | ldT | ldT | 2^8 | wgmma | 16384 | 16384 |
+| e5 x e4 | 64 x 64, 4 | ld | ld | 2^14 | wgmma | 8192 | 8192 |
+| e5 x e4 | 64 x 64, 4 | ld | ld | 2^8 | wgmma | 8192 | 8192 |
+| e5 x e4 | 64 x 64, 4 | ldT | ld | 2^14 | wgmma | 8192 | 8192 |
+| e5 x e4 | 64 x 64, 4 | ldT | ld | 2^8 | wgmma | 8192 | 8192 |
+| e5 x e4 | 64 x 64, 4 | reg | ldT | 2^14 | wgmma | 8192 | 8192 |
+| e5 x e4 | 64 x 64, 4 | reg | ldT | 2^8 | wgmma | 8192 | 8192 |
+| e5 x e4 | 64 x 64, 4 | ldT | ldT | 2^14 | wgmma | 8192 | 8192 |
+| e5 x e4 | 64 x 64, 4 | ldT | ldT | 2^8 | wgmma | 8192 | 8192 |
+| e5 x e4 | 128 x 64, 8 | ld | ld | 2^14 | wgmma | 16384 | 16384 |
+| e5 x e4 | 128 x 64, 8 | ld | ld | 2^8 | wgmma | 16384 | 16384 |
+| e5 x e4 | 128 x 64, 8 | ldT | ld | 2^14 | wgmma | 16384 | 16384 |
+| e5 x e4 | 128 x 64, 8 | ldT | ld | 2^8 | wgmma | 16384 | 16384 |
+| e5 x e4 | 128 x 64, 8 | reg | ldT | 2^14 | wgmma | 16384 | 16384 |
+| e5 x e4 | 128 x 64, 8 | reg | ldT | 2^8 | wgmma | 16384 | 16384 |
+| e5 x e4 | 128 x 64, 8 | ldT | ldT | 2^14 | wgmma | 16384 | 16384 |
+| e5 x e4 | 128 x 64, 8 | ldT | ldT | 2^8 | wgmma | 16384 | 16384 |
+
+## Part L: tutorial 03's K loop in fp8 (operands loaded in fp8, acc = tl.dot(a, b, acc))
+
+| operands | M x N x KB, warps, stages | T | kind | path | dots x elements | outside the facts | model = device (per dot) | largest ratio | final equal without the stores |
+|---|---|---|---|---|---|---|---|---|---|
+| e5 x e5 | 128 x 256 x 128, 8, 3 | 8 | randn | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0497 | True |
+| e5 x e5 | 128 x 256 x 128, 8, 3 | 8 | subw | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0274 | True |
+| e5 x e5 | 128 x 256 x 128, 8, 3 | 8 | accwin | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0326 | True |
+| e5 x e5 | 128 x 128 x 64, 4, 4 | 8 | randn | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0765 | True |
+| e5 x e5 | 128 x 128 x 64, 4, 4 | 8 | subw | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0448 | True |
+| e5 x e5 | 128 x 128 x 64, 4, 4 | 8 | accwin | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0365 | True |
+| e5 x e5 | 64 x 64 x 128, 4, 3 | 8 | randn | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0437 | True |
+| e5 x e5 | 64 x 64 x 128, 4, 3 | 8 | subw | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0187 | True |
+| e5 x e5 | 64 x 64 x 128, 4, 3 | 8 | accwin | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0279 | True |
+| e5 x e5 | 32 x 32 x 64, 2, 3 | 8 | randn | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e5 x e5 | 32 x 32 x 64, 2, 3 | 8 | subw | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e5 x e5 | 32 x 32 x 64, 2, 3 | 8 | accwin | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e4 x e4 | 128 x 256 x 128, 8, 3 | 8 | randn | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0686 | True |
+| e4 x e4 | 128 x 256 x 128, 8, 3 | 8 | subw | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0900 | True |
+| e4 x e4 | 128 x 256 x 128, 8, 3 | 8 | accwin | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0551 | True |
+| e4 x e4 | 128 x 128 x 64, 4, 4 | 8 | randn | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0903 | True |
+| e4 x e4 | 128 x 128 x 64, 4, 4 | 8 | subw | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.1130 | True |
+| e4 x e4 | 128 x 128 x 64, 4, 4 | 8 | accwin | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0702 | True |
+| e4 x e4 | 64 x 64 x 128, 4, 3 | 8 | randn | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0576 | True |
+| e4 x e4 | 64 x 64 x 128, 4, 3 | 8 | subw | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0823 | True |
+| e4 x e4 | 64 x 64 x 128, 4, 3 | 8 | accwin | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0494 | True |
+| e4 x e4 | 32 x 32 x 64, 2, 3 | 8 | randn | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e4 x e4 | 32 x 32 x 64, 2, 3 | 8 | subw | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e4 x e4 | 32 x 32 x 64, 2, 3 | 8 | accwin | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e4 x e5 | 128 x 256 x 128, 8, 3 | 8 | randn | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0587 | True |
+| e4 x e5 | 128 x 256 x 128, 8, 3 | 8 | subw | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0226 | True |
+| e4 x e5 | 128 x 256 x 128, 8, 3 | 8 | accwin | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0432 | True |
+| e4 x e5 | 128 x 128 x 64, 4, 4 | 8 | randn | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0713 | True |
+| e4 x e5 | 128 x 128 x 64, 4, 4 | 8 | subw | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0429 | True |
+| e4 x e5 | 128 x 128 x 64, 4, 4 | 8 | accwin | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0514 | True |
+| e4 x e5 | 64 x 64 x 128, 4, 3 | 8 | randn | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0525 | True |
+| e4 x e5 | 64 x 64 x 128, 4, 3 | 8 | subw | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0171 | True |
+| e4 x e5 | 64 x 64 x 128, 4, 3 | 8 | accwin | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0341 | True |
+| e4 x e5 | 32 x 32 x 64, 2, 3 | 8 | randn | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e4 x e5 | 32 x 32 x 64, 2, 3 | 8 | subw | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e4 x e5 | 32 x 32 x 64, 2, 3 | 8 | accwin | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e5 x e4 | 128 x 256 x 128, 8, 3 | 8 | randn | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0583 | True |
+| e5 x e4 | 128 x 256 x 128, 8, 3 | 8 | subw | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0619 | True |
+| e5 x e4 | 128 x 256 x 128, 8, 3 | 8 | accwin | wgmma | 8 x 32768 | 0 | 262144/262144 | 0.0445 | True |
+| e5 x e4 | 128 x 128 x 64, 4, 4 | 8 | randn | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0752 | True |
+| e5 x e4 | 128 x 128 x 64, 4, 4 | 8 | subw | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0781 | True |
+| e5 x e4 | 128 x 128 x 64, 4, 4 | 8 | accwin | wgmma | 8 x 16384 | 0 | 131072/131072 | 0.0561 | True |
+| e5 x e4 | 64 x 64 x 128, 4, 3 | 8 | randn | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0485 | True |
+| e5 x e4 | 64 x 64 x 128, 4, 3 | 8 | subw | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0457 | True |
+| e5 x e4 | 64 x 64 x 128, 4, 3 | 8 | accwin | wgmma | 8 x 4096 | 0 | 32768/32768 | 0.0316 | True |
+| e5 x e4 | 32 x 32 x 64, 2, 3 | 8 | randn | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e5 x e4 | 32 x 32 x 64, 2, 3 | 8 | subw | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+| e5 x e4 | 32 x 32 x 64, 2, 3 | 8 | accwin | mma.sync | 8 x 1024 | 0 | - | 0.0000 | True |
+
+## Part S: shapes and operand forms outside the evidence
+
+| operands | M x N, warps | K | a | b | path | elements | in room | outside the facts | model = device | largest ratio | whole-dot lemma: outside (largest ratio) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| e5 x e5 | 1 x 16, 1 | 32 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 32 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 32 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 32 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 128 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 128 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 128 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 128 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 512 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 512 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 512 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 1 x 16, 1 | 512 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 32 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 32 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 32 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 32 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 128 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 128 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 128 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 128 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 512 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 512 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 512 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 4 x 16, 1 | 512 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 32 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 32 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 32 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 32 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 128 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 128 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 128 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 128 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 512 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 512 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 512 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 8 x 8, 1 | 512 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 32 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 32 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 32 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 32 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 128 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 128 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 128 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 128 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 512 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 512 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 512 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 2, 1 | 512 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 32 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 32 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 32 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 32 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 128 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 128 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 128 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 128 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 512 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 512 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 512 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 16 x 16, 8 | 512 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 32 x 128, 4 | 32 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 32 x 128, 4 | 32 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 32 x 128, 4 | 32 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 32 x 128, 4 | 32 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 32 x 128, 4 | 128 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 32 x 128, 4 | 128 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 32 x 128, 4 | 128 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 32 x 128, 4 | 128 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 64 x 64, 2 | 32 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 64 x 64, 2 | 32 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 64 x 64, 2 | 32 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 64 x 64, 2 | 32 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e5 | 64 x 64, 2 | 128 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 64 x 64, 2 | 128 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 64 x 64, 2 | 128 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 64 x 64, 2 | 128 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e5 | 64 x 8, 4 | 32 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1228 | 0 (0.0997) |
+| e5 x e5 | 64 x 8, 4 | 32 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1272 | 0 (0.0870) |
+| e5 x e5 | 64 x 8, 4 | 32 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1482 | 0 (0.1477) |
+| e5 x e5 | 64 x 8, 4 | 32 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1179 | 0 (0.1056) |
+| e5 x e5 | 64 x 8, 4 | 128 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0800 | 0 (0.0527) |
+| e5 x e5 | 64 x 8, 4 | 128 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0642 | 0 (0.0474) |
+| e5 x e5 | 64 x 8, 4 | 128 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0643 | 0 (0.0489) |
+| e5 x e5 | 64 x 8, 4 | 128 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0825 | 0 (0.0556) |
+| e5 x e5 | 64 x 8, 4 | 512 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0487 | 0 (0.0226) |
+| e5 x e5 | 64 x 8, 4 | 512 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0500 | 0 (0.0251) |
+| e5 x e5 | 64 x 8, 4 | 512 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0510 | 0 (0.0228) |
+| e5 x e5 | 64 x 8, 4 | 512 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0483 | 0 (0.0217) |
+| e5 x e5 | 64 x 256, 4 | 32 | ld | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1548 | 0 (0.1187) |
+| e5 x e5 | 64 x 256, 4 | 32 | ldT | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1657 | 0 (0.1444) |
+| e5 x e5 | 64 x 256, 4 | 32 | reg | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1647 | 0 (0.1643) |
+| e5 x e5 | 64 x 256, 4 | 32 | ldT | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1553 | 0 (0.1351) |
+| e5 x e5 | 64 x 256, 4 | 128 | ld | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1181 | 0 (0.0556) |
+| e5 x e5 | 64 x 256, 4 | 128 | ldT | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1018 | 0 (0.0612) |
+| e5 x e5 | 64 x 256, 4 | 128 | reg | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1178 | 0 (0.0661) |
+| e5 x e5 | 64 x 256, 4 | 128 | ldT | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.0920 | 0 (0.0690) |
+| e5 x e5 | 64 x 64, 8 | 32 | ld | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1292 | 0 (0.1173) |
+| e5 x e5 | 64 x 64, 8 | 32 | ldT | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1169 | 0 (0.1087) |
+| e5 x e5 | 64 x 64, 8 | 32 | reg | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1372 | 0 (0.1060) |
+| e5 x e5 | 64 x 64, 8 | 32 | ldT | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1437 | 0 (0.1428) |
+| e5 x e5 | 64 x 64, 8 | 128 | ld | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1020 | 0 (0.0601) |
+| e5 x e5 | 64 x 64, 8 | 128 | ldT | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1021 | 0 (0.0549) |
+| e5 x e5 | 64 x 64, 8 | 128 | reg | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0832 | 0 (0.0502) |
+| e5 x e5 | 64 x 64, 8 | 128 | ldT | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1163 | 0 (0.0486) |
+| e5 x e5 | 256 x 128, 8 | 32 | ld | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1506 | 0 (0.1304) |
+| e5 x e5 | 256 x 128, 8 | 32 | ldT | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1684 | 0 (0.1576) |
+| e5 x e5 | 256 x 128, 8 | 32 | reg | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1708 | 0 (0.1401) |
+| e5 x e5 | 256 x 128, 8 | 32 | ldT | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1763 | 0 (0.1259) |
+| e5 x e5 | 256 x 128, 8 | 128 | ld | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1066 | 0 (0.0718) |
+| e5 x e5 | 256 x 128, 8 | 128 | ldT | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1123 | 0 (0.0679) |
+| e5 x e5 | 256 x 128, 8 | 128 | reg | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.0958 | 0 (0.0612) |
+| e5 x e5 | 256 x 128, 8 | 128 | ldT | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.0971 | 0 (0.0578) |
+| e4 x e4 | 1 x 16, 1 | 32 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 32 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 32 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 32 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 128 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 128 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 128 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 128 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 512 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 512 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 512 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 1 x 16, 1 | 512 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 32 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 32 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 32 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 32 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 128 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 128 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 128 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 128 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 512 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 512 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 512 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 4 x 16, 1 | 512 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 32 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 32 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 32 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 32 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 128 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 128 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 128 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 128 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 512 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 512 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 512 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 8 x 8, 1 | 512 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 32 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 32 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 32 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 32 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 128 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 128 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 128 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 128 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 512 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 512 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 512 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 2, 1 | 512 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 32 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 32 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 32 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 32 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 128 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 128 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 128 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 128 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 512 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 512 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 512 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 16 x 16, 8 | 512 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 32 x 128, 4 | 32 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e4 | 32 x 128, 4 | 32 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e4 | 32 x 128, 4 | 32 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e4 | 32 x 128, 4 | 32 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e4 | 32 x 128, 4 | 128 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 32 x 128, 4 | 128 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 32 x 128, 4 | 128 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 32 x 128, 4 | 128 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 64 x 64, 2 | 32 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e4 | 64 x 64, 2 | 32 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e4 | 64 x 64, 2 | 32 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e4 | 64 x 64, 2 | 32 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e4 | 64 x 64, 2 | 128 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 64 x 64, 2 | 128 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 64 x 64, 2 | 128 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 64 x 64, 2 | 128 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e4 | 64 x 8, 4 | 32 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1345 | 0 (0.1029) |
+| e4 x e4 | 64 x 8, 4 | 32 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1277 | 0 (0.0880) |
+| e4 x e4 | 64 x 8, 4 | 32 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1492 | 0 (0.0982) |
+| e4 x e4 | 64 x 8, 4 | 32 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1359 | 0 (0.1107) |
+| e4 x e4 | 64 x 8, 4 | 128 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0798 | 0 (0.0671) |
+| e4 x e4 | 64 x 8, 4 | 128 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0691 | 0 (0.0536) |
+| e4 x e4 | 64 x 8, 4 | 128 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0947 | 0 (0.0425) |
+| e4 x e4 | 64 x 8, 4 | 128 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0959 | 0 (0.0550) |
+| e4 x e4 | 64 x 8, 4 | 512 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0958 | 0 (0.0296) |
+| e4 x e4 | 64 x 8, 4 | 512 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0983 | 0 (0.0308) |
+| e4 x e4 | 64 x 8, 4 | 512 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0949 | 0 (0.0296) |
+| e4 x e4 | 64 x 8, 4 | 512 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0919 | 0 (0.0285) |
+| e4 x e4 | 64 x 256, 4 | 32 | ld | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1658 | 0 (0.1365) |
+| e4 x e4 | 64 x 256, 4 | 32 | ldT | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1555 | 0 (0.1482) |
+| e4 x e4 | 64 x 256, 4 | 32 | reg | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1725 | 0 (0.1252) |
+| e4 x e4 | 64 x 256, 4 | 32 | ldT | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1854 | 0 (0.1295) |
+| e4 x e4 | 64 x 256, 4 | 128 | ld | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1145 | 0 (0.0744) |
+| e4 x e4 | 64 x 256, 4 | 128 | ldT | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1090 | 0 (0.0681) |
+| e4 x e4 | 64 x 256, 4 | 128 | reg | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1177 | 0 (0.0589) |
+| e4 x e4 | 64 x 256, 4 | 128 | ldT | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.0970 | 0 (0.0727) |
+| e4 x e4 | 64 x 64, 8 | 32 | ld | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1582 | 0 (0.1317) |
+| e4 x e4 | 64 x 64, 8 | 32 | ldT | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1495 | 0 (0.1195) |
+| e4 x e4 | 64 x 64, 8 | 32 | reg | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1877 | 0 (0.1755) |
+| e4 x e4 | 64 x 64, 8 | 32 | ldT | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1553 | 0 (0.1164) |
+| e4 x e4 | 64 x 64, 8 | 128 | ld | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0953 | 0 (0.0653) |
+| e4 x e4 | 64 x 64, 8 | 128 | ldT | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0958 | 0 (0.0594) |
+| e4 x e4 | 64 x 64, 8 | 128 | reg | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1000 | 0 (0.0549) |
+| e4 x e4 | 64 x 64, 8 | 128 | ldT | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1110 | 0 (0.0599) |
+| e4 x e4 | 256 x 128, 8 | 32 | ld | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1871 | 0 (0.1402) |
+| e4 x e4 | 256 x 128, 8 | 32 | ldT | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1856 | 0 (0.1494) |
+| e4 x e4 | 256 x 128, 8 | 32 | reg | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1936 | 0 (0.1434) |
+| e4 x e4 | 256 x 128, 8 | 32 | ldT | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1684 | 0 (0.1380) |
+| e4 x e4 | 256 x 128, 8 | 128 | ld | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1027 | 0 (0.0690) |
+| e4 x e4 | 256 x 128, 8 | 128 | ldT | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1013 | 0 (0.0665) |
+| e4 x e4 | 256 x 128, 8 | 128 | reg | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1041 | 0 (0.0707) |
+| e4 x e4 | 256 x 128, 8 | 128 | ldT | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1354 | 0 (0.0639) |
+| e4 x e5 | 1 x 16, 1 | 32 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 32 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 32 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 32 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 128 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 128 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 128 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 128 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 512 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 512 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 512 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 1 x 16, 1 | 512 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 32 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 32 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 32 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 32 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 128 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 128 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 128 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 128 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 512 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 512 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 512 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 4 x 16, 1 | 512 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 32 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 32 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 32 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 32 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 128 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 128 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 128 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 128 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 512 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 512 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 512 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 8 x 8, 1 | 512 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 32 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 32 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 32 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 32 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 128 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 128 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 128 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 128 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 512 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 512 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 512 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 2, 1 | 512 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 32 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 32 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 32 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 32 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 128 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 128 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 128 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 128 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 512 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 512 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 512 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 16 x 16, 8 | 512 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 32 x 128, 4 | 32 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e5 | 32 x 128, 4 | 32 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e5 | 32 x 128, 4 | 32 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e5 | 32 x 128, 4 | 32 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 32 x 128, 4 | 128 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 32 x 128, 4 | 128 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 32 x 128, 4 | 128 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 32 x 128, 4 | 128 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 64 x 64, 2 | 32 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e5 | 64 x 64, 2 | 32 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e5 | 64 x 64, 2 | 32 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e5 | 64 x 64, 2 | 32 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e4 x e5 | 64 x 64, 2 | 128 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 64 x 64, 2 | 128 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 64 x 64, 2 | 128 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 64 x 64, 2 | 128 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e4 x e5 | 64 x 8, 4 | 32 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1583 | 0 (0.0988) |
+| e4 x e5 | 64 x 8, 4 | 32 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1364 | 0 (0.0944) |
+| e4 x e5 | 64 x 8, 4 | 32 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1368 | 0 (0.1128) |
+| e4 x e5 | 64 x 8, 4 | 32 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1459 | 0 (0.1172) |
+| e4 x e5 | 64 x 8, 4 | 128 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0704 | 0 (0.0431) |
+| e4 x e5 | 64 x 8, 4 | 128 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1167 | 0 (0.0471) |
+| e4 x e5 | 64 x 8, 4 | 128 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0911 | 0 (0.0503) |
+| e4 x e5 | 64 x 8, 4 | 128 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0853 | 0 (0.0494) |
+| e4 x e5 | 64 x 8, 4 | 512 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0611 | 0 (0.0255) |
+| e4 x e5 | 64 x 8, 4 | 512 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0560 | 0 (0.0265) |
+| e4 x e5 | 64 x 8, 4 | 512 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0613 | 0 (0.0208) |
+| e4 x e5 | 64 x 8, 4 | 512 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0601 | 0 (0.0205) |
+| e4 x e5 | 64 x 256, 4 | 32 | ld | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1553 | 0 (0.1333) |
+| e4 x e5 | 64 x 256, 4 | 32 | ldT | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1681 | 0 (0.1444) |
+| e4 x e5 | 64 x 256, 4 | 32 | reg | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1862 | 0 (0.1402) |
+| e4 x e5 | 64 x 256, 4 | 32 | ldT | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1794 | 0 (0.1397) |
+| e4 x e5 | 64 x 256, 4 | 128 | ld | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.0957 | 0 (0.0570) |
+| e4 x e5 | 64 x 256, 4 | 128 | ldT | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1179 | 0 (0.0741) |
+| e4 x e5 | 64 x 256, 4 | 128 | reg | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1008 | 0 (0.0590) |
+| e4 x e5 | 64 x 256, 4 | 128 | ldT | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1229 | 0 (0.0737) |
+| e4 x e5 | 64 x 64, 8 | 32 | ld | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1596 | 0 (0.1313) |
+| e4 x e5 | 64 x 64, 8 | 32 | ldT | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1498 | 0 (0.1283) |
+| e4 x e5 | 64 x 64, 8 | 32 | reg | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1638 | 0 (0.1249) |
+| e4 x e5 | 64 x 64, 8 | 32 | ldT | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1658 | 0 (0.1156) |
+| e4 x e5 | 64 x 64, 8 | 128 | ld | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0971 | 0 (0.0556) |
+| e4 x e5 | 64 x 64, 8 | 128 | ldT | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1110 | 0 (0.0617) |
+| e4 x e5 | 64 x 64, 8 | 128 | reg | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0780 | 0 (0.0614) |
+| e4 x e5 | 64 x 64, 8 | 128 | ldT | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0912 | 0 (0.0561) |
+| e4 x e5 | 256 x 128, 8 | 32 | ld | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1542 | 0 (0.1343) |
+| e4 x e5 | 256 x 128, 8 | 32 | ldT | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1913 | 0 (0.1515) |
+| e4 x e5 | 256 x 128, 8 | 32 | reg | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1765 | 0 (0.1327) |
+| e4 x e5 | 256 x 128, 8 | 32 | ldT | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1694 | 0 (0.1444) |
+| e4 x e5 | 256 x 128, 8 | 128 | ld | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1051 | 0 (0.0678) |
+| e4 x e5 | 256 x 128, 8 | 128 | ldT | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1053 | 0 (0.0704) |
+| e4 x e5 | 256 x 128, 8 | 128 | reg | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1137 | 0 (0.0619) |
+| e4 x e5 | 256 x 128, 8 | 128 | ldT | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1099 | 0 (0.0686) |
+| e5 x e4 | 1 x 16, 1 | 32 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 32 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 32 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 32 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 128 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 128 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 128 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 128 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 512 | ld | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 512 | ldT | ld | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 512 | reg | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 1 x 16, 1 | 512 | ldT | ldT | mma.sync | 224 | 224 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 32 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 32 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 32 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 32 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 128 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 128 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 128 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 128 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 512 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 512 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 512 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 4 x 16, 1 | 512 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 32 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 32 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 32 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 32 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 128 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 128 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 128 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 128 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 512 | ld | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 512 | ldT | ld | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 512 | reg | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 8 x 8, 1 | 512 | ldT | ldT | mma.sync | 896 | 896 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 32 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 32 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 32 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 32 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 128 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 128 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 128 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 128 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 512 | ld | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 512 | ldT | ld | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 512 | reg | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 2, 1 | 512 | ldT | ldT | mma.sync | 448 | 448 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 32 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 32 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 32 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 32 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 128 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 128 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 128 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 128 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 512 | ld | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 512 | ldT | ld | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 512 | reg | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 16 x 16, 8 | 512 | ldT | ldT | mma.sync | 3584 | 3584 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 32 x 128, 4 | 32 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e4 | 32 x 128, 4 | 32 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e4 | 32 x 128, 4 | 32 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e4 | 32 x 128, 4 | 32 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e4 | 32 x 128, 4 | 128 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 32 x 128, 4 | 128 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 32 x 128, 4 | 128 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 32 x 128, 4 | 128 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 64 x 64, 2 | 32 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 64 x 64, 2 | 32 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e4 | 64 x 64, 2 | 32 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e4 | 64 x 64, 2 | 32 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0001 | 0 (0.0000) |
+| e5 x e4 | 64 x 64, 2 | 128 | ld | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 64 x 64, 2 | 128 | ldT | ld | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 64 x 64, 2 | 128 | reg | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 64 x 64, 2 | 128 | ldT | ldT | mma.sync | 57344 | 57344 | 0 | - | 0.0000 | 0 (0.0000) |
+| e5 x e4 | 64 x 8, 4 | 32 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1373 | 0 (0.1112) |
+| e5 x e4 | 64 x 8, 4 | 32 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1415 | 0 (0.1290) |
+| e5 x e4 | 64 x 8, 4 | 32 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1276 | 0 (0.1105) |
+| e5 x e4 | 64 x 8, 4 | 32 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1166 | 0 (0.1125) |
+| e5 x e4 | 64 x 8, 4 | 128 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1116 | 0 (0.0524) |
+| e5 x e4 | 64 x 8, 4 | 128 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0986 | 0 (0.0515) |
+| e5 x e4 | 64 x 8, 4 | 128 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0960 | 0 (0.0465) |
+| e5 x e4 | 64 x 8, 4 | 128 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.1253 | 0 (0.0458) |
+| e5 x e4 | 64 x 8, 4 | 512 | ld | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0615 | 0 (0.0227) |
+| e5 x e4 | 64 x 8, 4 | 512 | ldT | ld | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0609 | 0 (0.0264) |
+| e5 x e4 | 64 x 8, 4 | 512 | reg | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0585 | 0 (0.0261) |
+| e5 x e4 | 64 x 8, 4 | 512 | ldT | ldT | wgmma | 7168 | 7168 | 0 | 7168/7168 | 0.0612 | 0 (0.0225) |
+| e5 x e4 | 64 x 256, 4 | 32 | ld | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1826 | 0 (0.1363) |
+| e5 x e4 | 64 x 256, 4 | 32 | ldT | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1678 | 0 (0.1370) |
+| e5 x e4 | 64 x 256, 4 | 32 | reg | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1579 | 0 (0.1459) |
+| e5 x e4 | 64 x 256, 4 | 32 | ldT | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1668 | 0 (0.1548) |
+| e5 x e4 | 64 x 256, 4 | 128 | ld | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1069 | 0 (0.0658) |
+| e5 x e4 | 64 x 256, 4 | 128 | ldT | ld | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1378 | 0 (0.0700) |
+| e5 x e4 | 64 x 256, 4 | 128 | reg | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.0961 | 0 (0.0593) |
+| e5 x e4 | 64 x 256, 4 | 128 | ldT | ldT | wgmma | 229376 | 229376 | 0 | 229376/229376 | 0.1339 | 0 (0.0668) |
+| e5 x e4 | 64 x 64, 8 | 32 | ld | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1342 | 0 (0.1157) |
+| e5 x e4 | 64 x 64, 8 | 32 | ldT | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1652 | 0 (0.1337) |
+| e5 x e4 | 64 x 64, 8 | 32 | reg | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1760 | 0 (0.1243) |
+| e5 x e4 | 64 x 64, 8 | 32 | ldT | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1534 | 0 (0.1376) |
+| e5 x e4 | 64 x 64, 8 | 128 | ld | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0846 | 0 (0.0565) |
+| e5 x e4 | 64 x 64, 8 | 128 | ldT | ld | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0865 | 0 (0.0584) |
+| e5 x e4 | 64 x 64, 8 | 128 | reg | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.1099 | 0 (0.0560) |
+| e5 x e4 | 64 x 64, 8 | 128 | ldT | ldT | wgmma | 57344 | 57344 | 0 | 57344/57344 | 0.0926 | 0 (0.0553) |
+| e5 x e4 | 256 x 128, 8 | 32 | ld | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1637 | 0 (0.1631) |
+| e5 x e4 | 256 x 128, 8 | 32 | ldT | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1728 | 0 (0.1301) |
+| e5 x e4 | 256 x 128, 8 | 32 | reg | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1719 | 0 (0.1440) |
+| e5 x e4 | 256 x 128, 8 | 32 | ldT | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1661 | 0 (0.1522) |
+| e5 x e4 | 256 x 128, 8 | 128 | ld | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1102 | 0 (0.0771) |
+| e5 x e4 | 256 x 128, 8 | 128 | ldT | ld | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.0998 | 0 (0.0708) |
+| e5 x e4 | 256 x 128, 8 | 128 | reg | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1239 | 0 (0.0599) |
+| e5 x e4 | 256 x 128, 8 | 128 | ldT | ldT | wgmma | 458752 | 458752 | 0 | 458752/458752 | 0.1263 | 0 (0.0649) |
+
+Part S totals: 28159488 elements, 28159488 in room, 0 outside the facts, model = device on 24199168/24199168 (wgmma), largest ratio 0.1936, 0 recomputed exactly; whole-dot lemma's bound: 0 outside, largest ratio 0.1755
+
+(run time 157 s)

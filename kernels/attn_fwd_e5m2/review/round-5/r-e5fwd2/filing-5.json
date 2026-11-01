@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5fwd2",
+  "kernel": "attn_fwd_e5m2",
+  "round": 5,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Checked the two reworded README sentences (gate 60ae4e7766871cbd unchanged): 'with its constant 2^-7, about twice the window's worst chunk' and 'with the constant 2^-7, about twice the window's worst chunk'. Both agree with docs/rules/num.md ('2^-7 is about twice the window's worst chunk'). They are correct, and every item stays accepted."
+}

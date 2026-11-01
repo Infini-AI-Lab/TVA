@@ -32,6 +32,19 @@ its largest field with 25 bits below it, `evidence/num-dot-sub16-round25`) the e
 A bound on the whole dot follows by a lemma, relative to `|acc| + Σ liftMag a_k · liftMag b_k`:
 `Dot8Chunk.DotF8Chunk.liftAcc` (`TVA.Lemmas.Dot8Chunk`), the shape `DotLiftAcc` with
 `(1 + 2^-7 + 2^-12)^⌈K/32⌉ − 1`.
+
+**The loss bound** (round 26, library issue L124). Each step is relative to `Mj ≥ |s j|`, so an
+accumulator fed back through many chunks is charged `2^-7 + 2^-12` of itself per chunk, and a bound
+composed from these steps grows as `(1 + 2^-7 + 2^-12)^n`. The device's error does not compound:
+by the same model every term and the sum are truncated toward zero, so no partial value exceeds
+`|acc| + Σ_{i<j} A_i` in magnitude, and a product loses at most `min(|p|, u)`, so a chunk's error is
+also below `(1 + 2^-13)·(A_j + u) + 2^-13·|s j + c_j|`, `A_j` the chunk's `Σ|a·b|` (`chunkAbs8`), with
+`u ≤ 2^-13·Mj + 2^-139`. The facts `DotE4m3ChunkLoss`, …, `DotE5m2E4m3ChunkLoss` (`DotChunkLoss`,
+`DotF8ChunkLoss`) state both bounds of the same partial values: each step within
+`min (2^-7·Mj) (2·A_j + 2^-12·Mj) + 2^-12·|s j + c_j| + 2^-126` (`kappaChunk8 = 2`,
+`rhoLossChunk8 = 2^-12`, each about twice the derivation's `1 + 2^-13` and `(1 + 2^-13)·2^-13`). They
+give the facts above (`DotF8ChunkLoss.chunk`); a bound composed from them grows by `1 + 2^-11` per
+chunk where the second arm is the smaller (`Dot8Chunk.errM`, `Dot8Chunk.chain_errM`).
 -/
 namespace TVA.Rules.Num
 
@@ -56,6 +69,10 @@ def chunk8 (K j : ℕ) : Finset (Fin K) := Finset.univ.filter fun k => k.val / 3
 
 /-- The exact sum of chunk `j`: `Σ_{k ∈ chunk8 K j} va k · vb k`. -/
 def chunkSum8 {K : ℕ} (va vb : Fin K → ℚ) (j : ℕ) : ℚ := ∑ k ∈ chunk8 K j, va k * vb k
+
+/-- The exact magnitude of chunk `j`: `Σ_{k ∈ chunk8 K j} |va k · vb k|`, the products' own
+magnitudes (not lifted). -/
+def chunkAbs8 {K : ℕ} (va vb : Fin K → ℚ) (j : ℕ) : ℚ := ∑ k ∈ chunk8 K j, |va k * vb k|
 
 variable (P : Platform)
 
@@ -117,6 +134,71 @@ def DotE4m3E5m2Chunk : Prop := DotF8Chunk P .f8e4nv .f8e5
 Evidence: `evidence/num-dot-chunk`. -/
 def DotE5m2E4m3Chunk : Prop := DotF8Chunk P .f8e5 .f8e4nv
 
+/-! ## Each chunk's error, the smaller of two bounds (round 26, library issue L124) -/
+
+/-- **A `tl.dot` chunk by chunk, each step within the smaller of two bounds**, per output element
+`(i, n)`. The values, the room and the partial values `s 0 = vc, …, s (chunks8 K) = vr` are as in
+`DotChunkAcc`, and for each chunk `j < chunks8 K`, every `Mj` at least `|s j|` and every
+`liftMag cfg.a (va k) · liftMag cfg.b (vb k)` of the chunk,
+`|s (j+1) − (s j + c_j)| ≤ min (rho·Mj) (kappa·A_j + rho'·Mj) + sigma·|s j + c_j| + alpha`, with
+`c_j = chunkSum8 va vb j` and `A_j = chunkAbs8 va vb j = Σ_chunk |va k · vb k|` (not lifted). The
+first arm is `DotChunkAcc`'s bound (`DotChunkLoss.chunkAcc`). The second holds because a product
+truncated toward zero to a multiple of the window's unit loses at most its own magnitude, and the
+accumulator less than one unit (`docs/rules/num.md`). Both arms bound the same partial values. -/
+def DotChunkLoss (cfg : DotCfg) (rho sigma alpha kappa rho' : ℚ) : Prop :=
+  ∀ ⦃M N K : Nat⦄ (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
+    (acc r : Tensor [M, N] cfg.acc.Val), P.dot cfg a b acc r →
+    ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+      (∀ k, cfg.a.val? (a.get2 i k) = some (va k)) → (∀ k, cfg.b.val? (b.get2 k n) = some (vb k)) →
+      cfg.acc.val? (acc.get2 i n) = some vc →
+      |vc| + ∑ k, |va k * vb k| + (relDot8 K * (|vc| + ∑ k, |va k * vb k|) + absDot8 K) ≤
+        cfg.acc.bound →
+      ∃ (s : ℕ → ℚ) (vr : ℚ), cfg.acc.val? (r.get2 i n) = some vr ∧ s 0 = vc ∧ s (chunks8 K) = vr ∧
+        ∀ j < chunks8 K, ∀ Mj : ℚ, |s j| ≤ Mj →
+          (∀ k ∈ chunk8 K j, liftMag cfg.a (va k) * liftMag cfg.b (vb k) ≤ Mj) →
+          |s (j + 1) - (s j + chunkSum8 va vb j)| ≤
+            min (rho * Mj) (kappa * chunkAbs8 va vb j + rho' * Mj) +
+              sigma * |s j + chunkSum8 va vb j| + alpha
+
+/-- The loss bound's constant on the chunk's exact magnitude: `2`. -/
+def kappaChunk8 : ℚ := 2
+
+/-- The loss bound's constant on the largest term: `2^-12`. -/
+def rhoLossChunk8 : ℚ := 2 ^ (-12 : ℤ)
+
+/-- `tl.dot` of fp8 operands `a`, `b` into `float32` with Triton's default `max_num_imprecise_acc`
+on sm_90 (`2^30`), any `input_precision`, chunk by chunk with each step within the smaller of two
+bounds (`DotChunkLoss`): `min (2^-7·Mj) (2·A_j + 2^-12·Mj) + 2^-12·|s j + c_j| + 2^-126`. It gives
+`DotF8Chunk` (`DotF8ChunkLoss.chunk`). -/
+def DotF8ChunkLoss (a b : DType) : Prop :=
+  ∀ p : InputPrecision, DotChunkLoss P ⟨a, b, .f32, p, 2 ^ 30⟩ rhoChunk8 sigmaChunk8 alphaChunk8
+    kappaChunk8 rhoLossChunk8
+
+/-- **`tl.dot` of `float8e4nv` operands into `float32`, chunk by chunk, each step within the smaller
+of two bounds** (`DotF8ChunkLoss`): partial values as `DotE4m3Chunk`, chunk `j` within
+`min (2^-7·Mj) (2·A_j + 2^-12·Mj) + 2^-12·|s j + c_j| + 2^-126` of `s j + c_j`, `A_j` the chunk's
+`Σ|a·b|`. On `wgmma` each product truncated toward zero to a multiple of the window's unit `u`
+loses at most its own magnitude, the accumulator less than `u ≤ 2^-13·Mj + 2^-139`, and the cut to
+14 bits less than `2^-13` of the truncated sum. It gives `DotE4m3Chunk`. Evidence:
+`evidence/num-dot-chunk`, `evidence/num-dot-chunk-round26`. -/
+def DotE4m3ChunkLoss : Prop := DotF8ChunkLoss P .f8e4nv .f8e4nv
+
+/-- **`tl.dot` of `float8e5` operands into `float32`, chunk by chunk, each step within the smaller
+of two bounds** (`DotF8ChunkLoss`, as `DotE4m3ChunkLoss`; a subnormal operand counts as `2^-14` in
+`Mj`). It gives `DotE5m2Chunk`. Evidence: `evidence/num-dot-chunk`,
+`evidence/num-dot-chunk-round26`. -/
+def DotE5m2ChunkLoss : Prop := DotF8ChunkLoss P .f8e5 .f8e5
+
+/-- **`tl.dot` of `float8e4nv` by `float8e5` into `float32`, chunk by chunk, each step within the
+smaller of two bounds** (`DotF8ChunkLoss`). It gives `DotE4m3E5m2Chunk`. Evidence:
+`evidence/num-dot-chunk`, `evidence/num-dot-chunk-round26`. -/
+def DotE4m3E5m2ChunkLoss : Prop := DotF8ChunkLoss P .f8e4nv .f8e5
+
+/-- **`tl.dot` of `float8e5` by `float8e4nv` into `float32`, chunk by chunk, each step within the
+smaller of two bounds** (`DotF8ChunkLoss`). It gives `DotE5m2E4m3Chunk`. Evidence:
+`evidence/num-dot-chunk`, `evidence/num-dot-chunk-round26`. -/
+def DotE5m2E4m3ChunkLoss : Prop := DotF8ChunkLoss P .f8e5 .f8e4nv
+
 /-! ## Weakening -/
 
 section Mono
@@ -134,6 +216,40 @@ theorem DotChunkAcc.mono {cfg : DotCfg} {rho sigma alpha rho' sigma' alpha' : �
   have e1 := mul_le_mul_of_nonneg_right hr hM0
   have e2 := mul_le_mul_of_nonneg_right hs (abs_nonneg (s j + chunkSum8 va vb j))
   linarith
+
+/-- `DotChunkLoss` gives `DotChunkAcc` with the same `rho`, `sigma`, `alpha` (its first arm), on
+the same partial values. It states nothing new about the device. -/
+theorem DotChunkLoss.chunkAcc {cfg : DotCfg} {rho sigma alpha kappa rho' : ℚ}
+    (h : DotChunkLoss P cfg rho sigma alpha kappa rho') : DotChunkAcc P cfg rho sigma alpha := by
+  intro M N K a b acc r hd i n va vb vc hva hvb hvc hroom
+  obtain ⟨s, vr, hvr, h0, hn, hstep⟩ := h a b acc r hd i n va vb vc hva hvb hvc hroom
+  refine ⟨s, vr, hvr, h0, hn, fun j hj Mj hM hk => ?_⟩
+  have e := hstep j hj Mj hM hk
+  have := min_le_left (rho * Mj) (kappa * chunkAbs8 va vb j + rho' * Mj)
+  linarith
+
+/-- `DotChunkLoss` with constants at least as large. It states nothing new about the device. -/
+theorem DotChunkLoss.mono {cfg : DotCfg} {rho sigma alpha kappa rho' rho₂ sigma₂ alpha₂ kappa₂ rho'₂ : ℚ}
+    (h : DotChunkLoss P cfg rho sigma alpha kappa rho') (hr : rho ≤ rho₂) (hs : sigma ≤ sigma₂)
+    (ha : alpha ≤ alpha₂) (hκ : kappa ≤ kappa₂) (hr' : rho' ≤ rho'₂) :
+    DotChunkLoss P cfg rho₂ sigma₂ alpha₂ kappa₂ rho'₂ := by
+  intro M N K a b acc r hd i n va vb vc hva hvb hvc hroom
+  obtain ⟨s, vr, hvr, h0, hn, hstep⟩ := h a b acc r hd i n va vb vc hva hvb hvc hroom
+  refine ⟨s, vr, hvr, h0, hn, fun j hj Mj hM hk => ?_⟩
+  have hM0 : 0 ≤ Mj := (abs_nonneg _).trans hM
+  have hA0 : 0 ≤ chunkAbs8 va vb j := Finset.sum_nonneg fun _ _ => abs_nonneg _
+  have e := hstep j hj Mj hM hk
+  have e1 : min (rho * Mj) (kappa * chunkAbs8 va vb j + rho' * Mj) ≤
+      min (rho₂ * Mj) (kappa₂ * chunkAbs8 va vb j + rho'₂ * Mj) :=
+    min_le_min (mul_le_mul_of_nonneg_right hr hM0)
+      (add_le_add (mul_le_mul_of_nonneg_right hκ hA0) (mul_le_mul_of_nonneg_right hr' hM0))
+  have e2 := mul_le_mul_of_nonneg_right hs (abs_nonneg (s j + chunkSum8 va vb j))
+  linarith
+
+/-- `DotF8ChunkLoss` gives `DotF8Chunk` (`DotChunkLoss.chunkAcc`): `DotE4m3ChunkLoss` gives
+`DotE4m3Chunk`, and likewise for the other pairs. -/
+theorem DotF8ChunkLoss.chunk {a b : DType} (h : DotF8ChunkLoss P a b) : DotF8Chunk P a b :=
+  fun p => (h p).chunkAcc
 
 end Mono
 

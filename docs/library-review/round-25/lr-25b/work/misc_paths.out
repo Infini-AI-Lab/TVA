@@ -1,0 +1,81 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+input_precision on fp8 operands, against the default (bit for bit)
+
+| operands | M x N x K, warps | path | precision | equal elements |
+|---|---|---|---|---|
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 64 x 64 x 128, 4 | wgmma / wgmma | tf32x3 | 4096/4096 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 64 x 64 x 128, 4 | wgmma / wgmma | ieee | 4096/4096 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 64 x 64 x 128, 4 | wgmma / wgmma | bf16x3 | 4096/4096 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 64 x 64 x 128, 4 | wgmma / wgmma | bf16x6 | 4096/4096 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 32 x 32 x 64, 2 | mma.sync / mma.sync | tf32x3 | 1024/1024 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 32 x 32 x 64, 2 | mma.sync / mma.sync | ieee | 1024/1024 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 32 x 32 x 64, 2 | mma.sync / mma.sync | bf16x3 | 1024/1024 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 32 x 32 x 64, 2 | mma.sync / mma.sync | bf16x6 | 1024/1024 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 64 x 64 x 128, 4 | wgmma / wgmma | tf32x3 | 4096/4096 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 64 x 64 x 128, 4 | wgmma / wgmma | ieee | 4096/4096 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 64 x 64 x 128, 4 | wgmma / wgmma | bf16x3 | 4096/4096 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 64 x 64 x 128, 4 | wgmma / wgmma | bf16x6 | 4096/4096 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 32 x 32 x 64, 2 | mma.sync / mma.sync | tf32x3 | 1024/1024 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 32 x 32 x 64, 2 | mma.sync / mma.sync | ieee | 1024/1024 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 32 x 32 x 64, 2 | mma.sync / mma.sync | bf16x3 | 1024/1024 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 32 x 32 x 64, 2 | mma.sync / mma.sync | bf16x6 | 1024/1024 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 64 x 64 x 128, 4 | wgmma / wgmma | tf32x3 | 4096/4096 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 64 x 64 x 128, 4 | wgmma / wgmma | ieee | 4096/4096 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 64 x 64 x 128, 4 | wgmma / wgmma | bf16x3 | 4096/4096 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 64 x 64 x 128, 4 | wgmma / wgmma | bf16x6 | 4096/4096 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 32 x 32 x 64, 2 | mma.sync / mma.sync | tf32x3 | 1024/1024 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 32 x 32 x 64, 2 | mma.sync / mma.sync | ieee | 1024/1024 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 32 x 32 x 64, 2 | mma.sync / mma.sync | bf16x3 | 1024/1024 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 32 x 32 x 64, 2 | mma.sync / mma.sync | bf16x6 | 1024/1024 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 64 x 64 x 128, 4 | wgmma / wgmma | tf32x3 | 4096/4096 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 64 x 64 x 128, 4 | wgmma / wgmma | ieee | 4096/4096 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 64 x 64 x 128, 4 | wgmma / wgmma | bf16x3 | 4096/4096 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 64 x 64 x 128, 4 | wgmma / wgmma | bf16x6 | 4096/4096 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 32 x 32 x 64, 2 | mma.sync / mma.sync | tf32x3 | 1024/1024 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 32 x 32 x 64, 2 | mma.sync / mma.sync | ieee | 1024/1024 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 32 x 32 x 64, 2 | mma.sync / mma.sync | bf16x3 | 1024/1024 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 32 x 32 x 64, 2 | mma.sync / mma.sync | bf16x6 | 1024/1024 |
+
+K loop with warp_specialize and with num_ctas = 2, against the default loop (bit for bit)
+
+| operands | M x N, BK, K, warps | variant | path | equal elements |
+|---|---|---|---|---|
+| torch.float16 x torch.float16 | 128 x 128, 64, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float16 x torch.float16 | 128 x 128, 64, 1024, 4 | num_ctas=2 | wgmma / wgmma | 65536/65536 |
+| torch.float16 x torch.float16 | 128 x 64, 64, 1024, 8 | warp_specialize | wgmma / wgmma | 32768/32768 |
+| torch.float16 x torch.float16 | 128 x 64, 64, 1024, 8 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float16 x torch.float16 | 64 x 128, 128, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float16 x torch.float16 | 64 x 128, 128, 1024, 4 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.bfloat16 x torch.bfloat16 | 128 x 128, 64, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.bfloat16 x torch.bfloat16 | 128 x 128, 64, 1024, 4 | num_ctas=2 | wgmma / wgmma | 65536/65536 |
+| torch.bfloat16 x torch.bfloat16 | 128 x 64, 64, 1024, 8 | warp_specialize | wgmma / wgmma | 32768/32768 |
+| torch.bfloat16 x torch.bfloat16 | 128 x 64, 64, 1024, 8 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.bfloat16 x torch.bfloat16 | 64 x 128, 128, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.bfloat16 x torch.bfloat16 | 64 x 128, 128, 1024, 4 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 128 x 128, 64, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 128 x 128, 64, 1024, 4 | num_ctas=2 | wgmma / wgmma | 65536/65536 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 128 x 64, 64, 1024, 8 | warp_specialize | wgmma / wgmma | 32768/32768 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 128 x 64, 64, 1024, 8 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 64 x 128, 128, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float8_e4m3fn x torch.float8_e4m3fn | 64 x 128, 128, 1024, 4 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 128 x 128, 64, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float8_e5m2 x torch.float8_e5m2 | 128 x 128, 64, 1024, 4 | num_ctas=2 | wgmma / wgmma | 65536/65536 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 128 x 64, 64, 1024, 8 | warp_specialize | wgmma / wgmma | 32768/32768 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 128 x 64, 64, 1024, 8 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float8_e5m2 x torch.float8_e5m2 | 64 x 128, 128, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float8_e5m2 x torch.float8_e5m2 | 64 x 128, 128, 1024, 4 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 128 x 128, 64, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 128 x 128, 64, 1024, 4 | num_ctas=2 | wgmma / wgmma | 65536/65536 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 128 x 64, 64, 1024, 8 | warp_specialize | wgmma / wgmma | 32768/32768 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 128 x 64, 64, 1024, 8 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 64 x 128, 128, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float8_e4m3fn x torch.float8_e5m2 | 64 x 128, 128, 1024, 4 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 128 x 128, 64, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 128 x 128, 64, 1024, 4 | num_ctas=2 | wgmma / wgmma | 65536/65536 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 128 x 64, 64, 1024, 8 | warp_specialize | wgmma / wgmma | 32768/32768 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 128 x 64, 64, 1024, 8 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 64 x 128, 128, 1024, 4 | warp_specialize | wgmma / - | rejected: RuntimeError |
+| torch.float8_e5m2 x torch.float8_e4m3fn | 64 x 128, 128, 1024, 4 | num_ctas=2 | wgmma / wgmma | 32768/32768 |
+
+(run time 18 s)

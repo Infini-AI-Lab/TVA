@@ -1,0 +1,10 @@
+Withdrawn.lean:6:8: error(lean.unknownIdentifier): Unknown identifier `TVA.Rules.Num.DotE5m2`
+Withdrawn.lean:7:8: error(lean.unknownIdentifier): Unknown identifier `TVA.Rules.Num.DotE4m3`
+Withdrawn.lean:8:8: error(lean.unknownIdentifier): Unknown identifier `TVA.Rules.Num.DotE4m3E5m2`
+Withdrawn.lean:9:8: error(lean.unknownIdentifier): Unknown identifier `TVA.Rules.Num.DotE5m2E4m3`
+Withdrawn.lean:10:8: error(lean.unknownIdentifier): Unknown identifier `TVA.Rules.Num.DotF8`
+Withdrawn.lean:11:29: error(lean.invalidField): Invalid field `dotE5m2`: The environment does not contain `TVA.Platform.dotE5m2`, so it is not possible to project the field `dotE5m2` from an expression
+  TVA.Platform.sm90ref
+of type `TVA.Platform`
+Withdrawn.lean:12:8: error(lean.unknownIdentifier): Unknown identifier `TVA.Dot8Chunk.LiftAcc`
+exit 1

@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-gmm",
+  "kernel": "grouped_matmul_tma_f16",
+  "round": 3,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-accept after library round 26 (gate ea472d49ce692007). Against HEAD, the diff of lean/TVA only adds the fp8 ChunkLoss facts and their lemmas in the two Dot8Chunk files, and removes one module-docstring bullet. DotF16, DotLiftAcc, liftMag, minNormal8, relDot16, absDot16, DotTotal and DotLoop are untouched, as are the Dot8Chunk lemmas the proof uses (liftMag_nonneg, abs_mul_le_liftMag, liftMag_zero). In docs/rules/num.md the DotF16/DotBF16 rows of the kind table and of 'Facts the library states' and the 16-bit bullet are unchanged. The chunk-model opening (L130) is reworded with the same meaning for 16-bit operands (16 products per instruction on both paths). The kernel's files are unchanged."
+}

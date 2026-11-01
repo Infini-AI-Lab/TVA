@@ -28,13 +28,24 @@ show the facts satisfiable.
   `relLift8 K = (1 + 2^-7 + 2^-12)^⌈K/32⌉ − 1` and
   `absLift8 K = ⌈K/32⌉·(1 + 2^-7 + 2^-12)^⌈K/32⌉·2^-126` (`DotChunkAcc.liftErr` for any constants,
   as `DotLoop.bound`). This replaces the withdrawn `DotE4m3`, … (library issue L125).
+* The loss facts (`DotE5m2ChunkLoss`, …, `DotChunkLoss`; round 26, library issue L124), each step
+  within `min (ρ·Mj) (κ·A_j + ρ'·Mj) + σ·|s j + c_j| + α`, `A_j` the chunk's exact magnitude
+  (`chunkAbs8`; `chunkAbs8_nonneg`, `abs_chunkSum8_le`, `sum_chunkAbs8`):
+  `Dot8Chunk.errM` (the composed bound with the minimum:
+  `errM (j+1) = (1+σ)·errM j + min (ρ·(X j + errM j)) (κ·a j + ρ'·(X j + errM j)) + σ·|psum (j+1)| + α`,
+  `X j = max |psum j| (m j)`; `errM_nonneg`), `chain_errM` (a chain of such steps stays within `errM`),
+  `errM_le_errB` (never worse than the round-24 bound), `errL` (the loss arm alone, growing by
+  `1 + ρ' + σ` per chunk) with `errM_le_errL` and the closed form `errL_le`,
+  `DotChunkLoss.err`, `DotF8ChunkLoss.err` (the result within `errM` of `acc + Σ a·b`),
+  `kappaChunk8_nonneg`, `rhoLossChunk8_nonneg`, `DotChunkLoss.of_chunkAcc_zero`.
 * For any dtype (the 16-bit facts' `liftMag` too, `TVA.Lemmas.DotLift`): for zero and normal
   operands `liftMag` is `|q|` (`liftMag_of_le`, `liftMag_zero`); in general
   `|q| ≤ liftMag d q ≤ |q| + minNormal8 d` (`abs_le_liftMag`, `liftMag_le`), and
   `|x·y| ≤ liftMag da x · liftMag db y` (`abs_mul_le_liftMag`).
-* `Platform.ref.dotChunkAcc`, `Platform.sm90ref.dotE4m3Chunk`, …: the facts hold of the reference
-  platforms (one rounding of the exact result), so a bundle citing them proves `Claim.Consistent`
-  with `Platform.sm90ref`, as with the other sm_90 facts.
+* `Platform.ref.dotChunkAcc`, `Platform.sm90ref.dotE4m3Chunk`, …, `Platform.ref.dotChunkLoss`,
+  `Platform.sm90ref.dotE4m3ChunkLoss`, …: the facts hold of the reference platforms (one rounding of
+  the exact result), so a bundle citing them proves `Claim.Consistent` with `Platform.sm90ref`, as
+  with the other sm_90 facts.
 -/
 namespace TVA
 
@@ -208,6 +219,217 @@ theorem DotF8Chunk.err {P : Platform} {da db : DType} (h : DotF8Chunk P da db) (
       |vr - (vc + ∑ k, va k * vb k)| ≤
         errB rhoChunk8 sigmaChunk8 alphaChunk8 vc (chunkSum8 va vb) m (chunks8 K) :=
   DotChunkAcc.err (h p) rhoChunk8_nonneg sigmaChunk8_nonneg hd i n va vb vc hva hvb hvc hroom m hm
+
+/-! ## Each chunk's error, the smaller of two bounds (`DotChunkLoss`, round 26, library issue L124) -/
+
+theorem chunkAbs8_nonneg {K : ℕ} (va vb : Fin K → ℚ) (j : ℕ) : 0 ≤ chunkAbs8 va vb j :=
+  Finset.sum_nonneg fun _ _ => abs_nonneg _
+
+theorem abs_chunkSum8_le {K : ℕ} (va vb : Fin K → ℚ) (j : ℕ) :
+    |chunkSum8 va vb j| ≤ chunkAbs8 va vb j :=
+  Finset.abs_sum_le_sum_abs _ _
+
+/-- The chunks' exact magnitudes add up to `Σ|a·b|`. -/
+theorem sum_chunkAbs8 {K : ℕ} (va vb : Fin K → ℚ) :
+    ∑ j ∈ Finset.range (chunks8 K), chunkAbs8 va vb j = ∑ k, |va k * vb k| := by
+  unfold chunkAbs8 chunk8
+  exact Finset.sum_fiberwise_of_maps_to (g := fun k : Fin K => k.val / 32)
+    (fun k _ => Finset.mem_range.mpr (div_lt_chunks8 k)) _
+
+/-- **The composed bound with the minimum** after `j` chunks, from the exact partial sums
+`S j = psum v c j`, the chunks' magnitudes `a j` and bounds `m j` on their lifted products: with
+`X j = max |S j| (m j)`, `errM 0 = 0` and
+`errM (j+1) = (1+σ)·errM j + min (ρ·(X j + errM j)) (κ·a j + ρ'·(X j + errM j)) + σ·|S (j+1)| + α`.
+It is at most `errB` (`errM_le_errB`) and at most `errL` (`errM_le_errL`). -/
+def errM (ρ σ α κ ρ' v : ℚ) (c a m : ℕ → ℚ) : ℕ → ℚ
+  | 0 => 0
+  | j + 1 => (1 + σ) * errM ρ σ α κ ρ' v c a m j +
+      min (ρ * (max |psum v c j| (m j) + errM ρ σ α κ ρ' v c a m j))
+        (κ * a j + ρ' * (max |psum v c j| (m j) + errM ρ σ α κ ρ' v c a m j)) +
+      σ * |psum v c (j + 1)| + α
+
+theorem errM_nonneg {ρ σ α κ ρ' : ℚ} (hρ : 0 ≤ ρ) (hσ : 0 ≤ σ) (hα : 0 ≤ α) (hκ : 0 ≤ κ)
+    (hρ' : 0 ≤ ρ') (v : ℚ) (c : ℕ → ℚ) {a : ℕ → ℚ} (ha : ∀ j, 0 ≤ a j) (m : ℕ → ℚ) :
+    ∀ j, 0 ≤ errM ρ σ α κ ρ' v c a m j
+  | 0 => le_rfl
+  | j + 1 => by
+    have ih := errM_nonneg hρ hσ hα hκ hρ' v c ha m j
+    have hX : 0 ≤ max |psum v c j| (m j) + errM ρ σ α κ ρ' v c a m j :=
+      add_nonneg ((abs_nonneg _).trans (le_max_left _ _)) ih
+    have h1 := le_min (mul_nonneg hρ hX) (add_nonneg (mul_nonneg hκ (ha j)) (mul_nonneg hρ' hX))
+    have h2 : 0 ≤ (1 + σ) * errM ρ σ α κ ρ' v c a m j := mul_nonneg (by linarith) ih
+    have h3 : 0 ≤ σ * |psum v c (j + 1)| := mul_nonneg hσ (abs_nonneg _)
+    simp only [errM]
+    linarith
+
+/-- **A chain of chunk steps, each within the smaller of two bounds.** If each step `j < n`
+satisfies `DotChunkLoss`'s bound (for every `Mj` at least `|s j|` and `m j`), then after `j ≤ n`
+steps `s j` is within `errM` of the exact partial sum `psum (s 0) c j`. -/
+theorem chain_errM {ρ σ α κ ρ' : ℚ} (hρ : 0 ≤ ρ) (hσ : 0 ≤ σ) (hρ' : 0 ≤ ρ') {s c a m : ℕ → ℚ}
+    {n : ℕ}
+    (hstep : ∀ j < n, ∀ Mj : ℚ, |s j| ≤ Mj → m j ≤ Mj →
+      |s (j + 1) - (s j + c j)| ≤ min (ρ * Mj) (κ * a j + ρ' * Mj) + σ * |s j + c j| + α) :
+    ∀ j ≤ n, |s j - psum (s 0) c j| ≤ errM ρ σ α κ ρ' (s 0) c a m j := by
+  intro j
+  induction j with
+  | zero => intro _; simp [psum_zero, errM]
+  | succ j ih =>
+    intro hj
+    have e := ih (by omega)
+    set S := psum (s 0) c j with hS
+    set E := errM ρ σ α κ ρ' (s 0) c a m j with hE
+    set X := max |S| (m j) with hX
+    have hE0 : 0 ≤ E := (abs_nonneg _).trans e
+    have hsj : |s j| ≤ |S| + E := by
+      have := abs_sub_abs_le_abs_sub (s j) S
+      linarith
+    have hstep' := hstep j (by omega) (max (|S| + E) (m j)) (hsj.trans (le_max_left _ _))
+      (le_max_right _ _)
+    have hmax : max (|S| + E) (m j) ≤ X + E := by
+      apply max_le
+      · linarith [le_max_left |S| (m j)]
+      · linarith [le_max_right |S| (m j)]
+    have hmin : min (ρ * max (|S| + E) (m j)) (κ * a j + ρ' * max (|S| + E) (m j)) ≤
+        min (ρ * (X + E)) (κ * a j + ρ' * (X + E)) :=
+      min_le_min (mul_le_mul_of_nonneg_left hmax hρ)
+        (add_le_add le_rfl (mul_le_mul_of_nonneg_left hmax hρ'))
+    have hsc : |s j + c j| ≤ |S + c j| + E := by
+      have h1 : s j + c j = (S + c j) + (s j - S) := by ring
+      rw [h1]
+      exact (abs_add_le _ _).trans (by linarith)
+    have hS1 : psum (s 0) c (j + 1) = S + c j := psum_succ _ _ _
+    have htri : |s (j + 1) - (S + c j)| ≤ |s (j + 1) - (s j + c j)| + |s j - S| := by
+      have h1 : s (j + 1) - (S + c j) = (s (j + 1) - (s j + c j)) + (s j - S) := by ring
+      rw [h1]; exact abs_add_le _ _
+    have h3 := mul_le_mul_of_nonneg_left hsc hσ
+    show |s (j + 1) - psum (s 0) c (j + 1)| ≤
+      (1 + σ) * E + min (ρ * (X + E)) (κ * a j + ρ' * (X + E)) + σ * |psum (s 0) c (j + 1)| + α
+    rw [hS1]
+    linarith
+
+/-- The minimum is never worse than the round-24 bound: `errM ≤ errB`. -/
+theorem errM_le_errB {ρ σ α κ ρ' : ℚ} (hρ : 0 ≤ ρ) (hσ : 0 ≤ σ) (v : ℚ) (c a m : ℕ → ℚ) :
+    ∀ j, errM ρ σ α κ ρ' v c a m j ≤ errB ρ σ α v c m j
+  | 0 => le_rfl
+  | j + 1 => by
+    have ih := errM_le_errB (α := α) (κ := κ) (ρ' := ρ') hρ hσ v c a m j
+    have h1 := min_le_left (ρ * (max |psum v c j| (m j) + errM ρ σ α κ ρ' v c a m j))
+      (κ * a j + ρ' * (max |psum v c j| (m j) + errM ρ σ α κ ρ' v c a m j))
+    have h2 := mul_le_mul_of_nonneg_left ih (by linarith : (0 : ℚ) ≤ 1 + σ)
+    have h3 := mul_le_mul_of_nonneg_left ih hρ
+    simp only [errM, errB]
+    linarith
+
+/-- **The loss bound composed alone**: `errL 0 = 0` and
+`errL (j+1) = (1+ρ'+σ)·errL j + κ·a j + ρ'·max |psum v c j| (m j) + σ·|psum v c (j+1)| + α`. -/
+def errL (σ α κ ρ' v : ℚ) (c a m : ℕ → ℚ) : ℕ → ℚ
+  | 0 => 0
+  | j + 1 => (1 + ρ' + σ) * errL σ α κ ρ' v c a m j + κ * a j + ρ' * max |psum v c j| (m j) +
+      σ * |psum v c (j + 1)| + α
+
+/-- `errM ≤ errL`. -/
+theorem errM_le_errL {ρ σ α κ ρ' : ℚ} (hσ : 0 ≤ σ) (hρ' : 0 ≤ ρ') (v : ℚ) (c a m : ℕ → ℚ) :
+    ∀ j, errM ρ σ α κ ρ' v c a m j ≤ errL σ α κ ρ' v c a m j
+  | 0 => le_rfl
+  | j + 1 => by
+    have ih := errM_le_errL (ρ := ρ) (α := α) (κ := κ) hσ hρ' v c a m j
+    have h1 := min_le_right (ρ * (max |psum v c j| (m j) + errM ρ σ α κ ρ' v c a m j))
+      (κ * a j + ρ' * (max |psum v c j| (m j) + errM ρ σ α κ ρ' v c a m j))
+    have h2 := mul_le_mul_of_nonneg_left ih (by linarith : (0 : ℚ) ≤ 1 + σ)
+    have h3 := mul_le_mul_of_nonneg_left ih hρ'
+    simp only [errM, errL]
+    linarith
+
+/-- **The closed form of the loss bound.**
+`errL j ≤ (1+ρ'+σ)^j · Σ_{i<j} (κ·a i + ρ'·max |psum i| (m i) + σ·|psum (i+1)| + α)`. -/
+theorem errL_le {σ α κ ρ' : ℚ} (hσ : 0 ≤ σ) (hα : 0 ≤ α) (hκ : 0 ≤ κ) (hρ' : 0 ≤ ρ') (v : ℚ)
+    (c : ℕ → ℚ) {a : ℕ → ℚ} (ha : ∀ j, 0 ≤ a j) (m : ℕ → ℚ) :
+    ∀ j, errL σ α κ ρ' v c a m j ≤ (1 + ρ' + σ) ^ j *
+      ∑ i ∈ Finset.range j, (κ * a i + ρ' * max |psum v c i| (m i) + σ * |psum v c (i + 1)| + α)
+  | 0 => by simp [errL]
+  | j + 1 => by
+    have ih := errL_le hσ hα hκ hρ' v c ha m j
+    have hterm : ∀ i, 0 ≤ κ * a i + ρ' * max |psum v c i| (m i) + σ * |psum v c (i + 1)| + α :=
+      fun i => by
+        have h1 : 0 ≤ max |psum v c i| (m i) := (abs_nonneg _).trans (le_max_left _ _)
+        have := mul_nonneg hκ (ha i)
+        have := mul_nonneg hρ' h1
+        have := mul_nonneg hσ (abs_nonneg (psum v c (i + 1)))
+        linarith
+    set T := ∑ i ∈ Finset.range j, (κ * a i + ρ' * max |psum v c i| (m i) + σ * |psum v c (i + 1)| + α)
+    set t := κ * a j + ρ' * max |psum v c j| (m j) + σ * |psum v c (j + 1)| + α
+    have ht : 0 ≤ t := hterm j
+    have hq : 1 ≤ 1 + ρ' + σ := by linarith
+    have hqj : 1 ≤ (1 + ρ' + σ) ^ (j + 1) := one_le_pow₀ hq
+    rw [Finset.sum_range_succ]
+    rw [show errL σ α κ ρ' v c a m (j + 1) = (1 + ρ' + σ) * errL σ α κ ρ' v c a m j + t by
+      simp only [errL, t]; ring]
+    have e1 : (1 + ρ' + σ) * errL σ α κ ρ' v c a m j ≤ (1 + ρ' + σ) * ((1 + ρ' + σ) ^ j * T) :=
+      mul_le_mul_of_nonneg_left ih (by linarith)
+    have e2 : (1 + ρ' + σ) * ((1 + ρ' + σ) ^ j * T) = (1 + ρ' + σ) ^ (j + 1) * T := by ring
+    have e3 : t ≤ (1 + ρ' + σ) ^ (j + 1) * t := le_mul_of_one_le_left ht hqj
+    nlinarith
+
+/-- **An fp8 `tl.dot` from its exact inputs, each chunk within the smaller of two bounds.** Under
+`DotChunkLoss`, for any bounds `m j` on the lifted products of each chunk (`chunkLift8` will do),
+the result is within `errM ρ σ α κ ρ' vc (chunkSum8 va vb) (chunkAbs8 va vb) m (chunks8 K)` of
+`vc + Σ va·vb`. -/
+theorem DotChunkLoss.err {P : Platform} {cfg : DotCfg} {ρ σ α κ ρ' : ℚ}
+    (h : DotChunkLoss P cfg ρ σ α κ ρ') (hρ : 0 ≤ ρ) (hσ : 0 ≤ σ) (hρ' : 0 ≤ ρ') {M N K : ℕ}
+    {a : Tensor [M, K] cfg.a.Val} {b : Tensor [K, N] cfg.b.Val} {acc r : Tensor [M, N] cfg.acc.Val}
+    (hd : P.dot cfg a b acc r) (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ)
+    (hva : ∀ k, cfg.a.val? (a.get2 i k) = some (va k)) (hvb : ∀ k, cfg.b.val? (b.get2 k n) = some (vb k))
+    (hvc : cfg.acc.val? (acc.get2 i n) = some vc)
+    (hroom : |vc| + ∑ k, |va k * vb k| + (relDot8 K * (|vc| + ∑ k, |va k * vb k|) + absDot8 K) ≤
+      cfg.acc.bound)
+    (m : ℕ → ℚ) (hm : ∀ j < chunks8 K, ∀ k ∈ chunk8 K j, liftMag cfg.a (va k) * liftMag cfg.b (vb k) ≤ m j) :
+    ∃ vr, cfg.acc.val? (r.get2 i n) = some vr ∧
+      |vr - (vc + ∑ k, va k * vb k)| ≤
+        errM ρ σ α κ ρ' vc (chunkSum8 va vb) (chunkAbs8 va vb) m (chunks8 K) := by
+  obtain ⟨s, vr, hvr, h0, hn, hstep⟩ := h a b acc r hd i n va vb vc hva hvb hvc hroom
+  refine ⟨vr, hvr, ?_⟩
+  have e := chain_errM (s := s) (c := chunkSum8 va vb) (a := chunkAbs8 va vb) (m := m)
+    (n := chunks8 K) hρ hσ hρ'
+    (fun j hj Mj hM hmj => hstep j hj Mj hM fun k hk => (hm j hj k hk).trans hmj) (chunks8 K) le_rfl
+  rw [hn, h0, psum_chunks8] at e
+  exact e
+
+theorem kappaChunk8_nonneg : 0 ≤ kappaChunk8 := by unfold kappaChunk8; norm_num
+theorem rhoLossChunk8_nonneg : 0 ≤ rhoLossChunk8 := by unfold rhoLossChunk8; positivity
+
+/-- **`DotE5m2ChunkLoss` and the other loss facts, from the exact inputs**: the result is within
+`errM 2^-7 2^-12 2^-126 2 2^-12 vc (chunkSum8 va vb) (chunkAbs8 va vb) m (chunks8 K)` of
+`vc + Σ va·vb`, which is at most `DotF8Chunk.err`'s `errB` (`errM_le_errB`) and grows by
+`1 + 2^-11` per chunk where the loss arm is the smaller (`errM_le_errL`, `errL_le`). -/
+theorem DotF8ChunkLoss.err {P : Platform} {da db : DType} (h : DotF8ChunkLoss P da db)
+    (p : InputPrecision) {M N K : ℕ} {a : Tensor [M, K] da.Val} {b : Tensor [K, N] db.Val}
+    {acc r : Tensor [M, N] F32} (hd : P.dot ⟨da, db, .f32, p, 2 ^ 30⟩ a b acc r) (i : Fin M) (n : Fin N)
+    (va vb : Fin K → ℚ) (vc : ℚ) (hva : ∀ k, da.val? (a.get2 i k) = some (va k))
+    (hvb : ∀ k, db.val? (b.get2 k n) = some (vb k)) (hvc : DType.val? .f32 (acc.get2 i n) = some vc)
+    (hroom : |vc| + ∑ k, |va k * vb k| + (relDot8 K * (|vc| + ∑ k, |va k * vb k|) + absDot8 K) ≤
+      DType.bound .f32)
+    (m : ℕ → ℚ) (hm : ∀ j < chunks8 K, ∀ k ∈ chunk8 K j, liftMag da (va k) * liftMag db (vb k) ≤ m j) :
+    ∃ vr, DType.val? .f32 (r.get2 i n) = some vr ∧
+      |vr - (vc + ∑ k, va k * vb k)| ≤
+        errM rhoChunk8 sigmaChunk8 alphaChunk8 kappaChunk8 rhoLossChunk8 vc (chunkSum8 va vb)
+          (chunkAbs8 va vb) m (chunks8 K) :=
+  DotChunkLoss.err (h p) rhoChunk8_nonneg sigmaChunk8_nonneg rhoLossChunk8_nonneg hd i n va vb vc
+    hva hvb hvc hroom m hm
+
+/-- `DotChunkAcc` with `rho = 0` gives `DotChunkLoss` with any nonnegative `rho`, `kappa`, `rho'`:
+both arms of the minimum are nonnegative. -/
+theorem DotChunkLoss.of_chunkAcc_zero {P : Platform} {cfg : DotCfg} {sigma alpha rho kappa rho' : ℚ}
+    (h : DotChunkAcc P cfg 0 sigma alpha) (hρ : 0 ≤ rho) (hκ : 0 ≤ kappa) (hρ' : 0 ≤ rho') :
+    DotChunkLoss P cfg rho sigma alpha kappa rho' := by
+  intro M N K a b acc r hd i n va vb vc hva hvb hvc hroom
+  obtain ⟨s, vr, hvr, h0, hn, hstep⟩ := h a b acc r hd i n va vb vc hva hvb hvc hroom
+  refine ⟨s, vr, hvr, h0, hn, fun j hj Mj hM hk => ?_⟩
+  have hM0 : 0 ≤ Mj := (abs_nonneg _).trans hM
+  have e := hstep j hj Mj hM hk
+  have h1 : 0 ≤ min (rho * Mj) (kappa * chunkAbs8 va vb j + rho' * Mj) :=
+    le_min (mul_nonneg hρ hM0)
+      (add_nonneg (mul_nonneg hκ (chunkAbs8_nonneg va vb j)) (mul_nonneg hρ' hM0))
+  linarith
 
 /-! ## A bound on the whole dot, relative to lifted magnitudes -/
 
@@ -445,6 +667,15 @@ theorem dotChunkAcc {cfg : DotCfg} {g : TVA.Math.Float.Format} (hg : cfg.acc.for
       have := mul_nonneg hrho hM0
       linarith
 
+/-- **`DotChunkLoss` holds of `Platform.ref`** for a float accumulator, with nonnegative `rho`,
+`kappa`, `rho'`, `sigma` at least one rounding's `u` and `alpha` at least its `η`
+(`dotChunkAcc` with `rho = 0`, `Dot8Chunk.DotChunkLoss.of_chunkAcc_zero`). -/
+theorem dotChunkLoss {cfg : DotCfg} {g : TVA.Math.Float.Format} (hg : cfg.acc.format? = some g)
+    {rho sigma alpha kappa rho' : ℚ} (hrho : 0 ≤ rho) (hkappa : 0 ≤ kappa) (hrho' : 0 ≤ rho')
+    (hsigma : g.u ≤ sigma) (halpha : g.eta ≤ alpha) :
+    Rules.Num.DotChunkLoss (Platform.ref rel abs sp) cfg rho sigma alpha kappa rho' :=
+  Dot8Chunk.DotChunkLoss.of_chunkAcc_zero (dotChunkAcc hg le_rfl hsigma halpha) hrho hkappa hrho'
+
 end Platform.ref
 
 namespace Platform.sm90ref
@@ -459,6 +690,18 @@ theorem dotE4m3Chunk : DotE4m3Chunk Platform.sm90ref := dotF8Chunk _ _
 theorem dotE5m2Chunk : DotE5m2Chunk Platform.sm90ref := dotF8Chunk _ _
 theorem dotE4m3E5m2Chunk : DotE4m3E5m2Chunk Platform.sm90ref := dotF8Chunk _ _
 theorem dotE5m2E4m3Chunk : DotE5m2E4m3Chunk Platform.sm90ref := dotF8Chunk _ _
+
+/-- The loss facts hold of `Platform.sm90ref` (one `float32` rounding of the exact result). -/
+theorem dotF8ChunkLoss (a b : DType) : DotF8ChunkLoss Platform.sm90ref a b := fun _ =>
+  Platform.ref.dotChunkLoss (g := Format.binary32) rfl Dot8Chunk.rhoChunk8_nonneg
+    Dot8Chunk.kappaChunk8_nonneg Dot8Chunk.rhoLossChunk8_nonneg
+    (by rw [Format.binary32_u]; unfold sigmaChunk8; exact zpow_le_zpow_right₀ (by norm_num) (by norm_num))
+    (by rw [Format.binary32_eta]; unfold alphaChunk8; exact zpow_le_zpow_right₀ (by norm_num) (by norm_num))
+
+theorem dotE4m3ChunkLoss : DotE4m3ChunkLoss Platform.sm90ref := dotF8ChunkLoss _ _
+theorem dotE5m2ChunkLoss : DotE5m2ChunkLoss Platform.sm90ref := dotF8ChunkLoss _ _
+theorem dotE4m3E5m2ChunkLoss : DotE4m3E5m2ChunkLoss Platform.sm90ref := dotF8ChunkLoss _ _
+theorem dotE5m2E4m3ChunkLoss : DotE5m2E4m3ChunkLoss Platform.sm90ref := dotF8ChunkLoss _ _
 
 end Platform.sm90ref
 

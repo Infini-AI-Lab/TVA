@@ -1,0 +1,71 @@
+def TVA.Rules.Num.DotChunkAcc : Platform → DotCfg → ℚ → ℚ → ℚ → Prop :=
+fun P cfg rho sigma alpha =>
+  ∀ ⦃M N K : ℕ⦄ (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val) (acc r : Tensor [M, N] cfg.acc.Val),
+    P.dot cfg a b acc r →
+      ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+        (∀ (k : Fin K), cfg.a.val? (a.get2 i k) = some (va k)) →
+          (∀ (k : Fin K), cfg.b.val? (b.get2 k n) = some (vb k)) →
+            cfg.acc.val? (acc.get2 i n) = some vc →
+              |vc| + ∑ k, |va k * vb k| + (relDot8 K * (|vc| + ∑ k, |va k * vb k|) + absDot8 K) ≤ cfg.acc.bound →
+                ∃ s vr,
+                  cfg.acc.val? (r.get2 i n) = some vr ∧
+                    s 0 = vc ∧
+                      s (chunks8 K) = vr ∧
+                        ∀ j < chunks8 K,
+                          ∀ (Mj : ℚ),
+                            |s j| ≤ Mj →
+                              (∀ k ∈ chunk8 K j, liftMag cfg.a (va k) * liftMag cfg.b (vb k) ≤ Mj) →
+                                |s (j + 1) - (s j + chunkSum8 va vb j)| ≤
+                                  rho * Mj + sigma * |s j + chunkSum8 va vb j| + alpha
+def TVA.Rules.Num.DotF8Chunk : Platform → DType → DType → Prop :=
+fun P a b =>
+  ∀ (p : InputPrecision),
+    DotChunkAcc P { a := a, b := b, acc := DType.f32, precision := p, maxImpreciseAcc := 2 ^ 30 } rhoChunk8 sigmaChunk8
+      alphaChunk8
+def TVA.Rules.Num.DotE5m2Chunk : Platform → Prop :=
+fun P => DotF8Chunk P DType.f8e5 DType.f8e5
+def TVA.Rules.Num.chunk8 : (K : ℕ) → ℕ → Finset (Fin K) :=
+fun K j => {k | ↑k / 32 = j}
+def TVA.Rules.Num.chunks8 : ℕ → ℕ :=
+fun K => (K + 31) / 32
+@Dot8Chunk.DotF8Chunk.liftAcc : ∀ {P : Platform} {da db : DType},
+  DotF8Chunk P da db →
+    ∀ (p : InputPrecision),
+      DotLiftAcc P { a := da, b := db, acc := DType.f32, precision := p, maxImpreciseAcc := 2 ^ 30 } Dot8Chunk.relLift8
+        Dot8Chunk.absLift8
+@Dot8Chunk.DotF8Chunk.err : ∀ {P : Platform} {da db : DType},
+  DotF8Chunk P da db →
+    ∀ (p : InputPrecision) {M N K : ℕ} {a : Tensor [M, K] da.Val} {b : Tensor [K, N] db.Val}
+      {acc r : Tensor [M, N] F32},
+      P.dot { a := da, b := db, acc := DType.f32, precision := p, maxImpreciseAcc := 2 ^ 30 } a b acc r →
+        ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+          (∀ (k : Fin K), da.val? (a.get2 i k) = some (va k)) →
+            (∀ (k : Fin K), db.val? (b.get2 k n) = some (vb k)) →
+              DType.f32.val? (acc.get2 i n) = some vc →
+                |vc| + ∑ k, |va k * vb k| + (relDot8 K * (|vc| + ∑ k, |va k * vb k|) + absDot8 K) ≤ DType.f32.bound →
+                  ∀ (m : ℕ → ℚ),
+                    (∀ j < chunks8 K, ∀ k ∈ chunk8 K j, liftMag da (va k) * liftMag db (vb k) ≤ m j) →
+                      ∃ vr,
+                        DType.f32.val? (r.get2 i n) = some vr ∧
+                          |vr - (vc + ∑ k, va k * vb k)| ≤
+                            Dot8Chunk.errB rhoChunk8 sigmaChunk8 alphaChunk8 vc (chunkSum8 va vb) m (chunks8 K)
+@Dot8Chunk.errB_le : ∀ {ρ σ α : ℚ},
+  0 ≤ ρ →
+    0 ≤ σ →
+      0 ≤ α →
+        ∀ (v : ℚ) (c m : ℕ → ℚ) (j : ℕ),
+          Dot8Chunk.errB ρ σ α v c m j ≤
+            (1 + ρ + σ) ^ j *
+              ∑ i ∈ Finset.range j, (ρ * max |Dot8Chunk.psum v c i| (m i) + σ * |Dot8Chunk.psum v c (i + 1)| + α)
+'TVA.Dot8Chunk.DotF8Chunk.liftAcc' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Dot8Chunk.DotF8Chunk.err' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Dot8Chunk.DotChunkAcc.liftErr' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Dot8Chunk.chain_err' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Dot8Chunk.errB_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Rules.Num.DotChunkAcc.mono' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.ref.dotChunkAcc' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.dotE4m3Chunk' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.dotE5m2Chunk' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.dotE4m3E5m2Chunk' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.dotE5m2E4m3Chunk' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0

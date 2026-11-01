@@ -106,14 +106,15 @@ bind `get_cuda_autotune_config`, `get_hip_autotune_config`, `get_autotune_config
     at `64·s`, `-1` at `64·s + 64` against a column of `1`s, where `S = 0`, `X_s = 1` and the
     tolerance is below `1/5` (about `0.066` for `s = 0` at `K = 4096`).
 
-  **What it does not reject.** A result within the tolerance of `S` on the input at hand, which
-  is the device's own allowed error, and can be large:
+  **What it does not reject.** A result within the tolerance of `S` on the input at hand. The
+  tolerance is the error the cited fact (`DotE5m2Chunk`) allows, not the device's own error, and it
+  can be large:
   - on an input whose weight sits in the first chunk and stays in the partial sums (one product
     `X` of normal operands at index `0`), the tolerance is `((1 + ρ + σ)^n − 1)·|X|`: `13.7%` of
     `|X|` at the test's `K = 512`, above `|X|` from `K = 2753`, and `179.3%` at `K = 4096`; there a
-    zero result passes on that input (and is rejected on the inputs above). Each chunk's
-    instruction may cut the accumulator itself (the fact's `ρ·M` with `M ≥ |s|`), so a large
-    partial sum costs about `ρ + σ` of itself per chunk;
+    zero result passes on that input (and is rejected on the inputs above). The fact charges
+    each chunk `ρ·M` with `M ≥ |s|`, so a large partial sum costs the tolerance about `ρ + σ` of
+    itself per chunk;
   - on products of one sign (all-ones matrices, say) it is `6.3%` of `S` at `K = 512` and
     `73.9%` at `K = 4096`;
   - on the script's own data (`torch.randn` cast to `float8e5`; exact evaluation over 20 draws of
@@ -122,6 +123,15 @@ bind `get_cuda_autotune_config`, `get_hip_autotune_config`, `get_autotune_config
     the draws). So at `K = 512` the typical bound is below the `1/9` relative error that a
     float8e5 rounding of the result can make, and at `K = 4096` it fixes the sign of only about
     half the outputs.
+
+  That growth of the bound, by about `1 + ρ + σ` per chunk, comes from the fact's form, each chunk
+  relative to `M ≥ |s|`, and from its margin (`2^-7` is about twice the worst chunk of the instruction's
+  model), not from the device: the device truncates every term and the sum toward zero, so its
+  error grows at most linearly in the chunks (library issue L127). Library round 26 added
+  `DotE5m2ChunkLoss`, a sharper per-chunk bound (each chunk also within
+  `2·A_j + 2^-12·M + 2^-12·|s + c| + 2^-126`, `A_j` the chunk's exact `Σ|a·b|`, so the error
+  bound on a fed-back accumulator grows by at most a factor `1 + 2^-11` per chunk). The claim
+  does not cite it, and its tolerance is the one above.
 
   The test's own check (`torch.allclose(…, atol=0.125)`, line 385) is tighter than anything the
   library's fact promises on that data, and `Post` does not imply it.
@@ -373,8 +383,9 @@ Narrowings, each against the kernel's real use:
 - **`K ≤ 4096`.** `K_le` stops at the host's largest `K` (the benchmark's `4096`), and covers
   every benchmark size. The tolerance needs no narrowing: at every covered `K` it rejects a zero
   result and a skipped step on some input (`zero_rejected`, `drop_rejected`). It is still the
-  device's allowed error, as the library's fp8 fact states it, and can be large on some inputs
-  (Specification, "What it does not reject"). Beyond `4096` it would only grow.
+  error the cited fact (`DotE5m2Chunk`) allows, not the device's own error (library issue L127),
+  and can be large on some inputs (Specification, "What it does not reject"). Beyond `4096` it
+  would only grow.
 - **Positive strides.** The kernel itself assumes them (`tl.assume`, lines 268–273); a launch with
   a zero or negative stride is undefined behaviour.
 - **Rows of `c` within `stride_cm`** (`c_rows`: `N·stride_cn ≤ stride_cm`). Each row's `N`
@@ -465,6 +476,6 @@ draws are the same 20 for both):
 | `tolA`'s relative part | `0.133` → `0.137` | `1.708` → `1.793` |
 
 With one product at index `0` the tolerance passes `|X|` from `K = 2753` (was `2817`). The new
-fact charges each chunk `ρ·M` with `M` at least the accumulator (the instruction may cut it), so
-inputs whose partial sums stay large (one product early, products of one sign at large `K`) get a
+fact charges each chunk `ρ·M` with `M` at least the accumulator (a growth that comes from the
+fact's form, not from the device: L127), so inputs whose partial sums stay large (one product early, products of one sign at large `K`) get a
 slightly larger tolerance than before, and typical inputs a much smaller one.

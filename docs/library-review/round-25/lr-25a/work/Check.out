@@ -1,0 +1,139 @@
+def TVA.Rules.Num.DotF16 : Platform → Prop :=
+fun P =>
+  ∀ (p : InputPrecision),
+    DotLiftAcc P { a := DType.f16, b := DType.f16, acc := DType.f32, precision := p } relDot16 absDot16
+def TVA.Rules.Num.DotBF16 : Platform → Prop :=
+fun P =>
+  ∀ (p : InputPrecision),
+    DotLiftAcc P { a := DType.bf16, b := DType.bf16, acc := DType.f32, precision := p } relDot16 absDot16
+def TVA.Rules.Num.DotLiftAcc : Platform → DotCfg → (ℕ → ℚ) → (ℕ → ℚ) → Prop :=
+fun P cfg rel abs =>
+  ∀ ⦃M N K : ℕ⦄ (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val) (acc r : Tensor [M, N] cfg.acc.Val),
+    P.dot cfg a b acc r →
+      ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+        (∀ (k : Fin K), cfg.a.val? (a.get2 i k) = some (va k)) →
+          (∀ (k : Fin K), cfg.b.val? (b.get2 k n) = some (vb k)) →
+            cfg.acc.val? (acc.get2 i n) = some vc →
+              |vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k) +
+                    (rel K * (|vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k)) + abs K) ≤
+                  cfg.acc.bound →
+                ∃ vr,
+                  cfg.acc.val? (r.get2 i n) = some vr ∧
+                    |vr - (vc + ∑ k, va k * vb k)| ≤
+                      rel K * (|vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k)) + abs K
+def TVA.Rules.Num.DotChunkAcc : Platform → DotCfg → ℚ → ℚ → ℚ → Prop :=
+fun P cfg rho sigma alpha =>
+  ∀ ⦃M N K : ℕ⦄ (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val) (acc r : Tensor [M, N] cfg.acc.Val),
+    P.dot cfg a b acc r →
+      ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+        (∀ (k : Fin K), cfg.a.val? (a.get2 i k) = some (va k)) →
+          (∀ (k : Fin K), cfg.b.val? (b.get2 k n) = some (vb k)) →
+            cfg.acc.val? (acc.get2 i n) = some vc →
+              |vc| + ∑ k, |va k * vb k| + (relDot8 K * (|vc| + ∑ k, |va k * vb k|) + absDot8 K) ≤ cfg.acc.bound →
+                ∃ s vr,
+                  cfg.acc.val? (r.get2 i n) = some vr ∧
+                    s 0 = vc ∧
+                      s (chunks8 K) = vr ∧
+                        ∀ j < chunks8 K,
+                          ∀ (Mj : ℚ),
+                            |s j| ≤ Mj →
+                              (∀ k ∈ chunk8 K j, liftMag cfg.a (va k) * liftMag cfg.b (vb k) ≤ Mj) →
+                                |s (j + 1) - (s j + chunkSum8 va vb j)| ≤
+                                  rho * Mj + sigma * |s j + chunkSum8 va vb j| + alpha
+def TVA.Rules.Num.DotF8Chunk : Platform → DType → DType → Prop :=
+fun P a b =>
+  ∀ (p : InputPrecision),
+    DotChunkAcc P { a := a, b := b, acc := DType.f32, precision := p, maxImpreciseAcc := 2 ^ 30 } rhoChunk8 sigmaChunk8
+      alphaChunk8
+def TVA.Rules.Num.minNormal8 : DType → ℚ :=
+fun x =>
+  match x with
+  | DType.f8e5 => 2 ^ (-14)
+  | DType.f8e4nv => 2 ^ (-6)
+  | DType.f16 => 2 ^ (-14)
+  | DType.bf16 => 2 ^ (-126)
+  | x => 0
+def TVA.Rules.Num.liftMag : DType → ℚ → ℚ :=
+fun d q => if q = 0 then 0 else max |q| (minNormal8 d)
+@Dot8Chunk.DotF8Chunk.liftAcc : ∀ {P : Platform} {da db : DType},
+  DotF8Chunk P da db →
+    ∀ (p : InputPrecision),
+      DotLiftAcc P { a := da, b := db, acc := DType.f32, precision := p, maxImpreciseAcc := 2 ^ 30 } Dot8Chunk.relLift8
+        Dot8Chunk.absLift8
+@Dot8Chunk.DotChunkAcc.liftErr : ∀ {P : Platform} {cfg : DotCfg} {ρ σ α : ℚ},
+  DotChunkAcc P cfg ρ σ α →
+    0 ≤ ρ →
+      0 ≤ σ →
+        0 ≤ α →
+          ∀ {M N K : ℕ} {a : Tensor [M, K] cfg.a.Val} {b : Tensor [K, N] cfg.b.Val} {acc r : Tensor [M, N] cfg.acc.Val},
+            P.dot cfg a b acc r →
+              ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+                (∀ (k : Fin K), cfg.a.val? (a.get2 i k) = some (va k)) →
+                  (∀ (k : Fin K), cfg.b.val? (b.get2 k n) = some (vb k)) →
+                    cfg.acc.val? (acc.get2 i n) = some vc →
+                      |vc| + ∑ k, |va k * vb k| + (relDot8 K * (|vc| + ∑ k, |va k * vb k|) + absDot8 K) ≤
+                          cfg.acc.bound →
+                        ∃ vr,
+                          cfg.acc.val? (r.get2 i n) = some vr ∧
+                            |vr - (vc + ∑ k, va k * vb k)| ≤
+                              DotLoop.bound (ρ + σ) α (chunks8 K)
+                                (|vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k))
+@Dot8Chunk.DotF8Chunk.err : ∀ {P : Platform} {da db : DType},
+  DotF8Chunk P da db →
+    ∀ (p : InputPrecision) {M N K : ℕ} {a : Tensor [M, K] da.Val} {b : Tensor [K, N] db.Val}
+      {acc r : Tensor [M, N] F32},
+      P.dot { a := da, b := db, acc := DType.f32, precision := p, maxImpreciseAcc := 2 ^ 30 } a b acc r →
+        ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+          (∀ (k : Fin K), da.val? (a.get2 i k) = some (va k)) →
+            (∀ (k : Fin K), db.val? (b.get2 k n) = some (vb k)) →
+              DType.f32.val? (acc.get2 i n) = some vc →
+                |vc| + ∑ k, |va k * vb k| + (relDot8 K * (|vc| + ∑ k, |va k * vb k|) + absDot8 K) ≤ DType.f32.bound →
+                  ∀ (m : ℕ → ℚ),
+                    (∀ j < chunks8 K, ∀ k ∈ chunk8 K j, liftMag da (va k) * liftMag db (vb k) ≤ m j) →
+                      ∃ vr,
+                        DType.f32.val? (r.get2 i n) = some vr ∧
+                          |vr - (vc + ∑ k, va k * vb k)| ≤
+                            Dot8Chunk.errB rhoChunk8 sigmaChunk8 alphaChunk8 vc (chunkSum8 va vb) m (chunks8 K)
+@DotLift.dotAdd_step : ∀ {P : Platform} {fusion : Bool} {da db : DType} {pr : InputPrecision} {mi : ℕ}
+  {rel abs : ℕ → ℚ},
+  DotLiftAcc P { a := da, b := db, acc := DType.f32, precision := pr, maxImpreciseAcc := mi } rel abs →
+    ∀ {M N K : ℕ},
+      0 ≤ rel K →
+        0 ≤ abs K →
+          ∀ {a : Tensor [M, K] da.Val} {b : Tensor [K, N] db.Val} {c r : Tensor [M, N] F32},
+            (P.dot { a := da, b := db, acc := DType.f32, precision := pr, maxImpreciseAcc := mi } a b c r ∨
+                ∃ d,
+                  P.dot { a := da, b := db, acc := DType.f32, precision := pr, maxImpreciseAcc := mi } a b
+                      (Tensor.full (FloatV.ofPat 0)) d ∧
+                    ∀ (ix : Idx [M, N]), AccAdd fusion DType.f32 (d.get ix) (c.get ix) (r.get ix)) →
+              ∀ (i : Fin M) (n : Fin N) {va vb : Fin K → ℚ},
+                (∀ (k : Fin K), da.val? (a.get2 i k) = some (va k)) →
+                  (∀ (k : Fin K), db.val? (b.get2 k n) = some (vb k)) →
+                    FloatV.isFinite (c.get2 i n) = true →
+                      2 *
+                            ((1 + rel K) * (|FloatV.toRat (c.get2 i n)| + ∑ k, liftMag da (va k) * liftMag db (vb k)) +
+                                abs K +
+                              2 * Math.Float.Format.binary32.eta) ≤
+                          Math.Float.Format.binary32.maxVal →
+                        FloatV.isFinite (r.get2 i n) = true ∧
+                          |FloatV.toRat (r.get2 i n) - (FloatV.toRat (c.get2 i n) + ∑ k, va k * vb k)| ≤
+                            DotLoop.stepRel rel K *
+                                (|FloatV.toRat (c.get2 i n)| + ∑ k, liftMag da (va k) * liftMag db (vb k)) +
+                              DotLoop.stepAbs abs K
+@DotLift.DotLiftAcc.dotAcc : ∀ {P : Platform} {cfg : DotCfg} {rel abs : ℕ → ℚ} {dom : ℚ → Prop},
+  DotLiftAcc P cfg rel abs →
+    (∀ (q : ℚ), dom q → liftMag cfg.a q = |q|) → (∀ (q : ℚ), dom q → liftMag cfg.b q = |q|) → DotAcc P cfg dom rel abs
+@DotAcc.liftAcc : ∀ {P : Platform} {cfg : DotCfg} {rel abs : ℕ → ℚ},
+  DotAcc P cfg (fun x => True) rel abs → (∀ (K : ℕ), 0 ≤ rel K) → DotLiftAcc P cfg rel abs
+'TVA.Dot8Chunk.DotF8Chunk.liftAcc' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Dot8Chunk.DotF8Chunk.err' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Dot8Chunk.errB_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.DotLift.dotAdd_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.DotLift.DotLiftAcc.dotAcc' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Rules.Num.DotAcc.liftAcc' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Rules.Num.DotLiftAcc.mono' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.dotF16' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.dotBF16' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.dotE5m2Chunk' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.ref.dotLiftAcc' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0

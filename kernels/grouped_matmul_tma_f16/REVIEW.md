@@ -6,7 +6,7 @@ Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16). The c
 
 ## Status
 
-- Gate: **PASS**, digest `902c06ecf3fe60ae` (2026-11-01T05:57:33Z).
+- Gate: **PASS**, digest `ea472d49ce692007` (2026-11-01T08:49:42Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-gmm (all), r-gmm2 (all).
 - Certificate: **GRANTED**.
@@ -14,13 +14,13 @@ Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16). The c
 
 | Item | Digest | r-gmm | r-gmm2 |
 |---|---|---|---|
-| `assumption:dot` | `e8417367c639` | accepted | accepted |
-| `assumption:dot_total` | `318edc5a5885` | accepted | accepted |
+| `assumption:dot` | `6277e22d8319` | accepted | accepted |
+| `assumption:dot_total` | `3f2706338d0d` | accepted | accepted |
 | `assumption:faithful` | `ba5a46235b62` | accepted | accepted |
 | `conditions` | `3fa9d4d3c595` | accepted | accepted |
 | `map` | `d7be69bb0653` | accepted | accepted |
 | `model` | `f819312143dc` | accepted | accepted |
-| `spec` | `9b8a53f99501` | accepted | accepted |
+| `spec` | `2559d6a40f41` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -41,7 +41,7 @@ Kernel review trusts the library; these are tracked in [docs/library-review/ISSU
 |---|---|---|---|
 | [L120](../../docs/library-review/ISSUES.md#l120) | OPEN | grouped_matmul_tma_f16#F2 (r-gmm2) | gap: nothing states that a descriptor the kernel builds again in a loop is rewritten only after the accesses through its old contents (a TMA store may still be in flight) |
 | [L121](../../docs/library-review/ISSUES.md#l121) | OPEN | grouped_matmul_tma_f16#F4 (r-gmm) | gap: scope 5 does not ask the allocator to return the `alignment` the launcher asks for the descriptor scratch |
-| [L126](../../docs/library-review/ISSUES.md#l126) | FIXED | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
+| [L126](../../docs/library-review/ISSUES.md#l126) | ACCEPTED | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
 
 ## Round 1
 
@@ -166,4 +166,17 @@ Round 24 withdrew the fp8 dot facts because on wgmma a product with a subnormal 
 
 - **released F6**: Library issue L126 records the gap as I raised it: a product with a subnormal float16 operand and a large partner sets the window, and num-dot Part 2 had no such input. Round 25 fixed it: DotF16 is now DotLiftAcc with relDot16 and absDot16, relative to |acc| + sum liftMag a * liftMag b, with evidence num-dot-sub16-round25. The prover re-proved the claim on it, and subnormal operands stay covered.
 - **accepted** at gate `902c06ecf3fe60ae`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T08:50:46Z` coordinator's note: Library round 26 (L124, L127-L133; docs/library-review/ISSUES.md), after the round 24/25 library review: new facts DotE4m3ChunkLoss etc. and lemmas added to lean/TVA/Rules/Num/Dot8Chunk.lean and lean/TVA/Lemmas/Dot8Chunk.lean, and docs/rules/num.md reworded and extended. No existing fact, constant or lemma changed; this kernel's reviewers re-accept the items that re-opened.
+
+### r-gmm files ([filing](review/round-3/r-gmm/filing-2.json), [report](review/round-3/r-gmm/report-2.md), [work](review/round-3/r-gmm/work/))
+
+`2026-11-01T08:52:27Z`, at gate `ea472d49ce692007`. Notes: Re-accept after library round 26 (gate ea472d49ce692007). Against HEAD, the diff of lean/TVA only adds the fp8 ChunkLoss facts and their lemmas in the two Dot8Chunk files, and removes one module-docstring bullet. DotF16, DotLiftAcc, liftMag, minNormal8, relDot16, absDot16, DotTotal and DotLoop are untouched, as are the Dot8Chunk lemmas the proof uses (liftMag_nonneg, abs_mul_le_liftMag, liftMag_zero). In docs/rules/num.md the DotF16/DotBF16 rows of the kind table and of 'Facts the library states' and the 16-bit bullet are unchanged. The chunk-model opening (L130) is reworded with the same meaning for 16-bit operands (16 products per instruction on both paths). The kernel's files are unchanged.
+
+- **accepted** at gate `ea472d49ce692007`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-gmm2 files ([filing](review/round-3/r-gmm2/filing-2.json), [report](review/round-3/r-gmm2/report-2.md), [work](review/round-3/r-gmm2/work/))
+
+`2026-11-01T08:52:32Z`, at gate `ea472d49ce692007`. Notes: Re-accept after library round 26 (re-gate ea472d49ce692007; no kernel file changed). The stale items (assumption:dot, assumption:dot_total, spec) changed only through docs/rules/num.md. Its diff adds the fp8 loss facts (DotE4m3ChunkLoss etc., DotChunkLoss) and rewords the opening of 'tl.dot (the chunk model)' (16 products per instruction for 16-bit operands on both paths, as before). The DotF16 listing (float16 into float32, maxImpreciseAcc = 0, any precision), its 'Facts the library states' row with relDot16 and absDot16, the DotLiftAcc definition and the 16-bit section are unchanged in meaning. The Lean diff only adds to Rules/Num/Dot8Chunk.lean and Lemmas/Dot8Chunk.lean; the lemmas the spec's proof uses (liftMag_nonneg, abs_mul_le_liftMag, liftMag_zero) are unchanged, as are DotF16, DotLiftAcc, DotTotal, DotLoop and DotLift.
+
+- **accepted** at gate `ea472d49ce692007`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

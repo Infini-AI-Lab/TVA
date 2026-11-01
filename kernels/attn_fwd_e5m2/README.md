@@ -14,8 +14,8 @@ alone allows) on the test's data and about 5 to 18.5 times on the benchmark's. `
 `o = 0` on many elements. On the test's non-causal rows at `N_CTX ≥ 1024`, `|attnRef|` is mostly
 below the fp8 floor itself, and there `Post` accepts `0` (Specification, "Where `Post` does not tell `o`
 from `0`"). What remains of the library's part is the compounding of the `p·v` accumulator over the
-key blocks, which the chunk facts' window allows (library issue
-[L124](../../docs/library-review/ISSUES.md#l124)).
+key blocks. It is the bound of the cited fact, `DotE5m2Chunk`, not the device's behaviour (library
+issue [L127](../../docs/library-review/ISSUES.md#l127)).
 
 Source: [`source/06-fused-attention.py`](source/06-fused-attention.py) (tutorial 06 as set up in
 [SETUP.md](SETUP.md): the `@triton.autotune` decorator removed, the config `BLOCK_M=128,
@@ -123,9 +123,13 @@ running-maximum analysis (`RowMax`) and the shape of the `l_i` analysis (`lstep`
   through `l_i ≥ Fp·Σw`, `Fp ≈ 1/pE`). It no longer enters as `pE²·Σ w·|v|`.
 - **The `p·v` `tl.dot`** is bounded over its two chunks: `cS8·|acc| + cC8·Σ|p·v| + cP8·(m₀ + m₁) +
   cA8`, with `m_c` the chunk's largest lifted product. Its share on the accumulator, `cS8 ≈ 1.62%`
-  per block, compounds over the blocks. That is what the window allows (L124), and it is what
-  remains: it is slightly above `DotE5m2`'s `1.57%`, so rows spread over many blocks are a little
-  looser than before (`v = 1` at `N = 2^14`: `tolO` `19.3` against `17.8`).
+  per block, compounds over the blocks. That is `DotE5m2Chunk`'s bound (each step relative to
+  `M_c ≥ |acc|`, with its constant `2^-7`, about twice the window's worst chunk), not the device's
+  behaviour, whose error grows at most
+  linearly in the chunks (L127). It is what remains: it is slightly above `DotE5m2`'s `1.57%`, so
+  rows spread over many blocks are a little looser than before (`v = 1` at `N = 2^14`: `tolO`
+  `19.3` against `17.8`). Round 26's `DotE5m2ChunkLoss` gives a sharper bound per chunk, which this
+  claim does not cite.
 - **Subnormal operands** of `q`, `k`, `v` and of `p` after its fp8 conversion count as `liftMag`
   wherever the fact does (`scoreLift`, `scoreErr`, `blkLW`, `blkVL`, and `p`'s lift in `accA`'s
   `eps8 + 2^-14`). `tolV`'s lifted products carry
@@ -330,11 +334,15 @@ below it.
   `D = 128` each weight may still move by a factor `pE ≈ 2.3`, so `hw ≈ 1.4` multiplies
   `Σ w·|vEff − attnRef|` and `1/Fp ≈ pE` the whole of `errC`.
 - **On rows spread over many blocks**: the chunk facts bound each chunk relative to its largest
-  term, the accumulator included (the 13-bit window). So the `p·v` `tl.dot` may change `acc` by
-  `cS8 ≈ 1.62%` per block, and the accumulator is fed back once per block. That compounding is what
-  the window allows (library issue [L124](../../docs/library-review/ISSUES.md#l124), round 24), not
-  slack in the fact. It is slightly larger than `DotE5m2`'s `1.57%` (the chunk facts' `2^-12` on
-  each new sum). It is what remains of the library's part. Through `gA` in `errC` and the
+  term, the accumulator included (`M_c ≥ |acc|`, with the constant `2^-7`, about twice the window's
+  worst chunk). So under the cited fact the
+  `p·v` `tl.dot` may change `acc` by `cS8 ≈ 1.62%` per block, and the accumulator is fed back once
+  per block. That compounding is `DotE5m2Chunk`'s bound, from the fact's form, not the device's
+  behaviour: the device truncates every term and the sum toward zero, so its error grows at most
+  linearly in the chunks (library issue [L127](../../docs/library-review/ISSUES.md#l127), round 26).
+  Round 26's `DotE5m2ChunkLoss` gives a sharper bound per chunk, which this claim does not cite.
+  The compounding is slightly larger than `DotE5m2`'s `1.57%` (the chunk facts' `2^-12` on each new
+  sum). It is what remains of the library's part. Through `gA` in `errC` and the
   `2^-17`-per-key terms in `accA` (against `l_i ≥ 1/2`), `tolO` grows with `N_CTX` on the test's data
   (`0.09` to `0.19` from `128` to `4096` at `D = 64`). For `v = 1` everywhere, `0` is accepted from
   `N = 4096` on (`tolO` `1.31`), and at `N = 2^16` the tolerances are about `10^6` and `10^7`
@@ -541,8 +549,8 @@ Narrowings, each against the kernel's real use:
   not tell `o` from `0`"). On the test's non-causal rows at `N_CTX ≥ 1024`, that is mostly the fp8
   rounding of `p` itself (79% to 100% of the elements). What remains of the library's part is the
   `p·v` accumulator's compounding over the blocks, `(1 + cS8)^nblk` (about `10^6` at `N = 2^16` for
-  `v = 1`), which the chunk facts' window allows (library issue
-  [L124](../../docs/library-review/ISSUES.md#l124)).
+  `v = 1`). It is the cited fact's (`DotE5m2Chunk`'s) bound, not the device's behaviour (library
+  issue [L127](../../docs/library-review/ISSUES.md#l127)).
 - **The environment** (part (B) of `Compiler.Faithful`'s scope) is relied on, not checked.
 
 Modelling decisions (as `attn_fwd_f16`'s, with the fp8 changes):

@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5m2",
+  "kernel": "matmul_e5m2",
+  "round": 2,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-acceptance after library round 26 (L124, L127-L133), gate e127e9a2077f0921; the kernel's files did not change. The Lean diff only adds: chunkAbs8, DotChunkLoss, kappaChunk8, rhoLossChunk8, DotF8ChunkLoss and the four ...ChunkLoss facts, with DotChunkLoss.chunkAcc, DotChunkLoss.mono and DotF8ChunkLoss.chunk in Rules/Num/Dot8Chunk.lean, and errM, chain_errM, errM_le_errB, errL, DotChunkLoss.err, DotF8ChunkLoss.err and the reference-platform lemmas in Lemmas/Dot8Chunk.lean. The only removed lines are in module docstrings. DotE5m2Chunk, DotF8Chunk, DotChunkAcc, rhoChunk8 = 2^-7, sigmaChunk8 = 2^-12, alphaChunk8 = 2^-126, liftMag, minNormal8, DotLoop.bound, CvtF32E5m2, CvtTotal and DotTotal are unchanged. In num.md the rows for DotE5m2Chunk, CvtF32E5m2 and the total rules are unchanged. The fp8 entry of the reviewer's table now also allows the loss facts. The wording changes (L127, L130) and the new sections state no new meaning for the fact cited here. Checked in work/names5.lean: the constants and minNormal8 .f8e5 hold by rfl, DotE5m2ChunkLoss gives DotE5m2Chunk, the cited facts, spec definitions and assumptions print as before, and main, zero_rejected and drop_rejected use only propext, Classical.choice and Quot.sound. Non-blocking, no finding: the README calls the tolerance the device's allowed error. After L127 it is best read as the error the cited fact allows. The library now also offers the sharper DotE5m2ChunkLoss, which this claim need not use."
+}

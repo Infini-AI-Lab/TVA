@@ -1,0 +1,956 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+## Part P: input_precision (library issue L128)
+
+One `tl.dot(a, b, acc, input_precision=PREC)`, K = 64, for each PREC. `PTX = default`: the PTX equals that of PREC = None (the default); `default = omitted`: that PTX equals the PTX of a kernel that omits the argument (debug line information and entry names aside); `results`: elements equal to the default's bit for bit, on one draw each of `normal`, `sub`, `subwin` and `bits` inputs.
+
+| operands | M x N, warps | path | input_precision | PTX = default | default = omitted | results equal |
+|---|---|---|---|---|---|---|
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | tf32 | True | True | 16384/16384 |
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | tf32x3 | True | True | 16384/16384 |
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | ieee | True | True | 16384/16384 |
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | bf16x3 | True | True | 16384/16384 |
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | bf16x6 | True | True | 16384/16384 |
+| float8e5 x float8e5 | 128 x 64, 8 | wgmma | tf32 | True | True | 32768/32768 |
+| float8e5 x float8e5 | 128 x 64, 8 | wgmma | tf32x3 | True | True | 32768/32768 |
+| float8e5 x float8e5 | 128 x 64, 8 | wgmma | ieee | True | True | 32768/32768 |
+| float8e5 x float8e5 | 128 x 64, 8 | wgmma | bf16x3 | True | True | 32768/32768 |
+| float8e5 x float8e5 | 128 x 64, 8 | wgmma | bf16x6 | True | True | 32768/32768 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | tf32 | True | True | 1024/1024 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | tf32x3 | True | True | 1024/1024 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | ieee | True | True | 1024/1024 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | bf16x3 | True | True | 1024/1024 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | bf16x6 | True | True | 1024/1024 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | tf32 | True | True | 4096/4096 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | tf32x3 | True | True | 4096/4096 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | ieee | True | True | 4096/4096 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | bf16x3 | True | True | 4096/4096 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | bf16x6 | True | True | 4096/4096 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | tf32 | True | True | 16384/16384 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | tf32x3 | True | True | 16384/16384 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | ieee | True | True | 16384/16384 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | bf16x3 | True | True | 16384/16384 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | bf16x6 | True | True | 16384/16384 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | wgmma | tf32 | True | True | 32768/32768 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | wgmma | tf32x3 | True | True | 32768/32768 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | wgmma | ieee | True | True | 32768/32768 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | wgmma | bf16x3 | True | True | 32768/32768 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | wgmma | bf16x6 | True | True | 32768/32768 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | tf32 | True | True | 1024/1024 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | tf32x3 | True | True | 1024/1024 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | ieee | True | True | 1024/1024 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | bf16x3 | True | True | 1024/1024 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | bf16x6 | True | True | 1024/1024 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | tf32 | True | True | 4096/4096 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | tf32x3 | True | True | 4096/4096 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | ieee | True | True | 4096/4096 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | bf16x3 | True | True | 4096/4096 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | bf16x6 | True | True | 4096/4096 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | tf32 | True | True | 16384/16384 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | tf32x3 | True | True | 16384/16384 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | ieee | True | True | 16384/16384 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | bf16x3 | True | True | 16384/16384 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | bf16x6 | True | True | 16384/16384 |
+| float8e4nv x float8e5 | 128 x 64, 8 | wgmma | tf32 | True | True | 32768/32768 |
+| float8e4nv x float8e5 | 128 x 64, 8 | wgmma | tf32x3 | True | True | 32768/32768 |
+| float8e4nv x float8e5 | 128 x 64, 8 | wgmma | ieee | True | True | 32768/32768 |
+| float8e4nv x float8e5 | 128 x 64, 8 | wgmma | bf16x3 | True | True | 32768/32768 |
+| float8e4nv x float8e5 | 128 x 64, 8 | wgmma | bf16x6 | True | True | 32768/32768 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | tf32 | True | True | 1024/1024 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | tf32x3 | True | True | 1024/1024 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | ieee | True | True | 1024/1024 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | bf16x3 | True | True | 1024/1024 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | bf16x6 | True | True | 1024/1024 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | tf32 | True | True | 4096/4096 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | tf32x3 | True | True | 4096/4096 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | ieee | True | True | 4096/4096 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | bf16x3 | True | True | 4096/4096 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | bf16x6 | True | True | 4096/4096 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | tf32 | True | True | 16384/16384 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | tf32x3 | True | True | 16384/16384 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | ieee | True | True | 16384/16384 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | bf16x3 | True | True | 16384/16384 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | bf16x6 | True | True | 16384/16384 |
+| float8e5 x float8e4nv | 128 x 64, 8 | wgmma | tf32 | True | True | 32768/32768 |
+| float8e5 x float8e4nv | 128 x 64, 8 | wgmma | tf32x3 | True | True | 32768/32768 |
+| float8e5 x float8e4nv | 128 x 64, 8 | wgmma | ieee | True | True | 32768/32768 |
+| float8e5 x float8e4nv | 128 x 64, 8 | wgmma | bf16x3 | True | True | 32768/32768 |
+| float8e5 x float8e4nv | 128 x 64, 8 | wgmma | bf16x6 | True | True | 32768/32768 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | tf32 | True | True | 1024/1024 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | tf32x3 | True | True | 1024/1024 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | ieee | True | True | 1024/1024 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | bf16x3 | True | True | 1024/1024 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | bf16x6 | True | True | 1024/1024 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | tf32 | True | True | 4096/4096 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | tf32x3 | True | True | 4096/4096 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | ieee | True | True | 4096/4096 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | bf16x3 | True | True | 4096/4096 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | bf16x6 | True | True | 4096/4096 |
+
+Every input_precision gives the default's PTX and bits: True
+
+
+## Part S: single chunks on the device (K = 32)
+
+Each row: one operand pair, block shape and variant, every kind of input (README), two draws each. With one chunk the partial values are the accumulator and the device's result, so each element is checked against the step bound with no model, at the smallest M_j (the larger of |acc| and the chunk's largest lifted product). `new`: the error over the new facts' bound (the minimum of the two arms); `loss arm`: over the second arm alone, kappa A_j + rho2 M_j + sigma |s + c| + alpha; `round 24`: over the round-24 facts' bound; `magnitude`: elements whose result exceeds |acc| + sum |a b|.
+
+| operands | M x N, warps | variant | path | kind | elements in range | outside | new | loss arm | round 24 | magnitude |
+|---|---|---|---|---|---|---|---|---|---|---|
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `normal` | 8192 | 0 | 0.0596 | 0.0000 | 0.0596 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `spread` | 8192 | 0 | 0.0832 | 0.0029 | 0.0832 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `accbig` | 8192 | 0 | 0.4376 | 0.4376 | 0.1723 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `allones` | 8192 | 0 | 0.1975 | 0.0047 | 0.1975 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `onebig` | 8192 | 0 | 0.0457 | 0.0001 | 0.0457 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `cancel` | 8192 | 0 | 0.0274 | 0.0000 | 0.0274 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `tiny` | 8192 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `huge` | 8192 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `sub` | 8192 | 0 | 0.0545 | 0.0000 | 0.0545 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `subwin` | 8192 | 0 | 0.4360 | 0.0068 | 0.4360 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `winworst` | 8192 | 0 | 0.4261 | 0.0017 | 0.4261 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `trunc14` | 8192 | 0 | 0.2375 | 0.0001 | 0.2375 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `bits` | 8192 | 0 | 0.1047 | 0.1047 | 0.0635 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `accone` | 8192 | 0 | 0.4531 | 0.4531 | 0.2197 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `accdom` | 8192 | 0 | 0.2708 | 0.2708 | 0.0739 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `accsmall` | 8192 | 0 | 0.3529 | 0.3529 | 0.1197 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `lossacc` | 8192 | 0 | 0.4833 | 0.4833 | 0.4393 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | plain | wgmma | `lossmix` | 8192 | 0 | 0.2225 | 0.2225 | 0.1609 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `normal` | 16384 | 0 | 0.0830 | 0.0000 | 0.0830 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `spread` | 16384 | 0 | 0.1130 | 0.0027 | 0.1130 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `accbig` | 16384 | 0 | 0.4385 | 0.4385 | 0.1730 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `allones` | 16384 | 0 | 0.1630 | 0.0059 | 0.1630 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `onebig` | 16384 | 0 | 0.0489 | 0.0001 | 0.0489 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `cancel` | 16384 | 0 | 0.0291 | 0.0000 | 0.0291 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `sub` | 16384 | 0 | 0.0712 | 0.0000 | 0.0712 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `subwin` | 16384 | 0 | 0.4360 | 0.0068 | 0.4360 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `winworst` | 16384 | 0 | 0.4261 | 0.0017 | 0.4261 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `trunc14` | 16384 | 0 | 0.2366 | 0.0001 | 0.2366 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `bits` | 16384 | 0 | 0.2270 | 0.2270 | 0.0546 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `accone` | 16384 | 0 | 0.4531 | 0.4531 | 0.2197 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `accdom` | 16384 | 0 | 0.2222 | 0.2222 | 0.0606 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `accsmall` | 16384 | 0 | 0.3083 | 0.3083 | 0.1400 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `lossacc` | 16384 | 0 | 0.4833 | 0.4833 | 0.4393 | 0 |
+| float8e5 x float8e5 | 128 x 64, 8 | plain | wgmma | `lossmix` | 16384 | 0 | 0.2607 | 0.2607 | 0.1742 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `normal` | 16384 | 0 | 0.0719 | 0.0000 | 0.0719 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `spread` | 16384 | 0 | 0.0861 | 0.0023 | 0.0861 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `accbig` | 16384 | 0 | 0.4382 | 0.4382 | 0.1728 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `allones` | 16384 | 0 | 0.1975 | 0.0047 | 0.1975 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `onebig` | 16384 | 0 | 0.0496 | 0.0001 | 0.0496 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `cancel` | 16384 | 0 | 0.0156 | 0.0000 | 0.0156 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `sub` | 16384 | 0 | 0.0596 | 0.0000 | 0.0596 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `subwin` | 16384 | 0 | 0.4360 | 0.0068 | 0.4360 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `winworst` | 16384 | 0 | 0.4261 | 0.0017 | 0.4261 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `trunc14` | 16384 | 0 | 0.2380 | 0.0001 | 0.2380 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `bits` | 16384 | 0 | 0.1988 | 0.1988 | 0.0688 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `accone` | 16384 | 0 | 0.4531 | 0.4531 | 0.2197 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `accdom` | 16384 | 0 | 0.2222 | 0.2222 | 0.0606 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `accsmall` | 16384 | 0 | 0.2871 | 0.2871 | 0.1212 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `lossacc` | 16384 | 0 | 0.4833 | 0.4833 | 0.4393 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | b transposed | wgmma | `lossmix` | 16384 | 0 | 0.3192 | 0.3192 | 0.2140 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `normal` | 16384 | 0 | 0.0753 | 0.0000 | 0.0753 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `spread` | 16384 | 0 | 0.0848 | 0.0037 | 0.0848 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `accbig` | 16384 | 0 | 0.4384 | 0.4384 | 0.1747 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `allones` | 16384 | 0 | 0.1961 | 0.0047 | 0.1961 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `onebig` | 16384 | 0 | 0.0446 | 0.0001 | 0.0446 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `cancel` | 16384 | 0 | 0.0156 | 0.0000 | 0.0156 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `sub` | 16384 | 0 | 0.0699 | 0.0000 | 0.0699 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `subwin` | 16384 | 0 | 0.4360 | 0.0068 | 0.4360 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `winworst` | 16384 | 0 | 0.4261 | 0.0017 | 0.4261 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `trunc14` | 16384 | 0 | 0.2338 | 0.0001 | 0.2338 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `bits` | 16384 | 0 | 0.1438 | 0.1438 | 0.0586 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `accone` | 16384 | 0 | 0.4531 | 0.4531 | 0.2197 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `accdom` | 16384 | 0 | 0.2465 | 0.2465 | 0.0672 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `accsmall` | 16384 | 0 | 0.2980 | 0.2980 | 0.1232 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `lossacc` | 16384 | 0 | 0.4833 | 0.4833 | 0.4393 | 0 |
+| float8e5 x float8e5 | 128 x 64, 4 | a in registers | wgmma | `lossmix` | 16384 | 0 | 0.3529 | 0.3529 | 0.2405 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `normal` | 512 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `spread` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `accbig` | 512 | 0 | 0.0002 | 0.0002 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `allones` | 512 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `onebig` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `cancel` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `tiny` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `huge` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `sub` | 512 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `subwin` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `winworst` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `trunc14` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `bits` | 512 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `accone` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `accdom` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `accsmall` | 512 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `lossacc` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | plain | mma.sync | `lossmix` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `normal` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `spread` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `accbig` | 2048 | 0 | 0.0002 | 0.0002 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `allones` | 2048 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `onebig` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `cancel` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `tiny` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `huge` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `sub` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `subwin` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `winworst` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `trunc14` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `bits` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `accone` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `accdom` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `accsmall` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `lossacc` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | plain | mma.sync | `lossmix` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `normal` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `spread` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `accbig` | 2048 | 0 | 0.0002 | 0.0002 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `allones` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `onebig` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `cancel` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `tiny` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `huge` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `sub` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `subwin` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `winworst` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `trunc14` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `bits` | 2048 | 0 | 0.0003 | 0.0003 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `accone` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `accdom` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `accsmall` | 2048 | 0 | 0.0002 | 0.0002 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `lossacc` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e5 | 16 x 64, 4 | plain | mma.sync | `lossmix` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `normal` | 8192 | 0 | 0.0717 | 0.0000 | 0.0717 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `spread` | 8192 | 0 | 0.0944 | 0.0043 | 0.0944 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `accbig` | 8192 | 0 | 0.4381 | 0.4381 | 0.1744 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `allones` | 8192 | 0 | 0.1800 | 0.0032 | 0.1800 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `onebig` | 8192 | 0 | 0.0364 | 0.0001 | 0.0364 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `cancel` | 8192 | 0 | 0.0280 | 0.0000 | 0.0280 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `tiny` | 8192 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `huge` | 8192 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `sub` | 8192 | 0 | 0.0542 | 0.0000 | 0.0542 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `subwin` | 8192 | 0 | 0.4678 | 0.0143 | 0.4678 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `winworst` | 8192 | 0 | 0.4554 | 0.0018 | 0.4554 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `trunc14` | 8192 | 0 | 0.2343 | 0.0001 | 0.2343 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `bits` | 8192 | 0 | 0.3229 | 0.3229 | 0.0775 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `accone` | 8192 | 0 | 0.4558 | 0.4558 | 0.2348 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `accdom` | 8192 | 0 | 0.1990 | 0.1990 | 0.0573 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `accsmall` | 8192 | 0 | 0.2982 | 0.2982 | 0.1203 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `lossacc` | 8192 | 0 | 0.4843 | 0.4843 | 0.4696 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | plain | wgmma | `lossmix` | 8192 | 0 | 0.2854 | 0.2854 | 0.2140 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `normal` | 16384 | 0 | 0.0613 | 0.0000 | 0.0613 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `spread` | 16384 | 0 | 0.1121 | 0.0037 | 0.1121 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `accbig` | 16384 | 0 | 0.4392 | 0.4392 | 0.1758 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `allones` | 16384 | 0 | 0.1800 | 0.0031 | 0.1800 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `onebig` | 16384 | 0 | 0.0365 | 0.0001 | 0.0365 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `cancel` | 16384 | 0 | 0.0263 | 0.0000 | 0.0263 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `sub` | 16384 | 0 | 0.0594 | 0.0000 | 0.0594 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `subwin` | 16384 | 0 | 0.4678 | 0.0143 | 0.4678 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `winworst` | 16384 | 0 | 0.4554 | 0.0018 | 0.4554 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `trunc14` | 16384 | 0 | 0.2380 | 0.0001 | 0.2380 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `bits` | 16384 | 0 | 0.2611 | 0.2611 | 0.0842 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `accone` | 16384 | 0 | 0.4558 | 0.4558 | 0.2348 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `accdom` | 16384 | 0 | 0.2483 | 0.2483 | 0.0715 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `accsmall` | 16384 | 0 | 0.2893 | 0.2893 | 0.1464 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `lossacc` | 16384 | 0 | 0.4843 | 0.4843 | 0.4696 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 8 | plain | wgmma | `lossmix` | 16384 | 0 | 0.2882 | 0.2882 | 0.2140 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `normal` | 16384 | 0 | 0.0775 | 0.0000 | 0.0775 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `spread` | 16384 | 0 | 0.1073 | 0.0041 | 0.1073 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `accbig` | 16384 | 0 | 0.4384 | 0.4384 | 0.1858 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `allones` | 16384 | 0 | 0.1800 | 0.0031 | 0.1800 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `onebig` | 16384 | 0 | 0.0385 | 0.0001 | 0.0385 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `cancel` | 16384 | 0 | 0.0366 | 0.0000 | 0.0366 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `sub` | 16384 | 0 | 0.0682 | 0.0000 | 0.0682 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `subwin` | 16384 | 0 | 0.4678 | 0.0143 | 0.4678 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `winworst` | 16384 | 0 | 0.4554 | 0.0018 | 0.4554 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `trunc14` | 16384 | 0 | 0.2380 | 0.0001 | 0.2380 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `bits` | 16384 | 0 | 0.2897 | 0.2897 | 0.0933 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `accone` | 16384 | 0 | 0.4558 | 0.4558 | 0.2348 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `accdom` | 16384 | 0 | 0.2483 | 0.2483 | 0.0715 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `accsmall` | 16384 | 0 | 0.2771 | 0.2771 | 0.1171 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `lossacc` | 16384 | 0 | 0.4843 | 0.4843 | 0.4696 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `lossmix` | 16384 | 0 | 0.2951 | 0.2951 | 0.1998 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `normal` | 16384 | 0 | 0.0702 | 0.0001 | 0.0702 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `spread` | 16384 | 0 | 0.1004 | 0.0040 | 0.1004 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `accbig` | 16384 | 0 | 0.4390 | 0.4390 | 0.1780 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `allones` | 16384 | 0 | 0.1800 | 0.0031 | 0.1800 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `onebig` | 16384 | 0 | 0.0343 | 0.0001 | 0.0343 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `cancel` | 16384 | 0 | 0.0309 | 0.0000 | 0.0309 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `sub` | 16384 | 0 | 0.0595 | 0.0000 | 0.0595 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `subwin` | 16384 | 0 | 0.4678 | 0.0143 | 0.4678 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `winworst` | 16384 | 0 | 0.4554 | 0.0018 | 0.4554 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `trunc14` | 16384 | 0 | 0.2380 | 0.0001 | 0.2380 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `bits` | 16384 | 0 | 0.3208 | 0.3208 | 0.0935 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `accone` | 16384 | 0 | 0.4558 | 0.4558 | 0.2348 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `accdom` | 16384 | 0 | 0.2236 | 0.2236 | 0.0644 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `accsmall` | 16384 | 0 | 0.2973 | 0.2973 | 0.1567 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `lossacc` | 16384 | 0 | 0.4843 | 0.4843 | 0.4696 | 0 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `lossmix` | 16384 | 0 | 0.3040 | 0.3040 | 0.2282 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `normal` | 512 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `spread` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `accbig` | 512 | 0 | 0.0004 | 0.0004 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `allones` | 512 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `onebig` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `cancel` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `tiny` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `huge` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `sub` | 512 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `subwin` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `winworst` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `trunc14` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `bits` | 512 | 0 | 0.0002 | 0.0002 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `accone` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `accdom` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `accsmall` | 512 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `lossacc` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | plain | mma.sync | `lossmix` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `normal` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `spread` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `accbig` | 2048 | 0 | 0.0005 | 0.0005 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `allones` | 2048 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `onebig` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `cancel` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `tiny` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `huge` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `sub` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `subwin` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `winworst` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `trunc14` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `bits` | 2048 | 0 | 0.0004 | 0.0004 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `accone` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `accdom` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `accsmall` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `lossacc` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | plain | mma.sync | `lossmix` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `normal` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `spread` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `accbig` | 2048 | 0 | 0.0004 | 0.0004 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `allones` | 2048 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `onebig` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `cancel` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `tiny` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `huge` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `sub` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `subwin` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `winworst` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `trunc14` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `bits` | 2048 | 0 | 0.0003 | 0.0003 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `accone` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `accdom` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `accsmall` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `lossacc` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e4nv | 16 x 64, 4 | plain | mma.sync | `lossmix` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `normal` | 8192 | 0 | 0.0870 | 0.0000 | 0.0870 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `spread` | 8192 | 0 | 0.0895 | 0.0023 | 0.0895 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `accbig` | 8192 | 0 | 0.4389 | 0.4389 | 0.1662 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `allones` | 8192 | 0 | 0.1881 | 0.0043 | 0.1881 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `onebig` | 8192 | 0 | 0.0138 | 0.0000 | 0.0138 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `cancel` | 8192 | 0 | 0.0269 | 0.0000 | 0.0269 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `tiny` | 8192 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `huge` | 8192 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `sub` | 8192 | 0 | 0.0554 | 0.0000 | 0.0554 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `subwin` | 8192 | 0 | 0.4678 | 0.0143 | 0.4678 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `winworst` | 8192 | 0 | 0.4554 | 0.0018 | 0.4554 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `trunc14` | 8192 | 0 | 0.2338 | 0.0001 | 0.2338 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `bits` | 8192 | 0 | 0.2764 | 0.2764 | 0.0707 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `accone` | 8192 | 0 | 0.4558 | 0.4558 | 0.2348 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `accdom` | 8192 | 0 | 0.2236 | 0.2236 | 0.0644 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `accsmall` | 8192 | 0 | 0.2764 | 0.2764 | 0.1225 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `lossacc` | 8192 | 0 | 0.4843 | 0.4843 | 0.4696 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | plain | wgmma | `lossmix` | 8192 | 0 | 0.4364 | 0.4364 | 0.2992 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `normal` | 16384 | 0 | 0.0723 | 0.0000 | 0.0723 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `spread` | 16384 | 0 | 0.1004 | 0.0061 | 0.1004 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `accbig` | 16384 | 0 | 0.4410 | 0.4410 | 0.1700 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `allones` | 16384 | 0 | 0.1871 | 0.0047 | 0.1871 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `onebig` | 16384 | 0 | 0.0138 | 0.0000 | 0.0138 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `cancel` | 16384 | 0 | 0.0155 | 0.0000 | 0.0155 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `sub` | 16384 | 0 | 0.0610 | 0.0000 | 0.0610 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `subwin` | 16384 | 0 | 0.4678 | 0.0143 | 0.4678 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `winworst` | 16384 | 0 | 0.4554 | 0.0018 | 0.4554 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `trunc14` | 16384 | 0 | 0.2375 | 0.0001 | 0.2375 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `bits` | 16384 | 0 | 0.2613 | 0.2613 | 0.0759 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `accone` | 16384 | 0 | 0.4558 | 0.4558 | 0.2348 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `accdom` | 16384 | 0 | 0.2483 | 0.2483 | 0.0715 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `accsmall` | 16384 | 0 | 0.2842 | 0.2842 | 0.1282 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `lossacc` | 16384 | 0 | 0.4843 | 0.4843 | 0.4696 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 8 | plain | wgmma | `lossmix` | 16384 | 0 | 0.3100 | 0.3100 | 0.2566 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `normal` | 16384 | 0 | 0.0785 | 0.0000 | 0.0785 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `spread` | 16384 | 0 | 0.1414 | 0.0038 | 0.1414 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `accbig` | 16384 | 0 | 0.4384 | 0.4384 | 0.1788 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `allones` | 16384 | 0 | 0.1890 | 0.0047 | 0.1890 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `onebig` | 16384 | 0 | 0.0138 | 0.0000 | 0.0138 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `cancel` | 16384 | 0 | 0.0273 | 0.0000 | 0.0273 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `sub` | 16384 | 0 | 0.0744 | 0.0000 | 0.0744 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `subwin` | 16384 | 0 | 0.4678 | 0.0143 | 0.4678 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `winworst` | 16384 | 0 | 0.4554 | 0.0018 | 0.4554 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `trunc14` | 16384 | 0 | 0.2380 | 0.0001 | 0.2380 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `bits` | 16384 | 0 | 0.2978 | 0.2978 | 0.0684 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `accone` | 16384 | 0 | 0.4558 | 0.4558 | 0.2348 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `accdom` | 16384 | 0 | 0.2236 | 0.2236 | 0.0644 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `accsmall` | 16384 | 0 | 0.3054 | 0.3054 | 0.1439 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `lossacc` | 16384 | 0 | 0.4843 | 0.4843 | 0.4696 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | b transposed | wgmma | `lossmix` | 16384 | 0 | 0.2960 | 0.2960 | 0.2282 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `normal` | 16384 | 0 | 0.0667 | 0.0000 | 0.0667 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `spread` | 16384 | 0 | 0.1063 | 0.0056 | 0.1063 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `accbig` | 16384 | 0 | 0.4393 | 0.4393 | 0.1719 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `allones` | 16384 | 0 | 0.1845 | 0.0044 | 0.1845 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `onebig` | 16384 | 0 | 0.0138 | 0.0000 | 0.0138 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `cancel` | 16384 | 0 | 0.0290 | 0.0000 | 0.0290 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `sub` | 16384 | 0 | 0.0646 | 0.0000 | 0.0646 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `subwin` | 16384 | 0 | 0.4678 | 0.0143 | 0.4678 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `winworst` | 16384 | 0 | 0.4554 | 0.0018 | 0.4554 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `trunc14` | 16384 | 0 | 0.2366 | 0.0001 | 0.2366 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `bits` | 16384 | 0 | 0.2110 | 0.2110 | 0.0692 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `accone` | 16384 | 0 | 0.4558 | 0.4558 | 0.2348 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `accdom` | 16384 | 0 | 0.2236 | 0.2236 | 0.0644 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `accsmall` | 16384 | 0 | 0.3274 | 0.3274 | 0.1209 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `lossacc` | 16384 | 0 | 0.4843 | 0.4843 | 0.4696 | 0 |
+| float8e4nv x float8e5 | 128 x 64, 4 | a in registers | wgmma | `lossmix` | 16384 | 0 | 0.3196 | 0.3196 | 0.2282 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `normal` | 512 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `spread` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `accbig` | 512 | 0 | 0.0003 | 0.0003 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `allones` | 512 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `onebig` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `cancel` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `tiny` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `huge` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `sub` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `subwin` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `winworst` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `trunc14` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `bits` | 512 | 0 | 0.0001 | 0.0001 | 0.0001 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `accone` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `accdom` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `accsmall` | 512 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `lossacc` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | plain | mma.sync | `lossmix` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `normal` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `spread` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `accbig` | 2048 | 0 | 0.0003 | 0.0003 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `allones` | 2048 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `onebig` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `cancel` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `tiny` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `huge` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `sub` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `subwin` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `winworst` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `trunc14` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `bits` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `accone` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `accdom` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `accsmall` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `lossacc` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | plain | mma.sync | `lossmix` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `normal` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `spread` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `accbig` | 2048 | 0 | 0.0003 | 0.0003 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `allones` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `onebig` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `cancel` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `tiny` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `huge` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `sub` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `subwin` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `winworst` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `trunc14` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `bits` | 2048 | 0 | 0.0001 | 0.0001 | 0.0001 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `accone` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `accdom` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `accsmall` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `lossacc` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e4nv x float8e5 | 16 x 64, 4 | plain | mma.sync | `lossmix` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `normal` | 8192 | 0 | 0.0685 | 0.0000 | 0.0685 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `spread` | 8192 | 0 | 0.1182 | 0.0031 | 0.1182 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `accbig` | 8192 | 0 | 0.4397 | 0.4397 | 0.1759 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `allones` | 8192 | 0 | 0.1863 | 0.0047 | 0.1863 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `onebig` | 8192 | 0 | 0.0536 | 0.0002 | 0.0536 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `cancel` | 8192 | 0 | 0.0252 | 0.0000 | 0.0252 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `tiny` | 8192 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `huge` | 8192 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `sub` | 8192 | 0 | 0.0553 | 0.0000 | 0.0553 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `subwin` | 8192 | 0 | 0.4360 | 0.0068 | 0.4360 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `winworst` | 8192 | 0 | 0.4261 | 0.0017 | 0.4261 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `trunc14` | 8192 | 0 | 0.2380 | 0.0001 | 0.2380 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `bits` | 8192 | 0 | 0.1701 | 0.1701 | 0.0570 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `accone` | 8192 | 0 | 0.4531 | 0.4531 | 0.2197 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `accdom` | 8192 | 0 | 0.1979 | 0.1979 | 0.0540 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `accsmall` | 8192 | 0 | 0.2977 | 0.2977 | 0.1428 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `lossacc` | 8192 | 0 | 0.4833 | 0.4833 | 0.4393 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | plain | wgmma | `lossmix` | 8192 | 0 | 0.2746 | 0.2746 | 0.1875 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `normal` | 16384 | 0 | 0.0643 | 0.0000 | 0.0643 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `spread` | 16384 | 0 | 0.1095 | 0.0047 | 0.1095 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `accbig` | 16384 | 0 | 0.4379 | 0.4379 | 0.1741 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `allones` | 16384 | 0 | 0.1890 | 0.0047 | 0.1890 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `onebig` | 16384 | 0 | 0.0564 | 0.0002 | 0.0564 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `cancel` | 16384 | 0 | 0.0156 | 0.0000 | 0.0156 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `sub` | 16384 | 0 | 0.0566 | 0.0000 | 0.0566 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `subwin` | 16384 | 0 | 0.4360 | 0.0068 | 0.4360 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `winworst` | 16384 | 0 | 0.4261 | 0.0017 | 0.4261 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `trunc14` | 16384 | 0 | 0.2371 | 0.0001 | 0.2371 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `bits` | 16384 | 0 | 0.2629 | 0.2629 | 0.0727 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `accone` | 16384 | 0 | 0.4531 | 0.4531 | 0.2197 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `accdom` | 16384 | 0 | 0.1979 | 0.1979 | 0.0540 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `accsmall` | 16384 | 0 | 0.2879 | 0.2879 | 0.1421 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `lossacc` | 16384 | 0 | 0.4833 | 0.4833 | 0.4393 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 8 | plain | wgmma | `lossmix` | 16384 | 0 | 0.2607 | 0.2607 | 0.1875 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `normal` | 16384 | 0 | 0.0767 | 0.0000 | 0.0767 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `spread` | 16384 | 0 | 0.0920 | 0.0035 | 0.0920 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `accbig` | 16384 | 0 | 0.4387 | 0.4387 | 0.1741 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `allones` | 16384 | 0 | 0.1890 | 0.0047 | 0.1890 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `onebig` | 16384 | 0 | 0.0567 | 0.0002 | 0.0567 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `cancel` | 16384 | 0 | 0.0288 | 0.0000 | 0.0288 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `sub` | 16384 | 0 | 0.0577 | 0.0000 | 0.0577 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `subwin` | 16384 | 0 | 0.4360 | 0.0068 | 0.4360 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `winworst` | 16384 | 0 | 0.4261 | 0.0017 | 0.4261 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `trunc14` | 16384 | 0 | 0.2371 | 0.0001 | 0.2371 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `bits` | 16384 | 0 | 0.2651 | 0.2651 | 0.0626 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `accone` | 16384 | 0 | 0.4531 | 0.4531 | 0.2197 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `accdom` | 16384 | 0 | 0.2222 | 0.2222 | 0.0606 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `accsmall` | 16384 | 0 | 0.2941 | 0.2941 | 0.1514 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `lossacc` | 16384 | 0 | 0.4833 | 0.4833 | 0.4393 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | b transposed | wgmma | `lossmix` | 16384 | 0 | 0.3490 | 0.3490 | 0.2802 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `normal` | 16384 | 0 | 0.0734 | 0.0000 | 0.0734 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `spread` | 16384 | 0 | 0.0926 | 0.0028 | 0.0926 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `accbig` | 16384 | 0 | 0.4384 | 0.4384 | 0.1756 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `allones` | 16384 | 0 | 0.1890 | 0.0047 | 0.1890 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `onebig` | 16384 | 0 | 0.0538 | 0.0002 | 0.0538 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `cancel` | 16384 | 0 | 0.0236 | 0.0000 | 0.0236 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `tiny` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `huge` | 16384 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `sub` | 16384 | 0 | 0.0647 | 0.0000 | 0.0647 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `subwin` | 16384 | 0 | 0.4360 | 0.0068 | 0.4360 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `winworst` | 16384 | 0 | 0.4261 | 0.0017 | 0.4261 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `trunc14` | 16384 | 0 | 0.2366 | 0.0001 | 0.2366 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `bits` | 16384 | 0 | 0.2518 | 0.2518 | 0.0780 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `accone` | 16384 | 0 | 0.4531 | 0.4531 | 0.2197 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `accdom` | 16384 | 0 | 0.2708 | 0.2708 | 0.0739 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `accsmall` | 16384 | 0 | 0.3624 | 0.3624 | 0.1460 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `lossacc` | 16384 | 0 | 0.4833 | 0.4833 | 0.4393 | 0 |
+| float8e5 x float8e4nv | 128 x 64, 4 | a in registers | wgmma | `lossmix` | 16384 | 0 | 0.3117 | 0.3117 | 0.2140 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `normal` | 512 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `spread` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `accbig` | 512 | 0 | 0.0003 | 0.0003 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `allones` | 512 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `onebig` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `cancel` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `tiny` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `huge` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `sub` | 512 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `subwin` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `winworst` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `trunc14` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `bits` | 512 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `accone` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `accdom` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `accsmall` | 512 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `lossacc` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | plain | mma.sync | `lossmix` | 512 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `normal` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `spread` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `accbig` | 2048 | 0 | 0.0003 | 0.0003 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `allones` | 2048 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `onebig` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `cancel` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `tiny` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `huge` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `sub` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `subwin` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `winworst` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `trunc14` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `bits` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `accone` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `accdom` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `accsmall` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `lossacc` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | plain | mma.sync | `lossmix` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `normal` | 2048 | 0 | 0.0001 | 0.0000 | 0.0001 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `spread` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `accbig` | 2048 | 0 | 0.0003 | 0.0003 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `allones` | 2048 | 0 | 0.0002 | 0.0000 | 0.0002 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `onebig` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `cancel` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `tiny` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `huge` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `sub` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `subwin` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `winworst` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `trunc14` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `bits` | 2048 | 0 | 0.0002 | 0.0002 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `accone` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `accdom` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `accsmall` | 2048 | 0 | 0.0001 | 0.0001 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `lossacc` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+| float8e5 x float8e4nv | 16 x 64, 4 | plain | mma.sync | `lossmix` | 2048 | 0 | 0.0000 | 0.0000 | 0.0000 | 0 |
+
+## Part B: every K that compiles
+
+Each row: one operand pair, block shape and K, every kind of input, one draw each. `interval`: the largest error over the half-width (on its side) of the interval the facts imply (`new`, and `round 24` for the round-24 facts); `chunk`: on wgmma, the largest error of one chunk of the model's chain over the new step bound; `half-width`: the smallest ratio of the new composed bound to the round-24 one; `model = device`: elements whose device result equals the model's, bit for bit (wgmma).
+
+| operands | M x N, warps | path | K | elements in range | outside | model = device | interval: new | interval: round 24 | chunk: new | chunk: loss arm | half-width new / round 24 | magnitude |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | 64 | 73728 | 0 | 73728/73728 | 0.4750 | 0.4327 | 0.4833 | 0.4833 | 0.0758 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | 128 | 73728 | 0 | 73728/73728 | 0.4710 | 0.4309 | 0.4833 | 0.4833 | 0.0751 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | 256 | 73728 | 0 | 73728/73728 | 0.4691 | 0.4330 | 0.4833 | 0.4833 | 0.0748 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | 512 | 73728 | 0 | 73728/73728 | 0.4686 | 0.4398 | 0.4833 | 0.4833 | 0.0728 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | wgmma | 1024 | 73728 | 0 | 73728/73728 | 0.4703 | 0.4548 | 0.4833 | 0.4833 | 0.0685 | 0 |
+| float8e5 x float8e5 | 64 x 64, 4 | rejected | 2048 | (out of resources) | | | | | | | | |
+| float8e5 x float8e5 | 128 x 128, 8 | wgmma | 64 | 294912 | 0 | 294912/294912 | 0.4750 | 0.4327 | 0.4833 | 0.4833 | 0.0756 | 0 |
+| float8e5 x float8e5 | 128 x 128, 8 | wgmma | 128 | 294912 | 0 | 294912/294912 | 0.4710 | 0.4309 | 0.4833 | 0.4833 | 0.0749 | 0 |
+| float8e5 x float8e5 | 128 x 128, 8 | wgmma | 256 | 294912 | 0 | 294912/294912 | 0.4691 | 0.4330 | 0.4833 | 0.4833 | 0.0744 | 0 |
+| float8e5 x float8e5 | 128 x 128, 8 | wgmma | 512 | 294912 | 0 | 294912/294912 | 0.4686 | 0.4398 | 0.4833 | 0.4833 | 0.0726 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | 64 | 4608 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0766 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | 128 | 4608 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0759 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | 256 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0751 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | 512 | 4608 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0729 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | 1024 | 4608 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0686 | 0 |
+| float8e5 x float8e5 | 16 x 16, 1 | mma.sync | 2048 | 4608 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0604 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | 64 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0761 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | 128 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0759 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | 256 | 18432 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0749 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | 512 | 18432 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0729 | 0 |
+| float8e5 x float8e5 | 32 x 32, 2 | mma.sync | 1024 | 18432 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0685 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | 64 | 73728 | 0 | 73728/73728 | 0.4766 | 0.4630 | 0.4843 | 0.4843 | 0.0628 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | 128 | 73728 | 0 | 73728/73728 | 0.4728 | 0.4612 | 0.4843 | 0.4843 | 0.0633 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | 256 | 73728 | 0 | 73728/73728 | 0.4711 | 0.4633 | 0.4843 | 0.4843 | 0.0638 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | 512 | 73728 | 0 | 73728/73728 | 0.4740 | 0.4703 | 0.4843 | 0.4843 | 0.0673 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | wgmma | 1024 | 73728 | 0 | 73728/73728 | 0.4872 | 0.4855 | 0.4843 | 0.4843 | 0.0615 | 0 |
+| float8e4nv x float8e4nv | 64 x 64, 4 | rejected | 2048 | (out of resources) | | | | | | | | |
+| float8e4nv x float8e4nv | 128 x 128, 8 | wgmma | 64 | 294912 | 0 | 294912/294912 | 0.4766 | 0.4630 | 0.4843 | 0.4843 | 0.0622 | 0 |
+| float8e4nv x float8e4nv | 128 x 128, 8 | wgmma | 128 | 294912 | 0 | 294912/294912 | 0.4728 | 0.4612 | 0.4843 | 0.4843 | 0.0645 | 0 |
+| float8e4nv x float8e4nv | 128 x 128, 8 | wgmma | 256 | 294912 | 0 | 294912/294912 | 0.4711 | 0.4633 | 0.4843 | 0.4843 | 0.0663 | 0 |
+| float8e4nv x float8e4nv | 128 x 128, 8 | wgmma | 512 | 294912 | 0 | 294912/294912 | 0.4740 | 0.4703 | 0.4843 | 0.4843 | 0.0649 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | 64 | 4608 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0765 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | 128 | 4608 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0752 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | 256 | 4608 | 0 | - | 0.0003 | 0.0000 | - | - | 0.0748 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | 512 | 4608 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0710 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | 1024 | 4608 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0686 | 0 |
+| float8e4nv x float8e4nv | 16 x 16, 1 | mma.sync | 2048 | 4608 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0574 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | 64 | 18432 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0655 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | 128 | 18432 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0690 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | 256 | 18432 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0659 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | 512 | 18432 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0673 | 0 |
+| float8e4nv x float8e4nv | 32 x 32, 2 | mma.sync | 1024 | 18432 | 0 | - | 0.0004 | 0.0000 | - | - | 0.0687 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | 64 | 73728 | 0 | 73728/73728 | 0.4766 | 0.4630 | 0.4843 | 0.4843 | 0.0759 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | 128 | 73728 | 0 | 73728/73728 | 0.4728 | 0.4612 | 0.4843 | 0.4843 | 0.0758 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | 256 | 73728 | 0 | 73728/73728 | 0.4711 | 0.4633 | 0.4843 | 0.4843 | 0.0746 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | 512 | 73728 | 0 | 73728/73728 | 0.4740 | 0.4703 | 0.4843 | 0.4843 | 0.0729 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | wgmma | 1024 | 73728 | 0 | 73728/73728 | 0.4872 | 0.4855 | 0.4843 | 0.4843 | 0.0685 | 0 |
+| float8e4nv x float8e5 | 64 x 64, 4 | rejected | 2048 | (out of resources) | | | | | | | | |
+| float8e4nv x float8e5 | 128 x 128, 8 | wgmma | 64 | 294912 | 0 | 294912/294912 | 0.4766 | 0.4630 | 0.4843 | 0.4843 | 0.0757 | 0 |
+| float8e4nv x float8e5 | 128 x 128, 8 | wgmma | 128 | 294912 | 0 | 294912/294912 | 0.4728 | 0.4612 | 0.4843 | 0.4843 | 0.0755 | 0 |
+| float8e4nv x float8e5 | 128 x 128, 8 | wgmma | 256 | 294912 | 0 | 294912/294912 | 0.4711 | 0.4633 | 0.4843 | 0.4843 | 0.0749 | 0 |
+| float8e4nv x float8e5 | 128 x 128, 8 | wgmma | 512 | 294912 | 0 | 294912/294912 | 0.4740 | 0.4703 | 0.4843 | 0.4843 | 0.0727 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | 64 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0766 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | 128 | 4608 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0758 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | 256 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0752 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | 512 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0730 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | 1024 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0688 | 0 |
+| float8e4nv x float8e5 | 16 x 16, 1 | mma.sync | 2048 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0605 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | 64 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0759 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | 128 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0755 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | 256 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0749 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | 512 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0727 | 0 |
+| float8e4nv x float8e5 | 32 x 32, 2 | mma.sync | 1024 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0686 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | 64 | 73728 | 0 | 73728/73728 | 0.4750 | 0.4327 | 0.4833 | 0.4833 | 0.0760 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | 128 | 73728 | 0 | 73728/73728 | 0.4710 | 0.4309 | 0.4833 | 0.4833 | 0.0756 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | 256 | 73728 | 0 | 73728/73728 | 0.4691 | 0.4330 | 0.4833 | 0.4833 | 0.0750 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | 512 | 73728 | 0 | 73728/73728 | 0.4686 | 0.4398 | 0.4833 | 0.4833 | 0.0728 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | wgmma | 1024 | 73728 | 0 | 73728/73728 | 0.4703 | 0.4548 | 0.4833 | 0.4833 | 0.0684 | 0 |
+| float8e5 x float8e4nv | 64 x 64, 4 | rejected | 2048 | (out of resources) | | | | | | | | |
+| float8e5 x float8e4nv | 128 x 128, 8 | wgmma | 64 | 294912 | 0 | 294912/294912 | 0.4750 | 0.4327 | 0.4833 | 0.4833 | 0.0756 | 0 |
+| float8e5 x float8e4nv | 128 x 128, 8 | wgmma | 128 | 294912 | 0 | 294912/294912 | 0.4710 | 0.4309 | 0.4833 | 0.4833 | 0.0756 | 0 |
+| float8e5 x float8e4nv | 128 x 128, 8 | wgmma | 256 | 294912 | 0 | 294912/294912 | 0.4691 | 0.4330 | 0.4833 | 0.4833 | 0.0747 | 0 |
+| float8e5 x float8e4nv | 128 x 128, 8 | wgmma | 512 | 294912 | 0 | 294912/294912 | 0.4686 | 0.4398 | 0.4833 | 0.4833 | 0.0728 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | 64 | 4608 | 0 | - | 0.0003 | 0.0000 | - | - | 0.0764 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | 128 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0761 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | 256 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0749 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | 512 | 4608 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0729 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | 1024 | 4608 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0688 | 0 |
+| float8e5 x float8e4nv | 16 x 16, 1 | mma.sync | 2048 | 4608 | 0 | - | 0.0001 | 0.0000 | - | - | 0.0605 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | 64 | 18432 | 0 | - | 0.0003 | 0.0000 | - | - | 0.0765 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | 128 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0758 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | 256 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0751 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | 512 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0728 | 0 |
+| float8e5 x float8e4nv | 32 x 32, 2 | mma.sync | 1024 | 18432 | 0 | - | 0.0002 | 0.0000 | - | - | 0.0686 | 0 |
+
+## Part C: chains of tl.dot(p, v, acc) (tutorial 06)
+
+`for t in range(T): [acc = acc * alpha_t]; acc = tl.dot(p_t.to(fp8), v_t, acc)`, p_t [M, 64] converted in registers, v_t [64, N], every acc_t stored. `per dot`: each dot from the stored accumulator before it (times alpha_t in float32) against the new facts' interval (and, on wgmma, the model, and each chunk of the model's chain against the new step bound). `whole chain` (no rescale): the final result against the facts composed over all 2T chunks from the initial accumulator; `half-width`: that composed bound, new over round 24, for the element where the ratio is largest (`max`) and smallest (`min`). Inputs: `softmax` (p = exp2 of random scores minus the row maximum, v = randn), `accdom` (after a randn * 2^6 accumulator, products just below the accumulator's window unit), `subwin` (num-dot-chunk's window case).
+
+| operands | M x N, warps | path | p, v | rescale | T | per dot: model = device | per dot: new | per dot: chunk new | whole chain: model = device | whole chain: new | whole chain: round 24 | half-width min | half-width max |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 1 | 8192/8192 | 0.0286 | 0.0841 | 8192/8192 | 0.0286 | 0.0286 | 1 | 1 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 4 | 32768/32768 | 0.0737 | 0.2421 | 8192/8192 | 0.0275 | 0.0264 | 0.6792 | 1 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 16 | 131072/131072 | 0.1003 | 0.2319 | 8192/8192 | 0.0131 | 0.0121 | 0.7633 | 1 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 64 | 524288/524288 | 0.0912 | 0.2849 | 8192/8192 | 0.0095 | 0.0088 | 0.7521 | 0.9797 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 256 | 2097152/2097152 | 0.1376 | 0.2803 | 8192/8192 | 0.0071 | 0.0069 | 0.2944 | 0.7697 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | softmax | yes | 16 | 131072/131072 | 0.0870 | 0.3296 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | softmax | yes | 64 | 524288/524288 | 0.1551 | 0.3552 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | accdom | no | 16 | 131072/131072 | 0.1412 | 0.1925 | 8192/8192 | 0.0258 | 0.0258 | 0.5475 | 1 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | accdom | no | 64 | 524288/524288 | 0.1462 | 0.2127 | 8192/8192 | 0.0191 | 0.0191 | 0.4137 | 1 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | accdom | yes | 16 | 131072/131072 | 0.1082 | 0.1676 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | accdom | yes | 64 | 524288/524288 | 0.0996 | 0.1577 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | subwin | no | 16 | 131072/131072 | 0.4222 | 0.4238 | 8192/8192 | 0.1333 | 0.1333 | 1 | 1 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | subwin | no | 64 | 524288/524288 | 0.4222 | 0.4238 | 8192/8192 | 0.0516 | 0.0516 | 1 | 1 |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | subwin | yes | 16 | 131072/131072 | 0.4263 | 0.4355 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 64, 4 | wgmma | subwin | yes | 64 | 524288/524288 | 0.4265 | 0.4357 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 1 | 16384/16384 | 0.0365 | 0.0679 | 16384/16384 | 0.0365 | 0.0365 | 1 | 1 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 4 | 65536/65536 | 0.0840 | 0.2273 | 16384/16384 | 0.0307 | 0.0307 | 0.6981 | 1 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 16 | 262144/262144 | 0.1250 | 0.2762 | 16384/16384 | 0.0125 | 0.0124 | 0.765 | 1 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 64 | 1048576/1048576 | 0.1595 | 0.2853 | 16384/16384 | 0.0080 | 0.0072 | 0.7451 | 0.9731 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 256 | 4194304/4194304 | 0.1765 | 0.2802 | 16384/16384 | 0.0080 | 0.0075 | 0.3114 | 0.7666 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | softmax | yes | 16 | 262144/262144 | 0.0951 | 0.3535 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | softmax | yes | 64 | 1048576/1048576 | 0.1799 | 0.3701 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | accdom | no | 16 | 262144/262144 | 0.1318 | 0.2028 | 16384/16384 | 0.0248 | 0.0248 | 0.55 | 1 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | accdom | no | 64 | 1048576/1048576 | 0.1417 | 0.2392 | 16384/16384 | 0.0189 | 0.0188 | 0.3547 | 1 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | accdom | yes | 16 | 262144/262144 | 0.1247 | 0.1645 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | accdom | yes | 64 | 1048576/1048576 | 0.1215 | 0.1688 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | subwin | no | 16 | 262144/262144 | 0.4222 | 0.4238 | 16384/16384 | 0.1249 | 0.1249 | 1 | 1 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | subwin | no | 64 | 1048576/1048576 | 0.4222 | 0.4238 | 16384/16384 | 0.0462 | 0.0462 | 1 | 1 |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | subwin | yes | 16 | 262144/262144 | 0.4259 | 0.4353 | - | - | - | - | - |
+| float8e5 x float8e5 | 128 x 128, 4 | wgmma | subwin | yes | 64 | 1048576/1048576 | 0.4265 | 0.4358 | - | - | - | - | - |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 1 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 4 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.7623 | 1 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.7919 | 1 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 64 | - | 0.0001 | - | - | 0.0000 | 0.0000 | 0.746 | 0.961 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 256 | - | 0.0001 | - | - | 0.0000 | 0.0000 | 0.324 | 0.7626 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | softmax | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | softmax | yes | 64 | - | 0.0000 | - | - | - | - | - | - |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | accdom | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.556 | 1 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | accdom | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.3881 | 1 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | accdom | yes | 16 | - | 0.0001 | - | - | - | - | - | - |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | accdom | yes | 64 | - | 0.0001 | - | - | - | - | - | - |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | subwin | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | subwin | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | subwin | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e5 x float8e5 | 32 x 64, 2 | mma.sync | subwin | yes | 64 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 1 | 8192/8192 | 0.0352 | 0.0591 | 8192/8192 | 0.0352 | 0.0352 | 1 | 1 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 4 | 32768/32768 | 0.0474 | 0.1546 | 8192/8192 | 0.0244 | 0.0244 | 0.6596 | 1 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 16 | 131072/131072 | 0.0672 | 0.2282 | 8192/8192 | 0.0120 | 0.0108 | 0.7872 | 1 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 64 | 524288/524288 | 0.0810 | 0.2438 | 8192/8192 | 0.0092 | 0.0084 | 0.7331 | 0.966 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 256 | 2097152/2097152 | 0.1392 | 0.3086 | 8192/8192 | 0.0100 | 0.0095 | 0.3269 | 0.7721 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | softmax | yes | 16 | 131072/131072 | 0.0692 | 0.2853 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | softmax | yes | 64 | 524288/524288 | 0.1068 | 0.3064 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | accdom | no | 16 | 131072/131072 | 0.1419 | 0.1962 | 8192/8192 | 0.0238 | 0.0237 | 0.5473 | 1 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | accdom | no | 64 | 524288/524288 | 0.1244 | 0.1764 | 8192/8192 | 0.0148 | 0.0148 | 0.4107 | 1 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | accdom | yes | 16 | 131072/131072 | 0.0656 | 0.1013 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | accdom | yes | 64 | 524288/524288 | 0.1056 | 0.1687 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | subwin | no | 16 | 131072/131072 | 0.4532 | 0.4541 | 8192/8192 | 0.2065 | 0.2065 | 1 | 1 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | subwin | no | 64 | 524288/524288 | 0.4532 | 0.4541 | 8192/8192 | 0.0800 | 0.0800 | 1 | 1 |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | subwin | yes | 16 | 131072/131072 | 0.4588 | 0.4674 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 64, 4 | wgmma | subwin | yes | 64 | 524288/524288 | 0.4591 | 0.4677 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 1 | 16384/16384 | 0.0457 | 0.0715 | 16384/16384 | 0.0457 | 0.0457 | 1 | 1 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 4 | 65536/65536 | 0.0594 | 0.1755 | 16384/16384 | 0.0258 | 0.0242 | 0.7015 | 1 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 16 | 262144/262144 | 0.0906 | 0.2267 | 16384/16384 | 0.0168 | 0.0141 | 0.7581 | 1 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 64 | 1048576/1048576 | 0.1036 | 0.2942 | 16384/16384 | 0.0098 | 0.0090 | 0.7519 | 0.9614 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 256 | 4194304/4194304 | 0.1553 | 0.2830 | 16384/16384 | 0.0095 | 0.0091 | 0.319 | 0.7777 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | softmax | yes | 16 | 262144/262144 | 0.0995 | 0.3003 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | softmax | yes | 64 | 1048576/1048576 | 0.1105 | 0.3139 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | accdom | no | 16 | 262144/262144 | 0.1177 | 0.1680 | 16384/16384 | 0.0232 | 0.0232 | 0.6311 | 1 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | accdom | no | 64 | 1048576/1048576 | 0.1424 | 0.2101 | 16384/16384 | 0.0149 | 0.0148 | 0.3886 | 1 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | accdom | yes | 16 | 262144/262144 | 0.0896 | 0.1444 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | accdom | yes | 64 | 1048576/1048576 | 0.0896 | 0.1173 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | subwin | no | 16 | 262144/262144 | 0.4532 | 0.4541 | 16384/16384 | 0.2191 | 0.2191 | 1 | 1 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | subwin | no | 64 | 1048576/1048576 | 0.4532 | 0.4541 | 16384/16384 | 0.0841 | 0.0841 | 1 | 1 |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | subwin | yes | 16 | 262144/262144 | 0.4587 | 0.4671 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 128 x 128, 4 | wgmma | subwin | yes | 64 | 1048576/1048576 | 0.4591 | 0.4677 | - | - | - | - | - |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 1 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 4 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.7512 | 1 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.8019 | 1 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.7764 | 0.9782 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 256 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.3481 | 0.7562 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | softmax | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | softmax | yes | 64 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | accdom | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.7171 | 1 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | accdom | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.515 | 1 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | accdom | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | accdom | yes | 64 | - | 0.0001 | - | - | - | - | - | - |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | subwin | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | subwin | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | subwin | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e4nv | 32 x 64, 2 | mma.sync | subwin | yes | 64 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 1 | 8192/8192 | 0.0392 | 0.0634 | 8192/8192 | 0.0392 | 0.0392 | 1 | 1 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 4 | 32768/32768 | 0.0397 | 0.1520 | 8192/8192 | 0.0196 | 0.0173 | 0.7291 | 1 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 16 | 131072/131072 | 0.0946 | 0.1653 | 8192/8192 | 0.0102 | 0.0102 | 0.771 | 1 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 64 | 524288/524288 | 0.1333 | 0.2437 | 8192/8192 | 0.0077 | 0.0072 | 0.7521 | 0.9776 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | softmax | no | 256 | 2097152/2097152 | 0.1398 | 0.2925 | 8192/8192 | 0.0093 | 0.0090 | 0.3275 | 0.7747 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | softmax | yes | 16 | 131072/131072 | 0.0541 | 0.2723 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | softmax | yes | 64 | 524288/524288 | 0.0979 | 0.3039 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | accdom | no | 16 | 131072/131072 | 0.1090 | 0.1743 | 8192/8192 | 0.0232 | 0.0226 | 0.612 | 1 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | accdom | no | 64 | 524288/524288 | 0.1167 | 0.1780 | 8192/8192 | 0.0174 | 0.0174 | 0.4107 | 1 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | accdom | yes | 16 | 131072/131072 | 0.0814 | 0.1131 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | accdom | yes | 64 | 524288/524288 | 0.0622 | 0.1161 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | subwin | no | 16 | 131072/131072 | 0.4532 | 0.4541 | 8192/8192 | 0.2252 | 0.2252 | 1 | 1 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | subwin | no | 64 | 524288/524288 | 0.4532 | 0.4541 | 8192/8192 | 0.0921 | 0.0921 | 0.9981 | 1 |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | subwin | yes | 16 | 131072/131072 | 0.4591 | 0.4676 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 64, 4 | wgmma | subwin | yes | 64 | 524288/524288 | 0.4591 | 0.4677 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 1 | 16384/16384 | 0.0364 | 0.0679 | 16384/16384 | 0.0364 | 0.0364 | 1 | 1 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 4 | 65536/65536 | 0.0602 | 0.1751 | 16384/16384 | 0.0400 | 0.0400 | 0.6778 | 1 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 16 | 262144/262144 | 0.0775 | 0.2330 | 16384/16384 | 0.0124 | 0.0114 | 0.7399 | 1 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 64 | 1048576/1048576 | 0.1182 | 0.2962 | 16384/16384 | 0.0113 | 0.0104 | 0.7269 | 0.9671 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | softmax | no | 256 | 4194304/4194304 | 0.1432 | 0.3073 | 16384/16384 | 0.0091 | 0.0089 | 0.3191 | 0.772 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | softmax | yes | 16 | 262144/262144 | 0.1125 | 0.2833 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | softmax | yes | 64 | 1048576/1048576 | 0.0977 | 0.3040 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | accdom | no | 16 | 262144/262144 | 0.1078 | 0.1860 | 16384/16384 | 0.0308 | 0.0238 | 0.5588 | 1 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | accdom | no | 64 | 1048576/1048576 | 0.1536 | 0.1759 | 16384/16384 | 0.0170 | 0.0170 | 0.3937 | 1 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | accdom | yes | 16 | 262144/262144 | 0.0844 | 0.1511 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | accdom | yes | 64 | 1048576/1048576 | 0.0643 | 0.1052 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | subwin | no | 16 | 262144/262144 | 0.4532 | 0.4541 | 16384/16384 | 0.2230 | 0.2230 | 1 | 1 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | subwin | no | 64 | 1048576/1048576 | 0.4532 | 0.4541 | 16384/16384 | 0.0976 | 0.0976 | 1 | 1 |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | subwin | yes | 16 | 262144/262144 | 0.4585 | 0.4667 | - | - | - | - | - |
+| float8e4nv x float8e5 | 128 x 128, 4 | wgmma | subwin | yes | 64 | 1048576/1048576 | 0.4590 | 0.4675 | - | - | - | - | - |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 1 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 4 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.7155 | 1 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.808 | 1 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.7737 | 0.9599 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | softmax | no | 256 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.3302 | 0.7459 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | softmax | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | softmax | yes | 64 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | accdom | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.673 | 1 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | accdom | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.4739 | 1 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | accdom | yes | 16 | - | 0.0001 | - | - | - | - | - | - |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | accdom | yes | 64 | - | 0.0001 | - | - | - | - | - | - |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | subwin | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | subwin | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | subwin | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e4nv x float8e5 | 32 x 64, 2 | mma.sync | subwin | yes | 64 | - | 0.0000 | - | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 1 | 8192/8192 | 0.0334 | 0.0595 | 8192/8192 | 0.0334 | 0.0334 | 1 | 1 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 4 | 32768/32768 | 0.0754 | 0.2059 | 8192/8192 | 0.0260 | 0.0246 | 0.627 | 1 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 16 | 131072/131072 | 0.0921 | 0.2359 | 8192/8192 | 0.0145 | 0.0138 | 0.7742 | 1 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 64 | 524288/524288 | 0.1038 | 0.2719 | 8192/8192 | 0.0093 | 0.0083 | 0.7436 | 0.9651 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | softmax | no | 256 | 2097152/2097152 | 0.1409 | 0.2986 | 8192/8192 | 0.0109 | 0.0106 | 0.3391 | 0.756 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | softmax | yes | 16 | 131072/131072 | 0.0984 | 0.3259 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | softmax | yes | 64 | 524288/524288 | 0.1260 | 0.3458 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | accdom | no | 16 | 131072/131072 | 0.1328 | 0.2045 | 8192/8192 | 0.0309 | 0.0309 | 0.5778 | 1 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | accdom | no | 64 | 524288/524288 | 0.1399 | 0.2138 | 8192/8192 | 0.0261 | 0.0261 | 0.3804 | 1 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | accdom | yes | 16 | 131072/131072 | 0.1068 | 0.1637 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | accdom | yes | 64 | 524288/524288 | 0.0991 | 0.1659 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | subwin | no | 16 | 131072/131072 | 0.4222 | 0.4238 | 8192/8192 | 0.1393 | 0.1393 | 1 | 1 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | subwin | no | 64 | 524288/524288 | 0.4222 | 0.4238 | 8192/8192 | 0.0522 | 0.0522 | 1 | 1 |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | subwin | yes | 16 | 131072/131072 | 0.4265 | 0.4358 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 64, 4 | wgmma | subwin | yes | 64 | 524288/524288 | 0.4266 | 0.4360 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 1 | 16384/16384 | 0.0394 | 0.0907 | 16384/16384 | 0.0394 | 0.0394 | 1 | 1 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 4 | 65536/65536 | 0.0801 | 0.2996 | 16384/16384 | 0.0299 | 0.0299 | 0.6932 | 1 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 16 | 262144/262144 | 0.0991 | 0.2557 | 16384/16384 | 0.0142 | 0.0137 | 0.7497 | 1 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 64 | 1048576/1048576 | 0.1257 | 0.2996 | 16384/16384 | 0.0090 | 0.0085 | 0.7477 | 0.9921 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | softmax | no | 256 | 4194304/4194304 | 0.1228 | 0.3133 | 16384/16384 | 0.0095 | 0.0092 | 0.3089 | 0.7541 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | softmax | yes | 16 | 262144/262144 | 0.0821 | 0.3272 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | softmax | yes | 64 | 1048576/1048576 | 0.1186 | 0.3410 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | accdom | no | 16 | 262144/262144 | 0.1357 | 0.2034 | 16384/16384 | 0.0271 | 0.0271 | 0.5501 | 1 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | accdom | no | 64 | 1048576/1048576 | 0.1515 | 0.2393 | 16384/16384 | 0.0242 | 0.0242 | 0.3771 | 1 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | accdom | yes | 16 | 262144/262144 | 0.1259 | 0.1630 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | accdom | yes | 64 | 1048576/1048576 | 0.1157 | 0.1961 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | subwin | no | 16 | 262144/262144 | 0.4222 | 0.4238 | 16384/16384 | 0.1476 | 0.1476 | 1 | 1 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | subwin | no | 64 | 1048576/1048576 | 0.4222 | 0.4238 | 16384/16384 | 0.0533 | 0.0533 | 1 | 1 |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | subwin | yes | 16 | 262144/262144 | 0.4261 | 0.4354 | - | - | - | - | - |
+| float8e5 x float8e4nv | 128 x 128, 4 | wgmma | subwin | yes | 64 | 1048576/1048576 | 0.4264 | 0.4358 | - | - | - | - | - |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 1 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 4 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.673 | 1 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.7782 | 1 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 64 | - | 0.0001 | - | - | 0.0000 | 0.0000 | 0.7502 | 0.9684 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | softmax | no | 256 | - | 0.0001 | - | - | 0.0000 | 0.0000 | 0.3377 | 0.7576 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | softmax | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | softmax | yes | 64 | - | 0.0000 | - | - | - | - | - | - |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | accdom | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.5397 | 1 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | accdom | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 0.3968 | 1 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | accdom | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | accdom | yes | 64 | - | 0.0001 | - | - | - | - | - | - |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | subwin | no | 16 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | subwin | no | 64 | - | 0.0000 | - | - | 0.0000 | 0.0000 | 1 | 1 |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | subwin | yes | 16 | - | 0.0000 | - | - | - | - | - | - |
+| float8e5 x float8e4nv | 32 x 64, 2 | mma.sync | subwin | yes | 64 | - | 0.0000 | - | - | - | - | - | - |
+
+## Totals
+
+Part S: single chunks (the step bound on the device's own values); Part B: every K; Part C: chains, per dot and whole. `new`: the largest error over the new facts' bound (step bound in Part S, interval otherwise); `loss arm`: the step over the second arm alone (Part S: the device's step; Parts B and C: each chunk of the model's chain, wgmma); `round 24`: as `new` against the round-24 facts; `chunk`: each chunk of the model's chain over the new step bound (wgmma); `half-width`: the smallest ratio of the new composed bound to the round-24 one; `magnitude`: results above |acc| + sum |a b|.
+
+| operands | path | part | elements in range | outside | model = device | new | loss arm | round 24 | chunk | half-width | magnitude |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| float8e4nv x float8e4nv | mma.sync | B | 119808 | 0 | - | 0.0004 | - | 0.0000 | - | 0.0574 | 0 |
+| float8e4nv x float8e4nv | mma.sync | C dot | 1517568 | 0 | - | 0.0001 | - | 0.0001 | - | 0.06038 | 0 |
+| float8e4nv x float8e4nv | mma.sync | C whole | 18432 | 0 | - | 0.0000 | - | 0.0000 | - | 0.3481 | 0 |
+| float8e4nv x float8e4nv | mma.sync | S | 82944 | 0 | - | 0.0005 | 0.0005 | 0.0002 | - | 0.061 | 0 |
+| float8e4nv x float8e4nv | wgmma | B | 1548288 | 0 | 1548288/1548288 | 0.4872 | 0.4843 | 0.4855 | 0.4843 | 0.0615 | 0 |
+| float8e4nv x float8e4nv | wgmma | C dot | 18210816 | 0 | 18210816/18210816 | 0.4591 | 0.3139 | 0.4591 | 0.4677 | 0.06038 | 0 |
+| float8e4nv x float8e4nv | wgmma | C whole | 221184 | 0 | 221184/221184 | 0.2191 | - | 0.2191 | - | 0.319 | 0 |
+| float8e4nv x float8e4nv | wgmma | S | 1032192 | 0 | - | 0.4843 | 0.4843 | 0.4696 | - | 0.06087 | 0 |
+| float8e4nv x float8e5 | mma.sync | B | 119808 | 0 | - | 0.0002 | - | 0.0000 | - | 0.06048 | 0 |
+| float8e4nv x float8e5 | mma.sync | C dot | 1517568 | 0 | - | 0.0001 | - | 0.0001 | - | 0.06089 | 0 |
+| float8e4nv x float8e5 | mma.sync | C whole | 18432 | 0 | - | 0.0000 | - | 0.0000 | - | 0.3302 | 0 |
+| float8e4nv x float8e5 | mma.sync | S | 82944 | 0 | - | 0.0003 | 0.0003 | 0.0002 | - | 0.06745 | 0 |
+| float8e4nv x float8e5 | wgmma | B | 1548288 | 0 | 1548288/1548288 | 0.4872 | 0.4843 | 0.4855 | 0.4843 | 0.06847 | 0 |
+| float8e4nv x float8e5 | wgmma | C dot | 18210816 | 0 | 18210816/18210816 | 0.4591 | 0.3073 | 0.4591 | 0.4677 | 0.06046 | 0 |
+| float8e4nv x float8e5 | wgmma | C whole | 221184 | 0 | 221184/221184 | 0.2252 | - | 0.2252 | - | 0.3191 | 0 |
+| float8e4nv x float8e5 | wgmma | S | 1032192 | 0 | - | 0.4843 | 0.4843 | 0.4696 | - | 0.06137 | 0 |
+| float8e5 x float8e4nv | mma.sync | B | 119808 | 0 | - | 0.0003 | - | 0.0000 | - | 0.06047 | 0 |
+| float8e5 x float8e4nv | mma.sync | C dot | 1517568 | 0 | - | 0.0001 | - | 0.0001 | - | 0.06038 | 0 |
+| float8e5 x float8e4nv | mma.sync | C whole | 18432 | 0 | - | 0.0000 | - | 0.0000 | - | 0.3377 | 0 |
+| float8e5 x float8e4nv | mma.sync | S | 82944 | 0 | - | 0.0003 | 0.0003 | 0.0002 | - | 0.0672 | 0 |
+| float8e5 x float8e4nv | wgmma | B | 1548288 | 0 | 1548288/1548288 | 0.4750 | 0.4833 | 0.4548 | 0.4833 | 0.06841 | 0 |
+| float8e5 x float8e4nv | wgmma | C dot | 18210816 | 0 | 18210816/18210816 | 0.4266 | 0.3458 | 0.4266 | 0.4360 | 0.06038 | 0 |
+| float8e5 x float8e4nv | wgmma | C whole | 221184 | 0 | 221184/221184 | 0.1476 | - | 0.1476 | - | 0.3089 | 0 |
+| float8e5 x float8e4nv | wgmma | S | 1032192 | 0 | - | 0.4833 | 0.4833 | 0.4393 | - | 0.06147 | 0 |
+| float8e5 x float8e5 | mma.sync | B | 119808 | 0 | - | 0.0002 | - | 0.0000 | - | 0.06042 | 0 |
+| float8e5 x float8e5 | mma.sync | C dot | 1517568 | 0 | - | 0.0001 | - | 0.0001 | - | 0.06052 | 0 |
+| float8e5 x float8e5 | mma.sync | C whole | 18432 | 0 | - | 0.0000 | - | 0.0000 | - | 0.324 | 0 |
+| float8e5 x float8e5 | mma.sync | S | 82944 | 0 | - | 0.0003 | 0.0003 | 0.0002 | - | 0.06709 | 0 |
+| float8e5 x float8e5 | wgmma | B | 1548288 | 0 | 1548288/1548288 | 0.4750 | 0.4833 | 0.4548 | 0.4833 | 0.06846 | 0 |
+| float8e5 x float8e5 | wgmma | C dot | 18210816 | 0 | 18210816/18210816 | 0.4265 | 0.3701 | 0.4265 | 0.4358 | 0.06038 | 0 |
+| float8e5 x float8e5 | wgmma | C whole | 221184 | 0 | 221184/221184 | 0.1333 | - | 0.1333 | - | 0.2944 | 0 |
+| float8e5 x float8e5 | wgmma | S | 1032192 | 0 | - | 0.4833 | 0.4833 | 0.4393 | - | 0.06324 | 0 |
+
+### The inputs with the largest new ratio
+
+- float8e4nv x float8e4nv, mma.sync, Part B: 0.0004, ('float8e4nv', 'float8e4nv', 16, 16, 1, 'plain', 'mma.sync', 64, 'accbig'), element (0, 4): accumulator 1048575.9375, exact 1048716.9375, device 1048716.375
+- float8e4nv x float8e4nv, mma.sync, Part C dot: 0.0001, ('chain', 'float8e4nv', 'float8e4nv', 32, 64, 'accdom', 34), element (17, 52): accumulator -0.010474921204149723, exact 0.5578844537958503, device 0.5578843951225281
+- float8e4nv x float8e4nv, mma.sync, Part C whole: 0.0000, ('whole chain', 'float8e4nv', 'float8e4nv', 32, 64, 'softmax', 1), element (29, 27): accumulator -0.04242943972349167, exact -4.068613521754742, device -4.068613052368164
+- float8e4nv x float8e4nv, mma.sync, Part S: 0.0005, ('float8e4nv', 'float8e4nv', 32, 32, 2, 'plain', 'mma.sync', 32, 'accbig'), element (16, 21): accumulator 1048575.9375, exact 1048644.9375, device 1048644.625
+- float8e4nv x float8e4nv, wgmma, Part B: 0.4872, ('float8e4nv', 'float8e4nv', 64, 64, 4, 'plain', 'wgmma', 1024, 'lossacc'), element (0, 0): accumulator 32771.99609375, exact 36611.99609375, device 32768.0
+- float8e4nv x float8e4nv, wgmma, Part C dot: 0.4591, ('chain', 'float8e4nv', 'float8e4nv', 128, 64, 'subwin', 48), element (125, 0): accumulator 0.02490197867155075, exact 1.0532833263278008, device 1.0244140625
+- float8e4nv x float8e4nv, wgmma, Part C whole: 0.2191, ('whole chain', 'float8e4nv', 'float8e4nv', 128, 128, 'subwin', 16), element (57, 0): accumulator 0.0, exact 6.9415740966796875, device 6.75
+- float8e4nv x float8e4nv, wgmma, Part S: 0.4843, ('float8e4nv', 'float8e4nv', 128, 64, 4, 'a in registers', 'wgmma', 32, 'lossacc'), element (0, 0): accumulator 262175.96875, exact 263135.96875, device 262144.0
+- float8e4nv x float8e5, mma.sync, Part B: 0.0002, ('float8e4nv', 'float8e5', 32, 32, 2, 'plain', 'mma.sync', 64, 'accbig'), element (18, 8): accumulator 1048575.9375, exact 1048720.53125, device 1048720.25
+- float8e4nv x float8e5, mma.sync, Part C dot: 0.0001, ('chain', 'float8e4nv', 'float8e5', 32, 64, 'accdom', 26), element (27, 36): accumulator 0.009818969294428825, exact 0.5215377192944288, device 0.5215376615524292
+- float8e4nv x float8e5, mma.sync, Part C whole: 0.0000, ('whole chain', 'float8e4nv', 'float8e5', 32, 64, 'softmax', 1), element (13, 8): accumulator 0.08288142085075378, exact 1.3903155028820038, device 1.390315294265747
+- float8e4nv x float8e5, mma.sync, Part S: 0.0003, ('float8e4nv', 'float8e5', 16, 64, 4, 'plain', 'mma.sync', 32, 'accbig'), element (14, 32): accumulator 1048575.9375, exact 1048641.5625, device 1048641.375
+- float8e4nv x float8e5, wgmma, Part B: 0.4872, ('float8e4nv', 'float8e5', 64, 64, 4, 'plain', 'wgmma', 1024, 'lossacc'), element (0, 0): accumulator -512.0624389648438, exact -572.0624389648438, device -512.0
+- float8e4nv x float8e5, wgmma, Part C dot: 0.4591, ('chain', 'float8e4nv', 'float8e5', 128, 64, 'subwin', 54), element (42, 0): accumulator -1.8745238780975342, exact -133.50733637809753, device -129.8125
+- float8e4nv x float8e5, wgmma, Part C whole: 0.2252, ('whole chain', 'float8e4nv', 'float8e5', 128, 64, 'subwin', 16), element (32, 0): accumulator 0.0, exact -855.61328125, device -832.0
+- float8e4nv x float8e5, wgmma, Part S: 0.4843, ('float8e4nv', 'float8e5', 128, 64, 4, 'a in registers', 'wgmma', 32, 'lossacc'), element (0, 0): accumulator -8192.9990234375, exact -8222.9990234375, device -8192.0
+- float8e5 x float8e4nv, mma.sync, Part B: 0.0003, ('float8e5', 'float8e4nv', 16, 16, 1, 'plain', 'mma.sync', 64, 'accbig'), element (8, 11): accumulator 1048575.9375, exact 1048711.96875, device 1048711.625
+- float8e5 x float8e4nv, mma.sync, Part C dot: 0.0001, ('chain', 'float8e5', 'float8e4nv', 32, 64, 'softmax', 119), element (16, 20): accumulator -41.18525695800781, exact -41.17971387505531, device -41.17970657348633
+- float8e5 x float8e4nv, mma.sync, Part C whole: 0.0000, ('whole chain', 'float8e5', 'float8e4nv', 32, 64, 'softmax', 1), element (16, 22): accumulator 1.3732784986495972, exact 8.363390803337097, device 8.36338996887207
+- float8e5 x float8e4nv, mma.sync, Part S: 0.0003, ('float8e5', 'float8e4nv', 16, 64, 4, 'plain', 'mma.sync', 32, 'accbig'), element (11, 10): accumulator 1048575.9375, exact 1048646.0625, device 1048645.875
+- float8e5 x float8e4nv, wgmma, Part B: 0.4750, ('float8e5', 'float8e4nv', 128, 128, 8, 'plain', 'wgmma', 64, 'lossacc'), element (0, 0): accumulator -32.003902435302734, exact -32.222652435302734, device -32.0
+- float8e5 x float8e4nv, wgmma, Part C dot: 0.4266, ('chain', 'float8e5', 'float8e4nv', 128, 64, 'subwin', 37), element (126, 0): accumulator 5.721703928429633e-06, exact 0.003963708535593469, device 0.003911018371582031
+- float8e5 x float8e4nv, wgmma, Part C whole: 0.1476, ('whole chain', 'float8e5', 'float8e4nv', 128, 128, 'subwin', 16), element (21, 0): accumulator 0.0, exact 0.023747920989990234, device 0.0234375
+- float8e5 x float8e4nv, wgmma, Part S: 0.4833, ('float8e5', 'float8e4nv', 128, 64, 4, 'a in registers', 'wgmma', 32, 'lossacc'), element (0, 0): accumulator 262175.96875, exact 263071.96875, device 262144.0
+- float8e5 x float8e5, mma.sync, Part B: 0.0002, ('float8e5', 'float8e5', 32, 32, 2, 'plain', 'mma.sync', 64, 'accbig'), element (10, 27): accumulator 1048575.9375, exact 1048712.875, device 1048712.625
+- float8e5 x float8e5, mma.sync, Part C dot: 0.0001, ('chain', 'float8e5', 'float8e5', 32, 64, 'softmax', 142), element (6, 2): accumulator -34.04668045043945, exact -34.07567918300629, device -34.07566833496094
+- float8e5 x float8e5, mma.sync, Part C whole: 0.0000, ('whole chain', 'float8e5', 'float8e5', 32, 64, 'softmax', 1), element (29, 57): accumulator -0.09538641571998596, exact -8.587085634469986, device -8.587084770202637
+- float8e5 x float8e5, mma.sync, Part S: 0.0003, ('float8e5', 'float8e5', 16, 64, 4, 'plain', 'mma.sync', 32, 'bits'), element (10, 36): accumulator -564452032.0, exact -564445917.4258549, device -564445824.0
+- float8e5 x float8e5, wgmma, Part B: 0.4750, ('float8e5', 'float8e5', 128, 128, 8, 'plain', 'wgmma', 64, 'lossacc'), element (0, 0): accumulator -256.0312194824219, exact -257.7812194824219, device -256.0
+- float8e5 x float8e5, wgmma, Part C dot: 0.4265, ('chain', 'float8e5', 'float8e5', 128, 128, 'subwin', 58), element (11, 0): accumulator -0.00891079194843769, exact -0.5155331064015627, device -0.5087890625
+- float8e5 x float8e5, wgmma, Part C whole: 0.1333, ('whole chain', 'float8e5', 'float8e5', 128, 64, 'subwin', 16), element (16, 0): accumulator 0.0, exact 5.8261566162109375, device 5.75
+- float8e5 x float8e5, wgmma, Part S: 0.4833, ('float8e5', 'float8e5', 128, 64, 4, 'a in registers', 'wgmma', 32, 'lossacc'), element (0, 0): accumulator -4096.49951171875, exact -4110.49951171875, device -4096.0
+
+(run time 123 s)

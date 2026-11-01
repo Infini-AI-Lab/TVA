@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5m2b",
+  "kernel": "matmul_e5m2",
+  "round": 2,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Library round 26 re-acceptance at gate e127e9a2077f0921. Nothing the re-opened items rely on changed in meaning. In Rules/Num/Dot8Chunk.lean the diff adds the module docstring's loss-bound paragraph, chunkAbs8, DotChunkLoss, kappaChunk8, rhoLossChunk8, DotF8ChunkLoss, the four loss facts, DotChunkLoss.chunkAcc, DotChunkLoss.mono and DotF8ChunkLoss.chunk. It removes no line, so DotE5m2Chunk, DotF8Chunk, DotChunkAcc, chunk8, chunkSum8 and rhoChunk8, sigmaChunk8 and alphaChunk8 (2^-7, 2^-12, 2^-126) are unchanged. In Lemmas/Dot8Chunk.lean only a docstring bullet changed; the rest is new lemmas. DotF8Chunk.err, errB, chain_err and the liftMag lemmas the kernel uses are unchanged. CvtF32E5m2, CvtTotal and DotTotal are untouched. In num.md the fp8 tl.dot listing row still lists DotE5m2Chunk and adds the loss facts as an alternative. The reviewer-check rows for DotE5m2Chunk, the e5m2 conversion and the totality facts are unchanged. The rest is new loss-fact text and rows, plus the L127 and L130 rewording. The work file Round26 prints these definitions, checks the constants and minNormal8 .f8e5, and shows main, consistent and satisfiable depend only on propext, Classical.choice and Quot.sound."
+}

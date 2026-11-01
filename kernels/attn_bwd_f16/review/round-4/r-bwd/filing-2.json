@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-bwd",
+  "kernel": "attn_bwd_f16",
+  "round": 4,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-acceptance after library round 26 (L124, L127-L133), gate e30b28fa701ed30a. The kernel's own files are unchanged: claim.md differs only in its header and digests. Comparing the b28f50727b67c8a8 and e30b28fa701ed30a snapshots, the cones of assumption:dot, dot_total, exp2, exp2_total and spec differ only in file:docs/rules/num.md. No declaration in any cone was added, removed or changed, so DotF16 (DotLiftAcc, relDot16, absDot16, liftMag, minNormal8), DotTotal, Exp2F32, MathTotal, DotLoop.stepRel and stepAbs, and every Spec.lean term mean what they meant. The Lean diff adds only fp8 material (the ChunkLoss facts, chunkAbs8, kappaChunk8, rhoLossChunk8, errM and its lemmas) in the two Dot8Chunk files. Its only removed lines are a docstring bullet in the lemma file. None of it is in this kernel's cones. In num.md, the rows of 'Facts the library states' for DotF16/DotBF16, Exp2F32 and MathTotal/DotTotal, the 'What a kernel reviewer checks' row for 16-bit dots, the DotLiftAcc definition row and the 16-bit bullet of the chunk model are unchanged. The changes are fp8 rows and sections, the weakening-lemma lists, the satisfiability list, and L130's rewording of the chunk model's opening paragraph. That paragraph still says 16 products per instruction for 16-bit operands on both paths, as the 16-bit bullet does."
+}
