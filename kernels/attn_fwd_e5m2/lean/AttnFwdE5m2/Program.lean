@@ -6,11 +6,12 @@ import AttnFwdE5m2.Inner
 * `row0`: program `i`'s query tile starts at row `128·i` of the `[Z·H·N_CTX, HEAD_DIM]` view
   (`off_hz·N_CTX + 128·start_m`);
 * `oTile`, `mTile`, `Wr`: the elements of `o` and `M` program `i` writes;
-* `psum_below`, `blk_sum`, `ew_weight`, `esR_eq`, `ebR_eq`: the row's sums and error bounds in the
-  specification's terms (`partS`, `blkMag`, `blkAbs`, `weight`, `errS`, `errB`);
+* `psum_below`, `blk_sum`, `ew_weight`, `acR_accA`, `ecR_errC`, `centC_final`: the row's sums and
+  error bounds in the specification's terms (`weight`, `partW`, `centC`, `blkC`, `blkA`, `blkLW`,
+  `blkVL`, `accA`, `errC`), and the centred sum after the last block (`0`);
 * `OutO`, `OutM`, `Qp`: what `Post` asks of an element, and of a program's tile;
-* `row_out`: the end of a row (lines 241–245) from its state after the loop (`final_o`, `final_v`,
-  `final_M`);
+* `row_out`: the end of a row (lines 241–245) from its state after the loop (the centred bound at
+  `r = attnRef`, `l_final`, `final_v`, `final_M`);
 * `safe_epi`: lines 241–245 of a program;
 * `safe_program`: a whole program (lines 189–245).
 -/
@@ -135,8 +136,8 @@ theorem blk_sum {d : Inst} {n : ℕ} (t : ℕ) (f : ℕ → ℝ) :
   linarith
 
 /-- The exact weight `2^(w·s_j)` of `RowCtx` is the specification's `exp(sm_scale·score)`. -/
-theorem ew_weight (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X : ℚ) (j : ℕ) :
-    ew (rowCtx d init c bh n X) j = weight d init bh n j := by
+theorem ew_weight (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (j : ℕ) :
+    ew (rowCtx d init c bh n X Z) j = weight d init bh n j := by
   show (2 : ℝ) ^ ((sigma d : ℝ) / Real.log 2 * (score d init bh n j : ℝ)) =
     Real.exp ((sigma d : ℝ) * (score d init bh n j : ℝ))
   rw [Real.rpow_def_of_pos (by norm_num)]
@@ -148,65 +149,125 @@ theorem veOf_key {d : Inst} {init : Mem} {bh n j : ℕ} (e : Fin d.HEAD_DIM) (hj
     veOf d init bh e j = (vEff d init bh j e : ℝ) := by
   unfold veOf; rw [ite_eq_left (keys_lt hj)]
 
-theorem Sx_partS (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
-    Sx (rowCtx d init c bh n X) (veOf d init bh e) t = partS d init bh n e t := by
-  unfold Sx partS
-  rw [show (rowCtx d init c bh n X).al = alOf d n from rfl, psum_below]
+theorem vlOf_key {d : Inst} {init : Mem} {bh n j : ℕ} (e : Fin d.HEAD_DIM) (hj : j ∈ keys d n) :
+    vlOf d init bh e j = ((Rules.Num.liftMag .f8e5 (vEff d init bh j e) : ℚ) : ℝ) := by
+  unfold vlOf; rw [ite_eq_left (keys_lt hj)]
+
+/-- `Cen.Cx` at `r = attnRef` is `Model.centC`. -/
+theorem Cx_centC (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
+    Cx (rowCtx d init c bh n X Z) (veOf d init bh e) (attnRef d init bh n e) t = centC d init bh n e t := by
+  unfold Cx centC
+  rw [show (rowCtx d init c bh n X Z).al = alOf d n from rfl, psum_below]
   refine Finset.sum_congr rfl fun j hj => ?_
   have hj' : j ∈ keys d n := (Finset.mem_filter.mp hj).1
   rw [ew_weight, veOf_key e hj']
 
-theorem Mg_blkMag (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
-    Mg (rowCtx d init c bh n X) (veOf d init bh e) t = blkMag d init bh n e t := by
-  unfold Mg blkMag
-  rw [show (rowCtx d init c bh n X).al = alOf d n from rfl,
-    blk_sum t (fun j => ew (rowCtx d init c bh n X) j * |veOf d init bh e j|)]
+theorem psum_partW (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (t : ℕ) :
+    psum (rowCtx d init c bh n X Z).al t (ew (rowCtx d init c bh n X Z)) = partW d init bh n t := by
+  rw [show (rowCtx d init c bh n X Z).al = alOf d n from rfl, psum_below]
+  exact Finset.sum_congr rfl fun j _ => ew_weight d init c bh n X Z j
+
+theorem bC_blkC (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
+    bC (rowCtx d init c bh n X Z) (veOf d init bh e) (attnRef d init bh n e) t = blkC d init bh n e t := by
+  unfold bC blkC
+  rw [show (rowCtx d init c bh n X Z).al = alOf d n from rfl,
+    blk_sum t (fun j => ew (rowCtx d init c bh n X Z) j * |veOf d init bh e j - attnRef d init bh n e|)]
   refine Finset.sum_congr rfl fun j hj => ?_
   have hj' : j ∈ keys d n := (Finset.mem_filter.mp hj).1
   rw [ew_weight, veOf_key e hj']
 
-theorem AbV_blkAbs (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
-    AbV (rowCtx d init c bh n X) (veOf d init bh e) t = ((blkAbs d init bh n e t : ℚ) : ℝ) := by
-  unfold AbV blkAbs
-  rw [show (rowCtx d init c bh n X).al = alOf d n from rfl, blk_sum t (fun j => |veOf d init bh e j|)]
-  push_cast
+theorem bA_blkA (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
+    bA (rowCtx d init c bh n X Z) (veOf d init bh e) (attnRef d init bh n e) t = blkA d init bh n e t := by
+  unfold bA blkA
+  rw [show (rowCtx d init c bh n X Z).al = alOf d n from rfl,
+    blk_sum t (fun j => |veOf d init bh e j - attnRef d init bh n e|)]
   refine Finset.sum_congr rfl fun j hj => ?_
   have hj' : j ∈ keys d n := (Finset.mem_filter.mp hj).1
   rw [veOf_key e hj']
 
-/-- `esR` is `Model.errS`. -/
-theorem esR_eq (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X : ℚ) (e : Fin d.HEAD_DIM) :
-    ∀ t, esR (rowCtx d init c bh n X) (veOf d init bh e) t = errS d init bh n e X t
+theorem bVL_blkVL (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
+    bVL (rowCtx d init c bh n X Z) (vlOf d init bh e) t = blkVL d init bh n e t := by
+  unfold bVL blkVL
+  refine Finset.sum_congr rfl fun c' _ => ?_
+  congr 1
+  funext k
+  show (if alOf d n (64 * t + k) = true then vlOf d init bh e (64 * t + k) else 0) = _
+  by_cases h : alOf d n (64 * t + k) = true
+  · have hk := mem_keys.mpr h
+    rw [if_pos h, if_pos hk, vlOf_key e hk]
+  · have hk : 64 * t + (k : ℕ) ∉ keys d n := fun hk => h (mem_keys.mp hk)
+    rw [if_neg h, if_neg hk]
+
+theorem bLW_blkLW (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
+    bLW (rowCtx d init c bh n X Z) (vlOf d init bh e) t = blkLW d init bh n e t := by
+  unfold bLW blkLW
+  refine Finset.sum_congr rfl fun c' _ => ?_
+  congr 1
+  funext k
+  show (if alOf d n (64 * t + k) = true then
+    ew (rowCtx d init c bh n X Z) (64 * t + k) * vlOf d init bh e (64 * t + k) else 0) = _
+  by_cases h : alOf d n (64 * t + k) = true
+  · have hk := mem_keys.mpr h
+    rw [if_pos h, if_pos hk, vlOf_key e hk, ew_weight]
+  · have hk : 64 * t + (k : ℕ) ∉ keys d n := fun hk => h (mem_keys.mp hk)
+    rw [if_neg h, if_neg hk]
+
+/-- `Cen.acR` at `r = attnRef` is `Model.accA`. -/
+theorem acR_accA (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) :
+    ∀ t, acR (rowCtx d init c bh n X Z) (veOf d init bh e) (vlOf d init bh e) (attnRef d init bh n e) t =
+      accA d init bh n e X Z t
   | 0 => rfl
   | t + 1 => by
-    rw [esR, errS, esR_eq d init c bh n X e t, Sx_partS, Mg_blkMag,
-      rhoA_r (R := rowCtx d init c bh n X) rfl rfl, psiA_r (R := rowCtx d init c bh n X) rfl]
+    rw [acR, accA, acR_accA d init c bh n X Z e t, bA_blkA, bVL_blkVL,
+      ← dmax_r (R := rowCtx d init c bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl rfl]
 
-/-- `ebR` is `Model.errB`. -/
-theorem ebR_eq (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X : ℚ) (e : Fin d.HEAD_DIM) :
-    ∀ t, ebR (rowCtx d init c bh n X) (veOf d init bh e) t = ((errB d init bh n e X t : ℚ) : ℝ)
-  | 0 => by rw [ebR, errB]; simp
+/-- `Cen.ecR` at `r = attnRef` is `Model.errC`. -/
+theorem ecR_errC (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) :
+    ∀ t, ecR (rowCtx d init c bh n X Z) (veOf d init bh e) (vlOf d init bh e) (attnRef d init bh n e) t =
+      errC d init bh n e X Z t
+  | 0 => rfl
   | t + 1 => by
-    rw [ebR, errB, ebR_eq d init c bh n X e t, AbV_blkAbs]
-    push_cast
-    rw [rhoA_r (R := rowCtx d init c bh n X) rfl rfl, rho8_r, omega8_r, absA_r]
+    rw [ecR, errC, ecR_errC d init c bh n X Z e t, acR_accA, Cx_centC, bC_blkC, bLW_blkLW, psum_partW,
+      ← dmax_r (R := rowCtx d init c bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl rfl,
+      ← pE_r (R := rowCtx d init c bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl,
+      ← FhT_r (R := rowCtx d init c bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl rfl]
+
+/-- After the last block the centred sum is `0`: `attnRef` is the weights' mean. -/
+theorem centC_final {d : Inst} {init : Mem} {bh n T : ℕ} (hTk : ∀ j, alOf d n j = true → j < 64 * T)
+    (hW : 0 < wsum d init bh n) (c : ℝ) (X Z : ℚ) (e : Fin d.HEAD_DIM) :
+    Cx (rowCtx d init c bh n X Z) (veOf d init bh e) (attnRef d init bh n e) T = 0 := by
+  unfold Cx
+  rw [show (rowCtx d init c bh n X Z).al = alOf d n from rfl, psum_keys hTk]
+  have h1 : ∑ j ∈ keys d n, ew (rowCtx d init c bh n X Z) j * (veOf d init bh e j - attnRef d init bh n e) =
+      ∑ j ∈ keys d n, weight d init bh n j * (vEff d init bh j e : ℝ) -
+        attnRef d init bh n e * wsum d init bh n := by
+    unfold wsum
+    rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
+    refine Finset.sum_congr rfl fun j hj => ?_
+    rw [ew_weight, veOf_key e hj]; ring
+  rw [h1]
+  unfold attnRef
+  field_simp
+  ring
 
 /-! ## What a program leaves -/
 
 /-- What `Post` asks of element `(bh, n, e)` of `o` holding `c`. -/
 def OutO (d : Inst) (init : Mem) (bh n e : ℕ) (c : F8E5) : Prop :=
   HeadOk d init bh → c.isFinite = true ∧
-    (∀ X : ℚ, X ≤ Xh d.HEAD_DIM →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
-      |c.toReal - attnRef d init bh n e| ≤ tolO d init bh n e X) ∧
+    (∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
+      (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
+      |c.toReal - attnRef d init bh n e| ≤ tolO d init bh n e X Z) ∧
     ∀ K : ℝ, (∀ j ∈ keys d n, |(vEff d init bh j e : ℝ) - attnRef d init bh n e| ≤ K) →
       |c.toReal - attnRef d init bh n e| ≤ tolV d init bh n e K
 
 /-- What `Post` asks of element `(bh, n)` of `M` holding `c`. -/
 def OutM (d : Inst) (init : Mem) (bh n : ℕ) (c : F32) : Prop :=
-  HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ Xh d.HEAD_DIM →
-    (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
-    |c.toReal - lseRef d init bh n| ≤ tolM d.HEAD_DIM d.N_CTX X + (u32 : ℝ) * |lseRef d init bh n|
+  HeadOk d init bh → c.isFinite = true ∧ ∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
+    (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
+    (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
+    |c.toReal - lseRef d init bh n| ≤ tolM d.HEAD_DIM d.N_CTX X Z + (u32 : ℝ) * |lseRef d init bh n|
 
 /-- What program `(sm, bh)` leaves in memory `m`: its rows of `o` and `M` as `Post` asks. -/
 def Qp (d : Inst) (init : Mem) (sm bh : ℕ) (m : Mem) : Prop :=
@@ -218,92 +279,138 @@ def Qp (d : Inst) (init : Mem) (sm bh : ℕ) (m : Mem) : Prop :=
       OutM d init bh (128 * sm + r) c
 
 /-- **The end of a row** (lines 241–245): from the row's state after the `T = nblk` blocks that
-hold all its keys, `(acc / l_i).to(float8e5)` and `m_i + log2(l_i)` are as `Post` asks. -/
+hold all its keys, `(acc / l_i).to(float8e5)` and `m_i + log2(l_i)` are as `Post` asks. The first
+bound on `o` is the centred bound (`CInv`) at `r = attnRef`, where the centred sum is `0`
+(`centC_final`), with `l_i ≥ Fp` times the weights' sum (`l_final`); the second is `RowSt`'s
+magnitude bound at `X = Xh HEAD_DIM`. -/
 theorem row_out {d : Inst} (hd : d.ok) {init : Mem} {P : Platform} (hdivF : Rules.Num.DivFull P)
     (hcvt : Rules.Num.CvtSatF32E5m2 P) (hlog : Rules.Num.Log2F32 P) {c : F32} (hc : CFacts d c)
     {bh n : ℕ} (hn : n < d.N_CTX) {T : ℕ} (hTn : nblk d n = T) (hT0 : 0 < T) (hT : T ≤ nblocks d.N_CTX)
     (hTk : ∀ j, alOf d n j = true → j < 64 * T)
     {acc : Fin d.HEAD_DIM → F32} {l m : F32}
-    (hst : HeadOk d init bh → ∀ X : ℚ, X ≤ Xh d.HEAD_DIM →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
-      RowSt (rowCtx d init c.toReal bh n X) (veOf d init bh) T m l acc)
+    (hst : HeadOk d init bh → ∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
+      (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
+      RowSt (rowCtx d init c.toReal bh n X Z) (veOf d init bh) (vlOf d init bh) T m l acc)
     {lg Mv : F32} (hlg : P.math .log2 .binary32 l lg) (hMv : FloatV.NaNEq (FloatV.add m lg) Mv)
     {o' : Fin d.HEAD_DIM → F32} (ho' : ∀ e, P.div .binary32 (acc e) l (o' e))
     {o8 : Fin d.HEAD_DIM → F8E5} (ho8 : ∀ e, P.cvt Format.binary32 Format.e5m2 .rn (o' e) (o8 e)) :
     (∀ e : Fin d.HEAD_DIM, OutO d init bh n e (o8 e)) ∧ OutM d init bh n Mv := by
   have hN := hd.n_le
   have hTle : T ≤ 1024 := hT.trans (by unfold nblocks; omega)
-  have hfin : HeadOk d init bh → ∀ X : ℚ, X ≤ Xh d.HEAD_DIM →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
-      (rowCtx d init c.toReal bh n X).Ok ∧ MInv (rowCtx d init c.toReal bh n X) T m ∧
-        LInv (rowCtx d init c.toReal bh n X) T m l ∧
-        ∀ e, AInv (rowCtx d init c.toReal bh n X) (veOf d init bh e) T m (acc e)
-          (esR (rowCtx d init c.toReal bh n X) (veOf d init bh e) T)
-          (ebR (rowCtx d init c.toReal bh n X) (veOf d init bh e) T) := by
-    intro hH X hX hXk
-    obtain ⟨hRok, -⟩ := rowCtx_ok hd init hc.2.1 hc.2.2.1 hc.2.2.2.1 (qk_scale_w hc.2.2.2.2) bh hn hX hXk
-    rcases hst hH X hX hXk with ⟨h0, -⟩ | ⟨-, hM, hL, hA, -⟩
+  have hfin : HeadOk d init bh → ∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
+      (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
+      (rowCtx d init c.toReal bh n X Z).Ok ∧ MInv (rowCtx d init c.toReal bh n X Z) T m ∧
+        LInv (rowCtx d init c.toReal bh n X Z) T m l ∧ (∀ e, ACr T (acc e)) ∧ lminB T ≤ l.toReal ∧
+        (∀ e, CInv (rowCtx d init c.toReal bh n X Z) (veOf d init bh e) (vlOf d init bh e) T m (acc e) l) ∧
+        ∀ e (r K : ℝ), 0 ≤ K → (∀ j, (rowCtx d init c.toReal bh n X Z).al j = true →
+          |veOf d init bh e j - r| ≤ K) →
+          |(acc e).toReal - r * l.toReal| ≤ magA K |r| T * l.toReal + magD K |r| T := by
+    intro hH X Z hX hXk hZk
+    obtain ⟨hRok, -⟩ := rowCtx_ok hd init hc.2.1 hc.2.2.1 hc.2.2.2.1 (qk_scale_w hc.2.2.2.2) bh hn hX hXk hZk
+    rcases hst hH X Z hX hXk hZk with ⟨h0, -⟩ | ⟨-, hM, hL, hA, hlm, hC, hE⟩
     · omega
-    · exact ⟨hRok, hM, hL, hA⟩
-  have hW : ∀ X : ℚ, psum (rowCtx d init c.toReal bh n X).al T (ew (rowCtx d init c.toReal bh n X)) =
-      wsum d init bh n := fun X => by
-    rw [show (rowCtx d init c.toReal bh n X).al = alOf d n from rfl, psum_keys hTk]; unfold wsum
-    exact Finset.sum_congr rfl fun j _ => ew_weight d init c.toReal bh n X j
-  have hSx : ∀ (X : ℚ) (e : Fin d.HEAD_DIM),
-      Sx (rowCtx d init c.toReal bh n X) (veOf d init bh e) T / psum (rowCtx d init c.toReal bh n X).al T
-        (ew (rowCtx d init c.toReal bh n X)) = attnRef d init bh n e := fun X e => by
+    · exact ⟨hRok, hM, hL, hA, hlm, hC, hE⟩
+  have hW : ∀ X Z : ℚ, psum (rowCtx d init c.toReal bh n X Z).al T (ew (rowCtx d init c.toReal bh n X Z)) =
+      wsum d init bh n := fun X Z => by
+    rw [show (rowCtx d init c.toReal bh n X Z).al = alOf d n from rfl, psum_keys hTk]; unfold wsum
+    exact Finset.sum_congr rfl fun j _ => ew_weight d init c.toReal bh n X Z j
+  have hSx : ∀ (X Z : ℚ) (e : Fin d.HEAD_DIM),
+      Sx (rowCtx d init c.toReal bh n X Z) (veOf d init bh e) T / psum (rowCtx d init c.toReal bh n X Z).al T
+        (ew (rowCtx d init c.toReal bh n X Z)) = attnRef d init bh n e := fun X Z e => by
     rw [hW]; unfold Sx attnRef
-    rw [show (rowCtx d init c.toReal bh n X).al = alOf d n from rfl, psum_keys hTk]
+    rw [show (rowCtx d init c.toReal bh n X Z).al = alOf d n from rfl, psum_keys hTk]
     congr 1
     exact Finset.sum_congr rfl fun j hj => by rw [ew_weight, veOf_key e hj]
-  have hOo : ∀ e : Fin d.HEAD_DIM, HeadOk d init bh → ∀ X : ℚ, X ≤ Xh d.HEAD_DIM →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
-      (o8 e).isFinite = true ∧ |(o8 e).toReal - attnRef d init bh n e| ≤ tolO d init bh n e X := by
-    intro e hH X hX hXk
-    obtain ⟨hRok, hM, hL, hA⟩ := hfin hH X hX hXk
-    obtain ⟨hFh, hFl, haL, hFp, -⟩ := model_factors (D := d.HEAD_DIM) (X := X) hRok rfl rfl hN hT
-    obtain ⟨hf, hb⟩ := final_o hdivF hcvt hRok hTle (veOf_le hH e) (ebR_nonneg hRok _ T) hFh hFl haL hFp
-      hM hL (hA e) (ho' e) (ho8 e)
+  have hOo : ∀ e : Fin d.HEAD_DIM, HeadOk d init bh → ∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
+      (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
+      (o8 e).isFinite = true ∧ |(o8 e).toReal - attnRef d init bh n e| ≤ tolO d init bh n e X Z := by
+    intro e hH X Z hX hXk hZk
+    obtain ⟨hRok, hM, hL, hA, hlm, hC, -⟩ := hfin hH X Z hX hXk hZk
+    obtain ⟨hFh, hFl, haL, hFp, -⟩ :=
+      model_factors (D := d.HEAD_DIM) (N := d.N_CTX) (X := X) (Z := Z) hRok rfl rfl hN hT
+    obtain ⟨-, -, hlo, -, -⟩ := l_final hRok hFh hFl haL hM hL
+    have hW0 : 0 < wsum d init bh n := (hW X Z) ▸ psum_ew_pos hM
+    have hI := hC e (attnRef d init bh n e)
+    rw [centC_final hTk hW0, mul_zero, mul_zero, sub_zero, ecR_errC, acR_accA] at hI
+    have hEC0 : 0 ≤ errC d init bh n e X Z T := by
+      rw [← ecR_errC d init c.toReal bh n X Z e T]; exact ecR_nonneg hRok _ _ _ T
+    rw [psum_wt_eq, hW X Z, ← pE_r (R := rowCtx d init c.toReal bh n X Z) (D := d.HEAD_DIM) (X := X)
+      (Z := Z) rfl] at hlo
+    have hFpd : Fp d.HEAD_DIM d.N_CTX X Z = Flo d.HEAD_DIM d.N_CTX X Z - ((aL d.N_CTX : ℚ) : ℝ) *
+        pE d.HEAD_DIM X Z := rfl
+    rw [← pE_r (R := rowCtx d init c.toReal bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl] at hFp
+    rw [← hFpd] at hlo hFp
+    have hFp0 : 0 < Fp d.HEAD_DIM d.N_CTX X Z := lt_of_lt_of_le (by norm_num) hFp
+    set q2 := (2 : ℝ) ^ (-m.toReal) with hq2
+    have hq20 : 0 < q2 := Real.rpow_pos_of_pos (by norm_num) _
+    have hkey : q2 * errC d init bh n e X Z T ≤
+        errC d init bh n e X Z T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z * l.toReal := by
+      rw [div_div, div_mul_eq_mul_div, le_div_iff₀ (mul_pos hW0 hFp0)]
+      have := mul_le_mul_of_nonneg_left hlo hEC0
+      linarith [show errC d init bh n e X Z T * (Fp d.HEAD_DIM d.N_CTX X Z * (q2 * wsum d init bh n)) =
+        q2 * errC d init bh n e X Z T * (wsum d init bh n * Fp d.HEAD_DIM d.N_CTX X Z) by ring]
+    have hE' : |(acc e).toReal - attnRef d init bh n e * l.toReal| ≤
+        (errC d init bh n e X Z T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z + accA d init bh n e X Z T) *
+          l.toReal + 0 := by
+      linarith [add_mul (errC d init bh n e X Z T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z)
+        (accA d init bh n e X Z T) l.toReal]
+    have hl : 1 / 2 ≤ l.toReal := (lminB_half hTle).trans hlm
+    have hr : |attnRef d init bh n e| ≤ 57344 := by
+      rw [← hSx X Z e]; exact ref_le hM (veOf_le hH e)
+    obtain ⟨hf, hb⟩ := final_v hdivF hcvt (hA e).1 hL.1 hl ((hA e).2.trans (crA_le hTle)) hr le_rfl hE'
+      (ho' e) (ho8 e)
     refine ⟨hf, ?_⟩
-    rw [hSx, hW, esR_eq, ebR_eq, ← pE_r (R := rowCtx d init c.toReal bh n X) (D := d.HEAD_DIM) rfl] at hb
-    unfold tolO Fp betaL
+    rw [mul_zero, add_zero] at hb
+    unfold tolO
     rw [hTn]
     exact hb
-  have hOM : HeadOk d init bh → ∀ X : ℚ, X ≤ Xh d.HEAD_DIM →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+  have hOM : HeadOk d init bh → ∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
+      (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
       Mv.isFinite = true ∧ |Mv.toReal - lseRef d init bh n| ≤
-        tolM d.HEAD_DIM d.N_CTX X + (u32 : ℝ) * |lseRef d init bh n| := by
-    intro hH X hX hXk
-    obtain ⟨hRok, hM, hL, -⟩ := hfin hH X hX hXk
-    obtain ⟨hFh, hFl, haL, hFp, hFh2⟩ := model_factors (D := d.HEAD_DIM) (X := X) hRok rfl rfl hN hT
+        tolM d.HEAD_DIM d.N_CTX X Z + (u32 : ℝ) * |lseRef d init bh n| := by
+    intro hH X Z hX hXk hZk
+    obtain ⟨hRok, hM, hL, -⟩ := hfin hH X Z hX hXk hZk
+    obtain ⟨hFh, hFl, haL, hFp, hFh2⟩ :=
+      model_factors (D := d.HEAD_DIM) (N := d.N_CTX) (X := X) (Z := Z) hRok rfl rfl hN hT
     obtain ⟨hf, hb⟩ := final_M hlog hRok hTle hFh hFl haL hFp hFh2 hM hL hlg hMv
     refine ⟨hf, ?_⟩
-    rw [hW, ← pE_r (R := rowCtx d init c.toReal bh n X) (D := d.HEAD_DIM) rfl] at hb
+    rw [hW, ← pE_r (R := rowCtx d init c.toReal bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl] at hb
     unfold tolM lgB Fp lseRef
     rw [u32_r]
     exact hb
-  have hall : HeadOk d init bh → ∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ Xh d.HEAD_DIM :=
+  have hall : HeadOk d init bh → ∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ Xh d.HEAD_DIM :=
     fun hH j hj => hH.2.2 n j hn (keys_lt hj)
+  -- a bound on the row's scaled score errors
+  have hZ0 : ∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤
+      ∑ i ∈ keys d n, |sigma d * scoreErr d init bh n i| := fun j hj =>
+    (le_abs_self _).trans (Finset.single_le_sum (f := fun i => |sigma d * scoreErr d init bh n i|)
+      (fun i _ => abs_nonneg _) hj)
   -- the second bound, at `X = Xh HEAD_DIM`
   have hOv : ∀ e : Fin d.HEAD_DIM, HeadOk d init bh → ∀ K : ℝ,
       (∀ j ∈ keys d n, |(vEff d init bh j e : ℝ) - attnRef d init bh n e| ≤ K) →
       |(o8 e).toReal - attnRef d init bh n e| ≤ tolV d init bh n e K := by
     intro e hH K hK
-    rcases hst hH _ le_rfl (hall hH) with ⟨h0, -⟩ | ⟨-, hM, hL, hA, hlm, hE⟩
-    · omega
+    obtain ⟨-, hM, hL, hA, hlm, -, hE⟩ := hfin hH _ _ le_rfl (hall hH) hZ0
     have hK0 : 0 ≤ K := (abs_nonneg _).trans (hK 0 (mem_keys.mpr (by unfold alOf; simp; omega)))
-    have hKv : ∀ j, (rowCtx d init c.toReal bh n (Xh d.HEAD_DIM)).al j = true →
+    have hKv : ∀ j, (rowCtx d init c.toReal bh n (Xh d.HEAD_DIM)
+        (∑ i ∈ keys d n, |sigma d * scoreErr d init bh n i|)).al j = true →
         |veOf d init bh e j - attnRef d init bh n e| ≤ K := fun j hj => by
       have hj' : j ∈ keys d n := mem_keys.mpr hj
       rw [veOf_key e hj']; exact hK j hj'
     have hl : 1 / 2 ≤ l.toReal := (lminB_half hTle).trans hlm
     have hr : |attnRef d init bh n e| ≤ 57344 := by
-      rw [← hSx (Xh d.HEAD_DIM) e]; exact ref_le hM (veOf_le hH e)
-    obtain ⟨-, hb⟩ := final_v hdivF hcvt (hA e).1 hL.1 hl ((hA e).2.1.trans (crA_le hTle)) hr
+      rw [← hSx (Xh d.HEAD_DIM) (∑ i ∈ keys d n, |sigma d * scoreErr d init bh n i|) e]
+      exact ref_le hM (veOf_le hH e)
+    obtain ⟨-, hb⟩ := final_v hdivF hcvt (hA e).1 hL.1 hl ((hA e).2.trans (crA_le hTle)) hr
       (magD_nonneg hK0 (abs_nonneg _) T) (hE e (attnRef d init bh n e) K hK0 hKv) (ho' e) (ho8 e)
     unfold tolV; rw [hTn]; exact hb
-  refine ⟨fun e hH => ⟨(hOo e hH _ le_rfl (hall hH)).1, fun X hX hXk => (hOo e hH X hX hXk).2, hOv e hH⟩,
-    fun hH => ⟨(hOM hH _ le_rfl (hall hH)).1, fun X hX hXk => (hOM hH X hX hXk).2⟩⟩
+  refine ⟨fun e hH => ⟨(hOo e hH _ _ le_rfl (hall hH) hZ0).1, fun X Z hX hXk hZk => (hOo e hH X Z hX hXk hZk).2,
+      hOv e hH⟩,
+    fun hH => ⟨(hOM hH _ _ le_rfl (hall hH) hZ0).1, fun X Z hX hXk hZk => (hOM hH X Z hX hXk hZk).2⟩⟩
 
 /-! ## The end of a program (lines 241–245) -/
 
@@ -392,7 +499,7 @@ theorem offs_n_val (jj : Fin 64) : ((tl.arange 0 64).get1 jj).toInt = ((jj : ℕ
 /-- **One program** (lines 189–245): program `i` reads only `q`, `k`, `v`, writes only its tile of
 `o` and `M`, and leaves them as `Post` asks (`Qp`). -/
 theorem safe_program {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P : Platform}
-    (hdot : Rules.Num.DotE5m2 P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
+    (hdot : Rules.Num.DotE5m2Chunk P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
     (hni : Rules.Num.Exp2F32NegInf P) (hext : Rules.Num.MathTotal P .exp2 .binary32)
     (hcvt : Rules.Num.CvtSatF32E5m2 P) (hcvtt : Rules.Num.CvtTotal P Format.binary32 Format.e5m2 .rn)
     (hlog : Rules.Num.Log2F32 P) (hlt : Rules.Num.MathTotal P .log2 .binary32)
@@ -472,7 +579,7 @@ theorem safe_program {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P 
     { sm_le := hsm, bh_lt := hbh, c_ok := hc, q_ok := hQ, oy := hoy, start := i32_nat (by omega),
       n := i32_nat (by omega), om := offs_m_val (by omega), on := offs_n_val }
   have hinv0 : StInv d init cs.item sm bh 0 (tl.zeros [128, d.HEAD_DIM] .f32) li mi := by
-    intro r _ X _ _
+    intro r _ X Z _ _ _
     obtain ⟨hl1, hl2⟩ := l_init_eq (hli (r, ()))
     have hl2' : (li.get1 r).toReal = 1 := hl2
     exact Or.inl ⟨rfl, m_init_eq (hmi (r, ())), hl1, hl2',

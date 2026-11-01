@@ -7,7 +7,7 @@ The process is in [../LIBRARY_REVIEW.md](../LIBRARY_REVIEW.md); kernel findings 
 
 States: `OPEN` (to be fixed in the round named), `ACCEPTED` (fixed, and accepted by library
 review), `FIXED` (fixed in a round that no library review followed, by the user's decision under
-L36: rounds 21 to 23), `CLOSED` (settled by the coordinator, as its section says).
+L36: rounds 21 to 24), `CLOSED` (settled by the coordinator, as its section says).
 
 The kernels of the first round (vec-add, grouped GEMM, flash attention) were cleared on
 2026-10-27 at the user's request, to restart from scratch. The issues they raised stand on their
@@ -138,7 +138,9 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L121](#l121) | OPEN | — | grouped_matmul_tma_f16#F4 (r-gmm) | gap: scope 5 does not ask the allocator to return the `alignment` the launcher asks for the descriptor scratch |
 | [L122](#l122) | OPEN | — | attn_fwd_f16#F3 (r-fwd) | wording: "Performance-only arguments" says `num_stages` and `warp_specialize` are given by a model, but `Launch` and `tl.forRange` have no place for them and "Loops" says they change no outcome |
 | [L123](#l123) | OPEN | — | attn_fwd_f16#F5 (r-fwd2) | wording: the fusion rule does not say whether a `tl.maximum` or `tl.where` result that carries a product's value is a product |
-| [L124](#l124) | OPEN | — | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\|acc\|` too, so an accumulator fed back once per block compounds as `(1 + relDot8 64)^T` |
+| [L124](#l124) | FIXED | 24 | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\|acc\|` too, so an accumulator fed back once per block compounds as `(1 + relDot8 64)^T` |
+| [L125](#l125) | FIXED | 24 | library author, round 24 (evidence/num-dot-chunk Part F) | soundness: `DotE4m3`, `DotE5m2`, `DotE4m3E5m2`, `DotE5m2E4m3` fail on `wgmma` when a product with a subnormal operand sets the window (up to 3.65 times `relDot8`'s bound); `matmul_e5m2` and `attn_fwd_e5m2` cite `DotE5m2` |
+| [L126](#l126) | OPEN | 25 | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
 
 ## L1
 
@@ -2456,3 +2458,77 @@ at most its own magnitude, the accumulator only its own truncation), which would
 about the terms' magnitudes. Left open for a later library round, if the user starts one (L36); the
 `LIBRARY_REPORT` does not block, and `attn_fwd_e5m2`'s write-up states the limit it puts on that
 claim's tolerance.
+- **Round 24 (user, 2026-10-31): "please tighten the fp8 kernel error bound."** A one-time fix,
+  as rounds 21 to 23, with no library review after it. A new fact, not a change to `DotE5m2`
+  (which `matmul_e5m2` cites): per output element, the fp8 `tl.dot` as its `⌈K/32⌉` chunks, each
+  within a constant times the chunk's largest term, the accumulator included (the 13-bit window
+  that `evidence/num-dot` Part 1 measures), with its own evidence. It lets `attn_fwd_e5m2` bound
+  each score by the chunks' largest terms instead of `Σ|q·k|`. The accumulator fed back through
+  `tl.dot(p, v, acc)` still compounds as the window allows: that is the device's behaviour under
+  the measured window, not slack in the fact.
+- **Fixed in round 24** (no library review follows, as for rounds 21 to 23): the facts `DotE4m3Chunk`,
+  `DotE5m2Chunk`, `DotE4m3E5m2Chunk`, `DotE5m2E4m3Chunk` (`lean/TVA/Rules/Num/Dot8Chunk.lean`,
+  `DotChunkAcc`, `DotF8Chunk`, `rhoChunk8 = 2^-7`, `sigmaChunk8 = 2^-12`, `alphaChunk8 = 2^-126`,
+  `liftMag`, `chunk8`, `chunkSum8`), the lemmas of `lean/TVA/Lemmas/Dot8Chunk.lean`, `docs/rules/num.md`'s
+  section and rows, and `evidence/num-dot-chunk` (a bit-exact model of `wgmma` on about `2·10^8`
+  results; largest ratio to the bound `0.468`). The author's notes: `round-24/author/notes.md`.
+
+## L125
+
+**The fp8 `tl.dot` facts are false when a subnormal operand sets the window** (soundness; library
+author, round 24, `evidence/num-dot-chunk` Part F; 2026-10-31). On `wgmma` the tensor core aligns a
+chunk's terms to the largest exponent field, and a subnormal fp8 operand's field reads as the
+smallest normal's. A product with a subnormal operand can then set the window while its magnitude is
+far below it, and the other products, just below the window's unit, are lost whole. `DotE4m3`,
+`DotE5m2`, `DotE4m3E5m2` and `DotE5m2E4m3` bound the error by `relDot8 K` times
+`|acc| + Σ|a·b|`, which assumed the window follows the largest term: the error reaches `3.65` times
+that bound with a `float8e4nv` left operand (`K = 32`; `1.79` at `K = 64`) and `1.73` times with a
+`float8e5` one (`K = 32`). The coordinator reproduced it independently on the H200 (GPU 0): with
+`a[0] = 2^-16` (a subnormal `float8e5`), `b[0] = 2^15` and 31 products `1.75·2^-13`, `K = 32`, the
+`wgmma` result is `0.5` against the exact `0.50662`, an error of `1.67` times `DotE5m2`'s bound; with
+normal operands of the same product (`2^-14 · 2^13`) the error is `0.24` times it.
+`matmul_e5m2` and `attn_fwd_e5m2` cite `DotE5m2`: both certificates rest on a false fact until the
+fix and their re-proofs. The new chunk facts (L124) count a subnormal operand as the smallest normal
+(`liftMag`) and hold on the same inputs (ratio `0.47`).
+- **Round 24 (coordinator).** Fix in the same batch: no listed fact may be false. Keep subnormal
+  operands covered (tutorial 03's and 06's inputs, `randn` cast to fp8, include them), for example by
+  counting each operand's magnitude as `liftMag` does, or by deriving the whole-dot bound from the
+  chunk facts by a lemma instead of a second device fact. `matmul_e5m2` and `attn_fwd_e5m2` are then
+  re-proved and re-reviewed.
+- **Fixed in round 24** (no library review follows): the four facts and `DotF8` are withdrawn from the
+  Lean and from "Facts the library states", with their `Platform.sm90ref` lemmas; `chunks8`, `relDot8`
+  and `absDot8` move to `lean/TVA/Rules/Num/Dot8Chunk.lean` unchanged. A whole-dot bound is now a
+  lemma of the chunk facts, `Dot8Chunk.DotF8Chunk.liftAcc` (`relLift8`, `absLift8`, against
+  `|acc| + Σ liftMag·liftMag`), not a device fact. `matmul_e5m2` and `attn_fwd_e5m2` no longer build
+  until their provers cite `DotE5m2Chunk`; both are re-proved and re-reviewed.
+
+## L126
+
+**`DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window**
+(soundness; asked by r-gmm as `grouped_matmul_tma_f16` F5, and by r-gmm2, r-fwd2, r-bwd, r-bwd2 and
+r-matmul2 in their round-24 re-acceptances; 2026-11-01). L125's mechanism holds for 16-bit operands
+too. The tensor core reads a subnormal operand's exponent field as the smallest normal's. So a product
+`a·b` with a subnormal `a` and a large `b` can set the chunk's window while being far smaller, and the
+other products lose their bits below the window's unit. `evidence/num-dot`'s Part 2 had no such input.
+The coordinator measured it on the H200 (`evidence/num-dot-sub16`, `probe.py`), at `K = 16` on both
+`wgmma` and `mma.sync`, with the large product at any position:
+- `float16` with `a = 2^-23` (subnormal) and `b = 2^14`, and 15 products `(2 − 2^-10)·2^-24`, gives
+  an error of `53` times `DotF16`'s bound;
+- `bfloat16` with `a = 2^-133` and `b = 2^124` gives `13` times;
+- normal operands of the same products give `0.007` and `0.014`.
+
+A randomized sweep (`run.py`) reaches `106` times for `float16`. A first probe by the coordinator
+showed no loss, because its smaller products were whole multiples of the window's unit; it was
+wrong to call the issue closed on it.
+- **Kernels.** `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite
+  `DotF16`. Their inputs, or values they make (`p.to(float16)` in attention), can be subnormal, so
+  their certificates rest on a fact that fails on such inputs. The failure needs a subnormal operand
+  whose partner is large enough for the product's apparent magnitude to exceed the chunk's real
+  largest term; on the host's data (`randn`, `rand`) the chunk's other products are far larger. Their
+  reviewers filed it as non-blocking `LIBRARY_REPORT`s.
+- **Round 25 (user, 2026-11-01): "please fix L126 after the current run."** After `attn_fwd_e5m2`'s
+  re-review (L124) is done. A one-time fix, as rounds 21 to 24.
+- **To fix.** Follow L125: count a subnormal operand at the
+  smallest normal (`liftMag`) in the facts' magnitudes, or state the 16-bit dot chunk by chunk as
+  L124 does, with evidence for the window's width (25 bits below the field, by `probe.py`'s losses).
+  Then re-prove and re-review the four kernels.

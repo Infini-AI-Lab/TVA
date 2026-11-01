@@ -1,0 +1,17 @@
+{
+  "reviewer": "r-bwd2",
+  "kernel": "attn_bwd_f16",
+  "round": 2,
+  "findings": [
+    {
+      "kind": "LIBRARY_REPORT",
+      "target": "decl:TVA.Rules.Num.DotF16",
+      "summary": "Does DotF16 hold when a subnormal float16 operand sets the wgmma window (L125's mechanism)? This kernel's ppT and dsT are often subnormal float16",
+      "detail": "Round 24 found (L125; num.md, the fp8 bullet of the chunk model and 'Device questions') that on wgmma the window is set by exponent fields, and that a subnormal fp8 operand's field reads as the smallest normal's. num.md's 16-bit bullet derives DotF16 from 'every term down to at least 2^-23 of the largest', and evidence/num-dot's new note says its Part 2 had no input where a product with a subnormal operand sets the window. If float16 wgmma aligns the same way, a product with a subnormal operand (2^-24, read as 2^-14) can set the unit 10 binades too high. The other products just below that unit are then lost, far beyond relDot16 K of the magnitude sum. This kernel feeds such operands to DotF16 in its real use: ppT = fp16(P) and dsT = fp16(dS) (lines 302, 309, 355) are subnormal whenever |P| or |dS| < 2^-14, which is frequent at N_CTX = 2^14 with the benchmark's sharp softmax; q and arg_k have subnormal elements too. On the host's inputs the possible loss is tiny next to Post's per-pair 2^-25 floors, but the proof cites DotF16 as stated. Same question as grouped_matmul_tma_f16#F5 (REPORTS.md); filed here so that this kernel's exposure is on record. Not blocking: I carry on as if the library were right."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-acceptance after library round 24 (L124, L125); the gate is at ca23f13ad8ef224a and no kernel file changed. Of what my re-opened items rely on, nothing changed. lean/TVA/Rules/Num/Sm90.lean only removes DotF8 and the four fp8 whole-dot facts and moves chunks8, relDot8 and absDot8 to Dot8Chunk.lean; DotF16, relDot16 = (K+2)*2^-22, absDot16 = (K+2)*2^-126 and Exp2F32 (2^-22, 2^-126, every input) are unchanged. In docs/rules/num.md, the rows of 'Facts the library states' for MathTotal/DotTotal, Exp2F32 and DotF16 are unchanged, and so are the 'What a kernel reviewer checks' row for float16 dots and the 16-bit bullet of the chunk model. The changes are the fp8 rows, the new fp8 chunk section, the DotChunkAcc definition row, and the alignment point under 'Device questions'; the kernel cites none of them. The spec item re-opened only because its cone reaches Sm90.lean through rH and aH (relDot16, absDot16), which are unchanged. The LIBRARY_REPORT records a doubt the round raises about DotF16 on subnormal float16 operands; it does not block."
+}

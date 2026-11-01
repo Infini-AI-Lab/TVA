@@ -6,7 +6,7 @@ Attention backward preprocess, tutorial 06 (`_attn_bwd_preprocess`, `float16` in
 
 ## Status
 
-- Gate: **PASS**, digest `74a1e051af7b1c1b` (2026-10-31T17:42:32Z).
+- Gate: **PASS**, digest `74a1e051af7b1c1b` (2026-11-01T02:13:35Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-bwdpre (all), r-bwdpre2 (all).
 - Certificate: **GRANTED**.

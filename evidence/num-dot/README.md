@@ -19,6 +19,15 @@ fp8 on sm_90), and for `float32` operands with `input_precision="ieee"`? The lib
 
 The facts are for every `K`. What does the device do, and do the facts hold?
 
+**Withdrawn (round 24, library issue L125).** The fp8 facts `DotE4m3`, `DotE5m2`, `DotE4m3E5m2` and
+`DotE5m2E4m3` in the table above are false of the device, and the library no longer states them.
+Part 2 below had no input where a product with a subnormal operand sets the alignment window (it
+has the largest exponent field of its chunk although it is not the largest term). On such inputs
+`wgmma` exceeds their bound, up to `3.65` times at `K = 32`: see
+[evidence/num-dot-chunk](../num-dot-chunk/README.md), Part F. The fp8 facts are now the chunk facts
+of that folder. This folder's fp8 rows stay as the record of what was measured; its Part 1 (the
+13-bit window) still stands.
+
 **What Triton runs.** With `M ≥ 64` and `num_warps ≥ 4`, `wgmma` (16 products per instruction
 for 16-bit operands, 32 for fp8); otherwise `mma.sync`, with fp8 operands upcast to `float16`
 first. `float32` with `"ieee"` uses no tensor cores: `fma.rn.f32` along `K`. The script reads

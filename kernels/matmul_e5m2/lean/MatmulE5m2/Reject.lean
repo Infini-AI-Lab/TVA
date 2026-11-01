@@ -6,8 +6,9 @@ import MatmulE5m2.Basic
 `Post` holds for every input, so it rejects a wrong kernel as soon as one input exposes it. On
 inputs with one or two nonzero products the error bound `tol` stays small at every covered `K`:
 
-* `tol_spike`: one product `X = x·y`, in the loop's last step: `tol ≤ ρ·|X| + 200·α`
-  (`ρ = relDot8 64 = 257·2^-14`, about `1.57%`; `200·α < 10^-35`).
+* `tol_spike`: one product `X = x·y`, at index `K − 1`: `tol ≤ 271425·2^-24·L + 400·2^-126`, with
+  `L = liftMag x · liftMag y` (`|X|` when `x` and `y` are normal) and
+  `271425·2^-24 = (1 + 2^-7 + 2^-12)^2 − 1`, about `1.62%`.
 * `zero_rejected`: at every covered `K ≥ 1`, some finite input leaves room in `float16` and puts
   `0` outside the bound of `OutSpec`'s `float16` clause: a kernel that stores `0` breaks `Post`.
 * `drop_rejected`: for every step `s` of the loop (`s < cdiv(K, 64)`), some finite input puts
@@ -30,14 +31,17 @@ def spikeP (e : Nat) (x : ℚ) : Nat → ℚ := fun k => if k = e then x else 0
 /-- The product sequence with `1` at `e1` and `-1` at `e2`. -/
 def pairP (e1 e2 : Nat) : Nat → ℚ := fun k => spikeP e1 1 k + spikeP e2 (-1) k
 
+/-- Its lifted magnitudes: `1` at `e1` and at `e2`. -/
+def pairL (e1 e2 : Nat) : Nat → ℚ := fun k => spikeP e1 1 k + spikeP e2 1 k
+
 /-- The exact sum of step `t`'s products, `p e` for `64·t ≤ e < 64·t + 64`: what a kernel that
 skips step `t` leaves out. -/
 def stepSum (p : Nat → ℚ) (t : Nat) : ℚ := ∑ k : Fin 64, p (64 * t + k)
 
-theorem partSum_spikeP (e : Nat) (x : ℚ) (t : Nat) :
-    partSum (spikeP e x) t = if e < 64 * t then x else 0 := by
+theorem partSum_spikeP (e : Nat) (x : ℚ) (j : Nat) :
+    partSum (spikeP e x) j = if e < 32 * j then x else 0 := by
   unfold partSum spikeP
-  rw [Finset.sum_ite_eq' (Finset.range (64 * t)) e (fun _ => x)]
+  rw [Finset.sum_ite_eq' (Finset.range (32 * j)) e (fun _ => x)]
   simp only [Finset.mem_range]
 
 theorem stepSum_spikeP (e : Nat) (x : ℚ) (t : Nat) :
@@ -61,18 +65,8 @@ theorem stepSum_spikeP (e : Nat) (x : ℚ) (t : Nat) :
     rw [Finset.mem_range] at hk
     rw [ite_eq_right (by omega)]
 
-theorem abs_spikeP (e : Nat) (x : ℚ) (k : Nat) : |spikeP e x k| = spikeP e |x| k := by
-  unfold spikeP
-  split_ifs <;> simp
-
-theorem stepMag_spikeP (e : Nat) (x : ℚ) (t : Nat) :
-    stepMag (spikeP e x) t = if 64 * t ≤ e ∧ e < 64 * t + 64 then |x| else 0 := by
-  unfold stepMag
-  simp only [abs_spikeP]
-  exact stepSum_spikeP e |x| t
-
-theorem partSum_pairP (e1 e2 t : Nat) :
-    partSum (pairP e1 e2) t = partSum (spikeP e1 1) t + partSum (spikeP e2 (-1)) t := by
+theorem partSum_pairP (e1 e2 j : Nat) :
+    partSum (pairP e1 e2) j = partSum (spikeP e1 1) j + partSum (spikeP e2 (-1)) j := by
   unfold partSum pairP
   exact Finset.sum_add_distrib
 
@@ -81,45 +75,74 @@ theorem stepSum_pairP (e1 e2 t : Nat) :
   unfold stepSum pairP
   exact Finset.sum_add_distrib
 
-theorem stepMag_pairP {e1 e2 : Nat} (hne : e1 ≠ e2) (t : Nat) :
-    stepMag (pairP e1 e2) t = stepMag (spikeP e1 1) t + stepMag (spikeP e2 (-1)) t := by
-  have h : ∀ k, |pairP e1 e2 k| = |spikeP e1 1 k| + |spikeP e2 (-1) k| := fun k => by
-    unfold pairP spikeP
-    by_cases h1 : k = e1
-    · have h2 : ¬ k = e2 := fun h2 => hne (h1.symm.trans h2)
-      simp [h1, hne]
-    · simp [h1]
-  unfold stepMag
-  simp only [h]
-  exact Finset.sum_add_distrib
+/-- A spike's largest value on a chunk is at most `x` (for `x ≥ 0`). -/
+theorem chunkMax_spikeP_le {e : Nat} {x : ℚ} (hx : 0 ≤ x) (j : Nat) : chunkMax (spikeP e x) j ≤ x :=
+  chunkMax_le fun k => by
+    unfold spikeP
+    split_ifs
+    · exact le_rfl
+    · exact hx
 
-/-! ## The error bound on steps without products -/
+/-- On a chunk without the spike's index it is at most `0`. -/
+theorem chunkMax_spikeP_out {e j : Nat} (x : ℚ) (h : e < 32 * j ∨ 32 * j + 32 ≤ e) :
+    chunkMax (spikeP e x) j ≤ 0 :=
+  chunkMax_le fun k => by
+    have := k.isLt
+    unfold spikeP
+    split_ifs with h'
+    · exact absurd h' (by omega)
+    · exact le_rfl
 
-/-- Steps whose partial sum and products are all `0` only grow the bound by `(1 + ρ)` and `α`. -/
-theorem errAt_quiet (p : Nat → ℚ) (t0 : Nat) : ∀ n : Nat,
-    (∀ t, t0 ≤ t → t < t0 + n → |partSum p t| + stepMag p t = 0) →
-    errAt p (t0 + n) ≤ (1 + Rules.Num.relDot8 64) ^ n * (errAt p t0 + n * Rules.Num.absDot8 64)
+theorem chunkMax_pairL_le {e1 e2 : Nat} (hne : e1 ≠ e2) (j : Nat) : chunkMax (pairL e1 e2) j ≤ 1 :=
+  chunkMax_le fun k => by
+    unfold pairL spikeP
+    split_ifs with h1 h2 h2
+    · exact absurd (h1.symm.trans h2) hne
+    · norm_num
+    · norm_num
+    · norm_num
+
+theorem chunkMax_pairL_out {e1 e2 j : Nat} (h1 : e1 < 32 * j ∨ 32 * j + 32 ≤ e1)
+    (h2 : e2 < 32 * j ∨ 32 * j + 32 ≤ e2) : chunkMax (pairL e1 e2) j ≤ 0 :=
+  chunkMax_le fun k => by
+    have := k.isLt
+    unfold pairL spikeP
+    rw [ite_eq_right (by omega), ite_eq_right (by omega)]
+    norm_num
+
+/-! ## The error bound, chunk by chunk -/
+
+/-- One chunk of the error bound, with bounds `a` on `max(|S j|, m j)` and `b` on `|S (j + 1)|`. -/
+theorem errAt_succ_le (p q : Nat → ℚ) {j j' : Nat} (hj : j' = j + 1) {a b : ℚ}
+    (ha : max |partSum p j| (chunkMax q j) ≤ a) (hb : |partSum p j'| ≤ b) :
+    errAt p q j' ≤ 4129 / 4096 * errAt p q j + a / 128 + b / 4096 + 1 / 2 ^ 126 := by
+  subst hj
+  rw [errAt_succ, rho_eq, sigma_eq, alpha_eq]
+  linarith
+
+/-- Chunks whose partial sums and lifted products are all `0` only grow the bound by
+`(1 + ρ + σ)` and `α`. -/
+theorem errAt_quiet (p q : Nat → ℚ) (j0 : Nat) : ∀ n : Nat,
+    (∀ j, j0 ≤ j → j < j0 + n → partSum p j = 0 ∧ partSum p (j + 1) = 0 ∧ chunkMax q j ≤ 0) →
+    errAt p q (j0 + n) ≤ (4129 / 4096) ^ n * (errAt p q j0 + n / 2 ^ 126)
   | 0, _ => by simp
   | n + 1, h => by
-    have ih := errAt_quiet p t0 n (fun t h1 h2 => h t h1 (by omega))
-    have hz := h (t0 + n) (by omega) (by omega)
-    have hρ : (0 : ℚ) ≤ Rules.Num.relDot8 64 := by rw [relDot8_64]; norm_num
-    have hα : (0 : ℚ) ≤ Rules.Num.absDot8 64 := by rw [absDot8_64]; norm_num
-    have hE := errAt_nonneg p t0
-    have hP1 : (1 : ℚ) ≤ (1 + Rules.Num.relDot8 64) ^ (n + 1) := one_le_pow₀ (by linarith)
-    have e : errAt p (t0 + (n + 1)) = (1 + Rules.Num.relDot8 64) * errAt p (t0 + n) +
-        Rules.Num.relDot8 64 * (|partSum p (t0 + n)| + stepMag p (t0 + n)) + Rules.Num.absDot8 64 := rfl
-    rw [e, hz, mul_zero, add_zero]
-    have h1 := mul_le_mul_of_nonneg_left ih (show (0 : ℚ) ≤ 1 + Rules.Num.relDot8 64 by linarith)
-    have h2 : Rules.Num.absDot8 64 ≤ (1 + Rules.Num.relDot8 64) ^ (n + 1) * Rules.Num.absDot8 64 := by
-      nlinarith
-    have h3 : (1 + Rules.Num.relDot8 64) * ((1 + Rules.Num.relDot8 64) ^ n *
-        (errAt p t0 + n * Rules.Num.absDot8 64)) = (1 + Rules.Num.relDot8 64) ^ (n + 1) *
-        (errAt p t0 + n * Rules.Num.absDot8 64) := by ring
-    have h4 : (1 + Rules.Num.relDot8 64) ^ (n + 1) * (errAt p t0 + ((n + 1 : Nat) : ℚ) * Rules.Num.absDot8 64) =
-        (1 + Rules.Num.relDot8 64) ^ (n + 1) * (errAt p t0 + n * Rules.Num.absDot8 64) +
-          (1 + Rules.Num.relDot8 64) ^ (n + 1) * Rules.Num.absDot8 64 := by push_cast; ring
-    rw [h4]
+    have ih := errAt_quiet p q j0 n (fun j h1 h2 => h j h1 (by omega))
+    obtain ⟨h1, h2, h3⟩ := h (j0 + n) (by omega) (by omega)
+    have hs := errAt_succ_le p q (j := j0 + n) (j' := j0 + (n + 1)) (by ring) (a := 0) (b := 0)
+      (by rw [h1, abs_zero]; exact max_le le_rfl h3) (by rw [show j0 + (n + 1) = j0 + n + 1 by ring,
+        h2, abs_zero])
+    have hE := errAt_nonneg p q j0
+    have hP1 : (1 : ℚ) ≤ (4129 / 4096) ^ (n + 1) := one_le_pow₀ (by norm_num)
+    have hm := mul_le_mul_of_nonneg_left ih (show (0 : ℚ) ≤ 4129 / 4096 by norm_num)
+    have e : (4129 / 4096 : ℚ) * ((4129 / 4096) ^ n * (errAt p q j0 + n / 2 ^ 126)) =
+        (4129 / 4096) ^ (n + 1) * (errAt p q j0 + n / 2 ^ 126) := by ring
+    have e2 : (1 / 2 ^ 126 : ℚ) ≤ (4129 / 4096) ^ (n + 1) * (1 / 2 ^ 126) :=
+      le_mul_of_one_le_left (by norm_num) hP1
+    have e3 : (4129 / 4096 : ℚ) ^ (n + 1) * (errAt p q j0 + ((n + 1 : Nat) : ℚ) / 2 ^ 126) =
+        (4129 / 4096) ^ (n + 1) * (errAt p q j0 + n / 2 ^ 126) +
+          (4129 / 4096) ^ (n + 1) * (1 / 2 ^ 126) := by push_cast; ring
+    rw [e3]
     linarith
 
 /-! ## The inputs -/
@@ -158,6 +181,13 @@ theorem mone8_fin : mone8.isFinite = true := by decide
 
 theorem zero8_fin : zero8.isFinite = true := by decide
 
+/-- `1` and `-1` are normal: their lifted magnitude is `1`. -/
+theorem liftMag_one : Rules.Num.liftMag .f8e5 1 = 1 := by
+  norm_num [Rules.Num.liftMag, Rules.Num.minNormal8]
+
+theorem liftMag_mone : Rules.Num.liftMag .f8e5 (-1) = 1 := by
+  norm_num [Rules.Num.liftMag, Rules.Num.minNormal8]
+
 /-- A row (or column) with `x` at index `e` and `+0` elsewhere. -/
 def spike8 (e : Nat) (x : F8E5) : Nat → F8E5 := fun k => if k = e then x else zero8
 
@@ -189,6 +219,16 @@ theorem prodV_spike8 {e K : Nat} (he : e < K) (x y : F8E5) :
     simp [he]
   · simp [hk, zero8_val]
 
+theorem liftV_spike8 {e K : Nat} (he : e < K) (x y : F8E5) :
+    liftV (spike8 e x) (spike8 e y) K =
+      spikeP e (Rules.Num.liftMag .f8e5 x.toRat * Rules.Num.liftMag .f8e5 y.toRat) := by
+  funext k
+  unfold liftV spike8 spikeP
+  by_cases hk : k = e
+  · subst hk
+    simp [he]
+  · simp [hk, zero8_val, Dot8Chunk.liftMag_zero]
+
 theorem prodV_pair8 {e1 e2 K : Nat} (h1 : e1 < K) (h2 : e2 < K) (hne : e1 ≠ e2) :
     prodV (pair8 e1 e2) ones8 K = pairP e1 e2 := by
   funext k
@@ -201,46 +241,81 @@ theorem prodV_pair8 {e1 e2 K : Nat} (h1 : e1 < K) (h2 : e2 < K) (hne : e1 ≠ e2
       simp [h2, hk1, one8_val, mone8_val]
     · simp [hk1, hk2, zero8_val]
 
-/-! ## One product in the last step -/
+theorem liftV_pair8 {e1 e2 K : Nat} (h1 : e1 < K) (h2 : e2 < K) (hne : e1 ≠ e2) :
+    liftV (pair8 e1 e2) ones8 K = pairL e1 e2 := by
+  funext k
+  unfold liftV pair8 ones8 pairL spikeP
+  by_cases hk1 : k = e1
+  · subst hk1
+    simp [h1, hne, one8_val, liftMag_one]
+  · by_cases hk2 : k = e2
+    · subst hk2
+      simp [h2, hk1, one8_val, mone8_val, liftMag_one, liftMag_mone]
+    · simp [hk1, hk2, zero8_val, Dot8Chunk.liftMag_zero]
+
+/-! ## One product at index `K − 1` -/
 
 theorem steps_last {K : Nat} (hK1 : 1 ≤ K) {n : Nat} (hn : steps K = n + 1) :
     64 * n ≤ K - 1 ∧ K - 1 < 64 * n + 64 := by
   unfold steps at hn; omega
 
 /-- **One product `X = x·y` at index `K − 1`** (the loop's last step): the bound is at most
-`ρ·|X| + 200·α`, about `1.57%` of `|X|`, at every covered `K`. -/
+`((1 + ρ + σ)^2 − 1)·L + 400·α = 271425·2^-24·L + 400·2^-126`, `L = liftMag x · liftMag y`, about
+`1.62%` of `L` (of `|X|` for normal `x`, `y`), at every covered `K`. Before the chunk `J` of index
+`K − 1` nothing is added; chunk `J` adds `ρ·L + σ·|X|`; the loop's last chunk, when it is not `J`
+(it is all disabled lanes), adds `(ρ + σ)·|X|` more. -/
 theorem tol_spike {K : Nat} (hK1 : 1 ≤ K) (hK : K ≤ 2 ^ 12) (x y : F8E5) :
     tol (spike8 (K - 1) x) (spike8 (K - 1) y) K ≤
-      Rules.Num.relDot8 64 * |x.toRat * y.toRat| + 200 * Rules.Num.absDot8 64 := by
-  obtain ⟨n, hn⟩ : ∃ n, steps K = n + 1 := ⟨steps K - 1, by unfold steps; omega⟩
-  have hl := steps_last hK1 hn
-  have hn64 : n ≤ 64 := by unfold steps at hn; omega
+      271425 / 2 ^ 24 * (Rules.Num.liftMag .f8e5 x.toRat * Rules.Num.liftMag .f8e5 y.toRat) +
+        400 / 2 ^ 126 := by
+  have hL0 : 0 ≤ Rules.Num.liftMag .f8e5 x.toRat * Rules.Num.liftMag .f8e5 y.toRat :=
+    mul_nonneg (Dot8Chunk.liftMag_nonneg _ _) (Dot8Chunk.liftMag_nonneg _ _)
+  have hXL : |x.toRat * y.toRat| ≤ Rules.Num.liftMag .f8e5 x.toRat * Rules.Num.liftMag .f8e5 y.toRat :=
+    Dot8Chunk.abs_mul_le_liftMag _ _ _ _
   unfold tol
-  rw [prodV_spike8 (by omega), hn]
-  set p := spikeP (K - 1) (x.toRat * y.toRat)
-  have e : errAt p (n + 1) = (1 + Rules.Num.relDot8 64) * errAt p n +
-      Rules.Num.relDot8 64 * (|partSum p n| + stepMag p n) + Rules.Num.absDot8 64 := rfl
-  rw [e, partSum_spikeP, stepMag_spikeP, ite_eq_right (by omega), ite_eq_left (by omega), abs_zero, zero_add]
-  have hq := errAt_quiet p 0 n (fun t _ ht => by
-    rw [partSum_spikeP, stepMag_spikeP, ite_eq_right (by omega), ite_eq_right (by omega)]
-    simp)
-  have h0 : errAt p 0 = 0 := rfl
-  rw [zero_add, h0, zero_add] at hq
-  have hρ : (0 : ℚ) ≤ Rules.Num.relDot8 64 := by rw [relDot8_64]; norm_num
-  have hα : (0 : ℚ) ≤ Rules.Num.absDot8 64 := by rw [absDot8_64]; norm_num
-  have hP := pow_rho_le hn64
-  have hn' : (n : ℚ) ≤ 64 := by exact_mod_cast hn64
-  have hE : errAt p n ≤ 3 * (64 * Rules.Num.absDot8 64) :=
-    hq.trans (mul_le_mul hP (mul_le_mul_of_nonneg_right hn' hα) (by positivity) (by norm_num))
-  rw [absDot8_64] at hE
-  rw [relDot8_64, absDot8_64]
-  linarith
+  rw [prodV_spike8 (by omega), liftV_spike8 (by omega)]
+  set L := Rules.Num.liftMag .f8e5 x.toRat * Rules.Num.liftMag .f8e5 y.toRat with hL
+  set p := spikeP (K - 1) (x.toRat * y.toRat) with hp
+  set q := spikeP (K - 1) L with hq
+  obtain ⟨J, hJ⟩ : ∃ J, J = (K - 1) / 32 := ⟨_, rfl⟩
+  have hJ1 : 32 * J ≤ K - 1 ∧ K - 1 < 32 * J + 32 := by omega
+  have hJn : J + 1 = 2 * steps K ∨ J + 2 = 2 * steps K := by unfold steps; omega
+  have hJ128 : J ≤ 128 := by omega
+  -- chunks before `J`: nothing
+  have hq0 := errAt_quiet p q 0 J (fun j _ hj =>
+    ⟨by rw [hp, partSum_spikeP, ite_eq_right (by omega)],
+      by rw [hp, partSum_spikeP, ite_eq_right (by omega)], chunkMax_spikeP_out _ (by omega)⟩)
+  rw [zero_add] at hq0
+  have h00 : errAt p q 0 = 0 := rfl
+  rw [h00, zero_add] at hq0
+  have hP := pow_q_le hJ128
+  have hJ' : (J : ℚ) / 2 ^ 126 ≤ 128 / 2 ^ 126 := by
+    have : (J : ℚ) ≤ 128 := by exact_mod_cast hJ128
+    linarith
+  have hEJ : errAt p q J ≤ 3 * (128 / 2 ^ 126) :=
+    hq0.trans (mul_le_mul hP hJ' (by positivity) (by norm_num))
+  -- chunk `J`: the product
+  have hS1 : |partSum p (J + 1)| ≤ L := by
+    rw [hp, partSum_spikeP, ite_eq_left (by omega)]; exact hXL
+  have hm : max |partSum p J| (chunkMax q J) ≤ L := by
+    rw [hp, partSum_spikeP, ite_eq_right (by omega), abs_zero]
+    exact max_le hL0 (chunkMax_spikeP_le hL0 J)
+  have hJs := errAt_succ_le p q rfl hm hS1
+  rcases hJn with h | h
+  · rw [← h]
+    linarith
+  · rw [← h]
+    have hS2 : |partSum p (J + 2)| ≤ L := by
+      rw [hp, partSum_spikeP, ite_eq_left (by omega)]; exact hXL
+    have hm2 : max |partSum p (J + 1)| (chunkMax q (J + 1)) ≤ L :=
+      max_le hS1 ((chunkMax_spikeP_out _ (by omega)).trans hL0)
+    have hJs2 := errAt_succ_le p q (j := J + 1) (j' := J + 2) rfl hm2 hS2
+    linarith
 
 theorem dotSum_spike {K : Nat} (hK1 : 1 ≤ K) (x y : F8E5) :
     dotSum (spike8 (K - 1) x) (spike8 (K - 1) y) K = x.toRat * y.toRat := by
-  have h := (partS_end (spike8 (K - 1) x) (spike8 (K - 1) y) (K := K) (T := steps K)
-    (by unfold steps; omega)).1
-  rw [← h]
+  rw [← partS_end (spike8 (K - 1) x) (spike8 (K - 1) y) (K := K) (T := steps K)
+    (by unfold steps; omega)]
   unfold partS
   rw [prodV_spike8 (by omega), partSum_spikeP, ite_eq_left (by unfold steps; omega)]
 
@@ -258,8 +333,8 @@ theorem zero_rejected {K : Nat} (hK1 : 1 ≤ K) (hK : K ≤ 2 ^ 12) :
   refine ⟨spike8 (K - 1) one8, spike8 (K - 1) one8, spike8_fin one8_fin, spike8_fin one8_fin, ?_⟩
   have hS := dotSum_spike hK1 one8 one8
   have ht := tol_spike hK1 hK one8 one8
-  have ht0 : 0 ≤ tol (spike8 (K - 1) one8) (spike8 (K - 1) one8) K := errAt_nonneg _ _
-  rw [one8_val, mul_one, abs_one, mul_one, relDot8_64, absDot8_64] at ht
+  have ht0 : 0 ≤ tol (spike8 (K - 1) one8) (spike8 (K - 1) one8) K := errAt_nonneg _ _ _
+  rw [one8_val, liftMag_one, mul_one] at ht
   rw [one8_val, mul_one] at hS
   rw [hS, Math.Float.Format.binary16_maxVal, Math.Float.Format.binary16_u, Math.Float.Format.binary16_eta]
   have hu : (2 : ℚ) ^ (-11 : ℤ) = 1 / 2048 := by norm_num
@@ -287,78 +362,79 @@ theorem drop_rejected {K s : Nat} (hK : K ≤ 2 ^ 12) (hs : s < steps K) :
     rw [Math.Float.Format.binary16_u]; norm_num
   have he : Math.Float.Format.binary16.eta = 1 / 33554432 := by
     rw [Math.Float.Format.binary16_eta]; norm_num
-  have hρ : (0 : ℚ) ≤ Rules.Num.relDot8 64 := by rw [relDot8_64]; norm_num
-  have hα : (0 : ℚ) ≤ Rules.Num.absDot8 64 := by rw [absDot8_64]; norm_num
   rcases Nat.lt_or_ge (s + 1) (steps K) with hlt | hge
   · -- an earlier step: `1` at `64·s`, `-1` at `64·s + 64`
     have hT : 64 * s + 64 < K := by unfold steps at hlt; omega
     refine ⟨pair8 (64 * s) (64 * s + 64), ones8, pair8_fin _ _, fun _ => one8_fin, ?_⟩
     have hne : 64 * s ≠ 64 * s + 64 := by omega
     have hp := prodV_pair8 (K := K) (by omega) hT hne
-    set p := pairP (64 * s) (64 * s + 64)
+    have hl := liftV_pair8 (K := K) (by omega) hT hne
+    set p := pairP (64 * s) (64 * s + 64) with hpdef
+    set q := pairL (64 * s) (64 * s + 64) with hqdef
     have hS : dotSum (pair8 (64 * s) (64 * s + 64)) ones8 K = 0 := by
-      have h := (partS_end (pair8 (64 * s) (64 * s + 64)) ones8 (K := K) (T := steps K)
-        (by unfold steps; omega)).1
-      rw [← h]
+      rw [← partS_end (pair8 (64 * s) (64 * s + 64)) ones8 (K := K) (T := steps K)
+        (by unfold steps; omega)]
       unfold partS
-      rw [hp, partSum_pairP, partSum_spikeP, partSum_spikeP, ite_eq_left (by omega),
-        ite_eq_left (by omega)]
+      rw [hp, partSum_pairP, partSum_spikeP, partSum_spikeP, ite_eq_left (by unfold steps; omega),
+        ite_eq_left (by unfold steps; omega)]
       norm_num
     have hX : stepSum (prodV (pair8 (64 * s) (64 * s + 64)) ones8 K) s = 1 := by
       rw [hp, stepSum_pairP, stepSum_spikeP, stepSum_spikeP, ite_eq_left (by omega),
         ite_eq_right (by omega)]
       norm_num
-    -- the bound, step by step
-    have hlo : ∀ t, 0 ≤ t → t < 0 + s → |partSum p t| + stepMag p t = 0 := fun t _ ht => by
-      rw [partSum_pairP, partSum_spikeP, partSum_spikeP, stepMag_pairP hne, stepMag_spikeP,
-        stepMag_spikeP, ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
-        ite_eq_right (by omega)]
-      norm_num
-    have hat : |partSum p s| + stepMag p s = 1 := by
-      rw [partSum_pairP, partSum_spikeP, partSum_spikeP, stepMag_pairP hne, stepMag_spikeP,
-        stepMag_spikeP, ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left (by omega),
-        ite_eq_right (by omega)]
-      norm_num
-    have hat1 : |partSum p (s + 1)| + stepMag p (s + 1) = 2 := by
-      rw [partSum_pairP, partSum_spikeP, partSum_spikeP, stepMag_pairP hne, stepMag_spikeP,
-        stepMag_spikeP, ite_eq_left (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
-        ite_eq_left (by omega)]
-      norm_num
-    obtain ⟨n, hn⟩ : ∃ n, steps K = s + 2 + n := ⟨steps K - (s + 2), by omega⟩
-    have hhi : ∀ t, s + 2 ≤ t → t < s + 2 + n → |partSum p t| + stepMag p t = 0 := fun t ht _ => by
-      rw [partSum_pairP, partSum_spikeP, partSum_spikeP, stepMag_pairP hne, stepMag_spikeP,
-        stepMag_spikeP, ite_eq_left (by omega), ite_eq_left (by omega), ite_eq_right (by omega),
-        ite_eq_right (by omega)]
-      norm_num
+    -- the partial sums and largest lifted products at each chunk
+    have hps : ∀ j, partSum p j =
+        (if 64 * s < 32 * j then 1 else 0) + (if 64 * s + 64 < 32 * j then -1 else 0) := fun j => by
+      rw [hpdef, partSum_pairP, partSum_spikeP, partSum_spikeP]
+    have hp0 : ∀ j, j ≤ 2 * s → partSum p j = 0 := fun j hj => by
+      rw [hps, ite_eq_right (by omega), ite_eq_right (by omega)]; norm_num
+    have hp1 : partSum p (2 * s + 1) = 1 := by
+      rw [hps, ite_eq_left (by omega), ite_eq_right (by omega)]; norm_num
+    have hp2 : partSum p (2 * s + 2) = 1 := by
+      rw [hps, ite_eq_left (by omega), ite_eq_right (by omega)]; norm_num
+    have hp3 : ∀ j, 2 * s + 3 ≤ j → partSum p j = 0 := fun j hj => by
+      rw [hps, ite_eq_left (by omega), ite_eq_left (by omega)]; norm_num
+    have hq1 : ∀ j, chunkMax q j ≤ 1 := chunkMax_pairL_le hne
+    have hqo : ∀ j, j ≠ 2 * s → j ≠ 2 * s + 2 → chunkMax q j ≤ 0 := fun j h1 h2 =>
+      chunkMax_pairL_out (by omega) (by omega)
+    obtain ⟨n, hn⟩ : ∃ n, 2 * steps K = 2 * s + 3 + n := ⟨2 * steps K - (2 * s + 3), by omega⟩
     have hTle : steps K ≤ 64 := by unfold steps; omega
-    have hq0 := errAt_quiet p 0 s hlo
-    have h0 : errAt p 0 = 0 := rfl
-    rw [zero_add, h0, zero_add] at hq0
-    have hq2 := errAt_quiet p (s + 2) n hhi
-    have e1 : errAt p (s + 1) = (1 + Rules.Num.relDot8 64) * errAt p s +
-        Rules.Num.relDot8 64 * (|partSum p s| + stepMag p s) + Rules.Num.absDot8 64 := rfl
-    have e2 : errAt p (s + 2) = (1 + Rules.Num.relDot8 64) * errAt p (s + 1) +
-        Rules.Num.relDot8 64 * (|partSum p (s + 1)| + stepMag p (s + 1)) + Rules.Num.absDot8 64 := rfl
-    rw [hat] at e1
-    rw [hat1] at e2
-    have hPs := pow_rho_le (t := s) (by omega)
-    have hPn := pow_rho_le (t := n) (by omega)
-    have hs' : (s : ℚ) ≤ 64 := by exact_mod_cast (show s ≤ 64 by omega)
-    have hn' : (n : ℚ) ≤ 64 := by exact_mod_cast (show n ≤ 64 by omega)
-    have hEs : errAt p s ≤ 3 * (64 * Rules.Num.absDot8 64) :=
-      hq0.trans (mul_le_mul hPs (mul_le_mul_of_nonneg_right hs' hα) (by positivity) (by norm_num))
-    have hE0 := errAt_nonneg p (s + 2)
-    have hEn : errAt p (s + 2 + n) ≤ 3 * (errAt p (s + 2) + 64 * Rules.Num.absDot8 64) :=
-      hq2.trans (mul_le_mul hPn (by linarith [mul_le_mul_of_nonneg_right hn' hα]) (by positivity)
-        (by norm_num))
-    have htol : tol (pair8 (64 * s) (64 * s + 64)) ones8 K = errAt p (s + 2 + n) := by
-      unfold tol; rw [hp, hn]
-    have ht0 := errAt_nonneg p (s + 2 + n)
+    -- the chunks before `2·s`: nothing
+    have hq0 := errAt_quiet p q 0 (2 * s) (fun j _ hj =>
+      ⟨hp0 j (by omega), hp0 (j + 1) (by omega), hqo j (by omega) (by omega)⟩)
+    rw [zero_add] at hq0
+    have h00 : errAt p q 0 = 0 := rfl
+    rw [h00, zero_add] at hq0
+    have hPs := pow_q_le (j := 2 * s) (by omega)
+    have hs' : ((2 * s : Nat) : ℚ) / 2 ^ 126 ≤ 128 / 2 ^ 126 := by
+      have : ((2 * s : Nat) : ℚ) ≤ 128 := by exact_mod_cast (show 2 * s ≤ 128 by omega)
+      linarith
+    have hE0 : errAt p q (2 * s) ≤ 3 * (128 / 2 ^ 126) :=
+      hq0.trans (mul_le_mul hPs hs' (by positivity) (by norm_num))
+    -- chunks `2·s` (the `1`), `2·s + 1`, `2·s + 2` (the `-1`)
+    have e1 := errAt_succ_le p q (j := 2 * s) (j' := 2 * s + 1) rfl (a := 1) (b := 1)
+      (by rw [hp0 _ le_rfl, abs_zero]; exact max_le zero_le_one (hq1 _)) (by rw [hp1, abs_one])
+    have e2 := errAt_succ_le p q (j := 2 * s + 1) (j' := 2 * s + 2) rfl (a := 1) (b := 1)
+      (by rw [hp1, abs_one]; exact max_le le_rfl ((hqo _ (by omega) (by omega)).trans zero_le_one))
+      (by rw [hp2, abs_one])
+    have e3 := errAt_succ_le p q (j := 2 * s + 2) (j' := 2 * s + 3) rfl (a := 1) (b := 0)
+      (by rw [hp2, abs_one]; exact max_le le_rfl (hq1 _)) (by rw [hp3 _ le_rfl, abs_zero])
+    -- the chunks after: nothing
+    have hq2 := errAt_quiet p q (2 * s + 3) n (fun j hj _ =>
+      ⟨hp3 j hj, hp3 (j + 1) (by omega), hqo j (by omega) (by omega)⟩)
+    have hPn := pow_q_le (j := n) (by omega)
+    have hn' : (n : ℚ) / 2 ^ 126 ≤ 128 / 2 ^ 126 := by
+      have : (n : ℚ) ≤ 128 := by exact_mod_cast (show n ≤ 128 by omega)
+      linarith
+    have hE3 := errAt_nonneg p q (2 * s + 3)
+    have hEn : errAt p q (2 * s + 3 + n) ≤ 3 * (errAt p q (2 * s + 3) + 128 / 2 ^ 126) :=
+      hq2.trans (mul_le_mul hPn (by linarith) (by positivity) (by norm_num))
+    have htol : tol (pair8 (64 * s) (64 * s + 64)) ones8 K = errAt p q (2 * s + 3 + n) := by
+      unfold tol; rw [hp, hl, hn]
+    have ht0 := errAt_nonneg p q (2 * s + 3 + n)
     rw [hS, hX, htol, Math.Float.Format.binary16_maxVal, hu, he]
-    rw [relDot8_64, absDot8_64] at e1 e2
-    rw [absDot8_64] at hEs hEn
-    have hb : errAt p (s + 2 + n) < 1 / 5 := by
-      have hE1 := errAt_nonneg p s
+    have hb : errAt p q (2 * s + 3 + n) < 1 / 5 := by
+      have hE1 := errAt_nonneg p q (2 * s)
       linarith
     constructor
     · rw [abs_zero]; linarith
@@ -370,11 +446,11 @@ theorem drop_rejected {K s : Nat} (hK : K ≤ 2 ^ 12) (hs : s < steps K) :
     refine ⟨spike8 (K - 1) one8, spike8 (K - 1) one8, spike8_fin one8_fin, spike8_fin one8_fin, ?_⟩
     have hS := dotSum_spike hK1 one8 one8
     have ht := tol_spike hK1 hK one8 one8
-    have ht0 : 0 ≤ tol (spike8 (K - 1) one8) (spike8 (K - 1) one8) K := errAt_nonneg _ _
+    have ht0 : 0 ≤ tol (spike8 (K - 1) one8) (spike8 (K - 1) one8) K := errAt_nonneg _ _ _
     have hl := steps_last hK1 hsT.symm
     have hX : stepSum (prodV (spike8 (K - 1) one8) (spike8 (K - 1) one8) K) s = 1 := by
       rw [prodV_spike8 (by omega), stepSum_spikeP, ite_eq_left (by omega), one8_val, mul_one]
-    rw [one8_val, mul_one, abs_one, mul_one, relDot8_64, absDot8_64] at ht
+    rw [one8_val, liftMag_one, mul_one] at ht
     rw [one8_val, mul_one] at hS
     rw [hS, hX, Math.Float.Format.binary16_maxVal, hu, he]
     constructor

@@ -10,7 +10,8 @@ and the fp8 rounding of `p`. These lemmas bound it without comparing `p` with th
 * `lminB`, `lmin_real`: `l_i ≥ 1 − 2^-9 − t/2^12` after `t ≥ 1` blocks (the lane that sets the
   running maximum has `p ≈ 1` (`p_big`), and a kept maximum has `alpha ≈ 1`);
 * `lane_pq`, `lane_E`: one lane's `p`, its fp8 rounding `q`, and `q·v − r·p`;
-* `estep_real`: one block of `|acc − r·l_i| ≤ A·l_i + D` (`Model.magNext`, `Model.magD`);
+* `estep_real`: one block of `|acc − r·l_i| ≤ A·l_i + D` (`Model.magNext`, `Model.magD`), with the
+  `p·v` `tl.dot`'s error in the form `Row.mag_tail` gives it from the chunk facts;
 * `final_v`: the end of a row (lines 242, 245) from that bound; `ref_le`: `|attnRef| ≤ 57344`.
 -/
 
@@ -221,14 +222,18 @@ theorem lane_E {q p v r K : ℝ} {al : Bool} (hK : 0 ≤ K)
 
 /-! ## `magA`, `magD` -/
 
-theorem rho8_nonneg : (0 : ℝ) ≤ (rho8 : ℝ) := by rw [rho8_r]; unfold rho8r; positivity
+theorem iotaV_nonneg {K R : ℝ} (hK : 0 ≤ K) (hR : 0 ≤ R) : 0 ≤ iotaV K R :=
+  le_min zero_le_one (by positivity)
+
+theorem iotaV_le_one (K R : ℝ) : iotaV K R ≤ 1 := min_le_left _ _
 
 theorem magA_nonneg {K R : ℝ} (hK : 0 ≤ K) (hR : 0 ≤ R) : ∀ t, 0 ≤ magA K R t
   | 0 => le_rfl
   | t + 1 => by
     show 0 ≤ magNext K R (magA K R t)
+    have := iotaV_nonneg hK hR
     unfold magNext magCp
-    rw [rho8_r]; unfold rho8r
+    rw [cS8_r, cP8_r]
     exact le_max_of_le_right (div_nonneg (by positivity) (by norm_num))
 
 theorem magD_nonneg {K R : ℝ} (hK : 0 ≤ K) (hR : 0 ≤ R) : ∀ t, 0 ≤ magD K R t
@@ -236,9 +241,11 @@ theorem magD_nonneg {K R : ℝ} (hK : 0 ≤ K) (hR : 0 ≤ R) : ∀ t, 0 ≤ mag
   | t + 1 => by
     have h1 := magD_nonneg hK hR t
     have h2 := magA_nonneg hK hR (t + 1)
-    show 0 ≤ (1 + (rho8 : ℝ)) * (1 + 1 / 2 ^ 24) * (1 + 1 / 2 ^ 12) * magD K R t +
-      (K + R) * (1 + (rho8 : ℝ)) / 2 ^ 11 + (magA K R (t + 1) + R + 1) / 2 ^ 80
-    rw [rho8_r]; unfold rho8r
+    have := iotaV_nonneg hK hR
+    show 0 ≤ (1 + (cS8 : ℝ)) * (1 + 1 / 2 ^ 24) * (1 + 1 / 2 ^ 12) * magD K R t +
+      (K + R) * (1 + (cS8 : ℝ)) / 2 ^ 11 + (cP8 : ℝ) * iotaV K R * (K + R + 1 / 2 ^ 13) / 2 ^ 8 +
+      (magA K R (t + 1) + R + 1) / 2 ^ 80
+    rw [cS8_r, cP8_r]
     positivity
 
 /-! ## One block of `acc − r·l_i` -/
@@ -255,39 +262,44 @@ theorem estep_real {a a1 a' l l' α lij r K A D : ℝ} {q p v : Fin 64 → ℝ}
     (hqv : ∀ jj, |q jj * v jj| ≤ (K + |r|) * (9 / 8 * |p jj| + 1 / 2 ^ 17))
     (hE : |α| * |a - r * l| ≤ |α| * A * l + (1 + 1 / 2 ^ 12) * D)
     (ha1 : |a1 - a * α| ≤ |a * α| / 2 ^ 24 + 1 / 2 ^ 150)
-    (hdot : |a' - (a1 + ∑ jj, q jj * v jj)| ≤ rho8r * (|a1| + ∑ jj, |q jj * v jj|) + 16641 / 2 ^ 139)
+    (hdot : |a' - (a1 + ∑ jj, q jj * v jj)| ≤ (cS8 : ℝ) * (|a1| + ∑ jj, |q jj * v jj|) +
+      (cP8 : ℝ) * iotaV K |r| * (9 / 8 * ∑ jj, |p jj| + 64 * (K + |r| + 1 / 2 ^ 13)) / 2 ^ 14 + (cA8 : ℝ))
     (hlij : |lij - ∑ jj, p jj| ≤ gamr * ∑ jj, |p jj| + 63 / 2 ^ 150 * (1 + 1 / 2 ^ 24) ^ 63)
     (hl' : |l' - (l * α + lij)| ≤ 3 * (|l * α| + |lij|) / 2 ^ 24 + 4 / 2 ^ 150) :
     |a' - r * l'| ≤ magNext K |r| A * l' +
-      ((1 + (rho8 : ℝ)) * (1 + 1 / 2 ^ 24) * (1 + 1 / 2 ^ 12) * D + (K + |r|) * (1 + (rho8 : ℝ)) / 2 ^ 11 +
-        (magNext K |r| A + |r| + 1) / 2 ^ 80) := by
+      ((1 + (cS8 : ℝ)) * (1 + 1 / 2 ^ 24) * (1 + 1 / 2 ^ 12) * D + (K + |r|) * (1 + (cS8 : ℝ)) / 2 ^ 11 +
+        (cP8 : ℝ) * iotaV K |r| * (K + |r| + 1 / 2 ^ 13) / 2 ^ 8 + (magNext K |r| A + |r| + 1) / 2 ^ 80) := by
   have hM1 := le_max_left
-    (((1 + (rho8 : ℝ)) * (1 + 1 / 2 ^ 24) * A + |r| * (4 / 2 ^ 24 + (rho8 : ℝ) * (1 + 1 / 2 ^ 24))) /
+    (((1 + (cS8 : ℝ)) * (1 + 1 / 2 ^ 24) * A + |r| * (4 / 2 ^ 24 + (cS8 : ℝ) * (1 + 1 / 2 ^ 24))) /
       (1 - 3 / 2 ^ 24))
     (magCp K |r| / (1 - 1 / 2 ^ 17 - 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24))
   have hM2 := le_max_right
-    (((1 + (rho8 : ℝ)) * (1 + 1 / 2 ^ 24) * A + |r| * (4 / 2 ^ 24 + (rho8 : ℝ) * (1 + 1 / 2 ^ 24))) /
+    (((1 + (cS8 : ℝ)) * (1 + 1 / 2 ^ 24) * A + |r| * (4 / 2 ^ 24 + (cS8 : ℝ) * (1 + 1 / 2 ^ 24))) /
       (1 - 3 / 2 ^ 24))
     (magCp K |r| / (1 - 1 / 2 ^ 17 - 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24))
   rw [← magNext] at hM1 hM2
   unfold magCp at hM2
-  rw [rho8_r] at hM1 hM2 ⊢
+  simp only [cS8_r, cP8_r] at hM1 hM2 ⊢
+  rw [cS8_r, cP8_r, cA8_r] at hdot
+  have hι0 : 0 ≤ iotaV K |r| := iotaV_nonneg hK (abs_nonneg r)
+  have hι1 := iotaV_le_one K |r|
+  generalize iotaV K |r| = ι at hι0 hι1 hM2 hdot ⊢
   generalize magNext K |r| A = M at hM1 hM2 ⊢
   set R := |r| with hRd
   have hR0 : 0 ≤ R := abs_nonneg r
-  have hρ : rho8r = 257 / 2 ^ 14 := rfl
-  rw [hρ] at hdot hM1 hM2 ⊢
   -- `M` against its two parts
-  have hM1' : (1 + 257 / 2 ^ 14) * (1 + 1 / 2 ^ 24) * A + R * (4 / 2 ^ 24 + 257 / 2 ^ 14 * (1 + 1 / 2 ^ 24)) ≤
+  have hM1' : (1 + 271425 / 2 ^ 24) * (1 + 1 / 2 ^ 24) * A + R * (4 / 2 ^ 24 + 271425 / 2 ^ 24 * (1 + 1 / 2 ^ 24)) ≤
       M * (1 - 3 / 2 ^ 24) := by
     rw [div_le_iff₀ (by norm_num)] at hM1; exact hM1
-  have hM2' : 9 / 8 * K * (1 + 257 / 2 ^ 14) +
-      R * (9 / 8 * (257 / 2 ^ 14) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) ≤
+  have hM2' : 9 / 8 * K * (1 + 271425 / 2 ^ 24) +
+      R * (9 / 8 * (271425 / 2 ^ 24) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) +
+      9 / 8 * (132128 / 2 ^ 24) * ι / 2 ^ 14 ≤
       M * (1 - 1 / 2 ^ 17 - 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) := by
     rw [div_le_iff₀ (by norm_num)] at hM2; exact hM2
   have hM0 : 0 ≤ M := by
-    have : 0 ≤ 9 / 8 * K * (1 + 257 / 2 ^ 14) +
-        R * (9 / 8 * (257 / 2 ^ 14) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) := by positivity
+    have : 0 ≤ 9 / 8 * K * (1 + 271425 / 2 ^ 24) +
+        R * (9 / 8 * (271425 / 2 ^ 24) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) +
+        9 / 8 * (132128 / 2 ^ 24) * ι / 2 ^ 14 := by positivity
     nlinarith
   -- the atoms
   set S := ∑ jj, |p jj| with hSd
@@ -376,12 +388,13 @@ theorem estep_real {a a1 a' l l' α lij r K A D : ℝ} {q p v : Fin 64 → ℝ}
   have hT1 := hdot
   have hT2 := ha1
   -- combine
-  have hsum : |a' - r * l'| ≤ ((1 + 257 / 2 ^ 14) * (1 + 1 / 2 ^ 24) * A +
-      R * (4 / 2 ^ 24 + 257 / 2 ^ 14 * (1 + 1 / 2 ^ 24))) * X +
-      (9 / 8 * K * (1 + 257 / 2 ^ 14) +
-        R * (9 / 8 * (257 / 2 ^ 14) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24)) * S +
-      ((1 + 257 / 2 ^ 14) * (1 + 1 / 2 ^ 24) * (1 + 1 / 2 ^ 12) * D + (K + R) * (1 + 257 / 2 ^ 14) / 2 ^ 11 +
-        (R + 1) / 2 ^ 120) := by
+  have hsum : |a' - r * l'| ≤ ((1 + 271425 / 2 ^ 24) * (1 + 1 / 2 ^ 24) * A +
+      R * (4 / 2 ^ 24 + 271425 / 2 ^ 24 * (1 + 1 / 2 ^ 24))) * X +
+      (9 / 8 * K * (1 + 271425 / 2 ^ 24) +
+        R * (9 / 8 * (271425 / 2 ^ 24) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) +
+        9 / 8 * (132128 / 2 ^ 24) * ι / 2 ^ 14) * S +
+      ((1 + 271425 / 2 ^ 24) * (1 + 1 / 2 ^ 24) * (1 + 1 / 2 ^ 12) * D + (K + R) * (1 + 271425 / 2 ^ 24) / 2 ^ 11 +
+        132128 / 2 ^ 24 * ι * (K + R + 1 / 2 ^ 13) / 2 ^ 8 + (R + 1) / 2 ^ 120) := by
     obtain ⟨u1, v1⟩ := abs_le.mp hT1
     obtain ⟨u2, v2⟩ := abs_le.mp hT2
     obtain ⟨u3, v3⟩ := abs_le.mp hT3
@@ -391,10 +404,11 @@ theorem estep_real {a a1 a' l l' α lij r K A D : ℝ} {q p v : Fin 64 → ℝ}
     rw [abs_le]
     constructor <;> linarith
   -- `l'` bounds the parts
-  have hfin : ((1 + 257 / 2 ^ 14) * (1 + 1 / 2 ^ 24) * A +
-      R * (4 / 2 ^ 24 + 257 / 2 ^ 14 * (1 + 1 / 2 ^ 24))) * X +
-      (9 / 8 * K * (1 + 257 / 2 ^ 14) +
-        R * (9 / 8 * (257 / 2 ^ 14) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24)) * S ≤
+  have hfin : ((1 + 271425 / 2 ^ 24) * (1 + 1 / 2 ^ 24) * A +
+      R * (4 / 2 ^ 24 + 271425 / 2 ^ 24 * (1 + 1 / 2 ^ 24))) * X +
+      (9 / 8 * K * (1 + 271425 / 2 ^ 24) +
+        R * (9 / 8 * (271425 / 2 ^ 24) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) +
+        9 / 8 * (132128 / 2 ^ 24) * ι / 2 ^ 14) * S ≤
       M * l' + M / 2 ^ 80 := by
     have h1 := mul_le_mul_of_nonneg_right hM1' hX0
     have h2 := mul_le_mul_of_nonneg_right hM2' hS0

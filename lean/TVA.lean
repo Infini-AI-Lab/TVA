@@ -16,6 +16,7 @@ import TVA.Claim
 import TVA.Rules.Compiler
 import TVA.Rules.Num
 import TVA.Rules.Num.Sm90
+import TVA.Rules.Num.Dot8Chunk
 import TVA.Lemmas.Mem
 import TVA.Lemmas.Buf
 import TVA.Lemmas.Int
@@ -43,3 +44,4 @@ import TVA.Lemmas.Scalar
 import TVA.Lemmas.Sm90
 import TVA.Lemmas.SumFused
 import TVA.Lemmas.SharedAcc
+import TVA.Lemmas.Dot8Chunk

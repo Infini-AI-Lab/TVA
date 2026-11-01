@@ -1,0 +1,16 @@
+{
+  "kernel": "attn_fwd_e5m2",
+  "round": 3,
+  "responses": [
+    {
+      "id": "F9",
+      "response": "CLARIFIED",
+      "text": "README only. Every sampled figure is recomputed over all rows of a head with vIn, for three heads (independent draws), from Model.lean's expressions, and each range now also covers both reviewers' round-3 numbers; the table note says so in one sentence. Your three cases: (1) test causal rows, 0 rejected: 4.5-6.6% at N = 1024 and 1-2.2% at 4096 (0 meets Post on 93.4-95.5% and 97.8-99%); at N = 128 causal 33-39% (both D). A new sentence says that the first causal query (one key, always rejected) is 1/N_CTX of the rows, so small samples over-weight it. (2) Benchmark D = 128 non-causal: tolO 1.16-1.54, 0 rejected on 9.5-19%; D = 64: 45-57%. (3) Benchmark pE: medians 1.27-1.32 and 2.13-2.37, a head's largest 1.46-1.65 and 3.05-3.87. The other ranges move with them (Read this first: 1.75-5.5 times the floor on the test's data, 5-16 on the benchmark's; largest X 17 and 175). The Lean and the item digests are unchanged (gate 4740b3814ba92693)."
+    },
+    {
+      "id": "F10",
+      "response": "CLARIFIED",
+      "text": "As F9: the figures are over all rows of three heads, with ranges that cover both reviewers' evaluations. The causal entries are now 4.5-6.6% (N_CTX = 1024) and 1-2.2% (4096) rejected in the main table, 93.4-95.5% and 97.8-99% in the per-N_CTX table, and the text says Post rejects 0 on 1-39% of the elements outside the non-causal rows at N_CTX >= 1024 (the floor alone: 7-75%). A sentence under the per-N_CTX table says that row 0 (one key, tolO and tolV about 0.31*|attnRef|) is rejected on all its elements and is 1/N_CTX of the rows. Your smaller mismatches are covered: N_CTX = 128, 0 meets Post on 81-88% (non-causal) and 61-67% (causal), floor share on causal rows 25-38%; benchmark rejected 45-57% (D = 64) and 9.5-19% (D = 128), pE largest 1.46-1.65 and 3.05-3.87; tolM at D = 64, N = 128 0.030-0.032; vEff = 0 tolO at the cap at 2^14 1.0e-4 to 1.4e-4 (D = 64 to 256). The Lean and the item digests are unchanged (gate 4740b3814ba92693)."
+    }
+  ]
+}

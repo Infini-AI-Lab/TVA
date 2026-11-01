@@ -6,9 +6,9 @@ import AttnFwdE5m2.Lane
 For one query row, the analysis tracks the keys the row attends to (`RowCtx.al`) among the keys of
 the blocks processed so far, `j < 64·t`. `RowCtx` holds the row's data: `qk_scale` (`c`), the exact
 base-2 scale `w = sm_scale / ln 2` (`sm_scale·log₂ e`), the exact scores `sv j` (`q·k_j`), their
-magnitudes `bv j` (`Σ|q·k_j|`), and the bounds `Y` (on `c·bv j` and `w·bv j`) and `E` (on each
-exponent's error). Key `j`'s exact exponent is `w·s_j`: its exact weight `exp(sm_scale·s_j)` is
-`2^(w·s_j)`.
+lifted magnitudes `bv j` (`scoreLift`), the bounds `de j` on the score's `tl.dot` error, and the
+bounds `Y` (on `c·bv j` and `w·bv j`), `Dl` (on `c·de j`) and `E` (on each exponent's error). Key
+`j`'s exact exponent is `w·s_j`: its exact weight `exp(sm_scale·s_j)` is `2^(w·s_j)`.
 
 * `MInv`: the running maximum `m_i` after `t ≥ 1` blocks is within `E` of some attended key's
   `w·s_j`, and every attended key's `w·s_j` is at most `m_i + E`.
@@ -32,14 +32,14 @@ structure RowCtx where
   Y : ℝ
   /-- The bound on each exponent's error. -/
   E : ℝ
-  /-- `relDot8 HEAD_DIM`. -/
-  rhoD : ℝ
-  /-- `absDot8 HEAD_DIM`. -/
-  aD : ℝ
+  /-- The bound on `c·de j` over the attended keys. -/
+  Dl : ℝ
   /-- The exact scores `q·k_j`. -/
   sv : ℕ → ℝ
-  /-- Their magnitudes `Σ_e |q_e·k_{j,e}|`. -/
+  /-- Their lifted magnitudes `Σ_e liftMag(q_e)·liftMag(k_{j,e})`. -/
   bv : ℕ → ℝ
+  /-- The bounds on the score's `tl.dot` error. -/
+  de : ℕ → ℝ
   /-- The keys the row attends to. -/
   al : ℕ → Bool
 
@@ -51,24 +51,22 @@ structure RowCtx.Ok (R : RowCtx) : Prop where
   cw : |R.c - R.w| ≤ R.w / 2 ^ 22
   Y_nonneg : 0 ≤ R.Y
   Y_le : R.Y ≤ 768
-  rhoD_nonneg : 0 ≤ R.rhoD
-  rhoD_le : R.rhoD ≤ 1 / 8
-  aD_nonneg : 0 ≤ R.aD
-  aD_le : R.aD ≤ 1 / 2 ^ 117
-  E_eq : R.E = (R.rhoD + 1 / 2 ^ 19) * R.Y + 1 / 2 ^ 50
+  Dl_nonneg : 0 ≤ R.Dl
+  Dl_le : R.Dl ≤ R.Y / 8 + 1 / 2 ^ 52
+  E_eq : R.E = R.Dl + R.Y / 2 ^ 19 + 1 / 2 ^ 50
   E_le : R.E ≤ 13
   sv_le : ∀ j, |R.sv j| ≤ R.bv j
-  al_le : ∀ j, R.al j = true → R.c * R.bv j ≤ R.Y ∧ R.w * R.bv j ≤ R.Y
+  de_nonneg : ∀ j, 0 ≤ R.de j
+  al_le : ∀ j, R.al j = true → R.c * R.bv j ≤ R.Y ∧ R.w * R.bv j ≤ R.Y ∧ R.c * R.de j ≤ R.Dl
 
 theorem RowCtx.Ok.E_nonneg {R : RowCtx} (h : R.Ok) : 0 ≤ R.E := by
-  rw [h.E_eq]; have := h.Y_nonneg; have := h.rhoD_nonneg; positivity
+  rw [h.E_eq]; have := h.Y_nonneg; have := h.Dl_nonneg; positivity
 
-theorem RowCtx.Ok.E_le_Y {R : RowCtx} (h : R.Ok) : R.E ≤ R.Y / 4 + 1 / 2 ^ 50 := by
+theorem RowCtx.Ok.E_le_Y {R : RowCtx} (h : R.Ok) : R.E ≤ R.Y / 4 + 1 / 2 ^ 49 := by
   rw [h.E_eq]
   have := h.Y_nonneg
-  have h1 : R.rhoD + 1 / 2 ^ 19 ≤ 1 / 4 := by
-    have := h.rhoD_le; linarith
-  nlinarith
+  have := h.Dl_le
+  linarith
 
 theorem RowCtx.Ok.bv_nonneg {R : RowCtx} (h : R.Ok) (j : ℕ) : 0 ≤ R.bv j :=
   (abs_nonneg _).trans (h.sv_le j)
@@ -115,27 +113,19 @@ theorem maxRel_facts {x y r : F32} (h : FloatV.MaxRel true x y r) (hx : x.isNaN 
 
 theorem negInf32_isNaN : (FloatV.negInf : F32).isNaN = false := FloatV.negInf_isNaN (by decide)
 
-/-- The bound on `c·S` of a lane with `c·bv ≤ B`. -/
-theorem cS_bound {R : RowCtx} (hR : R.Ok) {S : F32} {j : ℕ} {B : ℝ}
-    (hS : |S.toReal - R.sv j| ≤ R.rhoD * R.bv j + R.aD) (hB : R.c * R.bv j ≤ B) :
-    |R.c * S.toReal - R.c * R.sv j| ≤ R.rhoD * B + 1 / 2 ^ 52 ∧
-      |R.c * S.toReal| ≤ (1 + R.rhoD) * B + 1 / 2 ^ 52 := by
+/-- The bound on `c·S` of a lane with `c·bv ≤ B` and `c·de ≤ Dd`. -/
+theorem cS_bound {R : RowCtx} (hR : R.Ok) {S : F32} {j : ℕ} {B Dd : ℝ}
+    (hS : |S.toReal - R.sv j| ≤ R.de j) (hB : R.c * R.bv j ≤ B) (hD : R.c * R.de j ≤ Dd) :
+    |R.c * S.toReal - R.c * R.sv j| ≤ Dd ∧ |R.c * S.toReal| ≤ B + Dd := by
   have hc := hR.c_pos
-  have hbv : 0 ≤ R.bv j := hR.bv_nonneg j
-  have hca : R.c * R.aD ≤ 1 / 2 ^ 52 := by
-    have := mul_le_mul hR.c_le hR.aD_le hR.aD_nonneg (by norm_num)
-    norm_num at this ⊢; linarith
-  have h1 : |R.c * S.toReal - R.c * R.sv j| ≤ R.rhoD * B + 1 / 2 ^ 52 := by
+  have h1 : |R.c * S.toReal - R.c * R.sv j| ≤ Dd := by
     rw [← mul_sub, abs_mul, abs_of_pos hc]
-    have := mul_le_mul_of_nonneg_left hS hc.le
-    have h2 : R.c * (R.rhoD * R.bv j) ≤ R.rhoD * B := by
-      have := mul_le_mul_of_nonneg_left hB hR.rhoD_nonneg; nlinarith
-    nlinarith
+    exact (mul_le_mul_of_nonneg_left hS hc.le).trans hD
   refine ⟨h1, ?_⟩
   have hsv : |R.c * R.sv j| ≤ B := by
     rw [abs_mul, abs_of_pos hc]; exact (mul_le_mul_of_nonneg_left (hR.sv_le j) hc.le).trans hB
   have := abs_sub_abs_le_abs_sub (R.c * S.toReal) (R.c * R.sv j)
-  nlinarith [hR.rhoD_nonneg]
+  linarith
 
 /-- The change from `qk_scale` to the exact `w` at a key with `w·bv ≤ Y`. -/
 theorem cw_bound {R : RowCtx} (hR : R.Ok) {j : ℕ} (hw : R.w * R.bv j ≤ R.Y) :
@@ -163,7 +153,7 @@ theorem minv_of {R : RowCtx} (hR : R.Ok) {t : ℕ} {m' : F32} (hfin : m'.isFinit
   obtain ⟨j, -, hj, hd⟩ := hatt
   have hsv : |R.w * R.sv j| ≤ R.Y := by
     rw [abs_mul, abs_of_pos hR.w_pos]
-    exact (mul_le_mul_of_nonneg_left (hR.sv_le j) hR.w_pos.le).trans (hR.al_le j hj).2
+    exact (mul_le_mul_of_nonneg_left (hR.sv_le j) hR.w_pos.le).trans (hR.al_le j hj).2.1
   have := abs_sub_abs_le_abs_sub m'.toReal (R.w * R.sv j)
   linarith
 
@@ -210,7 +200,7 @@ theorem mstep_plain {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx 
     {S Sc x : Fin 64 → F32}
     (hcq : cq.isFinite = true) (hcqv : cq.toReal = R.c)
     (hS : ∀ jj : Fin 64, (S jj).isFinite = true ∧
-      |(S jj).toReal - R.sv (64 * t + jj)| ≤ R.rhoD * R.bv (64 * t + jj) + R.aD)
+      |(S jj).toReal - R.sv (64 * t + jj)| ≤ R.de (64 * t + jj))
     (hal : ∀ jj : Fin 64, R.al (64 * t + jj) = true)
     (hmx : (∃ jj, mx = S jj) ∧ ∀ jj, (S jj).toReal ≤ mx.toReal)
     (ha : FloatV.NaNEq (FloatV.mul mx cq) a) (hm' : FloatV.MaxRel true m a m')
@@ -227,17 +217,16 @@ theorem mstep_plain {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx 
   have hE13 := hR.E_le
   have hY0 := hR.Y_nonneg
   have hY1 := hR.Y_le
-  have hrho0 := hR.rhoD_nonneg
-  have hrho1 := hR.rhoD_le
-  have hrY : R.rhoD * R.Y ≤ R.Y / 8 := by nlinarith
+  have hDl0 := hR.Dl_nonneg
+  have hDl1 := hR.Dl_le
   -- each lane's product with `qk_scale`, and the change to `w`
-  have hcS : ∀ jj : Fin 64, |R.c * (S jj).toReal - R.c * R.sv (64 * t + jj)| ≤ R.rhoD * R.Y + 1 / 2 ^ 52 ∧
-      |R.c * (S jj).toReal| ≤ (1 + R.rhoD) * R.Y + 1 / 2 ^ 52 := fun jj =>
-    cS_bound hR (hS jj).2 (hR.al_le _ (hal jj)).1
+  have hcS : ∀ jj : Fin 64, |R.c * (S jj).toReal - R.c * R.sv (64 * t + jj)| ≤ R.Dl ∧
+      |R.c * (S jj).toReal| ≤ R.Y + R.Dl := fun jj =>
+    cS_bound hR (hS jj).2 (hR.al_le _ (hal jj)).1 (hR.al_le _ (hal jj)).2.2
   have hcw : ∀ jj : Fin 64, |R.c * R.sv (64 * t + jj) - R.w * R.sv (64 * t + jj)| ≤ R.Y / 2 ^ 22 :=
-    fun jj => cw_bound hR (hR.al_le _ (hal jj)).2
+    fun jj => cw_bound hR (hR.al_le _ (hal jj)).2.1
   have hcSY : ∀ jj : Fin 64, |R.c * (S jj).toReal| ≤ 9 / 8 * R.Y + 1 / 2 ^ 52 := fun jj => by
-    have := (hcS jj).2; nlinarith
+    have := (hcS jj).2; linarith
   -- the row maximum is a lane
   obtain ⟨⟨jj0, rfl⟩, hmxle⟩ := hmx
   have hmxf := (hS jj0).1
@@ -367,8 +356,8 @@ theorem mstep_masked {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx
     {S w x' x : Fin 64 → F32}
     (hcq : cq.isFinite = true) (hcqv : cq.toReal = R.c)
     (hS : ∀ jj : Fin 64, (S jj).isFinite = true ∧
-      |(S jj).toReal - R.sv (64 * t + jj)| ≤ R.rhoD * R.bv (64 * t + jj) + R.aD)
-    (hglob : ∀ jj : Fin 64, R.c * R.bv (64 * t + jj) ≤ 1536)
+      |(S jj).toReal - R.sv (64 * t + jj)| ≤ R.de (64 * t + jj))
+    (hglob : ∀ jj : Fin 64, R.c * R.bv (64 * t + jj) ≤ 1536 ∧ R.c * R.de (64 * t + jj) ≤ 192)
     (hw : ∀ jj : Fin 64, (w jj).isFinite = true ∧ (R.al (64 * t + jj) = true → (w jj).toReal = 0) ∧
       (R.al (64 * t + jj) = false → (w jj).toReal = -1000000))
     (hx' : ∀ jj, FloatV.NaNEq (FloatV.add (FloatV.mul (S jj) cq) (w jj)) (x' jj) ∨
@@ -387,17 +376,15 @@ theorem mstep_masked {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx
   have hE13 := hR.E_le
   have hY0 := hR.Y_nonneg
   have hY1 := hR.Y_le
-  have hrho0 := hR.rhoD_nonneg
-  have hrho1 := hR.rhoD_le
-  have hrY : R.rhoD * R.Y ≤ R.Y / 8 := by nlinarith
+  have hDl0 := hR.Dl_nonneg
+  have hDl1 := hR.Dl_le
   have hold' : (t = 0 ∧ m = FloatV.negInf) ∨ (0 < t ∧ MInv R t m) := by
     rcases hold with ⟨h1, h2, -⟩ | h
     · exact Or.inl ⟨h1, h2⟩
     · exact Or.inr h
   -- the error of an attended lane's `x'` against `c·s`
-  set e1 : ℝ := R.rhoD * R.Y + 1 / 2 ^ 52 + 3 * ((1 + R.rhoD) * R.Y + 1 / 2 ^ 52) / 2 ^ 24 + 4 / 2 ^ 150
-    with he1
-  have he1b : e1 ≤ R.Y / 7 + 1 / 2 ^ 51 := by rw [he1]; nlinarith
+  set e1 : ℝ := R.Dl + 3 * (R.Y + R.Dl) / 2 ^ 24 + 4 / 2 ^ 150 with he1
+  have he1b : e1 ≤ R.Y / 7 + 1 / 2 ^ 51 := by rw [he1]; linarith
   -- each lane's `x'`
   have hX : ∀ jj : Fin 64, (x' jj).isFinite = true ∧ |(x' jj).toReal| ≤ 1001730 ∧
       (R.al (64 * t + jj) = true → |(x' jj).toReal - R.c * R.sv (64 * t + jj)| ≤ e1) ∧
@@ -405,7 +392,7 @@ theorem mstep_masked {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx
     intro jj
     obtain ⟨hSf, hSe⟩ := hS jj
     obtain ⟨hwf, hw0, hw1⟩ := hw jj
-    obtain ⟨-, hg'⟩ := cS_bound hR hSe (hglob jj)
+    obtain ⟨-, hg'⟩ := cS_bound hR hSe (hglob jj).1 (hglob jj).2
     have hg'' : |R.c * (S jj).toReal| ≤ 1729 := by nlinarith
     have hwb : |(w jj).toReal| ≤ 1000000 := by
       cases hal : R.al (64 * t + jj)
@@ -420,7 +407,7 @@ theorem mstep_masked {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx
       have := abs_add_le (R.c * (S jj).toReal) (w jj).toReal
       nlinarith
     refine ⟨hxf, hxb, fun hal => ?_, fun hal => ?_⟩
-    · obtain ⟨hcS1, hcS1'⟩ := cS_bound hR hSe (hR.al_le _ hal).1
+    · obtain ⟨hcS1, hcS1'⟩ := cS_bound hR hSe (hR.al_le _ hal).1 (hR.al_le _ hal).2.2
       rw [hw0 hal, add_zero, abs_zero, add_zero] at hxe
       have e : (x' jj).toReal - R.c * R.sv (64 * t + jj) =
           ((x' jj).toReal - R.c * (S jj).toReal) + (R.c * (S jj).toReal - R.c * R.sv (64 * t + jj)) := by ring
@@ -468,7 +455,7 @@ theorem mstep_masked {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx
         refine ⟨64 * t + jj0, by omega, hal, ?_⟩
         rw [hcase]
         have h1 := (hX jj0).2.2.1 hal
-        have h2 := cw_bound hR (hR.al_le _ hal).2
+        have h2 := cw_bound hR (hR.al_le _ hal).2.1
         have e : (x' jj0).toReal - R.w * R.sv (64 * t + jj0) = ((x' jj0).toReal - R.c * R.sv (64 * t + jj0)) +
             (R.c * R.sv (64 * t + jj0) - R.w * R.sv (64 * t + jj0)) := by ring
         rw [e]; refine (abs_add_le _ _).trans ?_
@@ -481,7 +468,7 @@ theorem mstep_masked {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx
         · omega
         · have := hmi.above j hj' hjal; have := hmle ht; linarith
       · have h1 := (hX jj).2.2.1 hjal
-        have h2 := cw_bound hR (hR.al_le _ hjal).2
+        have h2 := cw_bound hR (hR.al_le _ hjal).2.1
         have := hmxle jj
         have := neg_abs_le ((x' jj).toReal - R.c * R.sv (64 * t + jj))
         have := neg_abs_le (R.c * R.sv (64 * t + jj) - R.w * R.sv (64 * t + jj))
@@ -513,7 +500,7 @@ theorem mstep_masked {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx
     have : (0 : ℝ) ≤ -((x' jj).toReal - m'.toReal) := by linarith
     nlinarith
   · have h1 := hx'a hal
-    have h2 := cw_bound hR (hR.al_le _ hal).2
+    have h2 := cw_bound hR (hR.al_le _ hal).2.1
     have hsv : |R.c * R.sv (64 * t + jj)| ≤ R.Y := by
       rw [abs_mul, abs_of_pos hc]
       exact (mul_le_mul_of_nonneg_left (hR.sv_le _) hc.le).trans (hR.al_le _ hal).1

@@ -100,20 +100,27 @@ theorem pow_ge_of_step {q : ℝ} {n : ℕ} {c : ℝ} (hq : 1 - c ≤ q) (hc0 : 0
   rw [show (1 : ℝ) + -c = 1 - c by ring] at h2
   linarith
 
-theorem exp17_le : Real.exp 17 ≤ 2 ^ 25 := by
+theorem exp17_le' : Real.exp 17 ≤ (2.7182818286 : ℝ) ^ 17 := by
   have h := Real.exp_one_lt_d9
   have h17 : Real.exp 17 = Real.exp 1 ^ 17 := by rw [← Real.exp_nat_mul]; norm_num
   rw [h17]
   have h0 : 0 ≤ Real.exp 1 := (Real.exp_pos 1).le
-  calc Real.exp 1 ^ 17 ≤ (2.7182818286 : ℝ) ^ 17 := pow_le_pow_left₀ h0 h.le 17
-    _ ≤ 2 ^ 25 := by norm_num
+  exact pow_le_pow_left₀ h0 h.le 17
 
-/-- **`(64/63)^t ≤ 2^25`** for `t ≤ 1024`. -/
-theorem pow6463_le {t : ℕ} (ht : t ≤ 1024) : ((64 : ℝ) / 63) ^ t ≤ 2 ^ 25 := by
-  have h := one_add_pow_le_exp (x := (1 / 63 : ℝ)) (by norm_num) t
-  rw [show (1 : ℝ) + 1 / 63 = 64 / 63 by norm_num] at h
-  refine h.trans ((Real.exp_le_exp.mpr ?_).trans exp17_le)
-  have : (t : ℝ) ≤ 1024 := by exact_mod_cast ht
-  nlinarith
+/-- **`(61/60)^t ≤ 2^25`** for `t ≤ 1024` (`exp(1024/60) = exp(17 + 1/15)`). -/
+theorem pow6160_le {t : ℕ} (ht : t ≤ 1024) : ((61 : ℝ) / 60) ^ t ≤ 2 ^ 25 := by
+  have h := one_add_pow_le_exp (x := (1 / 60 : ℝ)) (by norm_num) t
+  rw [show (1 : ℝ) + 1 / 60 = 61 / 60 by norm_num] at h
+  have ht' : (t : ℝ) * (1 / 60) ≤ 17 + 1 / 15 := by
+    have : (t : ℝ) ≤ 1024 := by exact_mod_cast ht
+    nlinarith
+  refine h.trans ((Real.exp_le_exp.mpr ht').trans ?_)
+  rw [Real.exp_add]
+  have h1 := exp_le_two (y := 1 / 15) (by norm_num) (by norm_num)
+  have h2 := exp17_le'
+  have h3 : (0 : ℝ) ≤ Real.exp (1 / 15) := (Real.exp_pos _).le
+  calc Real.exp 17 * Real.exp (1 / 15) ≤ (2.7182818286 : ℝ) ^ 17 * (1 + 2 * (1 / 15)) :=
+        mul_le_mul h2 h1 h3 (by positivity)
+    _ ≤ 2 ^ 25 := by norm_num
 
 end Kernels.AttnFwdE5m2

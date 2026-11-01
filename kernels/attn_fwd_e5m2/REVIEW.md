@@ -6,30 +6,30 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 
 ## Status
 
-- Gate: **PASS**, digest `53b679fa0085b99d` (2026-10-31T23:16:10Z).
-- Phase: round 3: all reviewers have filed.
+- Gate: **PASS**, digest `4740b3814ba92693` (2026-11-01T04:29:23Z).
+- Phase: round 5: all reviewers have filed.
 - Reviewers: r-e5fwd (all), r-e5fwd2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-e5fwd | r-e5fwd2 |
 |---|---|---|---|
-| `assumption:cvt` | `82b2e07f6f35` | accepted | accepted |
-| `assumption:cvt_total` | `214006c8c290` | accepted | accepted |
-| `assumption:div_full` | `8297fbfba815` | accepted | accepted |
-| `assumption:div_total` | `fbd4edadcbd8` | accepted | accepted |
-| `assumption:dot` | `dfc70e29b3b7` | accepted | accepted |
-| `assumption:dot_total` | `de43b25dd879` | accepted | accepted |
-| `assumption:exp2` | `29758d8c3fa1` | accepted | accepted |
-| `assumption:exp2_ninf` | `7e7d7abd5ca3` | accepted | accepted |
-| `assumption:exp2_total` | `a73341c639a8` | accepted | accepted |
+| `assumption:cvt` | `e6726099cdc4` | accepted | accepted |
+| `assumption:cvt_total` | `54f50e473a1c` | accepted | accepted |
+| `assumption:div_full` | `f9825c1865c6` | accepted | accepted |
+| `assumption:div_total` | `129d48625f54` | accepted | accepted |
+| `assumption:dot` | `6f550f57caed` | accepted | accepted |
+| `assumption:dot_total` | `fb04f1611fb9` | accepted | accepted |
+| `assumption:exp2` | `f39305788ea5` | accepted | accepted |
+| `assumption:exp2_ninf` | `13c5f1b397d9` | accepted | accepted |
+| `assumption:exp2_total` | `76a730d019b7` | accepted | accepted |
 | `assumption:faithful` | `eba025833640` | accepted | accepted |
-| `assumption:log2` | `3f40ff66ef85` | accepted | accepted |
-| `assumption:log2_total` | `d2346bc6bd26` | accepted | accepted |
+| `assumption:log2` | `274cbc5d7a7b` | accepted | accepted |
+| `assumption:log2_total` | `1aac3fb0d81a` | accepted | accepted |
 | `conditions` | `b0121b83480b` | accepted | accepted |
 | `map` | `3a8a04772396` | accepted | accepted |
 | `model` | `af17db8da4c4` | accepted | accepted |
-| `spec` | `17eac300802d` | accepted | accepted |
+| `spec` | `0e6e2039124c` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -41,6 +41,9 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 | [F6](#f6) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 2 | README's figures on the test's data overstate the fp8 floor: at N = 128 and on causal rows it covers 27-73% of elements, |
 | [F7](#f7) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 2 | The test-data figures (0 meets Post on 97.7-100%, median /attnRef/ 0.009-0.04, p's fp8 rounding >= /attnRef/ on 81-100%) |
 | [F8](#f8) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 2 | Say plainly that tolV accepts every output within the range of the row's own values, whatever q, k, sm_scale (tolV >= 9/ |
+| [F9](#f9) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 3 | Some sample-based figures in the new tables do not hold over larger uniform row samples, e.g. 0 rejected on causal rows  |
+| [F10](#f10) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 3 | The causal test-data figures at N_CTX >= 1024 (0 rejected on 7-8% and 4-5%) come from 24-row samples in which row 0 (one |
+| [F11](#f11) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 4 | Some new ranges miss my round-3 outputs though the note says each covers both reviewers: e.g. benchmark causal 0 rejecte |
 
 **Certificate: GRANTED**
 
@@ -50,7 +53,7 @@ Kernel review trusts the library; these are tracked in [docs/library-review/ISSU
 
 | Issue | State | Source | Summary |
 |---|---|---|---|
-| [L124](../../docs/library-review/ISSUES.md#l124) | OPEN | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\ |
+| [L124](../../docs/library-review/ISSUES.md#l124) | FIXED | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\ |
 
 ## Round 1
 
@@ -172,14 +175,14 @@ The README calls tolV 'a magnitude bound' and says the weighted mean 'can lie al
 ## Round 3
 
 
-### r-e5fwd files ([filing](review/round-3/r-e5fwd/filing.json), [report](review/round-3/r-e5fwd/report.md))
+### r-e5fwd files ([filing](review/round-3/r-e5fwd/filing.json), [report](review/round-3/r-e5fwd/report.md), [work](review/round-3/r-e5fwd/work/))
 
 `2026-10-31T23:10:58Z`, at gate `53b679fa0085b99d`. Notes: On r-e5fwd2's F7 and F8 (not mine to release): F7 is answered by the same per-N_CTX table and wording, which cover my round-2 figures at test_op's N_CTX = 128. F8's new paragraph, 'What tolV checks', is correct. For nblk >= 1, magA >= magCp / (1 - ...) >= magCp >= 9/8*K + |attnRef|/8, so tolV >= 9/8*K + |attnRef|/8 + 2^-17. An average c of the row's own values has |c - attnRef| <= K, and its float8e5 rounding is within K + (K + |attnRef|)/8 + 2^-17 of attnRef. So tolV alone checks the key set and the range, not the weights, as the Specification and the Narrowings now say. Only README.md changed, and the gate and item digests are as in round 2 (53b679fa0085b99d), so my round-2 checks of the Lean stand.
 
 - **released F6**: Settled. I checked the per-N_CTX table under 'Where Post does not tell o from 0' against my round-2 work/tol.out, and every range covers my figures. 0 meets Post on 99.5/100% (N = 128 non-causal) and 89.5% (D = 64) / 99.0% (D = 128) (N = 128 causal); 100% (1024 non-causal); 96.5/99.7% (1024 causal); 100% (4096 non-causal); 96.8/99.7% (4096 causal). Median |attnRef| is 0.049/0.065, 0.064/0.089, 0.017/0.026, 0.030/0.044, 0.009/0.014 and 0.022/0.032 in the same order. The floor is at least |attnRef| on 49/39%, 38/27%, 94/80%, 70/54%, 100/98% and 73/64%. The derived shares (the floor rejects 0 on 46-74% at N = 128 and on 7-46% on causal rows at 1024 and 4096, where Post rejects at most 13% and 3.5%) follow from the table. The attribution (the fp8 floor for non-causal rows at N >= 1024, DotE5m2 / L124 for the rest) is now right, in the Specification and in the Narrowings. The main table's new N = 128 row (tolO 0.15/0.54, tolV 1.9, |attnRef| 0.049/0.064), the one-key ranges and the benchmark's tolV of 5.3-6.8 also match my runs. One remark, not a finding: my benchmark sample at D = 128 has X up to 170.7, so pE up to about 2^8.1, about 270, where the README says 'up to 230'. It is a sample's maximum, and the conclusion is unchanged.
 - **accepted** at gate `53b679fa0085b99d`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 
-### r-e5fwd2 files ([filing](review/round-3/r-e5fwd2/filing.json), [report](review/round-3/r-e5fwd2/report.md))
+### r-e5fwd2 files ([filing](review/round-3/r-e5fwd2/filing.json), [report](review/round-3/r-e5fwd2/report.md), [work](review/round-3/r-e5fwd2/work/))
 
 `2026-10-31T23:11:12Z`, at gate `53b679fa0085b99d`. Notes: Round 3 changed only README.md; the gate (53b679fa0085b99d) and every item digest are unchanged, so my round-2 acceptances stand and are repeated. Checked against my round-2 tolerance.out: the main table's new N = 128 test-like rows (tolO 0.15 and 0.54, tolV 1.9, tolM 0.16 and 0.58, median |attnRef| 0.049 and 0.064; mine 0.151 and 0.534, 1.87 and 1.89, 0.155 and 0.584, 0.049 and 0.062 to 0.066); the benchmark figures (tolV 5.3-6.8 at N = 1024, mine 6.64 and 6.69; pE medians 3.4 and 94, up to 4.8 and 230, mine 3.44-3.46 and 94-100, up to 4.79 and 228; at 2^14 tolO 90-140 and 1.0e5-1.4e5, tolV about 360, tolM 1.7-2.0 and 6.7-6.9, mine 120, 1.36e5, 360 and 359, 1.73 and 6.91); pE about 1.1 and 1.5 on the test's data (mine 1.11-1.13 and 1.47-1.56). I did not re-check the one-key row's tolO ranges. Two wording remarks, not findings: (1) 'The fp8 floor explains the non-causal rows at N_CTX >= 1024: there |attnRef| ... is below what any bound built from the per-lane facts can give' holds on 78% to 100% of those elements by the table beside it, not on all (at D = 128, N_CTX = 1024 about 21% are beyond the floor); 'mostly explains' would match. (2) The main table's test-like tolV 7.1 at N = 4096 is from the prover's sample; mine is 6.4 at both D (K is a maximum over 4096 draws), which is within sampling noise but not 'agree'. View on r-e5fwd's F6: the same table and attribution answer it as far as I can judge; whether r-e5fwd releases it is theirs.
 
@@ -187,27 +190,163 @@ The README calls tolV 'a magnitude bound' and says the weighted mean 'can lie al
 - **released F8**: Answered. The new paragraph 'What tolV checks' is correct. tolV >= 9/8*magA + |attnRef|/8 + 2^-17 >= magCp + 2^-17 >= 9/8*K + |attnRef|/8 + 2^-17 when nblk >= 1. Rounding a value c to float8e5 has error at most |c|/8 + 2^-17 and does not saturate inside the range of the row's values, so the rounding of any average of the row's values is within exactly that much of attnRef. So the plain mean and any one key's value meet the tolV clause, as the paragraph says. Narrowings repeat it in one clause.
 - **accepted** at gate `53b679fa0085b99d`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 
-### r-e5fwd2 files ([filing](review/round-3/r-e5fwd2/filing-2.json), [report](review/round-3/r-e5fwd2/report-2.md))
+### r-e5fwd2 files ([filing](review/round-3/r-e5fwd2/filing-2.json), [report](review/round-3/r-e5fwd2/report-2.md), [work](review/round-3/r-e5fwd2/work/))
 
 `2026-10-31T23:14:17Z`, at gate `53b679fa0085b99d`. Notes: Second round-3 filing, after the prover's README-only fixes of my round-3 wording remarks (gate and item digests unchanged). Checked against my round-2 tolerance.out: (1) Specification and Narrowings now say the fp8 floor explains most (78% to 100%) of the non-causal elements at N_CTX >= 1024 (mine 78.2% to 100%); this answers the 'explains' remark. (2) test-like tolV at N = 4096 reads 6.4 to 7.1 (mine 6.36 and 6.4), and the table note says the figures agree within sampling noise, with ranges where samples differ; this answers the 7.1 against 6.4 remark. (3) the benchmark's pE: medians about 3.4 and 94 to 100 at N = 1024 and 4096 (mine 3.44 to 3.46 and 93.9 to 99.6), maxima 4.5 to 4.8 and 190 to 270 (mine 4.49 to 4.79 and 190 to 228). My six-row sample at 2^14 has a D = 128 median of 120, but the sentence is about the N = 1024 data, and six rows give no reliable median. No new errors in the changed passages. All items accepted at their current digests.
 
 - **accepted** at gate `53b679fa0085b99d`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 
-### r-e5fwd files ([filing](review/round-3/r-e5fwd/filing-2.json), [report](review/round-3/r-e5fwd/report-2.md))
+### r-e5fwd files ([filing](review/round-3/r-e5fwd/filing-2.json), [report](review/round-3/r-e5fwd/report-2.md), [work](review/round-3/r-e5fwd/work/))
 
 `2026-10-31T23:14:46Z`, at gate `53b679fa0085b99d`. Notes: Second filing of round 3, confirming the README's wording fixes. (1) pE on the benchmark: my samples' largest X (97.3 and 93.9 at D = 64, 166.9 and 170.7 at D = 128, round-2 work/tol.out) give pE maxima of 4.6-4.9 and 240-274. On fresh full heads (1024 rows, three seeds), the medians are 3.33-3.38 (D = 64) and 87-95 (D = 128), and the maxima are 4.8-5.5 and 243-269. So the README's 'about 3.4' is right. Its '94 to 100' and '4.5 to 4.8' sit at the edges of my samples, which is consistent within the sampling noise the table note now names. If the prover wants the ranges to cover these samples too, 'about 90 to 100' and '4.5 to 5.5' would do. This is not a finding. (2) The floor's '78% to 100%' on the non-causal rows at N_CTX >= 1024, and the word 'mostly', in the Specification and the Narrowings: my figures are 79.5-100%, which is covered. (3) tolV at N = 4096, '6.4 to 7.1': my medians are 7.08 (D = 64) and 6.45 (D = 128), which is covered. The Lean and the digests are unchanged (gate 53b679fa0085b99d), so every item stays accepted.
 
 - **accepted** at gate `53b679fa0085b99d`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 
-### r-e5fwd files ([filing](review/round-3/r-e5fwd/filing-3.json), [report](review/round-3/r-e5fwd/report-3.md))
+### r-e5fwd files ([filing](review/round-3/r-e5fwd/filing-3.json), [report](review/round-3/r-e5fwd/report-3.md), [work](review/round-3/r-e5fwd/work/))
 
 `2026-10-31T23:16:56Z`, at gate `53b679fa0085b99d`. Notes: Third filing of round 3. It confirms the widened pE sentence in 'On the benchmark's data' against the figures in my second filing; I took no new samples. My medians are 3.33-3.38 (D = 64) and 87-95 (D = 128), inside 'about 3.4' and '87 to 100'. My maxima are 4.6-5.5 (D = 64) and 240-274 (D = 128). They are inside '4.5 to 5.5', and inside '190 to 270' to two significant figures. Nothing else changed and the gate is 53b679fa0085b99d, so every item stays accepted.
 
 - **accepted** at gate `53b679fa0085b99d`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 
-### r-e5fwd2 files ([filing](review/round-3/r-e5fwd2/filing-3.json), [report](review/round-3/r-e5fwd2/report-3.md))
+### r-e5fwd2 files ([filing](review/round-3/r-e5fwd2/filing-3.json), [report](review/round-3/r-e5fwd2/report-3.md), [work](review/round-3/r-e5fwd2/work/))
 
 `2026-10-31T23:16:57Z`, at gate `53b679fa0085b99d`. Notes: Third round-3 filing. Only the README's benchmark pE sentence changed (gate and item digests unchanged), and it now reads: medians about 3.4 (D = 64) and 87 to 100 (D = 128), maxima 4.5 to 5.5 and 190 to 270. My round-2 values lie inside these ranges: medians 3.44 to 3.46 and 93.9 to 99.6 at N = 1024 and 4096, maxima 4.49 to 4.79 and 190 to 228. I took no new samples. All items accepted at their current digests.
 
 - **accepted** at gate `53b679fa0085b99d`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T04:06:32Z` coordinator's note: Library round 24 (L124, L125; docs/library-review/ISSUES.md): DotE5m2, which this claim cited, was withdrawn as false on the device when a product with a subnormal operand sets the wgmma window (evidence/num-dot-chunk Part F). The prover re-proved the claim on DotE5m2Chunk (lean/TVA/Rules/Num/Dot8Chunk.lean), with each score's error bounded chunk by chunk and tolO centred on attnRef (new module Cen), for the user's goal of 2026-10-31, 'please tighten the fp8 kernel error bound.' The gate passes at 4740b3814ba92693. HeadOk's cap now bounds the scaled lifted score magnitude.
+
+### r-e5fwd files ([filing](review/round-3/r-e5fwd/filing-4.json), [report](review/round-3/r-e5fwd/report-4.md), [work](review/round-3/r-e5fwd/work/))
+
+`2026-11-01T04:14:44Z`, at gate `4740b3814ba92693`. Notes: Re-review after library round 24 (L124, L125), gate 4740b3814ba92693. assumption:dot now cites DotE5m2Chunk, which is the library's fact for both fp8 tl.dots (float8e5 x float8e5 into float32, maxImpreciseAcc = 2^30, any precision; num.md's row and Dot8Chunk.lean). The other assumptions re-opened only because num.md and Sm90.lean changed. Exp2F32, Exp2F32NegInf, Log2F32 and CvtSatF32E5m2 are unchanged in Sm90.lean, and DivFull, DivTotal, MathTotal, CvtTotal and DotTotal keep their rows, so I accept all of them again. The new spec's names (scoreLift, scoreErr, HeadOk, scoreE, blkLW, accNext, errNext, tolO, iotaV, magCp, Post) print as kernel, TVA or Mathlib definitions (work/print_spec.lean, print_spec.out). main, consistent and satisfiable use only propext, Classical.choice and Quot.sound. scoreErr is Dot8Chunk.errB over the q.k chunks, which is DotF8Chunk.err's bound from a zero accumulator, as line 73 uses it. Over every test_op shape and the benchmark at N = 1024, Model.lean's new formulas (work/tol.out, tol_uniform.out) reproduce the README's tolO, tolV and tolM medians and the v = 1, one-key and vEff = 0 rows: v = 1 gives tolO 0.463 / 1.31 / 19.3 / 1.17e6 and tolV 0.658 / 2.67 / 80.6 / 1.86e7; one key gives 0.31-0.33 |attnRef|. The exceptions are in the DOC finding. Heads without vIn stay pinned: tolV at K = R = 0 is 7.63e-6 < 2^-16 at every covered size, iotaV = 0 removing liftMag's 2^-14, so o = Â±0. HeadOk's new cap covers the host: the largest sigma*scoreLift I sampled is 16.7 (test, D = 128, cap 256) and 168 (benchmark, N = 1024, D = 128, cap 256). The lift adds at most 2^-14*sigma*sum(|q| + |k| + 2^-14), about 0.02, to round 1's 184-196 at N = 2^14. The tightening is real. On the benchmark, tolO goes from 13.9 / 1.2e4 to about 0.55 / 1.2-1.5, and Post now rejects 0 on 10-69% of the elements. On the test's data, tolO is 1.8-5.5x the fp8 floor.
+
+#### F9
+
+**DOC** on `doc:kernels/attn_fwd_e5m2/README.md` (non-blocking): Some sample-based figures in the new tables do not hold over larger uniform row samples, e.g. 0 rejected on causal rows at N = 4096: README 4-5%, three 128-row samples 1.7-1.9%
+
+The README's figures come from 24 sampled rows, over two samplings. I re-evaluated Model.lean's new formulas on 128 rows spread evenly over the head (every row at N = 128, every 8th at 1024, every 32nd at 4096), three seeds (work/tol_uniform.out). Most figures agree. These do not: (1) Share of elements where Post rejects 0, test data, causal rows: README 7-8% at N = 1024 and 4-5% at 4096 (table 'Where Post does not tell o from 0': 0 meets Post on 91.5-92.6% and 95.4-95.8%). Mine is 5.0-6.6% and 1.7-1.9% (0 meets Post on 93.4-95.0% and 98.1-98.3%). At N = 128 causal, D = 128, README 40%, mine 35-38.5%. (2) Benchmark at N = 1024, D = 128, non-causal: tolO median README 1.4-1.6, mine 1.16-1.49; Post rejects 0 on README 16-20%, mine 9.5-18.6%. D = 64 non-causal: README 50-54%, mine 45-57%. (3) Benchmark pE maxima: README 'at most 1.43' (D = 64) and 'at most 3.1' (D = 128); mine 1.46-1.65 and 3.05-3.62. Medians agree (1.31-1.32 and 2.18-2.36). The differences overstate slightly how often Post rejects 0, and none changes a conclusion. To resolve: give these figures from larger, evenly spread row samples, or widen the ranges to cover them and say they are from small samples.
+
+*Evidence:* work/tol.py ('python3 -I tol.py uniform'), work/tol_uniform.out; work/tol.out (python3 -I tol.py: rows 0-63 and N/2 to N/2+63, which over-weights early causal rows, so its causal shares are not uniform-sample figures).
+
+- **accepted** at gate `4740b3814ba92693`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd2 files ([filing](review/round-3/r-e5fwd2/filing-4.json), [report](review/round-3/r-e5fwd2/report-4.md), [work](review/round-3/r-e5fwd2/work/))
+
+`2026-11-01T04:16:18Z`, at gate `4740b3814ba92693`. Notes: This is a re-review after library round 24, on the re-proof at gate 4740b3814ba92693. Changed items: spec, assumption:dot, and the num-fact assumptions, re-opened through docs/rules/num.md and Sm90.lean.
+
+assumption:dot: Assumptions.dot is TVA.Rules.Num.DotE5m2Chunk P (work/axioms.out). That is DotF8Chunk f8e5 f8e5: every input precision, maxImpreciseAcc 2^30, a float32 accumulator. It is the library's fact for the model's cfg8 tl.dot of lines 73 and 103. The other ten num fields print as before: CvtSatF32E5m2, CvtTotal, Exp2F32, Exp2F32NegInf, MathTotal exp2 and log2, Log2F32, DivFull, DivTotal, DotTotal cfg8. Library round 24's notes say no other [rule] field's meaning changed. main, consistent and satisfiable use only propext, Classical.choice and Quot.sound.
+
+The spec: I printed HeadOk, scoreLift, scoreErr, scoreE, tolO, accNext, errNext, blkLW, iotaV, magCp, magD, Dot8Chunk.errB and relLift8 as Lean elaborates them, and read the statements of Cen (cstep_real, block_cen, cl2_cen, CInv, acR, ecR). The centring is sound in form: centC is 0 after the last block, so the score error enters through hw on sum w|vEff - attnRef| and through Fp, as the README says.
+
+work/tolerance.py transcribes the new tolO, tolV and tolM and reproduces the README:
+- one key: tolO / |attnRef| 0.310-0.332, tolV 0.309-0.321;
+- q = 0, v = 1: tolO 0.463, 0.697, 1.31, 19.3 and 1.17e6, tolV 0.658, 1.17, 2.67, 80.6 and 1.86e7;
+- test-like medians: tolO 0.085-0.091, 0.097-0.104 and 0.133-0.196 at D = 64, 0.117-0.119, 0.134-0.146 and 0.186-0.273 at D = 128;
+- benchmark at N = 1024: tolO 0.58-0.60 at D = 64 and 1.36-1.54 at D = 128; pE medians 1.27-1.31 and 2.13-2.37.
+
+Post now rejects 0 on 12-38% of the test's elements at N_CTX = 128 and on 46-67% (D = 64) and 12-36% (D = 128) of the benchmark's. tolO is 1.75-5.5 times the fp8 floor on the test's data. F1's concern is answered by the library fix.
+
+The heads without vIn are still pinned: at K = R = 0, iotaV = 0 and tolV = 7.63e-6 < 2^-16 at every size I evaluated, up to D = 256, N = 2^16.
+
+HeadOk's new cap (sigma*scoreLift <= Xh D) covers the host's data: a Chernoff bound on the exact distribution of liftMag(q)*liftMag(k) (work/score_cap.py) gives log10 P(one benchmark pair at D = 128 exceeds) <= -19.78, the same as for the old cap to two decimals, against 10^10.5 pairs in the largest launch. The test's margin is far larger. A subnormal fp8 operand has probability 3.7e-5 (benchmark) and 7.3e-5 (test).
+
+#### F10
+
+**DOC** on `doc:kernels/attn_fwd_e5m2/README.md` (non-blocking), affects item:spec: The causal test-data figures at N_CTX >= 1024 (0 rejected on 7-8% and 4-5%) come from 24-row samples in which row 0 (one key, always rejected) is 1/24; over 96 rows they are 5.4-5.8% and 1.7-2.2%
+
+I re-ran Model.lean's new formulas (work/tolerance.py, work/tolerance.out). Most of the README's figures agree with my runs: every tolO, tolV and tolM median within a few percent, the one-key ratios, the q = 0, v = 1 column, the vEff = 0 rows, and the pE medians. The figures that do not agree are the causal shares.
+
+With 24 evenly spaced rows, as the table note says the README samples, I get the README's own figures: 0 meets Post on 92.2-93.3% at N_CTX = 1024 and 95.4-95.7% at 4096. Row 0 has one key, so both tolerances are about 0.31*|attnRef| and Post rejects 0 on all of its elements; in a 24-row sample it is 4.2% of the elements. With 96 evenly spaced rows (row 0 now 1%), 0 meets Post on 94.2-94.6% at 1024 and 97.8-98.3% at 4096. Over all rows (row 0 is 1/N of them), the rejected share is about 4.5% at 1024 and about 1% at 4096.
+
+So the main table's causal entries ('8%, 4% to 5%' at D = 64; '7% to 8%, 4%' at D = 128), the per-N_CTX table's 91.5-92.6% and 95.4-95.8%, and the text's 'Post now rejects 0 on 4% to 40% of the elements' overstate how often Post rejects 0 on long causal rows. At N_CTX = 4096 the share is about a quarter of what the README states.
+
+Smaller mismatches that the stated ranges do not cover (both are samplings; for the table note):
+- N_CTX = 128: 0 meets Post on 82.4-88.2% of non-causal elements (README 84-88%) and 61.9-67.1% of causal ones (README 60-64%); the floor share on causal rows is 26.2-38.0% (README 25-33%).
+- The benchmark at N = 1024: 0 is rejected on 46-47% at D = 64 (README 50-54%) and on 12-17% at D = 128 (README 16-20%); the sample maxima of pE are 1.56 and 3.42 (README 'at most 1.43' and '3.1').
+- tolM at D = 64, N = 128 is 0.030 (README 0.031-0.033).
+- The vEff = 0 tolO at the cap at N = 2^14 is 1.0-1.1e-4 (README 1.4e-4).
+
+Suggested: weight each row's elements by the rows' real share, or give the causal figures without the first rows; or say that row 0 dominates them. The conclusions stand.
+
+*Evidence:* work/tolerance.py and work/tolerance.out: the 'test' rows (all rows at N = 128, 96 rows otherwise, two seeds), the 'test 24r' and 'row 0' rows, and the 'bench' rows
+
+- **accepted** at gate `4740b3814ba92693`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### The prover responds ([response](review/round-3/prover/response.json), [notes](review/round-3/prover/notes.md))
+
+`2026-11-01T04:24:59Z`, at gate `4740b3814ba92693`.
+
+- **F9 CLARIFIED**: README only. Every sampled figure is recomputed over all rows of a head with vIn, for three heads (independent draws), from Model.lean's expressions, and each range now also covers both reviewers' round-3 numbers; the table note says so in one sentence. Your three cases: (1) test causal rows, 0 rejected: 4.5-6.6% at N = 1024 and 1-2.2% at 4096 (0 meets Post on 93.4-95.5% and 97.8-99%); at N = 128 causal 33-39% (both D). A new sentence says that the first causal query (one key, always rejected) is 1/N_CTX of the rows, so small samples over-weight it. (2) Benchmark D = 128 non-causal: tolO 1.16-1.54, 0 rejected on 9.5-19%; D = 64: 45-57%. (3) Benchmark pE: medians 1.27-1.32 and 2.13-2.37, a head's largest 1.46-1.65 and 3.05-3.87. The other ranges move with them (Read this first: 1.75-5.5 times the floor on the test's data, 5-16 on the benchmark's; largest X 17 and 175). The Lean and the item digests are unchanged (gate 4740b3814ba92693).
+- **F10 CLARIFIED**: As F9: the figures are over all rows of three heads, with ranges that cover both reviewers' evaluations. The causal entries are now 4.5-6.6% (N_CTX = 1024) and 1-2.2% (4096) rejected in the main table, 93.4-95.5% and 97.8-99% in the per-N_CTX table, and the text says Post rejects 0 on 1-39% of the elements outside the non-causal rows at N_CTX >= 1024 (the floor alone: 7-75%). A sentence under the per-N_CTX table says that row 0 (one key, tolO and tolV about 0.31*|attnRef|) is rejected on all its elements and is 1/N_CTX of the rows. Your smaller mismatches are covered: N_CTX = 128, 0 meets Post on 81-88% (non-causal) and 61-67% (causal), floor share on causal rows 25-38%; benchmark rejected 45-57% (D = 64) and 9.5-19% (D = 128), pE largest 1.46-1.65 and 3.05-3.87; tolM at D = 64, N = 128 0.030-0.032; vEff = 0 tolO at the cap at 2^14 1.0e-4 to 1.4e-4 (D = 64 to 256). The Lean and the item digests are unchanged (gate 4740b3814ba92693).
+
+## Round 4
+
+
+### r-e5fwd files ([filing](review/round-4/r-e5fwd/filing.json), [report](review/round-4/r-e5fwd/report.md))
+
+`2026-11-01T04:26:25Z`, at gate `4740b3814ba92693`. Notes: On r-e5fwd2's F10 (not mine to release): the causal test shares it named now read 4.5-6.6% (N = 1024) and 1-2.2% (4096) rejected, and 93.4-95.5% and 97.8-99% met. That agrees with my uniform samples, and the row-0 sentence is right: one key, both tolerances about 0.31 |attnRef|, 1/N_CTX of the rows. Its N = 128 figures (81-88% and 61-67% met, floor 25-38%) also cover mine. Only README.md changed and the gate is 4740b3814ba92693, so every item stays accepted.
+
+- **released F9**: Settled for the three cases it named, checked against my round-3 work/tol_uniform.out (three seeds, 128 evenly spread rows). (1) Causal test rows: 0 is rejected on 4.5-6.6% at N = 1024 (mine 5.0-6.6%) and 1-2.2% at 4096 (mine 1.7-1.9%). The new sentence on row 0's weight explains the earlier figures. N = 128: 12-19% and 33-39% (mine 12.9-16.6% and 33.9-38.5%). (2) Benchmark D = 128 non-causal: tolO 1.16-1.54 (mine 1.16-1.49) and 0 rejected on 9.5-19% (mine 9.5-18.6%); D = 64, 45-57% (mine 45.0-57.2%). (3) pE maxima: 1.46-1.65 and 3.05-3.87 (mine 1.46-1.65 and 3.05-3.62). Residual remark, not a finding: on the benchmark's causal rows a few ranges still miss my seeds slightly, although the table note says each range covers both reviewers' round-3 evaluations. D = 128 causal tolO: README 0.85-0.90, mine 0.83-0.96. D = 128 causal rejection: README 34-38%, mine 32.9-40.5%, so 0 meets Post on 59.5-90.5% where the text says 62-90.5%. D = 64 causal rejection: README 66-69%, mine 64.6-68.6%. D = 64 causal tolO: README 0.42-0.43, mine 0.43-0.44. These are differences of a few percent, and no conclusion depends on them.
+- **accepted** at gate `4740b3814ba92693`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd2 files ([filing](review/round-4/r-e5fwd2/filing.json), [report](review/round-4/r-e5fwd2/report.md))
+
+`2026-11-01T04:27:10Z`, at gate `4740b3814ba92693`. Notes: Round 4 changed only README.md; the gate (4740b3814ba92693) and the item digests are unchanged, so every item stays accepted. I took no new samples: the figures that miss my outputs are within sampling noise. On r-e5fwd's F9: the same recomputation over all rows of three heads, and the row-0 sentence, answer its causal-share point, as far as I can judge. Whether r-e5fwd releases it is theirs.
+
+#### F11
+
+**DOC** on `doc:kernels/attn_fwd_e5m2/README.md` (non-blocking), affects item:spec: Some new ranges miss my round-3 outputs though the note says each covers both reviewers: e.g. benchmark causal 0 rejected at D = 128 (mine 28-36%, README 34-38%), tolV at D = 64, N = 4096 (6.6, 7.3)
+
+The table note says each range covers three heads and both reviewers' round-3 evaluations (all rows, or 96 or 128 evenly spread rows). My round-3 work/tolerance.out (kernels/attn_fwd_e5m2/review/round-3/r-e5fwd2/work/tolerance.out: all rows at N = 128, 96 rows otherwise, seeds 1 and 2) falls outside these ranges.
+
+Main table:
+- test-like D = 64, causal tolO at N = 128: mine 0.089 to 0.091 (README 0.092 to 0.093).
+- test-like D = 64, tolV at N = 4096: mine 6.6 (README 7.3; the D = 128 row says 6.6 to 7.3).
+- test-like D = 128, tolM: mine 0.093 at N = 128 (README 0.097 to 0.099), 0.116 to 0.120 at 1024 (README 0.117), 0.126 at 4096 (README 0.129 to 0.130).
+- benchmark D = 64, causal: tolO 0.43 to 0.46 (README 0.42 to 0.43); 0 rejected on 64% to 67% (README 66% to 69%).
+- benchmark D = 128, causal: tolO 0.86 to 1.01 (README 0.85 to 0.90); 0 rejected on 28% to 36% (README 34% to 38%).
+- test-like non-causal median |attnRef| at N = 128: 0.044 to 0.066 (README 0.047 to 0.068).
+
+Per-N_CTX table:
+- N = 128 non-causal fp8 floor share: 37% to 54% (README 36% to 52%).
+- N = 128 causal median |attnRef|: 0.065 to 0.094 (README 0.070 to 0.096).
+- N = 4096 causal floor share: 83% to 93% (README 84% to 93%).
+
+Read this first: tolO is 5.1 to 18.4 times the floor on the benchmark's data (README 'about 5 to 16').
+
+All of these are within sampling noise, and no conclusion changes. Either widen the ranges or drop the sentence that they cover both reviewers' evaluations.
+
+*Evidence:* kernels/attn_fwd_e5m2/review/round-3/r-e5fwd2/work/tolerance.out (the 'test' and 'bench' rows)
+
+- **released F10**: Answered. The causal shares at N_CTX >= 1024 are now 4.5-6.6% and 1-2.2% rejected (mine over 96 rows: 5.4-5.8% and 1.7-2.2%). A sentence now says that row 0 has one key, is always rejected, and is 1/N_CTX of the rows. Every smaller mismatch F10 listed is covered now: N_CTX = 128 meets Post on 81-88% and 61-67% (mine 82.4-88.2% and 61.9-67.1%); the causal floor share is 25-38% (mine 26.2-38.0%); the benchmark rejects 0 on 45-57% and 9.5-19% (mine 46-47% and 12-17%); pE's largest values are 1.46-1.65 and 3.05-3.87 (mine 1.46-1.56 and 3.18-3.42); tolM at D = 64, N = 128 is 0.030-0.032 (mine 0.030); the vEff = 0 tolO at the cap at 2^14 is 1.0-1.4e-4 (mine 1.0-1.1e-4). The ranges that the README widened since then are a new DOC.
+- **accepted** at gate `4740b3814ba92693`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### The prover responds ([response](review/round-4/prover/response.json), [notes](review/round-4/prover/notes.md))
+
+`2026-11-01T04:29:49Z`, at gate `4740b3814ba92693`.
+
+- **F11 CLARIFIED**: README only. Each range you list is widened to include your round-3 outputs. Main table: test D = 64 causal tolO at N = 128 0.089-0.093; test D = 64 tolV at N = 4096 6.6-7.3; test D = 128 tolM 0.093-0.099, 0.116-0.120, 0.126-0.130; benchmark D = 64 causal tolO 0.42-0.46, 0 rejected 64-69%; benchmark D = 128 causal tolO 0.83-1.01, 0 rejected 28-38%; test non-causal median |attnRef| at N = 128 0.044-0.068. Per-N_CTX table: N = 128 non-causal floor share 36-54%, N = 128 causal median |attnRef| 0.065-0.096, N = 4096 causal floor share 83-93%. Read this first: about 5 to 18.5 times the floor on the benchmark's data. The table note no longer says the ranges cover both reviewers' evaluations: they come from all rows of three heads, widened to the reviewers' independent samples, and other samples may differ by a few percent at the ends of a range. The per-N_CTX caption says the same. The Lean and the item digests are unchanged (gate 4740b3814ba92693).
+
+## Round 5
+
+
+### r-e5fwd2 files ([filing](review/round-5/r-e5fwd2/filing.json), [report](review/round-5/r-e5fwd2/report.md))
+
+`2026-11-01T04:30:42Z`, at gate `4740b3814ba92693`. Notes: Round 5 changed only README.md. The gate (4740b3814ba92693) and the item digests are unchanged, so every item stays accepted. I took no new samples; I checked against my round-3 work/tolerance.out.
+
+- **released F11**: Answered. Every number F11 listed now lies inside its range (rounded as the README rounds):
+- test D = 64: causal tolO at N = 128 is 0.089-0.093; tolV at N = 4096 is 6.6-7.3.
+- test D = 128: tolM is 0.093-0.099, 0.116-0.120 and 0.126-0.130.
+- benchmark causal, D = 64: tolO 0.42-0.46, 0 rejected on 64-69%.
+- benchmark causal, D = 128: tolO 0.83-1.01, 0 rejected on 28-38%.
+- test N = 128: the non-causal median |attnRef| is 0.044-0.068; the non-causal floor share 36-54%; the causal median |attnRef| 0.065-0.096.
+- test N = 4096: the causal floor share is 83-93%.
+- 'Read this first': 5 to 18.5 times the floor on the benchmark's data.
+The table note now says the ranges come from three heads, widened to the reviewers' samples, and that other samples may differ by a few percent at a range's ends. It no longer claims exact coverage.
+- **accepted** at gate `4740b3814ba92693`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd files ([filing](review/round-5/r-e5fwd/filing.json), [report](review/round-5/r-e5fwd/report.md))
+
+`2026-11-01T04:30:49Z`, at gate `4740b3814ba92693`. Notes: Round 5 check of the benchmark causal ranges my round-4 filing noted, against my round-3 work/tol_uniform.out; I took no new samples. Three of the four now cover my seeds. D = 128 causal tolO is 0.83-1.01 (mine 0.83-0.96). D = 64 causal rejection is 64-69% (mine 64.6-68.6%). D = 64 causal tolO is 0.42-0.46 (mine 0.43-0.44). The fourth still misses one seed by 2.5 points. D = 128 causal rejection reads 28-38% in the main table, and the text says 0 meets Post on 62-90.5% at D = 128; mine are 32.9-40.5% rejected, that is 59.5% met for seed 43. The table note now reads 'widened to the reviewers' independent samples; other samples may differ by a few percent at the ends of a range'. That no longer claims exact coverage, and its hedge covers a 2.5-point gap, so it does not overclaim materially. This is not a finding. Only README.md changed and the gate is 4740b3814ba92693, so every item stays accepted.
+
+- **accepted** at gate `4740b3814ba92693`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 

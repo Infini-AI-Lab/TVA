@@ -161,42 +161,9 @@ def DotF16 : Prop :=
 def DotBF16 : Prop :=
   ∀ p : InputPrecision, DotAcc P ⟨.bf16, .bf16, .f32, p, 0⟩ (fun _ => True) relDot16 absDot16
 
-/-- The number of `32`-product instructions an fp8 `tl.dot` with `K` products takes:
-`⌈K/32⌉`. -/
-def chunks8 (K : ℕ) : ℕ := (K + 31) / 32
-
-/-- The relative constant of an fp8 `tl.dot`: `(1 + 2^-7)^⌈K/32⌉ − 1`. -/
-def relDot8 (K : ℕ) : ℚ := (1 + 2 ^ (-7 : ℤ)) ^ chunks8 K - 1
-
-/-- The absolute constant of an fp8 `tl.dot`: `⌈K/32⌉·(1 + 2^-7)^⌈K/32⌉·2^-126`. -/
-def absDot8 (K : ℕ) : ℚ := chunks8 K * (1 + 2 ^ (-7 : ℤ)) ^ chunks8 K * 2 ^ (-126 : ℤ)
-
-/-- `tl.dot` of fp8 operands `a`, `b` into `float32` with Triton's default
-`max_num_imprecise_acc` on sm_90 (`2^30`, so the accumulation is imprecise throughout), any
-`input_precision`. -/
-def DotF8 (a b : DType) : Prop :=
-  ∀ p : InputPrecision, DotAcc P ⟨a, b, .f32, p, 2 ^ 30⟩ (fun _ => True) relDot8 absDot8
-
-/-- **`tl.dot` of `float8e4nv` operands into `float32`** (`DotF8`). On the `wgmma` path each
-instruction of `32` products keeps only the terms' bits down to `2^-13` of the largest, the
-accumulator included, so each is within `33·2^-13` times its terms' magnitudes' sum, plus a
-rounding, below `2^-7`; on the
-`mma.sync` path Triton upcasts to `float16`. Per output element: within
-`((1 + 2^-7)^⌈K/32⌉ − 1)·(|acc| + Σ|a·b|) + ⌈K/32⌉·(1 + 2^-7)^⌈K/32⌉·2^-126` of `acc + Σ a·b`.
-Evidence: `evidence/num-dot`. -/
-def DotE4m3 : Prop := DotF8 P .f8e4nv .f8e4nv
-
-/-- **`tl.dot` of `float8e5` operands into `float32`** (`DotF8`, as `DotE4m3`). Evidence:
-`evidence/num-dot`. -/
-def DotE5m2 : Prop := DotF8 P .f8e5 .f8e5
-
-/-- **`tl.dot` of `float8e4nv` by `float8e5` into `float32`** (`DotF8`). Evidence:
-`evidence/num-dot`. -/
-def DotE4m3E5m2 : Prop := DotF8 P .f8e4nv .f8e5
-
-/-- **`tl.dot` of `float8e5` by `float8e4nv` into `float32`** (`DotF8`). Evidence:
-`evidence/num-dot`. -/
-def DotE5m2E4m3 : Prop := DotF8 P .f8e5 .f8e4nv
+/- The fp8 `tl.dot` facts are `DotE4m3Chunk`, …, `DotE5m2E4m3Chunk` (`TVA.Rules.Num.Dot8Chunk`).
+The whole-dot facts `DotE4m3`, `DotE5m2`, `DotE4m3E5m2`, `DotE5m2E4m3` (and their family `DotF8`)
+were withdrawn in round 24 (library issue L125): a subnormal operand breaks their bound. -/
 
 /-- **`tl.dot` of `float32` operands with `input_precision="ieee"`** (no tensor cores): each
 output element is a sequence of `K` `fma.rn.f32`, `k = 0, …, K-1`, from the accumulator. Per

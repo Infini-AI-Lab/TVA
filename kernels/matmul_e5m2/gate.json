@@ -1,6 +1,6 @@
 {
   "build": {
-    "lean/TVA.lean": "5be099ee865913eeeb786dbcf85806270a42a444f102d2fcc89617a9510f0584",
+    "lean/TVA.lean": "171f2abf9caff17b183bec57830f06b7b59510bb347d8b849b9379e3b874dc85",
     "lean/TVA/Claim.lean": "5c2b60d3b2177b61d808f37c83b8e5fb7cdead467e90a5619bab3fb3071da093",
     "lean/TVA/Lang/BlockPtr.lean": "5c121ff17dd9b6f3b49adbbd9572d7f87055bfaabba8ab60025d69ac19f2fe4f",
     "lean/TVA/Lang/Desc.lean": "f6f836aff2342615a2aac7752b46e621308d1edd71a3efe989f7fd12f93c29f6",
@@ -21,6 +21,7 @@
     "lean/TVA/Lemmas/Claim.lean": "8728d976b555d281bfebf9901cf82d015604bc7642f9c24b0cb7276ddebc2942",
     "lean/TVA/Lemmas/Consistency.lean": "7ab47bca832a86b6c483b279d87ed2cae8fa78d2f5876a018c1847cb80d6a5ea",
     "lean/TVA/Lemmas/Desc.lean": "f91390ef65e1eab413b83bbbb8e1ba7f19af990949c72f460374887866ea23df",
+    "lean/TVA/Lemmas/Dot8Chunk.lean": "847246e7b02f8fb9b0ab2753071c01060bd70a98241734c91a16226a7f0cde76",
     "lean/TVA/Lemmas/DotLoop.lean": "de41c859d5c9b2d11cfd55d31fab92312805c5bf2b16761d9d911336c9e60f63",
     "lean/TVA/Lemmas/FloatErr.lean": "09fe7f250a3b988ba7a4efcf997e65b12ac9e040edab7341c570bf79bd8efb46",
     "lean/TVA/Lemmas/FloatMax.lean": "456f0b772e866aa954c837a910ad93da686d194c84893bba5e0d205538a5d324",
@@ -37,7 +38,7 @@
     "lean/TVA/Lemmas/Scan.lean": "9ae63bcbff031807c68f4e94631155b75e6941387a07938872e9367b51bcad9e",
     "lean/TVA/Lemmas/Shared.lean": "3bb137f3355e0164d4852adc4e72c0a8f232195b7ee18db833f1fcfc67607ddb",
     "lean/TVA/Lemmas/SharedAcc.lean": "9af6e59cd1376d09131623eb357717d44dde71af236f1af5a0879489bb24b447",
-    "lean/TVA/Lemmas/Sm90.lean": "9ced578680a0271d766bd3e90f1cfe1e62d488ca9c61c79e81d8d66cb24073b1",
+    "lean/TVA/Lemmas/Sm90.lean": "82f21dbc091980c9340b42175440eefba7ec031e18f739d7b691f0f522c41249",
     "lean/TVA/Lemmas/Sum.lean": "e4cf5bfed24f41db7347befc13c10a291ba2974f1b6cdb7e86a304d8dc807427",
     "lean/TVA/Lemmas/SumFused.lean": "7b50dd56c38f33283603a4f296b170fa954a86db2c3ee88aa3f3cd113c0bc696",
     "lean/TVA/Lemmas/Tree.lean": "68c596165ed4a37059c5699712916c34b1c083e611b6cdc400e53b4918cfdc30",
@@ -49,7 +50,8 @@
     "lean/TVA/Math/Rounding.lean": "d9b4b60bd4ad6d16fe47a13c1e803b900c4e7d380f092e5614a82861dad5d9c6",
     "lean/TVA/Rules/Compiler.lean": "24ff59ea326f1e0c51bff84a87c3bc420743f7d3cc7180afeb91cb6388753a4a",
     "lean/TVA/Rules/Num.lean": "b6e744d5e1c70ca2bdd36bf0538d24541134c1f51f103a901f735413d03b3cae",
-    "lean/TVA/Rules/Num/Sm90.lean": "53afff946a81fb8a0043a96564b71e87ab0597a5cbf3c53fa5204a16285e8b54",
+    "lean/TVA/Rules/Num/Dot8Chunk.lean": "a48810afc632e8881b160e584468835db24f3f0f3b60588b6c82bae6583d1c3f",
+    "lean/TVA/Rules/Num/Sm90.lean": "9a604a31b50dd1ce73a156652c5f7df27c802d79f5d821f0a07110319ad2e081",
     "lean/TVA/Sem/Launch.lean": "05ff97e010e389d6c077066b779f2d4fd8903ea5ee3d5a71486c7e7307dc9c99",
     "lean/TVA/Sem/Step.lean": "cd4f53042d571451bf9322306ea189cde68a96678776aedf9c4605227e3af0df",
     "lean/lake-manifest.json": "8849b5a16f151e87bd16cb6df4dd29a93a093beecf7a0fdedb0d4e887f4cb8cc",
@@ -123,29 +125,29 @@
       "ok": true
     }
   ],
-  "digest": "8e94d6c6242548433454eba80be18fc00eda393082cfee8a1d0c0c4a221914c1",
+  "digest": "3b92ad18abf5649a71fba7e16254703286032a43460af37f560df39a4a66bf68",
   "files": {
-    "README.md": "7f94a1bf39c4a71866ee8e3bb89943cd04bab1d94912a151fcd0711d8a94f6f7",
+    "README.md": "671a2adc3f091bd485539897cfb6752620fe895ad09eff7706d2b045ace74875",
     "kernel.json": "c195e19c4bcbd4a39d47fc6f202f7fb49df71ec1396d6542dfefa4150aa348b2",
-    "lean/MatmulE5m2.lean": "54b1ece44b9abd6d65974a3a4e5627724b9fe79bcc05d64ea28f12a503bfed40",
+    "lean/MatmulE5m2.lean": "d4ee3f52308fc2a87490fd84163a204d839fed461cb39b1dadc644ebbe310116",
     "lean/MatmulE5m2/Arith.lean": "832747adb41b4e7d946eefd8b514600c503dd2ba14b1c15ca25319c21b6f14f9",
-    "lean/MatmulE5m2/Basic.lean": "e7d53f052e1a49af0f07ab0f4d2b30240b0ffdb68658d459083cf852304289b9",
-    "lean/MatmulE5m2/Defs.lean": "0a6e18142654ad58af2f7d117ab4c139522dbcd705f5606d8e786d47ed9fc452",
-    "lean/MatmulE5m2/Program.lean": "91d32ff039eb410d1e8b89cc4fab25ddcb7dfe1cf325ddf3379cc93410bb7a6d",
-    "lean/MatmulE5m2/Reject.lean": "051de3dbc0d2156770a06d014540441a2530891e7a98ba18c063bc4cea7ba803",
+    "lean/MatmulE5m2/Basic.lean": "bafccf8d45c65f7483e752ec30edfd265966155af9fe45e30f968d75348cf0cf",
+    "lean/MatmulE5m2/Defs.lean": "7838a8b78c4b7dada22f5638b3968c06740f29dcd7acabbf7d03f101d60ab2f2",
+    "lean/MatmulE5m2/Program.lean": "e7614f5806f8d819ec0f39901096d13fcdb71d31084a095b84b3734570cf0fa6",
+    "lean/MatmulE5m2/Reject.lean": "bdeaaf979bb76dabc304253c66a566a9b9e5889d64b915de763e6c6b51846728",
     "model-map.json": "4a176f744307d0c411be4dea9aa62e5d8347e405ea7ff5c243e96181585f11e7",
     "source/03-matrix-multiplication.py": "0214d122b309ed88b97c8b88a66ddc03b0d7dcc7cca8444e887d4c8b71447ba5"
   },
   "items": {
-    "assumption:cvt": "aade17c6f03b45e86c5d0517188393c80d59e107d9c45a4243900245885792f0",
-    "assumption:cvt_total": "51327fef0b1a29a17b6236cb24a7802882cfa04a74357b9bdca63dea9eca9ed3",
-    "assumption:dot": "b998520ee20a9156c6a0c527848976546c12c0a4490155d879e484dd19b237eb",
-    "assumption:dot_total": "3d95de9d6a847cd9f70f18cefac60f29c63da929f8b1705bfec53a592a825bf7",
+    "assumption:cvt": "945d556ba0a46c11b0fc8daf2ac2433912427d166efb38f448fa48d0c23eaa12",
+    "assumption:cvt_total": "e73a67bc1e746b927eff7303c74c24d4bba4fdfbd91f701de2a3f61e69b0ce53",
+    "assumption:dot": "455b03ee146b48949159dbe967a1b6b15087b6486d2b557af1d90cd7f57ada42",
+    "assumption:dot_total": "ea7a57f96a7cfa5c137568fe29cebcc152ad0b84afc984930aba7db5b8aebfd7",
     "assumption:faithful": "a6f11c176fc0174752b88ad8d41820a20025afe5d21667276c09ddd4d1960e0b",
     "conditions": "91a8ae003d59cfa027d947ab3376b75dfc1b41b284622417b2e6a9618cfa3a55",
     "map": "517f928841e0be85ddbc61be9168e5e46ebe13e0ef35495e032557bb4e86e6cc",
     "model": "7a67c16d2d9a93f1d2a4df71b97b250a39a6cba71ce4b3cde3203d985ec612ee",
-    "spec": "b3adafe9b06cf2c93250c3cedd16903df0edf88a600534e2e7608594431193a3"
+    "spec": "2f1d1b501970d252305a779496549c034ae51ffcf5b11c5413e7e1ed080a2c88"
   },
   "kernel": "matmul_e5m2",
   "kinds": {
@@ -157,9 +159,9 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-10-31T21:42:09Z",
+  "time": "2026-11-01T02:51:48Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
-    "tools/tvr.py": "84f0b4d50930c1f687944b15cba75fbe7973f32210c33b3e4bca863af9234cec"
+    "tools/tvr.py": "b94d0e68beded7d8c2fcf96c4bd89e62a7547cb24a1f00eb722e1312f953652a"
   }
 }

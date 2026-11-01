@@ -133,33 +133,6 @@ private theorem dot16 (cfg : DotCfg) (hacc : cfg.acc = .f32) :
 theorem dotF16 : DotF16 Platform.sm90ref := fun _ => dot16 _ rfl
 theorem dotBF16 : DotBF16 Platform.sm90ref := fun _ => dot16 _ rfl
 
-private theorem chunks8_pos {K : ℕ} (hK : 0 < K) : 1 ≤ chunks8 K := by
-  unfold chunks8; omega
-
-private theorem dot8 (a b : DType) : DotF8 Platform.sm90ref a b := by
-  intro p
-  have hd : (0 : ℚ) ≤ 2 ^ (-7 : ℤ) := by positivity
-  refine Platform.ref.dotAcc (g := Format.binary32) rfl _ (fun K hK => ?_) (fun K hK => ?_)
-    (by simp [relDot8, chunks8]) (by simp [absDot8, chunks8])
-  · rw [u32q]; unfold relDot8
-    have hn := chunks8_pos hK
-    have hb := one_add_mul_le_pow (a := (2 : ℚ) ^ (-7 : ℤ)) (by linarith) (chunks8 K)
-    have hn' : (1 : ℚ) ≤ chunks8 K := by exact_mod_cast hn
-    have h1 : (2 : ℚ) ^ (-24 : ℤ) ≤ 2 ^ (-7 : ℤ) := zpow_le_zpow_right₀ (by norm_num) (by norm_num)
-    nlinarith
-  · rw [eta32q]; unfold absDot8
-    have hn' : (1 : ℚ) ≤ chunks8 K := by exact_mod_cast chunks8_pos hK
-    have hp : (1 : ℚ) ≤ (1 + 2 ^ (-7 : ℤ)) ^ chunks8 K := one_le_pow₀ (by linarith)
-    have h1 : (2 : ℚ) ^ (-150 : ℤ) ≤ 2 ^ (-126 : ℤ) := zpow_le_zpow_right₀ (by norm_num) (by norm_num)
-    have h2 : (1 : ℚ) ≤ (chunks8 K : ℚ) * (1 + 2 ^ (-7 : ℤ)) ^ chunks8 K := by nlinarith
-    have h3 := zpow_pos (show (0 : ℚ) < 2 by norm_num) (-126 : ℤ)
-    nlinarith
-
-theorem dotE4m3 : DotE4m3 Platform.sm90ref := dot8 _ _
-theorem dotE5m2 : DotE5m2 Platform.sm90ref := dot8 _ _
-theorem dotE4m3E5m2 : DotE4m3E5m2 Platform.sm90ref := dot8 _ _
-theorem dotE5m2E4m3 : DotE5m2E4m3 Platform.sm90ref := dot8 _ _
-
 theorem dotF32Ieee : DotF32Ieee Platform.sm90ref := by
   refine Platform.ref.dotAcc (g := Format.binary32) rfl _ (fun K _ => ?_) (fun K _ => ?_)
     (by positivity) (by positivity)

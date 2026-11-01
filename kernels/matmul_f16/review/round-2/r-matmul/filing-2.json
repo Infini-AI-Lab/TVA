@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-matmul",
+  "kernel": "matmul_f16",
+  "round": 2,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-acceptance after library round 24 (L124, L125). Between gates 27825a0f1b176612 and 00f23d84e4f9dd74, the snapshots differ only in the whole-file digests of docs/rules/num.md (assumption:dot, assumption:dot_total, spec) and lean/TVA/Rules/Num/Sm90.lean (assumption:dot, spec). Every constant those items reach hashes as before: DotF16, DotTotal, DotAcc, relDot16, absDot16 and DotLoop.bound. The diff of Sm90.lean only removes the fp8 facts and moves chunks8, relDot8 and absDot8 out. On num.md, the DotF16 row of 'Facts the library states', the reviewer's table row for float16/bfloat16 tl.dot (maxImpreciseAcc = 0, any precision), the DotTotal row, and the chunk-model bullet on 16-bit operands are all unchanged. The withdrawn and new facts are all fp8, which this kernel neither uses nor cites."
+}

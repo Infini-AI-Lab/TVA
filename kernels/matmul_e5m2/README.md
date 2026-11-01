@@ -31,9 +31,9 @@ This claim starts from `matmul_f16`'s Lean, model map and write-up, and changes 
 operands change: the pointer dtypes of `a_ptr` and `b_ptr` (`*fp8e5`), the loads' `other=0.0`
 (converted to `float8e5` on the device, with the library's fact `CvtF32E5m2`), the `tl.dot`
 configuration (`float8e5` operands, `max_num_imprecise_acc = 2^30`) and its library fact
-(`DotE5m2`), and the tolerance (the fp8 fact applied step by step against the exact partial
-sums, `K ≤ 4096`). The program order, the index arithmetic, the store and the last rounding to
-`float16` are unchanged.
+(`DotE5m2Chunk`, since library round 24), and the tolerance (the fp8 fact applied chunk by chunk
+against the exact partial sums, `K ≤ 4096`). The program order, the index arithmetic, the store
+and the last rounding to `float16` are unchanged.
 
 Every other module-level line is a host line: `import torch` (152), `DEVICE = …` (157), `is_cuda`
 (160–161, called by the host at lines 373, 400, 404), the tests, the benchmark's configs and
@@ -61,53 +61,70 @@ bind `get_cuda_autotune_config`, `get_hip_autotune_config`, `get_autotune_config
     `Format.binary16.u = 2^-11`, `Format.binary16.eta = 2^-25`).
 
   **The tolerance** (`tol`, `errAt` in `MatmulE5m2.Defs`) is the library's fp8 `tl.dot` fact
-  (`Rules.Num.DotE5m2` at `K = 64`, the loop's step) applied step by step against the exact
-  partial sums. Let `p e = va e · vb e` for `e < K` and `0` from `K` on (`prodV`), `T = cdiv(K, 64)`
-  the number of steps, `S_t = Σ_{e < 64t} p e` the exact partial sum before step `t` (`partSum`),
-  and `B_t = Σ_{64t ≤ e < 64t+64} |p e|` the magnitudes of step `t`'s products (`stepMag`). Then
-  `E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + B_t) + α`, and `tol va vb K = E_T`, with the
-  library's constants for one fp8 `tl.dot` of `K = 64`: `ρ = relDot8 64 = (1 + 2^-7)^2 − 1 =
-  257·2^-14` (about `1.57%`, `relDot8_64`) and `α = absDot8 64 = 16641·2^-139` (below `2.4·10^-38`,
-  `absDot8_64`). Each step is what the fact gives: step `t` adds its products to an accumulator
-  `a` within `E_t` of `S_t`, up to `ρ·(|a| + B_t) + α`, and `|a| ≤ |S_t| + E_t` (`err_step`). The
-  tolerance is explicit and computable from the inputs, and depends on where the products are
-  (through the partial sums of the steps of `64`). It is never above `tolA K Σ|a·b|`, the
-  claim's first tolerance, `((1 + ρ)^T − 1)·Σ|a·b| + T·(1 + ρ)^T·α` (`tol_le_tolA`), and it equals
-  it, up to the `α` terms, on an input whose only product is in the first step.
+  (`Rules.Num.DotE5m2Chunk`) applied chunk by chunk against the exact partial sums. Each step's
+  `tl.dot` of `K = 64` adds two chunks of `32` products, so the loop adds `n = 2·cdiv(K, 64)`
+  chunks, chunk `j` holding the products `32·j ≤ e < 32·j + 32`. Let `p e = va e · vb e` for
+  `e < K` and `0` from `K` on (`prodV`); `l e = liftMag(va e)·liftMag(vb e)` its lifted magnitude
+  for `e < K`, `0` from `K` on (`liftV`: `|p e|`, except that a subnormal operand counts as
+  `2^-14`, the smallest normal `float8e5` magnitude, by which the tensor core aligns it);
+  `S_j = Σ_{e < 32j} p e` the exact partial sum before chunk `j` (`partSum`); and
+  `m_j = max_{32j ≤ e < 32j+32} l e` the chunk's largest lifted product (`chunkMax`). Then
+  `E_0 = 0`, `E_{j+1} = (1 + ρ + σ)·E_j + ρ·max(|S_j|, m_j) + σ·|S_{j+1}| + α`, and
+  `tol va vb K = E_n`, with the fact's constants `ρ = 2^-7`, `σ = 2^-12`, `α = 2^-126`
+  (`rhoChunk8`, `sigmaChunk8`, `alphaChunk8`). Each chunk is what the fact gives: it adds its exact
+  sum `c` to an accumulator `s` within `E_j` of `S_j`, up to `ρ·M + σ·|s + c| + α` for every `M`
+  at least `|s|` and each of the chunk's lifted products; with `M = max(|S_j| + E_j, m_j)`,
+  `|s| ≤ |S_j| + E_j` and `|s + c| ≤ |S_{j+1}| + E_j`, the new accumulator is within `E_{j+1}` of
+  `S_{j+1}` (`chunk_step`). The tolerance is explicit and computable from the inputs. It depends on
+  where the products are (through the partial sums at each chunk) and on each chunk's largest
+  lifted product, not on the sum of a chunk's magnitudes. It is never above
+  `tolA K L = ((1 + ρ + σ)^n − 1)·L + n·(1 + ρ + σ)^n·α`, with `L = Σ liftMag(a_k)·liftMag(b_k)`
+  (`dotLift`, which is `Σ|a·b|` when no operand is subnormal; `tol_le_tolA`), and it equals it, up
+  to the `α` terms, on an input whose only product is the first (of normal operands).
+  `(1 + ρ + σ)^n − 1 = (4129/4096)^n − 1` is about `0.137` at `K = 512` and `1.793` at `K = 4096`,
+  and below `1.8` at every covered `K` (`tolA_rel_lt`, `tolA_le`).
 
   **What it rejects, at every covered size** (`MatmulE5m2.Reject`). `Post` holds for every input,
   so it rejects a wrong kernel as soon as one input exposes it.
-  - With one product `X = x·y` at index `K − 1` (the last step), `tol ≤ ρ·|X| + 200·α`, about
-    `1.57%` of `|X|` plus less than `10^-35`, at every covered `K` (`tol_spike`).
+  - With one product `X = x·y` at index `K − 1` (the last step), `tol ≤ 271425·2^-24·L + 400·2^-126`
+    with `L = liftMag x · liftMag y` (`|X|` for normal `x`, `y`), at every covered `K`
+    (`tol_spike`): `271425·2^-24 = (1 + ρ + σ)^2 − 1` is about `1.62%`, and `400·2^-126 < 10^-35`.
+    The bound is attained (up to the `α` terms) when `K mod 64` is between `1` and `32`, where the
+    loop's last chunk holds
+    only disabled lanes and the fact still lets it move the accumulator; at the other `K` (the
+    test's `512` and every benchmark size, all multiples of `64`) the tolerance on that input is
+    `(ρ + σ)·L` plus `α` terms, about `0.81%`.
   - So a zero result (a kernel that stores `0`, or skips the loop) breaks `Post` at every covered
     `K ≥ 1` (`zero_rejected`: with `X = 1`, `0` is outside the `float16` bound, and there is room).
     So do a result `S/2`, `−S`, or any result more than about `1.6%` from `S` on that input, and a
     float8e5 rounding of the result where `S` is no float8e5 value: with `x = y = 1.25`,
     `S = 1.5625`, its float8e5 rounding `1.5` is `0.0625` from `S`, above the bound
-    `0.0157·1.5625 + (1.5625 + 0.0245)·2^-11 + 2^-25 < 0.026`.
+    `0.0162·1.5625 + (1.5625 + 0.0253)·2^-11 + 2^-25 < 0.027` (below `0.014` at `K = 512`).
   - A kernel that skips any one step `s` of the loop (and is otherwise exact), returning
     `S − X_s` with `X_s` the exact sum of step `s`'s products, breaks `Post` at every covered `K`
     (`drop_rejected`): for the last step on the input above; for an earlier step on the row `1`
     at `64·s`, `-1` at `64·s + 64` against a column of `1`s, where `S = 0`, `X_s = 1` and the
-    tolerance is below `1/5` (about `0.124` for `s = 0` at `K = 4096`).
+    tolerance is below `1/5` (about `0.066` for `s = 0` at `K = 4096`).
 
   **What it does not reject.** A result within the tolerance of `S` on the input at hand, which
   is the device's own allowed error, and can be large:
-  - on an input whose weight sits in the first step and stays in the partial sums (one product
-    `X` in step `0`), the tolerance is `((1 + ρ)^T − 1)·|X|`: `13.3%` of `|X|` at the test's
-    `K = 512`, above `|X|` from `K = 2817`, and `170.8%` at `K = 4096`; there a zero result passes
-    on that input (and is rejected on the inputs above);
-  - on products of one sign (all-ones matrices, say) it is `7.3%` of `S` at `K = 512` and
-    `72.8%` at `K = 4096`;
-  - on the script's own data (`torch.randn` cast to `float8e5`; exact evaluation over 20 draws,
-    median), it is about `7.0` against a typical `|S|` of `22.6` at `K = 512` (`0.30·|S|`; the
-    first tolerance gave `41.7`), and about `114` against a typical `|S|` of `55` at `K = 4096`
-    (`2.3·|S|`; the first gave `4415`). So on such data a float8e5 rounding of the result (at most
-    `1/9` relative) passes at both sizes, and at `K = 4096` the bound does not fix the sign of a
-    typical output.
+  - on an input whose weight sits in the first chunk and stays in the partial sums (one product
+    `X` of normal operands at index `0`), the tolerance is `((1 + ρ + σ)^n − 1)·|X|`: `13.7%` of
+    `|X|` at the test's `K = 512`, above `|X|` from `K = 2753`, and `179.3%` at `K = 4096`; there a
+    zero result passes on that input (and is rejected on the inputs above). Each chunk's
+    instruction may cut the accumulator itself (the fact's `ρ·M` with `M ≥ |s|`), so a large
+    partial sum costs about `ρ + σ` of itself per chunk;
+  - on products of one sign (all-ones matrices, say) it is `6.3%` of `S` at `K = 512` and
+    `73.9%` at `K = 4096`;
+  - on the script's own data (`torch.randn` cast to `float8e5`; exact evaluation over 20 draws of
+    a row and a column, median), it is about `1.5` against a typical `|S|` of `20.5` at `K = 512`
+    (`0.08·|S|`), and about `52` against a typical `|S|` of `52` at `K = 4096` (below `|S|` on half
+    the draws). So at `K = 512` the typical bound is below the `1/9` relative error that a
+    float8e5 rounding of the result can make, and at `K = 4096` it fixes the sign of only about
+    half the outputs.
 
-  The test's own check (`torch.allclose(…, atol=0.125)`, line 385) is far tighter than anything
-  the library's fact promises on that data, and `Post` does not imply it.
+  The test's own check (`torch.allclose(…, atol=0.125)`, line 385) is tighter than anything the
+  library's fact promises on that data, and `Post` does not imply it.
 
   With a NaN or an infinity in row `i` of `a` or column `j` of `b`, the claim says only that
   element `(i, j)` holds some `float16` value.
@@ -196,7 +213,7 @@ launch.
 **Part (B) of the scope, the environment** (points 1, 2, 3, the environment's part of 4, 7, 10 and
 11), is an assumption of the rule: the claim relies on it, and TVA does not check it. Among it,
 point 7's target, an H200 (sm_90): the model's default `max_num_imprecise_acc = 2^30` for the fp8
-dot and the facts `DotE5m2` and `CvtF32E5m2` are the H200's.
+dot and the facts `DotE5m2Chunk` and `CvtF32E5m2` are the H200's.
 
 **The supported subset** ([SEMANTICS.md](../../docs/SEMANTICS.md), "The supported subset"). The
 kernel is a top-level `def` under a bare `@triton.jit`, not under `@triton.autotune`. Its parameters
@@ -233,11 +250,17 @@ Five assumptions, all of kind `[rule]`, each cited as the library states it
   scope, which its text states: part (A), which the launches meet (Conditions), and part (B), the
   environment, which the claim relies on
   ([rule page](../../docs/rules/compiler-faithful.md)).
-- `dot` — `Rules.Num.DotE5m2 P`, the library's fact for `tl.dot` of `float8e5` operands into
-  `float32` with `maxImpreciseAcc = 2^30`, the default on sm_90 (line 300): for every
-  `input_precision`, each output element whose row of `a`, column of `b` and accumulator are finite
-  is finite and within `relDot8 K·(|acc| + Σ|a·b|) + absDot8 K` of `acc + Σ a·b`, when that leaves
-  room below the `float32` range.
+- `dot` — `Rules.Num.DotE5m2Chunk P`, the library's fact for `tl.dot` of `float8e5` operands
+  into `float32` with `maxImpreciseAcc = 2^30`, the default on sm_90 (line 300), chunk by chunk
+  (`DotF8Chunk P .f8e5 .f8e5`, that is `DotChunkAcc` with `rhoChunk8 = 2^-7`,
+  `sigmaChunk8 = 2^-12`, `alphaChunk8 = 2^-126`): for every `input_precision` and each output
+  element whose row of `a`, column of `b` and accumulator are finite, with room below the `float32`
+  range (`mag + relDot8 K·mag + absDot8 K ≤ maxVal`, `mag = |acc| + Σ|a·b|`), the result is finite,
+  and there are partial values `s 0 = acc, …, s ⌈K/32⌉ = result`, one per chunk of `32`
+  consecutive `k` (`chunk8`) in increasing order, with `s (j+1)` within
+  `2^-7·M + 2^-12·|s j + c_j| + 2^-126` of `s j + c_j` (`c_j` the chunk's exact sum) for every `M`
+  at least `|s j|` and each lifted product `liftMag a_k · liftMag b_k` of the chunk (`liftMag`:
+  `|x|`, a subnormal `float8e5` operand counted as `2^-14`).
 - `dot_total` — `Rules.Num.DotTotal P cfg` for the model's configuration (`float8e5` operands,
   `float32` accumulator, `tf32`, `maxImpreciseAcc = 2^30`): the `tl.dot` of line 300 always has a
   result.
@@ -276,25 +299,30 @@ rounding the library defines (`tl.cvt`) and needs no platform fact.
   - Line 294 (`safe_idiv1`, `safe_forRange`): the loop runs `T = cdiv(K, 64)` trips, with the
     invariant: memory unchanged, `a_ptrs = aPtrs d p t`, `b_ptrs = bPtrs d p t`, and `AccInv`: every
     element of the tile whose row of `a` and column of `b` are finite is finite and within
-    `errAt (prodV va vb K) t` of the exact partial sum `partS t` (the products of `k < 64·t`). It
-    holds at `t = 0` (`acc0`: `+0.0`, exact).
+    `errAt (prodV va vb K) (liftV va vb K) (2·t)` of the exact partial sum `partS (2·t)` (the
+    products of `k < 64·t`, `2·t` chunks). It holds at `t = 0` (`acc0`: `+0.0`, exact).
   - Lines 297–298 (`safe_convert` with `zero_conv_ex`, from `cvt_total`; `safe_load_buf`):
     `other=0.0` converts to a finite `float8e5` zero (`zero_conv`, from `cvt`: the rounding to
     nearest even of the `float32` `+0`, `e5m2_cvt_zero`); each enabled lane (`64·t + k < K`) loads
     its element of `a` (resp. `b`), inside the matrix, each disabled lane the zero.
-  - Line 300 (`safe_dot`, with `dot_total`), then `acc_step`: by `dot` (`Rules.Num.DotE5m2`, at
-    `K = 64`) and `err_step`, the accumulator keeps `AccInv` at `t + 1`: the step adds the products
-    `X` of step `t` up to `ρ·(|acc| + B_t) + α`, and `|acc| ≤ |S_t| + E_t`, which is `E_{t+1}`. The
-    disabled lanes add exact zeros. The values stay far inside the `float32` range: each product is
-    below `57344² < 2^32`, the partial sums of magnitudes below `2^44`, `E_t` is at most
-    `DotLoop.bound ρ α t (partA t)` (`errAt_le_bound`) and `(1 + ρ)^t ≤ 3` for `t ≤ 64`
-    (`pow_rho_le`).
+  - Line 300 (`safe_dot`, with `dot_total`), then `acc_step`: by `dot` (`Rules.Num.DotE5m2Chunk`,
+    at `K = 64`: two chunks, partial values `s 0 = acc`, `s 1`, `s 2 = result`) and `chunk_step`
+    once per chunk, the accumulator keeps `AccInv` at `t + 1`. Chunk `c` of step `t`'s `tl.dot`
+    (`chunk8 64 c`) is chunk `2·t + c` of the loop (`sum_chunk8`): its exact sum is that of the
+    products `64·t + 32·c ≤ e < 64·t + 32·c + 32`, and each of its lanes' lifted products is
+    `liftV` there, at most `chunkMax` (a disabled lane holds `+0`: product `0`, lifted product `0`).
+    The fact's room is met far inside the `float32` range: each product is below
+    `57344² < 2^32`, the step's `Σ|a·b|` below `2^38`, each partial sum below `2^44`, and the error
+    bound below `2^46` (`errAt_le_room`, by `errAt_le_bound` with each lifted product below `2^32`,
+    `liftV_le`, and `(1 + ρ + σ)^j ≤ 3` for `j ≤ 128`, `pow_q_le`), against
+    `relDot8 64 = 257·2^-14` and `absDot8 64 = 16641·2^-139` (`relDot8_64`, `absDot8_64`).
   - Lines 302–303 (`safe_ret`): the pointers advance to `aPtrs d p (t + 1)` and `bPtrs d p (t + 1)`.
   - Line 308 (`safe_cvt`): `c` is the rounding of the accumulator to `float16`, up to NaN payload.
   - Lines 312–316 (`safe_last`, `safe_store_buf`): enabled lanes (`c_mask`) store to element
     `(pm·128 + i, pn·256 + j)` of `c`, distinct lanes to distinct elements (`c_inj`, from `c_rows`).
-    After `T` trips the partial sums are the whole sums (`partS_end`), so `OutSpec` follows from
-    `AccInv` and the last rounding (`out_f16`, by `FloatV.cvt_err`).
+    After `T` trips (`2·T` chunks) the partial sum is the whole sum (`partS_end`), and the error
+    bound is `tol`, so `OutSpec` follows from `AccInv` and the last rounding (`out_f16`, by
+    `FloatV.cvt_err`).
 - `hdisj`: program `i`'s tile of `c` is disjoint from `a` and `b` (`W_sub`, `c_a`, `c_b`) and,
   for `i ≠ j`, from program `j`'s tile (`W_disj`: two lanes storing to one element have the same
   row and column, `c_inj`, hence the same tile, and the program order is injective, `pid_inj`).
@@ -305,7 +333,7 @@ rounding the library defines (`tl.cvt`) and needs no platform fact.
   the matrix `c` is in no write footprint, so it keeps its initial value.
 
 `consistent`: `TVA.exists_total_faithful` with `Platform.sm90ref` gives a total behaviour that
-satisfies `faithful`; `Platform.sm90ref.dotE5m2` gives `dot`, `Platform.ref.dotTotal` gives
+satisfies `faithful`; `Platform.sm90ref.dotE5m2Chunk` gives `dot`, `Platform.ref.dotTotal` gives
 `dot_total`, `Platform.sm90ref.cvtF32E5m2` gives `cvt` and `Platform.ref.cvtTotal` gives
 `cvt_total`.
 
@@ -316,7 +344,8 @@ of `512·512` elements, at the 16-byte-aligned addresses `2^21`, `2·2^21` and `
 
 The lemmas about the tolerance, `tol_le_tolA` (`MatmulE5m2.Basic`), `tolA_rel_lt`, `tolA_le`
 (`MatmulE5m2.Defs`), and `tol_spike`, `zero_rejected`, `drop_rejected` (`MatmulE5m2.Reject`:
-the error bound on steps with no products, `errAt_quiet`, and on inputs of `1`, `-1` and `0`), and
+the error bound chunk by chunk, `errAt_succ_le`, on chunks with no products, `errAt_quiet`, and on
+inputs of `1`, `-1` and `0`), and
 `fp8_run_ok` (the host's `float8e5` run meets `Inst.ok`, Conditions), are proved by exact rational
 and integer arithmetic; `main` does not need them.
 
@@ -358,7 +387,9 @@ Narrowings, each against the kernel's real use:
   `b`, the claim says only that the element of `c` holds some `float16` value. The library states
   no `tl.dot` fact for non-finite operands. The script's inputs are `torch.randn` values, far
   below `57344` in magnitude, cast to `float8e5`, so they are finite; `Pre` allows every value
-  anyway.
+  anyway. Subnormal operands are covered: the tolerance counts a subnormal `float8e5` value as
+  `2^-14` in the lifted products (`liftV`), as the fact does (`torch.randn` cast to `float8e5`
+  can give some).
 - **The environment.** The claim covers only launches within part (B) of `Compiler.Faithful`'s
   scope, which it relies on and nobody checks (Conditions): among it, point 7's target and host (an
   H200, driven from an x86-64 host running CPython 3.13 without `-O` or `-OO` and with
@@ -390,3 +421,50 @@ Modelling decisions:
   `[128, 64]`, `[64, 1]`, `[1, 256]`, `[64, 256]`, `[128, 256]`); `enable_fp_fusion` is written as
   Triton's default `true` (no operation of the model depends on it); `num_warps=8` and
   `num_stages=3` change no result and are not recorded.
+
+## What changed (library round 24)
+
+The library withdrew `DotE5m2` (library issue L125: when a subnormal operand sets an instruction's
+alignment, the device's error exceeds it), so the claim, which cited it, no longer built. It now
+cites the new fact `DotE5m2Chunk` (L124), and the tolerance, its proof and the rejection lemmas are
+redone on it.
+
+- **Assumption `dot`**: `Rules.Num.DotE5m2Chunk P` (was `Rules.Num.DotE5m2 P`); `consistent` uses
+  `Platform.sm90ref.dotE5m2Chunk`. The other four assumptions, the model, the model map and the
+  conditions are unchanged: `K ≤ 4096` still keeps `(1 + ρ + σ)^n ≤ 3` (`n ≤ 128` chunks) and
+  the rejection lemmas at every covered `K`.
+- **The tolerance** is the fact applied chunk by chunk (`32` products, two chunks per step), from
+  the exact partial sums and each chunk's largest lifted product (`errAt p q`, `liftV`,
+  `chunkMax`), instead of the old fact applied step by step with each step's `Σ|a·b|`. Of the two
+  routes the library offers it is the tighter: the whole-dot lemma `Dot8Chunk.DotF8Chunk.liftAcc`
+  applied per step (`relLift8 64 = (1 + 2^-7 + 2^-12)^2 − 1` of `|acc| + Σ liftMag·liftMag`)
+  would give about the old figures or a little more (on the draws below, medians `7.0` at
+  `K = 512` and `125` at `K = 4096`).
+- **Subnormal operands** are still covered: the tolerance counts a subnormal operand as `2^-14`
+  in the lifted products, as the new fact does (the withdrawn fact's bound did not hold for them).
+- **The proof**: `acc_step` takes the fact's partial values for the step's two chunks and applies
+  `chunk_step` to each; `errAt_le_room` keeps the fact's room (the same room as the old fact's);
+  `tol_le_tolA` now bounds the tolerance by `tolA K (dotLift va vb K)`, relative part
+  `(4129/4096)^n − 1 < 1.8` (was `(1 + 257·2^-14)^T − 1 < 1.71`, of `Σ|a·b|`).
+- **What `Post` rejects**: `zero_rejected` and `drop_rejected` are re-proved at every covered `K`
+  on the same inputs, and a zero result and a skipped step are still rejected everywhere.
+  `tol_spike` is now at most `1.62%` of `L` (was `1.57%` of `|X|`), and the bound in the
+  `x = y = 1.25` example is below `0.027` (was `0.026`), still below the `0.0625` it rejects.
+
+The figures, old → new (one row of `a` and one column of `b`, exact evaluation; the `torch.randn`
+draws are the same 20 for both):
+
+| Input | `K = 512` | `K = 4096` |
+|---|---|---|
+| one product `1` at `K − 1` | `1.57%` → `0.81%` | `1.57%` → `0.81%` |
+| that input, worst covered `K` (`tol_spike`) | `1.57%` → `1.62%` | |
+| row `1` at `0`, `-1` at `64`, column of `1`s (`drop_rejected`, `s = 0`) | `0.052` → `0.027` | `0.124` → `0.066` |
+| one product `X` at index `0` | `13.3%` → `13.7%` | `170.8%` → `179.3%` |
+| all-ones, relative to `S` | `7.3%` → `6.3%` | `72.8%` → `73.9%` |
+| `torch.randn` cast to `float8e5`, median (against a median \|S\| of) | `6.8` → `1.5` (`20.5`) | `119` → `52` (`52`) |
+| `tolA`'s relative part | `0.133` → `0.137` | `1.708` → `1.793` |
+
+With one product at index `0` the tolerance passes `|X|` from `K = 2753` (was `2817`). The new
+fact charges each chunk `ρ·M` with `M` at least the accumulator (the instruction may cut it), so
+inputs whose partial sums stay large (one product early, products of one sign at large `K`) get a
+slightly larger tolerance than before, and typical inputs a much smaller one.

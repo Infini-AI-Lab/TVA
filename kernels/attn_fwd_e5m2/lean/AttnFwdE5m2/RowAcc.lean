@@ -6,8 +6,9 @@ import AttnFwdE5m2.RowMax
 * `psum`: a sum over the attended keys of the first `t` blocks; `wt R m j = 2^(w·s_j − m)`, the
   exact weight of key `j` against the running maximum `m`, and `ew R j = 2^(w·s_j)`, its exact
   weight `exp(sm_scale·s_j)`.
-* the constants of a step as real numbers (`pER = 2^E`, `psiPR`, `psi8R`, `psiAR`, `rhoAR`,
-  `stepLR`, `qLR`, …) and their sizes on a covered row (`RowCtx.Ok`);
+* the constants of a step as real numbers (`pER = 2^E`, `psiPR`, `psi8R`, `dmaxR`, `stepLR`,
+  `qLR`, …, and the `p·v` `tl.dot`'s `cS8`, `cC8`, `cP8`, `cA8`) and their sizes on a covered row
+  (`RowCtx.Ok`);
 * `lane_p`, `lane_p8`: one lane's `p = exp2(qk)` (line 82) and `p.to(float8e5)` (line 101);
 * `alpha_bound`, `alpha_zero`: `alpha = exp2(m_i − m_ij)` (line 84);
 * `scale_err`: `acc * alpha[:, None]` (line 95); `sum64_err`: `tl.sum(p, 1)` (line 85).
@@ -197,21 +198,11 @@ noncomputable def psiPR (R : RowCtx) : ℝ := pER R * (1 + 1 / 2 ^ 22) - 1
 /-- The same after `p.to(float8e5)`. -/
 noncomputable def psi8R (R : RowCtx) : ℝ := (1 + psiPR R) * (9 / 8) - 1
 
-/-- `relDot8 64` as a real number. -/
-noncomputable def rho8r : ℝ := 257 / 2 ^ 14
-
-/-- A block's new contribution's relative error. -/
-noncomputable def psiAR (R : RowCtx) : ℝ := (1 + rho8r) * (1 + psi8R R) - 1
-
 /-- The absolute error of a key's `p.to(float8e5)`. -/
 noncomputable def om8r : ℝ := 1 / 2 ^ 17 + 9 / 8 * (1 / 2 ^ 126)
 
 /-- The bound on `alpha`'s relative error besides `2^-22`. -/
 noncomputable def dmaxR (R : RowCtx) : ℝ := 2 * (R.Y + R.E) / 2 ^ 24 + 1 / 2 ^ 150
-
-/-- The accumulator's per-block relative error on its earlier content. -/
-noncomputable def rhoAR (R : RowCtx) : ℝ :=
-  (1 + rho8r) * ((1 + dmaxR R) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24))) - 1
 
 /-- A block sum's relative error. -/
 noncomputable def gamr : ℝ := (1 + 1 / 2 ^ 24) ^ 63 - 1
@@ -232,11 +223,8 @@ noncomputable def FlR (R : RowCtx) (t : ℕ) : ℝ :=
 /-- `l_i`'s absolute error per block (before the factor `FhR`). -/
 noncomputable def absLr : ℝ := 1 / 2 ^ 80
 
-/-- The accumulator's absolute error per block, besides `om8r·|v|` per key. -/
-noncomputable def absAr : ℝ := 1 / 2 ^ 64
-
 /-- The accumulator's crude bound after `t` blocks. -/
-noncomputable def crA (t : ℕ) : ℝ := 2 ^ 23 * t * (64 / 63) ^ t
+noncomputable def crA (t : ℕ) : ℝ := 2 ^ 23 * t * (61 / 60) ^ t
 
 theorem pER_ge {R : RowCtx} (hR : R.Ok) : 1 ≤ pER R := one_le_two_rpow hR.E_nonneg
 
@@ -250,23 +238,33 @@ theorem psiPR_nonneg {R : RowCtx} (hR : R.Ok) : 0 ≤ psiPR R := by
 theorem psi8R_nonneg {R : RowCtx} (hR : R.Ok) : 0 ≤ psi8R R := by
   unfold psi8R; have := psiPR_nonneg hR; nlinarith
 
-theorem psiAR_nonneg {R : RowCtx} (hR : R.Ok) : 0 ≤ psiAR R := by
-  unfold psiAR rho8r; have := psi8R_nonneg hR; nlinarith
-
 theorem dmaxR_nonneg {R : RowCtx} (hR : R.Ok) : 0 ≤ dmaxR R := by
   unfold dmaxR; have := hR.Y_nonneg; have := hR.E_nonneg; positivity
 
 theorem dmaxR_le {R : RowCtx} (hR : R.Ok) : dmaxR R ≤ 1 / 2 ^ 13 := by
   unfold dmaxR; have := hR.Y_le; have := hR.E_le; norm_num; linarith
 
-theorem rhoAR_nonneg {R : RowCtx} (hR : R.Ok) : 0 ≤ rhoAR R := by
-  unfold rhoAR rho8r; have := dmaxR_nonneg hR
-  have h1 : (1 : ℝ) ≤ (1 + dmaxR R) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) := by nlinarith
-  nlinarith
+/-- The `p·v` `tl.dot`'s constants as real numbers. -/
+theorem cS8_r : ((cS8 : ℚ) : ℝ) = 271425 / 2 ^ 24 := by
+  unfold cS8 Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8; push_cast; norm_num
 
-/-- `(1 + relDot8 64)·Φ ≤ 64/63`: the growth of the accumulator's crude bound. -/
-theorem rhoAR_le {R : RowCtx} (hR : R.Ok) : 1 + rhoAR R ≤ 64 / 63 := by
-  unfold rhoAR rho8r; have := dmaxR_le hR; have := dmaxR_nonneg hR; nlinarith
+theorem cC8_r : ((cC8 : ℚ) : ℝ) = 139297 / 2 ^ 24 := by
+  unfold cC8 Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8; push_cast; norm_num
+
+theorem cP8_r : ((cP8 : ℚ) : ℝ) = 132128 / 2 ^ 24 := by
+  unfold cP8 Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8; push_cast; norm_num
+
+theorem cA8_r : ((cA8 : ℚ) : ℝ) = 8225 / 2 ^ 12 * (1 / 2 ^ 126) := by
+  unfold cA8 Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8 Rules.Num.alphaChunk8; push_cast; norm_num
+
+theorem eps8_r : ((eps8 : ℚ) : ℝ) = 1 / 2 ^ 17 + 1 / 2 ^ 125 := by unfold eps8; push_cast; ring
+
+theorem gam63_r : ((gam63 : ℚ) : ℝ) = gamr := by unfold gam63 gamr u32; push_cast; ring
+
+/-- `(1 + cS8)·Φ ≤ 61/60`: the growth of the accumulator's crude bound. -/
+theorem crA_factor {R : RowCtx} (hR : R.Ok) :
+    (1 + (cS8 : ℝ)) * ((1 + dmaxR R) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24))) ≤ 61 / 60 := by
+  rw [cS8_r]; have := dmaxR_le hR; have := dmaxR_nonneg hR; nlinarith
 
 theorem gamr_nonneg : 0 ≤ gamr := by
   unfold gamr; have : (1 : ℝ) ≤ (1 + 1 / 2 ^ 24) ^ 63 := one_le_pow₀ (by norm_num); linarith
@@ -289,20 +287,20 @@ theorem qLR_le {R : RowCtx} (hR : R.Ok) : qLR R ≤ 1 := by
 theorem qLR_ge {R : RowCtx} (hR : R.Ok) : 1 - 1 / 2 ^ 12 ≤ qLR R := by
   unfold qLR; have := dmaxR_le hR; have := dmaxR_nonneg hR; nlinarith
 
-theorem crA_succ (t : ℕ) : (64 / 63 : ℝ) * crA t + 2 ^ 23 ≤ crA (t + 1) := by
+theorem crA_succ (t : ℕ) : (61 / 60 : ℝ) * crA t + 2 ^ 23 ≤ crA (t + 1) := by
   unfold crA
-  have h1 : (1 : ℝ) ≤ (64 / 63) ^ (t + 1) := one_le_pow₀ (by norm_num)
-  have e : (2 : ℝ) ^ 23 * ((t + 1 : ℕ) : ℝ) * (64 / 63) ^ (t + 1) =
-      64 / 63 * (2 ^ 23 * t * (64 / 63) ^ t) + 2 ^ 23 * (64 / 63) ^ (t + 1) := by
+  have h1 : (1 : ℝ) ≤ (61 / 60) ^ (t + 1) := one_le_pow₀ (by norm_num)
+  have e : (2 : ℝ) ^ 23 * ((t + 1 : ℕ) : ℝ) * (61 / 60) ^ (t + 1) =
+      61 / 60 * (2 ^ 23 * t * (61 / 60) ^ t) + 2 ^ 23 * (61 / 60) ^ (t + 1) := by
     push_cast; rw [pow_succ]; ring
   rw [e]
   nlinarith
 
 theorem crA_le {t : ℕ} (ht : t ≤ 1024) : crA t ≤ 2 ^ 58 := by
   unfold crA
-  have h1 := pow6463_le ht
+  have h1 := pow6160_le ht
   have h2 : (t : ℝ) ≤ 1024 := by exact_mod_cast ht
-  have h0 : (0 : ℝ) ≤ (64 / 63) ^ t := by positivity
+  have h0 : (0 : ℝ) ≤ (61 / 60) ^ t := by positivity
   have := mul_le_mul h2 h1 h0 (by norm_num)
   nlinarith
 

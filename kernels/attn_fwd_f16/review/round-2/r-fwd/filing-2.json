@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-fwd",
+  "kernel": "attn_fwd_f16",
+  "round": 2,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-acceptance after library round 24 (L124, L125), gate 930f0acadb5b3640. The changes withdraw the fp8 tl.dot facts and add the fp8 chunk facts; this kernel cites none of them. DotF16, relDot16, absDot16, Exp2F32, Exp2F32NegInf, Log2F32, DivFull, DotTotal, MathTotal and DivTotal are unchanged in the Lean and keep their rows in the first table of 'Facts the library states'. The page's statements about them (the kernel-reviewer mapping row for DotF16, the 16-bit bullet of the chunk-model section) are unchanged. Nothing in the kernel's own files changed."
+}

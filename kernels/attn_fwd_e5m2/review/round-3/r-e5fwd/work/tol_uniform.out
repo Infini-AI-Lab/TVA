@@ -1,0 +1,168 @@
+test  seed 41 uniform: D=64 N=128 causal=False rows=128  max sigma*scoreLift 8.5 (Xh 512)  pE median 1.02 max 1.03
+    tolO median 0.0876  tolV median 1.94  tolM median 0.0301  |attnRef| median 0.0463  floor median 0.0497
+    0 meets Post on 86.8% (rejected 13.2%);  tolO/floor median 1.76;  floor >= |attnRef| on 52.4%
+test  seed 41 uniform: D=64 N=128 causal=True rows=128  max sigma*scoreLift 8.5 (Xh 512)  pE median 1.02 max 1.03
+    tolO median 0.0917  tolV median 1.66  tolM median 0.0276  |attnRef| median 0.0688  floor median 0.0495
+    0 meets Post on 65.8% (rejected 34.2%);  tolO/floor median 1.88;  floor >= |attnRef| on 36.1%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.31, tolV/|attnRef| median 0.309
+test  seed 41 uniform: D=64 N=1024 causal=False rows=128  max sigma*scoreLift 9.2 (Xh 512)  pE median 1.03 max 1.04
+    tolO median 0.104  tolV median 2.89  tolM median 0.0387  |attnRef| median 0.0181  floor median 0.0498
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 2.09;  floor >= |attnRef| on 93.9%
+test  seed 41 uniform: D=64 N=1024 causal=True rows=128  max sigma*scoreLift 8.7 (Xh 512)  pE median 1.02 max 1.04
+    tolO median 0.096  tolV median 2.31  tolM median 0.0349  |attnRef| median 0.0255  floor median 0.0495
+    0 meets Post on 94.5% (rejected 5.5%);  tolO/floor median 1.94;  floor >= |attnRef| on 76.9%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.313, tolV/|attnRef| median 0.309
+test  seed 41 uniform: D=64 N=4096 causal=False rows=128  max sigma*scoreLift 9.4 (Xh 512)  pE median 1.03 max 1.04
+    tolO median 0.194  tolV median 7.32  tolM median 0.042  |attnRef| median 0.0085  floor median 0.0498
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 3.89;  floor >= |attnRef| on 100.0%
+test  seed 41 uniform: D=64 N=4096 causal=True rows=128  max sigma*scoreLift 10.1 (Xh 512)  pE median 1.03 max 1.04
+    tolO median 0.134  tolV median 4.05  tolM median 0.0394  |attnRef| median 0.0136  floor median 0.0496
+    0 meets Post on 98.3% (rejected 1.7%);  tolO/floor median 2.68;  floor >= |attnRef| on 92.7%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.311, tolV/|attnRef| median 0.309
+test  seed 41 uniform: D=128 N=128 causal=False rows=128  max sigma*scoreLift 15.1 (Xh 256)  pE median 1.07 max 1.1
+    tolO median 0.115  tolV median 1.9  tolM median 0.0933  |attnRef| median 0.0619  floor median 0.0485
+    0 meets Post on 85.5% (rejected 14.5%);  tolO/floor median 2.38;  floor >= |attnRef| on 39.2%
+test  seed 41 uniform: D=128 N=128 causal=True rows=128  max sigma*scoreLift 15.1 (Xh 256)  pE median 1.06 max 1.1
+    tolO median 0.121  tolV median 1.7  tolM median 0.0891  |attnRef| median 0.0923  floor median 0.0495
+    0 meets Post on 63.8% (rejected 36.2%);  tolO/floor median 2.5;  floor >= |attnRef| on 27.0%
+    row 0 (one key): tolO/|attnRef| median 0.311 max 0.313, tolV/|attnRef| median 0.309
+test  seed 41 uniform: D=128 N=1024 causal=False rows=128  max sigma*scoreLift 16.3 (Xh 256)  pE median 1.08 max 1.13
+    tolO median 0.145  tolV median 2.91  tolM median 0.117  |attnRef| median 0.0253  floor median 0.0496
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 2.93;  floor >= |attnRef| on 80.7%
+test  seed 41 uniform: D=128 N=1024 causal=True rows=128  max sigma*scoreLift 15.8 (Xh 256)  pE median 1.08 max 1.11
+    tolO median 0.135  tolV median 2.42  tolM median 0.108  |attnRef| median 0.0382  floor median 0.0496
+    0 meets Post on 93.8% (rejected 6.2%);  tolO/floor median 2.72;  floor >= |attnRef| on 60.1%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.319, tolV/|attnRef| median 0.309
+test  seed 41 uniform: D=128 N=4096 causal=False rows=128  max sigma*scoreLift 15.8 (Xh 256)  pE median 1.09 max 1.14
+    tolO median 0.27  tolV median 7.31  tolM median 0.124  |attnRef| median 0.0135  floor median 0.0497
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 5.43;  floor >= |attnRef| on 98.1%
+test  seed 41 uniform: D=128 N=4096 causal=True rows=128  max sigma*scoreLift 15.5 (Xh 256)  pE median 1.09 max 1.14
+    tolO median 0.188  tolV median 4.04  tolM median 0.118  |attnRef| median 0.0206  floor median 0.0496
+    0 meets Post on 98.1% (rejected 1.9%);  tolO/floor median 3.79;  floor >= |attnRef| on 84.6%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.312, tolV/|attnRef| median 0.309
+bench seed 41 uniform: D=64 N=1024 causal=False rows=128  max sigma*scoreLift 100.5 (Xh 512)  pE median 1.32 max 1.48
+    tolO median 0.585  tolV median 6.62  tolM median 0.395  |attnRef| median 0.507  floor median 0.0882
+    0 meets Post on 49.3% (rejected 50.7%);  tolO/floor median 6.93;  floor >= |attnRef| on 4.4%
+bench seed 41 uniform: D=64 N=1024 causal=True rows=128  max sigma*scoreLift 95.8 (Xh 512)  pE median 1.29 max 1.54
+    tolO median 0.44  tolV median 5.55  tolM median 0.365  |attnRef| median 0.506  floor median 0.088
+    0 meets Post on 35.4% (rejected 64.6%);  tolO/floor median 5.2;  floor >= |attnRef| on 4.1%
+    row 0 (one key): tolO/|attnRef| median 0.314 max 0.314, tolV/|attnRef| median 0.309
+bench seed 41 uniform: D=128 N=1024 causal=False rows=128  max sigma*scoreLift 159.0 (Xh 256)  pE median 2.34 max 3.18
+    tolO median 1.24  tolV median 6.72  tolM median 1.23  |attnRef| median 0.571  floor median 0.0855
+    0 meets Post on 82.6% (rejected 17.4%);  tolO/floor median 16;  floor >= |attnRef| on 2.6%
+bench seed 41 uniform: D=128 N=1024 causal=True rows=128  max sigma*scoreLift 155.3 (Xh 256)  pE median 2.21 max 3.34
+    tolO median 0.843  tolV median 5.71  tolM median 1.15  |attnRef| median 0.617  floor median 0.0902
+    0 meets Post on 62.6% (rejected 37.4%);  tolO/floor median 10.6;  floor >= |attnRef| on 2.2%
+    row 0 (one key): tolO/|attnRef| median 0.334 max 0.334, tolV/|attnRef| median 0.309
+test  seed 42 uniform: D=64 N=128 causal=False rows=128  max sigma*scoreLift 8.1 (Xh 512)  pE median 1.02 max 1.03
+    tolO median 0.0871  tolV median 1.8  tolM median 0.0304  |attnRef| median 0.0464  floor median 0.0493
+    0 meets Post on 86.4% (rejected 13.6%);  tolO/floor median 1.76;  floor >= |attnRef| on 52.0%
+test  seed 42 uniform: D=64 N=128 causal=True rows=128  max sigma*scoreLift 8.2 (Xh 512)  pE median 1.02 max 1.03
+    tolO median 0.0909  tolV median 1.69  tolM median 0.0284  |attnRef| median 0.07  floor median 0.0487
+    0 meets Post on 64.7% (rejected 35.3%);  tolO/floor median 1.89;  floor >= |attnRef| on 36.0%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.311, tolV/|attnRef| median 0.309
+test  seed 42 uniform: D=64 N=1024 causal=False rows=128  max sigma*scoreLift 9.3 (Xh 512)  pE median 1.03 max 1.05
+    tolO median 0.103  tolV median 2.89  tolM median 0.0389  |attnRef| median 0.017  floor median 0.0494
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 2.08;  floor >= |attnRef| on 94.6%
+test  seed 42 uniform: D=64 N=1024 causal=True rows=128  max sigma*scoreLift 9.0 (Xh 512)  pE median 1.02 max 1.04
+    tolO median 0.0962  tolV median 2.33  tolM median 0.0357  |attnRef| median 0.0259  floor median 0.0496
+    0 meets Post on 95.0% (rejected 5.0%);  tolO/floor median 1.94;  floor >= |attnRef| on 77.5%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.31, tolV/|attnRef| median 0.309
+test  seed 42 uniform: D=64 N=4096 causal=False rows=128  max sigma*scoreLift 8.9 (Xh 512)  pE median 1.03 max 1.05
+    tolO median 0.193  tolV median 7.31  tolM median 0.0415  |attnRef| median 0.00817  floor median 0.0496
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 3.88;  floor >= |attnRef| on 100.0%
+test  seed 42 uniform: D=64 N=4096 causal=True rows=128  max sigma*scoreLift 9.5 (Xh 512)  pE median 1.03 max 1.05
+    tolO median 0.133  tolV median 4.01  tolM median 0.0385  |attnRef| median 0.0133  floor median 0.0497
+    0 meets Post on 98.1% (rejected 1.9%);  tolO/floor median 2.65;  floor >= |attnRef| on 93.1%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.31, tolV/|attnRef| median 0.309
+test  seed 42 uniform: D=128 N=128 causal=False rows=128  max sigma*scoreLift 14.5 (Xh 256)  pE median 1.07 max 1.1
+    tolO median 0.118  tolV median 1.9  tolM median 0.097  |attnRef| median 0.0623  floor median 0.0495
+    0 meets Post on 85.2% (rejected 14.8%);  tolO/floor median 2.39;  floor >= |attnRef| on 40.0%
+test  seed 42 uniform: D=128 N=128 causal=True rows=128  max sigma*scoreLift 14.9 (Xh 256)  pE median 1.06 max 1.1
+    tolO median 0.122  tolV median 1.73  tolM median 0.0884  |attnRef| median 0.0961  floor median 0.0496
+    0 meets Post on 61.5% (rejected 38.5%);  tolO/floor median 2.5;  floor >= |attnRef| on 25.7%
+    row 0 (one key): tolO/|attnRef| median 0.311 max 0.314, tolV/|attnRef| median 0.309
+test  seed 42 uniform: D=128 N=1024 causal=False rows=128  max sigma*scoreLift 15.8 (Xh 256)  pE median 1.09 max 1.13
+    tolO median 0.146  tolV median 2.89  tolM median 0.118  |attnRef| median 0.0256  floor median 0.0495
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 2.95;  floor >= |attnRef| on 80.1%
+test  seed 42 uniform: D=128 N=1024 causal=True rows=128  max sigma*scoreLift 16.0 (Xh 256)  pE median 1.08 max 1.12
+    tolO median 0.134  tolV median 2.41  tolM median 0.107  |attnRef| median 0.0388  floor median 0.0493
+    0 meets Post on 93.4% (rejected 6.6%);  tolO/floor median 2.72;  floor >= |attnRef| on 59.4%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.311, tolV/|attnRef| median 0.309
+test  seed 42 uniform: D=128 N=4096 causal=False rows=128  max sigma*scoreLift 16.7 (Xh 256)  pE median 1.1 max 1.13
+    tolO median 0.274  tolV median 7.32  tolM median 0.131  |attnRef| median 0.0137  floor median 0.0496
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 5.53;  floor >= |attnRef| on 97.5%
+test  seed 42 uniform: D=128 N=4096 causal=True rows=128  max sigma*scoreLift 15.8 (Xh 256)  pE median 1.09 max 1.14
+    tolO median 0.188  tolV median 3.99  tolM median 0.119  |attnRef| median 0.0204  floor median 0.0496
+    0 meets Post on 98.2% (rejected 1.8%);  tolO/floor median 3.76;  floor >= |attnRef| on 84.2%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.311, tolV/|attnRef| median 0.309
+bench seed 42 uniform: D=64 N=1024 causal=False rows=128  max sigma*scoreLift 98.0 (Xh 512)  pE median 1.31 max 1.46
+    tolO median 0.54  tolV median 6.71  tolM median 0.387  |attnRef| median 0.553  floor median 0.0912
+    0 meets Post on 42.8% (rejected 57.2%);  tolO/floor median 6.41;  floor >= |attnRef| on 3.7%
+bench seed 42 uniform: D=64 N=1024 causal=True rows=128  max sigma*scoreLift 102.2 (Xh 512)  pE median 1.28 max 1.57
+    tolO median 0.428  tolV median 5.52  tolM median 0.361  |attnRef| median 0.53  floor median 0.0878
+    0 meets Post on 31.4% (rejected 68.6%);  tolO/floor median 5.11;  floor >= |attnRef| on 3.3%
+    row 0 (one key): tolO/|attnRef| median 0.317 max 0.318, tolV/|attnRef| median 0.309
+bench seed 42 uniform: D=128 N=1024 causal=False rows=128  max sigma*scoreLift 162.7 (Xh 256)  pE median 2.28 max 3.39
+    tolO median 1.29  tolV median 6.78  tolM median 1.19  |attnRef| median 0.597  floor median 0.0879
+    0 meets Post on 81.5% (rejected 18.5%);  tolO/floor median 16.3;  floor >= |attnRef| on 2.5%
+bench seed 42 uniform: D=128 N=1024 causal=True rows=128  max sigma*scoreLift 155.8 (Xh 256)  pE median 2.23 max 3.05
+    tolO median 0.956  tolV median 5.62  tolM median 1.16  |attnRef| median 0.579  floor median 0.0879
+    0 meets Post on 67.1% (rejected 32.9%);  tolO/floor median 12.2;  floor >= |attnRef| on 2.8%
+    row 0 (one key): tolO/|attnRef| median 0.331 max 0.332, tolV/|attnRef| median 0.309
+test  seed 43 uniform: D=64 N=128 causal=False rows=128  max sigma*scoreLift 8.4 (Xh 512)  pE median 1.02 max 1.03
+    tolO median 0.0875  tolV median 1.88  tolM median 0.0312  |attnRef| median 0.0454  floor median 0.0498
+    0 meets Post on 87.1% (rejected 12.9%);  tolO/floor median 1.76;  floor >= |attnRef| on 53.3%
+test  seed 43 uniform: D=64 N=128 causal=True rows=128  max sigma*scoreLift 8.2 (Xh 512)  pE median 1.02 max 1.04
+    tolO median 0.0921  tolV median 1.66  tolM median 0.0279  |attnRef| median 0.0689  floor median 0.0497
+    0 meets Post on 66.1% (rejected 33.9%);  tolO/floor median 1.87;  floor >= |attnRef| on 36.5%
+    row 0 (one key): tolO/|attnRef| median 0.309 max 0.31, tolV/|attnRef| median 0.309
+test  seed 43 uniform: D=64 N=1024 causal=False rows=128  max sigma*scoreLift 9.8 (Xh 512)  pE median 1.03 max 1.04
+    tolO median 0.103  tolV median 2.89  tolM median 0.0366  |attnRef| median 0.0168  floor median 0.0498
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 2.07;  floor >= |attnRef| on 94.7%
+test  seed 43 uniform: D=64 N=1024 causal=True rows=128  max sigma*scoreLift 9.7 (Xh 512)  pE median 1.02 max 1.03
+    tolO median 0.0964  tolV median 2.4  tolM median 0.0343  |attnRef| median 0.0263  floor median 0.0497
+    0 meets Post on 94.7% (rejected 5.3%);  tolO/floor median 1.94;  floor >= |attnRef| on 76.9%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.31, tolV/|attnRef| median 0.309
+test  seed 43 uniform: D=64 N=4096 causal=False rows=128  max sigma*scoreLift 9.2 (Xh 512)  pE median 1.03 max 1.05
+    tolO median 0.194  tolV median 7.32  tolM median 0.0412  |attnRef| median 0.00757  floor median 0.0498
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 3.88;  floor >= |attnRef| on 100.0%
+test  seed 43 uniform: D=64 N=4096 causal=True rows=128  max sigma*scoreLift 9.3 (Xh 512)  pE median 1.03 max 1.05
+    tolO median 0.135  tolV median 3.93  tolM median 0.0401  |attnRef| median 0.0131  floor median 0.0498
+    0 meets Post on 98.2% (rejected 1.8%);  tolO/floor median 2.68;  floor >= |attnRef| on 92.6%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.31, tolV/|attnRef| median 0.309
+test  seed 43 uniform: D=128 N=128 causal=False rows=128  max sigma*scoreLift 14.3 (Xh 256)  pE median 1.07 max 1.09
+    tolO median 0.117  tolV median 1.91  tolM median 0.0966  |attnRef| median 0.0638  floor median 0.0493
+    0 meets Post on 84.0% (rejected 16.0%);  tolO/floor median 2.39;  floor >= |attnRef| on 38.8%
+test  seed 43 uniform: D=128 N=128 causal=True rows=128  max sigma*scoreLift 15.8 (Xh 256)  pE median 1.06 max 1.11
+    tolO median 0.117  tolV median 1.7  tolM median 0.0855  |attnRef| median 0.0879  floor median 0.0484
+    0 meets Post on 64.8% (rejected 35.2%);  tolO/floor median 2.46;  floor >= |attnRef| on 28.1%
+    row 0 (one key): tolO/|attnRef| median 0.311 max 0.312, tolV/|attnRef| median 0.309
+test  seed 43 uniform: D=128 N=1024 causal=False rows=128  max sigma*scoreLift 15.7 (Xh 256)  pE median 1.09 max 1.11
+    tolO median 0.147  tolV median 2.89  tolM median 0.119  |attnRef| median 0.0269  floor median 0.0494
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 2.98;  floor >= |attnRef| on 78.5%
+test  seed 43 uniform: D=128 N=1024 causal=True rows=128  max sigma*scoreLift 15.7 (Xh 256)  pE median 1.08 max 1.11
+    tolO median 0.133  tolV median 2.39  tolM median 0.107  |attnRef| median 0.0375  floor median 0.0495
+    0 meets Post on 93.7% (rejected 6.3%);  tolO/floor median 2.69;  floor >= |attnRef| on 60.8%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.315, tolV/|attnRef| median 0.309
+test  seed 43 uniform: D=128 N=4096 causal=False rows=128  max sigma*scoreLift 15.5 (Xh 256)  pE median 1.09 max 1.13
+    tolO median 0.272  tolV median 7.31  tolM median 0.129  |attnRef| median 0.0134  floor median 0.0497
+    0 meets Post on 100.0% (rejected 0.0%);  tolO/floor median 5.48;  floor >= |attnRef| on 97.8%
+test  seed 43 uniform: D=128 N=4096 causal=True rows=128  max sigma*scoreLift 15.7 (Xh 256)  pE median 1.09 max 1.13
+    tolO median 0.189  tolV median 4.05  tolM median 0.122  |attnRef| median 0.0196  floor median 0.0497
+    0 meets Post on 98.1% (rejected 1.9%);  tolO/floor median 3.78;  floor >= |attnRef| on 85.3%
+    row 0 (one key): tolO/|attnRef| median 0.31 max 0.312, tolV/|attnRef| median 0.309
+bench seed 43 uniform: D=64 N=1024 causal=False rows=128  max sigma*scoreLift 97.3 (Xh 512)  pE median 1.32 max 1.65
+    tolO median 0.596  tolV median 6.64  tolM median 0.396  |attnRef| median 0.497  floor median 0.0912
+    0 meets Post on 55.0% (rejected 45.0%);  tolO/floor median 6.93;  floor >= |attnRef| on 5.2%
+bench seed 43 uniform: D=64 N=1024 causal=True rows=128  max sigma*scoreLift 92.4 (Xh 512)  pE median 1.28 max 1.53
+    tolO median 0.431  tolV median 5.5  tolM median 0.358  |attnRef| median 0.544  floor median 0.0894
+    0 meets Post on 33.7% (rejected 66.3%);  tolO/floor median 5.08;  floor >= |attnRef| on 3.5%
+    row 0 (one key): tolO/|attnRef| median 0.313 max 0.314, tolV/|attnRef| median 0.309
+bench seed 43 uniform: D=128 N=1024 causal=False rows=128  max sigma*scoreLift 168.0 (Xh 256)  pE median 2.36 max 3.39
+    tolO median 1.49  tolV median 6.72  tolM median 1.24  |attnRef| median 0.564  floor median 0.0893
+    0 meets Post on 90.5% (rejected 9.5%);  tolO/floor median 17.7;  floor >= |attnRef| on 3.3%
+bench seed 43 uniform: D=128 N=1024 causal=True rows=128  max sigma*scoreLift 167.9 (Xh 256)  pE median 2.18 max 3.62
+    tolO median 0.828  tolV median 5.7  tolM median 1.12  |attnRef| median 0.611  floor median 0.0886
+    0 meets Post on 59.5% (rejected 40.5%);  tolO/floor median 9.77;  floor >= |attnRef| on 2.4%
+    row 0 (one key): tolO/|attnRef| median 0.321 max 0.322, tolV/|attnRef| median 0.309

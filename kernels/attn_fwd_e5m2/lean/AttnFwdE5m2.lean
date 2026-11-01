@@ -21,15 +21,18 @@ The claim: on every covered instance, every launch that runs ends normally; ever
 and `M` holds a value, and for a head whose values are covered (`HeadOk`) the output is within two
 explicit tolerances (`tolO`, `tolV`) of the exact attention of the values the kernel uses
 (`attnRef`, with `vEff`) and `M` of the exact log-sum-exp (base 2); every byte outside `o` and `M`
-is unchanged. On the host's data the tolerances do not tell the output from `0` (README,
-Specification).
+is unchanged. On the host's data the first tolerance is a few times the fp8 floor, the error the
+fp8 rounding of `p` alone allows (README, Specification).
 
 * `AttnFwdE5m2.Model`: the model, the conditions, the specification, the assumptions.
 * `AttnFwdE5m2.Real`, `AttnFwdE5m2.Lane`, `AttnFwdE5m2.RowMax`, `AttnFwdE5m2.RowAcc`,
   `AttnFwdE5m2.Step`: one row's running maximum, `l_i` and `acc` over the loop (lines 72–109), as
   real-number bounds.
-* `AttnFwdE5m2.Final`: the end of a row (lines 241–245) and the tolerances' numeric bounds.
+* `AttnFwdE5m2.Final`: `l_i` after the loop, the log-sum-exp (line 241) and the tolerances' numeric
+  bounds.
 * `AttnFwdE5m2.Mag`: the second bound on the output (`tolV`), over the computed weights.
+* `AttnFwdE5m2.Cen`: the first bound's centred step (`acc − r·l_i` against `kap` times the centred
+  sum of the exact weights), the `p·v` `tl.dot`'s chunks.
 * `AttnFwdE5m2.Facts`: the grid, `int32` arithmetic, the descriptors, the constants, `qk_scale`.
 * `AttnFwdE5m2.Row`, `AttnFwdE5m2.Tile`, `AttnFwdE5m2.Inner`: a row's state, the tiles' loads and
   stores, the loop of `_attn_fwd_inner` and its three calls.
@@ -104,7 +107,7 @@ theorem main : ∀ (K : Claim.Behaviour Inst) (P : Platform), Assumptions K P �
 
 theorem consistent : Claim.Consistent Assumptions := by
   obtain ⟨K, htot, hf⟩ := exists_total_faithful Platform.sm90ref model launch
-  exact ⟨K, Platform.sm90ref, htot, ⟨fun d _ => hf d, Platform.sm90ref.dotE5m2, Platform.ref.dotTotal _,
+  exact ⟨K, Platform.sm90ref, htot, ⟨fun d _ => hf d, Platform.sm90ref.dotE5m2Chunk, Platform.ref.dotTotal _,
     Platform.sm90ref.cvtSatF32E5m2, Platform.ref.cvtTotal _ _ _, Platform.sm90ref.exp2F32,
     Platform.sm90ref.exp2F32NegInf, Platform.ref.mathTotal, Platform.sm90ref.log2F32, Platform.ref.mathTotal,
     Platform.sm90ref.divFull, Platform.ref.divTotal _⟩⟩

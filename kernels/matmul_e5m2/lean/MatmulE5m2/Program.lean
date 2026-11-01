@@ -74,8 +74,9 @@ def Q (d : Inst) (init : Mem) (p : Nat) (m : Mem) : Prop :=
   ∀ (i : Fin 128) (j : Fin 256), pm d p * 128 + i < d.M → pn d p * 256 + j < d.N →
     OutSpec d init m (pm d p * 128 + i) (pn d p * 256 + j)
 
-/-- The accumulator after `t` trips: each element of the tile whose row of `a` and column of `b`
-are finite is finite and within the error bound `errAt` of the exact partial sum. -/
+/-- The accumulator after `t` trips (`2·t` chunks of `32`): each element of the tile whose row of
+`a` and column of `b` are finite is finite and within the error bound `errAt` of the exact partial
+sum. -/
 def AccInv (d : Inst) (init : Mem) (p t : Nat) (acc : Tensor [128, 256] F32) : Prop :=
   ∀ (i : Fin 128) (j : Fin 256), pm d p * 128 + i < d.M → pn d p * 256 + j < d.N →
     ∀ va vb : Nat → F8E5,
@@ -84,7 +85,8 @@ def AccInv (d : Inst) (init : Mem) (p t : Nat) (acc : Tensor [128, 256] F32) : P
       (∀ k, k < d.K → init.read .f8e5 (d.b.ptr ↑(k * d.stride_bk + (pn d p * 256 + j) * d.stride_bn)).addr =
         some (vb k) ∧ (vb k).isFinite = true) →
       (acc.get2 i j).isFinite = true ∧
-        |(acc.get2 i j).toRat - partS va vb d.K t| ≤ errAt (prodV va vb d.K) t
+        |(acc.get2 i j).toRat - partS va vb d.K (2 * t)| ≤
+          errAt (prodV va vb d.K) (liftV va vb d.K) (2 * t)
 
 /-! ## Facts about a program of the grid -/
 
@@ -177,14 +179,14 @@ theorem acc0 (d : Inst) (init : Mem) (p : Nat) : AccInv d init p 0 (tl.zeros [12
   intro i j _ _ va vb _ _
   have h := DotLoop.val?_f32.mp DotLoop.zero_val
   refine ⟨h.1, ?_⟩
-  show |(FloatV.ofPat 0 : F32).toRat - partS va vb d.K 0| ≤ _
+  show |(FloatV.ofPat 0 : F32).toRat - partS va vb d.K (2 * 0)| ≤ _
   rw [h.2]
   simp [partS, partSum, errAt]
 
 /-- **One program.** Program `p` of the grid, run alone from `init`, is safe: it reads only `a`
 and `b`, writes only its tile of `c`, and leaves there what `OutSpec` says. -/
 theorem safe_program {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P : Platform}
-    (hdot : Rules.Num.DotE5m2 P)
+    (hdot : Rules.Num.DotE5m2Chunk P)
     (htot : Rules.Num.DotTotal P { a := .f8e5, b := .f8e5, acc := .f32, precision := .tf32, maxImpreciseAcc := 2 ^ 30 })
     (hcvt : Rules.Num.CvtF32E5m2 P)
     (hctot : Rules.Num.CvtTotal P Math.Float.Format.binary32 Math.Float.Format.e5m2 .rn)
@@ -504,7 +506,7 @@ theorem safe_program {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P 
       refine ⟨c.get (i, j, ()), hm' (i, j, ()) (by simp only [cEn, hi, hj, decide_true, Bool.and_self]),
         fun va vb hva hvb => ?_⟩
       obtain ⟨hfin, herr⟩ := hinv i j hi hj va vb hva hvb
-      obtain ⟨hS, -⟩ := partS_end va vb (T := steps d.K) (K := d.K) (by unfold steps; omega)
+      have hS := partS_end va vb (T := steps d.K) (K := d.K) (by unfold steps; omega)
       rw [hS] at herr
       have hcv : FloatV.NaNEq (FloatV.cvt (sacc.get2 i j)) (c.get (i, j, ())) := hc (i, j, ())
       exact ⟨sacc.get2 i j, hfin, herr, hcv, fun hroom => out_f16 hfin herr hcv hroom⟩

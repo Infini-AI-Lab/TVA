@@ -1,0 +1,18 @@
+{
+  "reviewer": "r-matmul2",
+  "kernel": "matmul_f16",
+  "round": 2,
+  "findings": [
+    {
+      "kind": "LIBRARY_REPORT",
+      "target": "decl:TVA.Rules.Num.DotF16",
+      "summary": "L125's mechanism (a subnormal operand's exponent field setting the wgmma window) may also break DotF16; num-dot's fp16 Part 2 has the same input gap L125 names for fp8",
+      "detail": "L125 withdrew the fp8 whole-dot facts. On wgmma a chunk is aligned to the largest exponent field, a subnormal operand's field reads as the smallest normal's, and so a product with a subnormal operand can set the window while its magnitude is far below it. evidence/num-dot's Part 2 'had no input where a product with a subnormal operand sets the window'. Its fp16 rows (DotF16, both paths) come from the same Part 2 input kinds, and I see no check of this case for 16-bit operands: num-dot-chunk tests fp8 only, and its mma.sync part checks against the loose fp8 chunk bound. If fp16 wgmma aligns the same way, take a = 2^-24 (a subnormal float16, field -14) times b = 2^15: the product is 2^-9 but its field is 2^1, so the unit is about 2^-22. Fifteen more products just below 2^-22 in the same chunk of 16 would be lost, about 3.6e-6. DotF16 allows 18*2^-22*(|acc| + sum|a*b|), about 8.4e-9 here, plus 18*2^-126: roughly 400 times less. Whether the device does this is a library question I cannot check, and I do not claim it does. matmul_f16 cites DotF16, and its inputs may hold subnormal float16 values (Pre allows any; randn cast to float16 contains some at the benchmark's sizes). Suggest the library run num-dot's fp16 and bf16 checks with a subnormal-operand product setting the window, or count subnormal operands as DotF8Chunk's liftMag does. Non-blocking: I re-accept the items.",
+      "evidence": "docs/library-review/ISSUES.md L125; docs/rules/num.md, the tl.dot chunk model and device questions (alignment bullet); evidence/num-dot Part 2 input kinds and its round-24 note"
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Library round 24 re-check (gate 00f23d84e4f9dd74). git diff of docs/rules/num.md and lean/TVA/Rules/Num/Sm90.lean: DotF16 (forall p, DotAcc P <f16, f16, f32, p, 0> True relDot16 absDot16), relDot16 K = (K+2)*2^-22 and absDot16 K = (K+2)*2^-126 are unchanged. So are DotF16's row in 'Facts the library states', the DotTotal row, the 'What a kernel reviewer checks' row for fp16/bf16 tl.dot (DotF16 P, DotBF16 P), and the 16-bit bullet of the chunk-model section. Only the fp8 facts were withdrawn, the chunk facts added, and the fp8 constants moved. The kernel's files did not change. assumption:dot, assumption:dot_total and spec still rest on the same facts and constants. The LIBRARY_REPORT is a doubt the change raised; it does not block."
+}

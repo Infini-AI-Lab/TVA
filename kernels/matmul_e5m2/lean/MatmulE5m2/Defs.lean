@@ -255,155 +255,163 @@ def Pre (d : Inst) (init : Mem) : Prop :=
 
 /-! ## The specification -/
 
-/-- The number of `tl.dot` steps of the loop (line 294): `cdiv(K, 64)`. -/
+/-- The number of `tl.dot` steps of the loop (line 294): `cdiv(K, 64)`. Each step's `tl.dot` of
+`K = 64` adds two chunks of `32` products (`Rules.Num.DotE5m2Chunk`), so the loop adds
+`2·steps K` chunks: chunk `j` holds the products `32·j ≤ e < 32·j + 32`. -/
 def steps (K : Nat) : Nat := (K + 63) / 64
-
-/-- `ρ = relDot8 64 = (1 + 2^-7)^2 − 1 = 257/2^14`, the library's relative constant for one fp8
-`tl.dot` of `K = 64` (`Rules.Num.DotE5m2`). -/
-theorem relDot8_64 : Rules.Num.relDot8 64 = 257 / 2 ^ 14 := by
-  unfold Rules.Num.relDot8 Rules.Num.chunks8; norm_num
-
-/-- `α = absDot8 64 = 2·(1 + 2^-7)^2·2^-126 = 16641/2^139`, its absolute constant. -/
-theorem absDot8_64 : Rules.Num.absDot8 64 = 16641 / 2 ^ 139 := by
-  unfold Rules.Num.absDot8 Rules.Num.chunks8; norm_num
 
 /-- Product `e` of the reduction of row values `va` by column values `vb`: `va e · vb e` for
 `e < K`, and `0` from `K` on (the lanes the masks disable). -/
 def prodV (va vb : Nat → F8E5) (K e : Nat) : ℚ := if e < K then (va e).toRat * (vb e).toRat else 0
 
-/-- The exact partial sum after `t` steps of a sequence of products `p`: `p e` for `e < 64·t`. -/
-def partSum (p : Nat → ℚ) (t : Nat) : ℚ := ∑ e ∈ Finset.range (64 * t), p e
+/-- The lifted magnitude of product `e`: `liftMag (va e) · liftMag (vb e)` for `e < K`, and `0`
+from `K` on. `Rules.Num.liftMag` is `|x|` for a normal `float8e5` value or a zero, and `2^-14` (the
+smallest normal magnitude) for a subnormal one: the magnitude by which the tensor core aligns the
+product (`Rules.Num.DotE5m2Chunk`). It is `|prodV va vb K e|` when neither operand is subnormal. -/
+def liftV (va vb : Nat → F8E5) (K e : Nat) : ℚ :=
+  if e < K then Rules.Num.liftMag .f8e5 (va e).toRat * Rules.Num.liftMag .f8e5 (vb e).toRat else 0
 
-/-- The partial sum of the products' magnitudes after `t` steps. -/
-def partMag (p : Nat → ℚ) (t : Nat) : ℚ := ∑ e ∈ Finset.range (64 * t), |p e|
+/-- The exact partial sum after `j` chunks of a sequence of products `p`: `p e` for `e < 32·j`. -/
+def partSum (p : Nat → ℚ) (j : Nat) : ℚ := ∑ e ∈ Finset.range (32 * j), p e
 
-/-- The sum of the magnitudes of step `t`'s products, `p e` for `64·t ≤ e < 64·t + 64`. -/
-def stepMag (p : Nat → ℚ) (t : Nat) : ℚ := ∑ k : Fin 64, |p (64 * t + k)|
+/-- The largest value of `q` on chunk `j`: `q e` for `32·j ≤ e < 32·j + 32`. -/
+def chunkMax (q : Nat → ℚ) (j : Nat) : ℚ :=
+  Finset.univ.sup' Finset.univ_nonempty fun k : Fin 32 => q (32 * j + k)
 
-/-- **The error bound after `t` steps**, from the exact partial sums: `E 0 = 0` and
-`E (t + 1) = (1 + ρ)·E t + ρ·(|S t| + B t) + α`, with `S t = partSum p t` the exact partial sum
-before step `t`, `B t = stepMag p t` the magnitudes of step `t`'s products, and the library's
-constants `ρ = relDot8 64`, `α = absDot8 64` for one fp8 `tl.dot` of `K = 64`
-(`Rules.Num.DotE5m2`). It is what the fact gives step by step: step `t` adds its products to an
-accumulator `a` within `E t` of `S t`, up to `ρ·(|a| + B t) + α`, and `|a| ≤ |S t| + E t`. -/
-def errAt (p : Nat → ℚ) : Nat → ℚ
+/-- **The error bound after `j` chunks**, from the exact partial sums: `E 0 = 0` and
+`E (j + 1) = (1 + ρ + σ)·E j + ρ·max(|S j|, m j) + σ·|S (j + 1)| + α`, with `S j = partSum p j` the
+exact partial sum before chunk `j`, `m j = chunkMax q j` the largest lifted product of chunk `j`,
+and the library's constants for one chunk (`Rules.Num.DotE5m2Chunk`): `ρ = rhoChunk8 = 2^-7`,
+`σ = sigmaChunk8 = 2^-12`, `α = alphaChunk8 = 2^-126`. It is what the fact gives chunk by chunk:
+chunk `j` adds its exact sum `c` to an accumulator `s` within `E j` of `S j`, up to
+`ρ·M + σ·|s + c| + α` for every `M` at least `|s|` and the chunk's lifted products; here
+`M = max(|S j| + E j, m j)`, and `|s + c| ≤ |S (j + 1)| + E j` (`chunk_step`). -/
+def errAt (p q : Nat → ℚ) : Nat → ℚ
   | 0 => 0
-  | t + 1 => (1 + Rules.Num.relDot8 64) * errAt p t +
-      Rules.Num.relDot8 64 * (|partSum p t| + stepMag p t) + Rules.Num.absDot8 64
+  | j + 1 => (1 + Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8) * errAt p q j +
+      Rules.Num.rhoChunk8 * max |partSum p j| (chunkMax q j) +
+      Rules.Num.sigmaChunk8 * |partSum p (j + 1)| + Rules.Num.alphaChunk8
 
 /-- **The tolerance of `Post`** for row values `va`, column values `vb` and the reduction length
-`K`: the error bound after the loop's `steps K` steps, `errAt (prodV va vb K) (steps K)`. It is
-explicit and computable from the inputs, and depends on the order of the products (through the
-partial sums of each step of `64`). It is never above `tolA K Σ|a·b|` (`tol_le_tolA`). -/
-def tol (va vb : Nat → F8E5) (K : Nat) : ℚ := errAt (prodV va vb K) (steps K)
+`K`: the error bound after the loop's `2·steps K` chunks,
+`errAt (prodV va vb K) (liftV va vb K) (2 * steps K)`. It is explicit and computable from the
+inputs, and depends on the order of the products (through the partial sums at each chunk of `32`)
+and on each chunk's largest lifted product. It is never above `tolA K (dotLift va vb K)`
+(`tol_le_tolA`). -/
+def tol (va vb : Nat → F8E5) (K : Nat) : ℚ := errAt (prodV va vb K) (liftV va vb K) (2 * steps K)
 
-/-- The bound in terms of the sum `A` of the products' magnitudes alone,
-`DotLoop.bound ρ α T A = ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α` (`T = steps K`): `tol` is never above
-it (`tol_le_tolA`), and equals it, up to the `α` terms, on an input whose only product is in the
-first step. Its relative part `(1 + ρ)^T − 1 = (1 + 2^-7)^(2T) − 1` is about `0.133` at `K = 512`
-and `1.708` at `K = 4096`, below `1.71` on covered instances (`tolA_rel_lt`, `tolA_le`). -/
-def tolA (K : Nat) (A : ℚ) : ℚ :=
-  DotLoop.bound (Rules.Num.relDot8 64) (Rules.Num.absDot8 64) (steps K) A
+/-- The bound in terms of one magnitude `L` (the sum of the lifted products, `dotLift`, will do):
+`DotLoop.bound (ρ + σ) α n L = ((1 + ρ + σ)^n − 1)·L + n·(1 + ρ + σ)^n·α`, `n = 2·steps K`. `tol`
+is never above it (`tol_le_tolA`), and equals it, up to the `α` terms, on an input whose only
+product is the first, of normal operands. Its relative part `(1 + 2^-7 + 2^-12)^n − 1` is about `0.137` at `K = 512`
+and `1.793` at `K = 4096`, below `1.8` on covered instances (`tolA_rel_lt`, `tolA_le`). -/
+def tolA (K : Nat) (L : ℚ) : ℚ :=
+  DotLoop.bound (Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8) Rules.Num.alphaChunk8 (2 * steps K) L
 
-theorem errAt_nonneg (p : Nat → ℚ) : ∀ t, 0 ≤ errAt p t
+theorem rho_eq : Rules.Num.rhoChunk8 = 1 / 128 := by unfold Rules.Num.rhoChunk8; norm_num
+
+theorem sigma_eq : Rules.Num.sigmaChunk8 = 1 / 4096 := by unfold Rules.Num.sigmaChunk8; norm_num
+
+theorem alpha_eq : Rules.Num.alphaChunk8 = 1 / 2 ^ 126 := by unfold Rules.Num.alphaChunk8; norm_num
+
+/-- `1 + ρ + σ = 1 + 2^-7 + 2^-12 = 4129/4096`. -/
+theorem q_eq : (1 : ℚ) + (Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8) = 4129 / 4096 := by
+  rw [rho_eq, sigma_eq]; norm_num
+
+theorem errAt_succ (p q : Nat → ℚ) (j : Nat) :
+    errAt p q (j + 1) = (1 + Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8) * errAt p q j +
+      Rules.Num.rhoChunk8 * max |partSum p j| (chunkMax q j) +
+      Rules.Num.sigmaChunk8 * |partSum p (j + 1)| + Rules.Num.alphaChunk8 := rfl
+
+theorem errAt_nonneg (p q : Nat → ℚ) : ∀ j, 0 ≤ errAt p q j
   | 0 => le_rfl
-  | t + 1 => by
-    have h := errAt_nonneg p t
-    have hρ : (0 : ℚ) ≤ Rules.Num.relDot8 64 := by rw [relDot8_64]; norm_num
-    have hα : (0 : ℚ) ≤ Rules.Num.absDot8 64 := by rw [absDot8_64]; norm_num
-    have hB : 0 ≤ stepMag p t := Finset.sum_nonneg fun _ _ => abs_nonneg _
-    have hS := abs_nonneg (partSum p t)
-    show 0 ≤ (1 + Rules.Num.relDot8 64) * errAt p t +
-      Rules.Num.relDot8 64 * (|partSum p t| + stepMag p t) + Rules.Num.absDot8 64
-    positivity
+  | j + 1 => by
+    have h := errAt_nonneg p q j
+    have hm : 0 ≤ max |partSum p j| (chunkMax q j) := (abs_nonneg _).trans (le_max_left _ _)
+    have hS := abs_nonneg (partSum p (j + 1))
+    rw [errAt_succ, rho_eq, sigma_eq, alpha_eq]
+    have : (0 : ℚ) < 1 / 2 ^ 126 := by norm_num
+    linarith
 
-theorem partSum_succ (p : Nat → ℚ) (t : Nat) :
-    partSum p (t + 1) = partSum p t + ∑ k : Fin 64, p (64 * t + k) := by
+theorem partSum_succ (p : Nat → ℚ) (j : Nat) :
+    partSum p (j + 1) = partSum p j + ∑ k : Fin 32, p (32 * j + k) := by
   unfold partSum
-  rw [show 64 * (t + 1) = 64 * t + 64 by ring, Finset.sum_range_add,
-    Fin.sum_univ_eq_sum_range (fun k => p (64 * t + k)) 64]
+  rw [show 32 * (j + 1) = 32 * j + 32 by ring, Finset.sum_range_add,
+    Fin.sum_univ_eq_sum_range (fun k => p (32 * j + k)) 32]
 
-theorem partMag_succ (p : Nat → ℚ) (t : Nat) : partMag p (t + 1) = partMag p t + stepMag p t := by
-  unfold partMag stepMag
-  rw [show 64 * (t + 1) = 64 * t + 64 by ring, Finset.sum_range_add,
-    Fin.sum_univ_eq_sum_range (fun k => |p (64 * t + k)|) 64]
+theorem le_chunkMax (q : Nat → ℚ) (j : Nat) (k : Fin 32) : q (32 * j + k) ≤ chunkMax q j :=
+  Finset.le_sup' (fun k : Fin 32 => q (32 * j + k)) (Finset.mem_univ k)
 
-/-- The error bound is never above the bound in terms of the magnitudes alone. -/
-theorem errAt_le_bound (p : Nat → ℚ) : ∀ t,
-    errAt p t ≤ DotLoop.bound (Rules.Num.relDot8 64) (Rules.Num.absDot8 64) t (partMag p t)
-  | 0 => by simp [errAt, DotLoop.bound]
-  | t + 1 => by
-    have ih := errAt_le_bound p t
-    have hρ : (0 : ℚ) ≤ Rules.Num.relDot8 64 := by rw [relDot8_64]; norm_num
-    have hα : (0 : ℚ) ≤ Rules.Num.absDot8 64 := by rw [absDot8_64]; norm_num
-    have hB : 0 ≤ stepMag p t := Finset.sum_nonneg fun _ _ => abs_nonneg _
-    have hA : 0 ≤ partMag p t := Finset.sum_nonneg fun _ _ => abs_nonneg _
-    have hSA : |partSum p t| ≤ partMag p t := Finset.abs_sum_le_sum_abs _ _
-    have hP1 : (1 : ℚ) ≤ (1 + Rules.Num.relDot8 64) ^ t := one_le_pow₀ (by linarith)
-    have hP : 1 + Rules.Num.relDot8 64 ≤ (1 + Rules.Num.relDot8 64) ^ (t + 1) := by
-      rw [pow_succ]; nlinarith
-    have hm := mul_le_mul_of_nonneg_left ih (show (0 : ℚ) ≤ 1 + Rules.Num.relDot8 64 by linarith)
-    rw [partMag_succ]
-    show (1 + Rules.Num.relDot8 64) * errAt p t +
-        Rules.Num.relDot8 64 * (|partSum p t| + stepMag p t) + Rules.Num.absDot8 64 ≤ _
-    unfold DotLoop.bound at hm ⊢
-    rw [pow_succ]
+theorem chunkMax_le {q : Nat → ℚ} {j : Nat} {M : ℚ} (h : ∀ k : Fin 32, q (32 * j + k) ≤ M) :
+    chunkMax q j ≤ M :=
+  Finset.sup'_le _ _ fun k _ => h k
+
+/-- The error bound is never above the bound in terms of a magnitude `L` that bounds every
+partial sum and every chunk's largest lifted product up to chunk `n`. -/
+theorem errAt_le_bound (p q : Nat → ℚ) {L : ℚ} {n : Nat} (hS : ∀ j ≤ n, |partSum p j| ≤ L)
+    (hq : ∀ j < n, chunkMax q j ≤ L) : ∀ j ≤ n,
+    errAt p q j ≤ DotLoop.bound (Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8) Rules.Num.alphaChunk8 j L
+  | 0, _ => by simp [errAt, DotLoop.bound]
+  | j + 1, hj => by
+    have ih := errAt_le_bound p q hS hq j (by omega)
+    have hL : 0 ≤ L := (abs_nonneg _).trans (hS 0 (Nat.zero_le _))
+    have hm : max |partSum p j| (chunkMax q j) ≤ L := max_le (hS j (by omega)) (hq j (by omega))
+    have hS1 := hS (j + 1) hj
+    unfold DotLoop.bound at ih ⊢
+    rw [q_eq, alpha_eq] at ih ⊢
+    rw [errAt_succ, rho_eq, sigma_eq, alpha_eq, pow_succ (4129 / 4096 : ℚ) j]
     push_cast
-    have e1 : Rules.Num.relDot8 64 * stepMag p t ≤
-        ((1 + Rules.Num.relDot8 64) ^ t * (1 + Rules.Num.relDot8 64) - 1) * stepMag p t := by
-      apply mul_le_mul_of_nonneg_right _ hB; rw [← pow_succ]; linarith
-    have e2 : Rules.Num.absDot8 64 ≤ (1 + Rules.Num.relDot8 64) ^ t * (1 + Rules.Num.relDot8 64) *
-        Rules.Num.absDot8 64 := by
-      have : (1 : ℚ) ≤ (1 + Rules.Num.relDot8 64) ^ t * (1 + Rules.Num.relDot8 64) := by
-        rw [← pow_succ]; linarith
-      nlinarith
-    have e3 : Rules.Num.relDot8 64 * |partSum p t| ≤ Rules.Num.relDot8 64 * partMag p t :=
-      mul_le_mul_of_nonneg_left hSA hρ
-    nlinarith
+    have hP1 : (1 : ℚ) ≤ (4129 / 4096) ^ j := one_le_pow₀ (by norm_num)
+    have h1 := mul_le_mul_of_nonneg_left ih (show (0 : ℚ) ≤ 4129 / 4096 by norm_num)
+    have h2 : (1 / 2 ^ 126 : ℚ) ≤ (4129 / 4096) ^ j * (4129 / 4096) * (1 / 2 ^ 126) := by
+      have : (1 : ℚ) ≤ (4129 / 4096) ^ j * (4129 / 4096) := by linarith
+      linarith
+    linarith
 
-/-- The relative part of `tolA` on covered instances (`K ≤ 4096`, `Inst.ok.K_le`): below `1.71`. -/
+/-- The relative part of `tolA` on covered instances (`K ≤ 4096`, `Inst.ok.K_le`): below `1.8`. -/
 theorem tolA_rel_lt {K : Nat} (hK : K ≤ 2 ^ 12) :
-    (1 + Rules.Num.relDot8 64) ^ steps K - 1 < 171 / 100 := by
-  have hT : steps K ≤ 64 := by unfold steps; omega
-  have h1 : (1 : ℚ) ≤ 1 + Rules.Num.relDot8 64 := by rw [relDot8_64]; norm_num
-  have h2 := pow_le_pow_right₀ h1 hT
-  have h3 : (1 + Rules.Num.relDot8 64) ^ 64 < 1 + 171 / 100 := by
-    rw [relDot8_64]; norm_num
+    (1 + (Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8)) ^ (2 * steps K) - 1 < 9 / 5 := by
+  have hT : 2 * steps K ≤ 128 := by unfold steps; omega
+  rw [q_eq]
+  have h2 := pow_le_pow_right₀ (show (1 : ℚ) ≤ 4129 / 4096 by norm_num) hT
+  have h3 : (4129 / 4096 : ℚ) ^ 128 < 1 + 9 / 5 := by norm_num
   linarith
 
-/-- On covered instances `tolA K A` is at most `1.71·A + 10^-35`. -/
-theorem tolA_le {K : Nat} (hK : K ≤ 2 ^ 12) {A : ℚ} (hA : 0 ≤ A) :
-    tolA K A ≤ 171 / 100 * A + 1 / 10 ^ 35 := by
+/-- On covered instances `tolA K L` is at most `1.8·L + 10^-35`. -/
+theorem tolA_le {K : Nat} (hK : K ≤ 2 ^ 12) {L : ℚ} (hL : 0 ≤ L) :
+    tolA K L ≤ 9 / 5 * L + 1 / 10 ^ 35 := by
   have hr := tolA_rel_lt hK
-  have hT : steps K ≤ 64 := by unfold steps; omega
-  have h1 : (1 : ℚ) ≤ 1 + Rules.Num.relDot8 64 := by rw [relDot8_64]; norm_num
-  have h2 := pow_le_pow_right₀ h1 hT
-  have h3 : (1 + Rules.Num.relDot8 64) ^ 64 < 3 := by rw [relDot8_64]; norm_num
-  have hT' : (steps K : ℚ) ≤ 64 := by exact_mod_cast hT
-  have hP : 0 ≤ (1 + Rules.Num.relDot8 64) ^ steps K := by positivity
-  have hα : Rules.Num.absDot8 64 = 16641 / 2 ^ 139 := absDot8_64
+  have hT : 2 * steps K ≤ 128 := by unfold steps; omega
   unfold tolA DotLoop.bound
-  rw [hα]
-  have e1 : ((1 + Rules.Num.relDot8 64) ^ steps K - 1) * A ≤ 171 / 100 * A :=
-    mul_le_mul_of_nonneg_right hr.le hA
-  have e2 : (steps K : ℚ) * (1 + Rules.Num.relDot8 64) ^ steps K ≤ 64 * 3 :=
+  rw [q_eq] at hr ⊢
+  rw [alpha_eq]
+  have h2 := pow_le_pow_right₀ (show (1 : ℚ) ≤ 4129 / 4096 by norm_num) hT
+  have h3 : (4129 / 4096 : ℚ) ^ 128 < 3 := by norm_num
+  have hT' : ((2 * steps K : Nat) : ℚ) ≤ 128 := by exact_mod_cast hT
+  have hP : 0 ≤ (4129 / 4096 : ℚ) ^ (2 * steps K) := by positivity
+  have e1 : ((4129 / 4096 : ℚ) ^ (2 * steps K) - 1) * L ≤ 9 / 5 * L :=
+    mul_le_mul_of_nonneg_right hr.le hL
+  have e2 : ((2 * steps K : Nat) : ℚ) * (4129 / 4096) ^ (2 * steps K) ≤ 128 * 3 :=
     mul_le_mul hT' (by linarith) hP (by norm_num)
-  have e3 : (steps K : ℚ) * (1 + Rules.Num.relDot8 64) ^ steps K * (16641 / 2 ^ 139) ≤
-      64 * 3 * (16641 / 2 ^ 139) := mul_le_mul_of_nonneg_right e2 (by norm_num)
-  have e4 : (64 * 3 * (16641 / 2 ^ 139) : ℚ) ≤ 1 / 10 ^ 35 := by norm_num
+  have e3 : ((2 * steps K : Nat) : ℚ) * (4129 / 4096) ^ (2 * steps K) * (1 / 2 ^ 126) ≤
+      128 * 3 * (1 / 2 ^ 126) := mul_le_mul_of_nonneg_right e2 (by norm_num)
+  have e4 : (128 * 3 * (1 / 2 ^ 126) : ℚ) ≤ 1 / 10 ^ 35 := by norm_num
   linarith
 
 /-- The exact dot product of row values `va` and column values `vb` over `k < K`. -/
 def dotSum (va vb : Nat → F8E5) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, (va k).toRat * (vb k).toRat
 
-/-- The sum of the magnitudes of the products. -/
-def dotAbs (va vb : Nat → F8E5) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, |(va k).toRat * (vb k).toRat|
+/-- The sum of the products' lifted magnitudes, `Σ liftMag (va k) · liftMag (vb k)` over `k < K`:
+`Σ|va k · vb k|` when no operand is subnormal. -/
+def dotLift (va vb : Nat → F8E5) (K : Nat) : ℚ :=
+  ∑ k ∈ Finset.range K, Rules.Num.liftMag .f8e5 (va k).toRat * Rules.Num.liftMag .f8e5 (vb k).toRat
 
 /-- What the launch leaves in element `(i, j)` of `c`: some `float16` value `c`; and when row `i` of
 `a` and column `j` of `b` hold finite `float8e5` values `va k`, `vb k` (`k < K`) in the initial
 memory, `c` is the `float16` rounding (to nearest even, up to NaN payload) of a finite `float32`
-value `v` within `E = tol va vb K` (the error bound from the exact partial sums of the loop's
-steps) of the exact sum `S = Σ va k · vb k`; and when there is room in `float16`
+value `v` within `E = tol va vb K` (the error bound over the loop's `2·cdiv(K, 64)` chunks of `32`
+products, from the exact partial sums and each chunk's largest lifted product) of the exact sum
+`S = Σ va k · vb k`; and when there is room in `float16`
 (`|S| + E ≤ 65504`), `c` is finite and within `E` plus one `float16` rounding
 (`(|S| + E)·2^-11 + 2^-25`) of `S`. -/
 def OutSpec (d : Inst) (init fin : Mem) (i j : Nat) : Prop :=
@@ -438,12 +446,16 @@ structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) : Prop where
   covers a launch within its scope: part (A), the kernel and its launches, which the host's launches
   meet (README, Conditions), and part (B), the environment, which the claim relies on. -/
   faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)
-  /-- [rule] `Num.DotE5m2`: `tl.dot` of `float8e5` operands into `float32` with
-  `maxImpreciseAcc = 2^30` (the default on sm_90), any `input_precision` (the model's line 300):
-  each output element whose row of `a`, column of `b` and accumulator are finite is finite and
-  within `relDot8 K·(|acc| + Σ|a·b|) + absDot8 K` of `acc + Σ a·b`, when that leaves room below the
-  `float32` range. -/
-  dot : Rules.Num.DotE5m2 P
+  /-- [rule] `Num.DotE5m2Chunk`: `tl.dot` of `float8e5` operands into `float32` with
+  `maxImpreciseAcc = 2^30` (the default on sm_90), any `input_precision` (the model's line 300),
+  chunk by chunk. For each output element whose row of `a`, column of `b` and accumulator have
+  values (are finite), with room below the `float32` range (`mag + relDot8 K·mag + absDot8 K`,
+  `mag = |acc| + Σ|a·b|`), the result has a value, and there are partial values from `acc` to the
+  result, one per chunk of `32` consecutive `k`, in increasing order: each is within
+  `2^-7·M + 2^-12·|s + c| + 2^-126` of the previous value `s` plus the chunk's exact sum `c`, for
+  every `M` at least `|s|` and each of the chunk's lifted products `liftMag a_k · liftMag b_k` (a
+  subnormal operand counts as `2^-14`). -/
+  dot : Rules.Num.DotE5m2Chunk P
   /-- [rule] `Num.DotTotal`: the model's `tl.dot` (line 300) always has a result. -/
   dot_total : Rules.Num.DotTotal P { a := .f8e5, b := .f8e5, acc := .f32, precision := .tf32, maxImpreciseAcc := 2 ^ 30 }
   /-- [rule] `Num.CvtF32E5m2`: the conversion of a finite `float32` within `float8e5`'s range into

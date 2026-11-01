@@ -6,23 +6,23 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 
 ## Status
 
-- Gate: **PASS**, digest `e2e71723960bcd92` (2026-10-31T19:17:39Z).
-- Phase: round 2: all reviewers have filed.
+- Gate: **PASS**, digest `ca23f13ad8ef224a` (2026-11-01T02:14:23Z).
+- Phase: round 2: waiting for the prover (2 open finding(s)).
 - Reviewers: r-bwd (all), r-bwd2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-bwd | r-bwd2 |
 |---|---|---|---|
-| `assumption:dot` | `48d029750f5c` | accepted | accepted |
-| `assumption:dot_total` | `86c4e61c3d1b` | accepted | accepted |
-| `assumption:exp2` | `c7c1661b3a44` | accepted | accepted |
-| `assumption:exp2_total` | `cccd97ee947c` | accepted | accepted |
+| `assumption:dot` | `43d7c5220102` | accepted | accepted |
+| `assumption:dot_total` | `b97746a80071` | accepted | accepted |
+| `assumption:exp2` | `273263578e39` | accepted | accepted |
+| `assumption:exp2_total` | `ab66c8ed1205` | accepted | accepted |
 | `assumption:faithful` | `4c343bd534fc` | accepted | accepted |
 | `conditions` | `1ea438ae16fd` | accepted | accepted |
 | `map` | `546ddbd1d499` | accepted | accepted |
 | `model` | `4fc657ef0210` | accepted | accepted |
-| `spec` | `fedb640bd05a` | accepted | accepted |
+| `spec` | `4f63b9280372` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -30,6 +30,8 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 | [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd2 | 1 | Narrowings: 'the host asserts only that the strides are equal' omits do.is_contiguous() (line 585); and a Python float s |
 | [F3](#f3) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd | 1 | The README's tolerance figures understate Post: about 1%, not 0.5%, of the magnitude sums at the benchmark's largest siz |
 | [F4](#f4) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd | 1 | The README's layout narrowing misdescribes the host's checks: do.is_contiguous() and equal strides already fix the conti |
+| [F5](#f5) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-bwd2 | 2 | Does DotF16 hold when a subnormal float16 operand sets the wgmma window (L125's mechanism)? This kernel's ppT and dsT ar |
+| [F6](#f6) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-bwd | 2 | L125's mechanism (a subnormal operand's exponent field, read as the smallest normal's, sets the wgmma window) is unteste |
 
 **Certificate: GRANTED**
 
@@ -119,4 +121,32 @@ README, Narrowings: 'the host asserts only that the strides are equal ... a non-
 `2026-10-31T19:19:31Z`, at gate `e2e71723960bcd92`. Notes: Only README.md changed; the gate digest e2e71723960bcd92 and the item digests are unchanged. I ran the README's inline script as written (numpy 2.3.5; output in work/readme_script.out). Every figure of the table matches its output: the medians and 90th percentiles, A, the largest counted dV/dK ratios (1.04%/1.19% non-causal, 0.91%/5.2% causal), and the dQ worst-row absolute tolerances (2.6e-4 to 9.2e-3). I checked the script against Spec.lean's formulas (eSub, xE, eX, yE, eY, yB, pBr, pE, dsE, p16Err, p16B, dsErr, dsB, ds16Err, ds16B, stepsKV, stepsQ, accB, dVTol, dKS/dKAcc/dKTol, dQS/dQAcc/dQTol, Allowed) and the prose against the script. The empty-launch sentence of the layout bullet is right: a tensor with no elements is contiguous for any strides, and such launches run no program.
 
 - **accepted** at gate `e2e71723960bcd92`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T02:15:50Z` coordinator's note: Library round 24 (L124, L125; docs/library-review/ISSUES.md) changed docs/rules/num.md (the fp8 tl.dot facts DotE4m3, DotE5m2, DotE4m3E5m2, DotE5m2E4m3 and DotF8 withdrawn as false on a subnormal operand; new chunk facts DotE4m3Chunk etc. in lean/TVA/Rules/Num/Dot8Chunk.lean) and lean/TVA/Rules/Num/Sm90.lean (those facts removed; chunks8, relDot8, absDot8 moved to Dot8Chunk.lean unchanged). No fact or constant this kernel cites changed; its reviewers re-accept the items that re-opened.
+
+### r-bwd2 files ([filing](review/round-2/r-bwd2/filing-3.json), [report](review/round-2/r-bwd2/report-3.md), [work](review/round-2/r-bwd2/work/))
+
+`2026-11-01T02:19:29Z`, at gate `ca23f13ad8ef224a`. Notes: Re-acceptance after library round 24 (L124, L125); the gate is at ca23f13ad8ef224a and no kernel file changed. Of what my re-opened items rely on, nothing changed. lean/TVA/Rules/Num/Sm90.lean only removes DotF8 and the four fp8 whole-dot facts and moves chunks8, relDot8 and absDot8 to Dot8Chunk.lean; DotF16, relDot16 = (K+2)*2^-22, absDot16 = (K+2)*2^-126 and Exp2F32 (2^-22, 2^-126, every input) are unchanged. In docs/rules/num.md, the rows of 'Facts the library states' for MathTotal/DotTotal, Exp2F32 and DotF16 are unchanged, and so are the 'What a kernel reviewer checks' row for float16 dots and the 16-bit bullet of the chunk model. The changes are the fp8 rows, the new fp8 chunk section, the DotChunkAcc definition row, and the alignment point under 'Device questions'; the kernel cites none of them. The spec item re-opened only because its cone reaches Sm90.lean through rH and aH (relDot16, absDot16), which are unchanged. The LIBRARY_REPORT records a doubt the round raises about DotF16 on subnormal float16 operands; it does not block.
+
+#### F5
+
+**LIBRARY_REPORT** on `decl:TVA.Rules.Num.DotF16` (non-blocking): Does DotF16 hold when a subnormal float16 operand sets the wgmma window (L125's mechanism)? This kernel's ppT and dsT are often subnormal float16
+
+Round 24 found (L125; num.md, the fp8 bullet of the chunk model and 'Device questions') that on wgmma the window is set by exponent fields, and that a subnormal fp8 operand's field reads as the smallest normal's. num.md's 16-bit bullet derives DotF16 from 'every term down to at least 2^-23 of the largest', and evidence/num-dot's new note says its Part 2 had no input where a product with a subnormal operand sets the window. If float16 wgmma aligns the same way, a product with a subnormal operand (2^-24, read as 2^-14) can set the unit 10 binades too high. The other products just below that unit are then lost, far beyond relDot16 K of the magnitude sum. This kernel feeds such operands to DotF16 in its real use: ppT = fp16(P) and dsT = fp16(dS) (lines 302, 309, 355) are subnormal whenever |P| or |dS| < 2^-14, which is frequent at N_CTX = 2^14 with the benchmark's sharp softmax; q and arg_k have subnormal elements too. On the host's inputs the possible loss is tiny next to Post's per-pair 2^-25 floors, but the proof cites DotF16 as stated. Same question as grouped_matmul_tma_f16#F5 (REPORTS.md); filed here so that this kernel's exposure is on record. Not blocking: I carry on as if the library were right.
+
+- **accepted** at gate `ca23f13ad8ef224a`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-bwd files ([filing](review/round-2/r-bwd/filing-3.json), [report](review/round-2/r-bwd/report-3.md), [work](review/round-2/r-bwd/work/))
+
+`2026-11-01T02:19:49Z`, at gate `ca23f13ad8ef224a`. Notes: Re-acceptance after library round 24 (gate ca23f13ad8ef224a). The kernel's files are unchanged. Its four cited Num facts are unchanged in Lean and in num.md's listing and text: DotF16 (the DotAcc with relDot16 and absDot16), DotTotal, Exp2F32 and MathTotal. The diff of lean/TVA/Rules/Num/Sm90.lean removes only the fp8 facts and moves chunks8, relDot8 and absDot8. The diff of docs/rules/num.md touches only fp8 rows, the new fp8 chunk section, the fp8 part of the chunk-model text and the satisfiability list. So the re-opened items (assumption:dot, dot_total, exp2, exp2_total, spec) mean what they meant. The LIBRARY_REPORT is a doubt the round's own discovery raises about DotF16, not a change.
+
+#### F6
+
+**LIBRARY_REPORT** on `decl:TVA.Rules.Num.DotF16` (non-blocking): L125's mechanism (a subnormal operand's exponent field, read as the smallest normal's, sets the wgmma window) is untested for float16, and this kernel's fp16 P and dS are often subnormal
+
+Same doubt as attn_fwd_f16#F6 and grouped_matmul_tma_f16#F5/F6, filed for this kernel because its exposure differs. evidence/num-dot's README now says its Part 2 had no input where a product with a subnormal operand sets the alignment window. num.md describes the 16-bit path as keeping bits down to 2^-23 of the chunk's largest term, measured on normal terms. If fp16 wgmma aligns by exponent fields as fp8 wgmma does (num-dot-chunk Part A), the effect is larger: an fp16 subnormal down to 2^-24 reads as 2^-14, an inflation up to 2^10 (fp8's is 2^2 to 2^3). One product 2^-24 * 2^15 (field 2^1) with 15 products just below 2^-22 (K = 16) would lose about 15 * 2^-22, some hundreds of times DotF16's (K+2)*2^-22*sum|a*b| + absDot16. In this kernel ppT = fp16(P) and dsT, ds = fp16(dS) are subnormal whenever below 2^-14, which the benchmark's sharp softmax makes common. They are operands of tl.dot(ppT, do), tl.dot(dsT, trans(qT)) and tl.dot(ds, trans(kT)) (lines 303, 310, 358), all with M = 128 and 4 warps, so the wgmma path. Request: test DotF16 (and DotBF16) on inputs where a product with a subnormal operand sets the window, on wgmma and mma.sync, and if they fail, state a lifted form as the chunk facts do. Not blocking; I carry on as if DotF16 holds.
+
+*Evidence:* docs/rules/num.md, the tl.dot sections; evidence/num-dot README (the round-24 note on Part 2); evidence/num-dot-chunk Parts A and F; source lines 302-310 and 355-358.
+
+- **accepted** at gate `ca23f13ad8ef224a`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T02:24:46Z` coordinator's note: Library issue L126 (docs/library-review/ISSUES.md; evidence/num-dot-sub16), open: DotF16, which this claim cites, fails on the device when a product with a subnormal float16 operand and a large partner sets the tl.dot window (up to 53 times its bound on wgmma and mma.sync). The certificate rests on DotF16 as stated; the fix (a library round, then a re-proof of this kernel) is not yet scheduled.
 

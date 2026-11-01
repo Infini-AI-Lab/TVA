@@ -6,7 +6,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 ## Status
 
-- Gate: **PASS**, digest `8e94d6c624254843` (2026-10-31T21:42:09Z).
+- Gate: **PASS**, digest `3b92ad18abf5649a` (2026-11-01T02:51:48Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-e5m2 (all), r-e5m2b (all).
 - Certificate: **GRANTED**.
@@ -14,15 +14,15 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 | Item | Digest | r-e5m2 | r-e5m2b |
 |---|---|---|---|
-| `assumption:cvt` | `aade17c6f03b` | accepted | accepted |
-| `assumption:cvt_total` | `51327fef0b1a` | accepted | accepted |
-| `assumption:dot` | `b998520ee20a` | accepted | accepted |
-| `assumption:dot_total` | `3d95de9d6a84` | accepted | accepted |
+| `assumption:cvt` | `945d556ba0a4` | accepted | accepted |
+| `assumption:cvt_total` | `e73a67bc1e74` | accepted | accepted |
+| `assumption:dot` | `455b03ee146b` | accepted | accepted |
+| `assumption:dot_total` | `ea7a57f96a7c` | accepted | accepted |
 | `assumption:faithful` | `a6f11c176fc0` | accepted | accepted |
 | `conditions` | `91a8ae003d59` | accepted | accepted |
 | `map` | `517f928841e0` | accepted | accepted |
 | `model` | `7a67c16d2d9a` | accepted | accepted |
-| `spec` | `b3adafe9b06c` | accepted | accepted |
+| `spec` | `2f1d1b501970` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -126,4 +126,29 @@ The paragraph 'What the tolerance means, and where it stops meaning much' lists 
 - **released F4**: Settled by the new tolerance. Post's tol va vb K is now errAt (prodV va vb K) (steps K), the DotE5m2 fact at K = 64 applied step by step against the exact partial sums (E(t+1) = (1 + rho)*E t + rho*(|S t| + B t) + alpha, E 0 = 0), which acc_step closes with err_step and which never exceeds the old bound (tol_le_tolA). Since Post holds for every input, the all-zero kernel, a skipped loop and any skipped K-step now break it at every covered K, 2817 <= K <= 4096 included: MatmulE5m2.Reject proves zero_rejected (one product 1 in the last step, tol <= rho + 200*alpha by tol_spike, room in float16) and drop_rejected (the same input for the last step; 1 at 64s and -1 at 64s + 64 against a column of 1s for an earlier step, tol below 1/5). I read the module in full and checked the statements with full names: they speak of OutSpec's own float16 clause, on finite float8e5 inputs that Pre allows. The same spike input also rejects S/2 and -S at every K (work/Round2.lean checks S/2 at K = 4096) and a float8e5 rounding of 1.5625. errAt is the bound the per-step fact gives with |acc| <= |S_t| + E_t, so no tighter statement follows from the library's DotE5m2; what it still admits on dense inputs (72.8% on all-ones, about 2.3*|S| on randn data at K = 4096, by my own evaluation of errAt) is the library's allowed device error, which L119 leaves to a later library round, and the README states it. Keeping K <= 4096 is then right for the host's use.
 - **released F5**: Settled: the README's Specification is rewritten for the new tolerance. It no longer says that -S or a read of another row passes from K = 2817, it lists S/2 and -S among what the spike input rejects at every covered K, and 'What it does not reject' gives the bound on the input at hand with figures I re-evaluated (13.3% and 170.8% for one product in step 0, 7.3% and 72.8% on one-sign products, about 7 and 114 on randn data at K = 512 and 4096, 0.124 for the pair input at s = 0, K = 4096, and the spike bound below 0.026 for 1.5625).
 - **accepted** at gate `8e94d6c624254843`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T02:44:47Z` coordinator's note: Library round 24 (L124, L125; docs/library-review/ISSUES.md): DotE5m2, which this claim cited, was withdrawn as false on the device when a product with a subnormal operand sets the wgmma window (evidence/num-dot-chunk Part F). The prover re-proved the claim on the new fact DotE5m2Chunk (lean/TVA/Rules/Num/Dot8Chunk.lean), applied chunk by chunk with lifted magnitudes; the gate passes at 3b92ad18abf5649a. The spec and assumption:dot changed; the other assumption items re-open through docs/rules/num.md and lean/TVA/Rules/Num/Sm90.lean.
+
+### r-e5m2 files ([filing](review/round-2/r-e5m2/filing-2.json), [report](review/round-2/r-e5m2/report-2.md), [work](review/round-2/r-e5m2/work/))
+
+`2026-11-01T02:49:15Z`, at gate `3b92ad18abf5649a`. Notes: Re-review after library round 24 (L124, L125), at gate 3b92ad18abf5649a. assumption:dot is DotE5m2Chunk P, the fact docs/rules/num.md lists for an fp8 x fp8 tl.dot into float32 at maxImpreciseAcc 2^30, any precision: DotF8Chunk P .f8e5 .f8e5, which for every precision is DotChunkAcc on the model's DotCfg (f8e5, f8e5, f32, 2^30) with rhoChunk8 = 2^-7, sigmaChunk8 = 2^-12, alphaChunk8 = 2^-126; the docstring says what the fact says. spec: tol va vb K = errAt (prodV va vb K) (liftV va vb K) (2 * steps K), E_{j+1} = (1 + rho + sigma)*E_j + rho*max(|S_j|, m_j) + sigma*|S_{j+1}| + alpha, is what the fact gives per chunk with M = max(|S_j| + E_j, m_j) and |s + c| <= |S_{j+1}| + E_j (chunk_step); chunk c of step t's tl.dot of K = 64 is chunk 2t + c of the loop (sum_chunk8), and a disabled lane (+0 operand) has product and lifted product 0, so m_j = chunkMax of liftV covers every lifted product the fact asks about; liftV is liftMag .f8e5 with minNormal8 .f8e5 = 2^-14, so subnormal operands are covered. The tolerance is explicit and computable from the inputs. At every covered K it rejects a zero result, any skipped step, S/2, -S and a float8e5 rounding on some finite input with room (zero_rejected, drop_rejected, tol_spike; statements printed with full names in work/names3.lean, axioms the three standard ones). I recomputed the README's figures exactly in rationals: 0.806% (one product at K - 1, K a multiple of 64) and 1.618% = 271425*2^-24 (K mod 64 in 1..32, attained at K = 600 and 2753), 0.0268 and 0.0658 (pair input, s = 0, K = 512 and 4096), 13.70% and 179.30% (one product at index 0), the crossing of |X| at K = 2753 (0.994 at 2752, 1.026 at 2753), 6.30% and 73.91% (all ones), tolA's relative part 0.1370 and 1.7930, the float8e5-rounding bound 0.02605 < 0.027 (0.01336 < 0.014 at K = 512). On torch.randn data cast to float8e5 my own simulation gives medians 1.6 against |S| about 20 at K = 512 and 39 against |S| about 32 at K = 4096, the same order as the README's 1.5 and 52: at K = 4096 the bound is about |S|, which is the device's error as the library's fact allows, and the README says so. cvt, cvt_total and dot_total re-opened only through docs/rules/num.md and Sm90.lean: CvtF32E5m2 (CvtRn P binary32 e5m2), CvtTotal and DotTotal are unchanged and still listed, so they stay right. Wording only, non-blocking: OutSpec's docstring still says the error bound comes from the partial sums of the loop's steps; it now comes from those of its chunks of 32.
+
+- **accepted** at gate `3b92ad18abf5649a`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2b files ([filing](review/round-2/r-e5m2b/filing-2.json), [report](review/round-2/r-e5m2b/report-2.md), [work](review/round-2/r-e5m2b/work/))
+
+`2026-11-01T02:49:40Z`, at gate `3b92ad18abf5649a`. Notes: Re-review after library round 24 (L124, L125), at gate 3b92ad18abf5649a. assumption:dot is Rules.Num.DotE5m2Chunk P, the fact docs/rules/num.md lists for the model's tl.dot (float8e5 by float8e5 into float32, maxImpreciseAcc 2^30, any precision): DotF8Chunk P .f8e5 .f8e5, DotChunkAcc with rhoChunk8, sigmaChunk8, alphaChunk8 (printed with full names, work/Rechunk.lean), and its docstring says what the fact says. The spec's tolerance tol va vb K = errAt (prodV va vb K) (liftV va vb K) (2 * steps K) is the chunk recursion E(j+1) = (1 + rho + sigma)*E j + rho*max(|S j|, m j) + sigma*|S (j+1)| + alpha over the loop's 2*cdiv(K, 64) chunks of 32 consecutive products in increasing order, from the exact partial sums and each chunk's largest lifted product (liftMag, a subnormal float8e5 operand at 2^-14; disabled lanes 0): it is what the fact gives with M = max(|S j| + E j, m j) (chunk_step), and it matches the library's own errB (num.md, 'How a kernel uses them'). Chunk c of step t's tl.dot is chunk 2t + c of the loop (sum_chunk8), as the fact's chunk8 64 c and the loop order make it. It is explicit and computable, and still meaningful at the largest covered K: zero_rejected, drop_rejected and tol_spike (now (1 + rho + sigma)^2 - 1, about 1.62% of the lifted product, 0.81% at multiples of 64) are re-proved at every 1 <= K <= 4096 with the same statements as before, and S/2 is rejected at K = 4096 (work/Rechunk.lean). I re-evaluated the README's figures exactly: 0.81% and 1.62% (worst at K = 4064), 0.027 and 0.066 for the pair input, 13.7% and 179.3% for one product at index 0 with the crossing at K = 2753, 6.3% and 73.9% on all-ones, tolA's 0.137 and 1.793, and the 1.25*1.25 bound below 0.027; on my own 20 randn draws the medians are 1.5 at K = 512 and about 38 against a median |S| of about 39 at K = 4096, the same picture as the README's 1.5 and 52 against 52 within the spread of the draws. cvt, cvt_total and dot_total re-opened only through num.md and Sm90.lean: their definitions print as before (CvtRn binary32 e5m2; the Total facts), and num.md's rows for CvtF32E5m2 and the Total facts and the author's notes show no change to them (round 24 removed the fp8 whole-dot facts and moved chunks8, relDot8, absDot8 unchanged). Axioms of main, consistent, satisfiable, zero_rejected and drop_rejected: propext, Classical.choice, Quot.sound. Non-blocking: my earlier work file work/Round2.lean, recorded for the first round-2 filing, refers to the old tol_spike and would no longer elaborate; work/Rechunk.lean replaces it.
+
+- **accepted** at gate `3b92ad18abf5649a`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2 files ([filing](review/round-2/r-e5m2/filing-3.json), [report](review/round-2/r-e5m2/report-3.md), [work](review/round-2/r-e5m2/work/))
+
+`2026-11-01T02:52:32Z`, at gate `3b92ad18abf5649a`. Notes: Confirmation after the docstring fix, gate 3b92ad18abf5649a, no item digest changed. OutSpec's docstring now says the tolerance E = tol va vb K is the error bound over the loop's 2*cdiv(K, 64) chunks of 32 products, from the exact partial sums and each chunk's largest lifted product: that is what tol (errAt over 2 * steps K chunks, with partSum and chunkMax of liftV) computes. The wording point of my previous filing is settled; nothing else was re-checked.
+
+- **accepted** at gate `3b92ad18abf5649a`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2b files ([filing](review/round-2/r-e5m2b/filing-3.json), [report](review/round-2/r-e5m2b/report-3.md), [work](review/round-2/r-e5m2b/work/))
+
+`2026-11-01T02:52:42Z`, at gate `3b92ad18abf5649a`. Notes: Confirmation at gate 3b92ad18abf5649a: OutSpec's docstring now says the tolerance E = tol va vb K is the error bound over the loop's 2*cdiv(K, 64) chunks of 32 products, from the exact partial sums and each chunk's largest lifted product. That is what tol = errAt (prodV va vb K) (liftV va vb K) (2 * steps K) computes, as I checked in my previous filing. No item digest changed.
+
+- **accepted** at gate `3b92ad18abf5649a`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

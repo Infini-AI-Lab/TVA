@@ -1,0 +1,65 @@
+test-like (normal(0, 0.5), sm_scale 0.5); all rows at N = 128, 96 rows otherwise; seeds 1, 2
+test     D=64  N=128   c=0 s=1 X~   6.5 max    8.2 pE med   1.02 max   1.03 | tolO   0.0851 tolV    1.78 tolM  0.0304 |ref|  0.0438 floor 0.0486 | 0 meets Post  88.2% (tolO  88.2%) | floor>=|ref|  54.4% | tolO/floor  1.75
+test     D=64  N=128   c=0 s=2 X~   6.7 max    8.8 pE med   1.02 max   1.03 | tolO   0.0866 tolV    1.88 tolM  0.0299 |ref|  0.0452 floor 0.0493 | 0 meets Post  86.3% (tolO  86.3%) | floor>=|ref|  53.4% | tolO/floor  1.75
+test     D=64  N=128   c=1 s=1 X~   6.4 max    8.0 pE med   1.02 max   1.03 | tolO   0.0889 tolV    1.64 tolM  0.0278 |ref|   0.065 floor 0.0482 | 0 meets Post  67.1% (tolO  67.1%) | floor>=|ref|  38.0% | tolO/floor  1.86
+test     D=64  N=128   c=1 s=2 X~   6.5 max    8.8 pE med   1.02 max   1.03 | tolO    0.091 tolV    1.67 tolM  0.0272 |ref|   0.069 floor 0.0487 | 0 meets Post  64.2% (tolO  64.2%) | floor>=|ref|  36.2% | tolO/floor  1.88
+test     D=64  N=1024  c=0 s=1 X~   7.3 max    9.6 pE med   1.03 max   1.04 | tolO    0.103 tolV    2.92 tolM  0.0374 |ref|  0.0181 floor 0.0497 | 0 meets Post 100.0% (tolO 100.0%) | floor>=|ref|  93.9% | tolO/floor  2.08
+test     D=64  N=1024  c=0 s=2 X~   7.1 max    8.8 pE med   1.03 max   1.04 | tolO    0.104 tolV     2.9 tolM   0.037 |ref|  0.0184 floor 0.0498 | 0 meets Post 100.0% (tolO 100.0%) | floor>=|ref|  94.8% | tolO/floor  2.09
+test     D=64  N=1024  c=1 s=1 X~   7.1 max    9.6 pE med   1.02 max   1.03 | tolO   0.0966 tolV     2.4 tolM  0.0344 |ref|  0.0268 floor 0.0497 | 0 meets Post  94.3% (tolO  94.3%) | floor>=|ref|  76.2% | tolO/floor  1.94
+test     D=64  N=1024  c=1 s=2 X~   7.0 max    8.8 pE med   1.02 max   1.04 | tolO   0.0967 tolV    2.37 tolM  0.0335 |ref|  0.0255 floor 0.0497 | 0 meets Post  94.5% (tolO  94.5%) | floor>=|ref|  77.2% | tolO/floor  1.94
+test     D=64  N=4096  c=0 s=1 X~   7.3 max    8.5 pE med   1.03 max   1.04 | tolO    0.194 tolV     6.6 tolM   0.041 |ref| 0.00849 floor 0.0496 | 0 meets Post 100.0% (tolO 100.0%) | floor>=|ref| 100.0% | tolO/floor  3.90
+test     D=64  N=4096  c=0 s=2 X~   7.5 max    9.7 pE med   1.03 max   1.05 | tolO    0.196 tolV     6.6 tolM  0.0418 |ref| 0.00915 floor 0.0497 | 0 meets Post 100.0% (tolO 100.0%) | floor>=|ref|  99.9% | tolO/floor  3.94
+test     D=64  N=4096  c=1 s=1 X~   7.1 max    8.5 pE med   1.03 max   1.04 | tolO    0.133 tolV    3.97 tolM  0.0382 |ref|  0.0134 floor 0.0496 | 0 meets Post  98.3% (tolO  98.3%) | floor>=|ref|  92.9% | tolO/floor  2.66
+test     D=64  N=4096  c=1 s=2 X~   7.4 max    9.7 pE med   1.03 max   1.05 | tolO    0.134 tolV    3.92 tolM  0.0392 |ref|  0.0138 floor 0.0497 | 0 meets Post  98.0% (tolO  98.0%) | floor>=|ref|  92.9% | tolO/floor  2.67
+test     D=128 N=128   c=0 s=1 X~  12.1 max   14.2 pE med   1.07 max    1.1 | tolO    0.117 tolV    1.92 tolM  0.0928 |ref|  0.0655 floor 0.0495 | 0 meets Post  83.2% (tolO  83.2%) | floor>=|ref|  37.9% | tolO/floor  2.38
+test     D=128 N=128   c=0 s=2 X~  12.5 max   15.4 pE med   1.07 max   1.11 | tolO    0.117 tolV    1.87 tolM   0.097 |ref|  0.0664 floor 0.0488 | 0 meets Post  82.4% (tolO  82.4%) | floor>=|ref|  36.7% | tolO/floor  2.42
+test     D=128 N=128   c=1 s=1 X~  11.7 max   13.9 pE med   1.06 max    1.1 | tolO    0.119 tolV    1.73 tolM  0.0839 |ref|  0.0942 floor 0.0493 | 0 meets Post  62.5% (tolO  62.5%) | floor>=|ref|  26.3% | tolO/floor  2.46
+test     D=128 N=128   c=1 s=2 X~  11.9 max   14.3 pE med   1.06 max    1.1 | tolO    0.118 tolV    1.68 tolM  0.0862 |ref|  0.0942 floor 0.0486 | 0 meets Post  61.9% (tolO  61.9%) | floor>=|ref|  26.2% | tolO/floor  2.48
+test     D=128 N=1024  c=0 s=1 X~  13.0 max   15.5 pE med   1.09 max   1.13 | tolO    0.146 tolV    2.91 tolM    0.12 |ref|  0.0259 floor 0.0495 | 0 meets Post 100.0% (tolO 100.0%) | floor>=|ref|  79.8% | tolO/floor  2.95
+test     D=128 N=1024  c=0 s=2 X~  13.1 max   14.8 pE med   1.08 max   1.12 | tolO    0.145 tolV    2.92 tolM   0.116 |ref|  0.0257 floor 0.0497 | 0 meets Post 100.0% (tolO 100.0%) | floor>=|ref|  80.0% | tolO/floor  2.92
+test     D=128 N=1024  c=1 s=1 X~  12.9 max   15.2 pE med   1.08 max   1.13 | tolO    0.134 tolV    2.41 tolM    0.11 |ref|  0.0372 floor 0.0494 | 0 meets Post  94.6% (tolO  94.6%) | floor>=|ref|  61.5% | tolO/floor  2.71
+test     D=128 N=1024  c=1 s=2 X~  12.9 max   14.8 pE med   1.08 max   1.12 | tolO    0.134 tolV    2.42 tolM   0.105 |ref|  0.0393 floor 0.0497 | 0 meets Post  94.2% (tolO  94.2%) | floor>=|ref|  59.4% | tolO/floor  2.69
+test     D=128 N=4096  c=0 s=1 X~  13.2 max   15.4 pE med   1.09 max   1.12 | tolO     0.27 tolV     6.6 tolM   0.126 |ref|  0.0133 floor 0.0496 | 0 meets Post 100.0% (tolO 100.0%) | floor>=|ref|  98.5% | tolO/floor  5.44
+test     D=128 N=4096  c=0 s=2 X~  13.5 max   16.3 pE med   1.09 max   1.13 | tolO    0.273 tolV    6.62 tolM    0.13 |ref|  0.0139 floor 0.0497 | 0 meets Post 100.0% (tolO 100.0%) | floor>=|ref|  97.6% | tolO/floor  5.50
+test     D=128 N=4096  c=1 s=1 X~  13.1 max   15.0 pE med   1.09 max   1.12 | tolO    0.186 tolV       4 tolM   0.122 |ref|  0.0196 floor 0.0496 | 0 meets Post  97.8% (tolO  97.8%) | floor>=|ref|  85.3% | tolO/floor  3.71
+test     D=128 N=4096  c=1 s=2 X~  13.2 max   16.3 pE med   1.09 max   1.12 | tolO    0.192 tolV    3.92 tolM   0.125 |ref|  0.0207 floor 0.0496 | 0 meets Post  98.2% (tolO  98.2%) | floor>=|ref|  83.3% | tolO/floor  3.83
+benchmark-like (randn, sm_scale 1.3), N = 1024, 96 rows; seeds 1, 2
+bench    D=64  N=1024  c=0 s=1 X~  75.5 max   99.7 pE med   1.31 max   1.46 | tolO      0.6 tolV     6.7 tolM   0.389 |ref|     0.5 floor  0.091 | 0 meets Post  53.9% (tolO  53.9%) | floor>=|ref|   4.3% | tolO/floor  6.95
+bench    D=64  N=1024  c=0 s=2 X~  73.7 max   91.2 pE med   1.31 max   1.56 | tolO    0.576 tolV    6.67 tolM   0.385 |ref|   0.515 floor 0.0912 | 0 meets Post  53.0% (tolO  53.0%) | floor>=|ref|   4.3% | tolO/floor  6.65
+bench    D=64  N=1024  c=1 s=1 X~  73.4 max   99.7 pE med   1.28 max   1.42 | tolO    0.462 tolV    5.63 tolM   0.358 |ref|   0.516 floor 0.0909 | 0 meets Post  36.2% (tolO  36.2%) | floor>=|ref|   4.3% | tolO/floor  5.26
+bench    D=64  N=1024  c=1 s=2 X~  72.5 max   91.2 pE med   1.27 max   1.56 | tolO    0.434 tolV    5.63 tolM   0.348 |ref|   0.537 floor 0.0886 | 0 meets Post  32.9% (tolO  32.9%) | floor>=|ref|   3.9% | tolO/floor  5.11
+bench    D=128 N=1024  c=0 s=1 X~ 135.1 max  160.9 pE med   2.37 max   3.42 | tolO     1.36 tolV    6.81 tolM    1.25 |ref|   0.584 floor 0.0903 | 0 meets Post  83.3% (tolO  83.3%) | floor>=|ref|   2.8% | tolO/floor 16.82
+bench    D=128 N=1024  c=0 s=2 X~ 135.8 max  154.4 pE med   2.31 max   3.18 | tolO     1.54 tolV    6.85 tolM    1.21 |ref|   0.546 floor 0.0891 | 0 meets Post  88.2% (tolO  88.2%) | floor>=|ref|   3.7% | tolO/floor 18.44
+bench    D=128 N=1024  c=1 s=1 X~ 134.2 max  158.2 pE med    2.2 max   3.42 | tolO     1.01 tolV    5.66 tolM    1.14 |ref|   0.569 floor 0.0897 | 0 meets Post  72.4% (tolO  72.4%) | floor>=|ref|   3.1% | tolO/floor 13.05
+bench    D=128 N=1024  c=1 s=2 X~ 133.9 max  154.4 pE med   2.13 max   3.18 | tolO     0.86 tolV    5.72 tolM    1.09 |ref|   0.599 floor 0.0898 | 0 meets Post  64.5% (tolO  64.5%) | floor>=|ref|   2.6% | tolO/floor 10.88
+one key (causal row 0): tolO / |attnRef| and tolV / |attnRef| (median, range over e and seeds)
+  test D=64: tolO/|r| med 0.310 [0.310, 0.311]; tolV/|r| med 0.309 [0.309, 0.311]
+  test D=128: tolO/|r| med 0.311 [0.310, 0.321]; tolV/|r| med 0.309 [0.309, 0.321]
+  bench D=64: tolO/|r| med 0.315 [0.313, 0.319]; tolV/|r| med 0.309 [0.309, 0.310]
+  bench D=128: tolO/|r| med 0.326 [0.321, 0.332]; tolV/|r| med 0.309 [0.309, 0.315]
+q = 0, v = 1 everywhere, D = 64
+  N=1024   tolO 0.4629 tolV 0.6577 tolM 1.95e-05
+  N=2048   tolO 0.6972 tolV 1.165 tolM 2.91e-05
+  N=4096   tolO 1.313 tolV 2.668 tolM 4.84e-05
+  N=16384  tolO 19.31 tolV 80.63 tolM 0.000164
+  N=65536  tolO 1.172e+06 tolV 1.863e+07 tolM 0.000626
+vEff = 0 (a head without vIn): tolV at K = R = 0; tolO with q = k = 0 (uniform weights) at X = Z = 0, and at the cap X = Xh with the whole-dot bound (Z large; allowed, as Post holds for every larger X, Z); also at the cap with test-like q, k (row 0)
+  D=64  N=4096   tolV 7.629e-06 | tolO, q = k = 0: at X=0 7.629e-06, at the cap 9.38e-06; test-like q, k at the cap 9.399e-06 (pE 5504)
+  D=128 N=4096   tolV 7.629e-06 | tolO, q = k = 0: at X=0 7.629e-06, at the cap 9.615e-06; test-like q, k at the cap 9.629e-06 (pE 5898)
+  D=64  N=16384  tolV 7.629e-06 | tolO, q = k = 0: at X=0 7.629e-06, at the cap 9.955e-05; test-like q, k at the cap 9.916e-05 (pE 5504)
+  D=128 N=16384  tolV 7.629e-06 | tolO, q = k = 0: at X=0 7.629e-06, at the cap 0.0001098; test-like q, k at the cap 0.0001085 (pE 5898)
+  D=256 N=65536  tolV 7.629e-06 | tolO, q = k = 0: at X=0 7.836e-06, at the cap 10.06; test-like q, k at the cap 9.841 (pE 6794)
+2^-16 (the smallest nonzero float8e5) against tolV at vEff = 0: 1.52587890625e-05
+test-like causal rows at N = 1024 and 4096 with 24 rows (as the README samples), and row 0 alone
+test 24r D=64  N=1024  c=1 s=1 X~   6.9 max    8.2 pE med   1.02 max   1.04 | tolO   0.0973 tolV    2.39 tolM  0.0343 |ref|  0.0279 floor 0.0497 | 0 meets Post  92.2% (tolO  92.2%) | floor>=|ref|  74.8% | tolO/floor  1.96
+test 24r D=64  N=1024  c=1 s=2 X~   6.8 max    8.4 pE med   1.02 max   1.04 | tolO   0.0967 tolV    2.38 tolM  0.0342 |ref|  0.0263 floor 0.0497 | 0 meets Post  92.6% (tolO  92.6%) | floor>=|ref|  76.5% | tolO/floor  1.95
+row 0    D=64  N=1024  c=1 s=1 X~   4.2 max    4.2 pE med   1.01 max   1.01 | tolO   0.0967 tolV  0.0967 tolM 0.00936 |ref|   0.312 floor 0.0391 | 0 meets Post   0.0% (tolO   0.0%) | floor>=|ref|   0.0% | tolO/floor  2.48
+test 24r D=64  N=4096  c=1 s=1 X~   7.2 max    9.4 pE med   1.03 max   1.04 | tolO    0.134 tolV    3.94 tolM  0.0392 |ref|  0.0134 floor 0.0497 | 0 meets Post  95.4% (tolO  95.4%) | floor>=|ref|  91.5% | tolO/floor  2.66
+test 24r D=64  N=4096  c=1 s=2 X~   6.9 max    8.7 pE med   1.03 max   1.04 | tolO    0.137 tolV    3.91 tolM  0.0393 |ref|   0.014 floor 0.0497 | 0 meets Post  95.7% (tolO  95.7%) | floor>=|ref|  92.4% | tolO/floor  2.72
+row 0    D=64  N=4096  c=1 s=1 X~   4.1 max    4.1 pE med   1.01 max   1.01 | tolO   0.0968 tolV  0.0967 tolM  0.0153 |ref|   0.312 floor 0.0391 | 0 meets Post   0.0% (tolO   0.0%) | floor>=|ref|   0.0% | tolO/floor  2.48
+test 24r D=128 N=1024  c=1 s=1 X~  13.2 max   14.7 pE med   1.08 max   1.09 | tolO    0.133 tolV    2.41 tolM   0.109 |ref|  0.0373 floor 0.0494 | 0 meets Post  93.3% (tolO  93.3%) | floor>=|ref|  59.8% | tolO/floor  2.68
+test 24r D=128 N=1024  c=1 s=2 X~  13.3 max   14.3 pE med   1.08 max   1.11 | tolO    0.135 tolV    2.42 tolM   0.109 |ref|  0.0402 floor 0.0496 | 0 meets Post  92.3% (tolO  92.3%) | floor>=|ref|  58.7% | tolO/floor  2.72
+row 0    D=128 N=1024  c=1 s=1 X~   8.5 max    8.5 pE med   1.03 max   1.03 | tolO   0.0971 tolV  0.0967 tolM  0.0364 |ref|   0.312 floor 0.0391 | 0 meets Post   0.0% (tolO   0.0%) | floor>=|ref|   0.0% | tolO/floor  2.49
+test 24r D=128 N=4096  c=1 s=1 X~  13.1 max   14.3 pE med   1.09 max   1.11 | tolO    0.187 tolV    3.99 tolM   0.121 |ref|  0.0207 floor 0.0496 | 0 meets Post  95.6% (tolO  95.6%) | floor>=|ref|  83.7% | tolO/floor  3.74
+test 24r D=128 N=4096  c=1 s=2 X~  13.1 max   15.6 pE med   1.09 max   1.12 | tolO    0.187 tolV    3.91 tolM   0.121 |ref|  0.0204 floor 0.0496 | 0 meets Post  95.7% (tolO  95.7%) | floor>=|ref|  84.1% | tolO/floor  3.68
+row 0    D=128 N=4096  c=1 s=1 X~   8.2 max    8.2 pE med   1.02 max   1.02 | tolO    0.097 tolV  0.0967 tolM  0.0255 |ref|   0.312 floor 0.0391 | 0 meets Post   0.0% (tolO   0.0%) | floor>=|ref|   0.0% | tolO/floor  2.48

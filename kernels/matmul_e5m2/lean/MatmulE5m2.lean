@@ -13,7 +13,7 @@ test (`512 × 512 × 512`, lines 372–388) and the benchmark's `fp8` line (squa
 
 The claim: on every covered instance, every launch that runs ends normally; each element `(i, j)`
 of `c` is the `float16` rounding of a `float32` accumulation within an explicit tolerance (the
-library's fp8 `tl.dot` fact applied step by step, from the exact partial sums) of the exact dot
+library's fp8 `tl.dot` fact applied chunk by chunk, from the exact partial sums) of the exact dot
 product of row `i` of `a` and column `j` of `b` (when these are finite); every byte outside the
 matrix `c` is unchanged.
 
@@ -112,7 +112,7 @@ theorem main : ∀ (K : Claim.Behaviour Inst) (P : Platform), Assumptions K P �
 
 theorem consistent : Claim.Consistent Assumptions := by
   obtain ⟨K, htot, hf⟩ := exists_total_faithful Platform.sm90ref model launch
-  exact ⟨K, Platform.sm90ref, htot, ⟨fun d _ => hf d, Platform.sm90ref.dotE5m2, Platform.ref.dotTotal _,
+  exact ⟨K, Platform.sm90ref, htot, ⟨fun d _ => hf d, Platform.sm90ref.dotE5m2Chunk, Platform.ref.dotTotal _,
     Platform.sm90ref.cvtF32E5m2, Platform.ref.cvtTotal _ _ _⟩⟩
 
 /-! ## A covered instance -/

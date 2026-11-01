@@ -1,4 +1,4 @@
-import AttnFwdE5m2.Mag
+import AttnFwdE5m2.Cen
 
 /-!
 # `attn_fwd_e5m2`: facts about the launch, the integers, the descriptors and the constants

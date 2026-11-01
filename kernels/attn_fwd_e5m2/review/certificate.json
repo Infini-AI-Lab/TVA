@@ -1,27 +1,27 @@
 {
-  "gate": "53b679fa0085b99d1fd946a9325cb626cd860ed804ffd8f77bc340298990198b",
+  "gate": "4740b3814ba926937bae03125fc4311c242229617adfa84b9876fd32ccbf5b72",
   "items": {
-    "assumption:cvt": "82b2e07f6f35fc16bd0e15687d7a11ac379e5b7b2953f5a347c1fd3545991b07",
-    "assumption:cvt_total": "214006c8c290b145e730298f2674ce3a920868244c7530b49670fcc7e4434a55",
-    "assumption:div_full": "8297fbfba8153fa4090cb53cc9c94cc25c6657c9ea79b5877811e6aacddbd0b9",
-    "assumption:div_total": "fbd4edadcbd8a56c22b865c2385d298b923a33548b3e233f0a160f2789b69423",
-    "assumption:dot": "dfc70e29b3b72f77ae90e19251426cc4dce5cca48f0ecf762f73083d6932a6dd",
-    "assumption:dot_total": "de43b25dd879b74a751a4c0baa7a05b0a98fea18838e6696bc87d208703f6642",
-    "assumption:exp2": "29758d8c3fa1dc3561bf06e57bc0fa358dd4d61b684a05725ce600b2f6bbe917",
-    "assumption:exp2_ninf": "7e7d7abd5ca3508cc9bfbba1d27d0d1942699ab98a3d70d95dd6f8c896e1243d",
-    "assumption:exp2_total": "a73341c639a8a19cf76ee4970a8b74c14f1e18ee2d205fc189ab688cfaae56a3",
+    "assumption:cvt": "e6726099cdc47c5aad1658f2fa49dc06c167fd482f41e7cc98b4f15300c10a8d",
+    "assumption:cvt_total": "54f50e473a1c544c6e827eaf79609ffc9c971fbcb0b3e0006af89f7be2699cc5",
+    "assumption:div_full": "f9825c1865c67517d1d57fd76ddece87706b9d410be4b8b104933fc8c5ad27ad",
+    "assumption:div_total": "129d48625f54981de09ea57d6ba621c4e334610efb872029d520a51bd898869b",
+    "assumption:dot": "6f550f57caed2f4c65db80f776c2a215f2020f8f0bacf9bb9b118f84acdfddcd",
+    "assumption:dot_total": "fb04f1611fb9ccaf1ebdc275990cc9b1bd6b765616b2057a4d728562677670ce",
+    "assumption:exp2": "f39305788ea554ca9aea41d0e31a69d56c01d8fb574f9b4874539bc474f78770",
+    "assumption:exp2_ninf": "13c5f1b397d9a5f23d29127fc134be9148d80e42f353b0d06df871c9ef24d616",
+    "assumption:exp2_total": "76a730d019b7f5fac08d74592513d3de56fdefa9020ea17cd61c4713b651ec09",
     "assumption:faithful": "eba02583364073525162ef5a0ac3ebf9156370e698e6afc4ebd94d3d153f7adb",
-    "assumption:log2": "3f40ff66ef85af0037e23a129d0d0996f7215e31efc1fa7aae387f2444772024",
-    "assumption:log2_total": "d2346bc6bd26c954bd99f1f9ac0351ec5bfcdb28dd392b4a640cb5a5912743ff",
+    "assumption:log2": "274cbc5d7a7b6ffb364017692760dc904cae59e004e7b6f2229c22d5a73966fe",
+    "assumption:log2_total": "1aac3fb0d81a88aeade0702974d70cf0c738151363df22941f697cdf9221f93b",
     "conditions": "b0121b83480b1c7043efb746b908caeb6adbf2c4960192ca9dea8d8af635060d",
     "map": "3a8a04772396784ddf3f67626343c26915c7a43680573256ddb736a52b66195f",
     "model": "af17db8da4c47fa5eb30914e852242fb09e87751c60bb03671b74e9f8968f953",
-    "spec": "17eac300802dd3963ba9938133bd2fbb3194a31a8f12e05d01c87ccc3ad8a126"
+    "spec": "0e6e2039124ccf389911e71e3c27537c4bf9e8d4f8caf78fa68576ec362b7a3f"
   },
   "kernel": "attn_fwd_e5m2",
   "reviewers": [
     "r-e5fwd",
     "r-e5fwd2"
   ],
-  "time": "2026-10-31T23:17:42Z"
+  "time": "2026-11-01T04:31:21Z"
 }

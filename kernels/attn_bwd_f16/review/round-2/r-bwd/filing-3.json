@@ -1,0 +1,18 @@
+{
+  "reviewer": "r-bwd",
+  "kernel": "attn_bwd_f16",
+  "round": 2,
+  "findings": [
+    {
+      "kind": "LIBRARY_REPORT",
+      "target": "decl:TVA.Rules.Num.DotF16",
+      "summary": "L125's mechanism (a subnormal operand's exponent field, read as the smallest normal's, sets the wgmma window) is untested for float16, and this kernel's fp16 P and dS are often subnormal",
+      "detail": "Same doubt as attn_fwd_f16#F6 and grouped_matmul_tma_f16#F5/F6, filed for this kernel because its exposure differs. evidence/num-dot's README now says its Part 2 had no input where a product with a subnormal operand sets the alignment window. num.md describes the 16-bit path as keeping bits down to 2^-23 of the chunk's largest term, measured on normal terms. If fp16 wgmma aligns by exponent fields as fp8 wgmma does (num-dot-chunk Part A), the effect is larger: an fp16 subnormal down to 2^-24 reads as 2^-14, an inflation up to 2^10 (fp8's is 2^2 to 2^3). One product 2^-24 * 2^15 (field 2^1) with 15 products just below 2^-22 (K = 16) would lose about 15 * 2^-22, some hundreds of times DotF16's (K+2)*2^-22*sum|a*b| + absDot16. In this kernel ppT = fp16(P) and dsT, ds = fp16(dS) are subnormal whenever below 2^-14, which the benchmark's sharp softmax makes common. They are operands of tl.dot(ppT, do), tl.dot(dsT, trans(qT)) and tl.dot(ds, trans(kT)) (lines 303, 310, 358), all with M = 128 and 4 warps, so the wgmma path. Request: test DotF16 (and DotBF16) on inputs where a product with a subnormal operand sets the window, on wgmma and mma.sync, and if they fail, state a lifted form as the chunk facts do. Not blocking; I carry on as if DotF16 holds.",
+      "evidence": "docs/rules/num.md, the tl.dot sections; evidence/num-dot README (the round-24 note on Part 2); evidence/num-dot-chunk Parts A and F; source lines 302-310 and 355-358."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-acceptance after library round 24 (gate ca23f13ad8ef224a). The kernel's files are unchanged. Its four cited Num facts are unchanged in Lean and in num.md's listing and text: DotF16 (the DotAcc with relDot16 and absDot16), DotTotal, Exp2F32 and MathTotal. The diff of lean/TVA/Rules/Num/Sm90.lean removes only the fp8 facts and moves chunks8, relDot8 and absDot8. The diff of docs/rules/num.md touches only fp8 rows, the new fp8 chunk section, the fp8 part of the chunk-model text and the satisfiability list. So the re-opened items (assumption:dot, dot_total, exp2, exp2_total, spec) mean what they meant. The LIBRARY_REPORT is a doubt the round's own discovery raises about DotF16, not a change."
+}

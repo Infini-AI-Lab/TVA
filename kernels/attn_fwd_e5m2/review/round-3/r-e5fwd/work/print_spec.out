@@ -1,0 +1,159 @@
+def Kernels.AttnFwdE5m2.scoreLift : Kernels.AttnFwdE5m2.Inst → TVA.Mem → ℕ → ℕ → ℕ → ℚ :=
+fun d m bh n j =>
+  ∑ e,
+    TVA.Rules.Num.liftMag TVA.DType.f8e5 (Kernels.AttnFwdE5m2.qrow d m bh n e) *
+      TVA.Rules.Num.liftMag TVA.DType.f8e5 (Kernels.AttnFwdE5m2.krow d m bh j e)
+def Kernels.AttnFwdE5m2.scoreErr : Kernels.AttnFwdE5m2.Inst → TVA.Mem → ℕ → ℕ → ℕ → ℚ :=
+fun d m bh n j =>
+  TVA.Dot8Chunk.errB TVA.Rules.Num.rhoChunk8 TVA.Rules.Num.sigmaChunk8 TVA.Rules.Num.alphaChunk8 0
+    (TVA.Rules.Num.chunkSum8 (Kernels.AttnFwdE5m2.qrow d m bh n) (Kernels.AttnFwdE5m2.krow d m bh j))
+    (TVA.Dot8Chunk.chunkLift8 TVA.DType.f8e5 TVA.DType.f8e5 (Kernels.AttnFwdE5m2.qrow d m bh n)
+      (Kernels.AttnFwdE5m2.krow d m bh j))
+    (TVA.Rules.Num.chunks8 d.HEAD_DIM)
+def Kernels.AttnFwdE5m2.HeadOk : Kernels.AttnFwdE5m2.Inst → TVA.Mem → ℕ → Prop :=
+fun d m bh =>
+  (∀ (n e : ℕ),
+      n < d.N_CTX →
+        e < d.HEAD_DIM →
+          Kernels.AttnFwdE5m2.fin8 m d.q (Kernels.AttnFwdE5m2.idx d bh n e) ∧
+            Kernels.AttnFwdE5m2.fin8 m d.k (Kernels.AttnFwdE5m2.idx d bh n e)) ∧
+    (∀ (n e : ℕ),
+        n < d.N_CTX →
+          e < d.HEAD_DIM →
+            Kernels.AttnFwdE5m2.vIn d bh → Kernels.AttnFwdE5m2.fin8 m d.v (Kernels.AttnFwdE5m2.vIdx d bh n e)) ∧
+      ∀ (n j : ℕ),
+        n < d.N_CTX →
+          j < d.N_CTX →
+            Kernels.AttnFwdE5m2.sigma d * Kernels.AttnFwdE5m2.scoreLift d m bh n j ≤ Kernels.AttnFwdE5m2.Xh d.HEAD_DIM
+def Kernels.AttnFwdE5m2.scoreE : ℕ → ℚ → ℚ → ℚ :=
+fun D X Z => Min.min (3 / 2 * Z) (TVA.Dot8Chunk.relLift8 D * Kernels.AttnFwdE5m2.ybound X + 1 / 2 ^ 55)
+def Kernels.AttnFwdE5m2.blkLW : Kernels.AttnFwdE5m2.Inst → TVA.Mem → ℕ → ℕ → ℕ → ℕ → ℝ :=
+fun d m bh n e t =>
+  ∑ c ∈ Finset.range 2,
+    Finset.fold Max.max 0
+      (fun k =>
+        if 64 * t + ↑k ∈ Kernels.AttnFwdE5m2.keys d n then
+          Kernels.AttnFwdE5m2.weight d m bh n (64 * t + ↑k) *
+            ↑(TVA.Rules.Num.liftMag TVA.DType.f8e5 (Kernels.AttnFwdE5m2.vEff d m bh (64 * t + ↑k) e))
+        else 0)
+      (TVA.Rules.Num.chunk8 64 c)
+def Kernels.AttnFwdE5m2.accNext : ℝ → ℝ → ℝ → ℝ → ℝ → ℝ :=
+fun dm R A Ba Bv =>
+  (1 + 1 / 2 ^ 50) *
+      Max.max ((A + 3 * (1 + Kernels.AttnFwdE5m2.etaA dm) * R / 2 ^ 24) / Kernels.AttnFwdE5m2.denX dm)
+        (R * Kernels.AttnFwdE5m2.coefS / Kernels.AttnFwdE5m2.denS) +
+    2 *
+      ((1 + ↑Kernels.AttnFwdE5m2.cC8) * ↑Kernels.AttnFwdE5m2.eps8 * Ba +
+            ↑Kernels.AttnFwdE5m2.cP8 * (↑Kernels.AttnFwdE5m2.eps8 + 1 / 2 ^ 14) * Bv +
+          R * (1 + ↑Kernels.AttnFwdE5m2.cC8) / 2 ^ 11 +
+        (1 + R + A) / 2 ^ 50)
+def Kernels.AttnFwdE5m2.errNext : ℝ → ℝ → ℝ → ℝ → ℝ → ℝ → ℝ → ℝ → ℝ → ℝ :=
+fun pe dm EC C R A Lw Bc Bl =>
+  (1 + Kernels.AttnFwdE5m2.gA dm) * EC + Kernels.AttnFwdE5m2.gA dm * Kernels.AttnFwdE5m2.kap pe * |C| +
+        (Kernels.AttnFwdE5m2.gA dm + Kernels.AttnFwdE5m2.etaA dm) * (R + A) * Lw +
+      (Kernels.AttnFwdE5m2.hw pe + ↑Kernels.AttnFwdE5m2.cC8 * Kernels.AttnFwdE5m2.b8 pe) * Bc +
+    ↑Kernels.AttnFwdE5m2.cP8 * Kernels.AttnFwdE5m2.b8 pe * Bl
+def Kernels.AttnFwdE5m2.tolO : Kernels.AttnFwdE5m2.Inst → TVA.Mem → ℕ → ℕ → ℕ → ℚ → ℚ → ℝ :=
+fun d m bh n e X Z =>
+  9 / 8 *
+        ((Kernels.AttnFwdE5m2.errC d m bh n e X Z (Kernels.AttnFwdE5m2.nblk d n) / Kernels.AttnFwdE5m2.wsum d m bh n /
+                  Kernels.AttnFwdE5m2.Fp d.HEAD_DIM d.N_CTX X Z +
+                Kernels.AttnFwdE5m2.accA d m bh n e X Z (Kernels.AttnFwdE5m2.nblk d n)) *
+              (1 + 1 / 2 ^ 22) +
+            |Kernels.AttnFwdE5m2.attnRef d m bh n e| / 2 ^ 22 +
+          1 / 2 ^ 148) +
+      |Kernels.AttnFwdE5m2.attnRef d m bh n e| / 8 +
+    1 / 2 ^ 17
+def Kernels.AttnFwdE5m2.iotaV : ℝ → ℝ → ℝ :=
+fun K R => Min.min 1 (2 ^ 16 * (K + R))
+def Kernels.AttnFwdE5m2.magCp : ℝ → ℝ → ℝ :=
+fun K R =>
+  9 / 8 * K * (1 + ↑Kernels.AttnFwdE5m2.cS8) +
+      R * (9 / 8 * ↑Kernels.AttnFwdE5m2.cS8 + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) +
+    9 / 8 * ↑Kernels.AttnFwdE5m2.cP8 * Kernels.AttnFwdE5m2.iotaV K R / 2 ^ 14
+def Kernels.AttnFwdE5m2.Post : Kernels.AttnFwdE5m2.Inst → TVA.Mem → TVA.Mem → Prop :=
+fun d init fin =>
+  (∀ (bh n e : ℕ),
+      bh < d.Z * d.H →
+        n < d.N_CTX →
+          e < d.HEAD_DIM →
+            ∃ c,
+              fin.read TVA.DType.f8e5 (d.o.ptr ↑(Kernels.AttnFwdE5m2.idx d bh n e)).addr = Option.some c ∧
+                (Kernels.AttnFwdE5m2.HeadOk d init bh →
+                  TVA.FloatV.isFinite c = Bool.true ∧
+                    (∀ (X Z : ℚ),
+                        X ≤ Kernels.AttnFwdE5m2.Xh d.HEAD_DIM →
+                          (∀ j ∈ Kernels.AttnFwdE5m2.keys d n,
+                              Kernels.AttnFwdE5m2.sigma d * Kernels.AttnFwdE5m2.scoreLift d init bh n j ≤ X) →
+                            (∀ j ∈ Kernels.AttnFwdE5m2.keys d n,
+                                Kernels.AttnFwdE5m2.sigma d * Kernels.AttnFwdE5m2.scoreErr d init bh n j ≤ Z) →
+                              |TVA.FloatV.toReal c - Kernels.AttnFwdE5m2.attnRef d init bh n e| ≤
+                                Kernels.AttnFwdE5m2.tolO d init bh n e X Z) ∧
+                      ∀ (K : ℝ),
+                        (∀ j ∈ Kernels.AttnFwdE5m2.keys d n,
+                            |↑(Kernels.AttnFwdE5m2.vEff d init bh j e) - Kernels.AttnFwdE5m2.attnRef d init bh n e| ≤
+                              K) →
+                          |TVA.FloatV.toReal c - Kernels.AttnFwdE5m2.attnRef d init bh n e| ≤
+                            Kernels.AttnFwdE5m2.tolV d init bh n e K)) ∧
+    (∀ (bh n : ℕ),
+        bh < d.Z * d.H →
+          n < d.N_CTX →
+            ∃ c,
+              fin.read TVA.DType.f32 (d.M.ptr ↑(bh * d.N_CTX + n)).addr = Option.some c ∧
+                (Kernels.AttnFwdE5m2.HeadOk d init bh →
+                  TVA.FloatV.isFinite c = Bool.true ∧
+                    ∀ (X Z : ℚ),
+                      X ≤ Kernels.AttnFwdE5m2.Xh d.HEAD_DIM →
+                        (∀ j ∈ Kernels.AttnFwdE5m2.keys d n,
+                            Kernels.AttnFwdE5m2.sigma d * Kernels.AttnFwdE5m2.scoreLift d init bh n j ≤ X) →
+                          (∀ j ∈ Kernels.AttnFwdE5m2.keys d n,
+                              Kernels.AttnFwdE5m2.sigma d * Kernels.AttnFwdE5m2.scoreErr d init bh n j ≤ Z) →
+                            |TVA.FloatV.toReal c - Kernels.AttnFwdE5m2.lseRef d init bh n| ≤
+                              Kernels.AttnFwdE5m2.tolM d.HEAD_DIM d.N_CTX X Z +
+                                ↑Kernels.AttnFwdE5m2.u32 * |Kernels.AttnFwdE5m2.lseRef d init bh n|)) ∧
+      ∀ z ∉ Kernels.AttnFwdE5m2.outBytes d, fin z = init z
+structure Kernels.AttnFwdE5m2.Assumptions (K : TVA.Claim.Behaviour Kernels.AttnFwdE5m2.Inst) (P : TVA.Platform) : Prop
+number of parameters: 2
+fields:
+  Kernels.AttnFwdE5m2.Assumptions.faithful : ∀ (d : Kernels.AttnFwdE5m2.Inst),
+      d.ok → TVA.Rules.Compiler.Faithful P (Kernels.AttnFwdE5m2.model d) (Kernels.AttnFwdE5m2.launch d) (K d)
+  Kernels.AttnFwdE5m2.Assumptions.dot : TVA.Rules.Num.DotE5m2Chunk P
+  Kernels.AttnFwdE5m2.Assumptions.dot_total : TVA.Rules.Num.DotTotal P
+      { a := TVA.DType.f8e5, b := TVA.DType.f8e5, acc := TVA.DType.f32, maxImpreciseAcc := 2 ^ 30 }
+  Kernels.AttnFwdE5m2.Assumptions.cvt : TVA.Rules.Num.CvtSatF32E5m2 P
+  Kernels.AttnFwdE5m2.Assumptions.cvt_total : TVA.Rules.Num.CvtTotal P TVA.Math.Float.Format.binary32
+      TVA.Math.Float.Format.e5m2
+  Kernels.AttnFwdE5m2.Assumptions.exp2 : TVA.Rules.Num.Exp2F32 P
+  Kernels.AttnFwdE5m2.Assumptions.exp2_ninf : TVA.Rules.Num.Exp2F32NegInf P
+  Kernels.AttnFwdE5m2.Assumptions.exp2_total : TVA.Rules.Num.MathTotal P TVA.MathFn.exp2 TVA.Math.Float.Format.binary32
+  Kernels.AttnFwdE5m2.Assumptions.log2 : TVA.Rules.Num.Log2F32 P
+  Kernels.AttnFwdE5m2.Assumptions.log2_total : TVA.Rules.Num.MathTotal P TVA.MathFn.log2 TVA.Math.Float.Format.binary32
+  Kernels.AttnFwdE5m2.Assumptions.div_full : TVA.Rules.Num.DivFull P
+  Kernels.AttnFwdE5m2.Assumptions.div_total : TVA.Rules.Num.DivTotal P TVA.Math.Float.Format.binary32
+constructor:
+  Kernels.AttnFwdE5m2.Assumptions.mk {K : TVA.Claim.Behaviour Kernels.AttnFwdE5m2.Inst} {P : TVA.Platform}
+    (faithful :
+      ∀ (d : Kernels.AttnFwdE5m2.Inst),
+        d.ok → TVA.Rules.Compiler.Faithful P (Kernels.AttnFwdE5m2.model d) (Kernels.AttnFwdE5m2.launch d) (K d))
+    (dot : TVA.Rules.Num.DotE5m2Chunk P)
+    (dot_total :
+      TVA.Rules.Num.DotTotal P
+        { a := TVA.DType.f8e5, b := TVA.DType.f8e5, acc := TVA.DType.f32, maxImpreciseAcc := 2 ^ 30 })
+    (cvt : TVA.Rules.Num.CvtSatF32E5m2 P)
+    (cvt_total : TVA.Rules.Num.CvtTotal P TVA.Math.Float.Format.binary32 TVA.Math.Float.Format.e5m2)
+    (exp2 : TVA.Rules.Num.Exp2F32 P) (exp2_ninf : TVA.Rules.Num.Exp2F32NegInf P)
+    (exp2_total : TVA.Rules.Num.MathTotal P TVA.MathFn.exp2 TVA.Math.Float.Format.binary32)
+    (log2 : TVA.Rules.Num.Log2F32 P)
+    (log2_total : TVA.Rules.Num.MathTotal P TVA.MathFn.log2 TVA.Math.Float.Format.binary32)
+    (div_full : TVA.Rules.Num.DivFull P) (div_total : TVA.Rules.Num.DivTotal P TVA.Math.Float.Format.binary32) :
+    Kernels.AttnFwdE5m2.Assumptions K P
+def TVA.Dot8Chunk.relLift8 : ℕ → ℚ :=
+fun K => (1 + (TVA.Rules.Num.rhoChunk8 + TVA.Rules.Num.sigmaChunk8)) ^ TVA.Rules.Num.chunks8 K - 1
+def TVA.Dot8Chunk.chunkLift8 : TVA.DType → TVA.DType → {K : ℕ} → (Fin K → ℚ) → (Fin K → ℚ) → ℕ → ℚ :=
+fun da db {K} va vb j =>
+  Finset.fold Max.max 0 (fun k => TVA.Rules.Num.liftMag da (va k) * TVA.Rules.Num.liftMag db (vb k))
+    (TVA.Rules.Num.chunk8 K j)
+'Kernels.AttnFwdE5m2.main' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Kernels.AttnFwdE5m2.consistent' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Kernels.AttnFwdE5m2.satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0

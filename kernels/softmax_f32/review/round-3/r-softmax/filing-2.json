@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-softmax",
+  "kernel": "softmax_f32",
+  "round": 3,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Library round 24 (L124, L125) re-opened the five Num assumption items. The diff of docs/rules/num.md and lean/TVA/Rules/Num/Sm90.lean touches only the fp8 tl.dot facts: DotE4m3, DotE5m2, DotE4m3E5m2, DotE5m2E4m3 and DotF8 are withdrawn, the chunk facts are added, and chunks8, relDot8 and absDot8 are moved. The facts this kernel cites are unchanged. MathTotal, DivTotal, ExpF32 (rel 2^-22 + 2^-23·X on [−X, X], abs 2^-140), ExpF32NegInf (+0 at negInfF32) and DivFull (qmax 2^126, 2^-22, 2^-148) keep their rows in 'Facts the library states' and in the operation table (tl.exp on float32; / on float32). Their constants and Lean definitions are the same. The sections on the approximate functions and on division are untouched."
+}

@@ -365,9 +365,25 @@ def keys (d : Inst) (n : Nat) : Finset Nat :=
 def score (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
   ∑ e ∈ Finset.range d.HEAD_DIM, val8 m d.q (idx d bh n e) * val8 m d.k (idx d bh j e)
 
-/-- `Σ_e |q[bh, n, e] · k[bh, j, e]|`. -/
-def scoreAbs (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
-  ∑ e ∈ Finset.range d.HEAD_DIM, |val8 m d.q (idx d bh n e) * val8 m d.k (idx d bh j e)|
+/-- Row `n` of head `bh` of `q`: the score's `tl.dot` operand values. -/
+def qrow (d : Inst) (m : Mem) (bh n : Nat) : Fin d.HEAD_DIM → ℚ := fun e => val8 m d.q (idx d bh n e)
+
+/-- Row `j` of head `bh` of `k`. -/
+def krow (d : Inst) (m : Mem) (bh j : Nat) : Fin d.HEAD_DIM → ℚ := fun e => val8 m d.k (idx d bh j e)
+
+/-- **The lifted score magnitude** `Σ_e liftMag(q[bh, n, e])·liftMag(k[bh, j, e])`: `Σ_e |q·k|`
+with a subnormal operand counted at the smallest normal `2^-14` (`Rules.Num.liftMag`, the magnitude
+the tensor core aligns it by). For zero and normal values it is `Σ_e |q·k|`. -/
+def scoreLift (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
+  ∑ e, Rules.Num.liftMag .f8e5 (qrow d m bh n e) * Rules.Num.liftMag .f8e5 (krow d m bh j e)
+
+/-- **The score's error bound** from the chunk facts (`Num.DotE5m2Chunk`): `Dot8Chunk.errB` over
+the `⌈HEAD_DIM/32⌉` chunks of `q·k` from a zero accumulator, from each chunk's largest lifted
+product (`Dot8Chunk.chunkLift8`) and the exact partial sums (`Dot8Chunk.DotF8Chunk.err`). -/
+def scoreErr (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
+  Dot8Chunk.errB Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8 Rules.Num.alphaChunk8 0
+    (Rules.Num.chunkSum8 (qrow d m bh n) (krow d m bh j))
+    (Dot8Chunk.chunkLift8 .f8e5 .f8e5 (qrow d m bh n) (krow d m bh j)) (Rules.Num.chunks8 d.HEAD_DIM)
 
 /-- **Head `bh`'s `v` is read**: `bh·HEAD_DIM < Z·H`. Line 98 loads `v` through `desc_v`, whose shape
 is `[HEAD_DIM, y_dim]` with `y_dim = Z·H·N_CTX` (lines 198, 530), at the column
@@ -382,19 +398,20 @@ head `bh`'s `v` is read (`vIn`), and `0` otherwise. -/
 def vEff (d : Inst) (m : Mem) (bh j e : Nat) : ℚ :=
   if bh * d.HEAD_DIM < d.Z * d.H then val8 m d.v (vIdx d bh j e) else 0
 
-/-- The bound on a covered head's scaled score magnitudes: `2^10 / ⌈HEAD_DIM/32⌉` (`512`, `256`,
-`128` at `HEAD_DIM = 64, 128, 256`), which keeps every exponent's error bound `expErr` below `13`. -/
+/-- The bound on a covered head's scaled lifted score magnitudes: `2^10 / ⌈HEAD_DIM/32⌉` (`512`,
+`256`, `128` at `HEAD_DIM = 64, 128, 256`), which keeps every exponent's error bound `expErr` below
+`13`. -/
 def Xh (D : Nat) : ℚ := 2 ^ 10 / Rules.Num.chunks8 D
 
 /-- The values of head `bh` are covered: every element of `q` and `k` in the head is a finite
 `float8e5`, so is every element of `v` in the head when the head's `v` is read (`vIn`), and every
-scaled score magnitude `sm_scale · Σ_e |q·k|` is at most `Xh HEAD_DIM` (the host's inputs: `normal(0,
-0.5)` cast to `float8e5` with `sm_scale = 0.5`, about `16` at most at `HEAD_DIM = 128`, and `randn`
-with `sm_scale = 1.3`, about `200` at most). -/
+scaled lifted score magnitude `sm_scale · scoreLift` is at most `Xh HEAD_DIM` (the host's inputs:
+`normal(0, 0.5)` cast to `float8e5` with `sm_scale = 0.5`, about `16` at most at `HEAD_DIM = 128`,
+and `randn` with `sm_scale = 1.3`, about `200` at most). -/
 def HeadOk (d : Inst) (m : Mem) (bh : Nat) : Prop :=
   (∀ n e, n < d.N_CTX → e < d.HEAD_DIM → fin8 m d.q (idx d bh n e) ∧ fin8 m d.k (idx d bh n e)) ∧
   (∀ n e, n < d.N_CTX → e < d.HEAD_DIM → vIn d bh → fin8 m d.v (vIdx d bh n e)) ∧
-  (∀ n j, n < d.N_CTX → j < d.N_CTX → sigma d * scoreAbs d m bh n j ≤ Xh d.HEAD_DIM)
+  (∀ n j, n < d.N_CTX → j < d.N_CTX → sigma d * scoreLift d m bh n j ≤ Xh d.HEAD_DIM)
 
 /-- The exact softmax weight of key `j` for query `n`, unnormalised: `exp(sm_scale · score)`. -/
 noncomputable def weight (d : Inst) (m : Mem) (bh n j : Nat) : ℝ :=
@@ -430,83 +447,72 @@ def keysBelow (d : Inst) (n t : Nat) : Finset Nat := (keys d n).filter (fun j =>
 def keysBlk (d : Inst) (n t : Nat) : Finset Nat :=
   (keys d n).filter (fun j => 64 * t ≤ j ∧ j < 64 * t + 64)
 
-/-- The exact weighted sum `Σ w_j·vEff_j` over the keys of the blocks before block `t`. -/
-noncomputable def partS (d : Inst) (m : Mem) (bh n e t : Nat) : ℝ :=
-  ∑ j ∈ keysBelow d n t, weight d m bh n j * (vEff d m bh j e : ℝ)
+/-- The exact weights' sum over the keys of the blocks before block `t`. -/
+noncomputable def partW (d : Inst) (m : Mem) (bh n t : Nat) : ℝ :=
+  ∑ j ∈ keysBelow d n t, weight d m bh n j
 
-/-- `Σ w_j·|vEff_j|` over the keys of block `t`. -/
-noncomputable def blkMag (d : Inst) (m : Mem) (bh n e t : Nat) : ℝ :=
-  ∑ j ∈ keysBlk d n t, weight d m bh n j * |(vEff d m bh j e : ℝ)|
+/-- **The centred partial sum** `Σ w_j·(vEff_j − attnRef)` over the keys of the blocks before block
+`t`. After the last block it is `0`. -/
+noncomputable def centC (d : Inst) (m : Mem) (bh n e t : Nat) : ℝ :=
+  ∑ j ∈ keysBelow d n t, weight d m bh n j * ((vEff d m bh j e : ℝ) - attnRef d m bh n e)
 
-/-- `Σ |vEff_j|` over the keys of block `t`. -/
-def blkAbs (d : Inst) (m : Mem) (bh n e t : Nat) : ℚ :=
-  ∑ j ∈ keysBlk d n t, |vEff d m bh j e|
+/-- `Σ w_j·|vEff_j − attnRef|` over the keys of block `t`. -/
+noncomputable def blkC (d : Inst) (m : Mem) (bh n e t : Nat) : ℝ :=
+  ∑ j ∈ keysBlk d n t, weight d m bh n j * |(vEff d m bh j e : ℝ) - attnRef d m bh n e|
+
+/-- `Σ |vEff_j − attnRef|` over the keys of block `t`. -/
+noncomputable def blkA (d : Inst) (m : Mem) (bh n e t : Nat) : ℝ :=
+  ∑ j ∈ keysBlk d n t, |(vEff d m bh j e : ℝ) - attnRef d m bh n e|
+
+/-- Over the two chunks of block `t` (keys `64t + 32c … 64t + 32c + 31`, `c = 0, 1`: the `p·v`
+`tl.dot`'s chunks), the sum of each chunk's largest `w_j·liftMag(vEff_j)` over its keys. -/
+noncomputable def blkLW (d : Inst) (m : Mem) (bh n e t : Nat) : ℝ :=
+  ∑ c ∈ Finset.range 2, (Rules.Num.chunk8 64 c).fold max 0 fun k : Fin 64 =>
+    if 64 * t + (k : ℕ) ∈ keys d n then
+      weight d m bh n (64 * t + (k : ℕ)) * (Rules.Num.liftMag .f8e5 (vEff d m bh (64 * t + (k : ℕ)) e) : ℝ)
+    else 0
+
+/-- The same without the weights: the sum of each chunk's largest `liftMag(vEff_j)` over its keys. -/
+noncomputable def blkVL (d : Inst) (m : Mem) (bh n e t : Nat) : ℝ :=
+  ∑ c ∈ Finset.range 2, (Rules.Num.chunk8 64 c).fold max 0 fun k : Fin 64 =>
+    if 64 * t + (k : ℕ) ∈ keys d n then (Rules.Num.liftMag .f8e5 (vEff d m bh (64 * t + (k : ℕ)) e) : ℝ)
+    else 0
 
 /-! ### The constants
 
-`X` bounds the row's scaled score magnitudes (`sm_scale · Σ_e |q·k| ≤ X` over its keys), `D` and
-`N` are `HEAD_DIM` and `N_CTX`. The constants are the library's: `relDot8` (`Rules.Num.DotE5m2`, for
-the score's `tl.dot` of `D` products and for the `p·v` `tl.dot` of `64`), `absDot8`, `2^-22`
-(`Exp2F32`, `DivFull`, `Log2F32`), and the roundings of `float32` (`2^-24`, `2^-150`) and of
-`float8e5` (`2^-3` relative, `2^-17` absolute: `CvtSatF32E5m2`, one rounding). -/
+`X` bounds the row's scaled lifted score magnitudes (`sm_scale · scoreLift ≤ X` over its keys), `Z`
+its scaled score errors (`sm_scale · scoreErr ≤ Z`); `D` and `N` are `HEAD_DIM` and `N_CTX`. The
+constants are the library's: the chunk facts' `2^-7`, `2^-12`, `2^-126` (`Rules.Num.DotE5m2Chunk`,
+for the score's `tl.dot` and for the `p·v` `tl.dot` of `64` products in two chunks of `32`), their
+whole-dot bound `relLift8` (`Dot8Chunk.DotF8Chunk.liftAcc`), `2^-22` (`Exp2F32`, `DivFull`,
+`Log2F32`), and the roundings of `float32` (`2^-24`, `2^-150`) and of `float8e5` (`2^-3` relative,
+`2^-17` absolute: `CvtSatF32E5m2`, one rounding). -/
 
 /-- One rounding of `float32`, relative: `2^-24`. -/
 def u32 : ℚ := 1 / 2 ^ 24
 
-/-- The bound `3X/2` on `qk_scale · Σ_e |q·k|` and on `sm_scale·log₂e · Σ_e |q·k|`, the base-2
-exponents (`qk_scale` is `sm_scale · log₂ e` up to `2^-22` relative). -/
+/-- The bound `3X/2` on `qk_scale · scoreLift` and on `sm_scale·log₂e · scoreLift`, the base-2
+exponents' magnitudes (`qk_scale` is `sm_scale · log₂ e` up to `2^-22` relative). -/
 def ybound (X : ℚ) : ℚ := 3 / 2 * X
 
+/-- **The bound on `qk_scale` times a key's score error**: `3Z/2`, or, from the whole-dot bound,
+`relLift8 D · 3X/2 + 2^-55`, whichever is smaller. -/
+def scoreE (D : Nat) (X Z : ℚ) : ℚ := min (3 / 2 * Z) (Dot8Chunk.relLift8 D * ybound X + 1 / 2 ^ 55)
+
 /-- The error of each computed exponent `qk·qk_scale − m` against the exact one
-`sm_scale·log₂e·score − m`: the score's `tl.dot` error (`relDot8 D` of `Σ|q·k|`), the change from
-`qk_scale` to `sm_scale·log₂e`, and the roundings. -/
-def expErr (D : Nat) (X : ℚ) : ℚ := (Rules.Num.relDot8 D + 1 / 2 ^ 19) * ybound X + 1 / 2 ^ 50
+`sm_scale·log₂e·score − m`: the score's `tl.dot` error (`scoreE`), the change from `qk_scale` to
+`sm_scale·log₂e`, and the roundings. -/
+def expErr (D : Nat) (X Z : ℚ) : ℚ := scoreE D X Z + ybound X / 2 ^ 19 + 1 / 2 ^ 50
 
 /-- `2^expErr`: the factor by which each `p` may differ from its exact weight. -/
-noncomputable def pE (D : Nat) (X : ℚ) : ℝ := (2 : ℝ) ^ ((expErr D X : ℚ) : ℝ)
+noncomputable def pE (D : Nat) (X Z : ℚ) : ℝ := (2 : ℝ) ^ ((expErr D X Z : ℚ) : ℝ)
 
 /-- The relative change of `alpha` and of each running maximum's rescaling per block, besides
 `exp2`'s `2^-22`: `(m_ij − m_i)·2^-24 + 2^-150` with `|m| ≤ 3X/2 + expErr`. -/
-def dmax (D : Nat) (X : ℚ) : ℚ := 2 * (ybound X + expErr D X) / 2 ^ 24 + 1 / 2 ^ 150
+def dmax (D : Nat) (X Z : ℚ) : ℚ := 2 * (ybound X + expErr D X Z) / 2 ^ 24 + 1 / 2 ^ 150
 
-/-- The `p·v` `tl.dot`'s relative constant, `relDot8 64 = (1 + 2^-7)^2 − 1`. -/
-def rho8 : ℚ := Rules.Num.relDot8 64
-
-/-- **The accumulator's per-block relative error** on its earlier content: the `tl.dot`'s
-`relDot8 64`, `alpha`'s error and the rounding of `acc * alpha`. -/
-def rhoA (D : Nat) (X : ℚ) : ℚ := (1 + rho8) * ((1 + dmax D X) * ((1 + 1 / 2 ^ 22) * (1 + u32))) - 1
-
-/-- The relative error of each `p = exp2(·)` against its exact weight. -/
-noncomputable def psiP (D : Nat) (X : ℚ) : ℝ := pE D X * (1 + 1 / 2 ^ 22) - 1
-
-/-- The same after `p.to(float8e5)` (one rounding, `2^-3`). -/
-noncomputable def psi8 (D : Nat) (X : ℚ) : ℝ := (1 + psiP D X) * (9 / 8) - 1
-
-/-- **The relative error of a block's new contribution** `Σ p·v` to the accumulator: `psi8` and
-the `tl.dot`'s `relDot8 64`. -/
-noncomputable def psiA (D : Nat) (X : ℚ) : ℝ := (1 + (rho8 : ℝ)) * (1 + psi8 D X) - 1
-
-/-- The absolute error of a key's `p.to(float8e5)`: `float8e5`'s `2^-17` and `exp2`'s `2^-126`. -/
-def omega8 : ℚ := 1 / 2 ^ 17 + 9 / 8 * (1 / 2 ^ 126)
-
-/-- The accumulator's absolute error per block, besides `omega8·|v|` per key (the `tl.dot`'s
-`absDot8 64` and the roundings near zero). -/
-def absA : ℚ := 1 / 2 ^ 64
-
-/-- **The error bound of the accumulator from the exact partial sums**, `errS (t + 1) =
-(1 + rhoA)·errS t + rhoA·|partS t| + psiA·blkMag t`: what the library's `tl.dot` fact and the
-roundings give block by block, against the exact weighted sums `partS t` of the blocks before block
-`t` (in the units of the weights `exp(sm_scale·score)`). -/
-noncomputable def errS (d : Inst) (m : Mem) (bh n e : Nat) (X : ℚ) : Nat → ℝ
-  | 0 => 0
-  | t + 1 => (1 + (rhoA d.HEAD_DIM X : ℝ)) * errS d m bh n e X t +
-      (rhoA d.HEAD_DIM X : ℝ) * |partS d m bh n e t| + psiA d.HEAD_DIM X * blkMag d m bh n e t
-
-/-- **The accumulator's absolute error**, in the units of the running maximum:
-`errB (t + 1) = (1 + rhoA)·errB t + (1 + relDot8 64)·omega8·blkAbs t + absA`. -/
-def errB (d : Inst) (m : Mem) (bh n e : Nat) (X : ℚ) : Nat → ℚ
-  | 0 => 0
-  | t + 1 => (1 + rhoA d.HEAD_DIM X) * errB d m bh n e X t + (1 + rho8) * omega8 * blkAbs d m bh n e t + absA
+/-- The relative error of each `p = exp2(·)` against its exact weight, upwards. -/
+noncomputable def psiP (D : Nat) (X Z : ℚ) : ℝ := pE D X Z * (1 + 1 / 2 ^ 22) - 1
 
 /-- The number of key blocks of a row, at most: `N / 64`. -/
 def nblocks (N : Nat) : Nat := N / 64
@@ -515,20 +521,23 @@ def nblocks (N : Nat) : Nat := N / 64
 def gam63 : ℚ := (1 + u32) ^ 63 - 1
 
 /-- `l_i`'s per-block factor (`tl.mul_add`'s `3·2^-24` and `alpha`'s error). -/
-def stepL (D : Nat) (X : ℚ) : ℚ := (1 + 3 * u32) * ((1 + dmax D X) * (1 + 1 / 2 ^ 22))
+def stepL (D : Nat) (X Z : ℚ) : ℚ := (1 + 3 * u32) * ((1 + dmax D X Z) * (1 + 1 / 2 ^ 22))
 
 /-- `l_i`'s per-block factor from below. -/
-def qL (D : Nat) (X : ℚ) : ℚ := (1 - 3 * u32) * (2 - (1 + dmax D X) * (1 + 1 / 2 ^ 22))
+def qL (D : Nat) (X Z : ℚ) : ℚ := (1 - 3 * u32) * (2 - (1 + dmax D X Z) * (1 + 1 / 2 ^ 22))
 
-/-- **`l_i` against the sum of the exact weights, from above**: `l_i ≤ Fhi·Σ + aL`, where `Σ` is the
-sum of the exact weights in the running maximum's units, `Σ_j 2^(sm_scale·log₂e·score_j − m_i)` over
-the row's keys. -/
-noncomputable def Fhi (D N : Nat) (X : ℚ) : ℝ :=
-  (1 + (gam63 : ℝ)) * (1 + psiP D X) * (stepL D X : ℝ) ^ nblocks N
+/-- **`l_i` after `t` blocks against the sum of the exact weights, from above**: `l_i ≤ FhT t·Σ`
+(up to an absolute `t·2^-80·FhT t`), where `Σ` is the sum of the exact weights in the running
+maximum's units, `Σ_j 2^(sm_scale·log₂e·score_j − m_i)` over the row's keys so far. -/
+noncomputable def FhT (D : Nat) (X Z : ℚ) (t : Nat) : ℝ :=
+  (1 + (gam63 : ℝ)) * (1 + psiP D X Z) * (stepL D X Z : ℝ) ^ t
 
-/-- **The same from below**: `l_i ≥ Flo·Σ − aL` (`Σ` as for `Fhi`). -/
-noncomputable def Flo (D N : Nat) (X : ℚ) : ℝ :=
-  (1 - 3 * (u32 : ℝ)) * (1 - (gam63 : ℝ)) * (1 - 1 / 2 ^ 22) / pE D X * (qL D X : ℝ) ^ nblocks N
+/-- `FhT` after all the blocks: `l_i ≤ Fhi·Σ + aL`. -/
+noncomputable def Fhi (D N : Nat) (X Z : ℚ) : ℝ := FhT D X Z (nblocks N)
+
+/-- **The same from below**: `l_i ≥ Flo·Σ − aL` (`Σ` as for `FhT`). -/
+noncomputable def Flo (D N : Nat) (X Z : ℚ) : ℝ :=
+  (1 - 3 * (u32 : ℝ)) * (1 - (gam63 : ℝ)) * (1 - 1 / 2 ^ 22) / pE D X Z * (qL D X Z : ℝ) ^ nblocks N
 
 /-- `l_i`'s absolute error per block. -/
 def absL : ℚ := 1 / 2 ^ 64
@@ -538,31 +547,123 @@ def aL (N : Nat) : ℚ := nblocks N * absL
 
 /-- The lower bound `Flo − aL·2^expErr` on `l_i` relative to the sum of the weights (the sum is at
 least `2^-expErr` against the running maximum). -/
-noncomputable def Fp (D N : Nat) (X : ℚ) : ℝ := Flo D N X - (aL N : ℝ) * pE D X
+noncomputable def Fp (D N : Nat) (X Z : ℚ) : ℝ := Flo D N X Z - (aL N : ℝ) * pE D X Z
 
-/-- `l_i`'s relative error, both ways. -/
-noncomputable def betaL (D N : Nat) (X : ℚ) : ℝ := max (Fhi D N X - 1) (1 - Flo D N X) + (aL N : ℝ) * pE D X
+/-- **The `p·v` `tl.dot`'s constant on its accumulator.** Over its two chunks (`Dot8Chunk.errB` at
+`2` chunks, `ρ = 2^-7`, `σ = 2^-12`, `α = 2^-126`) the result is within
+`cS8·|acc| + cC8·Σ|p·v| + cP8·(m₀ + m₁) + cA8` of `acc + Σ p·v`, `m_c` chunk `c`'s largest lifted
+product; `cS8 = (ρ + σ)(2 + ρ + σ)`. -/
+def cS8 : ℚ :=
+  (Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8) * (2 + Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8)
 
-/-- **The output's tolerance**: `acc / l_i` against the exact attention (`errS` relative to the sum
-of the weights and `errB` against the running maximum, over `l_i`'s lower bound `Fp`, and `l_i`'s own
-error `betaL` relative to `|attnRef|`), then the division (`DivFull`: `2^-22` relative, `2^-148`)
-and the rounding to `float8e5` (`2^-3` relative, `2^-17` absolute). -/
-noncomputable def tolO (d : Inst) (m : Mem) (bh n e : Nat) (X : ℚ) : ℝ :=
-  9 / 8 * (1 + 1 / 2 ^ 22) *
-      (errS d m bh n e X (nblk d n) / wsum d m bh n / Fp d.HEAD_DIM d.N_CTX X +
-        pE d.HEAD_DIM X * (errB d m bh n e X (nblk d n) : ℝ) / Fp d.HEAD_DIM d.N_CTX X +
-        betaL d.HEAD_DIM d.N_CTX X / Fp d.HEAD_DIM d.N_CTX X * |attnRef d m bh n e|) +
-    (9 / 8 * (1 / 2 ^ 22) + 1 / 8) * |attnRef d m bh n e| + 9 / 8 * (1 / 2 ^ 148) + 1 / 2 ^ 17
+/-- The `p·v` `tl.dot`'s constant on its chunks' exact sums (as `cS8`): `ρ + σ(2 + ρ + σ)`. -/
+def cC8 : ℚ := Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8 * (2 + Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8)
+
+/-- The `p·v` `tl.dot`'s constant on its chunks' largest lifted products (as `cS8`):
+`ρ(1 + ρ + σ)`. -/
+def cP8 : ℚ := Rules.Num.rhoChunk8 * (1 + Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8)
+
+/-- The `p·v` `tl.dot`'s absolute constant (as `cS8`): `(2 + ρ + σ)·α`. -/
+def cA8 : ℚ := (2 + Rules.Num.rhoChunk8 + Rules.Num.sigmaChunk8) * Rules.Num.alphaChunk8
+
+/-- The absolute error of a key's `p.to(float8e5)` against its weight: `float8e5`'s `2^-17` and
+`exp2`'s `2^-126` (`9/8` of it, at most `2^-125`). -/
+def eps8 : ℚ := 1 / 2 ^ 17 + 1 / 2 ^ 125
+
+/-! ### The output's tolerance
+
+The tolerance follows `acc − r·l_i` for `r = attnRef`, centred: line 106 rescales `l_i` by the
+`alpha` that line 95 applies to `acc`, and each key's fp8 `p` lies between `a8` and `b8` times its
+exact weight (in the running maximum's units), up to `eps8`. With `kap` the middle of `[a8, b8]` and
+`hw` its half-width, `acc − r·l_i` stays within `ε_C + A·l_i` of `kap·Σ_j w_j (vEff_j − attnRef)`
+(scaled), where `ε_C` (`errC`, in the units of the exact weights) collects each block's spread
+`hw·Σ w_j |vEff_j − attnRef|` and the `p·v` `tl.dot`'s error, compounded block by block, and `A`
+(`accA`) the errors relative to `l_i` and the absolute ones (the fp8 rounding of `p` against `r`,
+`l_ij`'s and `l_i`'s roundings, `2^-17` per key). After the last block the centred sum is `0`
+(`attnRef` is the weights' mean), so `acc / l_i` is within `ε_C/(Σw·Fp) + A` of `attnRef`. The
+functions below take `pe = pE` and `dm = dmax`. -/
+
+/-- `alpha`'s relative error: `(1 + dmax)(1 + 2^-22) − 1`. -/
+noncomputable def etaA (dm : ℝ) : ℝ := (1 + dm) * (1 + 1 / 2 ^ 22) - 1
+
+/-- **The growth per block** of what `acc` carries: `acc * alpha` (`alpha`'s error and one
+rounding) and the `p·v` `tl.dot`'s `cS8` on it. -/
+noncomputable def gA (dm : ℝ) : ℝ := (1 + (cS8 : ℝ)) * ((1 + dm) * (1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) - 1
+
+/-- An attended key's fp8 `p` is at least `a8` times its exact weight (in the running maximum's
+units, up to `eps8`): `exp2`'s `2^-expErr` and `2^-22`, and the fp8 rounding's `7/8`. -/
+noncomputable def a8 (pe : ℝ) : ℝ := 7 / 8 * (1 - 1 / 2 ^ 22) / pe
+
+/-- An attended key's fp8 `p` is at most `b8` times its exact weight (up to `eps8`):
+`2^expErr·(1 + 2^-22)` and `9/8`. -/
+noncomputable def b8 (pe : ℝ) : ℝ := 9 / 8 * pe * (1 + 1 / 2 ^ 22)
+
+/-- The middle of `[a8, b8]`. -/
+noncomputable def kap (pe : ℝ) : ℝ := (a8 pe + b8 pe) / 2
+
+/-- The half-width of `[a8, b8]`: the spread of the keys' ratios of fp8 `p` to their exact weights. -/
+noncomputable def hw (pe : ℝ) : ℝ := (b8 pe - a8 pe) / 2
+
+/-- `l_i`'s new value from below, per unit of its rescaled old value. -/
+noncomputable def denX (dm : ℝ) : ℝ := 1 - etaA dm - 3 * (1 + etaA dm) / 2 ^ 24
+
+/-- `l_i`'s new value from below, per unit of the block's `Σ|p|`. -/
+noncomputable def denS : ℝ := 1 - (gam63 : ℝ) - 3 * (1 + (gam63 : ℝ)) / 2 ^ 24
+
+/-- The cost of a block's `Σ|p|` against `|r|`: the fp8 rounding of `p` (`1/8`), the `tl.dot`'s `cC8`
+on `9/8·|r|·Σ|p|`, `l_ij`'s and `l_i`'s roundings. -/
+noncomputable def coefS : ℝ := 1 / 8 + 9 / 8 * (cC8 : ℝ) + (gam63 : ℝ) + 3 * (1 + (gam63 : ℝ)) / 2 ^ 24
+
+/-- **One block of `A`**: the old `A` (and `|r|`'s share of `l_i`'s rounding) against `l_i`'s new
+value, the block's `Σ|p|` at `|r|·coefS`, both through `l_i`'s new value from below; then, against
+`l_i ≥ 1/2`, the block's absolute errors: `eps8` per key on `|vEff − r|` (`Ba`) and on the
+`tl.dot`'s chunks' largest lifted values (`Bv`, with `liftMag`'s `2^-14`), `2^-17` per key on
+`|r|`, and the roundings near zero. `R = |r|`. -/
+noncomputable def accNext (dm R A Ba Bv : ℝ) : ℝ :=
+  (1 + 1 / 2 ^ 50) * max ((A + 3 * (1 + etaA dm) * R / 2 ^ 24) / denX dm) (R * coefS / denS) +
+    2 * ((1 + (cC8 : ℝ)) * (eps8 : ℝ) * Ba + (cP8 : ℝ) * ((eps8 : ℝ) + 1 / 2 ^ 14) * Bv +
+      R * (1 + (cC8 : ℝ)) / 2 ^ 11 + (1 + R + A) / 2 ^ 50)
+
+/-- **One block of `ε_C`**: the old `ε_C` grows by `gA`; the old centred sum `C` costs `gA·kap·|C|`
+and the old `r·l_i + A·l_i` (`l_i ≤ Lw`, in the exact weights' units) `(gA + etaA)·(R + A)·Lw` (the
+`tl.dot`'s and `alpha`'s errors on what `acc` carries); the block costs the spread `hw` and the
+`tl.dot`'s `cC8·b8` on `Bc = Σ w|vEff − r|`, and the `tl.dot`'s `cP8·b8` on its chunks' largest
+`w·liftMag(vEff)` (`Bl`). -/
+noncomputable def errNext (pe dm EC C R A Lw Bc Bl : ℝ) : ℝ :=
+  (1 + gA dm) * EC + gA dm * kap pe * |C| + (gA dm + etaA dm) * (R + A) * Lw +
+    (hw pe + (cC8 : ℝ) * b8 pe) * Bc + (cP8 : ℝ) * b8 pe * Bl
+
+/-- `A` after `t` blocks, for element `(bh, n, e)` (`r = attnRef`). -/
+noncomputable def accA (d : Inst) (m : Mem) (bh n e : Nat) (X Z : ℚ) : Nat → ℝ
+  | 0 => 0
+  | t + 1 => accNext (dmax d.HEAD_DIM X Z) |attnRef d m bh n e| (accA d m bh n e X Z t)
+      (blkA d m bh n e t) (blkVL d m bh n e t)
+
+/-- `ε_C` after `t` blocks, for element `(bh, n, e)`, in the units of the exact weights. -/
+noncomputable def errC (d : Inst) (m : Mem) (bh n e : Nat) (X Z : ℚ) : Nat → ℝ
+  | 0 => 0
+  | t + 1 => errNext (pE d.HEAD_DIM X Z) (dmax d.HEAD_DIM X Z) (errC d m bh n e X Z t)
+      (centC d m bh n e t) |attnRef d m bh n e| (accA d m bh n e X Z t)
+      (FhT d.HEAD_DIM X Z t * partW d m bh n t) (blkC d m bh n e t) (blkLW d m bh n e t)
+
+/-- **The output's tolerance**: `acc / l_i` is within `errC / (Σw·Fp) + accA` of the exact
+attention (`l_i ≥ Fp` times the weights' sum), then the division (`DivFull`: `2^-22` relative,
+`2^-148`) and the rounding to `float8e5` (`2^-3` relative, `2^-17` absolute). -/
+noncomputable def tolO (d : Inst) (m : Mem) (bh n e : Nat) (X Z : ℚ) : ℝ :=
+  9 / 8 * ((errC d m bh n e X Z (nblk d n) / wsum d m bh n / Fp d.HEAD_DIM d.N_CTX X Z +
+      accA d m bh n e X Z (nblk d n)) * (1 + 1 / 2 ^ 22) + |attnRef d m bh n e| / 2 ^ 22 + 1 / 2 ^ 148) +
+    |attnRef d m bh n e| / 8 + 1 / 2 ^ 17
 
 /-- The bound on `|log₂(l_i / Σw)|` (`l_i` against the weights in the running maximum's units). -/
-noncomputable def lgB (D N : Nat) (X : ℚ) : ℝ :=
-  max (Real.logb 2 (Fhi D N X + (aL N : ℝ) * pE D X)) (-Real.logb 2 (Fp D N X))
+noncomputable def lgB (D N : Nat) (X Z : ℚ) : ℝ :=
+  max (Real.logb 2 (Fhi D N X Z + (aL N : ℝ) * pE D X Z)) (-Real.logb 2 (Fp D N X Z))
 
 /-- **`M`'s tolerance**, besides `2^-24·|lseRef|`: `log₂ l_i`'s error `lgB`, `tl.math.log2`'s
 `2^-22·|log₂ l_i|` (with `|log₂ l_i| ≤ lgB + expErr + 16`) and `2^-149`, and the rounding of
 `m_i + log2(l_i)`. -/
-noncomputable def tolM (D N : Nat) (X : ℚ) : ℝ :=
-  (1 + (u32 : ℝ)) * (lgB D N X + (lgB D N X + (expErr D X : ℝ) + 16) / 2 ^ 22 + 1 / 2 ^ 149) + 1 / 2 ^ 150
+noncomputable def tolM (D N : Nat) (X Z : ℚ) : ℝ :=
+  (1 + (u32 : ℝ)) * (lgB D N X Z + (lgB D N X Z + (expErr D X Z : ℝ) + 16) / 2 ^ 22 + 1 / 2 ^ 149) +
+    1 / 2 ^ 150
 
 /-! ### The second bound on the output
 
@@ -570,20 +671,29 @@ noncomputable def tolM (D N : Nat) (X : ℚ) : ℝ :=
 it. The second bound, `tolV`, compares `acc` with `r·l_i` for the reference `r = attnRef`, over the
 weights the kernel computes (lines 95 and 106 rescale `acc` and `l_i` by the same `alpha`): the
 values enter only through `K`, a bound on `|vEff_j − r|` over the row's keys, and `R = |r|`. Its
-constants are the library's: `relDot8 64` (the `p·v` `tl.dot`), the fp8 rounding of `p` (`2^-3`,
-`2^-17`), the `float32` roundings and `l_ij`'s `63` roundings (below `2^-17`, `gam63`). -/
+constants are the library's: the `p·v` `tl.dot`'s `cS8` (with `cP8` on `liftMag`'s `2^-14`, which
+`iotaV` drops when every value of the row is `0`), the fp8
+rounding of `p` (`2^-3`, `2^-17`), the `float32` roundings and `l_ij`'s `63` roundings (below
+`2^-17`, `gam63`). -/
+
+/-- `min 1 (2^16·(K + R))`: at most `1`, and `0` when `K = R = 0`. A nonzero `float8e5` value is at
+least `2^-16` in magnitude, so when `K + R < 2^-16` every value of the row is `0` and so is every
+lifted product of the `p·v` `tl.dot` (`liftMag 0 = 0`); the factor keeps `liftMag`'s `2^-14` out of
+`tolV` then (a head without `vIn`). -/
+noncomputable def iotaV (K R : ℝ) : ℝ := min 1 (2 ^ 16 * (K + R))
 
 /-- The cost of a block's `Σ|p|` in the second bound: the fp8 rounding of `p` against `v − r`
-(`9/8·K`, with the `tl.dot`'s `relDot8 64`) and against `r` (`R/8`), `l_ij`'s and `l_i`'s
-roundings. -/
+(`9/8·K`, with the `tl.dot`'s `cS8`) and against `r` (`R/8`), `l_ij`'s and `l_i`'s roundings, and
+the `tl.dot`'s `cP8` on the lifted `p`'s `2^-14` (times `iotaV`). -/
 noncomputable def magCp (K R : ℝ) : ℝ :=
-  9 / 8 * K * (1 + (rho8 : ℝ)) + R * (9 / 8 * (rho8 : ℝ) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24)
+  9 / 8 * K * (1 + (cS8 : ℝ)) + R * (9 / 8 * (cS8 : ℝ) + 1 / 8 + 1 / 2 ^ 17 + 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24) +
+    9 / 8 * (cP8 : ℝ) * iotaV K R / 2 ^ 14
 
 /-- One block of the relative part `A` of `|acc − r·l_i| ≤ A·l_i + D`: the old part, rescaled by
-`alpha`, grows by the `tl.dot`'s `relDot8 64` and the roundings; the block's new part costs `magCp`;
+`alpha`, grows by the `tl.dot`'s `cS8` and the roundings; the block's new part costs `magCp`;
 `l_i`'s new value bounds both. -/
 noncomputable def magNext (K R A : ℝ) : ℝ :=
-  max (((1 + (rho8 : ℝ)) * (1 + 1 / 2 ^ 24) * A + R * (4 / 2 ^ 24 + (rho8 : ℝ) * (1 + 1 / 2 ^ 24))) /
+  max (((1 + (cS8 : ℝ)) * (1 + 1 / 2 ^ 24) * A + R * (4 / 2 ^ 24 + (cS8 : ℝ) * (1 + 1 / 2 ^ 24))) /
       (1 - 3 / 2 ^ 24))
     (magCp K R / (1 - 1 / 2 ^ 17 - 3 * (1 + 1 / 2 ^ 17) / 2 ^ 24))
 
@@ -592,12 +702,13 @@ noncomputable def magA (K R : ℝ) : ℕ → ℝ
   | 0 => 0
   | t + 1 => magNext K R (magA K R t)
 
-/-- The absolute part after `t` blocks: the fp8 rounding's `2^-17` per key (`64` per block) and the
-roundings near zero. -/
+/-- The absolute part after `t` blocks: the fp8 rounding's `2^-17` per key (`64` per block), the
+`tl.dot`'s `cP8` on the lifted values' `2^-14` (times `iotaV`), and the roundings near zero. -/
 noncomputable def magD (K R : ℝ) : ℕ → ℝ
   | 0 => 0
-  | t + 1 => (1 + (rho8 : ℝ)) * (1 + 1 / 2 ^ 24) * (1 + 1 / 2 ^ 12) * magD K R t +
-      (K + R) * (1 + (rho8 : ℝ)) / 2 ^ 11 + (magA K R (t + 1) + R + 1) / 2 ^ 80
+  | t + 1 => (1 + (cS8 : ℝ)) * (1 + 1 / 2 ^ 24) * (1 + 1 / 2 ^ 12) * magD K R t +
+      (K + R) * (1 + (cS8 : ℝ)) / 2 ^ 11 + (cP8 : ℝ) * iotaV K R * (K + R + 1 / 2 ^ 13) / 2 ^ 8 +
+      (magA K R (t + 1) + R + 1) / 2 ^ 80
 
 /-- **The output's second tolerance**, for a bound `K` on `|vEff_j − attnRef|` over the row's keys:
 `acc / l_i` is within `magA + D/l_i` of `attnRef` (`l_i ≥ 1/2`), then the division (`DivFull`) and
@@ -613,11 +724,11 @@ def outBytes (d : Inst) : Set Int :=
 
 /-- What the launch leaves:
 * every element `(bh, n, e)` of `o` holds a `float8e5` value `c`; when head `bh`'s values are
-  covered (`HeadOk`), `c` is finite and, for every bound `X ≤ Xh HEAD_DIM` on the row's scaled score
-  magnitudes, within `tolO` of the exact attention of the values the kernel uses, `attnRef`, and,
-  for every bound `K` on `|vEff_j − attnRef|` over the row's keys, within `tolV`. Neither
-  tolerance need be below `|attnRef|` (README, Specification): on much of the host's data `Post`'s
-  accuracy part does not tell `c` from `0`;
+  covered (`HeadOk`), `c` is finite and, for every bound `X ≤ Xh HEAD_DIM` on the row's scaled lifted
+  score magnitudes and every bound `Z` on its scaled score errors, within `tolO` of the exact
+  attention of the values the kernel uses, `attnRef`, and, for every bound `K` on
+  `|vEff_j − attnRef|` over the row's keys, within `tolV`. Neither tolerance need be below
+  `|attnRef|` (README, Specification);
 * every element `(bh, n)` of `M` holds a `float32` value `c`; for a covered head, `c` is finite and
   within `tolM + 2^-24·|lseRef|` of the exact log-sum-exp `lseRef` (base 2);
 * every byte outside these elements is unchanged. -/
@@ -625,17 +736,19 @@ def Post (d : Inst) (init fin : Mem) : Prop :=
   (∀ bh n e, bh < d.Z * d.H → n < d.N_CTX → e < d.HEAD_DIM →
     ∃ c : F8E5, fin.read .f8e5 (d.o.ptr (idx d bh n e : Int)).addr = some c ∧
       (HeadOk d init bh → c.isFinite = true ∧
-        (∀ X : ℚ, X ≤ Xh d.HEAD_DIM →
-          (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
-          |c.toReal - attnRef d init bh n e| ≤ tolO d init bh n e X) ∧
+        (∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
+          (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
+          (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
+          |c.toReal - attnRef d init bh n e| ≤ tolO d init bh n e X Z) ∧
         ∀ K : ℝ, (∀ j ∈ keys d n, |(vEff d init bh j e : ℝ) - attnRef d init bh n e| ≤ K) →
           |c.toReal - attnRef d init bh n e| ≤ tolV d init bh n e K)) ∧
   (∀ bh n, bh < d.Z * d.H → n < d.N_CTX →
     ∃ c : F32, fin.read .f32 (d.M.ptr ((bh * d.N_CTX + n : Nat) : Int)).addr = some c ∧
-      (HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ Xh d.HEAD_DIM →
-        (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+      (HeadOk d init bh → c.isFinite = true ∧ ∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
+        (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
+        (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
         |c.toReal - lseRef d init bh n| ≤
-          tolM d.HEAD_DIM d.N_CTX X + (u32 : ℝ) * |lseRef d init bh n|)) ∧
+          tolM d.HEAD_DIM d.N_CTX X Z + (u32 : ℝ) * |lseRef d init bh n|)) ∧
   ∀ z, z ∉ outBytes d → fin z = init z
 
 def Spec (K : Claim.Behaviour Inst) : Prop := Claim.Meets Inst.ok Pre Post K
@@ -649,9 +762,11 @@ structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) : Prop where
   covers a launch within its scope: part (A), the kernel and its launches, which the host's launches
   meet (README, Conditions), and part (B), the environment, which the claim relies on. -/
   faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)
-  /-- [rule] `Num.DotE5m2`: `tl.dot` of `float8e5` operands into `float32` with
-  `maxImpreciseAcc = 2^30` (the default on sm_90), any `input_precision` (lines 73 and 103). -/
-  dot : Rules.Num.DotE5m2 P
+  /-- [rule] `Num.DotE5m2Chunk`: `tl.dot` of `float8e5` operands into `float32` with
+  `maxImpreciseAcc = 2^30` (the default on sm_90), any `input_precision` (lines 73 and 103), chunk by
+  chunk: chunks of `32` consecutive `k` in increasing order, each step within
+  `2^-7·Mj + 2^-12·|s j + c_j| + 2^-126`. -/
+  dot : Rules.Num.DotE5m2Chunk P
   /-- [rule] `Num.DotTotal`: the model's `tl.dot` (lines 73, 103), of configuration `cfg8` (written
   out), always has a result. -/
   dot_total : Rules.Num.DotTotal P

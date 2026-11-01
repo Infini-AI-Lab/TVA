@@ -566,7 +566,7 @@ type or name; without that section and its table no fact is (the gate fails clos
 names the page). The page is in the digest of every item that cites a fact of `TVA.Rules.Num`
 (§4), so a change to the list re-opens those items. Never a shape whose constants the field would
 choose (`MathAcc`, `MathAt`, `DivAcc`, `CvtAcc`, `CvtRn`, `DotAcc`, `DotScaledAcc`, `AtomicAddAcc`,
-a family such as `DotF8`, `DivRn` on another format): such a field states a device fact of the
+a family such as `DotF8Chunk`, `DivRn` on another format): such a field states a device fact of the
 kernel's own, even with the library's constants written out. The kernel's own constants are every
 constant of the statement that is not the library's (rooted at `TVA`) but `Inst`, `Inst.ok`,
 `model` and `launch`: a `private` one, and one declared outside the kernel's namespace

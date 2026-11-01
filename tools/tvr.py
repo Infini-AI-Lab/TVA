@@ -2294,7 +2294,7 @@ def rule_fact_problem(u, ns="", facts=None):
       listed alone (`ExpF32`, `DivFull`, `MathTotal`), with any arguments after `P` (a `Platform → Prop` fact
       takes none); listed applied (`DivRn P .binary64`), with exactly those arguments.
     Never a shape whose constants the field chooses (`MathAcc`, `MathAt`, `DivAcc`, `CvtAcc`, `CvtRn`,
-    `DotAcc`, `DotScaledAcc`, `AtomicAddAcc`, a family such as `DotF8`, or `DivRn` on another format), nor a
+    `DotAcc`, `DotScaledAcc`, `AtomicAddAcc`, a family such as `DotF8Chunk`, or `DivRn` on another format), nor a
     `TVA.Rules` constant the list does not name, whatever its type or name: the library states its facts with
     their constants, and lists them; a field that restates a shape with constants of its own states a device
     fact of the kernel's own, which no library review stands behind."""

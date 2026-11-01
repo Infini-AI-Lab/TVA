@@ -1,0 +1,17 @@
+{
+  "reviewer": "r-gmm",
+  "kernel": "grouped_matmul_tma_f16",
+  "round": 2,
+  "findings": [
+    {
+      "kind": "LIBRARY_REPORT",
+      "target": "decl:TVA.Rules.Num.DotF16",
+      "summary": "Does DotF16 survive L125's mechanism? A subnormal float16 operand may set the wgmma window as a subnormal fp8 one does, and num-dot Part 2 had no such input",
+      "detail": "L125 withdrew the fp8 facts. On wgmma a chunk is aligned to the largest exponent field, and a subnormal operand's field reads as the smallest normal's, so a small product can set the window and the products just below its unit are lost. The 16-bit paragraph of num.md derives DotF16 from 'every term's bits down to at least 2^-23 of the largest term'. The evidence README (num-dot) says that Part 2 had no input where a product with a subnormal operand sets the window, and that remark is not limited to fp8. If float16 wgmma aligns by exponent fields in the same way, take a = 2^-24 (a float16 subnormal, field read as 2^-14) and b = 2^15: the product 2^-9 has field 2^1. If 15 products of about 1.9·2^-23 are lost, the error is about 3.4e-6, while DotF16 allows (K+2)·2^-22·Σ|a·b| ≈ 8.4e-9 at K = 16, about 400 times less. This kernel's Pre allows subnormal float16 inputs, so its accuracy claim rests on DotF16 there (the host's torch.rand inputs are likely normal). Could the library test DotF16 and DotBF16 with a subnormal operand setting the window, and restate them, or count such an operand at the smallest normal as liftMag does, if they fail? Non-blocking."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-accept after library round 24 (gate f0e0fd43db6ed2b8). The diff of docs/rules/num.md and lean/TVA/Rules/Num/Sm90.lean leaves DotF16, DotBF16, relDot16, absDot16, DotTotal, the DotF16 row of 'Facts the library states', the kind table's float16 row and the 16-bit paragraph of the chunk model unchanged. Only fp8 material was withdrawn, added or moved, and the kernel cites none of it. The kernel's files are unchanged."
+}

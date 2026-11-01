@@ -6,28 +6,28 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 
 ## Status
 
-- Gate: **PASS**, digest `3031db2a50b0a036` (2026-10-31T20:15:57Z).
-- Phase: round 2: all reviewers have filed.
+- Gate: **PASS**, digest `930f0acadb5b3640` (2026-11-01T02:12:56Z).
+- Phase: round 2: waiting for the prover (1 open finding(s)).
 - Reviewers: r-fwd (all), r-fwd2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-fwd | r-fwd2 |
 |---|---|---|---|
-| `assumption:div_full` | `9bb3241e6d23` | accepted | accepted |
-| `assumption:div_total` | `4b093fa31a12` | accepted | accepted |
-| `assumption:dot` | `632125571d40` | accepted | accepted |
-| `assumption:dot_total` | `a63e50e22fe6` | accepted | accepted |
-| `assumption:exp2` | `d30b74f01ba7` | accepted | accepted |
-| `assumption:exp2_ninf` | `4388839fa7fb` | accepted | accepted |
-| `assumption:exp2_total` | `3af229492352` | accepted | accepted |
+| `assumption:div_full` | `bbcbf79af9c1` | accepted | accepted |
+| `assumption:div_total` | `7177ecec0bad` | accepted | accepted |
+| `assumption:dot` | `981c3709d75c` | accepted | accepted |
+| `assumption:dot_total` | `e50c29e07e29` | accepted | accepted |
+| `assumption:exp2` | `d215e81fa7b2` | accepted | accepted |
+| `assumption:exp2_ninf` | `923a7a524f03` | accepted | accepted |
+| `assumption:exp2_total` | `fb8894f1b9e5` | accepted | accepted |
 | `assumption:faithful` | `7b632a90276e` | accepted | accepted |
-| `assumption:log2` | `80183fe8de73` | accepted | accepted |
-| `assumption:log2_total` | `59816303c4ac` | accepted | accepted |
+| `assumption:log2` | `7a099c276c7a` | accepted | accepted |
+| `assumption:log2_total` | `b642b71b8314` | accepted | accepted |
 | `conditions` | `c587de4b858e` | accepted | accepted |
 | `map` | `726c8b30b1cd` | accepted | accepted |
 | `model` | `e98ae22afef9` | accepted | accepted |
-| `spec` | `1a8c8db50edc` | accepted | accepted |
+| `spec` | `e6eff589a12e` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -36,6 +36,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 | [F3](#f3) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | r-fwd | 1 | 'Performance-only arguments' calls num_stages and warp_specialize 'given by a model', but Launch and tl.forRange hold ne |
 | [F4](#f4) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/lean/AttnFwd.lean` | r-fwd2 | 1 | Stale or loose wording: AttnFwd.lean's module docstring puts the test at lines 600-650 and the benchmark at 655-705; tes |
 | [F5](#f5) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | r-fwd2 | 1 | SEMANTICS 'Float + and -' does not say whether the value tl.maximum, tl.minimum or tl.where returns, when it is a produc |
+| [F6](#f6) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-fwd2 | 2 | L125's mechanism (a subnormal operand's exponent field sets the wgmma window) may also apply to float16 operands, and Do |
 
 **Certificate: GRANTED**
 
@@ -128,4 +129,24 @@ SEMANTICS.md, "Float `+` and `-`: IEEE or fusable": "A product is an operand com
 - **released F2**: HeadOk's docstring and README now give one figure with its argument: below 23 (test) and 240 (benchmark) except with probability below 1e-6. I re-checked the Chernoff and union bound numerically (work/chernoff.py: at most 1.1e-7 and 7.9e-7), and the README's tolerances at those values (0.43%, 2.9%) agree with my exact evaluation.
 - **released F3**: L122 in docs/library-review/ISSUES.md records the report faithfully (the 'given by a model' sentence against Launch, tl.forRange and 'Loops', and that a model omits both); it is the library's to settle and does not block.
 - **accepted** at gate `3031db2a50b0a036`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T02:15:45Z` coordinator's note: Library round 24 (L124, L125; docs/library-review/ISSUES.md) changed docs/rules/num.md (the fp8 tl.dot facts DotE4m3, DotE5m2, DotE4m3E5m2, DotE5m2E4m3 and DotF8 withdrawn as false on a subnormal operand; new chunk facts DotE4m3Chunk etc. in lean/TVA/Rules/Num/Dot8Chunk.lean) and lean/TVA/Rules/Num/Sm90.lean (those facts removed; chunks8, relDot8, absDot8 moved to Dot8Chunk.lean unchanged). No fact or constant this kernel cites changed; its reviewers re-accept the items that re-opened.
+
+### r-fwd files ([filing](review/round-2/r-fwd/filing-2.json), [report](review/round-2/r-fwd/report-2.md), [work](review/round-2/r-fwd/work/))
+
+`2026-11-01T02:18:40Z`, at gate `930f0acadb5b3640`. Notes: Re-acceptance after library round 24 (L124, L125), gate 930f0acadb5b3640. The changes withdraw the fp8 tl.dot facts and add the fp8 chunk facts; this kernel cites none of them. DotF16, relDot16, absDot16, Exp2F32, Exp2F32NegInf, Log2F32, DivFull, DotTotal, MathTotal and DivTotal are unchanged in the Lean and keep their rows in the first table of 'Facts the library states'. The page's statements about them (the kernel-reviewer mapping row for DotF16, the 16-bit bullet of the chunk-model section) are unchanged. Nothing in the kernel's own files changed.
+
+- **accepted** at gate `930f0acadb5b3640`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-fwd2 files ([filing](review/round-2/r-fwd2/filing-2.json), [report](review/round-2/r-fwd2/report-2.md))
+
+`2026-11-01T02:19:03Z`, at gate `930f0acadb5b3640`. Notes: Re-acceptance after library round 24 (L124, L125), gate 930f0acadb5b3640. In the diff of docs/rules/num.md and lean/TVA/Rules/Num/Sm90.lean, nothing this kernel cites changed. These are unchanged in Lean and in 'Facts the library states', with the same constants: DotF16 (relDot16, absDot16), DotTotal, Exp2F32, Exp2F32NegInf, MathTotal, Log2F32, DivFull and DivTotal. The page's statements about them are unchanged too: the 16-bit chunk-model bullet, the approximate functions, Division, and the reviewer's table rows for these operations. The changes concern only the fp8 dot facts (withdrawn) and the new chunk facts, which this kernel does not use. Spec's tolerances use only relDot16, unchanged.
+
+#### F6
+
+**LIBRARY_REPORT** on `decl:TVA.Rules.Num.DotF16` (non-blocking): L125's mechanism (a subnormal operand's exponent field sets the wgmma window) may also apply to float16 operands, and DotF16's evidence has no such input; this kernel's p.to(float16) makes subnormals.
+
+L125 withdrew the fp8 facts because, on wgmma, a chunk's terms are aligned to the largest exponent field, and a subnormal operand's field reads as the smallest normal's. A product with a subnormal operand can then set the window while being far smaller, and the products just below the window's unit are lost. evidence/num-dot says that its Part 2 had no input where a product with a subnormal operand sets the window, and that holds for the 16-bit rows too. num.md's 16-bit bullet derives relDot16 from 'every term's bits down to at least 2^-23 of the largest term'. If a float16 subnormal (field read as 2^-14, value down to 2^-24) behaves as an fp8 one does, a product can set the window up to 2^10 above its value: in a 16-product chunk, 15 products just below the unit 2^(E-23) are lost, a relative error near 2^-9 against relDot16 16 = 18*2^-22. This kernel cites DotF16 for line 73 (q, k from randn cast to float16 contain subnormals) and line 103, where p.to(float16) is subnormal for every weight below 2^-14 and |v| may reach 2^15 under HeadOk. Request: test DotF16 and DotBF16 on wgmma (and mma.sync) with a subnormal operand setting the window, as num-dot-chunk Part F does for fp8, and restate the facts if they fail. Not blocking; DotF16 and its constants are unchanged in round 24, so the kernel's items are as I accepted them.
+
+- **accepted** at gate `930f0acadb5b3640`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T02:24:41Z` coordinator's note: Library issue L126 (docs/library-review/ISSUES.md; evidence/num-dot-sub16), open: DotF16, which this claim cites, fails on the device when a product with a subnormal float16 operand and a large partner sets the tl.dot window (up to 53 times its bound on wgmma and mma.sync). The certificate rests on DotF16 as stated; the fix (a library round, then a re-proof of this kernel) is not yet scheduled.
 

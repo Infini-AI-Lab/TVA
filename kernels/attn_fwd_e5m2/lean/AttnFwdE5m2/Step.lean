@@ -6,9 +6,9 @@ import AttnFwdE5m2.RowAcc
 * `LInv`: after `t ≥ 1` blocks with running maximum `m`, `l_i` lies between `FlR t·W − FhR t·t·absL`
   and `FhR t·(W + t·absL)`, `W = Σ wt` over the attended keys so far: a two-sided relative bound,
   since each `p` may be off its exact weight by a factor up to `2^±E`;
-* `AInv`: an element of the row's `acc` is within `2^-m·ES + EB` of `2^-m·Σ_j ew_j·v_j`, the exact
-  weighted sum of the attended keys so far, for the bounds `ES` (in units of the exact weights
-  `ew = exp(sm_scale·s)`) and `EB` (absolute) the recursion of `Model.errS` and `Model.errB` gives;
+* `ACr`: an element of the row's `acc` is finite and at most `crA t` (a crude bound; `Cen` has the
+  accuracy);
+* `errB2_le`: the `p·v` `tl.dot`'s chunk facts over its two chunks;
 * `lstep` (lines 82–85, 106) and `astep` (lines 82–84, 95, 98–103): one block keeps them.
 -/
 
@@ -471,186 +471,144 @@ theorem lstep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
 exact weights: `Σ ew_j·ve_j`. -/
 noncomputable def Sx (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : ℝ := psum R.al t (fun j => ew R j * ve j)
 
-/-- `Σ ew_j·|ve_j|` over the attended keys of block `t`. -/
-noncomputable def Mg (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : ℝ :=
-  ∑ jj : Fin 64, if R.al (64 * t + jj) = true then ew R (64 * t + jj) * |ve (64 * t + jj)| else 0
+/-- The two chunks' largest lifted products of an element of the `p·v` `tl.dot` (line 103), from
+the lanes' values `q` (the fp8 `p`) and `v`. -/
+noncomputable def cl2 (q v : Fin 64 → ℚ) : ℝ :=
+  ((Dot8Chunk.chunkLift8 .f8e5 .f8e5 q v 0 + Dot8Chunk.chunkLift8 .f8e5 .f8e5 q v 1 : ℚ) : ℝ)
 
-/-- `Σ |ve_j|` over the attended keys of block `t`. -/
-noncomputable def AbV (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : ℝ :=
-  ∑ jj : Fin 64, if R.al (64 * t + jj) = true then |ve (64 * t + jj)| else 0
+theorem cl2_nonneg (q v : Fin 64 → ℚ) : 0 ≤ cl2 q v := by
+  unfold cl2
+  have h0 := Dot8Chunk.chunkLift8_nonneg .f8e5 .f8e5 q v 0
+  have h1 := Dot8Chunk.chunkLift8_nonneg .f8e5 .f8e5 q v 1
+  exact Rat.cast_nonneg.mpr (add_nonneg h0 h1)
 
-/-- An element of the row's `acc` after `t` blocks (`t ≥ 1`), `ve` the values of its column of
-`v`, `ES` and `EB` the bounds of `Model.errS` and `Model.errB` after `t` blocks. -/
-def AInv (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) (m a : F32) (ES EB : ℝ) : Prop :=
-  a.isFinite = true ∧ |a.toReal| ≤ crA t ∧
-    |a.toReal - (2 : ℝ) ^ (-m.toReal) * Sx R ve t| ≤ (2 : ℝ) ^ (-m.toReal) * ES + EB
+/-- A `fold max 0` of rationals is at most any nonnegative real bound of its terms. -/
+theorem fold_max_le_real {ι : Type} [DecidableEq ι] (s : Finset ι) (f : ι → ℚ) {B : ℝ} (hB : 0 ≤ B)
+    (h : ∀ k ∈ s, (f k : ℝ) ≤ B) : ((s.fold max 0 f : ℚ) : ℝ) ≤ B := by
+  induction s using Finset.induction_on with
+  | empty => simp [hB]
+  | insert a s ha ih =>
+    rw [Finset.fold_insert ha, Rat.cast_max]
+    exact max_le (h a (Finset.mem_insert_self a s)) (ih fun k hk => h k (Finset.mem_insert_of_mem hk))
 
-theorem Sx_succ (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) :
-    Sx R ve (t + 1) = Sx R ve t +
-      ∑ jj : Fin 64, (if R.al (64 * t + jj) = true then ew R (64 * t + jj) * ve (64 * t + jj) else 0) :=
-  psum_succ _ _ _
+/-- **The `p·v` `tl.dot` over its two chunks** (`Dot8Chunk.errB` at `2`): within
+`cS8·|v| + cC8·(|c₀| + |c₁|) + cP8·(m₀ + m₁) + cA8`. -/
+theorem errB2_le {v : ℚ} {c m : ℕ → ℚ} (hm0 : 0 ≤ m 0) (hm1 : 0 ≤ m 1) :
+    Dot8Chunk.errB Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8 Rules.Num.alphaChunk8 v c m 2 ≤
+      cS8 * |v| + cC8 * (|c 0| + |c 1|) + cP8 * (m 0 + m 1) + cA8 := by
+  set ρ := Rules.Num.rhoChunk8 with hρ
+  set σ := Rules.Num.sigmaChunk8 with hσ
+  set α := Rules.Num.alphaChunk8 with hα
+  have hρ0 : 0 ≤ ρ := Dot8Chunk.rhoChunk8_nonneg
+  have hσ0 : 0 ≤ σ := Dot8Chunk.sigmaChunk8_nonneg
+  have hα0 : 0 ≤ α := Dot8Chunk.alphaChunk8_nonneg
+  have e2 : Dot8Chunk.errB ρ σ α v c m 2 = (1 + ρ + σ) * ((1 + ρ + σ) * 0 + ρ * max |v| (m 0) +
+      σ * |v + c 0| + α) + ρ * max |v + c 0| (m 1) + σ * |v + (c 0 + c 1)| + α := by
+    have h1 : Dot8Chunk.psum v c 1 = v + c 0 := by simp [Dot8Chunk.psum]
+    have h2 : Dot8Chunk.psum v c 2 = v + (c 0 + c 1) := by simp [Dot8Chunk.psum, Finset.sum_range_succ]
+    have h0 : Dot8Chunk.psum v c 0 = v := Dot8Chunk.psum_zero v c
+    show (1 + ρ + σ) * ((1 + ρ + σ) * 0 + ρ * max |Dot8Chunk.psum v c 0| (m 0) +
+      σ * |Dot8Chunk.psum v c 1| + α) + ρ * max |Dot8Chunk.psum v c 1| (m 1) +
+      σ * |Dot8Chunk.psum v c 2| + α = _
+    rw [h0, h1, h2]
+  rw [e2]
+  have k1 : max |v| (m 0) ≤ |v| + m 0 := max_le (by linarith) (by linarith [abs_nonneg v])
+  have k2 : max |v + c 0| (m 1) ≤ |v| + |c 0| + m 1 :=
+    max_le (by linarith [abs_add_le v (c 0)]) (by linarith [abs_nonneg v, abs_nonneg (c 0)])
+  have k3 : |v + c 0| ≤ |v| + |c 0| := abs_add_le _ _
+  have k4 : |v + (c 0 + c 1)| ≤ |v| + |c 0| + |c 1| := by
+    have := abs_add_le v (c 0 + c 1); have := abs_add_le (c 0) (c 1); linarith
+  have hq : 0 ≤ 1 + ρ + σ := by linarith
+  have l1 := mul_le_mul_of_nonneg_left k1 hρ0
+  have l2 := mul_le_mul_of_nonneg_left k2 hρ0
+  have l3 := mul_le_mul_of_nonneg_left k3 hσ0
+  have l4 := mul_le_mul_of_nonneg_left k4 hσ0
+  have l5 : (1 + ρ + σ) * ((1 + ρ + σ) * 0 + ρ * max |v| (m 0) + σ * |v + c 0| + α) ≤
+      (1 + ρ + σ) * (ρ * (|v| + m 0) + σ * (|v| + |c 0|) + α) :=
+    mul_le_mul_of_nonneg_left (by linarith) hq
+  have hc1 : σ * |c 1| ≤ (ρ + σ * (2 + ρ + σ)) * |c 1| := by
+    have : σ ≤ ρ + σ * (2 + ρ + σ) := by nlinarith
+    exact mul_le_mul_of_nonneg_right this (abs_nonneg _)
+  have hm1' : ρ * m 1 ≤ ρ * (1 + ρ + σ) * m 1 := by
+    have : ρ ≤ ρ * (1 + ρ + σ) := by nlinarith
+    exact mul_le_mul_of_nonneg_right this hm1
+  unfold cS8 cC8 cP8 cA8
+  rw [← hρ, ← hσ, ← hα]
+  nlinarith [abs_nonneg v, abs_nonneg (c 0), abs_nonneg (c 1)]
 
-theorem Mg_nonneg (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : 0 ≤ Mg R ve t :=
-  Finset.sum_nonneg fun jj _ => by
-    split_ifs
-    · exact mul_nonneg (ew_pos _ _).le (abs_nonneg _)
-    · exact le_rfl
+/-- An element of `acc` after `t ≥ 1` blocks: finite and at most `crA t`. -/
+def ACr (t : ℕ) (a : F32) : Prop := a.isFinite = true ∧ |a.toReal| ≤ crA t
 
-theorem AbV_nonneg (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : 0 ≤ AbV R ve t :=
-  Finset.sum_nonneg fun jj _ => by
-    split_ifs
-    · exact abs_nonneg _
-    · exact le_rfl
-
-/-- **One block of an element of `acc`, in real numbers** (lines 95 and 103). The old value `a`
-is within `K·ES + EB` of `K·S`; `a1` (`acc·alpha`) is within `(Φ − 1)·λ|a| + τ1` of `λ·a`; the
-block's `Σ p·v` (`cn`) is within `psi·K'·Mn + om·Vn` of `K'·Sn`, with magnitudes `Tq`; the `tl.dot`
-adds them within `ρ·(|a1| + Tq) + absD`. With `K' = λ·K`, the new value is within
-`K'·((1 + rA)·ES + rA·|S| + ((1+ρ)(1+psi) − 1)·Mn) + ((1 + rA)·EB + (1+ρ)·om·Vn + (1+ρ)τ1 + absD)` of
-`K'·(S + Sn)`, `rA = (1 + ρ)Φ − 1`. -/
-theorem acc_step8 {a a1 a' S Sn Mn Vn ES EB K K' lam Phi tau1 rho psi om Tq cn absD : ℝ}
-    (hK : 0 ≤ K) (hlam0 : 0 ≤ lam) (hlam1 : lam ≤ 1) (hK' : K' = lam * K)
-    (hEB : 0 ≤ EB) (hold : |a - K * S| ≤ K * ES + EB) (hPhi : 1 ≤ Phi)
-    (ha1 : |a1 - lam * a| ≤ (Phi - 1) * (lam * |a|) + tau1)
-    (hcn : |cn - K' * Sn| ≤ psi * (K' * Mn) + om * Vn) (hTq : Tq ≤ (1 + psi) * (K' * Mn) + om * Vn)
-    (hrho : 0 ≤ rho) (hcomb : |a' - (a1 + cn)| ≤ rho * (|a1| + Tq) + absD) :
-    |a' - K' * (S + Sn)| ≤
-      K' * ((1 + rho) * Phi * ES + ((1 + rho) * Phi - 1) * |S| + ((1 + rho) * (1 + psi) - 1) * Mn) +
-        ((1 + rho) * Phi * EB + (1 + rho) * om * Vn + ((1 + rho) * tau1 + absD)) := by
-  have hK'0 : 0 ≤ K' := by rw [hK']; positivity
-  have hla : lam * |a| ≤ K' * |S| + K' * ES + EB := by
-    have h1 : |a| ≤ K * |S| + (K * ES + EB) := by
-      have := abs_sub_abs_le_abs_sub a (K * S)
-      rw [abs_mul, abs_of_nonneg hK] at this; linarith
-    have := mul_le_mul_of_nonneg_left h1 hlam0
-    rw [hK']
-    have : lam * EB ≤ EB := by nlinarith
-    nlinarith
-  have ha1b : |a1| ≤ Phi * (lam * |a|) + tau1 := by
-    have := abs_sub_abs_le_abs_sub a1 (lam * a)
-    rw [abs_mul, abs_of_nonneg hlam0] at this; linarith
-  have e : a' - K' * (S + Sn) = (a' - (a1 + cn)) + (a1 - lam * a) + lam * (a - K * S) + (cn - K' * Sn) := by
-    rw [hK']; ring
-  rw [e]
-  have t1 := abs_add_le ((a' - (a1 + cn)) + (a1 - lam * a) + lam * (a - K * S)) (cn - K' * Sn)
-  have t2 := abs_add_le ((a' - (a1 + cn)) + (a1 - lam * a)) (lam * (a - K * S))
-  have t3 := abs_add_le (a' - (a1 + cn)) (a1 - lam * a)
-  have t4 : |lam * (a - K * S)| ≤ lam * (K * ES + EB) := by
-    rw [abs_mul, abs_of_nonneg hlam0]; exact mul_le_mul_of_nonneg_left hold hlam0
-  have t5 : lam * (K * ES + EB) ≤ K' * ES + EB := by
-    rw [hK']; have : lam * EB ≤ EB := by nlinarith
-    nlinarith
-  have hpsi : 0 ≤ 1 + psi ∨ True := Or.inr trivial
-  clear hpsi
-  have k1 : rho * |a1| ≤ rho * (Phi * (lam * |a|) + tau1) := mul_le_mul_of_nonneg_left ha1b hrho
-  have k2 : rho * Tq ≤ rho * ((1 + psi) * (K' * Mn) + om * Vn) := mul_le_mul_of_nonneg_left hTq hrho
-  have k3 : ((1 + rho) * Phi - 1) * (lam * |a|) ≤ ((1 + rho) * Phi - 1) * (K' * |S| + K' * ES + EB) :=
-    mul_le_mul_of_nonneg_left hla (by nlinarith)
-  have e2 : rho * (Phi * (lam * |a|) + tau1) + (Phi - 1) * (lam * |a|) =
-      ((1 + rho) * Phi - 1) * (lam * |a|) + rho * tau1 := by ring
-  nlinarith
-
-theorem relDot8_64r : ((Rules.Num.relDot8 64 : ℚ) : ℝ) = rho8r := by
-  unfold Rules.Num.relDot8 Rules.Num.chunks8 rho8r; push_cast; norm_num
-
-theorem absDot8_64r : ((Rules.Num.absDot8 64 : ℚ) : ℝ) = 16641 / 2 ^ 139 := by
-  unfold Rules.Num.absDot8 Rules.Num.chunks8; push_cast; norm_num
-
-set_option maxHeartbeats 1000000 in
 /-- **One block for an element of `acc`** (lines 82–84, 95, 98–103): `q` the block's row of
-`p.to(float8e5)`, `vt` its column of `v` (the values `ve` of keys `64t + jj`), `a1` the element of
-`acc * alpha[:, None]`, `a'` that of `tl.dot(p, v, acc)` (`hdot`: `Num.DotE5m2` at this element).
-Before the first block the element is `0.0`. Also the dot's error in real numbers (for
-`Row.mag_tail`). -/
+`p.to(float8e5)`, `vt` its column of `v`, `a1` the element of `acc * alpha[:, None]`, `a'` that of
+`tl.dot(p, v, acc)` (`hdot`: `Num.DotE5m2Chunk` at this element, over its two chunks). Before the
+first block the element is `0.0`. The new element is finite and at most `crA (t + 1)`; also `a1`'s
+rounding and the dot's error in real numbers. -/
 theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F32NegInf P)
     (hcvt : Rules.Num.CvtSatF32E5m2 P)
-    {R : RowCtx} (hR : R.Ok) {t : ℕ} (ht : t + 1 ≤ 1024) {ve : ℕ → ℝ} (hve : ∀ j, |ve j| ≤ 57344)
-    {ES EB : ℝ} (hES : 0 ≤ ES) (hEB : 0 ≤ EB)
+    {R : RowCtx} (hR : R.Ok) {t : ℕ} (ht : t + 1 ≤ 1024)
     {m m' dm al a a1 a' : F32} {x p : Fin 64 → F32} {q vt : Fin 64 → F8E5}
     (hM' : MInv R (t + 1) m') (hX : LaneX R t m' x)
     (hp : ∀ jj, P.math .exp2 .binary32 (x jj) (p jj))
     (hq : ∀ jj, P.cvt Format.binary32 Format.e5m2 .rn (p jj) (q jj))
     (hin : AlphaIn t m m' dm) (ha : P.math .exp2 .binary32 dm al)
     (ha1 : FloatV.NaNEq (FloatV.mul a al) a1)
-    (hvt : ∀ jj, (vt jj).isFinite = true ∧ (vt jj).toReal = ve (64 * t + jj))
+    (hvt : ∀ jj, (vt jj).isFinite = true)
     (hdot : a1.isFinite = true → (∀ k, (q k).isFinite = true) →
       |a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| +
         (Rules.Num.relDot8 64 * (|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat|) + Rules.Num.absDot8 64) ≤
           Format.binary32.maxVal →
-      a'.isFinite = true ∧ |a'.toRat - (a1.toRat + ∑ k, (q k).toRat * (vt k).toRat)| ≤
-        Rules.Num.relDot8 64 * (|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat|) + Rules.Num.absDot8 64)
-    (hold : (t = 0 ∧ a.isFinite = true ∧ a.toReal = 0) ∨ (0 < t ∧ MInv R t m ∧ AInv R ve t m a ES EB)) :
-    AInv R ve (t + 1) m' a'
-      ((1 + rhoAR R) * ES + rhoAR R * |Sx R ve t| + psiAR R * Mg R ve t)
-      ((1 + rhoAR R) * EB + (1 + rho8r) * om8r * AbV R ve t + absAr) ∧
-    |a'.toReal - (a1.toReal + ∑ jj, (q jj).toReal * (vt jj).toReal)| ≤
-      rho8r * (|a1.toReal| + ∑ jj, |(q jj).toReal * (vt jj).toReal|) + 16641 / 2 ^ 139 := by
-  have hps0 := psiPR_nonneg hR
-  have hp80 := psi8R_nonneg hR
-  set K' := (2 : ℝ) ^ (-m'.toReal) with hK'd
-  have hK'0 : 0 < K' := two_rpow_pos _
+      a'.isFinite = true ∧ |a'.toReal - (a1.toReal + ∑ k, (q k).toReal * (vt k).toReal)| ≤
+        (cS8 : ℝ) * |a1.toReal| + (cC8 : ℝ) * ∑ k, |(q k).toReal * (vt k).toReal| +
+          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ))
+    (hold : (t = 0 ∧ a.isFinite = true ∧ a.toReal = 0) ∨ (0 < t ∧ MInv R t m ∧ ACr t a)) :
+    a1.isFinite = true ∧ |a1.toReal - a.toReal * al.toReal| ≤ |a.toReal * al.toReal| / 2 ^ 24 + 1 / 2 ^ 150 ∧
+      ACr (t + 1) a' ∧
+      |a'.toReal - (a1.toReal + ∑ jj, (q jj).toReal * (vt jj).toReal)| ≤
+        (cS8 : ℝ) * |a1.toReal| + (cC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj).toReal| +
+          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ) := by
   -- the lanes
-  have hlane : ∀ jj, (q jj).isFinite = true ∧
-      |(q jj).toReal * (vt jj).toReal -
-          (if R.al (64 * t + jj) = true then K' * (ew R (64 * t + jj) * ve (64 * t + jj)) else 0)| ≤
-        psi8R R * (if R.al (64 * t + jj) = true then K' * (ew R (64 * t + jj) * |ve (64 * t + jj)|) else 0) +
-          om8r * (if R.al (64 * t + jj) = true then |ve (64 * t + jj)| else 0) ∧
-      |(q jj).toReal * (vt jj).toReal| ≤
-        (1 + psi8R R) * (if R.al (64 * t + jj) = true then K' * (ew R (64 * t + jj) * |ve (64 * t + jj)|) else 0) +
-          om8r * (if R.al (64 * t + jj) = true then |ve (64 * t + jj)| else 0) ∧
-      |(q jj).toReal * (vt jj).toReal| ≤ 0 * (q jj).toReal + 2 * 57344 := by
-    intro jj
+  have hlane : ∀ jj, (q jj).isFinite = true ∧ |(q jj).toReal| ≤ 2 := fun jj => by
     obtain ⟨hxf, hxle, hxa, hxm⟩ := hX jj
     obtain ⟨hpf, hpb, hpa, hpm⟩ := lane_p hexp hR hxf hxle hxa hxm (hp jj)
-    obtain ⟨hqf, hqb, hqa, hqm⟩ := lane_p8 hcvt hpf hpb (fun h => (hpa h).1) hpm (hq jj)
-    obtain ⟨-, hvv⟩ := hvt jj
-    rw [hvv]
-    have hv := hve (64 * t + jj)
-    have hva := abs_nonneg (ve (64 * t + jj))
-    refine ⟨hqf, ?_, ?_, ?_⟩
-    · cases hal : R.al (64 * t + jj)
-      · rw [toReal_def, hqm hal]; simp
-      · have h1 := hqa hal
-        simp only [↓reduceIte]
-        have hG : wt R m'.toReal (64 * t + jj) = K' * ew R (64 * t + jj) := wt_eq _ _ _
-        rw [hG] at h1
-        rw [show (q jj).toReal * ve (64 * t + jj) - K' * (ew R (64 * t + jj) * ve (64 * t + jj)) =
-          ((q jj).toReal - K' * ew R (64 * t + jj)) * ve (64 * t + jj) by ring, abs_mul]
-        have := mul_le_mul_of_nonneg_right h1 hva
-        have e : psi8R R * (K' * (ew R (64 * t + jj) * |ve (64 * t + jj)|)) + om8r * |ve (64 * t + jj)| =
-            (psi8R R * (K' * ew R (64 * t + jj)) + om8r) * |ve (64 * t + jj)| := by ring
-        rw [e]; exact this
-    · cases hal : R.al (64 * t + jj)
-      · rw [toReal_def, hqm hal]; simp
-      · have h1 := hqa hal
-        simp only [↓reduceIte]
-        have hG : wt R m'.toReal (64 * t + jj) = K' * ew R (64 * t + jj) := wt_eq _ _ _
-        rw [hG] at h1
-        have hGp : 0 < K' * ew R (64 * t + jj) := mul_pos hK'0 (ew_pos _ _)
-        have h2 : |(q jj).toReal| ≤ (1 + psi8R R) * (K' * ew R (64 * t + jj)) + om8r := by
-          have := abs_sub_abs_le_abs_sub (q jj).toReal (K' * ew R (64 * t + jj))
-          rw [abs_of_pos hGp] at this; linarith
-        rw [abs_mul]
-        have := mul_le_mul_of_nonneg_right h2 hva
-        have e : (1 + psi8R R) * (K' * (ew R (64 * t + jj) * |ve (64 * t + jj)|)) + om8r * |ve (64 * t + jj)| =
-            ((1 + psi8R R) * (K' * ew R (64 * t + jj)) + om8r) * |ve (64 * t + jj)| := by ring
-        rw [e]; exact this
-    · rw [abs_mul]; have := mul_le_mul hqb hv hva (by norm_num); linarith
+    obtain ⟨hqf, hqb, -, -⟩ := lane_p8 hcvt hpf hpb (fun h => (hpa h).1) hpm (hq jj)
+    exact ⟨hqf, hqb⟩
   have hqf : ∀ jj, (q jj).isFinite = true := fun jj => (hlane jj).1
-  have hcn := lane_sum_err2 (fun jj => (hlane jj).2.1)
-  have hTn := lane_sum_le2 (fun jj => (hlane jj).2.2.1)
-  have hTb := lane_sum_le (fun jj => (hlane jj).2.2.2)
-  simp only [zero_mul, zero_add] at hTb
-  rw [← Finset.mul_sum] at hcn hTn
-  have hSn : ∑ jj : Fin 64, (if R.al (64 * t + jj) = true then K' * (ew R (64 * t + jj) * ve (64 * t + jj)) else 0) =
-      K' * ∑ jj : Fin 64, (if R.al (64 * t + jj) = true then ew R (64 * t + jj) * ve (64 * t + jj) else 0) := by
-    rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun jj _ => by split_ifs <;> simp
-  have hMn : ∑ jj : Fin 64, (if R.al (64 * t + jj) = true then K' * (ew R (64 * t + jj) * |ve (64 * t + jj)|) else 0) =
-      K' * Mg R ve t := by
-    unfold Mg; rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun jj _ => by split_ifs <;> simp
-  have hVn : ∑ jj : Fin 64, (if R.al (64 * t + jj) = true then |ve (64 * t + jj)| else 0) = AbV R ve t := rfl
-  rw [hSn, hMn, hVn] at hcn
-  rw [hMn, hVn] at hTn
+  have hqv : ∀ jj, |(q jj).toReal * (vt jj).toReal| ≤ 2 * 57344 := fun jj => by
+    rw [abs_mul]
+    exact mul_le_mul (hlane jj).2 (abs_le_maxVal8 (hvt jj)) (abs_nonneg _) (by norm_num)
+  have hTb : ∑ jj, |(q jj).toReal * (vt jj).toReal| ≤ 64 * (2 * 57344) := by
+    have := lane_sum_le (a := fun jj => |(q jj).toReal * (vt jj).toReal|) (c := fun _ => (0 : ℝ)) (k := 0)
+      (e := 2 * 57344) fun jj => by simp only [zero_mul, zero_add]; exact hqv jj
+    simpa using this
+  -- the lifted chunk maxima
+  have hcl : cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) ≤ 2 * (3 * 57344) := by
+    have hk : ∀ c : ℕ, ((Dot8Chunk.chunkLift8 .f8e5 .f8e5 (fun k => (q k).toRat) (fun k => (vt k).toRat) c : ℚ) : ℝ) ≤
+        3 * 57344 := fun c => by
+      unfold Dot8Chunk.chunkLift8
+      refine fold_max_le_real _ _ (by norm_num) fun k _ => ?_
+      have h1 := Dot8Chunk.liftMag_le .f8e5 (q k).toRat
+      have h2 := Dot8Chunk.liftMag_le .f8e5 (vt k).toRat
+      have h3 := Dot8Chunk.liftMag_nonneg .f8e5 (q k).toRat
+      have h4 := Dot8Chunk.liftMag_nonneg .f8e5 (vt k).toRat
+      have hmn : Rules.Num.minNormal8 .f8e5 = 1 / 2 ^ 14 := by simp [Rules.Num.minNormal8]
+      rw [hmn] at h1 h2
+      have g1 : ((Rules.Num.liftMag .f8e5 (q k).toRat : ℚ) : ℝ) ≤ 2 + 1 / 2 ^ 14 := by
+        have : ((Rules.Num.liftMag .f8e5 (q k).toRat : ℚ) : ℝ) ≤ ((|(q k).toRat| + 1 / 2 ^ 14 : ℚ) : ℝ) :=
+          Rat.cast_le.mpr h1
+        push_cast at this; rw [← toReal_def] at this; linarith [(hlane k).2]
+      have g2 : ((Rules.Num.liftMag .f8e5 (vt k).toRat : ℚ) : ℝ) ≤ 57344 + 1 / 2 ^ 14 := by
+        have : ((Rules.Num.liftMag .f8e5 (vt k).toRat : ℚ) : ℝ) ≤ ((|(vt k).toRat| + 1 / 2 ^ 14 : ℚ) : ℝ) :=
+          Rat.cast_le.mpr h2
+        push_cast at this; rw [← toReal_def] at this; linarith [abs_le_maxVal8 (hvt k)]
+      have g3 : (0 : ℝ) ≤ ((Rules.Num.liftMag .f8e5 (q k).toRat : ℚ) : ℝ) := by exact_mod_cast h3
+      have g4 : (0 : ℝ) ≤ ((Rules.Num.liftMag .f8e5 (vt k).toRat : ℚ) : ℝ) := by exact_mod_cast h4
+      push_cast
+      have k1 := mul_le_mul g1 g2 g4 (by norm_num)
+      have k2 : (2 + 1 / 2 ^ 14 : ℝ) * (57344 + 1 / 2 ^ 14) ≤ 3 * 57344 := by norm_num
+      linarith
+    unfold cl2; push_cast
+    have := hk 0; have := hk 1; linarith
   -- `acc` and `alpha`
   have hmi : 0 < t → MInv R t m := fun ht0 => by
     rcases hold with ⟨h, -⟩ | ⟨-, hmi, -⟩
@@ -660,121 +618,95 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
   have hacc : a.isFinite = true ∧ |a.toReal| ≤ crA t := by
     rcases hold with ⟨-, hf, hz⟩ | ⟨-, -, hA⟩
     · exact ⟨hf, by rw [hz, abs_zero]; exact crA_nonneg t⟩
-    · exact ⟨hA.1, hA.2.1⟩
+    · exact hA
   have hcr := crA_le (t := t) (by omega)
   -- line 95
   have hroom1 : |a.toReal * al.toReal| ≤ 2 ^ 120 := by
     rw [abs_mul]; have := mul_le_mul hacc.2 hab (abs_nonneg _) (crA_nonneg t); linarith
   obtain ⟨ha1f, ha1e⟩ := f32_mul ha1 hacc.1 haf hroom1
-  have hrho0 : (0 : ℝ) ≤ rho8r := by unfold rho8r; positivity
-  have hrhoA := rhoAR_nonneg hR
-  have hrhoA1 := rhoAR_le hR
-  -- the case split: before the first block `λ = 1`, `K = K'`, `a = 0`
-  obtain ⟨K, lam, hK0, hlam0, hlam1, hKK, hold', ha1'⟩ : ∃ K lam : ℝ, 0 ≤ K ∧ 0 ≤ lam ∧ lam ≤ 1 ∧
-      K' = lam * K ∧ |a.toReal - K * Sx R ve t| ≤ K * ES + EB ∧
-      |a1.toReal - lam * a.toReal| ≤ ((1 + dmaxR R) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) - 1) *
-        (lam * |a.toReal|) + (|a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 + 1 / 2 ^ 150) := by
-    rcases hold with ⟨rfl, -, hz⟩ | ⟨ht0, hmi', hA⟩
-    · refine ⟨K', 1, hK'0.le, zero_le_one, le_rfl, by ring, ?_, ?_⟩
-      · rw [hz, show Sx R ve 0 = 0 by simp [Sx, psum_zero], mul_zero, sub_zero, abs_zero]; positivity
-      · rw [ha0 rfl, mul_zero, sub_zero, abs_zero] at ha1e
-        rw [hz]; simp only [mul_zero, sub_zero, abs_zero, zero_mul, zero_add]
-        norm_num at ha1e ⊢; linarith
-    · obtain ⟨hle, hae'⟩ := hae ht0
-      have hl1 : (2 : ℝ) ^ (m.toReal - m'.toReal) ≤ 1 := two_rpow_le_one (by linarith)
-      have hl0 := two_rpow_pos (m.toReal - m'.toReal)
-      refine ⟨(2 : ℝ) ^ (-m.toReal), (2 : ℝ) ^ (m.toReal - m'.toReal), (two_rpow_pos _).le, hl0.le, hl1,
-        ?_, hA.2.2, ?_⟩
-      · rw [hK'd, ← two_rpow_add]; congr 1; ring
-      · exact scale_err hl0.le hae' ha1e
+  -- `|a1| ≤ Φ·crA t + τ`
   set Phi := (1 + dmaxR R) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) with hPhid
-  set tau1 := |a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 + 1 / 2 ^ 150 with htau1d
-  have hPhi1 : (1 : ℝ) ≤ Phi := by rw [hPhid]; have := dmaxR_nonneg hR; nlinarith
-  have hrA : (1 + rho8r) * Phi = 1 + rhoAR R := by rw [hPhid]; unfold rhoAR; ring
-  have htau1 : tau1 ≤ 1 / 2 ^ 66 := by
-    rw [htau1d]
-    have h1 : |a.toReal| * (1 + 1 / 2 ^ 24) ≤ 2 ^ 58 * 2 := mul_le_mul (hacc.2.trans hcr) (by norm_num)
-      (by norm_num) (by norm_num)
-    have h2 : |a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 ≤ 2 ^ 58 * 2 / 2 ^ 126 :=
-      div_le_div_of_nonneg_right h1 (by norm_num)
-    norm_num at h2 ⊢; linarith
-  have htau0 : 0 ≤ tau1 := by rw [htau1d]; positivity
-  have ha1b : |a1.toReal| ≤ Phi * crA t + tau1 := by
+  have ha1b : |a1.toReal| ≤ Phi * crA t + 1 / 2 ^ 66 := by
+    obtain ⟨lam, hlam0, hlam1, ha1'⟩ : ∃ lam : ℝ, 0 ≤ lam ∧ lam ≤ 1 ∧
+        |a1.toReal - lam * a.toReal| ≤ (Phi - 1) * (lam * |a.toReal|) +
+          (|a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 + 1 / 2 ^ 150) := by
+      rcases Nat.eq_zero_or_pos t with h0 | ht0
+      · refine ⟨0, le_rfl, zero_le_one, ?_⟩
+        rw [ha0 h0, mul_zero, sub_zero, abs_zero] at ha1e
+        simp only [zero_mul, sub_zero, mul_zero, zero_add]
+        have : 0 ≤ |a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 := by positivity
+        norm_num at ha1e ⊢; linarith
+      · obtain ⟨hle, hae'⟩ := hae ht0
+        have hl1 : (2 : ℝ) ^ (m.toReal - m'.toReal) ≤ 1 := two_rpow_le_one (by linarith)
+        have hl0 := two_rpow_pos (m.toReal - m'.toReal)
+        exact ⟨_, hl0.le, hl1, scale_err hl0.le hae' ha1e⟩
+    have hPhi1 : (1 : ℝ) ≤ Phi := by rw [hPhid]; have := dmaxR_nonneg hR; nlinarith
     have h1 := abs_sub_abs_le_abs_sub a1.toReal (lam * a.toReal)
     rw [abs_mul, abs_of_nonneg hlam0] at h1
     have h2 : lam * |a.toReal| ≤ crA t := by
       have := mul_le_mul hlam1 hacc.2 (abs_nonneg _) zero_le_one; linarith
     have h3 : (Phi - 1) * (lam * |a.toReal|) ≤ (Phi - 1) * crA t := mul_le_mul_of_nonneg_left h2 (by linarith)
+    have h4 : |a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 + 1 / 2 ^ 150 ≤ 1 / 2 ^ 66 := by
+      have k1 : |a.toReal| * (1 + 1 / 2 ^ 24) ≤ 2 ^ 58 * 2 := mul_le_mul (hacc.2.trans hcr) (by norm_num)
+        (by norm_num) (by norm_num)
+      have k2 : |a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 ≤ 2 ^ 58 * 2 / 2 ^ 126 :=
+        div_le_div_of_nonneg_right k1 (by norm_num)
+      norm_num at k2 ⊢; linarith
     linarith
+  have hPhi2 : Phi ≤ 2 := by rw [hPhid]; have := dmaxR_le hR; nlinarith
   have ha1b' : |a1.toReal| ≤ 2 ^ 60 := by
-    have h1 : Phi ≤ 2 := by rw [hPhid]; have := dmaxR_le hR; nlinarith
-    have := mul_le_mul h1 hcr (crA_nonneg t) (by norm_num)
-    norm_num at htau1; nlinarith
+    have := mul_le_mul hPhi2 hcr (crA_nonneg t) (by norm_num)
+    norm_num at ha1b this ⊢; linarith
   -- line 103
   have hdroom : |a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| +
       (Rules.Num.relDot8 64 * (|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat|) + Rules.Num.absDot8 64) ≤
         Format.binary32.maxVal := by
-    have : (((|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| +
-        (Rules.Num.relDot8 64 * (|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat|) + Rules.Num.absDot8 64)) : ℚ) : ℝ) ≤
-        (Format.binary32.maxVal : ℝ) := by
-      push_cast
-      rw [relDot8_64r, absDot8_64r, maxVal32]
-      simp only [← toReal_def]
-      have h1 : |a1.toReal| + ∑ k, |(q k).toReal * (vt k).toReal| ≤ 2 ^ 61 := by
+    have hr : Rules.Num.relDot8 64 ≤ 1 := by
+      unfold Rules.Num.relDot8 Rules.Num.chunks8; norm_num
+    have ha8 : Rules.Num.absDot8 64 ≤ 1 := by
+      unfold Rules.Num.absDot8 Rules.Num.chunks8; norm_num
+    have h1 : |a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| ≤ 2 ^ 61 := by
+      have e1 : ((|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| : ℚ) : ℝ) =
+          |a1.toReal| + ∑ k, |(q k).toReal * (vt k).toReal| := by push_cast; simp only [← toReal_def]
+      have : ((|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| : ℚ) : ℝ) ≤ ((2 ^ 61 : ℚ) : ℝ) := by
+        rw [e1]; push_cast
         have : (64 : ℝ) * (2 * 57344) ≤ 2 ^ 60 := by norm_num
         linarith
-      have h0 : 0 ≤ |a1.toReal| + ∑ k, |(q k).toReal * (vt k).toReal| :=
-        add_nonneg (abs_nonneg _) (Finset.sum_nonneg fun _ _ => abs_nonneg _)
-      have h2 : rho8r * (|a1.toReal| + ∑ k, |(q k).toReal * (vt k).toReal|) ≤ 1 * 2 ^ 61 :=
-        mul_le_mul (by unfold rho8r; norm_num) h1 h0 (by norm_num)
-      have h3 : (2 : ℝ) ^ 61 + 1 * 2 ^ 61 + 16641 / 2 ^ 139 ≤ (2 ^ 24 - 1) * 2 ^ 104 := by norm_num
-      linarith
-    exact_mod_cast this
-  obtain ⟨ha'f, ha'e⟩ := hdot ha1f hqf hdroom
-  have hcomb : |a'.toReal - (a1.toReal + ∑ jj, (q jj).toReal * (vt jj).toReal)| ≤
-      rho8r * (|a1.toReal| + ∑ jj, |(q jj).toReal * (vt jj).toReal|) + 16641 / 2 ^ 139 := by
-    have := (Rat.cast_le (K := ℝ)).mpr ha'e
-    push_cast at this
-    rw [relDot8_64r, absDot8_64r] at this
-    simp only [← toReal_def] at this
-    exact this
-  refine ⟨⟨ha'f, ?_, ?_⟩, hcomb⟩
-  · -- the crude bound
-    have h1 : |a'.toReal| ≤ (1 + rho8r) * (|a1.toReal| + ∑ jj, |(q jj).toReal * (vt jj).toReal|) + 16641 / 2 ^ 139 := by
-      have := abs_sub_abs_le_abs_sub a'.toReal (a1.toReal + ∑ jj, (q jj).toReal * (vt jj).toReal)
-      have := abs_add_le a1.toReal (∑ jj, (q jj).toReal * (vt jj).toReal)
-      have : |∑ jj, (q jj).toReal * (vt jj).toReal| ≤ ∑ jj, |(q jj).toReal * (vt jj).toReal| :=
-        Finset.abs_sum_le_sum_abs _ _
-      linarith
-    have h2 : (1 + rho8r) * (|a1.toReal| + ∑ jj, |(q jj).toReal * (vt jj).toReal|) ≤
-        (1 + rho8r) * Phi * crA t + (1 + rho8r) * (tau1 + 64 * (2 * 57344)) := by
-      have := mul_le_mul_of_nonneg_left (add_le_add ha1b hTb) (by linarith : (0 : ℝ) ≤ 1 + rho8r)
-      linarith
-    have h3 : (1 + rho8r) * Phi * crA t ≤ 64 / 63 * crA t := by
-      rw [hrA]; exact mul_le_mul_of_nonneg_right hrhoA1 (crA_nonneg t)
-    have h4 : (1 + rho8r) * (tau1 + 64 * (2 * 57344)) + 16641 / 2 ^ 139 ≤ 2 ^ 23 := by
-      have k1 : (1 + rho8r) * (tau1 + 64 * (2 * 57344)) ≤ (1 + rho8r) * (1 / 2 ^ 66 + 64 * (2 * 57344)) :=
-        mul_le_mul_of_nonneg_left (by linarith) (by linarith)
-      have k2 : (1 + rho8r) * (1 / 2 ^ 66 + 64 * (2 * 57344)) + 16641 / 2 ^ 139 ≤ 2 ^ 23 := by
-        unfold rho8r; norm_num
-      linarith
-    have h5 := crA_succ t
+      exact_mod_cast this
+    have h0 : 0 ≤ |a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| :=
+      add_nonneg (abs_nonneg _) (Finset.sum_nonneg fun _ _ => abs_nonneg _)
+    have h2 := mul_le_mul hr h1 h0 (by norm_num)
+    have hmax : (Format.binary32.maxVal : ℚ) = (2 ^ 24 - 1) * 2 ^ 104 := by
+      have := maxVal32; exact_mod_cast this
+    rw [hmax]
+    have : (2 : ℚ) ^ 61 + 1 * 2 ^ 61 + 1 ≤ (2 ^ 24 - 1) * 2 ^ 104 := by norm_num
     linarith
-  · -- the error bound
-    rw [Sx_succ]
-    have key := acc_step8 (a := a.toReal) (a1 := a1.toReal) (a' := a'.toReal) (S := Sx R ve t)
-      (Sn := ∑ jj : Fin 64, (if R.al (64 * t + jj) = true then ew R (64 * t + jj) * ve (64 * t + jj) else 0))
-      (Mn := Mg R ve t) (Vn := AbV R ve t) (ES := ES) (EB := EB) (K := K) (K' := K') (lam := lam)
-      (Phi := Phi) (tau1 := tau1) (rho := rho8r) (psi := psi8R R)
-      (om := om8r) (Tq := ∑ jj, |(q jj).toReal * (vt jj).toReal|)
-      (cn := ∑ jj, (q jj).toReal * (vt jj).toReal) (absD := 16641 / 2 ^ 139)
-      hK0 hlam0 hlam1 hKK hEB hold' hPhi1 ha1' hcn hTn hrho0 hcomb
-    rw [hrA, show 1 + rhoAR R - 1 = rhoAR R by ring, show (1 + rho8r) * (1 + psi8R R) - 1 = psiAR R by
-      unfold psiAR; ring] at key
-    have htau : (1 + rho8r) * tau1 + 16641 / 2 ^ 139 ≤ absAr := by
-      have : (1 + rho8r) * tau1 ≤ 2 * (1 / 2 ^ 66) :=
-        mul_le_mul (by unfold rho8r; norm_num) htau1 htau0 (by norm_num)
-      unfold absAr; norm_num at this ⊢; linarith
+  obtain ⟨ha'f, hcomb⟩ := hdot ha1f hqf hdroom
+  refine ⟨ha1f, ha1e, ⟨ha'f, ?_⟩, hcomb⟩
+  -- the crude bound
+  have h1 : |a'.toReal| ≤ (1 + (cS8 : ℝ)) * |a1.toReal| + (1 + (cC8 : ℝ)) * ∑ jj, |(q jj).toReal * (vt jj).toReal| +
+      (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ) := by
+    have := abs_sub_abs_le_abs_sub a'.toReal (a1.toReal + ∑ jj, (q jj).toReal * (vt jj).toReal)
+    have := abs_add_le a1.toReal (∑ jj, (q jj).toReal * (vt jj).toReal)
+    have : |∑ jj, (q jj).toReal * (vt jj).toReal| ≤ ∑ jj, |(q jj).toReal * (vt jj).toReal| :=
+      Finset.abs_sum_le_sum_abs _ _
     linarith
+  have hfac := crA_factor hR
+  rw [← hPhid] at hfac
+  have h2 : (1 + (cS8 : ℝ)) * |a1.toReal| ≤ 61 / 60 * crA t + 2 / 2 ^ 66 := by
+    rw [cS8_r] at hfac ⊢
+    have := mul_le_mul_of_nonneg_left ha1b (by norm_num : (0 : ℝ) ≤ 1 + 271425 / 2 ^ 24)
+    have := mul_le_mul_of_nonneg_right hfac (crA_nonneg t)
+    nlinarith
+  have h3 : (1 + (cC8 : ℝ)) * ∑ jj, |(q jj).toReal * (vt jj).toReal| +
+      (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ) + 2 / 2 ^ 66 ≤ 2 ^ 23 := by
+    rw [cC8_r, cP8_r, cA8_r]
+    have k1 := mul_le_mul_of_nonneg_left hTb (by norm_num : (0 : ℝ) ≤ 1 + 139297 / 2 ^ 24)
+    have k2 := mul_le_mul_of_nonneg_left hcl (by norm_num : (0 : ℝ) ≤ 132128 / 2 ^ 24)
+    have k3 : (1 + 139297 / 2 ^ 24 : ℝ) * (64 * (2 * 57344)) + 132128 / 2 ^ 24 * (2 * (3 * 57344)) +
+        8225 / 2 ^ 12 * (1 / 2 ^ 126) + 2 / 2 ^ 66 ≤ 2 ^ 23 := by norm_num
+    linarith
+  have h5 := crA_succ t
+  linarith
 
 end Kernels.AttnFwdE5m2

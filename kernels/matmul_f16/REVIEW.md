@@ -6,21 +6,21 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 
 ## Status
 
-- Gate: **PASS**, digest `27825a0f1b176612` (2026-10-31T21:41:28Z).
-- Phase: round 2: all reviewers have filed.
+- Gate: **PASS**, digest `00f23d84e4f9dd74` (2026-11-01T02:11:38Z).
+- Phase: round 2: waiting for the prover (1 open finding(s)).
 - Reviewers: r-matmul (all), r-matmul2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-matmul | r-matmul2 |
 |---|---|---|---|
-| `assumption:dot` | `e932c045f023` | accepted | accepted |
-| `assumption:dot_total` | `3317fc635221` | accepted | accepted |
+| `assumption:dot` | `f4160bd4d1bd` | accepted | accepted |
+| `assumption:dot_total` | `3cecee3de60c` | accepted | accepted |
 | `assumption:faithful` | `6cf79da61917` | accepted | accepted |
 | `conditions` | `5d4073a65cc3` | accepted | accepted |
 | `map` | `b1821d933822` | accepted | accepted |
 | `model` | `8a58b105aede` | accepted | accepted |
-| `spec` | `c51b72255f45` | accepted | accepted |
+| `spec` | `2132a6169f92` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -30,6 +30,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 | [F4](#f4) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-matmul | 1 | At the largest covered K = 2^16 the tolerance (1.62% of sum/a*b/) no longer rejects a result rounded to bfloat16, and ex |
 | [F5](#f5) | CLOSED (non-blocking) | DOC | `decl:Kernels.Matmul.tol` | r-matmul | 1 | tol's docstring says 'at most 2T*(rho*A + alpha): about 1.0e-3*A at K = 4096, 1.6e-2*A at K = 2^16', but those figures a |
 | [F6](#f6) | CLOSED (non-blocking) | DOC | `decl:Kernels.Matmul.model` | r-matmul | 1 | model's docstring argues that an integer argument equal to 1 gives the same model, use by use, but leaves out K = 1 as t |
+| [F7](#f7) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-matmul2 | 2 | L125's mechanism (a subnormal operand's exponent field setting the wgmma window) may also break DotF16; num-dot's fp16 P |
 
 **Certificate: GRANTED**
 
@@ -125,4 +126,26 @@ At K = 1, tl.cdiv(K, BLOCK_SIZE_K) is Python's (1 + 63) // 64 = 1, computed at c
 - **released F2**: Settled. The docstring of `Inst.ok.c_rows`, the README's Conditions table and its Narrowings bullet ('Rows of c within stride_cm') now say that `c_rows` asks each row to lie within `stride_cm`, and that it excludes column-major and transposed layouts of `c`, though their rows do not overlap, as well as overlapping layouts. That is what `N * stride_cn <= stride_cm` says.
 - **released F3**: Settled with the narrowing to K <= 2^13. work/Cover.lean (round 2) checks tol(2^13, A) between 2.01e-3*A and 2.03e-3*A, and its absolute part below 10^-34. It also checks that at K = 2^13 a bfloat16-rounded result (1 for S = 1 + 2^-8 - 2^-10, A = S) lies outside OutSpec's finite-case bound, as the write-up says. The README now states that the bound is relative to sum|a*b|, about 12% of a typical randn |S| at 2^13. The host's largest K (4096) is still covered (sq_ok, every square row-major launch up to 4096).
 - **accepted** at gate `27825a0f1b176612`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T02:15:40Z` coordinator's note: Library round 24 (L124, L125; docs/library-review/ISSUES.md) changed docs/rules/num.md (the fp8 tl.dot facts DotE4m3, DotE5m2, DotE4m3E5m2, DotE5m2E4m3 and DotF8 withdrawn as false on a subnormal operand; new chunk facts DotE4m3Chunk etc. in lean/TVA/Rules/Num/Dot8Chunk.lean) and lean/TVA/Rules/Num/Sm90.lean (those facts removed; chunks8, relDot8, absDot8 moved to Dot8Chunk.lean unchanged). No fact or constant this kernel cites changed; its reviewers re-accept the items that re-opened.
+
+### r-matmul files ([filing](review/round-2/r-matmul/filing-2.json), [report](review/round-2/r-matmul/report-2.md), [work](review/round-2/r-matmul/work/))
+
+`2026-11-01T02:18:31Z`, at gate `00f23d84e4f9dd74`. Notes: Re-acceptance after library round 24 (L124, L125). Between gates 27825a0f1b176612 and 00f23d84e4f9dd74, the snapshots differ only in the whole-file digests of docs/rules/num.md (assumption:dot, assumption:dot_total, spec) and lean/TVA/Rules/Num/Sm90.lean (assumption:dot, spec). Every constant those items reach hashes as before: DotF16, DotTotal, DotAcc, relDot16, absDot16 and DotLoop.bound. The diff of Sm90.lean only removes the fp8 facts and moves chunks8, relDot8 and absDot8 out. On num.md, the DotF16 row of 'Facts the library states', the reviewer's table row for float16/bfloat16 tl.dot (maxImpreciseAcc = 0, any precision), the DotTotal row, and the chunk-model bullet on 16-bit operands are all unchanged. The withdrawn and new facts are all fp8, which this kernel neither uses nor cites.
+
+- **accepted** at gate `00f23d84e4f9dd74`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-matmul2 files ([filing](review/round-2/r-matmul2/filing-2.json), [report](review/round-2/r-matmul2/report-2.md), [work](review/round-2/r-matmul2/work/))
+
+`2026-11-01T02:19:44Z`, at gate `00f23d84e4f9dd74`. Notes: Library round 24 re-check (gate 00f23d84e4f9dd74). git diff of docs/rules/num.md and lean/TVA/Rules/Num/Sm90.lean: DotF16 (forall p, DotAcc P <f16, f16, f32, p, 0> True relDot16 absDot16), relDot16 K = (K+2)*2^-22 and absDot16 K = (K+2)*2^-126 are unchanged. So are DotF16's row in 'Facts the library states', the DotTotal row, the 'What a kernel reviewer checks' row for fp16/bf16 tl.dot (DotF16 P, DotBF16 P), and the 16-bit bullet of the chunk-model section. Only the fp8 facts were withdrawn, the chunk facts added, and the fp8 constants moved. The kernel's files did not change. assumption:dot, assumption:dot_total and spec still rest on the same facts and constants. The LIBRARY_REPORT is a doubt the change raised; it does not block.
+
+#### F7
+
+**LIBRARY_REPORT** on `decl:TVA.Rules.Num.DotF16` (non-blocking): L125's mechanism (a subnormal operand's exponent field setting the wgmma window) may also break DotF16; num-dot's fp16 Part 2 has the same input gap L125 names for fp8
+
+L125 withdrew the fp8 whole-dot facts. On wgmma a chunk is aligned to the largest exponent field, a subnormal operand's field reads as the smallest normal's, and so a product with a subnormal operand can set the window while its magnitude is far below it. evidence/num-dot's Part 2 'had no input where a product with a subnormal operand sets the window'. Its fp16 rows (DotF16, both paths) come from the same Part 2 input kinds, and I see no check of this case for 16-bit operands: num-dot-chunk tests fp8 only, and its mma.sync part checks against the loose fp8 chunk bound. If fp16 wgmma aligns the same way, take a = 2^-24 (a subnormal float16, field -14) times b = 2^15: the product is 2^-9 but its field is 2^1, so the unit is about 2^-22. Fifteen more products just below 2^-22 in the same chunk of 16 would be lost, about 3.6e-6. DotF16 allows 18*2^-22*(|acc| + sum|a*b|), about 8.4e-9 here, plus 18*2^-126: roughly 400 times less. Whether the device does this is a library question I cannot check, and I do not claim it does. matmul_f16 cites DotF16, and its inputs may hold subnormal float16 values (Pre allows any; randn cast to float16 contains some at the benchmark's sizes). Suggest the library run num-dot's fp16 and bf16 checks with a subnormal-operand product setting the window, or count subnormal operands as DotF8Chunk's liftMag does. Non-blocking: I re-accept the items.
+
+*Evidence:* docs/library-review/ISSUES.md L125; docs/rules/num.md, the tl.dot chunk model and device questions (alignment bullet); evidence/num-dot Part 2 input kinds and its round-24 note
+
+- **accepted** at gate `00f23d84e4f9dd74`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T02:24:37Z` coordinator's note: Library issue L126 (docs/library-review/ISSUES.md; evidence/num-dot-sub16), open: DotF16, which this claim cites, fails on the device when a product with a subnormal float16 operand and a large partner sets the tl.dot window (up to 53 times its bound on wgmma and mma.sync). The certificate rests on DotF16 as stated; the fix (a library round, then a re-proof of this kernel) is not yet scheduled.
 
