@@ -1,0 +1,155 @@
+test  seed 41: D=64 N=128 causal=False rows=128  max X 8.5  pE median 1.02  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.0876 -> new 0.0876 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 1.94  tolM median 0.0301  |attnRef| median 0.0463  tolO/floor median 1.76
+    0 meets Post: old 86.8% -> new 86.8%
+test  seed 41: D=64 N=128 causal=True rows=128  max X 8.5  pE median 1.02  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.0917 -> new 0.0907 (new/old median 0.986, max 1; below old on 50.1% of elements)  loss-arm blocks 25%
+    tolV median 1.66  tolM median 0.0276  |attnRef| median 0.0688  tolO/floor median 1.85
+    0 meets Post: old 65.8% -> new 64.8%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+test  seed 41: D=64 N=1024 causal=False rows=128  max X 9.2  pE median 1.03  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.104 -> new 0.104 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 2.89  tolM median 0.0387  |attnRef| median 0.0181  tolO/floor median 2.09
+    0 meets Post: old 100.0% -> new 100.0%
+test  seed 41: D=64 N=1024 causal=True rows=128  max X 8.7  pE median 1.02  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.096 -> new 0.095 (new/old median 0.985, max 1; below old on 53.0% of elements)  loss-arm blocks 9%
+    tolV median 2.31  tolM median 0.0349  |attnRef| median 0.0255  tolO/floor median 1.92
+    0 meets Post: old 94.5% -> new 94.2%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+test  seed 41: D=64 N=4096 causal=False rows=128  max X 9.4  pE median 1.03  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.194 -> new 0.194 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 7.32  tolM median 0.042  |attnRef| median 0.0085  tolO/floor median 3.89
+    0 meets Post: old 100.0% -> new 100.0%
+test  seed 41: D=64 N=4096 causal=True rows=128  max X 10.1  pE median 1.03  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.134 -> new 0.132 (new/old median 0.984, max 1; below old on 73.0% of elements)  loss-arm blocks 5%
+    tolV median 4.05  tolM median 0.0394  |attnRef| median 0.0136  tolO/floor median 2.65
+    0 meets Post: old 98.3% -> new 98.2%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+test  seed 41: D=128 N=128 causal=False rows=128  max X 15.1  pE median 1.07  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.115 -> new 0.115 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 1.9  tolM median 0.0933  |attnRef| median 0.0619  tolO/floor median 2.38
+    0 meets Post: old 85.5% -> new 85.5%
+test  seed 41: D=128 N=128 causal=True rows=128  max X 15.1  pE median 1.06  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.121 -> new 0.12 (new/old median 0.985, max 1; below old on 50.6% of elements)  loss-arm blocks 25%
+    tolV median 1.7  tolM median 0.0891  |attnRef| median 0.0923  tolO/floor median 2.46
+    0 meets Post: old 63.8% -> new 62.8%
+    row 0 (one key): tolO/|attnRef| old 0.311 -> new 0.29
+test  seed 41: D=128 N=1024 causal=False rows=128  max X 16.3  pE median 1.08  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.145 -> new 0.145 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 2.91  tolM median 0.117  |attnRef| median 0.0253  tolO/floor median 2.93
+    0 meets Post: old 100.0% -> new 100.0%
+test  seed 41: D=128 N=1024 causal=True rows=128  max X 15.3  pE median 1.08  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.135 -> new 0.133 (new/old median 0.985, max 1; below old on 53.4% of elements)  loss-arm blocks 9%
+    tolV median 2.42  tolM median 0.108  |attnRef| median 0.0382  tolO/floor median 2.68
+    0 meets Post: old 93.8% -> new 93.5%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+test  seed 41: D=128 N=4096 causal=False rows=128  max X 15.8  pE median 1.09  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.27 -> new 0.27 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 7.31  tolM median 0.124  |attnRef| median 0.0135  tolO/floor median 5.43
+    0 meets Post: old 100.0% -> new 100.0%
+test  seed 41: D=128 N=4096 causal=True rows=128  max X 15.5  pE median 1.09  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.188 -> new 0.185 (new/old median 0.984, max 1; below old on 73.0% of elements)  loss-arm blocks 5%
+    tolV median 4.04  tolM median 0.118  |attnRef| median 0.0206  tolO/floor median 3.73
+    0 meets Post: old 98.1% -> new 98.0%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+bench seed 41: D=64 N=1024 causal=False rows=128  max X 100.5  pE median 1.32  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.585 -> new 0.428 (new/old median 0.782, max 1; below old on 98.9% of elements)  loss-arm blocks 58%
+    tolV median 6.62  tolM median 0.395  |attnRef| median 0.507  tolO/floor median 4.98
+    0 meets Post: old 49.3% -> new 35.0%
+bench seed 41: D=64 N=1024 causal=True rows=128  max X 95.8  pE median 1.29  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.44 -> new 0.372 (new/old median 0.878, max 1; below old on 93.9% of elements)  loss-arm blocks 49%
+    tolV median 5.55  tolM median 0.365  |attnRef| median 0.506  tolO/floor median 4.27
+    0 meets Post: old 35.4% -> new 29.8%
+    row 0 (one key): tolO/|attnRef| old 0.314 -> new 0.291
+bench seed 41: D=128 N=1024 causal=False rows=128  max X 159.0  pE median 2.34  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 1.24 -> new 0.655 (new/old median 0.653, max 1; below old on 99.2% of elements)  loss-arm blocks 57%
+    tolV median 6.72  tolM median 1.23  |attnRef| median 0.571  tolO/floor median 7.85
+    0 meets Post: old 82.6% -> new 50.5%
+bench seed 41: D=128 N=1024 causal=True rows=128  max X 154.5  pE median 2.21  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.843 -> new 0.502 (new/old median 0.758, max 1; below old on 97.9% of elements)  loss-arm blocks 61%
+    tolV median 5.71  tolM median 1.15  |attnRef| median 0.617  tolO/floor median 5.1
+    0 meets Post: old 62.6% -> new 38.2%
+    row 0 (one key): tolO/|attnRef| old 0.334 -> new 0.299
+test  seed 42: D=64 N=128 causal=False rows=128  max X 8.1  pE median 1.02  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.0871 -> new 0.0871 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 1.8  tolM median 0.0304  |attnRef| median 0.0464  tolO/floor median 1.76
+    0 meets Post: old 86.4% -> new 86.4%
+test  seed 42: D=64 N=128 causal=True rows=128  max X 7.9  pE median 1.02  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.0909 -> new 0.0899 (new/old median 0.985, max 1; below old on 50.3% of elements)  loss-arm blocks 25%
+    tolV median 1.69  tolM median 0.0284  |attnRef| median 0.07  tolO/floor median 1.87
+    0 meets Post: old 64.7% -> new 63.9%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+test  seed 42: D=64 N=1024 causal=False rows=128  max X 9.3  pE median 1.03  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.103 -> new 0.103 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 2.89  tolM median 0.0389  |attnRef| median 0.017  tolO/floor median 2.08
+    0 meets Post: old 100.0% -> new 100.0%
+test  seed 42: D=64 N=1024 causal=True rows=128  max X 8.5  pE median 1.02  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.0962 -> new 0.0952 (new/old median 0.985, max 1; below old on 53.8% of elements)  loss-arm blocks 9%
+    tolV median 2.33  tolM median 0.0357  |attnRef| median 0.0259  tolO/floor median 1.92
+    0 meets Post: old 95.0% -> new 94.8%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+test  seed 42: D=64 N=4096 causal=False rows=128  max X 8.9  pE median 1.03  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.193 -> new 0.193 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 7.31  tolM median 0.0415  |attnRef| median 0.00817  tolO/floor median 3.88
+    0 meets Post: old 100.0% -> new 100.0%
+test  seed 42: D=64 N=4096 causal=True rows=128  max X 9.1  pE median 1.03  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.133 -> new 0.131 (new/old median 0.984, max 1; below old on 72.8% of elements)  loss-arm blocks 5%
+    tolV median 4.01  tolM median 0.0385  |attnRef| median 0.0133  tolO/floor median 2.61
+    0 meets Post: old 98.1% -> new 98.1%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+test  seed 42: D=128 N=128 causal=False rows=128  max X 14.5  pE median 1.07  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.118 -> new 0.118 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 1.9  tolM median 0.097  |attnRef| median 0.0623  tolO/floor median 2.39
+    0 meets Post: old 85.2% -> new 85.2%
+test  seed 42: D=128 N=128 causal=True rows=128  max X 14.9  pE median 1.06  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.122 -> new 0.12 (new/old median 0.985, max 1; below old on 50.4% of elements)  loss-arm blocks 25%
+    tolV median 1.73  tolM median 0.0884  |attnRef| median 0.0961  tolO/floor median 2.46
+    0 meets Post: old 61.5% -> new 60.6%
+    row 0 (one key): tolO/|attnRef| old 0.311 -> new 0.29
+test  seed 42: D=128 N=1024 causal=False rows=128  max X 15.8  pE median 1.09  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.146 -> new 0.146 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 2.89  tolM median 0.118  |attnRef| median 0.0256  tolO/floor median 2.95
+    0 meets Post: old 100.0% -> new 100.0%
+test  seed 42: D=128 N=1024 causal=True rows=128  max X 15.8  pE median 1.08  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.134 -> new 0.133 (new/old median 0.984, max 1; below old on 55.2% of elements)  loss-arm blocks 10%
+    tolV median 2.41  tolM median 0.107  |attnRef| median 0.0388  tolO/floor median 2.69
+    0 meets Post: old 93.4% -> new 93.2%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+test  seed 42: D=128 N=4096 causal=False rows=128  max X 16.7  pE median 1.1  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.274 -> new 0.274 (new/old median 1, max 1; below old on 0.0% of elements)  loss-arm blocks 0%
+    tolV median 7.32  tolM median 0.131  |attnRef| median 0.0137  tolO/floor median 5.53
+    0 meets Post: old 100.0% -> new 100.0%
+test  seed 42: D=128 N=4096 causal=True rows=128  max X 15.5  pE median 1.09  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.188 -> new 0.184 (new/old median 0.984, max 1; below old on 72.1% of elements)  loss-arm blocks 5%
+    tolV median 3.99  tolM median 0.119  |attnRef| median 0.0204  tolO/floor median 3.69
+    0 meets Post: old 98.2% -> new 98.2%
+    row 0 (one key): tolO/|attnRef| old 0.31 -> new 0.29
+bench seed 42: D=64 N=1024 causal=False rows=128  max X 98.0  pE median 1.31  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.54 -> new 0.414 (new/old median 0.811, max 1; below old on 97.8% of elements)  loss-arm blocks 52%
+    tolV median 6.71  tolM median 0.387  |attnRef| median 0.553  tolO/floor median 4.73
+    0 meets Post: old 42.8% -> new 31.8%
+bench seed 42: D=64 N=1024 causal=True rows=128  max X 95.1  pE median 1.28  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.428 -> new 0.351 (new/old median 0.872, max 1; below old on 94.1% of elements)  loss-arm blocks 51%
+    tolV median 5.52  tolM median 0.361  |attnRef| median 0.53  tolO/floor median 3.89
+    0 meets Post: old 31.4% -> new 26.3%
+    row 0 (one key): tolO/|attnRef| old 0.317 -> new 0.292
+bench seed 42: D=128 N=1024 causal=False rows=128  max X 162.7  pE median 2.28  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 1.29 -> new 0.651 (new/old median 0.615, max 1; below old on 98.7% of elements)  loss-arm blocks 59%
+    tolV median 6.78  tolM median 1.19  |attnRef| median 0.597  tolO/floor median 7.53
+    0 meets Post: old 81.5% -> new 49.3%
+bench seed 42: D=128 N=1024 causal=True rows=128  max X 155.8  pE median 2.23  Z<Zold (beyond rounding) on 0% of rows
+    tolO old median 0.956 -> new 0.639 (new/old median 0.782, max 1; below old on 96.9% of elements)  loss-arm blocks 57%
+    tolV median 5.62  tolM median 1.16  |attnRef| median 0.579  tolO/floor median 7.61
+    0 meets Post: old 67.1% -> new 50.1%
+    row 0 (one key): tolO/|attnRef| old 0.331 -> new 0.298
+ones : D=64 N=1024  tolO old 0.4629 -> new 0.4629  (loss-arm blocks 0%)
+ones : D=64 N=2048  tolO old 0.6972 -> new 0.6972  (loss-arm blocks 0%)
+ones : D=64 N=4096  tolO old 1.313 -> new 1.313  (loss-arm blocks 0%)
+ones : D=64 N=8192  tolO old 3.51 -> new 2.425  (loss-arm blocks 42%)
+ones : D=64 N=16384  tolO old 19.31 -> new 3.551  (loss-arm blocks 70%)
+ones : D=64 N=32768  tolO old 631.5 -> new 5.455  (loss-arm blocks 84%)
+ones : D=64 N=65536  tolO old 1.172e+06 -> new 9.876  (loss-arm blocks 91%)
+vEff0: D=64 N=4096 at the cap: tolO old 9.38e-06 -> new 7.73e-06;  tolV(K=R=0) 7.629e-06
+vEff0: D=64 N=16384 at the cap: tolO old 9.95e-05 -> new 9.35e-06;  tolV(K=R=0) 7.629e-06
+vEff0: D=128 N=16384 at the cap: tolO old 0.00011 -> new 9.4e-06;  tolV(K=R=0) 7.629e-06
+vEff0: D=256 N=65536 at the cap: tolO old 10.1 -> new 5.35e-05;  tolV(K=R=0) 7.629e-06

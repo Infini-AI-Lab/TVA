@@ -1,0 +1,24 @@
+{
+  "reviewer": "r-e5fwd2",
+  "kernel": "attn_fwd_e5m2",
+  "round": 6,
+  "findings": [
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/attn_fwd_e5m2/README.md",
+      "summary": "The table's benchmark D = 128 causal tolO range (0.53-0.65) misses my seed-1 head's 0.689, though the note says ranges are widened to the reviewers' samples; also D = 64 non-causal 0.42-0.44 vs 0.45",
+      "detail": "This is what remains of F12, which listed the value ('causal: tolO is 0.55 and 0.69'). In the Specification's table, the benchmark D = 128 row gives the causal tolO as 0.83 to 1.01 -> 0.53 to 0.65. My seed-1 causal head has 1.01 -> 0.689. That is 6% above the range's end, while the table note says the 'now' ranges are widened to the reviewers' samples. Two smaller misses in the same rows, within a point or a few percent: D = 64 non-causal tolO 0.42 to 0.44 against my 0.448 and 0.454, and D = 64 causal 0 rejected on 71% to 75% against my 70.1%. Widening these to 0.53-0.69, 0.42-0.45 and 70%-75% would cover them. The text's overall D = 128 range, 0.53 to 0.89, already covers 0.69.",
+      "evidence": "kernels/attn_fwd_e5m2/review/round-5/r-e5fwd2/work/tolerance.out, the 'bench' rows at N = 1024 (seed 1 causal D = 128; seeds 1 and 2 non-causal D = 64; seed 1 causal D = 64)",
+      "affects": ["item:spec"]
+    }
+  ],
+  "release": [
+    {
+      "id": "F12",
+      "note": "Its headline numbers are covered. D = 128 non-causal tolO is 0.65-0.89 (mine 0.73, 0.89). 0 meets Post on 41-61% (mine 42.9-61.3%). tolO is 4 to 12.5 times the floor (mine 4.1-12.2). It falls by 11-26% and 20-49% (mine 15-24% and 32-46%). One sub-range F12 listed (D = 128 causal tolO, mine 0.69) is still missed; it is raised as a new, narrower DOC."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 6 changed only README.md (gate 3d7848ee51b5e6a6 and the item digests unchanged), so my acceptance of every item stands. I took no new samples and checked against my round-5 tolerance.out."
+}

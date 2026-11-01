@@ -3,7 +3,7 @@ import AttnFwdE5m2.Tile
 /-!
 # `attn_fwd_e5m2`: the loop of `_attn_fwd_inner` (lines 69–109)
 
-* `qk_lane`, `pv_lane`: `Num.DotE5m2Chunk` at one element of `tl.dot(q, k)` (line 73) and of
+* `qk_lane`, `pv_lane`: `Num.DotE5m2ChunkLoss` at one element of `tl.dot(q, k)` (line 73) and of
   `tl.dot(p, v, acc)` (line 103);
 * `v_lanes`: the block of `v` line 98 loads holds the values `vEff` (`v`'s elements when the head's
   `v` is read, `+0` otherwise);
@@ -33,9 +33,10 @@ theorem val?_f8 {x : F8E5} (h : x.isFinite = true) : DType.val? .f8e5 x = some x
   rw [ite_eq_left h]
 
 /-- **An element of `tl.dot(q, k)`** (line 73), for a covered head: finite and within the
-smaller of the chunk facts' bound (`scoreErr`, `Dot8Chunk.DotF8Chunk.err`) and their whole-dot bound
-(`relLift8·scoreLift + absLift8`, `Dot8Chunk.DotF8Chunk.liftAcc`) of the exact score. -/
-theorem qk_lane {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P) {d : Inst} (hd : d.ok) {init : Mem}
+smaller of the loss facts' bound (`scoreErr`, `Dot8Chunk.DotF8ChunkLoss.err`) and the chunk facts'
+whole-dot bound (`relLift8·scoreLift + absLift8`, `Dot8Chunk.DotF8Chunk.liftAcc`, from the chunk facts
+that `Rules.Num.DotF8ChunkLoss.chunk` gives) of the exact score. -/
+theorem qk_lane {P : Platform} (hdot : Rules.Num.DotE5m2ChunkLoss P) {d : Inst} (hd : d.ok) {init : Mem}
     {bh n j : ℕ} (hn : n < d.N_CTX) (hj : j < d.N_CTX) (hH : HeadOk d init bh)
     {M : ℕ} {q : Tensor [M, d.HEAD_DIM] F8E5} {kv : Tensor [64, d.HEAD_DIM] F8E5} {S : Tensor [M, 64] F32}
     (hS : P.dot cfg8 q kv.trans (tl.zeros [M, 64] .f32) S) (r : Fin M) (jj : Fin 64)
@@ -69,7 +70,7 @@ theorem qk_lane {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P) {d : Inst} (hd 
   have hrd := Dot8Chunk.relDot8_le_relLift8 d.HEAD_DIM
   have had := Dot8Chunk.absDot8_le_absLift8 d.HEAD_DIM
   have hrd0 := Dot8Chunk.relDot8_nonneg d.HEAD_DIM
-  obtain ⟨vr, hvr, herr⟩ := Dot8Chunk.DotF8Chunk.err hdot .tf32 hS r jj (qrow d init bh n) (krow d init bh j) 0
+  obtain ⟨vr, hvr, herr⟩ := Dot8Chunk.DotF8ChunkLoss.err hdot .tf32 hS r jj (qrow d init bh n) (krow d init bh j) 0
     hva hvb DotLoop.zero_val (by
       rw [hmax]; simp only [abs_zero, zero_add]
       have : Rules.Num.relDot8 d.HEAD_DIM * ∑ e, |qrow d init bh n e * krow d init bh j e| ≤ 2 ^ 74 := by
@@ -78,7 +79,7 @@ theorem qk_lane {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P) {d : Inst} (hd 
       nlinarith)
     (Dot8Chunk.chunkLift8 .f8e5 .f8e5 (qrow d init bh n) (krow d init bh j))
     (fun _ _ k hk => Dot8Chunk.le_chunkLift8 _ _ _ _ hk)
-  obtain ⟨vr', hvr', herr'⟩ := Dot8Chunk.DotF8Chunk.liftAcc hdot .tf32 q kv.trans (tl.zeros [M, 64] .f32) S hS
+  obtain ⟨vr', hvr', herr'⟩ := Dot8Chunk.DotF8Chunk.liftAcc (Rules.Num.DotF8ChunkLoss.chunk (P := P) hdot) .tf32 q kv.trans (tl.zeros [M, 64] .f32) S hS
     r jj (qrow d init bh n) (krow d init bh j) 0 hva hvb DotLoop.zero_val (by
       show _ ≤ DType.bound .f32
       rw [hmax]; simp only [abs_zero, zero_add]
@@ -120,10 +121,11 @@ theorem abs_chunk2_le (va vb : Fin 64 → ℚ) :
   have h1 : |Rules.Num.chunkSum8 va vb 1| ≤ ∑ k ∈ Rules.Num.chunk8 64 1, |va k * vb k| := Finset.abs_sum_le_sum_abs _ _
   linarith
 
-/-- **An element of `tl.dot(p, v, acc)`** (line 103): `Num.DotE5m2Chunk` over its two chunks
-(`Dot8Chunk.DotF8Chunk.err` with the chunks' largest lifted products, `Step.errB2_le`), in the form
-`astep` takes. -/
-theorem pv_lane {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P) {D M : ℕ} {q8 : Tensor [M, 64] F8E5}
+/-- **An element of `tl.dot(p, v, acc)`** (line 103): `Num.DotE5m2ChunkLoss` over its two chunks
+(`Dot8Chunk.DotF8ChunkLoss.err`, with the chunks' largest lifted products), in both forms `astep`
+takes: through `errB` (`Dot8Chunk.errM_le_errB`, `Step.errB2_le`, the chunk facts' arm) and through
+`errL` (`Dot8Chunk.errM_le_errL`, `Step.errL2_le`, the loss arm). -/
+theorem pv_lane {P : Platform} (hdot : Rules.Num.DotE5m2ChunkLoss P) {D M : ℕ} {q8 : Tensor [M, 64] F8E5}
     {vv : Tensor [64, D] F8E5} {a1 acc' : Tensor [M, D] F32} (h : P.dot cfg8 q8 vv a1 acc')
     (r : Fin M) (e : Fin D) (hvf : ∀ k, (vv.get2 k e).isFinite = true) :
     (a1.get2 r e).isFinite = true → (∀ k, (q8.get2 r k).isFinite = true) →
@@ -133,34 +135,62 @@ theorem pv_lane {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P) {D M : ℕ} {q8
       (acc'.get2 r e).isFinite = true ∧
         |(acc'.get2 r e).toReal - ((a1.get2 r e).toReal + ∑ k, (q8.get2 r k).toReal * (vv.get2 k e).toReal)| ≤
           (cS8 : ℝ) * |(a1.get2 r e).toReal| + (cC8 : ℝ) * ∑ k, |(q8.get2 r k).toReal * (vv.get2 k e).toReal| +
-            (cP8 : ℝ) * cl2 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) + (cA8 : ℝ) := by
+            (cP8 : ℝ) * cl2 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) + (cA8 : ℝ) ∧
+        |(acc'.get2 r e).toReal - ((a1.get2 r e).toReal + ∑ k, (q8.get2 r k).toReal * (vv.get2 k e).toReal)| ≤
+          (lS8 : ℝ) * |(a1.get2 r e).toReal| + (lC8 : ℝ) * ∑ k, |(q8.get2 r k).toReal * (vv.get2 k e).toReal| +
+            (lP8 : ℝ) * cl2 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) + (lA8 : ℝ) := by
   intro ha hq hroom
-  obtain ⟨vr, hvr, herr⟩ := Dot8Chunk.DotF8Chunk.err hdot .tf32 h r e (fun k => (q8.get2 r k).toRat)
+  obtain ⟨vr, hvr, herr⟩ := Dot8Chunk.DotF8ChunkLoss.err hdot .tf32 h r e (fun k => (q8.get2 r k).toRat)
     (fun k => (vv.get2 k e).toRat) (a1.get2 r e).toRat (fun k => val?_f8 (hq k)) (fun k => val?_f8 (hvf k))
     (DotLoop.val?_f32.mpr ⟨ha, rfl⟩) hroom
     (Dot8Chunk.chunkLift8 .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat))
     (fun _ _ k hk => Dot8Chunk.le_chunkLift8 _ _ _ _ hk)
   obtain ⟨hf, hv⟩ := DotLoop.val?_f32.mp hvr
-  refine ⟨hf, ?_⟩
   rw [show Rules.Num.chunks8 64 = 2 from rfl] at herr
-  have h2 := errB2_le (v := (a1.get2 r e).toRat) (c := Rules.Num.chunkSum8 (fun k => (q8.get2 r k).toRat)
-    (fun k => (vv.get2 k e).toRat))
-    (Dot8Chunk.chunkLift8_nonneg .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 0)
-    (Dot8Chunk.chunkLift8_nonneg .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 1)
-  have h3 := abs_chunk2_le (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat)
-  have hcC : (0 : ℚ) ≤ cC8 := by unfold cC8 Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8; positivity
-  have h4 := mul_le_mul_of_nonneg_left h3 hcC
-  have hq : |(acc'.get2 r e).toRat - ((a1.get2 r e).toRat + ∑ k, (q8.get2 r k).toRat * (vv.get2 k e).toRat)| ≤
-      cS8 * |(a1.get2 r e).toRat| + cC8 * ∑ k, |(q8.get2 r k).toRat * (vv.get2 k e).toRat| +
-        cP8 * (Dot8Chunk.chunkLift8 .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 0 +
-          Dot8Chunk.chunkLift8 .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 1) + cA8 := by
-    rw [hv]; linarith
-  have := (Rat.cast_le (K := ℝ)).mpr hq
-  push_cast at this
-  simp only [← toReal_def] at this
-  unfold cl2
-  push_cast
-  exact this
+  have hm0 := Dot8Chunk.chunkLift8_nonneg .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 0
+  have hm1 := Dot8Chunk.chunkLift8_nonneg .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 1
+  refine ⟨hf, ?_, ?_⟩
+  · have h2 := (Dot8Chunk.errM_le_errB (α := Rules.Num.alphaChunk8) (κ := Rules.Num.kappaChunk8)
+      (ρ' := Rules.Num.rhoLossChunk8) Dot8Chunk.rhoChunk8_nonneg Dot8Chunk.sigmaChunk8_nonneg _ _
+      (Rules.Num.chunkAbs8 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat)) _ 2).trans
+      (errB2_le (v := (a1.get2 r e).toRat) (c := Rules.Num.chunkSum8 (fun k => (q8.get2 r k).toRat)
+        (fun k => (vv.get2 k e).toRat)) hm0 hm1)
+    have h3 := abs_chunk2_le (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat)
+    have hcC : (0 : ℚ) ≤ cC8 := by unfold cC8 Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8; positivity
+    have h4 := mul_le_mul_of_nonneg_left h3 hcC
+    have hq : |(acc'.get2 r e).toRat - ((a1.get2 r e).toRat + ∑ k, (q8.get2 r k).toRat * (vv.get2 k e).toRat)| ≤
+        cS8 * |(a1.get2 r e).toRat| + cC8 * ∑ k, |(q8.get2 r k).toRat * (vv.get2 k e).toRat| +
+          cP8 * (Dot8Chunk.chunkLift8 .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 0 +
+            Dot8Chunk.chunkLift8 .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 1) + cA8 := by
+      rw [hv]; linarith
+    have := (Rat.cast_le (K := ℝ)).mpr hq
+    push_cast at this
+    simp only [← toReal_def] at this
+    unfold cl2
+    push_cast
+    exact this
+  · have h2 := (Dot8Chunk.errM_le_errL (ρ := Rules.Num.rhoChunk8) (α := Rules.Num.alphaChunk8)
+      (κ := Rules.Num.kappaChunk8) Dot8Chunk.sigmaChunk8_nonneg Dot8Chunk.rhoLossChunk8_nonneg _ _
+      (Rules.Num.chunkAbs8 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat)) _ 2).trans
+      (errL2_le (v := (a1.get2 r e).toRat) (c := Rules.Num.chunkSum8 (fun k => (q8.get2 r k).toRat)
+        (fun k => (vv.get2 k e).toRat))
+        (Dot8Chunk.abs_chunkSum8_le (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 0)
+        (Dot8Chunk.abs_chunkSum8_le (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 1) hm0 hm1)
+    have h3 := Dot8Chunk.sum_chunkAbs8 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat)
+    rw [show Rules.Num.chunks8 64 = 2 from rfl, Finset.sum_range_succ, Finset.sum_range_succ, Finset.sum_range_zero,
+      zero_add] at h3
+    rw [h3] at h2
+    have hq : |(acc'.get2 r e).toRat - ((a1.get2 r e).toRat + ∑ k, (q8.get2 r k).toRat * (vv.get2 k e).toRat)| ≤
+        lS8 * |(a1.get2 r e).toRat| + lC8 * ∑ k, |(q8.get2 r k).toRat * (vv.get2 k e).toRat| +
+          lP8 * (Dot8Chunk.chunkLift8 .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 0 +
+            Dot8Chunk.chunkLift8 .f8e5 .f8e5 (fun k => (q8.get2 r k).toRat) (fun k => (vv.get2 k e).toRat) 1) + lA8 := by
+      rw [hv]; linarith
+    have := (Rat.cast_le (K := ℝ)).mpr hq
+    push_cast at this
+    simp only [← toReal_def] at this
+    unfold cl2
+    push_cast
+    exact this
 
 /-! ## The rows' state -/
 
@@ -285,7 +315,7 @@ theorem vcol_le {d : Inst} (hd : d.ok) {bh : ℕ} (hbh : bh < d.Z * d.H) :
 /-- **The loop for `STAGE` 1 or 3**: blocks `t0, …, t0 + n − 1`, every key of which every row
 attends to. -/
 theorem safe_loop_plain {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P : Platform}
-    (hdot : Rules.Num.DotE5m2Chunk P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
+    (hdot : Rules.Num.DotE5m2ChunkLoss P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
     (hni : Rules.Num.Exp2F32NegInf P) (hext : Rules.Num.MathTotal P .exp2 .binary32)
     (hcvt : Rules.Num.CvtSatF32E5m2 P) (hcvtt : Rules.Num.CvtTotal P Format.binary32 Format.e5m2 .rn)
     {R W : Set Int} {α : Type} {Q : α → Mem → Prop} (hR : Rd d ⊆ R)
@@ -443,7 +473,7 @@ def bodyMasked (D : ℕ) (q : Tensor [128, D] F8E5) (dk dv : TensorDesc .f8e5) (
 program's own query rows, under the causal mask. -/
 theorem safe_loop_masked {d : Inst} (hd : d.ok) (hcausal : d.causal = true) {init : Mem}
     (hpre : Pre d init) {P : Platform}
-    (hdot : Rules.Num.DotE5m2Chunk P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
+    (hdot : Rules.Num.DotE5m2ChunkLoss P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
     (hni : Rules.Num.Exp2F32NegInf P) (hext : Rules.Num.MathTotal P .exp2 .binary32)
     (hcvt : Rules.Num.CvtSatF32E5m2 P) (hcvtt : Rules.Num.CvtTotal P Format.binary32 Format.e5m2 .rn)
     {R W : Set Int} {α : Type} {Q : α → Mem → Prop} (hR : Rd d ⊆ R)
@@ -669,7 +699,7 @@ structure CallOk (d : Inst) (init : Mem) (sm bh : ℕ) (c : F32) (q : Tensor [12
 /-- **`_attn_fwd_inner` with `STAGE = 1`** (the causal launch's first call, line 228): the
 blocks before the program's query rows. -/
 theorem safe_inner1 {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P : Platform}
-    (hdot : Rules.Num.DotE5m2Chunk P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
+    (hdot : Rules.Num.DotE5m2ChunkLoss P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
     (hni : Rules.Num.Exp2F32NegInf P) (hext : Rules.Num.MathTotal P .exp2 .binary32)
     (hcvt : Rules.Num.CvtSatF32E5m2 P) (hcvtt : Rules.Num.CvtTotal P Format.binary32 Format.e5m2 .rn)
     {R W : Set Int} {α : Type} {Q : α → Mem → Prop} (hR : Rd d ⊆ R) {sm bh : ℕ} {c : F32}
@@ -698,7 +728,7 @@ theorem safe_inner1 {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P :
 
 /-- **`_attn_fwd_inner` with `STAGE = 3`** (the non-causal launch's call, line 228): every key. -/
 theorem safe_inner3 {d : Inst} (hd : d.ok) (hcausal : d.causal = false) {init : Mem} (hpre : Pre d init)
-    {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P) (hdtot : Rules.Num.DotTotal P cfg8)
+    {P : Platform} (hdot : Rules.Num.DotE5m2ChunkLoss P) (hdtot : Rules.Num.DotTotal P cfg8)
     (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F32NegInf P)
     (hext : Rules.Num.MathTotal P .exp2 .binary32)
     (hcvt : Rules.Num.CvtSatF32E5m2 P) (hcvtt : Rules.Num.CvtTotal P Format.binary32 Format.e5m2 .rn)
@@ -729,7 +759,7 @@ theorem safe_inner3 {d : Inst} (hd : d.ok) (hcausal : d.causal = false) {init : 
 /-- **`_attn_fwd_inner` with `STAGE = 2`** (the causal launch's second call, line 236): the
 program's own blocks, under the mask. -/
 theorem safe_inner2 {d : Inst} (hd : d.ok) (hcausal : d.causal = true) {init : Mem} (hpre : Pre d init)
-    {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P) (hdtot : Rules.Num.DotTotal P cfg8)
+    {P : Platform} (hdot : Rules.Num.DotE5m2ChunkLoss P) (hdtot : Rules.Num.DotTotal P cfg8)
     (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F32NegInf P)
     (hext : Rules.Num.MathTotal P .exp2 .binary32)
     (hcvt : Rules.Num.CvtSatF32E5m2 P) (hcvtt : Rules.Num.CvtTotal P Format.binary32 Format.e5m2 .rn)

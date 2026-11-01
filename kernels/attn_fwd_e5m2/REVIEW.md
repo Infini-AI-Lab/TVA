@@ -6,8 +6,8 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 
 ## Status
 
-- Gate: **PASS**, digest `60ae4e7766871cbd` (2026-11-01T09:04:05Z).
-- Phase: round 5: all reviewers have filed.
+- Gate: **PASS**, digest `3d7848ee51b5e6a6` (2026-11-01T17:04:21Z).
+- Phase: round 7: all reviewers have filed.
 - Reviewers: r-e5fwd (all), r-e5fwd2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
@@ -18,7 +18,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 | `assumption:cvt_total` | `d3dd5700e991` | accepted | accepted |
 | `assumption:div_full` | `7c99f269a360` | accepted | accepted |
 | `assumption:div_total` | `86ce72147b43` | accepted | accepted |
-| `assumption:dot` | `bcb4617c6831` | accepted | accepted |
+| `assumption:dot` | `73aa4f404bbf` | accepted | accepted |
 | `assumption:dot_total` | `66eae7b77fb9` | accepted | accepted |
 | `assumption:exp2` | `57eb7f577ca9` | accepted | accepted |
 | `assumption:exp2_ninf` | `336e24a777f1` | accepted | accepted |
@@ -29,7 +29,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 | `conditions` | `b0121b83480b` | accepted | accepted |
 | `map` | `3a8a04772396` | accepted | accepted |
 | `model` | `af17db8da4c4` | accepted | accepted |
-| `spec` | `3eeaeb3c22ac` | accepted | accepted |
+| `spec` | `5f86912316ef` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -44,6 +44,10 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 | [F9](#f9) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 3 | Some sample-based figures in the new tables do not hold over larger uniform row samples, e.g. 0 rejected on causal rows  |
 | [F10](#f10) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 3 | The causal test-data figures at N_CTX >= 1024 (0 rejected on 7-8% and 4-5%) come from 24-row samples in which row 0 (one |
 | [F11](#f11) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 4 | Some new ranges miss my round-3 outputs though the note says each covers both reviewers: e.g. benchmark causal 0 rejecte |
+| [F12](#f12) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 5 | Benchmark D = 128 now-ranges miss my heads by more than a few percent: tolO 0.73 and 0.89 (README 0.70-0.77), 0 meets Po |
+| [F13](#f13) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 5 | Benchmark N = 1024 figures: over eight seeds tolO falls 11-22% (D = 64) and 20-38.5% (D = 128), not 16-25% and 34-49%; c |
+| [F14](#f14) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 6 | The table's benchmark D = 128 causal tolO range (0.53-0.65) misses my seed-1 head's 0.689, though the note says ranges a |
+| [F15](#f15) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 6 | The benchmark paragraph says its N = 1024 ranges cover the reviewers' samples, but some of mine are outside: D = 128 cau |
 
 **Certificate: GRANTED**
 
@@ -421,4 +425,130 @@ One small remark, not a finding: 'with a 2^-7 margin' (twice) compresses num.md'
 `2026-11-01T09:05:06Z`, at gate `60ae4e7766871cbd`. Notes: The two reworded sentences (README lines 127 and 337-338) now describe 2^-7 as DotE5m2Chunk's constant, 'about twice the window's worst chunk'. That is true and agrees with num.md's 'How a kernel uses them' paragraph. Nothing else in those passages changed, and the gate is 60ae4e7766871cbd, so every item stays accepted.
 
 - **accepted** at gate `60ae4e7766871cbd`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd2 files ([filing](review/round-5/r-e5fwd2/filing-6.json), [report](review/round-5/r-e5fwd2/report-6.md), [work](review/round-5/r-e5fwd2/work/))
+
+`2026-11-01T16:50:31Z`, at gate `3d7848ee51b5e6a6`. Notes: This is a re-review of the claim on Num.DotE5m2ChunkLoss, at gate 3d7848ee51b5e6a6.
+
+assumption:dot: Assumptions.dot is DotE5m2ChunkLoss P (work/chunkloss.out). That is DotF8ChunkLoss f8e5 f8e5: every precision, maxImpreciseAcc 2^30, a float32 accumulator, with rhoChunk8, sigmaChunk8, alphaChunk8, kappaChunk8 = 2 and rhoLossChunk8 = 2^-12. It is listed in docs/rules/num.md's fp8 row of 'What a kernel reviewer checks'. It is the library's fact for the model's cfg8 tl.dot at lines 73 and 103, and it gives DotE5m2Chunk (DotF8ChunkLoss.chunk), which the whole-dot bound uses. main, consistent and satisfiable use only propext, Classical.choice and Quot.sound. Post, HeadOk, tolV and tolM are unchanged in the Model diff.
+
+spec, tolO's new parts:
+- They are explicit: stepC, stC, errStep, accStep, coefD, gD, lS8, lC8, lP8, blkV and blkAbsV print as Lean elaborates them in work/chunkloss.out.
+- Each block's choice is a function of the row's exact data alone. It depends on W = wsum*Fp(X, Z), pE, dmax, |attnRef|, the state so far, and the block sums centC, partW*FhT, blkC, blkV, blkLW, blkA, blkAbsV and blkVL. None of these depends on the run.
+- It is never above the old bound. tolO = min(tolOW(wsum*Fp), tolOW(0)). With W = 0, errStep with (cS8, cC8, cP8, Bq = Bc) equals the old errNext, and accStep with (cC8, cP8, cr = cC8, Bq = Ba) equals the old accNext (coefD cC8 = coefS, eps8 + cC8*eps8 = (1 + cC8)*eps8), so tolOW(0) is the old recursion. scoreErr = errM <= errB widens Post's admissible Z, so every (X, Z) the old Post covered is still covered with a tolO no larger: the new o clause implies the old one. Numerically, new/old <= 1.0000 on every evaluated element.
+- It is meaningful: on the benchmark the loss arm is taken on 49% to 59% of the blocks, and tolO falls by 16% to 25% (D = 64) and 32% to 46% (D = 128) at N = 1024.
+
+README figures reproduced (work/tolerance.out):
+- test data: tolO identical on non-causal rows (no block takes the loss arm), about 1% lower on causal rows; 0 meets Post on at most 0.9 points fewer elements; scoreErr, pE and tolM unchanged (the first arm is always the smaller on the host's data, and the Z ratio is 1).
+- one key: 0.31-0.33 -> 0.290-0.296 times |attnRef|.
+- q = 0, v = 1: 0.463, 0.697, 1.31 unchanged; 3.51 -> 2.43, 19.3 -> 3.55, 632 -> 5.46, 1.17e6 -> 9.88.
+- vEff = 0 at the cap: 7.73-7.76e-6 (N = 4096), 9.35-9.85e-6 (2^14), 4.79-5.35e-5 (2^16).
+- benchmark at 2^14, one head, 6 rows: 26.5 -> 1.74 (D = 64) and 66.7 -> 2.85 (D = 128), in line with the README's 21.6 -> 1.67 and 76 -> 3.7.
+Only the benchmark D = 128 ranges miss my heads (finding).
+
+The heads without vIn stay pinned: tolV is unchanged at 7.63e-6 < 2^-16, and tolO there now also stays below 2^-16 at the cap up to N = 2^14.
+
+#### F12
+
+**DOC** on `doc:kernels/attn_fwd_e5m2/README.md` (non-blocking), affects item:spec: Benchmark D = 128 now-ranges miss my heads by more than a few percent: tolO 0.73 and 0.89 (README 0.70-0.77), 0 meets Post on 53% and 61% (42-56%), 8.4 and 12.2 times the floor (4 to 8.5)
+
+I re-ran Model.lean's new tolO (work/tolerance.py, work/tolerance.out) on two benchmark-like heads at N = 1024, 96 evenly spread rows, seeds 1 and 2. These are the same heads as my round-3 run, whose old values (1.36 and 1.54 at D = 128) lie inside the README's 'before' range of 1.16 to 1.54.
+
+At D = 128, non-causal: tolO is 0.73 and 0.89 (README 'now' 0.70 to 0.77); 0 meets Post on 52.6% and 61.3% (README: 0 rejected on 44% to 48%, i.e. meets on 52% to 56%); tolO is 8.4 and 12.2 times the floor.
+
+At D = 128, causal: tolO is 0.55 and 0.69 (README 0.54 to 0.58); 0 meets Post on 42.9% and 52.3% (README rejected 55% to 58%).
+
+At D = 64, the README's ranges fit within a few percent: 0.45 non-causal against 0.43 to 0.44, and 0.37 to 0.38 causal.
+
+So at D = 128 the falls (46% and 42%) fit the README's '34% to 49%', but the 'now' ranges come from heads whose old values were lower. The table note says other samples may differ by a few percent at a range's ends; here they differ by up to 16% (tolO) and 5 to 9 points (shares). The same ranges are repeated in 'Read this first' ('about 4 to 8.5 times'), in 'What changed (ChunkLoss)' and in 'On the benchmark's data'.
+
+Suggested: widen the D = 128 'now' ranges, or derive them from the 'before' range's ends (e.g. by the stated 34% to 49% falls). The conclusions stand.
+
+*Evidence:* work/tolerance.py and work/tolerance.out, the 'bench' rows at N = 1024
+
+- **accepted** at gate `3d7848ee51b5e6a6`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd files ([filing](review/round-5/r-e5fwd/filing-6.json), [report](review/round-5/r-e5fwd/report-6.md), [work](review/round-5/r-e5fwd/work/))
+
+`2026-11-01T16:52:50Z`, at gate `3d7848ee51b5e6a6`. Notes: Re-review of the re-proof on DotE5m2ChunkLoss, gate 3d7848ee51b5e6a6. (1) assumption:dot cites DotE5m2ChunkLoss, the library's fact for fp8 x fp8 into float32 at 2^30, any precision. num.md lists it in the reviewer checklist's fp8 row and in the facts table, and its Lean is as num.md states. (2) spec. tolO's new parts (lS8, lC8, lP8, gD, coefD, accStep, errStep, stepC, stC, tolOW, blkV, blkAbsV) are explicit real expressions of the row's exact data and of X and Z, and they print as kernel, TVA or Mathlib names (work/print_spec.lean, print_spec.out); the axioms are unchanged. stepC's choice is a function of the row's data alone: per block and column it compares errStep/W + accStep on the two arms, with W = wsum*Fp(D, N, X, Z). tolO = min(tolOW(W), tolOW(0)), and tolOW(0) is term for term the round-24 recursion: gD cS8 = gA, coefD cC8 = coefS, and the chunk arm's accStep and errStep are accNext and errNext. scoreErr's errM is at most errB (errM_le_errB), so tolO is never above the old claim's at any admissible Z. Numerically, new/old is at most 1 on every element I evaluated. (3) Figures. These agree with mine: the test's data (non-causal unchanged on every element; causal about 1.5% lower; 0 meets Post at most 1 point fewer); scoreErr, pE and tolM unchanged on the host's data (the loss arm never wins in a score chunk beyond rounding); one key 0.29 |attnRef|; v = 1: 0.46, 0.70, 1.31, 2.43, 3.55, 5.46, 9.88; vEff = 0 at the cap 7.7e-6, 9.4e-6, 5.4e-5, with tolV still 7.63e-6, so those heads stay at Â±0; the benchmark at N = 2^14 (20.1 -> 1.65 and 75 -> 3.71 non-causal, 3.5 -> 0.97 and 13.5 -> 1.94 causal, 0 rejected on 22% and 12% of causal elements); loss-arm blocks 47-62%; 4-8.5 times the floor. The benchmark N = 1024 exceptions are in the DOC finding.
+
+#### F13
+
+**DOC** on `doc:kernels/attn_fwd_e5m2/README.md` (non-blocking): Benchmark N = 1024 figures: over eight seeds tolO falls 11-22% (D = 64) and 20-38.5% (D = 128), not 16-25% and 34-49%; causal rows gain least, and several ranges are narrower than the seed spread
+
+'Where Post does not tell o from 0', benchmark bullet: 'tolO is now 0.35 to 0.44 at D = 64 and 0.54 to 0.77 at D = 128, causal and not (...; on the same heads it falls by 16% to 25% and by 34% to 49%)'. I evaluated Model.lean's new tolO and the old recursion (tolOW at W = 0 with errB) on eight benchmark-like heads, seeds 41, 42 and 50-55, 128 evenly spread rows each (work/tol.out, tol_spread.out). The ratio new/old of the medians is 0.78-0.82 on non-causal rows and 0.86-0.89 on causal rows at D = 64, so the fall is 18-22% and 11-14%. At D = 128 it is 0.62-0.70 and 0.74-0.80, a fall of 30-38.5% and 20-26%. The causal rows fall below the stated ranges, and so does part of D = 128's non-causal. The new medians spread wider than the main table's ranges. D = 64: 0.41-0.43 against the table's 0.43-0.44, causal 0.34-0.38 against 0.35-0.38. D = 128: 0.65-0.84 against 0.70-0.77, causal 0.50-0.64 against 0.54-0.58. 0 meets Post: D = 64, 30-36% against 35-39% (causal 23-30% against 26-29%); D = 128, 49-59% against 52-56% (causal 38-50% against 42-45%). To resolve: give the falls separately for causal and non-causal rows, or as about 10-22% and 20-38%, and widen the N = 1024 ranges, or say they come from few heads. No conclusion changes: the tightening holds on every head I ran. The N = 2^14, v = 1, vEff = 0, one-key and test figures agree with mine.
+
+*Evidence:* work/tol.py (python3 -I tol.py; tol.py spread; tol.py big), work/tol.out, tol_spread.out, tol_big.out.
+
+- **accepted** at gate `3d7848ee51b5e6a6`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### The prover responds ([response](review/round-5/prover/response.json), [notes](review/round-5/prover/notes.md))
+
+`2026-11-01T16:57:38Z`, at gate `3d7848ee51b5e6a6`.
+
+- **F12 CLARIFIED**: README only. The benchmark figures at N = 1024 are recomputed over all rows of 33 heads per D and causal mode (seeds 101 to 909 by 101, and 1001 to 1024; non-causal and causal), then widened to cover your numbers. D = 128: tolO 0.53-0.89 (table: non-causal 0.65-0.89, causal 0.53-0.65); 0 meets Post on 41-61% of the elements (table: 0 rejected on 39-59%, causal rows at the high end); tolO/floor about 4 to 12.5 times on the benchmark's data. D = 64: tolO 0.35-0.44 (non-causal 0.42-0.44, causal 0.35-0.38), 0 meets Post on 25-39% (rejected 61-66%, causal 71-75%). Updated in the Specification's table and its note, 'Where Post does not tell o from 0', 'Read this first', 'What changed (ChunkLoss)' and the Narrowings. The Lean and the item digests are unchanged (gate 3d7848ee51b5e6a6).
+- **F13 CLARIFIED**: README only. Over the same 33 seeds per D and causal mode, tolO falls 15-26% at D = 64 and 34-49% at D = 128 on the same head, causal rows least (15-17% and 34-37%). Widened to cover your eight seeds, the README now says it falls by 11% to 26% (D = 64) and 20% to 49% (D = 128), causal rows least. The D = 128 tolO range is 0.53-0.89, which covers your 0.65-0.84. The loss arm is taken in 47-63% of the blocks. The sentences in 'Where Post does not tell o from 0' and 'What changed (ChunkLoss)' that quote these figures are updated. The Lean and the item digests are unchanged (gate 3d7848ee51b5e6a6).
+
+## Round 6
+
+
+### r-e5fwd2 files ([filing](review/round-6/r-e5fwd2/filing.json), [report](review/round-6/r-e5fwd2/report.md))
+
+`2026-11-01T16:59:59Z`, at gate `3d7848ee51b5e6a6`. Notes: Round 6 changed only README.md (gate 3d7848ee51b5e6a6 and the item digests unchanged), so my acceptance of every item stands. I took no new samples and checked against my round-5 tolerance.out.
+
+#### F14
+
+**DOC** on `doc:kernels/attn_fwd_e5m2/README.md` (non-blocking), affects item:spec: The table's benchmark D = 128 causal tolO range (0.53-0.65) misses my seed-1 head's 0.689, though the note says ranges are widened to the reviewers' samples; also D = 64 non-causal 0.42-0.44 vs 0.45
+
+This is what remains of F12, which listed the value ('causal: tolO is 0.55 and 0.69'). In the Specification's table, the benchmark D = 128 row gives the causal tolO as 0.83 to 1.01 -> 0.53 to 0.65. My seed-1 causal head has 1.01 -> 0.689. That is 6% above the range's end, while the table note says the 'now' ranges are widened to the reviewers' samples. Two smaller misses in the same rows, within a point or a few percent: D = 64 non-causal tolO 0.42 to 0.44 against my 0.448 and 0.454, and D = 64 causal 0 rejected on 71% to 75% against my 70.1%. Widening these to 0.53-0.69, 0.42-0.45 and 70%-75% would cover them. The text's overall D = 128 range, 0.53 to 0.89, already covers 0.69.
+
+*Evidence:* kernels/attn_fwd_e5m2/review/round-5/r-e5fwd2/work/tolerance.out, the 'bench' rows at N = 1024 (seed 1 causal D = 128; seeds 1 and 2 non-causal D = 64; seed 1 causal D = 64)
+
+- **released F12**: Its headline numbers are covered. D = 128 non-causal tolO is 0.65-0.89 (mine 0.73, 0.89). 0 meets Post on 41-61% (mine 42.9-61.3%). tolO is 4 to 12.5 times the floor (mine 4.1-12.2). It falls by 11-26% and 20-49% (mine 15-24% and 32-46%). One sub-range F12 listed (D = 128 causal tolO, mine 0.69) is still missed; it is raised as a new, narrower DOC.
+- **accepted** at gate `3d7848ee51b5e6a6`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd files ([filing](review/round-6/r-e5fwd/filing.json), [report](review/round-6/r-e5fwd/report.md))
+
+`2026-11-01T17:00:04Z`, at gate `3d7848ee51b5e6a6`. Notes: Checked without new samples, against my round-5 outputs. The Lean and the item digests are unchanged (gate 3d7848ee51b5e6a6), so every item stays accepted. I first filed F13's remainder as a re-raise. tvr lint refuses that with every item accepted: 'accept' forbids a re-raise, and 'accept-partly' needs an item left unaccepted. So I release F13 for the parts it settled and raise the remainder as a new DOC. I did not work around the refusal.
+
+#### F15
+
+**DOC** on `doc:kernels/attn_fwd_e5m2/README.md` (non-blocking): The benchmark paragraph says its N = 1024 ranges cover the reviewers' samples, but some of mine are outside: D = 128 causal tolO 0.50, D = 64 causal tolO 0.335, 0 meets Post 22.6% and 38.2%
+
+'On the benchmark's data' says 'These ranges cover all rows of 33 heads per D and causal mode ... and the reviewers' samples'. Several numbers from my round-5 runs, listed in F13 (work/tol.out and tol_spread.out of my round-5 folder, seeds 41, 42, 50-55), are still outside. (1) D = 128 causal tolO: mine 0.502, 0.505 and 0.521, table 0.53-0.65 and text 0.53-0.89. (2) D = 64 causal tolO: mine 0.335, table 0.35-0.38 and text 0.35-0.44. D = 64 non-causal: mine 0.408, 0.412 and 0.414, table 0.42-0.44. (3) 0 meets Post: D = 64 causal, 22.6% for seed 50, text 25-39%; D = 128 causal, 38.2% and 39.8%, text 41-61%. (4) The table's rejected shares: D = 64 non-causal, mine 64.3-70.0% against 61-66%, causal 70.2-77.4% against 71-75%; D = 128, mine up to 61.8% against 39-59%. To resolve: widen these entries to cover the numbers, or drop the claim that the ranges cover the reviewers' samples. No conclusion depends on it.
+
+*Evidence:* round-5 r-e5fwd work/tol.out and work/tol_spread.out (the bench lines).
+
+- **released F13**: Settled for its headline. The falls are now 11-26% (D = 64) and 20-49% (D = 128), causal rows least, which covers my 11-22% and 20-38.5%. D = 128's non-causal tolO is now 0.65-0.89, which covers my 0.65-0.84. The remaining ranges that miss my numbers are raised as a new DOC, because tvr cannot record a re-raise while every item is accepted.
+- **accepted** at gate `3d7848ee51b5e6a6`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### The prover responds ([response](review/round-6/prover/response.json), [notes](review/round-6/prover/notes.md))
+
+`2026-11-01T17:05:02Z`, at gate `3d7848ee51b5e6a6`.
+
+- **F14 CLARIFIED**: README only. Every benchmark figure at N = 1024 is now the range over 33 seeds and the reviewers' recorded round-5 runs (both reviewers' work outputs, read as recorded), rounded outward. New tolO: D = 64 non-causal 0.40-0.46 (covers your 0.448, 0.454), causal 0.33-0.39; D = 128 non-causal 0.65-0.90, causal 0.50-0.69 (covers your 0.689). 0 rejected: D = 64 non-causal 60-70%, causal 70-78% (covers your 70.1%); D = 128 non-causal 38-51%, causal 47-62%. 0 meets Post: 22-40% (D = 64), 38-62% (D = 128). tolO against the floor: about 3.7 to 12.2 times. Fall from the old tolO: 11-27% (D = 64), 20-51% (D = 128), causal rows least. Round-24 values: tolO 0.54-0.60 (causal 0.40-0.47) and 1.16-1.54 (causal 0.82-1.01), rejected 45-58% (causal 63-73%) and 9.5-21% (causal 27-40%), 4.7 to 18.5 times the floor. tolV 6.4-6.9 (causal 5.4-5.7) and 6.6-6.9 (causal 5.5-5.8); tolM 0.38-0.40 (causal 0.34-0.38) and 1.19-1.26 (causal 1.09-1.16); pE at D = 128 2.13-2.40; median |attnRef| 0.50-0.62. Updated in the table and its note, the benchmark bullet, 'Read this first', 'What changed (ChunkLoss)' and the Narrowings. The Lean and the item digests are unchanged (gate 3d7848ee51b5e6a6).
+- **F15 CLARIFIED**: README only, same union as F14 (33 seeds and the reviewers' recorded round-5 runs, rounded outward). Your numbers are now inside the ranges. D = 128 causal tolO 0.50-0.69 covers 0.502-0.521. D = 64 causal 0.33-0.39 covers 0.335. D = 64 non-causal 0.40-0.46 covers 0.408-0.414. 0 meets Post 22-40% (D = 64) covers 22.6%, and D = 128 causal meets 38-53% (rejected 47-62%) covers 38.2% and 39.8%. Rejected shares: D = 64 non-causal 60-70% covers 64.3-70.0%, D = 64 causal 70-78% covers 70.2-77.4%, D = 128 causal up to 62% covers 61.8%. The fall from the old tolO is 11-27% (D = 64) and 20-51% (D = 128): the fall of the median, or the median of each element's fall, causal rows least. tolO against the floor is about 3.7 to 12.2 times. The Lean and the item digests are unchanged (gate 3d7848ee51b5e6a6).
+
+## Round 7
+
+
+### r-e5fwd2 files ([filing](review/round-7/r-e5fwd2/filing.json), [report](review/round-7/r-e5fwd2/report.md))
+
+`2026-11-01T17:06:07Z`, at gate `3d7848ee51b5e6a6`. Notes: Round 7 changed only README.md; the gate (3d7848ee51b5e6a6) and the item digests are unchanged, so every item stays accepted. I took no new samples.
+
+- **released F14**: Every number in my round-5 tolerance.out (benchmark, N = 1024) lies inside the README's ranges.
+- tolO: D = 64 0.454 and 0.448 (range 0.40-0.46); causal 0.381 and 0.367 (0.33-0.39). D = 128 0.73 and 0.892 (0.65-0.90); causal 0.689 and 0.548 (0.50-0.69).
+- Falls: 15-24% (11-27%) and 32-46% (20-51%).
+- 0 rejected: D = 64 60.5% and 61.3% (60-70%); causal 70.1% and 73.0% (70-78%). D = 128 47.4% and 38.7% (38-51%); causal 47.7% and 57.1% (47-62%).
+- 0 meets Post: 27.0-39.5% (22-40%) and 42.9-61.3% (38-62%).
+- Times the floor: 4.13-12.18 (3.7-12.2).
+- The before columns also cover my old values: tolO, tolV, tolM, the rejected shares, and 5.1-18.4 times the floor.
+- **accepted** at gate `3d7848ee51b5e6a6`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd files ([filing](review/round-7/r-e5fwd/filing.json), [report](review/round-7/r-e5fwd/report.md))
+
+`2026-11-01T17:08:18Z`, at gate `3d7848ee51b5e6a6`. Notes: Checked against my recorded round-5 outputs only, with no new samples. The gate is unchanged (3d7848ee51b5e6a6) and only the README changed, so every item stays accepted. No recorded number falls outside a stated range, so I raise no finding.
+
+- **released F15**: Settled. Every N = 1024 bench figure in my recorded round-5 work/tol.out and work/tol_spread.out (seeds 41, 42, 50-55) now lies inside the README's ranges. tolO: D = 64 0.408-0.430 (README 0.40-0.46), causal 0.335-0.376 (0.33-0.39); D = 128 0.651-0.839 (0.65-0.90), causal 0.502-0.639 (0.50-0.69). Falls: 11.0-21.8% (11-27%) and 20.2-38.5% (20-51%). Rejected: D = 64 64.3-70.0% (60-70%), causal 70.2-77.4% (70-78%); D = 128 40.6-50.9% (38-51%), causal 49.9-61.8% (47-62%). 0 meets Post: 22.6-35.7% (22-40%) and 38.2-59.4% (38-62%). tolO/floor: 3.75-10.3 (3.7-12.2). tolV and tolM are also inside their table ranges, at the three significant digits my runs print.
+- **accepted** at gate `3d7848ee51b5e6a6`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 

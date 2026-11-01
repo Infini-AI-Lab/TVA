@@ -71,8 +71,8 @@ theorem scoreLift_nonneg (d : Inst) (init : Mem) (bh n j : ℕ) : 0 ≤ scoreLif
   Finset.sum_nonneg fun _ _ => mul_nonneg (Dot8Chunk.liftMag_nonneg _ _) (Dot8Chunk.liftMag_nonneg _ _)
 
 theorem scoreErr_nonneg (d : Inst) (init : Mem) (bh n j : ℕ) : 0 ≤ scoreErr d init bh n j :=
-  Dot8Chunk.errB_nonneg Dot8Chunk.rhoChunk8_nonneg Dot8Chunk.sigmaChunk8_nonneg Dot8Chunk.alphaChunk8_nonneg
-    _ _ _ _
+  Dot8Chunk.errM_nonneg Dot8Chunk.rhoChunk8_nonneg Dot8Chunk.sigmaChunk8_nonneg Dot8Chunk.alphaChunk8_nonneg
+    Dot8Chunk.kappaChunk8_nonneg Dot8Chunk.rhoLossChunk8_nonneg _ _ (fun _ => Dot8Chunk.chunkAbs8_nonneg _ _ _) _ _
 
 theorem sigma_pos {d : Inst} (hd : d.ok) : 0 < sigma d := by
   have := hd.scale.2.1; unfold sigma; linarith [show (0 : ℚ) < 1 / 2 ^ 64 by positivity]
@@ -488,8 +488,9 @@ theorem lane_q8 {q p w pe : ℝ} (hpe : 1 ≤ pe) (hw : 0 < w)
     constructor <;> nlinarith
 
 /-- **The centred bound, one block** (lines 82–106): from the old row state, the block's lanes,
-`alpha`, `acc * alpha` (`ha1`), the dot's error (`hcomb`) and the new `l_i` (`hl'`, at least
-`lminB (t + 1)`), every element keeps `CInv` (`Cen.cstep_real`). -/
+`alpha`, `acc * alpha` (`ha1`), the dot's error on either arm (`hcomb`, `hcombL`) and the new `l_i`
+(`hl'`, at least `lminB (t + 1)`), every element keeps `CInv` (`Cen.cstep_gen`, on the arm that
+`Model.stepC` takes). -/
 theorem cen_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F32NegInf P)
     (hcvt : Rules.Num.CvtSatF32E5m2 P)
     {R : RowCtx} (hR : R.Ok) {t : ℕ} (ht : t + 1 ≤ 1024) {fusion : Bool} {D : ℕ}
@@ -506,12 +507,15 @@ theorem cen_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Ex
     (hcomb : ∀ e, |(acc' e).toReal - ((a1 e).toReal + ∑ jj, (q jj).toReal * (vt jj e).toReal)| ≤
       (cS8 : ℝ) * |(a1 e).toReal| + (cC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj e).toReal| +
         (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ))
+    (hcombL : ∀ e, |(acc' e).toReal - ((a1 e).toReal + ∑ jj, (q jj).toReal * (vt jj e).toReal)| ≤
+      (lS8 : ℝ) * |(a1 e).toReal| + (lC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj e).toReal| +
+        (lP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (lA8 : ℝ))
     (hl' : FloatV.NaNEq (FloatV.add (FloatV.mul l al) lij) l' ∨
       (fusion = true ∧ FloatV.NaNEq (FloatV.fma l al lij) l'))
     (hlm' : lminB (t + 1) ≤ l'.toReal)
     (hold : RowSt R ve vl t m l acc) :
     ∀ e, CInv R (ve e) (vl e) (t + 1) m' (acc' e) l' := by
-  intro e r
+  intro e r W
   have hpe := pER_ge hR
   have hdm0 := dmaxR_nonneg hR
   have hdm1 := dmaxR_le hR
@@ -623,14 +627,14 @@ theorem cen_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Ex
       |al.toReal - lam| ≤ etaA (dmaxR R) * lam + 1 / 2 ^ 126 ∧
       (l.isFinite = true ∧ 0 ≤ l.toReal ∧ l.toReal ≤ 2 ^ 44) ∧ |(acc e).toReal| ≤ 2 ^ 58 ∧
       |lam * (acc e).toReal - r * (lam * l.toReal) - kap (pER R) * (K' * Cx R (ve e) r t)| ≤
-        K' * ecR R (ve e) (vl e) r t + acR R (ve e) (vl e) r t * (lam * l.toReal) ∧
+        K' * ecR R (ve e) (vl e) r W t + acR R (ve e) (vl e) r W t * (lam * l.toReal) ∧
       lam * l.toReal ≤ K' * (FhR R t * psum R.al t (ew R)) + FhR R t * (t * absLr) := by
     rcases hold with ⟨h0, -, hlf, hl1, ha⟩ | ⟨ht0, hmi', hL, hA, -, hC, -⟩
     · subst h0
       refine ⟨0, le_rfl, zero_le_one, ?_, ⟨hlf, by rw [hl1]; norm_num, by rw [hl1]; norm_num⟩,
         by rw [(ha e).2]; norm_num, ?_, ?_⟩
       · rw [ha0 rfl]; norm_num
-      · simp [Cx, psum_zero, ecR, acR]
+      · simp [Cx, psum_zero, ecR, acR, stR]
       · simp [psum_zero]
     · obtain ⟨hle, hae'⟩ := hae ht0
       have hl1 : (2 : ℝ) ^ (m.toReal - m'.toReal) ≤ 1 := two_rpow_le_one (by linarith)
@@ -640,18 +644,18 @@ theorem cen_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Ex
       refine ⟨(2 : ℝ) ^ (m.toReal - m'.toReal), hl0.le, hl1, hae',
         ⟨hL.1, hL.2.1.le, le_of_abs_le (hL.bound hR (by omega) hmi')⟩,
         (hA e).2.trans (crA_le (by omega)), ?_, ?_⟩
-      · have h0 := mul_le_mul_of_nonneg_left (hC e r) hl0.le
+      · have h0 := mul_le_mul_of_nonneg_left (hC e r W) hl0.le
         have h1 : |(2 : ℝ) ^ (m.toReal - m'.toReal) * ((acc e).toReal - r * l.toReal -
             kap (pER R) * ((2 : ℝ) ^ (-m.toReal) * Cx R (ve e) r t))| ≤ (2 : ℝ) ^ (m.toReal - m'.toReal) *
-            ((2 : ℝ) ^ (-m.toReal) * ecR R (ve e) (vl e) r t + acR R (ve e) (vl e) r t * l.toReal) := by
+            ((2 : ℝ) ^ (-m.toReal) * ecR R (ve e) (vl e) r W t + acR R (ve e) (vl e) r W t * l.toReal) := by
           rw [abs_mul, abs_of_pos hl0]; exact h0
         have e1 : (2 : ℝ) ^ (m.toReal - m'.toReal) * ((acc e).toReal - r * l.toReal -
             kap (pER R) * ((2 : ℝ) ^ (-m.toReal) * Cx R (ve e) r t)) =
             (2 : ℝ) ^ (m.toReal - m'.toReal) * (acc e).toReal - r * ((2 : ℝ) ^ (m.toReal - m'.toReal) * l.toReal) -
               kap (pER R) * (K' * Cx R (ve e) r t) := by rw [← hKK]; ring
-        have e2 : (2 : ℝ) ^ (m.toReal - m'.toReal) * ((2 : ℝ) ^ (-m.toReal) * ecR R (ve e) (vl e) r t +
-            acR R (ve e) (vl e) r t * l.toReal) = K' * ecR R (ve e) (vl e) r t +
-              acR R (ve e) (vl e) r t * ((2 : ℝ) ^ (m.toReal - m'.toReal) * l.toReal) := by rw [← hKK]; ring
+        have e2 : (2 : ℝ) ^ (m.toReal - m'.toReal) * ((2 : ℝ) ^ (-m.toReal) * ecR R (ve e) (vl e) r W t +
+            acR R (ve e) (vl e) r W t * l.toReal) = K' * ecR R (ve e) (vl e) r W t +
+              acR R (ve e) (vl e) r W t * ((2 : ℝ) ^ (m.toReal - m'.toReal) * l.toReal) := by rw [← hKK]; ring
         rw [e1, e2] at h1
         exact h1
       · obtain ⟨-, -, hlu, -⟩ := hL
@@ -694,17 +698,72 @@ theorem cen_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Ex
     have := psum_nonneg (al := R.al) (t := t) (f := ew R) fun j => (ew_pos R j).le
     positivity
   have hLab0 : 0 ≤ FhR R t * (t * absLr) := by have := FhR_ge hR t; unfold absLr; positivity
-  have hstep := cstep_real hpe hdm0 hdm1 hlam0 hlb.2.1 hlb.2.2 hαl (by positivity) htau hs
-    (acR_nonneg hR _ _ r t) (mul_nonneg hK'0.le (ecR_nonneg hR _ _ r t)) hI hLu0 hLab0 hLab hLu (hcomb e)
-    (mul_nonneg hK'0.le (bC_nonneg R (ve e) r t)) (mul_nonneg hK'0.le (bLW_nonneg R (vl e) t))
-    (bA_nonneg R (ve e) r t) (bVL_nonneg R (vl e) t) hQAb hcl hTb
-    (Finset.sum_nonneg fun _ _ => abs_nonneg _) hsp hsabs hlije' hl'e
-    ((lminB_half (by omega)).trans hlm')
-  rw [errNext_scale _ _ _ _ _ _ _ _ _ hK'0.le] at hstep
+  -- the loss arm's block sums
+  have hQV := block_qv (q := fun jj => (q jj).toReal) (v := fun jj => (vt jj e).toReal)
+    (w := fun jj => wt R m'.toReal (64 * t + jj)) (al := fun jj => R.al (64 * t + jj)) he8 ha8 (ha8.trans hab)
+    (fun jj => (wt_pos _ _ _).le) (fun jj ha => ⟨(hatt jj ha).1, (hatt jj ha).2.1⟩) (fun jj ha => (hmask jj ha).1)
+  beta_reduce at hQV
+  have hBV : ∑ jj : Fin 64, (if R.al (64 * t + jj) = true then wt R m'.toReal (64 * t + jj) * |(vt jj e).toReal| else 0) =
+      K' * bV R (ve e) t := by
+    unfold bV; rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun jj _ => ?_
+    split_ifs
+    · rw [hw jj, (hvt jj e).2.1]; ring
+    · simp
+  have hBVa : ∑ jj : Fin 64, (if R.al (64 * t + jj) = true then |(vt jj e).toReal| else 0) = bVa R (ve e) t := by
+    unfold bVa
+    refine Finset.sum_congr rfl fun jj _ => ?_
+    rw [(hvt jj e).2.1]
+  rw [hBV, hBVa] at hQV
+  obtain ⟨hcs0, hcs1, hcc0, hcp0, hca0, hca1, hls0, hls1, hlc0, hlp0, hla0, hla1⟩ := arm_consts
+  have hst0 := stR_nonneg hR (ve e) (vl e) r W t
+  have hLw0 : 0 ≤ FhR R t * psum R.al t (ew R) :=
+    mul_nonneg ((zero_le_one).trans (FhR_ge hR t)) (psum_nonneg fun j => (ew_pos R j).le)
+  have hS0 : stR R (ve e) (vl e) r W (t + 1) = stepC W (pER R) (dmaxR R) |r| (ecR R (ve e) (vl e) r W t, acR R (ve e) (vl e) r W t)
+      (Cx R (ve e) r t) (FhR R t * psum R.al t (ew R)) (bC R (ve e) r t) (bV R (ve e) t) (bLW R (vl e) t)
+      (bA R (ve e) r t) (bVa R (ve e) t) (bVL R (vl e) t) := rfl
+  simp only [stepC] at hS0
   have e1 : K' * Cx R (ve e) r t + K' * (Cx R (ve e) r (t + 1) - Cx R (ve e) r t) = K' * Cx R (ve e) r (t + 1) := by
     ring
-  rw [e1] at hstep
-  exact hstep
+  show |(acc' e).toReal - r * l'.toReal - kap (pER R) * (K' * Cx R (ve e) r (t + 1))| ≤
+    K' * (stR R (ve e) (vl e) r W (t + 1)).1 + (stR R (ve e) (vl e) r W (t + 1)).2 * l'.toReal
+  split_ifs at hS0 with hch
+  · -- the loss arm
+    rw [hS0]
+    have hQA : (lC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj e).toReal| ≤
+        (lC8 : ℝ) * b8 (pER R) * (K' * bV R (ve e) t) + (lC8 : ℝ) * (eps8 : ℝ) * bVa R (ve e) t +
+          0 * |r| * (9 / 8 * ∑ jj, |(p jj).toReal| + 1 / 2 ^ 11) := by
+      have := mul_le_mul_of_nonneg_left hQV hlc0
+      linarith
+    have hstep := cstep_gen (cs := (lS8 : ℝ)) (cc := (lC8 : ℝ)) (cp := (lP8 : ℝ)) (ca := (lA8 : ℝ)) (cr := 0)
+      hpe hdm0 hdm1 hls0 hls1 hlc0 hlp0 hla0 hla1 le_rfl
+      hlam0 hlb.2.1 hlb.2.2 hαl (by positivity) htau hs
+      (acR_nonneg hR _ _ r W t) (mul_nonneg hK'0.le (ecR_nonneg hR _ _ r W t)) hI hLu0 hLab0 hLab hLu (hcombL e)
+      (mul_nonneg hK'0.le (bC_nonneg R (ve e) r t)) (mul_nonneg hK'0.le (bV_nonneg R (ve e) t))
+      (mul_nonneg hK'0.le (bLW_nonneg R (vl e) t))
+      (bA_nonneg R (ve e) r t) (bVa_nonneg R (ve e) t) (bVL_nonneg R (vl e) t) hQA hcl hTb
+      (Finset.sum_nonneg fun _ _ => abs_nonneg _) hsp hsabs hlije' hl'e
+      ((lminB_half (by omega)).trans hlm')
+    rw [errStep_scale _ _ _ _ _ _ _ _ _ _ _ _ _ hK'0.le, e1] at hstep
+    exact hstep
+  · -- the chunk facts' arm
+    rw [hS0]
+    have hQA : (cC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj e).toReal| ≤
+        (cC8 : ℝ) * b8 (pER R) * (K' * bC R (ve e) r t) + (cC8 : ℝ) * (eps8 : ℝ) * bA R (ve e) r t +
+          (cC8 : ℝ) * |r| * (9 / 8 * ∑ jj, |(p jj).toReal| + 1 / 2 ^ 11) := by
+      have := mul_le_mul_of_nonneg_left hQAb hcc0
+      linarith
+    have hstep := cstep_gen (cs := (cS8 : ℝ)) (cc := (cC8 : ℝ)) (cp := (cP8 : ℝ)) (ca := (cA8 : ℝ)) (cr := (cC8 : ℝ))
+      hpe hdm0 hdm1 hcs0 hcs1 hcc0 hcp0 hca0 hca1 hcc0
+      hlam0 hlb.2.1 hlb.2.2 hαl (by positivity) htau hs
+      (acR_nonneg hR _ _ r W t) (mul_nonneg hK'0.le (ecR_nonneg hR _ _ r W t)) hI hLu0 hLab0 hLab hLu (hcomb e)
+      (mul_nonneg hK'0.le (bC_nonneg R (ve e) r t)) (mul_nonneg hK'0.le (bC_nonneg R (ve e) r t))
+      (mul_nonneg hK'0.le (bLW_nonneg R (vl e) t))
+      (bA_nonneg R (ve e) r t) (bA_nonneg R (ve e) r t) (bVL_nonneg R (vl e) t) hQA hcl hTb
+      (Finset.sum_nonneg fun _ _ => abs_nonneg _) hsp hsabs hlije' hl'e
+      ((lminB_half (by omega)).trans hlm')
+    rw [errStep_scale _ _ _ _ _ _ _ _ _ _ _ _ _ hK'0.le, e1] at hstep
+    exact hstep
 
 /-- **The rest of a block** (lines 82–109), once the new maximum and the exponents are known. -/
 theorem row_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F32NegInf P)
@@ -727,7 +786,10 @@ theorem row_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Ex
           Format.binary32.maxVal →
       (acc' e).isFinite = true ∧ |(acc' e).toReal - ((a1 e).toReal + ∑ k, (q k).toReal * (vt k e).toReal)| ≤
         (cS8 : ℝ) * |(a1 e).toReal| + (cC8 : ℝ) * ∑ k, |(q k).toReal * (vt k e).toReal| +
-          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ))
+          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ) ∧
+        |(acc' e).toReal - ((a1 e).toReal + ∑ k, (q k).toReal * (vt k e).toReal)| ≤
+          (lS8 : ℝ) * |(a1 e).toReal| + (lC8 : ℝ) * ∑ k, |(q k).toReal * (vt k e).toReal| +
+            (lP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (lA8 : ℝ))
     (hl' : FloatV.NaNEq (FloatV.add (FloatV.mul l al) lij) l' ∨
       (fusion = true ∧ FloatV.NaNEq (FloatV.fma l al lij) l'))
     (hold : RowSt R ve vl t m l acc) : RowSt R ve vl (t + 1) m' l' acc' := by
@@ -736,15 +798,18 @@ theorem row_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Ex
       ACr (t + 1) (acc' e) ∧
       |(acc' e).toReal - ((a1 e).toReal + ∑ jj, (q jj).toReal * (vt jj e).toReal)| ≤
         (cS8 : ℝ) * |(a1 e).toReal| + (cC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj e).toReal| +
-          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ) := fun e => by
+          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ) ∧
+      |(acc' e).toReal - ((a1 e).toReal + ∑ jj, (q jj).toReal * (vt jj e).toReal)| ≤
+        (lS8 : ℝ) * |(a1 e).toReal| + (lC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj e).toReal| +
+          (lP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (lA8 : ℝ) := fun e => by
     refine astep hexp hni hcvt hR ht hM' hX hp hq hin hal (ha1 e) (fun jj => (hvt jj e).1) (hdot e) ?_
     rcases hold with ⟨h0, -, -, -, ha⟩ | ⟨ht0, hmi, -, hA, -⟩
     · exact Or.inl ⟨h0, (ha e).1, (ha e).2⟩
     · exact Or.inr ⟨ht0, hmi, hA e⟩
   obtain ⟨hlm, hE⟩ := mag_tail hexp hni hcvt hR ht hM' hX hin hnew hp hal hsum hq (fun e => (hA e).2.1)
-    (fun jj e => ⟨(hvt jj e).1, (hvt jj e).2.1⟩) (fun e => (hA e).2.2.2) hl' hold
+    (fun jj e => ⟨(hvt jj e).1, (hvt jj e).2.1⟩) (fun e => (hA e).2.2.2.1) hl' hold
   have hC := cen_tail hexp hni hcvt hR ht hM' hX hin hp hal hsum hq (fun e => (hA e).2.1) hvt
-    (fun e => (hA e).2.2.2) hl' hlm hold
+    (fun e => (hA e).2.2.2.1) (fun e => (hA e).2.2.2.2) hl' hlm hold
   right
   refine ⟨by omega, hM', ?_, fun e => (hA e).2.2.1, hlm, hC, hE⟩
   refine lstep hexp hni hR ht hM' hX hp hin hal hsum hl' ?_
@@ -779,7 +844,10 @@ theorem row_step_plain {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.
           Format.binary32.maxVal →
       (acc' e).isFinite = true ∧ |(acc' e).toReal - ((a1 e).toReal + ∑ k, (q k).toReal * (vt k e).toReal)| ≤
         (cS8 : ℝ) * |(a1 e).toReal| + (cC8 : ℝ) * ∑ k, |(q k).toReal * (vt k e).toReal| +
-          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ))
+          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ) ∧
+        |(acc' e).toReal - ((a1 e).toReal + ∑ k, (q k).toReal * (vt k e).toReal)| ≤
+          (lS8 : ℝ) * |(a1 e).toReal| + (lC8 : ℝ) * ∑ k, |(q k).toReal * (vt k e).toReal| +
+            (lP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (lA8 : ℝ))
     (hl' : FloatV.NaNEq (FloatV.add (FloatV.mul l al) lij) l' ∨
       (fusion = true ∧ FloatV.NaNEq (FloatV.fma l al lij) l'))
     (hold : RowSt R ve vl t m l acc) : RowSt R ve vl (t + 1) m' l' acc' := by
@@ -818,7 +886,10 @@ theorem row_step_masked {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules
           Format.binary32.maxVal →
       (acc' e).isFinite = true ∧ |(acc' e).toReal - ((a1 e).toReal + ∑ k, (q k).toReal * (vt k e).toReal)| ≤
         (cS8 : ℝ) * |(a1 e).toReal| + (cC8 : ℝ) * ∑ k, |(q k).toReal * (vt k e).toReal| +
-          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ))
+          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (cA8 : ℝ) ∧
+        |(acc' e).toReal - ((a1 e).toReal + ∑ k, (q k).toReal * (vt k e).toReal)| ≤
+          (lS8 : ℝ) * |(a1 e).toReal| + (lC8 : ℝ) * ∑ k, |(q k).toReal * (vt k e).toReal| +
+            (lP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k e).toRat) + (lA8 : ℝ))
     (hl' : FloatV.NaNEq (FloatV.add (FloatV.mul l al) lij) l' ∨
       (fusion = true ∧ FloatV.NaNEq (FloatV.fma l al lij) l'))
     (h0 : t = 0 → R.al (64 * t) = true)

@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-e5m2b",
+  "kernel": "matmul_e5m2",
+  "round": 3,
+  "findings": [],
+  "release": [
+    {
+      "id": "F6",
+      "note": "Settled. OutSpec's docstring now says E = tol comes from the exact partial sums, each chunk's largest lifted product and each chunk's exact magnitude chunkAbs. Those are exactly errAt's inputs (partSum, chunkMax of liftV, chunkAbs of prodV). No definition changed, and the gate digest is the same."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 3 at gate 752f03b36e81309e (unchanged). F6 is released: the docstring now names chunkAbs. The README's randn sentence at K = 4096 now says the tolerance is below |S| on roughly 40-50% of draws, and the sign sentence says the same. My earlier sampling agrees: 9 of the first 20 seed-0 draws and 45 of 120 overall (37.5%). No other change. All items stay accepted at their digests."
+}

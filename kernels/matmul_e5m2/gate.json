@@ -126,29 +126,29 @@
       "ok": true
     }
   ],
-  "digest": "e127e9a2077f09211e004670b711699763f3113f588cf36d6b2bcab5b89d68f0",
+  "digest": "752f03b36e81309ec2f528b0af850a35b26e9741102a59dd67045c52084efec6",
   "files": {
-    "README.md": "38926f4b2f15409d1d71f88e03dd900053bc75c484654a51b357dcb055ad66e8",
+    "README.md": "613403aad1c835bf17362d15f52b78287218fccbda0835fb89a903d155707f50",
     "kernel.json": "c195e19c4bcbd4a39d47fc6f202f7fb49df71ec1396d6542dfefa4150aa348b2",
-    "lean/MatmulE5m2.lean": "d4ee3f52308fc2a87490fd84163a204d839fed461cb39b1dadc644ebbe310116",
+    "lean/MatmulE5m2.lean": "e948e1338dfb130cdeaa0516aaa47c54c78c1ef7b36d51b03a8486b71136ebfd",
     "lean/MatmulE5m2/Arith.lean": "832747adb41b4e7d946eefd8b514600c503dd2ba14b1c15ca25319c21b6f14f9",
-    "lean/MatmulE5m2/Basic.lean": "bafccf8d45c65f7483e752ec30edfd265966155af9fe45e30f968d75348cf0cf",
-    "lean/MatmulE5m2/Defs.lean": "7838a8b78c4b7dada22f5638b3968c06740f29dcd7acabbf7d03f101d60ab2f2",
-    "lean/MatmulE5m2/Program.lean": "e7614f5806f8d819ec0f39901096d13fcdb71d31084a095b84b3734570cf0fa6",
-    "lean/MatmulE5m2/Reject.lean": "bdeaaf979bb76dabc304253c66a566a9b9e5889d64b915de763e6c6b51846728",
+    "lean/MatmulE5m2/Basic.lean": "8614aaaf097860a22e3769651ee08f7a95b33e0d676f3479779515845c5e9603",
+    "lean/MatmulE5m2/Defs.lean": "ced54dc5218057327d7071682ee11ddb410ef6a7429e3a4d7b7be128661ef0f2",
+    "lean/MatmulE5m2/Program.lean": "a86eaf911aa6d77d847206cdaeedde69f2c7e5e0b8f7d9c0aab2cecbe06300a9",
+    "lean/MatmulE5m2/Reject.lean": "403dc1220b0b57463474bc05b7b22b97a3a2a9ab883fd56c196323bac1d6e63c",
     "model-map.json": "4a176f744307d0c411be4dea9aa62e5d8347e405ea7ff5c243e96181585f11e7",
     "source/03-matrix-multiplication.py": "0214d122b309ed88b97c8b88a66ddc03b0d7dcc7cca8444e887d4c8b71447ba5"
   },
   "items": {
     "assumption:cvt": "744a748008a7829d5fb2d62ce1b420e99ea2c29fd7c5da1f5f6e9d06b94b45bc",
     "assumption:cvt_total": "ee243df15fde32980bc251219865356c0a2cf742dd47fc58b4d5699cc6e195ac",
-    "assumption:dot": "efd5335e8dec8072f919efe96782458615e5f0363b785ed00cd2d29c0cd0cfa0",
+    "assumption:dot": "b814e73ae00b511ea2902d3364aa71592f7c3888193546732ffa00660bc08a10",
     "assumption:dot_total": "4374a900b99123ad7afcd116e9e758e55212442315fb171773e588225ee42c98",
     "assumption:faithful": "a6f11c176fc0174752b88ad8d41820a20025afe5d21667276c09ddd4d1960e0b",
     "conditions": "91a8ae003d59cfa027d947ab3376b75dfc1b41b284622417b2e6a9618cfa3a55",
     "map": "517f928841e0be85ddbc61be9168e5e46ebe13e0ef35495e032557bb4e86e6cc",
     "model": "7a67c16d2d9a93f1d2a4df71b97b250a39a6cba71ce4b3cde3203d985ec612ee",
-    "spec": "3ea1f796c295f1d890743ce9381d1c025ce753664124bcceb00900ea7dd2d217"
+    "spec": "b329888752ffa92991ca7dd8f8a02ff684ae25850240509d2124da21de4503ba"
   },
   "kernel": "matmul_e5m2",
   "kinds": {
@@ -160,7 +160,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-01T09:03:07Z",
+  "time": "2026-11-01T16:12:47Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "b94d0e68beded7d8c2fcf96c4bd89e62a7547cb24a1f00eb722e1312f953652a"

@@ -112,7 +112,7 @@ theorem main : ∀ (K : Claim.Behaviour Inst) (P : Platform), Assumptions K P �
 
 theorem consistent : Claim.Consistent Assumptions := by
   obtain ⟨K, htot, hf⟩ := exists_total_faithful Platform.sm90ref model launch
-  exact ⟨K, Platform.sm90ref, htot, ⟨fun d _ => hf d, Platform.sm90ref.dotE5m2Chunk, Platform.ref.dotTotal _,
+  exact ⟨K, Platform.sm90ref, htot, ⟨fun d _ => hf d, Platform.sm90ref.dotE5m2ChunkLoss, Platform.ref.dotTotal _,
     Platform.sm90ref.cvtF32E5m2, Platform.ref.cvtTotal _ _ _⟩⟩
 
 /-! ## A covered instance -/

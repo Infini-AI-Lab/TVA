@@ -6,9 +6,10 @@ import AttnFwdE5m2.Inner
 * `row0`: program `i`'s query tile starts at row `128·i` of the `[Z·H·N_CTX, HEAD_DIM]` view
   (`off_hz·N_CTX + 128·start_m`);
 * `oTile`, `mTile`, `Wr`: the elements of `o` and `M` program `i` writes;
-* `psum_below`, `blk_sum`, `ew_weight`, `acR_accA`, `ecR_errC`, `centC_final`: the row's sums and
-  error bounds in the specification's terms (`weight`, `partW`, `centC`, `blkC`, `blkA`, `blkLW`,
-  `blkVL`, `accA`, `errC`), and the centred sum after the last block (`0`);
+* `psum_below`, `blk_sum`, `ew_weight`, `stR_stC`, `acR_accA`, `ecR_errC`, `centC_final`: the row's
+  sums and error bounds in the specification's terms (`weight`, `partW`, `centC`, `blkC`, `blkV`,
+  `blkA`, `blkAbsV`, `blkLW`, `blkVL`, `stC`, `accA`, `errC`), and the centred sum after the last block
+  (`0`);
 * `OutO`, `OutM`, `Qp`: what `Post` asks of an element, and of a program's tile;
 * `row_out`: the end of a row (lines 241–245) from its state after the loop (the centred bound at
   `r = attnRef`, `l_final`, `final_v`, `final_M`);
@@ -212,25 +213,46 @@ theorem bLW_blkLW (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e 
   · have hk : 64 * t + (k : ℕ) ∉ keys d n := fun hk => h (mem_keys.mp hk)
     rw [if_neg h, if_neg hk]
 
-/-- `Cen.acR` at `r = attnRef` is `Model.accA`. -/
-theorem acR_accA (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) :
-    ∀ t, acR (rowCtx d init c bh n X Z) (veOf d init bh e) (vlOf d init bh e) (attnRef d init bh n e) t =
-      accA d init bh n e X Z t
-  | 0 => rfl
-  | t + 1 => by
-    rw [acR, accA, acR_accA d init c bh n X Z e t, bA_blkA, bVL_blkVL,
-      ← dmax_r (R := rowCtx d init c bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl rfl]
+theorem bV_blkV (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
+    bV (rowCtx d init c bh n X Z) (veOf d init bh e) t = blkV d init bh n e t := by
+  unfold bV blkV
+  rw [show (rowCtx d init c bh n X Z).al = alOf d n from rfl,
+    blk_sum t (fun j => ew (rowCtx d init c bh n X Z) j * |veOf d init bh e j|)]
+  refine Finset.sum_congr rfl fun j hj => ?_
+  have hj' : j ∈ keys d n := (Finset.mem_filter.mp hj).1
+  rw [ew_weight, veOf_key e hj']
 
-/-- `Cen.ecR` at `r = attnRef` is `Model.errC`. -/
-theorem ecR_errC (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) :
-    ∀ t, ecR (rowCtx d init c bh n X Z) (veOf d init bh e) (vlOf d init bh e) (attnRef d init bh n e) t =
-      errC d init bh n e X Z t
+theorem bVa_blkAbsV (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (t : ℕ) :
+    bVa (rowCtx d init c bh n X Z) (veOf d init bh e) t = blkAbsV d init bh n e t := by
+  unfold bVa blkAbsV
+  rw [show (rowCtx d init c bh n X Z).al = alOf d n from rfl, blk_sum t (fun j => |veOf d init bh e j|)]
+  refine Finset.sum_congr rfl fun j hj => ?_
+  have hj' : j ∈ keys d n := (Finset.mem_filter.mp hj).1
+  rw [veOf_key e hj']
+
+/-- `Cen.stR` at `r = attnRef` is `Model.stC`. -/
+theorem stR_stC (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (W : ℝ) :
+    ∀ t, stR (rowCtx d init c bh n X Z) (veOf d init bh e) (vlOf d init bh e) (attnRef d init bh n e) W t =
+      stC d init bh n e X Z W t
   | 0 => rfl
   | t + 1 => by
-    rw [ecR, errC, ecR_errC d init c bh n X Z e t, acR_accA, Cx_centC, bC_blkC, bLW_blkLW, psum_partW,
+    rw [stR, stC, stR_stC d init c bh n X Z e W t, Cx_centC, bC_blkC, bV_blkV, bLW_blkLW, bA_blkA, bVa_blkAbsV,
+      bVL_blkVL, psum_partW,
       ← dmax_r (R := rowCtx d init c bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl rfl,
       ← pE_r (R := rowCtx d init c bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl,
       ← FhT_r (R := rowCtx d init c bh n X Z) (D := d.HEAD_DIM) (X := X) (Z := Z) rfl rfl]
+
+/-- `Cen.acR` at `r = attnRef` is `Model.accA`. -/
+theorem acR_accA (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (W : ℝ) (t : ℕ) :
+    acR (rowCtx d init c bh n X Z) (veOf d init bh e) (vlOf d init bh e) (attnRef d init bh n e) W t =
+      accA d init bh n e X Z W t := by
+  rw [acR, accA, stR_stC]
+
+/-- `Cen.ecR` at `r = attnRef` is `Model.errC`. -/
+theorem ecR_errC (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X Z : ℚ) (e : Fin d.HEAD_DIM) (W : ℝ) (t : ℕ) :
+    ecR (rowCtx d init c bh n X Z) (veOf d init bh e) (vlOf d init bh e) (attnRef d init bh n e) W t =
+      errC d init bh n e X Z W t := by
+  rw [ecR, errC, stR_stC]
 
 /-- After the last block the centred sum is `0`: `attnRef` is the weights' mean. -/
 theorem centC_final {d : Inst} {init : Mem} {bh n T : ℕ} (hTk : ∀ j, alOf d n j = true → j < 64 * T)
@@ -333,10 +355,6 @@ theorem row_out {d : Inst} (hd : d.ok) {init : Mem} {P : Platform} (hdivF : Rule
       model_factors (D := d.HEAD_DIM) (N := d.N_CTX) (X := X) (Z := Z) hRok rfl rfl hN hT
     obtain ⟨-, -, hlo, -, -⟩ := l_final hRok hFh hFl haL hM hL
     have hW0 : 0 < wsum d init bh n := (hW X Z) ▸ psum_ew_pos hM
-    have hI := hC e (attnRef d init bh n e)
-    rw [centC_final hTk hW0, mul_zero, mul_zero, sub_zero, ecR_errC, acR_accA] at hI
-    have hEC0 : 0 ≤ errC d init bh n e X Z T := by
-      rw [← ecR_errC d init c.toReal bh n X Z e T]; exact ecR_nonneg hRok _ _ _ T
     rw [psum_wt_eq, hW X Z, ← pE_r (R := rowCtx d init c.toReal bh n X Z) (D := d.HEAD_DIM) (X := X)
       (Z := Z) rfl] at hlo
     have hFpd : Fp d.HEAD_DIM d.N_CTX X Z = Flo d.HEAD_DIM d.N_CTX X Z - ((aL d.N_CTX : ℚ) : ℝ) *
@@ -346,27 +364,35 @@ theorem row_out {d : Inst} (hd : d.ok) {init : Mem} {P : Platform} (hdivF : Rule
     have hFp0 : 0 < Fp d.HEAD_DIM d.N_CTX X Z := lt_of_lt_of_le (by norm_num) hFp
     set q2 := (2 : ℝ) ^ (-m.toReal) with hq2
     have hq20 : 0 < q2 := Real.rpow_pos_of_pos (by norm_num) _
-    have hkey : q2 * errC d init bh n e X Z T ≤
-        errC d init bh n e X Z T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z * l.toReal := by
-      rw [div_div, div_mul_eq_mul_div, le_div_iff₀ (mul_pos hW0 hFp0)]
-      have := mul_le_mul_of_nonneg_left hlo hEC0
-      linarith [show errC d init bh n e X Z T * (Fp d.HEAD_DIM d.N_CTX X Z * (q2 * wsum d init bh n)) =
-        q2 * errC d init bh n e X Z T * (wsum d init bh n * Fp d.HEAD_DIM d.N_CTX X Z) by ring]
-    have hE' : |(acc e).toReal - attnRef d init bh n e * l.toReal| ≤
-        (errC d init bh n e X Z T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z + accA d init bh n e X Z T) *
-          l.toReal + 0 := by
-      linarith [add_mul (errC d init bh n e X Z T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z)
-        (accA d init bh n e X Z T) l.toReal]
     have hl : 1 / 2 ≤ l.toReal := (lminB_half hTle).trans hlm
     have hr : |attnRef d init bh n e| ≤ 57344 := by
       rw [← hSx X Z e]; exact ref_le hM (veOf_le hH e)
-    obtain ⟨hf, hb⟩ := final_v hdivF hcvt (hA e).1 hL.1 hl ((hA e).2.trans (crA_le hTle)) hr le_rfl hE'
-      (ho' e) (ho8 e)
-    refine ⟨hf, ?_⟩
-    rw [mul_zero, add_zero] at hb
-    unfold tolO
-    rw [hTn]
-    exact hb
+    -- the bound along `stC` at any choice `W`
+    have hOW : ∀ W : ℝ, (o8 e).isFinite = true ∧
+        |(o8 e).toReal - attnRef d init bh n e| ≤ tolOW d init bh n e X Z W := fun W => by
+      have hI := hC e (attnRef d init bh n e) W
+      rw [centC_final hTk hW0, mul_zero, mul_zero, sub_zero, ecR_errC, acR_accA] at hI
+      have hEC0 : 0 ≤ errC d init bh n e X Z W T := by
+        rw [← ecR_errC d init c.toReal bh n X Z e W T]; exact ecR_nonneg hRok _ _ _ W T
+      have hkey : q2 * errC d init bh n e X Z W T ≤
+          errC d init bh n e X Z W T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z * l.toReal := by
+        rw [div_div, div_mul_eq_mul_div, le_div_iff₀ (mul_pos hW0 hFp0)]
+        have := mul_le_mul_of_nonneg_left hlo hEC0
+        linarith [show errC d init bh n e X Z W T * (Fp d.HEAD_DIM d.N_CTX X Z * (q2 * wsum d init bh n)) =
+          q2 * errC d init bh n e X Z W T * (wsum d init bh n * Fp d.HEAD_DIM d.N_CTX X Z) by ring]
+      have hE' : |(acc e).toReal - attnRef d init bh n e * l.toReal| ≤
+          (errC d init bh n e X Z W T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z +
+            accA d init bh n e X Z W T) * l.toReal + 0 := by
+        linarith [add_mul (errC d init bh n e X Z W T / wsum d init bh n / Fp d.HEAD_DIM d.N_CTX X Z)
+          (accA d init bh n e X Z W T) l.toReal]
+      obtain ⟨hf, hb⟩ := final_v hdivF hcvt (hA e).1 hL.1 hl ((hA e).2.trans (crA_le hTle)) hr le_rfl hE'
+        (ho' e) (ho8 e)
+      refine ⟨hf, ?_⟩
+      rw [mul_zero, add_zero] at hb
+      unfold tolOW
+      rw [hTn]
+      exact hb
+    exact ⟨(hOW 0).1, le_min (hOW (wsum d init bh n * Fp d.HEAD_DIM d.N_CTX X Z)).2 (hOW 0).2⟩
   have hOM : HeadOk d init bh → ∀ X Z : ℚ, X ≤ Xh d.HEAD_DIM →
       (∀ j ∈ keys d n, sigma d * scoreLift d init bh n j ≤ X) →
       (∀ j ∈ keys d n, sigma d * scoreErr d init bh n j ≤ Z) →
@@ -499,7 +525,7 @@ theorem offs_n_val (jj : Fin 64) : ((tl.arange 0 64).get1 jj).toInt = ((jj : ℕ
 /-- **One program** (lines 189–245): program `i` reads only `q`, `k`, `v`, writes only its tile of
 `o` and `M`, and leaves them as `Post` asks (`Qp`). -/
 theorem safe_program {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P : Platform}
-    (hdot : Rules.Num.DotE5m2Chunk P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
+    (hdot : Rules.Num.DotE5m2ChunkLoss P) (hdtot : Rules.Num.DotTotal P cfg8) (hexp : Rules.Num.Exp2F32 P)
     (hni : Rules.Num.Exp2F32NegInf P) (hext : Rules.Num.MathTotal P .exp2 .binary32)
     (hcvt : Rules.Num.CvtSatF32E5m2 P) (hcvtt : Rules.Num.CvtTotal P Format.binary32 Format.e5m2 .rn)
     (hlog : Rules.Num.Log2F32 P) (hlt : Rules.Num.MathTotal P .log2 .binary32)

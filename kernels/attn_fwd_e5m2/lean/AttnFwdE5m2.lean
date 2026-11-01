@@ -32,7 +32,8 @@ fp8 rounding of `p` alone allows (README, Specification).
   bounds.
 * `AttnFwdE5m2.Mag`: the second bound on the output (`tolV`), over the computed weights.
 * `AttnFwdE5m2.Cen`: the first bound's centred step (`acc − r·l_i` against `kap` times the centred
-  sum of the exact weights), the `p·v` `tl.dot`'s chunks.
+  sum of the exact weights), the `p·v` `tl.dot`'s chunks, on whichever arm of the loss facts
+  `Model.stepC` takes.
 * `AttnFwdE5m2.Facts`: the grid, `int32` arithmetic, the descriptors, the constants, `qk_scale`.
 * `AttnFwdE5m2.Row`, `AttnFwdE5m2.Tile`, `AttnFwdE5m2.Inner`: a row's state, the tiles' loads and
   stores, the loop of `_attn_fwd_inner` and its three calls.
@@ -107,7 +108,7 @@ theorem main : ∀ (K : Claim.Behaviour Inst) (P : Platform), Assumptions K P �
 
 theorem consistent : Claim.Consistent Assumptions := by
   obtain ⟨K, htot, hf⟩ := exists_total_faithful Platform.sm90ref model launch
-  exact ⟨K, Platform.sm90ref, htot, ⟨fun d _ => hf d, Platform.sm90ref.dotE5m2Chunk, Platform.ref.dotTotal _,
+  exact ⟨K, Platform.sm90ref, htot, ⟨fun d _ => hf d, Platform.sm90ref.dotE5m2ChunkLoss, Platform.ref.dotTotal _,
     Platform.sm90ref.cvtSatF32E5m2, Platform.ref.cvtTotal _ _ _, Platform.sm90ref.exp2F32,
     Platform.sm90ref.exp2F32NegInf, Platform.ref.mathTotal, Platform.sm90ref.log2F32, Platform.ref.mathTotal,
     Platform.sm90ref.divFull, Platform.ref.divTotal _⟩⟩

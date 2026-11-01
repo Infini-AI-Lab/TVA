@@ -257,6 +257,19 @@ theorem cP8_r : ((cP8 : ℚ) : ℝ) = 132128 / 2 ^ 24 := by
 theorem cA8_r : ((cA8 : ℚ) : ℝ) = 8225 / 2 ^ 12 * (1 / 2 ^ 126) := by
   unfold cA8 Rules.Num.rhoChunk8 Rules.Num.sigmaChunk8 Rules.Num.alphaChunk8; push_cast; norm_num
 
+/-- The loss arm's constants as real numbers. -/
+theorem lS8_r : ((lS8 : ℚ) : ℝ) = 4097 / 2 ^ 22 := by
+  unfold lS8 Rules.Num.rhoLossChunk8 Rules.Num.sigmaChunk8; push_cast; norm_num
+
+theorem lC8_r : ((lC8 : ℚ) : ℝ) = 16791553 / 2 ^ 23 := by
+  unfold lC8 Rules.Num.rhoLossChunk8 Rules.Num.sigmaChunk8 Rules.Num.kappaChunk8; push_cast; norm_num
+
+theorem lP8_r : ((lP8 : ℚ) : ℝ) = 2049 / 2 ^ 23 := by
+  unfold lP8 Rules.Num.rhoLossChunk8 Rules.Num.sigmaChunk8; push_cast; norm_num
+
+theorem lA8_r : ((lA8 : ℚ) : ℝ) = 4097 / 2 ^ 11 * (1 / 2 ^ 126) := by
+  unfold lA8 Rules.Num.rhoLossChunk8 Rules.Num.sigmaChunk8 Rules.Num.alphaChunk8; push_cast; norm_num
+
 theorem eps8_r : ((eps8 : ℚ) : ℝ) = 1 / 2 ^ 17 + 1 / 2 ^ 125 := by unfold eps8; push_cast; ring
 
 theorem gam63_r : ((gam63 : ℚ) : ℝ) = gamr := by unfold gam63 gamr u32; push_cast; ring

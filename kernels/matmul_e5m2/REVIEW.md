@@ -6,8 +6,8 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 ## Status
 
-- Gate: **PASS**, digest `e127e9a2077f0921` (2026-11-01T09:03:07Z).
-- Phase: round 2: all reviewers have filed.
+- Gate: **PASS**, digest `752f03b36e81309e` (2026-11-01T16:12:47Z).
+- Phase: round 3: all reviewers have filed.
 - Reviewers: r-e5m2 (all), r-e5m2b (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
@@ -16,13 +16,13 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 |---|---|---|---|
 | `assumption:cvt` | `744a748008a7` | accepted | accepted |
 | `assumption:cvt_total` | `ee243df15fde` | accepted | accepted |
-| `assumption:dot` | `efd5335e8dec` | accepted | accepted |
+| `assumption:dot` | `b814e73ae00b` | accepted | accepted |
 | `assumption:dot_total` | `4374a900b991` | accepted | accepted |
 | `assumption:faithful` | `a6f11c176fc0` | accepted | accepted |
 | `conditions` | `91a8ae003d59` | accepted | accepted |
 | `map` | `517f928841e0` | accepted | accepted |
 | `model` | `7a67c16d2d9a` | accepted | accepted |
-| `spec` | `3ea1f796c295` | accepted | accepted |
+| `spec` | `b329888752ff` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -31,6 +31,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 | [F3](#f3) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.relDot8` | r-e5m2 | 1 | relDot8's per-chunk 2^-7 is about twice the 33*2^-13 plus a rounding that DotE4m3's docstring derives; over the 128 chun |
 | [F4](#f4) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-e5m2b | 1 | For 2817 <= K <= 4096 (covered; 10 of the 31 benchmark fp8 sizes) tol K A exceeds sum/a*b/, so Post holds for a kernel t |
 | [F5](#f5) | CLOSED (non-blocking) | DOC | `doc:kernels/matmul_e5m2/README.md` | r-e5m2b | 1 | README, what the tolerance rejects: below K = 2817 it fixes the result only within 1 +- gamma (S/2 passes from K = 1665) |
+| [F6](#f6) | CLOSED (non-blocking) | DOC | `decl:Kernels.MatmulE5m2.OutSpec` | r-e5m2b | 2 | OutSpec's docstring says E = tol comes from the exact partial sums and each chunk's largest lifted product; it now also  |
 
 **Certificate: GRANTED**
 
@@ -201,4 +202,46 @@ The paragraph 'What the tolerance means, and where it stops meaning much' lists 
 `2026-11-01T09:05:00Z`, at gate `e127e9a2077f0921`. Notes: Confirmation of the README phrase fix at gate e127e9a2077f0921 (unchanged). 'That growth of the bound, by about 1 + rho + sigma per chunk' is errB's compounding factor. 'the error bound on a fed-back accumulator grows by at most a factor 1 + 2^-11 per chunk' is true: errM <= errL, and errL compounds by 1 + rho' + sigma = 1 + 2^-11, as in errL_le's closed form (1 + 2^-11)^n times the sum of the per-chunk terms. num.md states the growth in the same sense. Neither sentence is wrong or misleading.
 
 - **accepted** at gate `e127e9a2077f0921`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2 files ([filing](review/round-2/r-e5m2/filing-8.json), [report](review/round-2/r-e5m2/report-8.md), [work](review/round-2/r-e5m2/work/))
+
+`2026-11-01T16:08:58Z`, at gate `752f03b36e81309e`. Notes: Re-review on DotE5m2ChunkLoss at gate 752f03b36e81309e. assumption:dot is Rules.Num.DotE5m2ChunkLoss P. num.md lists it for an fp8 x fp8 tl.dot into float32 at maxImpreciseAcc 2^30, any precision, as the alternative to DotE5m2Chunk. It is DotF8ChunkLoss P .f8e5 .f8e5: for every precision, DotChunkLoss on the model's configuration with rho = 2^-7, sigma = 2^-12, alpha = 2^-126, kappa = 2, rho' = 2^-12 (printed in work/names6.lean). Its docstring says what the fact says. spec: errAt's step (1 + sigma)*E + min(rho*(X + E), kappa*A + rho'*(X + E)) + sigma*|S'| + alpha, with X = max(|S_j|, m_j) and A = chunkAbs, is what the fact gives per chunk. Take M = max(|S_j| + E_j, m_j) <= X + E; both arms grow with M; |s + c| <= |S'| + E (chunk_step). The fact's chunkAbs8 of step t's chunk c equals the loop's chunkAbs at 2t + c, with disabled lanes 0 (hca). This is the library's errM. The tolerance is explicit and computable. zero_rejected, drop_rejected and tol_spike keep it meaningful at every covered K. I recomputed every README figure exactly in rationals: spike at K - 1 0.806% at 512 and 4096; worst 71713*2^-23 = 0.855% attained at K = 4033 (K mod 64 = 1); pair input 0.0268 -> 0.0165 and 0.0658 -> 0.0175; one product at 0 13.70% -> 1.547% and 179.30% -> 7.253%; all ones 6.30% and 73.91%, second arm never the smaller; first chunk 1s then 1/16s (row and column) 12.46% -> 11.83% and 142.68% -> 73.73%; the x = y = 1.25 bounds below 0.015 and 0.014. On torch.randn data cast to float8e5 (my own draws: 2 x 20 and 200) the second arm is never the smaller, so the old and new tolerance agree exactly. The medians over 200 draws are 1.51 at K = 512 and 48 against a median |S| of 42 at K = 4096, the same order as the README's 1.5 and 52. All six theorems use only propext, Classical.choice and Quot.sound. Non-blocking: OutSpec's docstring still says E comes from the exact partial sums and each chunk's largest lifted product; it now also depends on each chunk's exact magnitude, as tol's docstring says. The README's 'below |S| on half the draws' at K = 4096 holds of its 20 draws; over my 200 draws it held on about 40%.
+
+- **accepted** at gate `752f03b36e81309e`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2b files ([filing](review/round-2/r-e5m2b/filing-8.json), [report](review/round-2/r-e5m2b/report-8.md), [work](review/round-2/r-e5m2b/work/))
+
+`2026-11-01T16:10:50Z`, at gate `752f03b36e81309e`. Notes: Re-review of spec and assumption:dot after the move to DotE5m2ChunkLoss, at gate 752f03b36e81309e. assumption:dot: DotE5m2ChunkLoss P = DotF8ChunkLoss P .f8e5 .f8e5, the num.md fp8 tl.dot listing's alternative, for any input precision with maxImpreciseAcc 2^30, which matches the model's line 300. Its docstring states the fact as the library does. spec: errAt is the minimum composed per chunk with the fact's constants (rho 2^-7, sigma 2^-12, alpha 2^-126, kappa 2, rho' 2^-12) and chunkAbs of the unlifted products. It is explicit and computable. The work file ChunkLoss proves errAt = Dot8Chunk.errM on the loop's chunks (from 0, the chunk sums, chunkAbs, chunkMax), so the tolerance is the library's composed bound. It also proves errAt <= the round-24 recursion at every chunk, so Post only got stronger, and zero_rejected and drop_rejected still hold. main, consistent, satisfiable, tol_spike, zero_rejected, drop_rejected and tol_le_tolA depend only on propext, Classical.choice and Quot.sound. I checked the figures by exact rational evaluation (work file chunkloss_figs.py), and all hold. One product 1 at K-1: 0.8057% at 512 and 4096. tol_spike: the maximum over all covered K is 0.8549% = 71713/2^23, attained. drop_rejected s = 0: 0.0268 -> 0.0165 (K = 512) and 0.0658 -> 0.0175 (K = 4096). One product at 0: 13.70% -> 1.547% and 179.3% -> 7.253%. All ones: 6.303% and 73.91%, unchanged, with no chunk on the second arm; X_j + E_j reaches at most 7035 against the threshold 8192/31 * 32 = 8456. First chunk 1s, then 1/16s: matches with both row and column 1/16, products 2^-8: 12.46% -> 11.83% and 142.7% -> 73.73%. The x = y = 1.25 float16 bound: 0.01413 < 0.015 worst covered, 0.01336 < 0.014 at 512. The 'about 2^8 A_j' threshold is 8192/31 = 264, proved in the work file. randn (the script's seed 0, fp16 randn cast to float8e5 on GPU 0, 512 rows at K = 512 and 120 at 4096): no chunk takes the second arm and new/old = 1 exactly, so 'unchanged' holds. My 20-draw medians spread over tol 0.88-1.76 and |S| 9.6-21.1 at 512, and tol 41-57 and |S| 27-51 at 4096; the README's 1.5 (20.5) and 52 (52) lie within that spread. One non-blocking DOC finding, on OutSpec's docstring.
+
+#### F6
+
+**DOC** on `decl:Kernels.MatmulE5m2.OutSpec` (non-blocking): OutSpec's docstring says E = tol comes from the exact partial sums and each chunk's largest lifted product; it now also uses each chunk's exact magnitude (chunkAbs, the second arm)
+
+OutSpec, in the spec item, describes its tolerance as 'the error bound over the loop's 2*cdiv(K, 64) chunks of 32 products, from the exact partial sums and each chunk's largest lifted product'. That was all of errAt's inputs before this change. errAt now takes min(rho*(X_j + E_j), kappa*A_j + rho'*(X_j + E_j)) with A_j = chunkAbs p j, the chunk's exact sum of |a*b|, and the second arm is what makes the tolerance small after a large early product (1.55% instead of 13.7% of |X| at K = 512). A reader of Post alone would think the bound ignores the chunks' magnitudes. tol's own docstring and errAt's are right. Adding 'and each chunk's exact magnitude' to OutSpec's docstring would resolve it.
+
+*Evidence:* Defs.lean, OutSpec's docstring against errAt and tol (claim.md, section 4).
+
+- **accepted** at gate `752f03b36e81309e`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### The prover responds ([response](review/round-2/prover/response.json), [notes](review/round-2/prover/notes.md))
+
+`2026-11-01T16:14:06Z`, at gate `752f03b36e81309e`.
+
+- **F6 CLARIFIED**: OutSpec's docstring now says that E = tol comes from the exact partial sums, each chunk's largest lifted product and each chunk's exact magnitude chunkAbs (the second arm of DotE5m2ChunkLoss's minimum). Wording only: no definition changed, and the gate digest is the same. With it I also fixed r-e5m2's remark on the README's randn figures at K = 4096: the tolerance is below |S| on roughly 40-50% of draws (10 of my 20, about 40% of r-e5m2's 200), not on half, and the sentence on fixing the sign says the same.
+
+## Round 3
+
+
+### r-e5m2 files ([filing](review/round-3/r-e5m2/filing.json), [report](review/round-3/r-e5m2/report.md))
+
+`2026-11-01T16:15:04Z`, at gate `752f03b36e81309e`. Notes: Round 3 at gate 752f03b36e81309e. F6 (r-e5m2b's, the same point as my docstring note) is settled. OutSpec's docstring now says E = tol comes from the exact partial sums, each chunk's largest lifted product and each chunk's exact magnitude chunkAbs. Those are all of errAt's inputs: partSum, chunkMax of liftV, chunkAbs of prodV. My README remark is settled too. At K = 4096 the README now says the tolerance is below |S| on roughly 40-50% of draws (10 of its 20, about 40% of my 200), and the sign sentence says the same. No definition changed, so my acceptance of every item stands.
+
+- **accepted** at gate `752f03b36e81309e`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2b files ([filing](review/round-3/r-e5m2b/filing.json), [report](review/round-3/r-e5m2b/report.md))
+
+`2026-11-01T16:15:08Z`, at gate `752f03b36e81309e`. Notes: Round 3 at gate 752f03b36e81309e (unchanged). F6 is released: the docstring now names chunkAbs. The README's randn sentence at K = 4096 now says the tolerance is below |S| on roughly 40-50% of draws, and the sign sentence says the same. My earlier sampling agrees: 9 of the first 20 seed-0 draws and 45 of 120 overall (37.5%). No other change. All items stay accepted at their digests.
+
+- **released F6**: Settled. OutSpec's docstring now says E = tol comes from the exact partial sums, each chunk's largest lifted product and each chunk's exact magnitude chunkAbs. Those are exactly errAt's inputs (partSum, chunkMax of liftV, chunkAbs of prodV). No definition changed, and the gate digest is the same.
+- **accepted** at gate `752f03b36e81309e`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

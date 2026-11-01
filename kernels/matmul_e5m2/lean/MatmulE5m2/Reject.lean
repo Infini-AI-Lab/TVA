@@ -6,9 +6,8 @@ import MatmulE5m2.Basic
 `Post` holds for every input, so it rejects a wrong kernel as soon as one input exposes it. On
 inputs with one or two nonzero products the error bound `tol` stays small at every covered `K`:
 
-* `tol_spike`: one product `X = x·y`, at index `K − 1`: `tol ≤ 271425·2^-24·L + 400·2^-126`, with
-  `L = liftMag x · liftMag y` (`|X|` when `x` and `y` are normal) and
-  `271425·2^-24 = (1 + 2^-7 + 2^-12)^2 − 1`, about `1.62%`.
+* `tol_spike`: one product `X = x·y`, at index `K − 1`: `tol ≤ 71713·2^-23·L + 400·2^-126`, with
+  `L = liftMag x · liftMag y` (`|X|` when `x` and `y` are normal), about `0.855%`.
 * `zero_rejected`: at every covered `K ≥ 1`, some finite input leaves room in `float16` and puts
   `0` outside the bound of `OutSpec`'s `float16` clause: a kernel that stores `0` breaks `Post`.
 * `drop_rejected`: for every step `s` of the loop (`s < cdiv(K, 64)`), some finite input puts
@@ -93,6 +92,14 @@ theorem chunkMax_spikeP_out {e j : Nat} (x : ℚ) (h : e < 32 * j ∨ 32 * j + 3
     · exact absurd h' (by omega)
     · exact le_rfl
 
+/-- A spike's chunk magnitude is `0` on a chunk without its index. -/
+theorem chunkAbs_spikeP_out {e j : Nat} (x : ℚ) (h : e < 32 * j ∨ 32 * j + 32 ≤ e) :
+    chunkAbs (spikeP e x) j = 0 :=
+  Finset.sum_eq_zero fun k _ => by
+    have := k.isLt
+    unfold spikeP
+    rw [ite_eq_right (by omega), abs_zero]
+
 theorem chunkMax_pairL_le {e1 e2 : Nat} (hne : e1 ≠ e2) (j : Nat) : chunkMax (pairL e1 e2) j ≤ 1 :=
   chunkMax_le fun k => by
     unfold pairL spikeP
@@ -112,12 +119,24 @@ theorem chunkMax_pairL_out {e1 e2 j : Nat} (h1 : e1 < 32 * j ∨ 32 * j + 32 ≤
 
 /-! ## The error bound, chunk by chunk -/
 
-/-- One chunk of the error bound, with bounds `a` on `max(|S j|, m j)` and `b` on `|S (j + 1)|`. -/
+/-- One chunk of the error bound by its first arm, with bounds `a` on `max(|S j|, m j)` and `b` on
+`|S (j + 1)|`. -/
 theorem errAt_succ_le (p q : Nat → ℚ) {j j' : Nat} (hj : j' = j + 1) {a b : ℚ}
     (ha : max |partSum p j| (chunkMax q j) ≤ a) (hb : |partSum p j'| ≤ b) :
     errAt p q j' ≤ 4129 / 4096 * errAt p q j + a / 128 + b / 4096 + 1 / 2 ^ 126 := by
   subst hj
-  rw [errAt_succ, rho_eq, sigma_eq, alpha_eq]
+  have h := errAt_succ_le_acc p q j
+  rw [rho_eq, sigma_eq, alpha_eq] at h
+  linarith
+
+/-- One chunk of the error bound by its second arm, with bounds `A` on the chunk's magnitude, `a`
+on `max(|S j|, m j)` and `b` on `|S (j + 1)|`. -/
+theorem errAt_succ_le' (p q : Nat → ℚ) {j j' : Nat} (hj : j' = j + 1) {A a b : ℚ}
+    (hA : chunkAbs p j ≤ A) (ha : max |partSum p j| (chunkMax q j) ≤ a) (hb : |partSum p j'| ≤ b) :
+    errAt p q j' ≤ 2049 / 2048 * errAt p q j + 2 * A + a / 4096 + b / 4096 + 1 / 2 ^ 126 := by
+  subst hj
+  have h := errAt_succ_le_loss p q j
+  rw [rhoL_eq, sigma_eq, alpha_eq, kappa_eq] at h
   linarith
 
 /-- Chunks whose partial sums and lifted products are all `0` only grow the bound by
@@ -260,13 +279,14 @@ theorem steps_last {K : Nat} (hK1 : 1 ≤ K) {n : Nat} (hn : steps K = n + 1) :
   unfold steps at hn; omega
 
 /-- **One product `X = x·y` at index `K − 1`** (the loop's last step): the bound is at most
-`((1 + ρ + σ)^2 − 1)·L + 400·α = 271425·2^-24·L + 400·2^-126`, `L = liftMag x · liftMag y`, about
-`1.62%` of `L` (of `|X|` for normal `x`, `y`), at every covered `K`. Before the chunk `J` of index
-`K − 1` nothing is added; chunk `J` adds `ρ·L + σ·|X|`; the loop's last chunk, when it is not `J`
-(it is all disabled lanes), adds `(ρ + σ)·|X|` more. -/
+`71713·2^-23·L + 400·2^-126`, `L = liftMag x · liftMag y`, about `0.855%` of `L` (of `|X|` for
+normal `x`, `y`), at every covered `K`. Before the chunk `J` of index `K − 1` nothing is added;
+chunk `J` adds `ρ·L + σ·|X|` (the first arm); the loop's last chunk, when it is not `J` (it is all
+disabled lanes, of magnitude `0`), adds `(ρ' + σ)·|X|` more by the second arm, and grows the
+bound by `1 + ρ' + σ`: `(1 + 2^-11)·33·2^-12 + 2·2^-12 = 71713·2^-23`. -/
 theorem tol_spike {K : Nat} (hK1 : 1 ≤ K) (hK : K ≤ 2 ^ 12) (x y : F8E5) :
     tol (spike8 (K - 1) x) (spike8 (K - 1) y) K ≤
-      271425 / 2 ^ 24 * (Rules.Num.liftMag .f8e5 x.toRat * Rules.Num.liftMag .f8e5 y.toRat) +
+      71713 / 2 ^ 23 * (Rules.Num.liftMag .f8e5 x.toRat * Rules.Num.liftMag .f8e5 y.toRat) +
         400 / 2 ^ 126 := by
   have hL0 : 0 ≤ Rules.Num.liftMag .f8e5 x.toRat * Rules.Num.liftMag .f8e5 y.toRat :=
     mul_nonneg (Dot8Chunk.liftMag_nonneg _ _) (Dot8Chunk.liftMag_nonneg _ _)
@@ -309,7 +329,9 @@ theorem tol_spike {K : Nat} (hK1 : 1 ≤ K) (hK : K ≤ 2 ^ 12) (x y : F8E5) :
       rw [hp, partSum_spikeP, ite_eq_left (by omega)]; exact hXL
     have hm2 : max |partSum p (J + 1)| (chunkMax q (J + 1)) ≤ L :=
       max_le hS1 ((chunkMax_spikeP_out _ (by omega)).trans hL0)
-    have hJs2 := errAt_succ_le p q (j := J + 1) (j' := J + 2) rfl hm2 hS2
+    have hA2 : chunkAbs p (J + 1) ≤ 0 := by rw [hp, chunkAbs_spikeP_out _ (by omega)]
+    have hJs2 := errAt_succ_le' p q (j := J + 1) (j' := J + 2) rfl hA2 hm2 hS2
+    have hE1 := errAt_nonneg p q (J + 1)
     linarith
 
 theorem dotSum_spike {K : Nat} (hK1 : 1 ≤ K) (x y : F8E5) :

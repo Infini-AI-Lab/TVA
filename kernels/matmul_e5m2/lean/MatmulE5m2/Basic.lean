@@ -7,7 +7,7 @@ import MatmulE5m2.Arith
 * `int32` arithmetic on small values (`i32_add`, `i32_sub`, `i32_mul`, `i32_lt`, `i32_le`);
 * the zero `other=0.0` converted to `float8e5` (`zero_conv`), from `Rules.Num.CvtF32E5m2`;
 * the accumulation of one `tl.dot` step, two chunks of `32` (`acc_step`, `chunk_step`), from
-  `Rules.Num.DotE5m2Chunk`; the error bound's size (`errAt_le_room`) and its bound by the lifted
+  `Rules.Num.DotE5m2ChunkLoss`; the error bound's size (`errAt_le_room`) and its bound by the lifted
   magnitudes alone (`tol_le_tolA`);
 * the last rounding to `float16` (`out_f16`).
 -/
@@ -121,7 +121,7 @@ theorem zero_conv {P : Platform} (hcvt : Rules.Num.CvtF32E5m2 P) {r : F8E5}
 /-! ## The accumulation -/
 
 /-- `relDot8 64 = (1 + 2^-7)^2 − 1 = 257/2^14`: the relative constant of the room that
-`Rules.Num.DotE5m2Chunk` asks of one `tl.dot` of `K = 64`. -/
+`Rules.Num.DotE5m2ChunkLoss` asks of one `tl.dot` of `K = 64`. -/
 theorem relDot8_64 : Rules.Num.relDot8 64 = 257 / 2 ^ 14 := by
   unfold Rules.Num.relDot8 Rules.Num.chunks8; norm_num
 
@@ -231,13 +231,16 @@ theorem errAt_le_room {va vb : Nat → F8E5} {K : Nat} (hfa : ∀ e, e < K → (
   linarith
 
 /-- **One chunk of the error bound**: an accumulator `s` within `E` of the exact partial sum `S`,
-to which a chunk adds `c` up to `ρ·M + σ·|s + c| + α` for every `M` at least `|s|` and `m`, is then
-within `(1 + ρ + σ)·E + ρ·max(|S|, m) + σ·|S'| + α` of `S' = S + c`: take `M = max(|S| + E, m)`;
-`|s| ≤ |S| + E` and `|s + c| ≤ |S'| + E`. -/
-theorem chunk_step {ρ σ α s s' S S' c m E : ℚ} (hρ : 0 ≤ ρ) (hσ : 0 ≤ σ) (he : |s - S| ≤ E)
-    (hS' : S' = S + c)
-    (hstep : ∀ M, |s| ≤ M → m ≤ M → |s' - (s + c)| ≤ ρ * M + σ * |s + c| + α) :
-    |s' - S'| ≤ (1 + ρ + σ) * E + ρ * max |S| m + σ * |S'| + α := by
+to which a chunk adds `c` up to `min(ρ·M, κ·A + ρ'·M) + σ·|s + c| + α` for every `M` at least `|s|`
+and `m`, is then within `(1 + σ)·E + min(ρ·(X + E), κ·A + ρ'·(X + E)) + σ·|S'| + α` of
+`S' = S + c`, `X = max(|S|, m)`: take `M = max(|S| + E, m) ≤ X + E`; `|s| ≤ |S| + E` and
+`|s + c| ≤ |S'| + E`. -/
+theorem chunk_step {ρ σ α κ ρ' A s s' S S' c m E : ℚ} (hρ : 0 ≤ ρ) (hσ : 0 ≤ σ) (hρ' : 0 ≤ ρ')
+    (he : |s - S| ≤ E) (hS' : S' = S + c)
+    (hstep : ∀ M, |s| ≤ M → m ≤ M →
+      |s' - (s + c)| ≤ min (ρ * M) (κ * A + ρ' * M) + σ * |s + c| + α) :
+    |s' - S'| ≤ (1 + σ) * E + min (ρ * (max |S| m + E)) (κ * A + ρ' * (max |S| m + E)) +
+      σ * |S'| + α := by
   subst hS'
   have hE0 : 0 ≤ E := (abs_nonneg _).trans he
   have hs : |s| ≤ |S| + E := by
@@ -252,11 +255,14 @@ theorem chunk_step {ρ σ α s s' S S' c m E : ℚ} (hρ : 0 ≤ ρ) (hσ : 0 �
     apply max_le
     · linarith [le_max_left |S| m]
     · linarith [le_max_right |S| m]
+  have hmin : min (ρ * max (|S| + E) m) (κ * A + ρ' * max (|S| + E) m) ≤
+      min (ρ * (max |S| m + E)) (κ * A + ρ' * (max |S| m + E)) :=
+    min_le_min (mul_le_mul_of_nonneg_left hmax hρ)
+      (add_le_add le_rfl (mul_le_mul_of_nonneg_left hmax hρ'))
   have htri : |s' - (S + c)| ≤ |s' - (s + c)| + |s - S| := by
     have e : s' - (S + c) = (s' - (s + c)) + (s - S) := by ring
     rw [e]
     exact abs_add_le _ _
-  have h2 := mul_le_mul_of_nonneg_left hmax hρ
   have h3 := mul_le_mul_of_nonneg_left hsc hσ
   linarith
 
@@ -289,10 +295,10 @@ theorem sum_chunk8 {j : Nat} (hj : j < 2) (f : Nat → ℚ) :
 
 /-- **One step of the loop** (line 300), for one output element `(i, j)` of the tile: the
 accumulator stays finite and within the error bound `errAt` of the exact partial sum, two chunks
-further, by `Rules.Num.DotE5m2Chunk` (`chunk_step` for each chunk of the step's `tl.dot`; chunk `c`
+further, by `Rules.Num.DotE5m2ChunkLoss` (`chunk_step` for each chunk of the step's `tl.dot`; chunk `c`
 of step `t` is chunk `2·t + c` of the loop). `A` and `B` are the loaded tiles: their enabled lanes
 hold the matrix elements, their disabled lanes finite zeros. -/
-theorem acc_step {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P)
+theorem acc_step {P : Platform} (hdot : Rules.Num.DotE5m2ChunkLoss P)
     {A : Tensor [128, 64] F8E5} {B : Tensor [64, 256] F8E5} {acc r : Tensor [128, 256] F32}
     (hr : P.dot { a := .f8e5, b := .f8e5, acc := .f32, precision := .tf32, maxImpreciseAcc := 2 ^ 30 } A B acc r)
     (i : Fin 128) (j : Fin 256) {va vb : Nat → F8E5} {K t : Nat} (hK : K ≤ 2 ^ 12) (ht : 64 * t < K)
@@ -343,6 +349,18 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P)
     refine Finset.sum_congr rfl fun k _ => ?_
     congr 1
     ring
+  have hca : ∀ c < 2, Rules.Num.chunkAbs8 (fun k => (A.get2 i k).toRat) (fun k => (B.get2 k j).toRat) c =
+      chunkAbs (prodV va vb K) (2 * t + c) := by
+    intro c hc
+    unfold Rules.Num.chunkAbs8 chunkAbs
+    rw [Finset.sum_congr rfl fun k _ => by rw [hprod k]]
+    have e : ∑ k ∈ Rules.Num.chunk8 64 c, |prodV va vb K (64 * t + k)| =
+        ∑ k : Fin 32, |prodV va vb K (64 * t + (32 * c + k))| :=
+      sum_chunk8 hc (fun e => |prodV va vb K (64 * t + e)|)
+    rw [e]
+    refine Finset.sum_congr rfl fun k _ => ?_
+    congr 2
+    ring
   have hcm : ∀ c < 2, ∀ k ∈ Rules.Num.chunk8 64 c,
       Rules.Num.liftMag .f8e5 (A.get2 i k).toRat * Rules.Num.liftMag .f8e5 (B.get2 k j).toRat ≤
         chunkMax (liftV va vb K) (2 * t + c) := by
@@ -369,7 +387,7 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P)
       _ = 2 ^ 38 := by simp; norm_num
   have hcA0 : 0 ≤ ∑ k : Fin 64, |prodV va vb K (64 * t + k)| :=
     Finset.sum_nonneg fun _ _ => abs_nonneg _
-  -- the step, by `DotE5m2Chunk`: partial values `s 0 = acc`, `s 1`, `s 2 = result`
+  -- the step, by `DotE5m2ChunkLoss`: partial values `s 0 = acc`, `s 1`, `s 2 = result`
   obtain ⟨s, vr, hvr, h0, hn, hstep⟩ := hdot .tf32 A B acc r hr i j (fun k => (A.get2 i k).toRat)
     (fun k => (B.get2 k j).toRat) (acc.get2 i j).toRat (fun k => val_f8e5 (hfA k) rfl)
     (fun k => val_f8e5 (hfB k) rfl) (DotLoop.val?_f32.mpr ⟨hinv.1, rfl⟩) (by
@@ -384,6 +402,7 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P)
   rw [hrval, ← hn]
   have hρ0 : (0 : ℚ) ≤ Rules.Num.rhoChunk8 := Dot8Chunk.rhoChunk8_nonneg
   have hσ0 : (0 : ℚ) ≤ Rules.Num.sigmaChunk8 := Dot8Chunk.sigmaChunk8_nonneg
+  have hρ'0 : (0 : ℚ) ≤ Rules.Num.rhoLossChunk8 := Dot8Chunk.rhoLossChunk8_nonneg
   -- chunk `0` of the step: chunk `2·t` of the loop
   have hs0 : |s 0 - partS va vb K (2 * t)| ≤ errAt (prodV va vb K) (liftV va vb K) (2 * t) := by
     rw [h0]; exact hinv.2
@@ -393,8 +412,10 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P)
       Rules.Num.chunkSum8 (fun k => (A.get2 i k).toRat) (fun k => (B.get2 k j).toRat) 0 := by
     rw [hc0]; exact partS_succ va vb K (2 * t)
   have e1 : |s 1 - partS va vb K (2 * t + 1)| ≤ errAt (prodV va vb K) (liftV va vb K) (2 * t + 1) := by
-    rw [errAt_succ]
-    exact chunk_step hρ0 hσ0 hs0 hS1
+    have hca0 := hca 0 (by norm_num)
+    simp only [add_zero] at hca0
+    rw [errAt_succ, ← hca0]
+    exact chunk_step hρ0 hσ0 hρ'0 hs0 hS1
       (fun M hM hm => hstep 0 (by norm_num) M hM fun k hk => (hcm 0 (by norm_num) k hk).trans hm)
   -- chunk `1` of the step: chunk `2·t + 1` of the loop
   have hc1 := hcs 1 (by norm_num)
@@ -403,8 +424,8 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotE5m2Chunk P)
     rw [hc1]; exact partS_succ va vb K (2 * t + 1)
   have e2 : |s 2 - partS va vb K (2 * t + 1 + 1)| ≤
       errAt (prodV va vb K) (liftV va vb K) (2 * t + 1 + 1) := by
-    rw [errAt_succ]
-    exact chunk_step hρ0 hσ0 e1 hS2
+    rw [errAt_succ, ← hca 1 (by norm_num)]
+    exact chunk_step hρ0 hσ0 hρ'0 e1 hS2
       (fun M hM hm => hstep 1 (by norm_num) M hM fun k hk => (hcm 1 (by norm_num) k hk).trans hm)
   rw [show 2 * (t + 1) = 2 * t + 1 + 1 by ring]
   exact e2

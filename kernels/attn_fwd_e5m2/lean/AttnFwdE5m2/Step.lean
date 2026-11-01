@@ -536,12 +536,63 @@ theorem errB2_le {v : ℚ} {c m : ℕ → ℚ} (hm0 : 0 ≤ m 0) (hm1 : 0 ≤ m 
   rw [← hρ, ← hσ, ← hα]
   nlinarith [abs_nonneg v, abs_nonneg (c 0), abs_nonneg (c 1)]
 
+/-- **The `p·v` `tl.dot`'s loss arm over its two chunks** (`Dot8Chunk.errL` at `2`): within
+`lS8·|v| + lC8·(a₀ + a₁) + lP8·(m₀ + m₁) + lA8`, with `a_c ≥ |c_c|` the chunks' exact magnitudes. -/
+theorem errL2_le {v : ℚ} {c a m : ℕ → ℚ} (hc0 : |c 0| ≤ a 0) (hc1 : |c 1| ≤ a 1) (hm0 : 0 ≤ m 0)
+    (hm1 : 0 ≤ m 1) :
+    Dot8Chunk.errL Rules.Num.sigmaChunk8 Rules.Num.alphaChunk8 Rules.Num.kappaChunk8 Rules.Num.rhoLossChunk8
+        v c a m 2 ≤ lS8 * |v| + lC8 * (a 0 + a 1) + lP8 * (m 0 + m 1) + lA8 := by
+  set ρ := Rules.Num.rhoLossChunk8 with hρ
+  set σ := Rules.Num.sigmaChunk8 with hσ
+  set α := Rules.Num.alphaChunk8 with hα
+  set κ := Rules.Num.kappaChunk8 with hκ
+  have hρ0 : 0 ≤ ρ := Dot8Chunk.rhoLossChunk8_nonneg
+  have hσ0 : 0 ≤ σ := Dot8Chunk.sigmaChunk8_nonneg
+  have hα0 : 0 ≤ α := Dot8Chunk.alphaChunk8_nonneg
+  have hκ0 : 0 ≤ κ := Dot8Chunk.kappaChunk8_nonneg
+  have e2 : Dot8Chunk.errL σ α κ ρ v c a m 2 = (1 + ρ + σ) * ((1 + ρ + σ) * 0 + κ * a 0 + ρ * max |v| (m 0) +
+      σ * |v + c 0| + α) + κ * a 1 + ρ * max |v + c 0| (m 1) + σ * |v + (c 0 + c 1)| + α := by
+    have h1 : Dot8Chunk.psum v c 1 = v + c 0 := by simp [Dot8Chunk.psum]
+    have h2 : Dot8Chunk.psum v c 2 = v + (c 0 + c 1) := by simp [Dot8Chunk.psum, Finset.sum_range_succ]
+    have h0 : Dot8Chunk.psum v c 0 = v := Dot8Chunk.psum_zero v c
+    show (1 + ρ + σ) * ((1 + ρ + σ) * 0 + κ * a 0 + ρ * max |Dot8Chunk.psum v c 0| (m 0) +
+      σ * |Dot8Chunk.psum v c 1| + α) + κ * a 1 + ρ * max |Dot8Chunk.psum v c 1| (m 1) +
+      σ * |Dot8Chunk.psum v c 2| + α = _
+    rw [h0, h1, h2]
+  rw [e2]
+  have ha0 : 0 ≤ a 0 := (abs_nonneg _).trans hc0
+  have ha1 : 0 ≤ a 1 := (abs_nonneg _).trans hc1
+  have k1 : max |v| (m 0) ≤ |v| + m 0 := max_le (by linarith) (by linarith [abs_nonneg v])
+  have k2 : max |v + c 0| (m 1) ≤ |v| + a 0 + m 1 :=
+    max_le (by linarith [abs_add_le v (c 0)]) (by linarith [abs_nonneg v])
+  have k3 : |v + c 0| ≤ |v| + a 0 := by linarith [abs_add_le v (c 0)]
+  have k4 : |v + (c 0 + c 1)| ≤ |v| + a 0 + a 1 := by
+    have := abs_add_le v (c 0 + c 1); have := abs_add_le (c 0) (c 1); linarith
+  have hq : 0 ≤ 1 + ρ + σ := by linarith
+  have l1 := mul_le_mul_of_nonneg_left k1 hρ0
+  have l2 := mul_le_mul_of_nonneg_left k2 hρ0
+  have l3 := mul_le_mul_of_nonneg_left k3 hσ0
+  have l4 := mul_le_mul_of_nonneg_left k4 hσ0
+  have l5 : (1 + ρ + σ) * ((1 + ρ + σ) * 0 + κ * a 0 + ρ * max |v| (m 0) + σ * |v + c 0| + α) ≤
+      (1 + ρ + σ) * (κ * a 0 + ρ * (|v| + m 0) + σ * (|v| + a 0) + α) :=
+    mul_le_mul_of_nonneg_left (by linarith) hq
+  have hc1' : (κ + σ) * a 1 ≤ ((1 + ρ + σ) * (κ + σ) + ρ + σ) * a 1 := by
+    have : κ + σ ≤ (1 + ρ + σ) * (κ + σ) + ρ + σ := by nlinarith
+    exact mul_le_mul_of_nonneg_right this ha1
+  have hm1' : ρ * m 1 ≤ ρ * (1 + ρ + σ) * m 1 := by
+    have : ρ ≤ ρ * (1 + ρ + σ) := by nlinarith
+    exact mul_le_mul_of_nonneg_right this hm1
+  unfold lS8 lC8 lP8 lA8
+  rw [← hρ, ← hσ, ← hα, ← hκ]
+  nlinarith [abs_nonneg v]
+
 /-- An element of `acc` after `t ≥ 1` blocks: finite and at most `crA t`. -/
 def ACr (t : ℕ) (a : F32) : Prop := a.isFinite = true ∧ |a.toReal| ≤ crA t
 
 /-- **One block for an element of `acc`** (lines 82–84, 95, 98–103): `q` the block's row of
 `p.to(float8e5)`, `vt` its column of `v`, `a1` the element of `acc * alpha[:, None]`, `a'` that of
-`tl.dot(p, v, acc)` (`hdot`: `Num.DotE5m2Chunk` at this element, over its two chunks). Before the
+`tl.dot(p, v, acc)` (`hdot`: `Num.DotE5m2ChunkLoss` at this element, over its two chunks: the
+chunk facts' arm and the loss arm). Before the
 first block the element is `0.0`. The new element is finite and at most `crA (t + 1)`; also `a1`'s
 rounding and the dot's error in real numbers. -/
 theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F32NegInf P)
@@ -560,13 +611,19 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
           Format.binary32.maxVal →
       a'.isFinite = true ∧ |a'.toReal - (a1.toReal + ∑ k, (q k).toReal * (vt k).toReal)| ≤
         (cS8 : ℝ) * |a1.toReal| + (cC8 : ℝ) * ∑ k, |(q k).toReal * (vt k).toReal| +
-          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ))
+          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ) ∧
+        |a'.toReal - (a1.toReal + ∑ k, (q k).toReal * (vt k).toReal)| ≤
+          (lS8 : ℝ) * |a1.toReal| + (lC8 : ℝ) * ∑ k, |(q k).toReal * (vt k).toReal| +
+            (lP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (lA8 : ℝ))
     (hold : (t = 0 ∧ a.isFinite = true ∧ a.toReal = 0) ∨ (0 < t ∧ MInv R t m ∧ ACr t a)) :
     a1.isFinite = true ∧ |a1.toReal - a.toReal * al.toReal| ≤ |a.toReal * al.toReal| / 2 ^ 24 + 1 / 2 ^ 150 ∧
       ACr (t + 1) a' ∧
       |a'.toReal - (a1.toReal + ∑ jj, (q jj).toReal * (vt jj).toReal)| ≤
         (cS8 : ℝ) * |a1.toReal| + (cC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj).toReal| +
-          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ) := by
+          (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ) ∧
+      |a'.toReal - (a1.toReal + ∑ jj, (q jj).toReal * (vt jj).toReal)| ≤
+        (lS8 : ℝ) * |a1.toReal| + (lC8 : ℝ) * ∑ jj, |(q jj).toReal * (vt jj).toReal| +
+          (lP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (lA8 : ℝ) := by
   -- the lanes
   have hlane : ∀ jj, (q jj).isFinite = true ∧ |(q jj).toReal| ≤ 2 := fun jj => by
     obtain ⟨hxf, hxle, hxa, hxm⟩ := hX jj
@@ -681,8 +738,8 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
     rw [hmax]
     have : (2 : ℚ) ^ 61 + 1 * 2 ^ 61 + 1 ≤ (2 ^ 24 - 1) * 2 ^ 104 := by norm_num
     linarith
-  obtain ⟨ha'f, hcomb⟩ := hdot ha1f hqf hdroom
-  refine ⟨ha1f, ha1e, ⟨ha'f, ?_⟩, hcomb⟩
+  obtain ⟨ha'f, hcomb, hcombL⟩ := hdot ha1f hqf hdroom
+  refine ⟨ha1f, ha1e, ⟨ha'f, ?_⟩, hcomb, hcombL⟩
   -- the crude bound
   have h1 : |a'.toReal| ≤ (1 + (cS8 : ℝ)) * |a1.toReal| + (1 + (cC8 : ℝ)) * ∑ jj, |(q jj).toReal * (vt jj).toReal| +
       (cP8 : ℝ) * cl2 (fun k => (q k).toRat) (fun k => (vt k).toRat) + (cA8 : ℝ) := by

@@ -1,11 +1,11 @@
 {
-  "gate": "60ae4e7766871cbd416d6c62a59ddfec84da6a866445c22c3fbac15c025e0a16",
+  "gate": "3d7848ee51b5e6a67f61551c7c3c4a0856335dfcaa3ef808915d5e8048dfc0c3",
   "items": {
     "assumption:cvt": "359221207bf73cea7ee7f63fc96654f8724652739fc9b57cd0c763e9959befee",
     "assumption:cvt_total": "d3dd5700e9915c60cd3f46fb045e7c65f82e5ed722dc645766f63980b2bd9d3a",
     "assumption:div_full": "7c99f269a360793916fd58136361eacb4a10306a88f76d2eecc153955b14a667",
     "assumption:div_total": "86ce72147b4378993d74ff9fb531b37970554b72ca1633331839adbe877ab069",
-    "assumption:dot": "bcb4617c6831520840b8736ad0b885dbb2fd6755a710fa7f3442ea412efcf326",
+    "assumption:dot": "73aa4f404bbf6f4cef845ea644c23de2e83fcbc0dd274b88c4f12f8044fc0329",
     "assumption:dot_total": "66eae7b77fb936e36a2dfbc15dff388320e7abf70745ea42e9d9b5f2ec5baf46",
     "assumption:exp2": "57eb7f577ca96c7d192ca1382febf3a6c25dc110816934e8da933a73689d089a",
     "assumption:exp2_ninf": "336e24a777f1facaa1d12a5b714e231c079f4a62129c844cce1cfc1f401686ea",
@@ -16,12 +16,12 @@
     "conditions": "b0121b83480b1c7043efb746b908caeb6adbf2c4960192ca9dea8d8af635060d",
     "map": "3a8a04772396784ddf3f67626343c26915c7a43680573256ddb736a52b66195f",
     "model": "af17db8da4c47fa5eb30914e852242fb09e87751c60bb03671b74e9f8968f953",
-    "spec": "3eeaeb3c22ac1d469036db9b60e69a20277af10efbdaa63194922bed40285f23"
+    "spec": "5f86912316ef51a194544a3210c9c2ffd13388c03ceda475a643fa638e84d8f2"
   },
   "kernel": "attn_fwd_e5m2",
   "reviewers": [
     "r-e5fwd",
     "r-e5fwd2"
   ],
-  "time": "2026-11-01T09:05:30Z"
+  "time": "2026-11-01T17:08:42Z"
 }

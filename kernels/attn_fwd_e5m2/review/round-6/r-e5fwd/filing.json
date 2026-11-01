@@ -1,0 +1,23 @@
+{
+  "reviewer": "r-e5fwd",
+  "kernel": "attn_fwd_e5m2",
+  "round": 6,
+  "findings": [
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/attn_fwd_e5m2/README.md",
+      "summary": "The benchmark paragraph says its N = 1024 ranges cover the reviewers' samples, but some of mine are outside: D = 128 causal tolO 0.50, D = 64 causal tolO 0.335, 0 meets Post 22.6% and 38.2%",
+      "detail": "'On the benchmark's data' says 'These ranges cover all rows of 33 heads per D and causal mode ... and the reviewers' samples'. Several numbers from my round-5 runs, listed in F13 (work/tol.out and tol_spread.out of my round-5 folder, seeds 41, 42, 50-55), are still outside. (1) D = 128 causal tolO: mine 0.502, 0.505 and 0.521, table 0.53-0.65 and text 0.53-0.89. (2) D = 64 causal tolO: mine 0.335, table 0.35-0.38 and text 0.35-0.44. D = 64 non-causal: mine 0.408, 0.412 and 0.414, table 0.42-0.44. (3) 0 meets Post: D = 64 causal, 22.6% for seed 50, text 25-39%; D = 128 causal, 38.2% and 39.8%, text 41-61%. (4) The table's rejected shares: D = 64 non-causal, mine 64.3-70.0% against 61-66%, causal 70.2-77.4% against 71-75%; D = 128, mine up to 61.8% against 39-59%. To resolve: widen these entries to cover the numbers, or drop the claim that the ranges cover the reviewers' samples. No conclusion depends on it.",
+      "evidence": "round-5 r-e5fwd work/tol.out and work/tol_spread.out (the bench lines)."
+    }
+  ],
+  "release": [
+    {
+      "id": "F13",
+      "note": "Settled for its headline. The falls are now 11-26% (D = 64) and 20-49% (D = 128), causal rows least, which covers my 11-22% and 20-38.5%. D = 128's non-causal tolO is now 0.65-0.89, which covers my 0.65-0.84. The remaining ranges that miss my numbers are raised as a new DOC, because tvr cannot record a re-raise while every item is accepted."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Checked without new samples, against my round-5 outputs. The Lean and the item digests are unchanged (gate 3d7848ee51b5e6a6), so every item stays accepted. I first filed F13's remainder as a re-raise. tvr lint refuses that with every item accepted: 'accept' forbids a re-raise, and 'accept-partly' needs an item left unaccepted. So I release F13 for the parts it settled and raise the remainder as a new DOC. I did not work around the refusal."
+}

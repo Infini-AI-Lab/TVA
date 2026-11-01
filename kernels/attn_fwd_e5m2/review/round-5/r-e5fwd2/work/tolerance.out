@@ -1,0 +1,57 @@
+test-like (normal(0, 0.5), sm_scale 0.5): all rows at N = 128, 96 rows otherwise; seeds 1, 2
+test   D=64  N=128   c=0 s=1 | tolO  0.0851 ->  0.0851 (max new/old 1.0000) | x floor  1.75 ->  1.75 | 0 meets Post  88.2% ->  88.2% | pE 1.021 -> 1.021, tolM 0.03038 -> 0.03038, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=64  N=128   c=0 s=2 | tolO  0.0866 ->  0.0866 (max new/old 1.0000) | x floor  1.75 ->  1.75 | 0 meets Post  86.3% ->  86.3% | pE 1.021 -> 1.021, tolM 0.02986 -> 0.02986, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=64  N=128   c=1 s=1 | tolO  0.0889 ->  0.0879 (max new/old 1.0000) | x floor  1.86 ->  1.84 | 0 meets Post  67.1% ->  66.4% | pE 1.019 -> 1.019, tolM 0.02783 -> 0.02783, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 25.4%
+test   D=64  N=128   c=1 s=2 | tolO   0.091 ->  0.0898 (max new/old 1.0000) | x floor  1.88 ->  1.86 | 0 meets Post  64.2% ->  63.5% | pE 1.019 -> 1.019, tolM 0.02718 -> 0.02718, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 25.0%
+test   D=64  N=1024  c=0 s=1 | tolO   0.103 ->   0.103 (max new/old 1.0000) | x floor  2.08 ->  2.08 | 0 meets Post 100.0% -> 100.0% | pE 1.026 -> 1.026, tolM 0.0374 -> 0.0374, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=64  N=1024  c=0 s=2 | tolO   0.104 ->   0.104 (max new/old 1.0000) | x floor  2.09 ->  2.09 | 0 meets Post 100.0% -> 100.0% | pE 1.026 -> 1.026, tolM 0.03702 -> 0.03702, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=64  N=1024  c=1 s=1 | tolO  0.0966 ->  0.0956 (max new/old 1.0000) | x floor  1.94 ->  1.93 | 0 meets Post  94.3% ->  94.1% | pE 1.024 -> 1.024, tolM 0.03445 -> 0.03445, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 9.0%
+test   D=64  N=1024  c=1 s=2 | tolO  0.0967 ->  0.0957 (max new/old 1.0000) | x floor  1.94 ->  1.93 | 0 meets Post  94.5% ->  94.3% | pE 1.023 -> 1.023, tolM 0.03352 -> 0.03352, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 8.9%
+test   D=64  N=4096  c=0 s=1 | tolO   0.194 ->   0.194 (max new/old 1.0000) | x floor  3.90 ->  3.90 | 0 meets Post 100.0% -> 100.0% | pE 1.029 -> 1.029, tolM 0.04103 -> 0.04103, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=64  N=4096  c=0 s=2 | tolO   0.196 ->   0.196 (max new/old 1.0000) | x floor  3.94 ->  3.94 | 0 meets Post 100.0% -> 100.0% | pE 1.029 -> 1.029, tolM 0.04178 -> 0.04178, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=64  N=4096  c=1 s=1 | tolO   0.133 ->   0.132 (max new/old 1.0000) | x floor  2.66 ->  2.64 | 0 meets Post  98.3% ->  98.2% | pE 1.027 -> 1.027, tolM 0.0382 -> 0.0382, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 4.0%
+test   D=64  N=4096  c=1 s=2 | tolO   0.134 ->   0.133 (max new/old 1.0000) | x floor  2.67 ->  2.64 | 0 meets Post  98.0% ->  97.9% | pE 1.027 -> 1.027, tolM 0.03917 -> 0.03917, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 4.1%
+test   D=128 N=128   c=0 s=1 | tolO   0.117 ->   0.117 (max new/old 1.0000) | x floor  2.38 ->  2.38 | 0 meets Post  83.2% ->  83.2% | pE 1.066 -> 1.066, tolM 0.09276 -> 0.09276, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=128 N=128   c=0 s=2 | tolO   0.117 ->   0.117 (max new/old 1.0000) | x floor  2.42 ->  2.42 | 0 meets Post  82.4% ->  82.4% | pE 1.07 -> 1.07, tolM 0.09701 -> 0.09701, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=128 N=128   c=1 s=1 | tolO   0.119 ->   0.117 (max new/old 1.0000) | x floor  2.46 ->  2.41 | 0 meets Post  62.5% ->  61.6% | pE 1.06 -> 1.06, tolM 0.08389 -> 0.08389, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 25.1%
+test   D=128 N=128   c=1 s=2 | tolO   0.118 ->   0.117 (max new/old 1.0000) | x floor  2.48 ->  2.44 | 0 meets Post  61.9% ->  61.0% | pE 1.062 -> 1.062, tolM 0.08619 -> 0.08619, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 25.1%
+test   D=128 N=1024  c=0 s=1 | tolO   0.146 ->   0.146 (max new/old 1.0000) | x floor  2.95 ->  2.95 | 0 meets Post 100.0% -> 100.0% | pE 1.087 -> 1.087, tolM 0.1199 -> 0.1199, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=128 N=1024  c=0 s=2 | tolO   0.145 ->   0.145 (max new/old 1.0000) | x floor  2.92 ->  2.92 | 0 meets Post 100.0% -> 100.0% | pE 1.084 -> 1.084, tolM 0.1164 -> 0.1164, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=128 N=1024  c=1 s=1 | tolO   0.134 ->   0.133 (max new/old 1.0000) | x floor  2.71 ->  2.68 | 0 meets Post  94.6% ->  94.4% | pE 1.079 -> 1.079, tolM 0.1096 -> 0.1096, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 8.9%
+test   D=128 N=1024  c=1 s=2 | tolO   0.134 ->   0.133 (max new/old 1.0000) | x floor  2.69 ->  2.66 | 0 meets Post  94.2% ->  93.9% | pE 1.076 -> 1.076, tolM 0.1052 -> 0.1052, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 9.1%
+test   D=128 N=4096  c=0 s=1 | tolO    0.27 ->    0.27 (max new/old 1.0000) | x floor  5.44 ->  5.44 | 0 meets Post 100.0% -> 100.0% | pE 1.091 -> 1.091, tolM 0.1261 -> 0.1261, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=128 N=4096  c=0 s=2 | tolO   0.273 ->   0.273 (max new/old 1.0000) | x floor  5.50 ->  5.50 | 0 meets Post 100.0% -> 100.0% | pE 1.094 -> 1.094, tolM 0.1301 -> 0.1301, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 0.0%
+test   D=128 N=4096  c=1 s=1 | tolO   0.186 ->   0.184 (max new/old 1.0000) | x floor  3.71 ->  3.67 | 0 meets Post  97.8% ->  97.8% | pE 1.088 -> 1.088, tolM 0.1218 -> 0.1218, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 4.2%
+test   D=128 N=4096  c=1 s=2 | tolO   0.192 ->   0.189 (max new/old 1.0000) | x floor  3.83 ->  3.79 | 0 meets Post  98.2% ->  98.1% | pE 1.09 -> 1.09, tolM 0.1248 -> 0.1248, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 4.3%
+benchmark-like (randn, sm_scale 1.3), N = 1024, 96 rows; seeds 1, 2
+bench  D=64  N=1024  c=0 s=1 | tolO     0.6 ->   0.454 (max new/old 1.0000) | x floor  6.95 ->  5.35 | 0 meets Post  53.9% ->  39.5% | pE 1.309 -> 1.309, tolM 0.3888 -> 0.3888, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 55.9%
+bench  D=64  N=1024  c=0 s=2 | tolO   0.576 ->   0.448 (max new/old 1.0000) | x floor  6.65 ->  5.29 | 0 meets Post  53.0% ->  38.7% | pE 1.305 -> 1.305, tolM 0.3849 -> 0.3849, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 50.5%
+bench  D=64  N=1024  c=1 s=1 | tolO   0.462 ->   0.381 (max new/old 1.0000) | x floor  5.26 ->  4.32 | 0 meets Post  36.2% ->  29.9% | pE 1.281 -> 1.281, tolM 0.358 -> 0.358, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 51.2%
+bench  D=64  N=1024  c=1 s=2 | tolO   0.434 ->   0.367 (max new/old 1.0000) | x floor  5.11 ->  4.13 | 0 meets Post  32.9% ->  27.0% | pE 1.273 -> 1.273, tolM 0.3484 -> 0.3484, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 49.3%
+bench  D=128 N=1024  c=0 s=1 | tolO    1.36 ->    0.73 (max new/old 1.0000) | x floor 16.82 ->  8.36 | 0 meets Post  83.3% ->  52.6% | pE 2.371 -> 2.371, tolM 1.246 -> 1.246, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 57.8%
+bench  D=128 N=1024  c=0 s=2 | tolO    1.54 ->   0.892 (max new/old 1.0000) | x floor 18.44 -> 12.18 | 0 meets Post  88.2% ->  61.3% | pE 2.313 -> 2.313, tolM 1.211 -> 1.211, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 59.2%
+bench  D=128 N=1024  c=1 s=1 | tolO    1.01 ->   0.689 (max new/old 1.0000) | x floor 13.05 ->  8.13 | 0 meets Post  72.4% ->  52.3% | pE 2.203 -> 2.203, tolM 1.14 -> 1.14, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 55.5%
+bench  D=128 N=1024  c=1 s=2 | tolO    0.86 ->   0.548 (max new/old 1.0000) | x floor 10.88 ->  5.93 | 0 meets Post  64.5% ->  42.9% | pE 2.133 -> 2.133, tolM 1.094 -> 1.094, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 56.2%
+benchmark-like at N = 2^14, non-causal, 6 rows
+bench  D=64  N=16384 c=0 s=1 | tolO    26.5 ->    1.74 (max new/old 0.3920) | x floor 325.05 -> 19.96 | 0 meets Post 100.0% -> 100.0% | pE 1.367 -> 1.367, tolM 0.4557 -> 0.4557, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 71.4%
+bench  D=128 N=16384 c=0 s=1 | tolO    66.7 ->    2.85 (max new/old 0.1347) | x floor 1231.09 -> 35.91 | 0 meets Post 100.0% -> 100.0% | pE 2.76 -> 2.76, tolM 1.474 -> 1.474, scoreErr first arm always: True, min Z ratio 1.000000 | loss-arm blocks 59.2%
+one key (causal row 0): tolO / |attnRef|, before -> now (median and range over e and three seeds)
+  test D=64: 0.310 [0.310, 0.311] -> 0.290 [0.290, 0.291]
+  test D=128: 0.311 [0.310, 0.321] -> 0.290 [0.290, 0.300]
+  bench D=64: 0.315 [0.313, 0.319] -> 0.292 [0.291, 0.293]
+  bench D=128: 0.326 [0.321, 0.332] -> 0.296 [0.294, 0.301]
+q = 0, v = 1 everywhere, D = 64: tolO before -> now
+  N=1024   0.4629 -> 0.4629 (tolV 0.6577)
+  N=2048   0.6972 -> 0.6972 (tolV 1.165)
+  N=4096   1.313 -> 1.313 (tolV 2.668)
+  N=8192   3.51 -> 2.425 (tolV 9.382)
+  N=16384  19.31 -> 3.551 (tolV 80.63)
+  N=32768  631.5 -> 5.455 (tolV 4989)
+  N=65536  1.172e+06 -> 9.876 (tolV 1.863e+07)
+vEff = 0 (q = k = 0, uniform weights): tolO at X = 0 and at the cap X = Xh (Z large), before -> now
+  D=64  N=4096   X=0: 7.629e-06 -> 7.629e-06; cap: 9.38e-06 -> 7.726e-06; tolV 7.629e-06 (2^-16 = 1.526e-05)
+  D=256 N=4096   X=0: 7.629e-06 -> 7.629e-06; cap: 1.025e-05 -> 7.758e-06; tolV 7.629e-06 (2^-16 = 1.526e-05)
+  D=64  N=16384  X=0: 7.629e-06 -> 7.629e-06; cap: 9.955e-05 -> 9.354e-06; tolV 7.629e-06 (2^-16 = 1.526e-05)
+  D=256 N=16384  X=0: 7.629e-06 -> 7.629e-06; cap: 0.000141 -> 9.852e-06; tolV 7.629e-06 (2^-16 = 1.526e-05)
+  D=64  N=65536  X=0: 7.836e-06 -> 7.629e-06; cap: 7.717 -> 4.794e-05; tolV 7.629e-06 (2^-16 = 1.526e-05)
+  D=256 N=65536  X=0: 7.836e-06 -> 7.629e-06; cap: 10.06 -> 5.353e-05; tolV 7.629e-06 (2^-16 = 1.526e-05)

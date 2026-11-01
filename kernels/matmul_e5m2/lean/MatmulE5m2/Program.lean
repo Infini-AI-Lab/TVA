@@ -186,7 +186,7 @@ theorem acc0 (d : Inst) (init : Mem) (p : Nat) : AccInv d init p 0 (tl.zeros [12
 /-- **One program.** Program `p` of the grid, run alone from `init`, is safe: it reads only `a`
 and `b`, writes only its tile of `c`, and leaves there what `OutSpec` says. -/
 theorem safe_program {d : Inst} (hd : d.ok) {init : Mem} (hpre : Pre d init) {P : Platform}
-    (hdot : Rules.Num.DotE5m2Chunk P)
+    (hdot : Rules.Num.DotE5m2ChunkLoss P)
     (htot : Rules.Num.DotTotal P { a := .f8e5, b := .f8e5, acc := .f32, precision := .tf32, maxImpreciseAcc := 2 ^ 30 })
     (hcvt : Rules.Num.CvtF32E5m2 P)
     (hctot : Rules.Num.CvtTotal P Math.Float.Format.binary32 Math.Float.Format.e5m2 .rn)

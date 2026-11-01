@@ -10,12 +10,14 @@ stays near `kap` times the scaled centred sum `Σ_j w_j·(v_j − r)`: the score
 as the spread `hw` of the ratios, times `Σ w_j |v_j − r|`. After the last block the centred sum is
 `0` for `r = attnRef`.
 
-* `cstep_real`: one block of `|acc − r·l_i − kap·2^-m·C| ≤ 2^-m·ε_C + A·l_i`, in real numbers
-  (`Model.errNext`, `Model.accNext`);
-* `lane_cen`, `block_cen`: one lane's and one block's `q·v − r·p − kap·w·(v − r)` and `|q·v|`;
+* `cstep_gen`: one block of `|acc − r·l_i − kap·2^-m·C| ≤ 2^-m·ε_C + A·l_i`, in real numbers, for
+  either arm of the `p·v` `tl.dot` (`Model.errStep`, `Model.accStep`);
+* `lane_cen`, `block_cen`, `block_qv`: one lane's and one block's `q·v − r·p − kap·w·(v − r)` and
+  `|q·v|`;
 * `cl2_cen`: the `p·v` `tl.dot`'s chunks' largest lifted products against the weights;
-* `Cx`, `bC`, `bA`, `bLW`, `bVL`, `acR`, `ecR`: the row's centred sums, block sums and the
-  recursions of `Model.accA` and `Model.errC` in the row's terms; `CInv`: the centred bound.
+* `Cx`, `bC`, `bA`, `bLW`, `bVL`, `bV`, `bVa`, `stR`, `acR`, `ecR`: the row's centred sums, block
+  sums and the recursion of `Model.stC` (`Model.accA`, `Model.errC`) in the row's terms, at any
+  choice `W` of `Model.stepC`; `CInv`: the centred bound, for every `r` and `W`.
 -/
 
 namespace Kernels.AttnFwdE5m2
@@ -46,17 +48,24 @@ theorem etaA_nonneg {dm : ℝ} (h : 0 ≤ dm) : 0 ≤ etaA dm := by unfold etaA;
 theorem etaA_le {dm : ℝ} (h0 : 0 ≤ dm) (h1 : dm ≤ 1 / 2 ^ 13) : etaA dm ≤ 1 / 2 ^ 12 := by
   unfold etaA; nlinarith
 
-theorem gA_eq (dm : ℝ) :
-    gA dm = (1 + (cS8 : ℝ)) * ((1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24))) - 1 := by
-  unfold gA; ring
+theorem gD_eq (cs dm : ℝ) :
+    gD cs dm = (1 + cs) * ((1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24))) - 1 := by
+  unfold gD; ring
 
-theorem gA_nonneg {dm : ℝ} (h : 0 ≤ dm) : 0 ≤ gA dm := by
-  rw [gA_eq, cS8_r]
+theorem gD_nonneg {cs dm : ℝ} (hc : 0 ≤ cs) (h : 0 ≤ dm) : 0 ≤ gD cs dm := by
+  rw [gD_eq]
   have : (1 : ℝ) ≤ (1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) := by nlinarith
   nlinarith
 
-theorem gA_le {dm : ℝ} (h0 : 0 ≤ dm) (h1 : dm ≤ 1 / 2 ^ 13) : gA dm ≤ 1 / 32 := by
-  rw [gA_eq, cS8_r]; nlinarith
+theorem gD_le {cs dm : ℝ} (hc0 : 0 ≤ cs) (hc1 : cs ≤ 1 / 50) (h0 : 0 ≤ dm) (h1 : dm ≤ 1 / 2 ^ 13) :
+    gD cs dm ≤ 1 / 32 := by
+  rw [gD_eq]
+  have k1 : (1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) ≤ (1 + 1 / 2 ^ 13) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) :=
+    mul_le_mul_of_nonneg_right (by linarith) (by norm_num)
+  have k2 : 0 ≤ (1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) := by positivity
+  have k3 := mul_le_mul (by linarith : 1 + cs ≤ 1 + 1 / 50) k1 k2 (by norm_num)
+  have k4 : (1 + 1 / 50 : ℝ) * ((1 + 1 / 2 ^ 13) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24))) - 1 ≤ 1 / 32 := by norm_num
+  linarith
 
 theorem denX_ge {dm : ℝ} (h0 : 0 ≤ dm) (h1 : dm ≤ 1 / 2 ^ 13) : 1 / 2 ≤ denX dm := by
   unfold denX; have := etaA_le h0 h1; have := etaA_nonneg h0; linarith
@@ -64,50 +73,65 @@ theorem denX_ge {dm : ℝ} (h0 : 0 ≤ dm) (h1 : dm ≤ 1 / 2 ^ 13) : 1 / 2 ≤ 
 theorem denS_ge : 1 / 2 ≤ denS := by
   unfold denS; rw [gam63_r]; have := gamr_le; have := gamr_nonneg; linarith
 
-theorem coefS_nonneg : 0 ≤ coefS := by
-  unfold coefS; rw [gam63_r, cC8_r]; have := gamr_nonneg; positivity
+theorem coefD_nonneg {cr : ℝ} (h : 0 ≤ cr) : 0 ≤ coefD cr := by
+  unfold coefD; rw [gam63_r]; have := gamr_nonneg; positivity
 
-theorem accNext_nonneg {dm R A Ba Bv : ℝ} (h0 : 0 ≤ dm) (h1 : dm ≤ 1 / 2 ^ 13) (hR : 0 ≤ R) (hA : 0 ≤ A)
-    (hBa : 0 ≤ Ba) (hBv : 0 ≤ Bv) : 0 ≤ accNext dm R A Ba Bv := by
-  unfold accNext
+theorem accStep_nonneg {dm cc cp cr R A Ba Bq Bv : ℝ} (h0 : 0 ≤ dm) (h1 : dm ≤ 1 / 2 ^ 13) (hcc : 0 ≤ cc)
+    (hcp : 0 ≤ cp) (hcr : 0 ≤ cr) (hR : 0 ≤ R) (hA : 0 ≤ A) (hBa : 0 ≤ Ba) (hBq : 0 ≤ Bq) (hBv : 0 ≤ Bv) :
+    0 ≤ accStep dm cc cp cr R A Ba Bq Bv := by
+  unfold accStep
   have hd := denS_ge
-  have hc := coefS_nonneg
-  have hM : 0 ≤ max ((A + 3 * (1 + etaA dm) * R / 2 ^ 24) / denX dm) (R * coefS / denS) :=
+  have hc := coefD_nonneg hcr
+  have hM : 0 ≤ max ((A + 3 * (1 + etaA dm) * R / 2 ^ 24) / denX dm) (R * coefD cr / denS) :=
     le_max_of_le_right (div_nonneg (mul_nonneg hR hc) (by linarith))
-  rw [cC8_r, cP8_r, eps8_r]
+  rw [eps8_r]
   positivity
 
-theorem errNext_nonneg {pe dm EC C R A Lw Bc Bl : ℝ} (hpe : 1 ≤ pe) (h0 : 0 ≤ dm) (hEC : 0 ≤ EC)
-    (hR : 0 ≤ R) (hA : 0 ≤ A) (hLw : 0 ≤ Lw) (hBc : 0 ≤ Bc) (hBl : 0 ≤ Bl) :
-    0 ≤ errNext pe dm EC C R A Lw Bc Bl := by
-  unfold errNext
-  have := gA_nonneg h0
+theorem errStep_nonneg {pe dm cs cc cp EC C R A Lw Bc Bq Bl : ℝ} (hpe : 1 ≤ pe) (h0 : 0 ≤ dm)
+    (hcs : 0 ≤ cs) (hcc : 0 ≤ cc) (hcp : 0 ≤ cp) (hEC : 0 ≤ EC) (hR : 0 ≤ R) (hA : 0 ≤ A) (hLw : 0 ≤ Lw)
+    (hBc : 0 ≤ Bc) (hBq : 0 ≤ Bq) (hBl : 0 ≤ Bl) :
+    0 ≤ errStep pe dm cs cc cp EC C R A Lw Bc Bq Bl := by
+  unfold errStep
+  have := gD_nonneg hcs h0
   have := etaA_nonneg h0
   have := kap_nonneg hpe
   have := hw_nonneg hpe
   have := b8_ge hpe
-  rw [cC8_r, cP8_r]
   positivity
 
-/-- `errNext` scales with the units of its centred terms. -/
-theorem errNext_scale (pe dm EC C R A Lw Bc Bl : ℝ) {k : ℝ} (hk : 0 ≤ k) :
-    errNext pe dm (k * EC) (k * C) R A (k * Lw) (k * Bc) (k * Bl) = k * errNext pe dm EC C R A Lw Bc Bl := by
-  unfold errNext
+/-- `errStep` scales with the units of its centred terms. -/
+theorem errStep_scale (pe dm cs cc cp EC C R A Lw Bc Bq Bl : ℝ) {k : ℝ} (hk : 0 ≤ k) :
+    errStep pe dm cs cc cp (k * EC) (k * C) R A (k * Lw) (k * Bc) (k * Bq) (k * Bl) =
+      k * errStep pe dm cs cc cp EC C R A Lw Bc Bq Bl := by
+  unfold errStep
   rw [abs_mul, abs_of_nonneg hk]
   ring
+
+/-- The two arms' constants. -/
+theorem arm_consts :
+    (0 : ℝ) ≤ (cS8 : ℝ) ∧ (cS8 : ℝ) ≤ 1 / 50 ∧ (0 : ℝ) ≤ (cC8 : ℝ) ∧ (0 : ℝ) ≤ (cP8 : ℝ) ∧
+      (0 : ℝ) ≤ (cA8 : ℝ) ∧ (cA8 : ℝ) ≤ 1 / 2 ^ 120 ∧
+      (0 : ℝ) ≤ (lS8 : ℝ) ∧ (lS8 : ℝ) ≤ 1 / 50 ∧ (0 : ℝ) ≤ (lC8 : ℝ) ∧ (0 : ℝ) ≤ (lP8 : ℝ) ∧
+      (0 : ℝ) ≤ (lA8 : ℝ) ∧ (lA8 : ℝ) ≤ 1 / 2 ^ 120 := by
+  rw [cS8_r, cC8_r, cP8_r, cA8_r, lS8_r, lC8_r, lP8_r, lA8_r]
+  norm_num
 
 /-! ## One block, in real numbers -/
 
 set_option maxHeartbeats 1600000 in
-/-- **One block of the centred bound** (lines 95, 101–103, 106), in real numbers. `a`, `l` are the
-old element of `acc` and `l_i`, `α` is `alpha` (within `etaA·λ + 2^-126` of `λ`), `a1` the element of
-`acc * alpha`, `a'` that of `tl.dot(p, v, acc)` (`hdot`: its error over two chunks, with `QA` the
-lanes' `Σ|q·v|` and `QL` the chunks' largest lifted products), `lij` the block's `tl.sum(p)` (`P`,
-`S` the lanes' `Σ p` and `Σ|p|`), `l'` the new `l_i`. The old bound is scaled to the new maximum
-(`C0`, `EC0`, `λ·l ≤ Lu + Lab`); the block brings `Q = Σ q·v` within `hw·Bc + …` of
-`r·P + kap·Cb` (`Cb` its scaled centred sum, `Bc` its `Σ w|v − r|`). -/
-theorem cstep_real {pe dm : ℝ} (hpe : 1 ≤ pe) (hdm0 : 0 ≤ dm) (hdm1 : dm ≤ 1 / 2 ^ 13)
-    {a a1 a' l l' α lij r lam C0 Cb EC0 A Q P S QA QL Bc Bl Ba Bv Lu Lab tau : ℝ}
+/-- **One block of the centred bound** (lines 95, 101–103, 106), in real numbers, for either arm
+of the `p·v` `tl.dot` (constants `cs`, `cc`, `cp`, `ca`; `cr` the share of `cc·Σ|q·v|` charged
+against `|r|`). `a`, `l` are the old element of `acc` and `l_i`, `α` is `alpha` (within
+`etaA·λ + 2^-126` of `λ`), `a1` the element of `acc * alpha`, `a'` that of `tl.dot(p, v, acc)`
+(`hdot`: its error over two chunks, with `QA` the lanes' `Σ|q·v|`, split by `hQA`, and `QL` the
+chunks' largest lifted products), `lij` the block's `tl.sum(p)` (`P`, `S` the lanes' `Σ p` and
+`Σ|p|`), `l'` the new `l_i`. The old bound is scaled to the new maximum (`C0`, `EC0`,
+`λ·l ≤ Lu + Lab`); the block brings `Q = Σ q·v` within `hw·Bc + …` of `r·P + kap·Cb` (`Cb` its
+scaled centred sum, `Bc` its `Σ w|v − r|`). -/
+theorem cstep_gen {pe dm cs cc cp ca cr : ℝ} (hpe : 1 ≤ pe) (hdm0 : 0 ≤ dm) (hdm1 : dm ≤ 1 / 2 ^ 13)
+    (hcs0 : 0 ≤ cs) (hcs1 : cs ≤ 1 / 50) (hcc0 : 0 ≤ cc) (hcp0 : 0 ≤ cp) (hca0 : 0 ≤ ca)
+    (hca1 : ca ≤ 1 / 2 ^ 120) (hcr0 : 0 ≤ cr)
+    {a a1 a' l l' α lij r lam C0 Cb EC0 A Q P S QA QL Bc Bq Bl Ba Bqa Bv Lu Lab tau : ℝ}
     (hlam0 : 0 ≤ lam) (hl0 : 0 ≤ l) (hl1 : l ≤ 2 ^ 44)
     (hα : |α - lam| ≤ etaA dm * lam + 1 / 2 ^ 126)
     (htau0 : 0 ≤ tau) (htau : tau ≤ 1 / 2 ^ 66)
@@ -115,9 +139,9 @@ theorem cstep_real {pe dm : ℝ} (hpe : 1 ≤ pe) (hdm0 : 0 ≤ dm) (hdm1 : dm �
     (hA0 : 0 ≤ A) (hEC0 : 0 ≤ EC0)
     (hI : |lam * a - r * (lam * l) - kap pe * C0| ≤ EC0 + A * (lam * l))
     (hLu0 : 0 ≤ Lu) (hLab0 : 0 ≤ Lab) (hLab : Lab ≤ 1 / 2 ^ 56) (hLu : lam * l ≤ Lu + Lab)
-    (hdot : |a' - (a1 + Q)| ≤ (cS8 : ℝ) * |a1| + (cC8 : ℝ) * QA + (cP8 : ℝ) * QL + (cA8 : ℝ))
-    (hBc : 0 ≤ Bc) (hBl : 0 ≤ Bl) (hBa : 0 ≤ Ba) (hBv : 0 ≤ Bv)
-    (hQA : QA ≤ b8 pe * Bc + (eps8 : ℝ) * Ba + |r| * (9 / 8 * S + 1 / 2 ^ 11))
+    (hdot : |a' - (a1 + Q)| ≤ cs * |a1| + cc * QA + cp * QL + ca)
+    (hBc : 0 ≤ Bc) (hBq : 0 ≤ Bq) (hBl : 0 ≤ Bl) (hBa : 0 ≤ Ba) (hBqa : 0 ≤ Bqa) (hBv : 0 ≤ Bv)
+    (hQA : cc * QA ≤ cc * b8 pe * Bq + cc * (eps8 : ℝ) * Bqa + cr * |r| * (9 / 8 * S + 1 / 2 ^ 11))
     (hQL : QL ≤ b8 pe * Bl + ((eps8 : ℝ) + 1 / 2 ^ 14) * Bv)
     (hT : |Q - r * P - kap pe * Cb| ≤ hw pe * Bc + (eps8 : ℝ) * Ba + |r| * S / 8 + |r| / 2 ^ 11)
     (hS0 : 0 ≤ S) (hP1 : S - 1 / 2 ^ 118 ≤ P) (hP2 : |P| ≤ S)
@@ -125,11 +149,11 @@ theorem cstep_real {pe dm : ℝ} (hpe : 1 ≤ pe) (hdm0 : 0 ≤ dm) (hdm1 : dm �
     (hl' : |l' - (l * α + lij)| ≤ 3 * (|l * α| + |lij|) / 2 ^ 24 + 4 / 2 ^ 150)
     (hl'h : 1 / 2 ≤ l') :
     |a' - r * l' - kap pe * (C0 + Cb)| ≤
-      errNext pe dm EC0 C0 |r| A Lu Bc Bl + accNext dm |r| A Ba Bv * l' := by
+      errStep pe dm cs cc cp EC0 C0 |r| A Lu Bc Bq Bl + accStep dm cc cp cr |r| A Ba Bqa Bv * l' := by
   -- the constants
-  have hgA0 := gA_nonneg hdm0
-  have hgA1 := gA_le hdm0 hdm1
-  have hgAe := gA_eq dm
+  have hgA0 := gD_nonneg hcs0 hdm0
+  have hgA1 := gD_le hcs0 hcs1 hdm0 hdm1
+  have hgAe := gD_eq cs dm
   have hη0 := etaA_nonneg hdm0
   have hη1 := etaA_le hdm0 hdm1
   have hK0 := kap_nonneg hpe
@@ -137,33 +161,29 @@ theorem cstep_real {pe dm : ℝ} (hpe : 1 ≤ pe) (hdm0 : 0 ≤ dm) (hdm1 : dm �
   have hB0 : 0 ≤ b8 pe := by have := b8_ge hpe; linarith
   have hdX := denX_ge hdm0 hdm1
   have hdS := denS_ge
-  have hcS := coefS_nonneg
+  have hcS := coefD_nonneg hcr0
   have hγ0 := gamr_nonneg
   have hγ1 := gamr_le
-  have hcS8 : (cS8 : ℝ) = 271425 / 2 ^ 24 := cS8_r
-  have hcC8 : (cC8 : ℝ) = 139297 / 2 ^ 24 := cC8_r
-  have hcP8 : (cP8 : ℝ) = 132128 / 2 ^ 24 := cP8_r
-  have hcA8 : (cA8 : ℝ) = 8225 / 2 ^ 12 * (1 / 2 ^ 126) := cA8_r
   have he8 : (eps8 : ℝ) = 1 / 2 ^ 17 + 1 / 2 ^ 125 := eps8_r
   have hdXd : denX dm = 1 - etaA dm - 3 * (1 + etaA dm) / 2 ^ 24 := rfl
   have hdSd : denS = 1 - gamr - 3 * (1 + gamr) / 2 ^ 24 := by unfold denS; rw [gam63_r]
-  have hcSd : coefS = 1 / 8 + 9 / 8 * (cC8 : ℝ) + gamr + 3 * (1 + gamr) / 2 ^ 24 := by
-    unfold coefS; rw [gam63_r]
+  have hcSd : coefD cr = 1 / 8 + 9 / 8 * cr + gamr + 3 * (1 + gamr) / 2 ^ 24 := by
+    unfold coefD; rw [gam63_r]
   have hR0 : 0 ≤ |r| := abs_nonneg r
   have hX0 : 0 ≤ lam * l := mul_nonneg hlam0 hl0
   have hΦ1 : 1 ≤ (1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) := by nlinarith
-  have hcS0 : 0 ≤ (cS8 : ℝ) := by rw [hcS8]; norm_num
-  have hcC0 : 0 ≤ (cC8 : ℝ) := by rw [hcC8]; norm_num
-  have hcP0 : 0 ≤ (cP8 : ℝ) := by rw [hcP8]; norm_num
+  have hcS0 : 0 ≤ cs := hcs0
+  have hcC0 : 0 ≤ cc := hcc0
+  have hcP0 : 0 ≤ cp := hcp0
   have he80 : 0 ≤ (eps8 : ℝ) := by rw [he8]; norm_num
-  unfold errNext accNext
-  set M := max ((A + 3 * (1 + etaA dm) * |r| / 2 ^ 24) / denX dm) (|r| * coefS / denS) with hMd
+  unfold errStep accStep
+  set M := max ((A + 3 * (1 + etaA dm) * |r| / 2 ^ 24) / denX dm) (|r| * coefD cr / denS) with hMd
   -- `M` against its two parts
   have hM1 : A + 3 * (1 + etaA dm) * |r| / 2 ^ 24 ≤ M * denX dm := by
-    have := le_max_left ((A + 3 * (1 + etaA dm) * |r| / 2 ^ 24) / denX dm) (|r| * coefS / denS)
+    have := le_max_left ((A + 3 * (1 + etaA dm) * |r| / 2 ^ 24) / denX dm) (|r| * coefD cr / denS)
     rw [← hMd, div_le_iff₀ (by linarith)] at this; exact this
-  have hM2 : |r| * coefS ≤ M * denS := by
-    have := le_max_right ((A + 3 * (1 + etaA dm) * |r| / 2 ^ 24) / denX dm) (|r| * coefS / denS)
+  have hM2 : |r| * coefD cr ≤ M * denS := by
+    have := le_max_right ((A + 3 * (1 + etaA dm) * |r| / 2 ^ 24) / denX dm) (|r| * coefD cr / denS)
     rw [← hMd, div_le_iff₀ (by linarith)] at this; exact this
   have hM0 : 0 ≤ M := by
     rw [hMd]; exact le_max_of_le_right (div_nonneg (mul_nonneg hR0 hcS) (by linarith))
@@ -183,22 +203,21 @@ theorem cstep_real {pe dm : ℝ} (hpe : 1 ≤ pe) (hdm0 : 0 ≤ dm) (hdm1 : dm �
   have ha1b : |a1| ≤ (1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) * |lam * a| + tau := by
     have := abs_sub_abs_le_abs_sub a1 (lam * a)
     linarith
-  have hT12 : |a' - (a1 + Q)| + |a1 - lam * a| ≤ gA dm * |lam * a| + (1 + (cS8 : ℝ)) * tau +
-      (cC8 : ℝ) * QA + (cP8 : ℝ) * QL + (cA8 : ℝ) := by
-    have k1 : (cS8 : ℝ) * |a1| ≤ (cS8 : ℝ) * ((1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) * |lam * a| + tau) :=
+  have hT12 : |a' - (a1 + Q)| + |a1 - lam * a| ≤ gD cs dm * |lam * a| + (1 + cs) * tau +
+      cc * QA + cp * QL + ca := by
+    have k1 : cs * |a1| ≤ cs * ((1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) * |lam * a| + tau) :=
       mul_le_mul_of_nonneg_left ha1b hcS0
-    have e : (cS8 : ℝ) * ((1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) * |lam * a| + tau) +
+    have e : cs * ((1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) * |lam * a| + tau) +
         (((1 + dm) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) - 1) * |lam * a| + tau) =
-        gA dm * |lam * a| + (1 + (cS8 : ℝ)) * tau := by
+        gD cs dm * |lam * a| + (1 + cs) * tau := by
       rw [hgAe]; ring
     linarith
-  have hgla : gA dm * |lam * a| ≤ gA dm * (|r| * (lam * l) + kap pe * |C0| + EC0 + A * (lam * l)) :=
+  have hgla : gD cs dm * |lam * a| ≤ gD cs dm * (|r| * (lam * l) + kap pe * |C0| + EC0 + A * (lam * l)) :=
     mul_le_mul_of_nonneg_left hla hgA0
-  have hgX : gA dm * ((|r| + A) * (lam * l)) ≤ gA dm * ((|r| + A) * (Lu + Lab)) :=
+  have hgX : gD cs dm * ((|r| + A) * (lam * l)) ≤ gD cs dm * ((|r| + A) * (Lu + Lab)) :=
     mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hLu (by linarith)) hgA0
-  have hQA' : (cC8 : ℝ) * QA ≤ (cC8 : ℝ) * (b8 pe * Bc + (eps8 : ℝ) * Ba + |r| * (9 / 8 * S + 1 / 2 ^ 11)) :=
-    mul_le_mul_of_nonneg_left hQA hcC0
-  have hQL' : (cP8 : ℝ) * QL ≤ (cP8 : ℝ) * (b8 pe * Bl + ((eps8 : ℝ) + 1 / 2 ^ 14) * Bv) :=
+  have hQA' := hQA
+  have hQL' : cp * QL ≤ cp * (b8 pe * Bl + ((eps8 : ℝ) + 1 / 2 ^ 14) * Bv) :=
     mul_le_mul_of_nonneg_left hQL hcP0
   -- `alpha` on `l_i`
   have hαl : |α| ≤ (1 + etaA dm) * lam + 1 / 2 ^ 126 := by
@@ -264,7 +283,7 @@ theorem cstep_real {pe dm : ℝ} (hpe : 1 ≤ pe) (hdm0 : 0 ≤ dm) (hdm1 : dm �
     have h4 : (1 / 2 ^ 82 : ℝ) + 1 / 2 ^ 117 + 3 * (1 / 2 ^ 82 + 1 / 2 ^ 142) / 2 ^ 24 + 4 / 2 ^ 150 ≤
         1 / 2 ^ 80 := by norm_num
     linarith
-  have hfin : (A + 3 * (1 + etaA dm) * |r| / 2 ^ 24) * (lam * l) + |r| * coefS * S ≤ M * l' + M / 2 ^ 80 := by
+  have hfin : (A + 3 * (1 + etaA dm) * |r| / 2 ^ 24) * (lam * l) + |r| * coefD cr * S ≤ M * l' + M / 2 ^ 80 := by
     have k1 := mul_le_mul_of_nonneg_right hM1 hX0
     have k2 := mul_le_mul_of_nonneg_right hM2 hS0
     have k3 := mul_le_mul_of_nonneg_left hl'low hM0
@@ -274,21 +293,20 @@ theorem cstep_real {pe dm : ℝ} (hpe : 1 ≤ pe) (hdm0 : 0 ≤ dm) (hdm1 : dm �
     have := mul_le_mul_of_nonneg_left hl'h hM0
     linarith only [this, hM0]
   -- the block's absolute terms, against `l' ≥ 1/2`
-  set Ab := (1 + (cC8 : ℝ)) * (eps8 : ℝ) * Ba + (cP8 : ℝ) * ((eps8 : ℝ) + 1 / 2 ^ 14) * Bv +
-    |r| * (1 + (cC8 : ℝ)) / 2 ^ 11 + (1 + |r| + A) / 2 ^ 50 with hAbd
+  set Ab := (eps8 : ℝ) * Ba + cc * (eps8 : ℝ) * Bqa + cp * ((eps8 : ℝ) + 1 / 2 ^ 14) * Bv +
+    |r| * (1 + cr) / 2 ^ 11 + (1 + |r| + A) / 2 ^ 50 with hAbd
   have hAb0 : 0 ≤ Ab := by rw [hAbd]; positivity
   have hAb : Ab ≤ 2 * Ab * l' := by
     have := mul_le_mul_of_nonneg_left hl'h hAb0
     linarith only [this]
   -- the small terms
-  have htiny : (1 + (cS8 : ℝ)) * tau + (cA8 : ℝ) + gA dm * ((|r| + A) * Lab) + etaA dm * |r| * Lab +
+  have htiny : (1 + cs) * tau + ca + gD cs dm * ((|r| + A) * Lab) + etaA dm * |r| * Lab +
       |r| / 2 ^ 82 + |r| / 2 ^ 142 + |r| / 2 ^ 100 ≤ (1 + |r| + A) / 2 ^ 50 := by
-    have k1 : (1 + (cS8 : ℝ)) * tau ≤ 2 * (1 / 2 ^ 66) := mul_le_mul (by rw [hcS8]; norm_num) htau htau0 (by norm_num)
-    have k2 : gA dm * ((|r| + A) * Lab) ≤ 1 / 32 * ((|r| + A) * (1 / 2 ^ 56)) :=
+    have k1 : (1 + cs) * tau ≤ 2 * (1 / 2 ^ 66) := mul_le_mul (by linarith) htau htau0 (by norm_num)
+    have k2 : gD cs dm * ((|r| + A) * Lab) ≤ 1 / 32 * ((|r| + A) * (1 / 2 ^ 56)) :=
       mul_le_mul hgA1 (mul_le_mul_of_nonneg_left hLab (by linarith)) (by positivity) (by norm_num)
     have k3 : etaA dm * |r| * Lab ≤ 1 / 2 ^ 12 * |r| * (1 / 2 ^ 56) :=
       mul_le_mul (mul_le_mul_of_nonneg_right hη1 hR0) hLab hLab0 (by positivity)
-    rw [hcA8]
     linarith
   have hηA : 0 ≤ etaA dm * A * Lu := by positivity
   -- the parts of `a' − r·l' − kap·(C0 + Cb)`
@@ -406,6 +424,29 @@ theorem block_cen {q p v w : Fin 64 → ℝ} {al : Fin 64 → Bool} {r a8 b8 eps
       nsmul_eq_mul]
     ring
 
+/-- **One block's `Σ|q·v|`** for the loss arm: each attended lane's fp8 `p` is at most `b8·w + eps`
+in magnitude, a masked lane's is `0`, so `Σ|q·v| ≤ b8·Σ w|v| + eps·Σ|v|` over the attended lanes. -/
+theorem block_qv {q v w : Fin 64 → ℝ} {al : Fin 64 → Bool} {a8 b8 eps : ℝ} (heps : 0 ≤ eps) (ha8 : 0 ≤ a8)
+    (hb8 : 0 ≤ b8) (hw0 : ∀ jj, 0 ≤ w jj)
+    (hatt : ∀ jj, al jj = true → a8 * w jj - eps ≤ q jj ∧ q jj ≤ b8 * w jj + eps)
+    (hmask : ∀ jj, al jj = false → q jj = 0) :
+    ∑ jj, |q jj * v jj| ≤ b8 * ∑ jj, (if al jj = true then w jj * |v jj| else 0) +
+      eps * ∑ jj, (if al jj = true then |v jj| else 0) := by
+  have hl : ∀ jj, |q jj * v jj| ≤ b8 * (if al jj = true then w jj * |v jj| else 0) +
+      eps * (if al jj = true then |v jj| else 0) := fun jj => by
+    cases ha : al jj
+    · rw [hmask jj ha]; simp
+    · obtain ⟨h1, h2⟩ := hatt jj ha
+      have k1 := mul_nonneg ha8 (hw0 jj)
+      have k2 := mul_nonneg hb8 (hw0 jj)
+      have hq : |q jj| ≤ b8 * w jj + eps := by rw [abs_le]; constructor <;> linarith
+      simp only [if_true]
+      rw [abs_mul]
+      have := mul_le_mul_of_nonneg_right hq (abs_nonneg (v jj))
+      linarith
+  refine (Finset.sum_le_sum fun jj _ => hl jj).trans (le_of_eq ?_)
+  rw [Finset.sum_add_distrib, Finset.mul_sum, Finset.mul_sum]
+
 /-- `fold max 0` of `c · f` for `c ≥ 0`. -/
 theorem fold_max_mul {ι : Type} [DecidableEq ι] (s : Finset ι) (f : ι → ℝ) {c : ℝ} (hc : 0 ≤ c) :
     s.fold max 0 (fun k => c * f k) = c * s.fold max 0 f := by
@@ -478,16 +519,37 @@ noncomputable def bVL (R : RowCtx) (vl : ℕ → ℝ) (t : ℕ) : ℝ :=
   ∑ c ∈ Finset.range 2, (Rules.Num.chunk8 64 c).fold max 0
     (fun k : Fin 64 => if R.al (64 * t + k) = true then vl (64 * t + k) else 0)
 
-/-- `Model.accA` in the row's terms. -/
-noncomputable def acR (R : RowCtx) (ve vl : ℕ → ℝ) (r : ℝ) : ℕ → ℝ
-  | 0 => 0
-  | t + 1 => accNext (dmaxR R) |r| (acR R ve vl r t) (bA R ve r t) (bVL R vl t)
+/-- `Σ ew_j·|ve_j|` over the attended keys of block `t`. -/
+noncomputable def bV (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : ℝ :=
+  ∑ jj : Fin 64, if R.al (64 * t + jj) = true then ew R (64 * t + jj) * |ve (64 * t + jj)| else 0
+
+/-- `Σ |ve_j|` over the attended keys of block `t`. -/
+noncomputable def bVa (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : ℝ :=
+  ∑ jj : Fin 64, if R.al (64 * t + jj) = true then |ve (64 * t + jj)| else 0
+
+/-- `Model.stC` in the row's terms (`stepC`'s choice at `W`). -/
+noncomputable def stR (R : RowCtx) (ve vl : ℕ → ℝ) (r W : ℝ) : ℕ → ℝ × ℝ
+  | 0 => (0, 0)
+  | t + 1 => stepC W (pER R) (dmaxR R) |r| (stR R ve vl r W t) (Cx R ve r t) (FhR R t * psum R.al t (ew R))
+      (bC R ve r t) (bV R ve t) (bLW R vl t) (bA R ve r t) (bVa R ve t) (bVL R vl t)
 
 /-- `Model.errC` in the row's terms. -/
-noncomputable def ecR (R : RowCtx) (ve vl : ℕ → ℝ) (r : ℝ) : ℕ → ℝ
-  | 0 => 0
-  | t + 1 => errNext (pER R) (dmaxR R) (ecR R ve vl r t) (Cx R ve r t) |r| (acR R ve vl r t)
-      (FhR R t * psum R.al t (ew R)) (bC R ve r t) (bLW R vl t)
+noncomputable def ecR (R : RowCtx) (ve vl : ℕ → ℝ) (r W : ℝ) (t : ℕ) : ℝ := (stR R ve vl r W t).1
+
+/-- `Model.accA` in the row's terms. -/
+noncomputable def acR (R : RowCtx) (ve vl : ℕ → ℝ) (r W : ℝ) (t : ℕ) : ℝ := (stR R ve vl r W t).2
+
+theorem bV_nonneg (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : 0 ≤ bV R ve t :=
+  Finset.sum_nonneg fun jj _ => by
+    split_ifs
+    · exact mul_nonneg (ew_pos _ _).le (abs_nonneg _)
+    · exact le_rfl
+
+theorem bVa_nonneg (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) : 0 ≤ bVa R ve t :=
+  Finset.sum_nonneg fun jj _ => by
+    split_ifs
+    · exact abs_nonneg _
+    · exact le_rfl
 
 theorem bC_nonneg (R : RowCtx) (ve : ℕ → ℝ) (r : ℝ) (t : ℕ) : 0 ≤ bC R ve r t :=
   Finset.sum_nonneg fun jj _ => by
@@ -507,22 +569,40 @@ theorem bLW_nonneg (R : RowCtx) (vl : ℕ → ℝ) (t : ℕ) : 0 ≤ bLW R vl t 
 theorem bVL_nonneg (R : RowCtx) (vl : ℕ → ℝ) (t : ℕ) : 0 ≤ bVL R vl t :=
   Finset.sum_nonneg fun _ _ => fold_max_nonneg _ _
 
-theorem acR_nonneg {R : RowCtx} (hR : R.Ok) (ve vl : ℕ → ℝ) (r : ℝ) : ∀ t, 0 ≤ acR R ve vl r t
-  | 0 => le_rfl
-  | t + 1 => accNext_nonneg (dmaxR_nonneg hR) (dmaxR_le hR) (abs_nonneg r) (acR_nonneg hR ve vl r t)
-      (bA_nonneg R ve r t) (bVL_nonneg R vl t)
+/-- `stepC` keeps both components nonnegative. -/
+theorem stepC_nonneg {W pe dm R : ℝ} {st : ℝ × ℝ} {C Lw Bc BV Bl Ba BVa Bv : ℝ} (hpe : 1 ≤ pe) (h0 : 0 ≤ dm)
+    (h1 : dm ≤ 1 / 2 ^ 13) (hR : 0 ≤ R) (hs1 : 0 ≤ st.1) (hs2 : 0 ≤ st.2) (hLw : 0 ≤ Lw) (hBc : 0 ≤ Bc)
+    (hBV : 0 ≤ BV) (hBl : 0 ≤ Bl) (hBa : 0 ≤ Ba) (hBVa : 0 ≤ BVa) (hBv : 0 ≤ Bv) :
+    0 ≤ (stepC W pe dm R st C Lw Bc BV Bl Ba BVa Bv).1 ∧ 0 ≤ (stepC W pe dm R st C Lw Bc BV Bl Ba BVa Bv).2 := by
+  obtain ⟨hcs0, -, hcc0, hcp0, -, -, hls0, -, hlc0, hlp0, -, -⟩ := arm_consts
+  unfold stepC
+  split_ifs
+  · exact ⟨errStep_nonneg hpe h0 hls0 hlc0 hlp0 hs1 hR hs2 hLw hBc hBV hBl,
+      accStep_nonneg h0 h1 hlc0 hlp0 le_rfl hR hs2 hBa hBVa hBv⟩
+  · exact ⟨errStep_nonneg hpe h0 hcs0 hcc0 hcp0 hs1 hR hs2 hLw hBc hBc hBl,
+      accStep_nonneg h0 h1 hcc0 hcp0 hcc0 hR hs2 hBa hBa hBv⟩
 
-theorem ecR_nonneg {R : RowCtx} (hR : R.Ok) (ve vl : ℕ → ℝ) (r : ℝ) : ∀ t, 0 ≤ ecR R ve vl r t
-  | 0 => le_rfl
-  | t + 1 => errNext_nonneg (pER_ge hR) (dmaxR_nonneg hR) (ecR_nonneg hR ve vl r t) (abs_nonneg r)
-      (acR_nonneg hR ve vl r t)
+theorem stR_nonneg {R : RowCtx} (hR : R.Ok) (ve vl : ℕ → ℝ) (r W : ℝ) :
+    ∀ t, 0 ≤ (stR R ve vl r W t).1 ∧ 0 ≤ (stR R ve vl r W t).2
+  | 0 => ⟨le_rfl, le_rfl⟩
+  | t + 1 => by
+    have ih := stR_nonneg hR ve vl r W t
+    exact stepC_nonneg (pER_ge hR) (dmaxR_nonneg hR) (dmaxR_le hR) (abs_nonneg r) ih.1 ih.2
       (mul_nonneg ((zero_le_one).trans (FhR_ge hR t)) (psum_nonneg fun j => (ew_pos R j).le))
-      (bC_nonneg R ve r t) (bLW_nonneg R vl t)
+      (bC_nonneg R ve r t) (bV_nonneg R ve t) (bLW_nonneg R vl t) (bA_nonneg R ve r t) (bVa_nonneg R ve t)
+      (bVL_nonneg R vl t)
+
+theorem acR_nonneg {R : RowCtx} (hR : R.Ok) (ve vl : ℕ → ℝ) (r W : ℝ) (t : ℕ) : 0 ≤ acR R ve vl r W t :=
+  (stR_nonneg hR ve vl r W t).2
+
+theorem ecR_nonneg {R : RowCtx} (hR : R.Ok) (ve vl : ℕ → ℝ) (r W : ℝ) (t : ℕ) : 0 ≤ ecR R ve vl r W t :=
+  (stR_nonneg hR ve vl r W t).1
 
 /-- **The centred bound** on an element `a` of `acc` after `t` blocks with running maximum `m` and
-`l_i = l`: for every `r`, `a − r·l` is within `2^-m·ecR + acR·l` of `kap·2^-m·Cx`. -/
+`l_i = l`: for every `r` and every choice `W` of `stepC`, `a − r·l` is within `2^-m·ecR + acR·l` of
+`kap·2^-m·Cx`. -/
 def CInv (R : RowCtx) (ve vl : ℕ → ℝ) (t : ℕ) (m a l : F32) : Prop :=
-  ∀ r : ℝ, |a.toReal - r * l.toReal - kap (pER R) * ((2 : ℝ) ^ (-m.toReal) * Cx R ve r t)| ≤
-    (2 : ℝ) ^ (-m.toReal) * ecR R ve vl r t + acR R ve vl r t * l.toReal
+  ∀ r W : ℝ, |a.toReal - r * l.toReal - kap (pER R) * ((2 : ℝ) ^ (-m.toReal) * Cx R ve r t)| ≤
+    (2 : ℝ) ^ (-m.toReal) * ecR R ve vl r W t + acR R ve vl r W t * l.toReal
 
 end Kernels.AttnFwdE5m2
