@@ -6,7 +6,7 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 
 ## Status
 
-- Gate: **PASS**, digest `e30b28fa701ed30a` (2026-11-01T08:48:57Z).
+- Gate: **PASS**, digest `e30b28fa701ed30a` (2026-11-01T19:16:16Z).
 - Phase: round 4: all reviewers have filed.
 - Reviewers: r-bwd (all), r-bwd2 (all).
 - Certificate: **GRANTED**.

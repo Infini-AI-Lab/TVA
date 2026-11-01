@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-mx8b",
+  "kernel": "block_scaled_matmul_mxfp8",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {
+      "id": "F2",
+      "note": "Settled by the README's revision. Conditions ('Which of the host's launches are covered'), the part (A) preamble, the point-9 bullet, the part (B) paragraph and a new Narrowings bullet now say the benchmark's launches are not covered: they run after proton.start(..., hook=\"triton\") (line 756), whose hooks proton.deactivate() (lines 501, 757) leaves installed until proton.finalize() (line 764), outside Compiler.Faithful's point 3. The claim covers the test's launch (line 749) and hook-free launches of the benchmark's sizes. SETUP.md says the same. No Lean changed, and none needed to."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "The coordinator's check that deactivate() leaves the hooks installed answers my round-1 Not checked item; the README states it. Keeping K <= 2^14 with the stated reason is fine."
+}

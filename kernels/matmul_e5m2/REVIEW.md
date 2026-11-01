@@ -6,7 +6,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 ## Status
 
-- Gate: **PASS**, digest `752f03b36e81309e` (2026-11-01T16:12:47Z).
+- Gate: **PASS**, digest `752f03b36e81309e` (2026-11-01T19:13:14Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-e5m2 (all), r-e5m2b (all).
 - Certificate: **GRANTED**.

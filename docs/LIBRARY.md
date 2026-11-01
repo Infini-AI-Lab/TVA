@@ -82,7 +82,7 @@ rationals; its agreement with the device is [evidence/float-layer](../evidence/f
 
 ## Kernels (`kernels/<kernel>/`, one folder each; index: [kernels/README.md](../kernels/README.md))
 
-Nine kernels, each a Triton tutorial function; [kernels/README.md](../kernels/README.md) is the
+Ten kernels, each a Triton tutorial function; [kernels/README.md](../kernels/README.md) is the
 index, with each kernel's gate, review phase and certificate.
 
 | Kernel | What it exercises |
@@ -90,9 +90,10 @@ index, with each kernel's gate, review phase and certificate.
 | `vec_add_f32` | tutorial 01 (`add_kernel`, `float32`): masked 1-D loads and stores, an IEEE addition |
 | `softmax_f32` | tutorial 02 (`softmax_kernel`, `float32`): row reductions (`tl.max`, `tl.sum`), `tl.exp`, fp32 `/` |
 | `matmul_f16` | tutorial 03 (`matmul_kernel`, `float16`): a `K` loop of `tl.dot` (`DotF16`), grouped program ordering |
-| `matmul_e5m2` | tutorial 03 (`matmul_kernel`, `float8e5`): the same with fp8 operands (`DotE5m2Chunk`) |
+| `matmul_e5m2` | tutorial 03 (`matmul_kernel`, `float8e5`): the same with fp8 operands (`DotE5m2ChunkLoss`) |
 | `attn_fwd_f16` | tutorial 06 (`_attn_fwd`, `float16`): online softmax with `tl.math.exp2`, two `tl.dot`s per key block, the accumulator fed back |
-| `attn_fwd_e5m2` | tutorial 06 (`_attn_fwd`, `float8e5`): the same with fp8 operands (`DotE5m2Chunk`) |
+| `attn_fwd_e5m2` | tutorial 06 (`_attn_fwd`, `float8e5`): the same with fp8 operands (`DotE5m2ChunkLoss`) |
 | `attn_bwd_pre_f16` | tutorial 06 (`_attn_bwd_preprocess`): a row reduction of `o·do`, `float16` inputs, a `float32` output |
 | `attn_bwd_f16` | tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bwd_dq`, `float16`): the backward `tl.dot`s, causal masking |
 | `grouped_matmul_tma_f16` | tutorial 08 (`grouped_matmul_tma_kernel`, `float16`): tensor descriptors (TMA), a persistent grouped GEMM |
+| `block_scaled_matmul_mxfp8` | tutorial 10 (`block_scaled_matmul_kernel`, mxfp8): `tl.dot_scaled` of `e4m3` operands with `e8m0` scales (`DotScaledE4m3`, Triton's emulation on sm_90), 5-D scale descriptors |

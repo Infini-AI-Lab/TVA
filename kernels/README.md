@@ -8,6 +8,7 @@
 | [attn_bwd_pre_f16](attn_bwd_pre_f16/README.md) | Attention backward preprocess, tutorial 06 (`_attn_bwd_preprocess`, `float16` inputs, `float32` output) | PASS | [round 2: all reviewers have filed](attn_bwd_pre_f16/REVIEW.md) | 0 | GRANTED |
 | [attn_fwd_e5m2](attn_fwd_e5m2/README.md) | Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first ⌈Z·H/HEAD_DIM⌉ heads read `v`, every other head outputs ±0 | PASS | [round 7: all reviewers have filed](attn_fwd_e5m2/REVIEW.md) | 0 | GRANTED |
 | [attn_fwd_f16](attn_fwd_f16/README.md) | Fused attention, tutorial 06 (`_attn_fwd`, float16) | PASS | [round 4: all reviewers have filed](attn_fwd_f16/REVIEW.md) | 0 | GRANTED |
+| [block_scaled_matmul_mxfp8](block_scaled_matmul_mxfp8/README.md) | Block-scaled matmul, tutorial 10 (`block_scaled_matmul_kernel`, mxfp8) | PASS | [round 2: all reviewers have filed](block_scaled_matmul_mxfp8/REVIEW.md) | 0 | GRANTED |
 | [grouped_matmul_tma_f16](grouped_matmul_tma_f16/README.md) | Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16) | PASS | [round 3: all reviewers have filed](grouped_matmul_tma_f16/REVIEW.md) | 0 | GRANTED |
 | [matmul_e5m2](matmul_e5m2/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5) | PASS | [round 3: all reviewers have filed](matmul_e5m2/REVIEW.md) | 0 | GRANTED |
 | [matmul_f16](matmul_f16/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float16) | PASS | [round 3: all reviewers have filed](matmul_f16/REVIEW.md) | 0 | GRANTED |

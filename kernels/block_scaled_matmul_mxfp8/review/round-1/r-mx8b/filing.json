@@ -1,0 +1,25 @@
+{
+  "reviewer": "r-mx8b",
+  "kernel": "block_scaled_matmul_mxfp8",
+  "round": 1,
+  "findings": [
+    {
+      "kind": "CONDITION_WRONG",
+      "target": "item:conditions",
+      "summary": "The benchmark's launches run under proton's launch hook (line 756), outside Compiler.Faithful's point 3, yet the README counts them among the covered launches",
+      "detail": "README, Conditions, 'The host's use is covered', lists the benchmark (bench_block_scaled, M = N = 8192, K a positive multiple of 128 up to 16384) among the launches of the script the claim covers, and its point 9 says that the benchmark's profiling (proton.start(\"block_scaled_matmul\", hook=\"triton\"), line 756; proton.activate(), line 490) 'adds host launch hooks that read the launch metadata', treating that as harmless. Every launch of the benchmark is made after line 756 installs that hook, and its timed launches (lines 491-493) between proton.activate() and proton.deactivate(). Compiler.Faithful covers only launches with no hook installed (docs/rules/compiler-faithful.md, Scope, point 3: knobs.runtime.launch_enter_hook, launch_exit_hook, ...; docs/exclusions.md, the row 'a hook'), and docs/SEMANTICS.md, Launches, says that Triton calls a launch_metadata= function 'only to hand metadata (a name, a count of operations) to a launch-enter hook, and only when such a hook is installed, which the scope above excludes': the decorator's launch_metadata=_matmul_launch_metadata (line 174) is there for exactly this hook. Point 3 is part (B), but the claim's own launches visibly break it (REVIEWER_GUIDE.md section 1; compiler-faithful.md (B): 'A claim's own launch or kernel source that visibly breaks one ... is still a finding'). So the assumption faithful says nothing of the benchmark's launches as the script makes them, and of the script's mxfp8 launches the certificate covers only the test's, validate_block_scaled(8192, 8192, 8192, \"mxfp8\") (line 749), made before line 756. The README's general sentence in Narrowings ('The claim covers only launches within part (B)') does not tell a reader that the benchmark is among the launches left out; the Conditions section says the opposite. To resolve: state the narrowing in the README (Conditions, 'The host's use is covered', the paragraph of point 9, and Narrowings): the benchmark's launches, made under proton's launch hook, are outside the rule's scope, and the claim covers the benchmark's instances (M = N = 8192, K a multiple of 128 up to 2^14) only for launches made with no hook installed (for instance bench_block_scaled's launches without the profiling session of lines 755-765). No change to the Lean is needed; a response CLARIFIED or DEFERRED with that text settles it.",
+      "evidence": "Source lines 755-760 (proton.start(..., hook=\"triton\") before the loop that calls bench_block_scaled), 482-493 (warm-up and timed launches), 174 (launch_metadata=); README lines 152-158 and 183-186."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": [
+    "item:model",
+    "item:map",
+    "item:spec",
+    "item:assumption:faithful",
+    "item:assumption:dot",
+    "item:assumption:dot_total"
+  ],
+  "notes": "Non-blocking. (1) K_ok's bound K <= 2^14 is a stated narrowing (the module docstring's largest mxfp8 K), but the proof needs only the int32 bounds (K / 128 trips and offs_k_a + 128 below 2^31) and the room condition, and tol is computed from the data at every K; the benchmark's command line accepts any K (--K_range), so the prover may widen K_ok at no cost to the proof if wanted. (2) The README's figures on the host's data agree with my CPU runs (work/host_data.py, work/host_data.out, 200 sampled elements per K): median tol 0.0103, 0.248, 0.550 and median whole bound / |S| 0.105%, 0.38%, 0.61% at K = 512, 8192, 16384, against the README's 0.0099, 0.247, 0.55 and 0.10%, 0.35%, 0.62%; MXScaleTensor's bytes are floor(log2(rand + 1e-8)) + 127 (no mismatch in 2^21 bytes; observed 103 ... 126) and decode as 2^(b - 127); MXFP4Tensor.random() gives the 16 e2m1 patterns uniformly, exact in e4m3. (3) The scale path (lines 223-227) meets the host's reference: work/scale_path.py simulates the 5-D block loads, the reshape, trans(0, 3, 2, 1, 4) and reshape on the CPU and finds no mismatch against unpack_scale (lines 411-417) or sIdx, for a, for b, and for b with N / 128 odd (padding rows unused). (4) SETUP.md (the coordinator's) also lists the benchmark among the launches covered; the finding above applies to it too."
+}

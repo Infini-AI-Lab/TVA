@@ -6,7 +6,7 @@ Fused softmax, tutorial 02 (`softmax_kernel`, float32). The claim sheet: [claim.
 
 ## Status
 
-- Gate: **PASS**, digest `58bd069c9b972989` (2026-11-01T08:44:49Z).
+- Gate: **PASS**, digest `58bd069c9b972989` (2026-11-01T19:11:38Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-softmax (all), r-softmax2 (all).
 - Certificate: **GRANTED**.

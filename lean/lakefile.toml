@@ -1,6 +1,6 @@
 name = "TVA"
 version = "2.0.0"
-defaultTargets = ["TVA", "vec_add_f32", "softmax_f32", "matmul_f16", "matmul_e5m2", "attn_fwd_f16", "attn_fwd_e5m2", "attn_bwd_pre_f16", "attn_bwd_f16", "grouped_matmul_tma_f16"]
+defaultTargets = ["TVA", "vec_add_f32", "softmax_f32", "matmul_f16", "matmul_e5m2", "attn_fwd_f16", "attn_fwd_e5m2", "attn_bwd_pre_f16", "attn_bwd_f16", "grouped_matmul_tma_f16", "block_scaled_matmul_mxfp8"]
 
 [[require]]
 name = "mathlib"
@@ -59,3 +59,8 @@ roots = ["AttnBwd"]
 name = "grouped_matmul_tma_f16"
 srcDir = "../kernels/grouped_matmul_tma_f16/lean"
 roots = ["GroupedMatmulTma"]
+
+[[lean_lib]]
+name = "block_scaled_matmul_mxfp8"
+srcDir = "../kernels/block_scaled_matmul_mxfp8/lean"
+roots = ["BlockScaledMxfp8"]

@@ -6,7 +6,7 @@ Vector addition, tutorial 01 (`add_kernel`, float32). The claim sheet: [claim.md
 
 ## Status
 
-- Gate: **PASS**, digest `5f65eb1f7a961315` (2026-11-01T08:43:25Z).
+- Gate: **PASS**, digest `5f65eb1f7a961315` (2026-11-01T19:10:11Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-vecadd (all), r-vecadd2 (all).
 - Certificate: **GRANTED**.

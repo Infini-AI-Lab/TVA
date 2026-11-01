@@ -1,0 +1,181 @@
+def Kernels.BlockScaledMxfp8.block_scaled_matmul_kernel : TVA.TensorDesc TVA.DType.f8e4nv →
+  TVA.TensorDesc TVA.DType.u8 →
+    TVA.TensorDesc TVA.DType.f8e4nv →
+      TVA.TensorDesc TVA.DType.u8 →
+        TVA.TensorDesc TVA.DType.f16 →
+          ℕ →
+            ℕ →
+              (VEC_SIZE BLOCK_M BLOCK_N BLOCK_K rep_m rep_n rep_k : ℕ) →
+                [BLOCK_M, BLOCK_K / VEC_SIZE].prod = [rep_m, 4, 32, rep_k, 4].prod →
+                  [BLOCK_N, BLOCK_K / VEC_SIZE].prod = [rep_n, 4, 32, rep_k, 4].prod → TVA.Kernel :=
+fun a_desc a_scale_desc b_desc b_scale_desc c_desc M K VEC_SIZE BLOCK_M BLOCK_N BLOCK_K rep_m rep_n rep_k hA hB =>
+  {
+    body := fun ctx =>
+      have pid := TVA.tl.program_id ctx 0;
+      have num_pid_m := TVA.IntV.ofNat ((M + (BLOCK_M - 1)) / BLOCK_M);
+      do
+      let __do_lift ← TVA.tl.irem (TVA.Tensor.scalar pid) (TVA.Tensor.scalar num_pid_m)
+      have pid_m : TVA.IntV Bool.true 32 := __do_lift.item
+      let __do_lift ← TVA.tl.idiv (TVA.Tensor.scalar pid) (TVA.Tensor.scalar num_pid_m)
+      have pid_n : TVA.IntV Bool.true 32 := __do_lift.item
+      have offs_am : TVA.IntV Bool.true 32 := pid_m * TVA.IntV.ofNat BLOCK_M
+      have offs_bn : TVA.IntV Bool.true 32 := pid_n * TVA.IntV.ofNat BLOCK_N
+      have offs_k_a : TVA.I32 := TVA.IntV.ofInt 0
+      have offs_k_b : TVA.I32 := TVA.IntV.ofInt 0
+      have offs_scale_m : TVA.IntV Bool.true 32 := pid_m * TVA.IntV.ofNat rep_m
+      have offs_scale_n : TVA.IntV Bool.true 32 := pid_n * TVA.IntV.ofNat rep_n
+      have offs_scale_k : TVA.I32 := TVA.IntV.ofInt 0
+      have accumulator : TVA.Tensor [BLOCK_M, BLOCK_N] TVA.DType.f32.Val :=
+        TVA.tl.zeros [BLOCK_M, BLOCK_N] TVA.DType.f32
+      let __x ←
+        TVA.tl.forRange (TVA.IntV.ofInt 0) (TVA.IntV.ofNat ((K + (BLOCK_K - 1)) / BLOCK_K)) (TVA.IntV.ofInt 1)
+            (accumulator, offs_k_a, offs_k_b, offs_scale_k) fun _k x =>
+            match x with
+            | (accumulator, offs_k_a, offs_k_b, offs_scale_k) => do
+              let a ← TVA.tl.desc_load a_desc [offs_am, offs_k_a]
+              let b ← TVA.tl.desc_load b_desc [offs_bn, offs_k_b]
+              let scale_a ←
+                TVA.tl.desc_load a_scale_desc
+                    [TVA.IntV.ofInt 0, offs_scale_m, offs_scale_k, TVA.IntV.ofInt 0, TVA.IntV.ofInt 0]
+              let scale_b ←
+                TVA.tl.desc_load b_scale_desc
+                    [TVA.IntV.ofInt 0, offs_scale_n, offs_scale_k, TVA.IntV.ofInt 0, TVA.IntV.ofInt 0]
+              have scale_a : TVA.Tensor [BLOCK_M, BLOCK_K / VEC_SIZE] TVA.DType.u8.Val :=
+                ((scale_a.reshape [rep_m, rep_k, 32, 4, 4] ⋯).permute [0, 3, 2, 1, 4] ⋯).reshape
+                  [BLOCK_M, BLOCK_K / VEC_SIZE] hA
+              have scale_b : TVA.Tensor [BLOCK_N, BLOCK_K / VEC_SIZE] TVA.DType.u8.Val :=
+                ((scale_b.reshape [rep_n, rep_k, 32, 4, 4] ⋯).permute [0, 3, 2, 1, 4] ⋯).reshape
+                  [BLOCK_N, BLOCK_K / VEC_SIZE] hB
+              let accumulator ←
+                TVA.tl.dot_scaled Kernels.BlockScaledMxfp8.cfgMx BLOCK_M BLOCK_N BLOCK_K a (Option.some scale_a) b.trans
+                    (Option.some scale_b) accumulator
+              have offs_k_a : TVA.I32 := offs_k_a + TVA.IntV.ofNat BLOCK_K
+              have offs_k_b : TVA.I32 := offs_k_b + TVA.IntV.ofNat BLOCK_K
+              have offs_scale_k : TVA.I32 := offs_scale_k + TVA.IntV.ofNat rep_k
+              Pure.pure (accumulator, offs_k_a, offs_k_b, offs_scale_k)
+      match __x with
+        | (accumulator, _offs_k_a, _offs_k_b, _offs_scale_k) => do
+          let c ← TVA.tl.cvt accumulator
+          TVA.tl.desc_store c_desc [offs_am, offs_bn] c }
+def Kernels.BlockScaledMxfp8.model : Kernels.BlockScaledMxfp8.Inst → TVA.Kernel :=
+fun d =>
+  Kernels.BlockScaledMxfp8.block_scaled_matmul_kernel (Kernels.BlockScaledMxfp8.aDesc d)
+    (Kernels.BlockScaledMxfp8.aScaleDesc d) (Kernels.BlockScaledMxfp8.bDesc d) (Kernels.BlockScaledMxfp8.bScaleDesc d)
+    (Kernels.BlockScaledMxfp8.cDesc d) d.M d.K 32 128 256 128 1 2 1 Kernels.BlockScaledMxfp8.model._proof_1
+    Kernels.BlockScaledMxfp8.model._proof_2
+def Kernels.BlockScaledMxfp8.launch : Kernels.BlockScaledMxfp8.Inst → TVA.Launch :=
+fun d =>
+  TVA.Launch.grid1 ((d.M + 127) / 128 * ((d.N + 255) / 256))
+    [[128, 256], [128, 128], [256, 128], [1, 1, 1, 2, 256], [1, 1, 32, 4, 4], [1, 4, 32, 1, 4], [128, 4],
+      [1, 2, 1, 2, 256], [2, 1, 32, 4, 4], [2, 4, 32, 1, 4], [256, 4]]
+def Kernels.BlockScaledMxfp8.cfgMx : TVA.ScaledCfg :=
+{ lhs := TVA.MXFmt.e4m3, rhs := TVA.MXFmt.e4m3 }
+structure Kernels.BlockScaledMxfp8.Assumptions (K : TVA.Claim.Behaviour Kernels.BlockScaledMxfp8.Inst)
+  (P : TVA.Platform) : Prop
+number of parameters: 2
+fields:
+  Kernels.BlockScaledMxfp8.Assumptions.faithful : ∀ (d : Kernels.BlockScaledMxfp8.Inst),
+      d.ok → TVA.Rules.Compiler.Faithful P (Kernels.BlockScaledMxfp8.model d) (Kernels.BlockScaledMxfp8.launch d) (K d)
+  Kernels.BlockScaledMxfp8.Assumptions.dot : TVA.Rules.Num.DotScaledE4m3 P
+  Kernels.BlockScaledMxfp8.Assumptions.dot_total : TVA.Rules.Num.DotScaledTotal P
+      { lhs := TVA.MXFmt.e4m3, rhs := TVA.MXFmt.e4m3 }
+constructor:
+  Kernels.BlockScaledMxfp8.Assumptions.mk {K : TVA.Claim.Behaviour Kernels.BlockScaledMxfp8.Inst} {P : TVA.Platform}
+    (faithful :
+      ∀ (d : Kernels.BlockScaledMxfp8.Inst),
+        d.ok →
+          TVA.Rules.Compiler.Faithful P (Kernels.BlockScaledMxfp8.model d) (Kernels.BlockScaledMxfp8.launch d) (K d))
+    (dot : TVA.Rules.Num.DotScaledE4m3 P)
+    (dot_total : TVA.Rules.Num.DotScaledTotal P { lhs := TVA.MXFmt.e4m3, rhs := TVA.MXFmt.e4m3 }) :
+    Kernels.BlockScaledMxfp8.Assumptions K P
+def Kernels.BlockScaledMxfp8.aScaleDesc : Kernels.BlockScaledMxfp8.Inst → TVA.TensorDesc TVA.DType.u8 :=
+fun d =>
+  { base := d.a_scale.ptr 0, shape := [1, d.M / 128, d.K / 128, 2, 256],
+    strides := [d.M / 128 * (d.K / 128) * 512, d.K / 128 * 512, 512, 256, 1], block := [1, 1, 1, 2, 256] }
+def Kernels.BlockScaledMxfp8.bScaleDesc : Kernels.BlockScaledMxfp8.Inst → TVA.TensorDesc TVA.DType.u8 :=
+fun d =>
+  { base := d.b_scale.ptr 0, shape := [1, d.N / 128, d.K / 128, 2, 256],
+    strides := [d.N / 128 * (d.K / 128) * 512, d.K / 128 * 512, 512, 256, 1], block := [1, 2, 1, 2, 256] }
+def TVA.Launch.grid1 : ℕ → List TVA.Shape → optParam Bool Bool.true → TVA.Launch :=
+fun n blocks fusion => { grid := ![n, 1, 1], fusion := fusion, blocks := blocks }
+def TVA.tl.cvt : {s : TVA.Shape} →
+  {f g : TVA.Math.Float.Format} →
+    TVA.Tensor s (TVA.FloatV f) →
+      optParam TVA.Math.Float.RoundMode TVA.Math.Float.RoundMode.rn → TVA.Prog (TVA.Tensor s (TVA.FloatV g)) :=
+fun {s} {f g} x rnd =>
+  TVA.Prog.pick (fun x => f.Std ∧ g.Std ∧ TVA.tl.RoundOk f g rnd) fun x_1 =>
+    TVA.tl.upToNaN (TVA.Tensor.map (TVA.FloatV.cvtWith rnd) x)
+'Kernels.BlockScaledMxfp8.main' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Kernels.BlockScaledMxfp8.consistent' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Kernels.BlockScaledMxfp8.satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+def Kernels.BlockScaledMxfp8.OutSpec : Kernels.BlockScaledMxfp8.Inst → TVA.Mem → TVA.Mem → ℕ → ℕ → Prop :=
+fun d init fin i j =>
+  ∃ c,
+    fin.read TVA.DType.f16 (d.c.ptr ↑(i * d.N + j)).addr = Option.some c ∧
+      ∀ (xa xb : ℕ → TVA.F8E4) (sa sb : ℕ → TVA.U8),
+        (∀ k < d.K,
+            init.read TVA.DType.f8e4nv (d.a.ptr ↑(i * d.K + k)).addr = Option.some (xa k) ∧
+              init.read TVA.DType.u8 (d.a_scale.ptr ↑(Kernels.BlockScaledMxfp8.sIdx d.K i k)).addr =
+                Option.some (sa k)) →
+          (∀ k < d.K,
+              init.read TVA.DType.f8e4nv (d.b.ptr ↑(j * d.K + k)).addr = Option.some (xb k) ∧
+                init.read TVA.DType.u8 (d.b_scale.ptr ↑(Kernels.BlockScaledMxfp8.sIdx d.K j k)).addr =
+                  Option.some (sb k)) →
+            (∀ k < d.K, Kernels.BlockScaledMxfp8.InDom (xa k) (sa k) ∧ Kernels.BlockScaledMxfp8.InDom (xb k) (sb k)) →
+              Kernels.BlockScaledMxfp8.dotAbs (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) d.K +
+                    Kernels.BlockScaledMxfp8.tol (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) (d.K / 128) ≤
+                  2 ^ 127 →
+                ∃ v,
+                  TVA.FloatV.isFinite v = Bool.true ∧
+                    |TVA.FloatV.toRat v -
+                            Kernels.BlockScaledMxfp8.dotSum (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) d.K| ≤
+                        Kernels.BlockScaledMxfp8.tol (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) (d.K / 128) ∧
+                      (TVA.FloatV.cvt v).NaNEq c ∧
+                        (|Kernels.BlockScaledMxfp8.dotSum (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) d.K| +
+                              Kernels.BlockScaledMxfp8.tol (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) (d.K / 128) ≤
+                            TVA.Math.Float.Format.binary16.maxVal →
+                          TVA.FloatV.isFinite c = Bool.true ∧
+                            |TVA.FloatV.toRat c -
+                                  Kernels.BlockScaledMxfp8.dotSum (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) d.K| ≤
+                              Kernels.BlockScaledMxfp8.tol (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) (d.K / 128) +
+                                  (|Kernels.BlockScaledMxfp8.dotSum (Kernels.BlockScaledMxfp8.prodV xa xb sa sb) d.K| +
+                                      Kernels.BlockScaledMxfp8.tol (Kernels.BlockScaledMxfp8.prodV xa xb sa sb)
+                                        (d.K / 128)) *
+                                    TVA.Math.Float.Format.binary16.u +
+                                TVA.Math.Float.Format.binary16.eta)
+def Kernels.BlockScaledMxfp8.Post : Kernels.BlockScaledMxfp8.Inst → TVA.Mem → TVA.Mem → Prop :=
+fun d init fin =>
+  (∀ (i j : ℕ), i < d.M → j < d.N → Kernels.BlockScaledMxfp8.OutSpec d init fin i j) ∧
+    ∀ z ∉ Kernels.BlockScaledMxfp8.cEl d, fin z = init z
+def Kernels.BlockScaledMxfp8.Pre : Kernels.BlockScaledMxfp8.Inst → TVA.Mem → Prop :=
+fun d init => d.a.Valid init ∧ d.b.Valid init ∧ d.a_scale.Valid init ∧ d.b_scale.Valid init ∧ d.c.Valid init
+def Kernels.BlockScaledMxfp8.InDom : TVA.F8E4 → TVA.U8 → Prop :=
+fun x s =>
+  TVA.FloatV.isFinite x = Bool.true ∧
+    TVA.Rules.Num.e8m0Dom s.bits.toNat ∧ TVA.Rules.Num.scaledDomBF16 (Kernels.BlockScaledMxfp8.scaled x s)
+def Kernels.BlockScaledMxfp8.tol : (ℕ → ℚ) → ℕ → ℚ :=
+fun p x => Nat.brecOn x (Kernels.BlockScaledMxfp8.tol._f p)
+structure Kernels.BlockScaledMxfp8.Inst.ok (d : Kernels.BlockScaledMxfp8.Inst) : Prop
+number of parameters: 1
+fields:
+  Kernels.BlockScaledMxfp8.Inst.ok.M_ok : 0 < d.M ∧ d.M % 128 = 0 ∧ d.M < 2 ^ 31
+  Kernels.BlockScaledMxfp8.Inst.ok.N_ok : 0 < d.N ∧ d.N % 128 = 0 ∧ d.N < 2 ^ 31
+  Kernels.BlockScaledMxfp8.Inst.ok.K_ok : 0 < d.K ∧ d.K % 128 = 0 ∧ d.K ≤ 2 ^ 14
+  Kernels.BlockScaledMxfp8.Inst.ok.grid_lt : (d.M + 127) / 128 * ((d.N + 255) / 256) < 2 ^ 31
+  Kernels.BlockScaledMxfp8.Inst.ok.base_al : d.a.base % 16 = 0 ∧
+      d.b.base % 16 = 0 ∧ d.a_scale.base % 16 = 0 ∧ d.b_scale.base % 16 = 0 ∧ d.c.base % 16 = 0
+  Kernels.BlockScaledMxfp8.Inst.ok.a_len : d.M * d.K ≤ d.a.len
+  Kernels.BlockScaledMxfp8.Inst.ok.b_len : d.N * d.K ≤ d.b.len
+  Kernels.BlockScaledMxfp8.Inst.ok.as_len : d.M / 128 * (d.K / 128) * 512 ≤ d.a_scale.len
+  Kernels.BlockScaledMxfp8.Inst.ok.bs_len : d.N / 128 * (d.K / 128) * 512 ≤ d.b_scale.len
+  Kernels.BlockScaledMxfp8.Inst.ok.c_len : d.M * d.N ≤ d.c.len
+  Kernels.BlockScaledMxfp8.Inst.ok.c_in : Disjoint (Kernels.BlockScaledMxfp8.cEl d) (Kernels.BlockScaledMxfp8.inEl d)
+constructor:
+  Kernels.BlockScaledMxfp8.Inst.ok.mk {d : Kernels.BlockScaledMxfp8.Inst}
+    (M_ok : 0 < d.M ∧ d.M % 128 = 0 ∧ d.M < 2 ^ 31) (N_ok : 0 < d.N ∧ d.N % 128 = 0 ∧ d.N < 2 ^ 31)
+    (K_ok : 0 < d.K ∧ d.K % 128 = 0 ∧ d.K ≤ 2 ^ 14) (grid_lt : (d.M + 127) / 128 * ((d.N + 255) / 256) < 2 ^ 31)
+    (base_al :
+      d.a.base % 16 = 0 ∧ d.b.base % 16 = 0 ∧ d.a_scale.base % 16 = 0 ∧ d.b_scale.base % 16 = 0 ∧ d.c.base % 16 = 0)
+    (a_len : d.M * d.K ≤ d.a.len) (b_len : d.N * d.K ≤ d.b.len) (as_len : d.M / 128 * (d.K / 128) * 512 ≤ d.a_scale.len)
+    (bs_len : d.N / 128 * (d.K / 128) * 512 ≤ d.b_scale.len) (c_len : d.M * d.N ≤ d.c.len)
+    (c_in : Disjoint (Kernels.BlockScaledMxfp8.cEl d) (Kernels.BlockScaledMxfp8.inEl d)) : d.ok
