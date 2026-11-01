@@ -1,0 +1,17 @@
+{
+  "reviewer": "r-fwd",
+  "kernel": "attn_fwd_f16",
+  "round": 3,
+  "findings": [
+    {
+      "kind": "QUESTION",
+      "target": "item:spec",
+      "summary": "tolF's floor N/64*2^-22 (3.3e-4 at N=2^16) comes from bounding each block's p.v lift with p <= 2.3 on all 64 keys, not through sum p = l_i; normalised, the lift is about 5e-9. Intended?",
+      "detail": "absA = 2^-22 per block (Model.lean) bounds relDot16 64 times the block's extra lifted magnitude, sum_k (2^-14*|p_k| + 2^-28) with |p_k| <= 2.3, and absQ0 multiplies it by N/64 blocks over wlow*denQ. But the 2^-14*|p_k| part arises only for a subnormal v_k and sums, over every block and after the alpha rescalings, to at most 2^-14 times l_i (plus 2^-28 per key with a subnormal p), so after the division by l_i >= 1 - E the p.v lift contributes about 66*2^-36 + N*66*2^-50, below 5e-9 at N = 2^16, not 3.3e-4. The present tolF is sound, and meaningful on the host's data: at most 1.5e-5 at the test's sizes and 6.4e-5 at the benchmark's, against tolO*attnAbs of about 2e-3 and 2e-2 (work/tol.out). It dominates only for small-scale v (mean |v| below about 1e-2 at N = 2^16). Non-blocking: either tighten absA's argument, or say in README that the floor is the analysis's, not the device's, and when it matters."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 3, gate df22d153664804d2 (library round 25, L126). assumption:dot is the restated DotF16 as num.md lists it (DotLiftAcc, relDot16, absDot16 unchanged); the other assumption items re-opened only through the library files, whose facts, constants and listings they cite are unchanged (Exp2F32, Exp2F32NegInf, Log2F32, DivFull, DotTotal, MathTotal, DivTotal). The conditions item's digest did not change (my acceptance stands); HeadOk, the value premise in Post, now bounds sigma*scoreMag: the lift adds at most 0.006 (test) and 0.031 (benchmark) to sigma*sum|q.k|, so the host's inputs stay below 23 and 240, far under 2^10. tolO and tolM are unchanged, tolS grows about 3%, and the README's table agrees with my exact evaluation (work/tol.out). F6 (r-fwd2's) is referred to L126, which is fixed and which this claim now cites."
+}

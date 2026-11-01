@@ -4,12 +4,12 @@
 
 | Kernel | What | Gate | Phase | Open blocking | Certificate |
 |---|---|---|---|---|---|
-| [attn_bwd_f16](attn_bwd_f16/README.md) | Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bwd_dq`, `float16`) | PASS | [round 2: waiting for the prover (2 open finding(s))](attn_bwd_f16/REVIEW.md) | 0 | GRANTED |
+| [attn_bwd_f16](attn_bwd_f16/README.md) | Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bwd_dq`, `float16`) | PASS | [round 4: all reviewers have filed](attn_bwd_f16/REVIEW.md) | 0 | GRANTED |
 | [attn_bwd_pre_f16](attn_bwd_pre_f16/README.md) | Attention backward preprocess, tutorial 06 (`_attn_bwd_preprocess`, `float16` inputs, `float32` output) | PASS | [round 2: all reviewers have filed](attn_bwd_pre_f16/REVIEW.md) | 0 | GRANTED |
 | [attn_fwd_e5m2](attn_fwd_e5m2/README.md) | Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first ⌈Z·H/HEAD_DIM⌉ heads read `v`, every other head outputs ±0 | PASS | [round 5: all reviewers have filed](attn_fwd_e5m2/REVIEW.md) | 0 | GRANTED |
-| [attn_fwd_f16](attn_fwd_f16/README.md) | Fused attention, tutorial 06 (`_attn_fwd`, float16) | PASS | [round 2: waiting for the prover (1 open finding(s))](attn_fwd_f16/REVIEW.md) | 0 | GRANTED |
-| [grouped_matmul_tma_f16](grouped_matmul_tma_f16/README.md) | Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16) | PASS | [round 2: waiting for the prover (2 open finding(s))](grouped_matmul_tma_f16/REVIEW.md) | 0 | GRANTED |
+| [attn_fwd_f16](attn_fwd_f16/README.md) | Fused attention, tutorial 06 (`_attn_fwd`, float16) | PASS | [round 4: all reviewers have filed](attn_fwd_f16/REVIEW.md) | 0 | GRANTED |
+| [grouped_matmul_tma_f16](grouped_matmul_tma_f16/README.md) | Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16) | PASS | [round 3: all reviewers have filed](grouped_matmul_tma_f16/REVIEW.md) | 0 | GRANTED |
 | [matmul_e5m2](matmul_e5m2/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5) | PASS | [round 2: all reviewers have filed](matmul_e5m2/REVIEW.md) | 0 | GRANTED |
-| [matmul_f16](matmul_f16/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float16) | PASS | [round 2: waiting for the prover (1 open finding(s))](matmul_f16/REVIEW.md) | 0 | GRANTED |
+| [matmul_f16](matmul_f16/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float16) | PASS | [round 3: all reviewers have filed](matmul_f16/REVIEW.md) | 0 | GRANTED |
 | [softmax_f32](softmax_f32/README.md) | Fused softmax, tutorial 02 (`softmax_kernel`, float32) | PASS | [round 3: all reviewers have filed](softmax_f32/REVIEW.md) | 0 | GRANTED |
 | [vec_add_f32](vec_add_f32/README.md) | Vector addition, tutorial 01 (`add_kernel`, float32) | PASS | [round 2: all reviewers have filed](vec_add_f32/REVIEW.md) | 0 | GRANTED |

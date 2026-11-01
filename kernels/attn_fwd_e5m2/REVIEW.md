@@ -6,7 +6,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first ‚å
 
 ## Status
 
-- Gate: **PASS**, digest `4740b3814ba92693` (2026-11-01T04:29:23Z).
+- Gate: **PASS**, digest `4d394d2b36c1c128` (2026-11-01T05:52:59Z).
 - Phase: round 5: all reviewers have filed.
 - Reviewers: r-e5fwd (all), r-e5fwd2 (all).
 - Certificate: **GRANTED**.
@@ -14,22 +14,22 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first ‚å
 
 | Item | Digest | r-e5fwd | r-e5fwd2 |
 |---|---|---|---|
-| `assumption:cvt` | `e6726099cdc4` | accepted | accepted |
-| `assumption:cvt_total` | `54f50e473a1c` | accepted | accepted |
-| `assumption:div_full` | `f9825c1865c6` | accepted | accepted |
-| `assumption:div_total` | `129d48625f54` | accepted | accepted |
-| `assumption:dot` | `6f550f57caed` | accepted | accepted |
-| `assumption:dot_total` | `fb04f1611fb9` | accepted | accepted |
-| `assumption:exp2` | `f39305788ea5` | accepted | accepted |
-| `assumption:exp2_ninf` | `13c5f1b397d9` | accepted | accepted |
-| `assumption:exp2_total` | `76a730d019b7` | accepted | accepted |
+| `assumption:cvt` | `1e469a3c6b20` | accepted | accepted |
+| `assumption:cvt_total` | `ab11ba154a74` | accepted | accepted |
+| `assumption:div_full` | `fd34d8e94553` | accepted | accepted |
+| `assumption:div_total` | `4bdf5d5ecf96` | accepted | accepted |
+| `assumption:dot` | `74097c760476` | accepted | accepted |
+| `assumption:dot_total` | `c8d5f8a4e02f` | accepted | accepted |
+| `assumption:exp2` | `2db390009fda` | accepted | accepted |
+| `assumption:exp2_ninf` | `f528557f1fb9` | accepted | accepted |
+| `assumption:exp2_total` | `4684a484fde2` | accepted | accepted |
 | `assumption:faithful` | `eba025833640` | accepted | accepted |
-| `assumption:log2` | `274cbc5d7a7b` | accepted | accepted |
-| `assumption:log2_total` | `1aac3fb0d81a` | accepted | accepted |
+| `assumption:log2` | `738883561215` | accepted | accepted |
+| `assumption:log2_total` | `7f3931fee1ab` | accepted | accepted |
 | `conditions` | `b0121b83480b` | accepted | accepted |
 | `map` | `3a8a04772396` | accepted | accepted |
 | `model` | `af17db8da4c4` | accepted | accepted |
-| `spec` | `0e6e2039124c` | accepted | accepted |
+| `spec` | `d6cd2c3e13f2` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -329,7 +329,7 @@ All of these are within sampling noise, and no conclusion changes. Either widen 
 ## Round 5
 
 
-### r-e5fwd2 files ([filing](review/round-5/r-e5fwd2/filing.json), [report](review/round-5/r-e5fwd2/report.md))
+### r-e5fwd2 files ([filing](review/round-5/r-e5fwd2/filing.json), [report](review/round-5/r-e5fwd2/report.md), [work](review/round-5/r-e5fwd2/work/))
 
 `2026-11-01T04:30:42Z`, at gate `4740b3814ba92693`. Notes: Round 5 changed only README.md. The gate (4740b3814ba92693) and the item digests are unchanged, so every item stays accepted. I took no new samples; I checked against my round-3 work/tolerance.out.
 
@@ -344,9 +344,28 @@ All of these are within sampling noise, and no conclusion changes. Either widen 
 The table note now says the ranges come from three heads, widened to the reviewers' samples, and that other samples may differ by a few percent at a range's ends. It no longer claims exact coverage.
 - **accepted** at gate `4740b3814ba92693`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 
-### r-e5fwd files ([filing](review/round-5/r-e5fwd/filing.json), [report](review/round-5/r-e5fwd/report.md))
+### r-e5fwd files ([filing](review/round-5/r-e5fwd/filing.json), [report](review/round-5/r-e5fwd/report.md), [work](review/round-5/r-e5fwd/work/))
 
 `2026-11-01T04:30:49Z`, at gate `4740b3814ba92693`. Notes: Round 5 check of the benchmark causal ranges my round-4 filing noted, against my round-3 work/tol_uniform.out; I took no new samples. Three of the four now cover my seeds. D = 128 causal tolO is 0.83-1.01 (mine 0.83-0.96). D = 64 causal rejection is 64-69% (mine 64.6-68.6%). D = 64 causal tolO is 0.42-0.46 (mine 0.43-0.44). The fourth still misses one seed by 2.5 points. D = 128 causal rejection reads 28-38% in the main table, and the text says 0 meets Post on 62-90.5% at D = 128; mine are 32.9-40.5% rejected, that is 59.5% met for seed 43. The table note now reads 'widened to the reviewers' independent samples; other samples may differ by a few percent at the ends of a range'. That no longer claims exact coverage, and its hedge covers a 2.5-point gap, so it does not overclaim materially. This is not a finding. Only README.md changed and the gate is 4740b3814ba92693, so every item stays accepted.
 
 - **accepted** at gate `4740b3814ba92693`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T05:53:44Z` coordinator's note: Library round 25 (L126; docs/library-review/ISSUES.md) restated DotF16 and DotBF16 as DotLiftAcc (lifted magnitudes; relDot16, absDot16 unchanged) in lean/TVA/Rules/Num.lean and Sm90.lean, moved liftMag and minNormal8 from Rules/Num/Dot8Chunk.lean to Rules/Num.lean under the same names (minNormal8 gains float16 = 2^-14 and bfloat16 = 2^-126; its fp8 values are unchanged), withdrew Dot8Chunk.LiftAcc (now DotLiftAcc), and changed docs/rules/num.md. This kernel's own files did not change; its reviewers re-accept the items that re-opened.
+
+### r-e5fwd2 files ([filing](review/round-5/r-e5fwd2/filing-2.json), [report](review/round-5/r-e5fwd2/report-2.md), [work](review/round-5/r-e5fwd2/work/))
+
+`2026-11-01T05:55:36Z`, at gate `4d394d2b36c1c128`. Notes: This is a re-acceptance after library round 25 (L126), at gate 4d394d2b36c1c128. The kernel's own files did not change. Nothing that the re-opened items (spec and the eleven num-fact assumptions) rely on changed in meaning.
+
+- The diff of lean/TVA/Rules moves liftMag and minNormal8 from Rules/Num/Dot8Chunk.lean to Rules/Num.lean, with the same names and the same definition of liftMag. minNormal8 gains cases for float16 and bfloat16; its float8e5 value is still 2^-14 (work/lib25.lean checks minNormal8 .f8e5 = 2^-14 and liftMag .f8e5 q by rfl).
+- The diff adds DotLiftAcc and restates DotF16 and DotBF16, which this kernel does not cite. It changes only docstrings in Dot8Chunk.lean and in Sm90.lean's DotScaledMx. DotE5m2Chunk, DotF8Chunk, DotChunkAcc, rhoChunk8, sigmaChunk8, alphaChunk8, chunk8, chunkSum8, relDot8 and absDot8 are unchanged.
+- docs/rules/num.md changes the 16-bit rows and text. For fp8 it adds only a note on the mma.sync path's lifted fields, with no change to the chunk facts' row.
+- The Assumptions fields print as before: dot is DotE5m2Chunk; the others are DotTotal cfg8, CvtSatF32E5m2, CvtTotal, Exp2F32, Exp2F32NegInf, MathTotal exp2 and log2, Log2F32, DivFull and DivTotal.
+- main, consistent and satisfiable use only propext, Classical.choice and Quot.sound (work/lib25.out).
+
+- **accepted** at gate `4d394d2b36c1c128`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-e5fwd files ([filing](review/round-5/r-e5fwd/filing-2.json), [report](review/round-5/r-e5fwd/report-2.md), [work](review/round-5/r-e5fwd/work/))
+
+`2026-11-01T05:56:43Z`, at gate `4d394d2b36c1c128`. Notes: Re-acceptance after library round 25 (L126), re-gate 4d394d2b36c1c128; the kernel's own files did not change. In the diff of docs/rules/num.md and lean/TVA/Rules, nothing these items rely on changed in meaning. (1) DotE5m2Chunk, DotF8Chunk, DotChunkAcc and the constants rhoChunk8, sigmaChunk8, alphaChunk8, chunks8, relDot8, absDot8, chunk8 and chunkSum8 are unchanged. Dot8Chunk.lean lost only the two moved definitions, and comments changed. (2) liftMag moved to Rules/Num.lean with the same body. minNormal8 gained .f16 = 2^-14 and .bf16 = 2^-126 and keeps .f8e5 = 2^-14 (and .f8e4nv = 2^-6). work/lift_check.lean checks by rfl that minNormal8 .f8e5 = 2^-14 and that liftMag .f8e5 q = if q = 0 then 0 else max |q| 2^-14, and prints DotChunkAcc unchanged (lift_check.out). (3) Sm90.lean changed only DotF16 and DotBF16 (now DotLiftAcc) and a DotScaledMx docstring. Exp2F32, Exp2F32NegInf, Log2F32 and CvtSatF32E5m2 are as before. num.md's rows for DivFull, the totals and DotE5m2Chunk are unchanged; the fp8 text changed only its explanation of the mma.sync path. (4) The spec's library names Dot8Chunk.errB, chunkLift8 and relLift8 are unchanged in lean/TVA/Lemmas/Dot8Chunk.lean. The snapshots' cones differ only by spec gaining the file Rules/Num.lean, where liftMag now lives. main still uses only propext, Classical.choice and Quot.sound.
+
+- **accepted** at gate `4d394d2b36c1c128`: `assumption:cvt`, `assumption:cvt_total`, `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 

@@ -1,18 +1,18 @@
 {
-  "gate": "00f23d84e4f9dd74c3ce5800cfed898247afbd0417813d1b75e5e168214cd231",
+  "gate": "565503552a0c46d303ba5a785f20d22393706ca3c46504732c2d67edba38eb57",
   "items": {
-    "assumption:dot": "f4160bd4d1bdfc8c1bc1f0acb289c3cc0500e708721ce2cf84f9fb571139c334",
-    "assumption:dot_total": "3cecee3de60c090e6df3573b4cc526273a6e8dc1cc118362f516159b907450bf",
+    "assumption:dot": "6e3d61c2a95840b89b76352bfd7e5084e10c25dc942f92395d44ec6cfc204022",
+    "assumption:dot_total": "241abaa42064540fc17c4dbc3056165368ded22aca396ef4e2fb64d1f6bf122e",
     "assumption:faithful": "6cf79da61917f9833398a9e04bbf015374ff3fec1f709ce3e3049208576404fe",
     "conditions": "5d4073a65cc3ba31388110eb4ee920e40cfb0ba30ad28edc922807c5d5d075ee",
     "map": "b1821d933822865c5ba593e3b6fd3d9466afaef54e8cfc570cef5632de7b2117",
     "model": "8a58b105aededc5ad532922b39bf2e230fd4483f36dee0a011962a73c776ca89",
-    "spec": "2132a6169f9242d1dafd5fbb109c945fdfff891322d600ddae4539a954f23dde"
+    "spec": "ee2e6ed0da267cc7f406f899fee69348902ec8d5be6ef49245cf7afdd4bfc4eb"
   },
   "kernel": "matmul_f16",
   "reviewers": [
     "r-matmul",
     "r-matmul2"
   ],
-  "time": "2026-11-01T04:31:24Z"
+  "time": "2026-11-01T06:44:18Z"
 }

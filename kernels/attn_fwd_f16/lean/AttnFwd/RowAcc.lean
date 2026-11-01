@@ -88,11 +88,21 @@ noncomputable def stepLr : ℝ := (1 + 3 / 2 ^ 24) * (1 + 1 / 2 ^ 150) * (1 + 1 
 /-- `l_i`'s absolute error per block. -/
 noncomputable def absLr : ℝ := 1 / 2 ^ 100
 
-/-- The accumulator's absolute error per block, besides `om0·|v|` per key. -/
-noncomputable def absAr : ℝ := 1 / 2 ^ 85
+/-- The accumulator's absolute error per block, besides `om0·|v|` per key and `kapAr` per unit of
+weight: mainly the `p·v` `tl.dot`'s `66·2^-22` times the rest of the lift of the block's operands
+(`2^-14·omR + 2^-28` per key). -/
+noncomputable def absAr : ℝ := 1 / 2 ^ 37
+
+/-- The accumulator's absolute error per unit of weight: the `p·v` `tl.dot`'s `66·2^-22` times the
+lift `2^-14·|p|` of a subnormal `v`, with `|p| ≤ (1 + psi16r)·wt + omR`. -/
+noncomputable def kapAr : ℝ := 1 / 2 ^ 29
 
 /-- The absolute error of a key's `p.to(float16)`. -/
-noncomputable def om0 : ℝ := 1 / 2 ^ 25 + 1 / 2 ^ 125
+noncomputable def omR : ℝ := 1 / 2 ^ 25 + 1 / 2 ^ 125
+
+/-- The accumulator's absolute error per key, times `|v|`: `omR` and the `p·v` `tl.dot`'s
+`66·2^-22` times the lift `2^-14` of a subnormal `p`. -/
+noncomputable def om0 : ℝ := 1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36
 
 /-- The relative bound after `t` blocks, with running maximum `m`. -/
 noncomputable def ffac (R : RowCtx) (psi step : ℝ) (t : ℕ) (m : ℝ) : ℝ :=
@@ -351,14 +361,14 @@ theorem lane_p {P : Platform} (hexp : Rules.Num.Exp2F32 P) {R : RowCtx} (hR : R.
     unfold psiPr
     nlinarith
 
-/-- **One lane's `p.to(float16)`.** An attended key's is within `psi16·G + om0` of its weight; a
+/-- **One lane's `p.to(float16)`.** An attended key's is within `psi16·G + omR` of its weight; a
 masked key's is `0`. -/
 theorem lane_p16 {R : RowCtx} (hR : R.Ok) {m' p : F32} {q : F16} {j : ℕ} (hpf : p.isFinite = true)
     (hpa : R.al j = true → |p.toReal - wt R m'.toReal j| ≤ psiPr R.E * wt R m'.toReal j + 1 / 2 ^ 126)
     (hpm : R.al j = false → |p.toReal| ≤ 1 / 2 ^ 125) (hG2 : R.al j = true → wt R m'.toReal j ≤ 2)
     (hq : FloatV.NaNEq (FloatV.cvt p) q) :
     q.isFinite = true ∧
-      (R.al j = true → |q.toReal - wt R m'.toReal j| ≤ psi16r R.E * wt R m'.toReal j + om0) ∧
+      (R.al j = true → |q.toReal - wt R m'.toReal j| ≤ psi16r R.E * wt R m'.toReal j + omR) ∧
       (R.al j = false → q.toRat = 0) := by
   have hE0 := hR.E_nonneg
   have hE8 := hR.E_le
@@ -382,7 +392,7 @@ theorem lane_p16 {R : RowCtx} (hR : R.Ok) {m' p : F32} {q : F16} {j : ℕ} (hpf 
     obtain ⟨hqf, hqe⟩ := f16_cvt hq hpf (by nlinarith)
     refine ⟨hqf, fun _ => ?_, fun h => absurd h (by simp)⟩
     have := abs_sub_le q.toReal p.toReal (wt R m'.toReal j)
-    unfold psi16r om0
+    unfold psi16r omR
     nlinarith
 
 /-! ## `alpha` (line 84) -/

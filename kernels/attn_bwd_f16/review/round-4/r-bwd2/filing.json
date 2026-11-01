@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-bwd2",
+  "kernel": "attn_bwd_f16",
+  "round": 4,
+  "findings": [],
+  "release": [
+    {
+      "id": "F8",
+      "note": "The section 'What changed (library round 25)' now says it correctly. (1) lm is the old magnitude on zero and normal values. p16L and ds16L lift the bounds p16B and ds16B, not the values: they equal the bounds when these are at least 2^-14, are 2^-14 for a bound in [2^-24, 2^-14) even where the float16 P or dS is 0, and are 0 below 2^-24. This matches Spec.lean's lift16. (2) The Figures bullet lists every cell that moved. These are test HD128 non-causal dV (0.20 to 0.21), benchmark HD64 non-causal dV 90th (0.83 to 0.85), benchmark HD64 causal dV (0.49/0.60 to 0.50/0.61) and benchmark HD128 causal dK 90th (1.50 to 1.51). It also gives the causal dV maximum (0.91 to 0.92) and the four dQ 90th percentiles below the table's rounding (2.06 to 2.13, 3.27 to 3.30, 4.75 to 4.76, 15.92 to 15.93). All of these agree with my round-2 and round-3 runs of the script. (3) The worst dQ rows' absolute tolerance reads 9.2*10^-3 (I computed 0.0092498)."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 4, gate b28f50727b67c8a8, unchanged; only README.md changed, so every item is as I accepted it in round 3. I took no new samples. On F7 (r-bwd's): the new paragraph is correct. p16Err, ds16Err and HeadV.Ok read the lifted aQK and aVD through eX and eY (and so pBr and yB). Since |x| <= lm x, the per-pair errors can only grow and HeadV.Ok.fits can only get stronger. The added amount is lm x * lm y - |x*y| = (lm x - |x|) * lm y + |x| * (lm y - |y|) <= 2^-14 * lm y + 2^-14 * lm x, which is what 'each subnormal operand adds at most 2^-14 times its partner's lm' says. The rest of the section and the floor text are unchanged and still right."
+}

@@ -1,0 +1,22 @@
+{
+  "kernel": "attn_fwd_f16",
+  "round": 3,
+  "responses": [
+    {
+      "id": "F7",
+      "response": "REVISED",
+      "text": "Tightened as suggested. The lift 2^-14*|p| of a subnormal v is now bounded through the block's weights, not with p <= 2.3 on all 64 keys. Per attended key |p| <= (1 + psi16r)*wt + omR, so relDot16 64 times the weight part is at most kapAr = 2^-29 per unit of weight. AInv has a new term kapAr * sum wt, which is rescaled by alpha with the rest (acc_step' keeps lam*Ab) and gains the block's weights (psum_step1). ratio_err takes kappa*W and gives F*kappa/(1 - beta). The remainder per block (2^-14*omR + 2^-28 per key) is absA = 2^-37, formerly 2^-22. In Model: absA = 1/2^37, a new kapA = 1/2^29, and absQ0 = facc*(nblocks*absA)/(wlow*denQ) + facc*kapA/denQ. tolF is now 3.2e-8 at the test's sizes, 3.4e-8 at the benchmark's and at most 4.2e-8 at N = 2^16, X = 2^10 (was 1.5e-5, 6.4e-5, 3.3e-4); most of it is the output's float16 rounding near zero, 2^-25. tolO, tolS and tolM are unchanged. The README has the new table, the tolF prose and a round-3 note.",
+      "changed": ["item:spec"]
+    },
+    {
+      "id": "F8",
+      "response": "CLARIFIED",
+      "text": "Corrected. With F7's tightening tolF is at most 4.2e-8, so the exception is now confined to attnAbs below tolF/(1 - tolO), at most 5.5e-8 (N = 2^16, X = 2^10). That is below float16's smallest subnormal 2^-24 (6.0e-8). There the exact output rounds to 0 or +-2^-24, and tolO*attnAbs + tolF is below 2^-24, so the bound still fixes the output to within one float16 subnormal step. The sentence now reads 'fixes the output to well within its own magnitude, up to the two absolute terms', and the tolF paragraph gives the threshold and what holds below it."
+    },
+    {
+      "id": "F9",
+      "response": "CLARIFIED",
+      "text": "absA itself changed under F7: it is now 1/2^37. Its docstring describes the new bound, relDot16 64 times at most 2^-22 + 2^-32 per block, about 0.52*2^-37 (66*2^-44). The old figure (330*2^-31, about 1.29*2^-23, not 1.5*2^-23) went away with the old bound. The new kapA = 2^-29 has its own docstring (66*2^-36*8/7 <= 2^-29)."
+    }
+  ]
+}

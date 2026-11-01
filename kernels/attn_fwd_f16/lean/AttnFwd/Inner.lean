@@ -31,7 +31,8 @@ theorem val?_f16 {x : F16} (h : x.isFinite = true) : DType.val? .f16 x = some x.
   rw [ite_eq_left h]
 
 /-- **An element of `tl.dot(q, k)`** (line 73), for a covered head: finite and within the
-`HEAD_DIM` constants of `Num.DotF16` of the exact score. -/
+`HEAD_DIM` constants of `Num.DotF16` of the exact score, relative to the lifted magnitude
+`scoreMag` (library round 25). -/
 theorem qk_lane {P : Platform} (hdot : Rules.Num.DotF16 P) {d : Inst} (hd : d.ok) {init : Mem}
     {bh n j : ℕ} (hn : n < d.N_CTX) (hj : j < d.N_CTX) (hH : HeadOk d init bh)
     {M : ℕ} {q : Tensor [M, d.HEAD_DIM] F16} {kv : Tensor [64, d.HEAD_DIM] F16} {S : Tensor [M, 64] F32}
@@ -40,7 +41,7 @@ theorem qk_lane {P : Platform} (hdot : Rules.Num.DotF16 P) {d : Inst} (hd : d.ok
     (hkr : ∀ e : Fin d.HEAD_DIM, init.read .f16 (d.k.ptr (idx d bh j e : ℕ)).addr = some (kv.get2 jj e)) :
     (S.get2 r jj).isFinite = true ∧
       |(S.get2 r jj).toReal - (score d init bh n j : ℝ)| ≤
-        (Rules.Num.relDot16 d.HEAD_DIM : ℝ) * (scoreAbs d init bh n j : ℝ) +
+        (Rules.Num.relDot16 d.HEAD_DIM : ℝ) * (scoreMag d init bh n j : ℝ) +
           (Rules.Num.absDot16 d.HEAD_DIM : ℝ) := by
   have hqf : ∀ e : Fin d.HEAD_DIM, (q.get2 r e).isFinite = true := fun e =>
     fin_of (hqr e) (hH.1 n e hn e.2).1
@@ -50,15 +51,17 @@ theorem qk_lane {P : Platform} (hdot : Rules.Num.DotF16 P) {d : Inst} (hd : d.ok
     unfold score
     rw [Finset.sum_range (fun e => val16 init d.q (idx d bh n e) * val16 init d.k (idx d bh j e))]
     exact Finset.sum_congr rfl fun e _ => by rw [val16_of (hqr e), val16_of (hkr e)]
-  have hsa : scoreAbs d init bh n j = ∑ e : Fin d.HEAD_DIM, |(q.get2 r e).toRat * (kv.get2 jj e).toRat| := by
-    unfold scoreAbs
-    rw [Finset.sum_range (fun e => |val16 init d.q (idx d bh n e) * val16 init d.k (idx d bh j e)|)]
+  have hsa : scoreMag d init bh n j = ∑ e : Fin d.HEAD_DIM,
+      Rules.Num.liftMag .f16 (q.get2 r e).toRat * Rules.Num.liftMag .f16 (kv.get2 jj e).toRat := by
+    unfold scoreMag
+    rw [Finset.sum_range (fun e => Rules.Num.liftMag .f16 (val16 init d.q (idx d bh n e)) *
+      Rules.Num.liftMag .f16 (val16 init d.k (idx d bh j e)))]
     exact Finset.sum_congr rfl fun e _ => by rw [val16_of (hqr e), val16_of (hkr e)]
   have hσ : 1 / 2 ^ 64 ≤ sigma d := hd.scale.2.1
-  have hsa1 : scoreAbs d init bh n j ≤ 2 ^ 74 := by
+  have hsa1 : scoreMag d init bh n j ≤ 2 ^ 74 := by
     have h1 := hH.2.2 n j hn hj
-    have h0 := scoreAbs_nonneg d init bh n j
-    have : (1 / 2 ^ 64 : ℚ) * scoreAbs d init bh n j ≤ 2 ^ 10 := by nlinarith
+    have h0 := scoreMag_nonneg d init bh n j
+    have : (1 / 2 ^ 64 : ℚ) * scoreMag d init bh n j ≤ 2 ^ 10 := by nlinarith
     nlinarith
   have hD := headDim_le hd
   have hrel : Rules.Num.relDot16 d.HEAD_DIM ≤ 1 := by
@@ -76,7 +79,7 @@ theorem qk_lane {P : Platform} (hdot : Rules.Num.DotF16 P) {d : Inst} (hd : d.ok
   have hrel0 : 0 ≤ Rules.Num.relDot16 d.HEAD_DIM := by unfold Rules.Num.relDot16; positivity
   obtain ⟨vr, hvr, herr⟩ := hdot .tf32 q kv.trans (tl.zeros [M, 64] .f32) S hS r jj
     (fun e => (q.get2 r e).toRat) (fun e => (kv.get2 jj e).toRat) 0 (fun e => val?_f16 (hqf e))
-    (fun e => val?_f16 (hkf e)) (fun _ => ⟨trivial, trivial⟩) DotLoop.zero_val (by
+    (fun e => val?_f16 (hkf e)) DotLoop.zero_val (by
       show _ ≤ Format.binary32.maxVal
       rw [← hsa]
       have : (Format.binary32.maxVal : ℚ) = (2 ^ 24 - 1) * 2 ^ 104 := by
@@ -94,22 +97,25 @@ theorem qk_lane {P : Platform} (hdot : Rules.Num.DotF16 P) {d : Inst} (hd : d.ok
   rw [toReal_def]
   exact this
 
-/-- **An element of `tl.dot(p, v, acc)`** (line 103): `Num.DotF16`, in the form `astep` takes. -/
+/-- **An element of `tl.dot(p, v, acc)`** (line 103): `Num.DotF16` (relative to the lifted
+magnitudes `|acc| + Σ liftMag p·liftMag v`), in the form `astep` takes. -/
 theorem pv_lane {P : Platform} (hdot : Rules.Num.DotF16 P) {D M : ℕ} {q16 : Tensor [M, 64] F16}
     {vv : Tensor [64, D] F16} {a1 acc' : Tensor [M, D] F32} (h : P.dot cfg16 q16 vv a1 acc')
     (r : Fin M) (e : Fin D) (hvf : ∀ k, (vv.get2 k e).isFinite = true) :
     (a1.get2 r e).isFinite = true → (∀ k, (q16.get2 r k).isFinite = true) →
-      |(a1.get2 r e).toRat| + ∑ k, |(q16.get2 r k).toRat * (vv.get2 k e).toRat| +
-        (Rules.Num.relDot16 64 * (|(a1.get2 r e).toRat| + ∑ k, |(q16.get2 r k).toRat * (vv.get2 k e).toRat|) +
+      |(a1.get2 r e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q16.get2 r k).toRat * Rules.Num.liftMag .f16 (vv.get2 k e).toRat +
+        (Rules.Num.relDot16 64 * (|(a1.get2 r e).toRat| +
+          ∑ k, Rules.Num.liftMag .f16 (q16.get2 r k).toRat * Rules.Num.liftMag .f16 (vv.get2 k e).toRat) +
           Rules.Num.absDot16 64) ≤ Format.binary32.maxVal →
       (acc'.get2 r e).isFinite = true ∧
         |(acc'.get2 r e).toRat - ((a1.get2 r e).toRat + ∑ k, (q16.get2 r k).toRat * (vv.get2 k e).toRat)| ≤
-          Rules.Num.relDot16 64 * (|(a1.get2 r e).toRat| + ∑ k, |(q16.get2 r k).toRat * (vv.get2 k e).toRat|) +
+          Rules.Num.relDot16 64 * (|(a1.get2 r e).toRat| +
+            ∑ k, Rules.Num.liftMag .f16 (q16.get2 r k).toRat * Rules.Num.liftMag .f16 (vv.get2 k e).toRat) +
             Rules.Num.absDot16 64 := by
   intro ha hq hroom
   obtain ⟨vr, hvr, herr⟩ := hdot .tf32 q16 vv a1 acc' h r e (fun k => (q16.get2 r k).toRat)
     (fun k => (vv.get2 k e).toRat) (a1.get2 r e).toRat (fun k => val?_f16 (hq k)) (fun k => val?_f16 (hvf k))
-    (fun _ => ⟨trivial, trivial⟩) (DotLoop.val?_f32.mpr ⟨ha, rfl⟩) hroom
+    (DotLoop.val?_f32.mpr ⟨ha, rfl⟩) hroom
   obtain ⟨hf, hv⟩ := DotLoop.val?_f32.mp hvr
   exact ⟨hf, by rw [hv]; exact herr⟩
 
@@ -131,7 +137,7 @@ on the row's scaled score magnitudes, `RowSt` of its context. -/
 def StInv (d : Inst) (init : Mem) (c : F32) (sm bh t : ℕ) (acc : Tensor [128, d.HEAD_DIM] F32)
     (l m : Tensor [128] F32) : Prop :=
   ∀ r : Fin 128, HeadOk d init bh → ∀ X : ℚ, X ≤ 2 ^ 10 →
-    (∀ j ∈ keys d (128 * sm + r), sigma d * scoreAbs d init bh (128 * sm + r) j ≤ X) →
+    (∀ j ∈ keys d (128 * sm + r), sigma d * scoreMag d init bh (128 * sm + r) j ≤ X) →
     RowSt (rowCtx d init c.toReal bh (128 * sm + r) X) (veOf d init bh) t (m.get1 r) (l.get1 r)
       (fun e => acc.get2 r e)
 
@@ -465,12 +471,12 @@ theorem safe_loop_masked {d : Inst} (hd : d.ok) (hcausal : d.causal = true) {ini
           exact ⟨w1_facts.1, by rw [toReal_def, w1_facts.2]; simp⟩
       have hglob : ∀ jj : Fin 64, (rowCtx d init c.toReal bh (128 * sm + r) X).c *
           (rowCtx d init c.toReal bh (128 * sm + r) X).bv (64 * (2 * sm + t) + jj) ≤ 1536 := fun jj => by
-        show c.toReal * (scoreAbs d init bh (128 * sm + r) (64 * (2 * sm + t) + jj) : ℝ) ≤ 1536
+        show c.toReal * (scoreMag d init bh (128 * sm + r) (64 * (2 * sm + t) + jj) : ℝ) ≤ 1536
         have h1 := hH.2.2 _ _ hnr (hkey jj)
-        have h1' : (sigma d : ℝ) * (scoreAbs d init bh (128 * sm + r) (64 * (2 * sm + t) + jj) : ℝ) ≤ 2 ^ 10 := by
+        have h1' : (sigma d : ℝ) * (scoreMag d init bh (128 * sm + r) (64 * (2 * sm + t) + jj) : ℝ) ≤ 2 ^ 10 := by
           exact_mod_cast h1
-        have h2 : (0 : ℝ) ≤ (scoreAbs d init bh (128 * sm + r) (64 * (2 * sm + t) + jj) : ℝ) := by
-          exact_mod_cast scoreAbs_nonneg _ _ _ _ _
+        have h2 : (0 : ℝ) ≤ (scoreMag d init bh (128 * sm + r) (64 * (2 * sm + t) + jj) : ℝ) := by
+          exact_mod_cast scoreMag_nonneg _ _ _ _ _
         have := mul_le_mul_of_nonneg_right hc32 h2
         nlinarith
       have h0 : 2 * sm + t = 0 → (rowCtx d init c.toReal bh (128 * sm + r) X).al (64 * (2 * sm + t)) = true := by

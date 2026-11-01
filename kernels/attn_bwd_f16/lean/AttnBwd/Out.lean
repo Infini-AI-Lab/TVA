@@ -32,6 +32,10 @@ theorem vanish (h : ¬ Allowed d n m) :
       ds16Err d hv n m = 0 ∧ ds16B d hv n m = 0 := by
   simp only [pE, p16Err, p16B, dsE, ds16Err, ds16B, if_neg h, zero_mul, and_self]
 
+theorem vanishL (h : ¬ Allowed d n m) : p16L d hv n m = 0 ∧ ds16L d hv n m = 0 := by
+  obtain ⟨-, -, h3, -, -, h6⟩ := vanish (hv := hv) h
+  simp only [p16L, ds16L, h3, h6, lift16_zero, and_self]
+
 theorem sum_ext_range {C : Finset ℕ} {N : ℕ} (hC : C ⊆ Finset.range N) (f : ℕ → ℝ)
     (hf : ∀ x, x < N → x ∉ C → f x = 0) : ∑ x ∈ C, f x = ∑ x ∈ Finset.range N, f x :=
   Finset.sum_subset hC fun x hx hn => hf x (Finset.mem_range.mp hx) hn
@@ -104,7 +108,7 @@ end Vanish
 /-- **`dv`** (lines 445–446): the accumulator after the last step, rounded to `float16`. -/
 theorem out_dv {d : Inst} {hv : HeadV} {n j : Nat} {C : Finset ℕ} {a : F32} {c16 : F16}
     (hacc : AccI a (∑ m ∈ C, pE d hv n m * (hv.dO m j).toReal)
-      (∑ m ∈ C, p16Err d hv n m * |(hv.dO m j).toReal|) (∑ m ∈ C, p16B d hv n m * |(hv.dO m j).toReal|)
+      (∑ m ∈ C, p16Err d hv n m * |(hv.dO m j).toReal|) (∑ m ∈ C, p16L d hv n m * lm (hv.dO m j))
       (stepsKV d n))
     (hC : C ⊆ Finset.range d.N_CTX) (hvan : ∀ m, m < d.N_CTX → m ∉ C → ¬ Allowed d n m)
     (hc : FloatV.NaNEq (FloatV.cvt a) c16) :
@@ -114,7 +118,7 @@ theorem out_dv {d : Inst} {hv : HeadV} {n j : Nat} {C : Finset ℕ} {a : F32} {c
         c16.isFinite = true ∧ |c16.toReal - dVE d hv n j| ≤ dVTol d hv n j + (|dVE d hv n j| + dVTol d hv n j) * u16 + eta16) := by
   rw [sum_ext_range hC _ (fun m hm hn => by rw [(vanish (hv := hv) (hvan m hm hn)).1, zero_mul]),
     sum_ext_range hC _ (fun m hm hn => by rw [(vanish (hv := hv) (hvan m hm hn)).2.1, zero_mul]),
-    sum_ext_range hC _ (fun m hm hn => by rw [(vanish (hv := hv) (hvan m hm hn)).2.2.1, zero_mul])] at hacc
+    sum_ext_range hC _ (fun m hm hn => by rw [(vanishL (hv := hv) (hvan m hm hn)).1, zero_mul])] at hacc
   obtain ⟨hf, he⟩ := accI_final hacc
   exact ⟨a, hf, he, hc, fun hroom => out16 hf he hc hroom⟩
 

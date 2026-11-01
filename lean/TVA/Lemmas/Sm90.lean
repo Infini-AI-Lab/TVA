@@ -7,7 +7,8 @@ import TVA.Rules.Num.Sm90
 `Platform.sm90ref` is `Platform.ref` with the tightest table: every approximate function within
 one rounding's bound (`u·|y| + η`) wherever a float that accurate exists, and `exp(-∞) = exp2(-∞) = +0`
 in `float32`; its conversions to nearest saturate, as sm_90's into fp8 do. Every fact of
-`TVA.Rules.Num.Sm90` holds of it (`Platform.sm90ref.expF32`, …, `.cvtSatF32E4m3`, …), and so do
+`TVA.Rules.Num.Sm90` holds of it (`Platform.sm90ref.expF32`, …, `.cvtSatF32E4m3`, …, `.dotF16`,
+`.dotBF16` through `DotAcc.liftAcc`), and so do
 `DivFull`, `DivRn`, every `…Total` rule, every `CvtSat` and every `CvtAcc` (the lemmas of
 `Platform.ref`). A bundle that cites any of these facts proves `Claim.Consistent` with this one
 platform.
@@ -130,8 +131,10 @@ private theorem dot16 (cfg : DotCfg) (hacc : cfg.acc = .f32) :
     have h1 : (2 : ℚ) ^ (-150 : ℤ) ≤ 2 ^ (-126 : ℤ) := zpow_le_zpow_right₀ (by norm_num) (by norm_num)
     nlinarith [zpow_pos (show (0 : ℚ) < 2 by norm_num) (-126 : ℤ)]
 
-theorem dotF16 : DotF16 Platform.sm90ref := fun _ => dot16 _ rfl
-theorem dotBF16 : DotBF16 Platform.sm90ref := fun _ => dot16 _ rfl
+private theorem relDot16_nonneg (K : ℕ) : 0 ≤ relDot16 K := by unfold relDot16; positivity
+
+theorem dotF16 : DotF16 Platform.sm90ref := fun _ => (dot16 _ rfl).liftAcc relDot16_nonneg
+theorem dotBF16 : DotBF16 Platform.sm90ref := fun _ => (dot16 _ rfl).liftAcc relDot16_nonneg
 
 theorem dotF32Ieee : DotF32Ieee Platform.sm90ref := by
   refine Platform.ref.dotAcc (g := Format.binary32) rfl _ (fun K _ => ?_) (fun K _ => ?_)

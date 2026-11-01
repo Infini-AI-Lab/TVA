@@ -1,0 +1,12 @@
+{
+  "kernel": "matmul_f16",
+  "round": 2,
+  "responses": [
+    {
+      "id": "F7",
+      "response": "REFERRED",
+      "text": "This is library issue L126, fixed in library round 25. `DotF16` is now `DotLiftAcc`: its bound is relative to `|acc| + Σ liftMag a·liftMag b`, with a subnormal float16 operand counted at 2^-14 and the same constants. I re-proved the claim on the restated fact. `acc_step` cites it per tl.dot step, and the partial magnitude `partA` now sums the lifted products, so subnormal inputs stay covered. In the specification, the tolerance's magnitude `A` is now `dotMag`, the sum of `mag16(va k)·mag16(vb k)` (`mag16` is `Rules.Num.liftMag .f16` by definition, `liftMag_f16`); it replaces `dotAbs` (Σ|va k·vb k|). With no subnormal operand, `A = Σ|a·b|` and every tolerance figure is unchanged (1.26e-4 at K = 512, 1.01e-3 at 4096, below 0.21% up to 2^13). A subnormal operand x with partner y adds at most 2^-14·(|x|+|y|) + 2^-28 to its term. The README has a new section, 'What changed (library round 25)'. Gate PASS.",
+      "issue": "L126"
+    }
+  ]
+}

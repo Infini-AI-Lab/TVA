@@ -1,6 +1,6 @@
 {
   "build": {
-    "lean/TVA.lean": "171f2abf9caff17b183bec57830f06b7b59510bb347d8b849b9379e3b874dc85",
+    "lean/TVA.lean": "3533e502e3f6ce56c72d73dbc8be31463d45cb736e792f9b3b26c655878d5a43",
     "lean/TVA/Claim.lean": "5c2b60d3b2177b61d808f37c83b8e5fb7cdead467e90a5619bab3fb3071da093",
     "lean/TVA/Lang/BlockPtr.lean": "5c121ff17dd9b6f3b49adbbd9572d7f87055bfaabba8ab60025d69ac19f2fe4f",
     "lean/TVA/Lang/Desc.lean": "f6f836aff2342615a2aac7752b46e621308d1edd71a3efe989f7fd12f93c29f6",
@@ -21,8 +21,9 @@
     "lean/TVA/Lemmas/Claim.lean": "8728d976b555d281bfebf9901cf82d015604bc7642f9c24b0cb7276ddebc2942",
     "lean/TVA/Lemmas/Consistency.lean": "7ab47bca832a86b6c483b279d87ed2cae8fa78d2f5876a018c1847cb80d6a5ea",
     "lean/TVA/Lemmas/Desc.lean": "f91390ef65e1eab413b83bbbb8e1ba7f19af990949c72f460374887866ea23df",
-    "lean/TVA/Lemmas/Dot8Chunk.lean": "847246e7b02f8fb9b0ab2753071c01060bd70a98241734c91a16226a7f0cde76",
-    "lean/TVA/Lemmas/DotLoop.lean": "de41c859d5c9b2d11cfd55d31fab92312805c5bf2b16761d9d911336c9e60f63",
+    "lean/TVA/Lemmas/Dot8Chunk.lean": "072471456fac93d56dc0603ef8733a48da0913f9f974d4a81cd86315c2c2d83c",
+    "lean/TVA/Lemmas/DotLift.lean": "5fa4de37a74884b32cded31a630f69ef21942a5f08b76a7dc8b8f9b511665e1a",
+    "lean/TVA/Lemmas/DotLoop.lean": "1bfa6405888e399b03f6cec7db1ee34c0dc050e98df594773dc485616d2ba175",
     "lean/TVA/Lemmas/FloatErr.lean": "09fe7f250a3b988ba7a4efcf997e65b12ac9e040edab7341c570bf79bd8efb46",
     "lean/TVA/Lemmas/FloatMax.lean": "456f0b772e866aa954c837a910ad93da686d194c84893bba5e0d205538a5d324",
     "lean/TVA/Lemmas/FusedErr.lean": "97890b6705dc81c5afed6e86fe6fec9ba3cfac7fe326a7d9e2e12ffada638e85",
@@ -38,7 +39,7 @@
     "lean/TVA/Lemmas/Scan.lean": "9ae63bcbff031807c68f4e94631155b75e6941387a07938872e9367b51bcad9e",
     "lean/TVA/Lemmas/Shared.lean": "3bb137f3355e0164d4852adc4e72c0a8f232195b7ee18db833f1fcfc67607ddb",
     "lean/TVA/Lemmas/SharedAcc.lean": "9af6e59cd1376d09131623eb357717d44dde71af236f1af5a0879489bb24b447",
-    "lean/TVA/Lemmas/Sm90.lean": "82f21dbc091980c9340b42175440eefba7ec031e18f739d7b691f0f522c41249",
+    "lean/TVA/Lemmas/Sm90.lean": "c2a9c4f1329597fb99f32213a0eb8e0278668b4bd3b8ea4895912eafa5e5170f",
     "lean/TVA/Lemmas/Sum.lean": "e4cf5bfed24f41db7347befc13c10a291ba2974f1b6cdb7e86a304d8dc807427",
     "lean/TVA/Lemmas/SumFused.lean": "7b50dd56c38f33283603a4f296b170fa954a86db2c3ee88aa3f3cd113c0bc696",
     "lean/TVA/Lemmas/Tree.lean": "68c596165ed4a37059c5699712916c34b1c083e611b6cdc400e53b4918cfdc30",
@@ -49,9 +50,9 @@
     "lean/TVA/Math/LittleEndian.lean": "5db9bb20becf6165928865b5b26e74c0c08f67dd867df9cec5767b8ab3778aa9",
     "lean/TVA/Math/Rounding.lean": "d9b4b60bd4ad6d16fe47a13c1e803b900c4e7d380f092e5614a82861dad5d9c6",
     "lean/TVA/Rules/Compiler.lean": "24ff59ea326f1e0c51bff84a87c3bc420743f7d3cc7180afeb91cb6388753a4a",
-    "lean/TVA/Rules/Num.lean": "b6e744d5e1c70ca2bdd36bf0538d24541134c1f51f103a901f735413d03b3cae",
-    "lean/TVA/Rules/Num/Dot8Chunk.lean": "a48810afc632e8881b160e584468835db24f3f0f3b60588b6c82bae6583d1c3f",
-    "lean/TVA/Rules/Num/Sm90.lean": "9a604a31b50dd1ce73a156652c5f7df27c802d79f5d821f0a07110319ad2e081",
+    "lean/TVA/Rules/Num.lean": "f413053397de369e106217127cb6fea66c542d866910379ef6319058f6622e94",
+    "lean/TVA/Rules/Num/Dot8Chunk.lean": "3f25ef33e4cd17f09d920bc53014b10b313201dd504fb165da1eaf5e8ca5a990",
+    "lean/TVA/Rules/Num/Sm90.lean": "88f2782932f61c7e7aa4517f94f45a3ebedda447893a19c53e604bad81b96bd6",
     "lean/TVA/Sem/Launch.lean": "05ff97e010e389d6c077066b779f2d4fd8903ea5ee3d5a71486c7e7307dc9c99",
     "lean/TVA/Sem/Step.lean": "cd4f53042d571451bf9322306ea189cde68a96678776aedf9c4605227e3af0df",
     "lean/lake-manifest.json": "8849b5a16f151e87bd16cb6df4dd29a93a093beecf7a0fdedb0d4e887f4cb8cc",
@@ -125,7 +126,7 @@
       "ok": true
     }
   ],
-  "digest": "1020798749c9aee8d6fb77e381332d5b4ae7afa1ab41d10f304d32c20908ff36",
+  "digest": "365e8713c82828664705e7102615b03dbfbc40807288433aa7479186cf1c61c3",
   "files": {
     "README.md": "cba8fbc611d8922f91cac4668a670e01861ad84b62da5f98601f9b3fb6ca2042",
     "kernel.json": "f9799f55bff2d90e846f1b94e346a803a85304914398e8f52a6e73740b03fc5f",
@@ -137,11 +138,11 @@
     "source/02-fused-softmax.py": "8a65b696d5b02a3900380395ecd883671afeb66328db108f55622ed8853a05da"
   },
   "items": {
-    "assumption:div_full": "bdfcba37ccad5287a08e5ea4197111cab5a3129d06c62e2724790cd6ef2cca9d",
-    "assumption:div_total": "9f36a737e0e9f516c04865952ed7e340917818543d17d23c4eb3757385b61af1",
-    "assumption:exp_acc": "70ad73128758f05d61e340cf703cf9c420df88ef72be4bd7de42bca0588d8f19",
-    "assumption:exp_ninf": "0a7d6acf16a43bf31dbe90cedc411c7780ab98acf57b8966bbd6d620d6d56f32",
-    "assumption:exp_total": "7ca7ee2db6d613c89bb1e5d0dba987913584e2d71a92911ebf74cf9dbe6754c7",
+    "assumption:div_full": "effb4657eee7a4d5f34e9f556a24571052c3cf55e4b5271945a6436d246df46e",
+    "assumption:div_total": "99ff2144ed93b6f48498ad8a7dce7098b2ce7bff4a56da760a7ca155630e2a72",
+    "assumption:exp_acc": "381376b8aade5401fd514495e719e90d7b7f6e2620ca8fe47ec594665c8c2c00",
+    "assumption:exp_ninf": "24933895e9ffc5cf6c340f965d689ef3c73b774f94b02fb52de593915df02ad3",
+    "assumption:exp_total": "498ee8f74121c6f4a9adca99c2ed47d834bd0024108e10e36d57330e5ecae248",
     "assumption:faithful": "2479993e1691cb4900120ab43d873452baf545b60c1f19730cb0eb8d665c05c6",
     "conditions": "573ad1e9d67a9f161a19c10b899064d24873bc66ddee3bb415a125a3744abc98",
     "map": "1c9186a92ce5e58531f4ec52e280f93cae962ca7bc0d92f8c157042969860d41",
@@ -159,7 +160,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-01T02:10:08Z",
+  "time": "2026-11-01T05:50:03Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "b94d0e68beded7d8c2fcf96c4bd89e62a7547cb24a1f00eb722e1312f953652a"

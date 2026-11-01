@@ -251,7 +251,7 @@ def Pre (d : Inst) (init : Mem) : Prop :=
 def steps (K : Nat) : Nat := (K + 63) / 64
 
 /-- The tolerance of the `float32` accumulation, for a reduction length `K` and the sum `A` of the
-products' magnitudes: `DotLoop.bound ρ α T A = ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`, with
+products' lifted magnitudes (`dotMag`): `DotLoop.bound ρ α T A = ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`, with
 `T = steps K` `tl.dot` steps of `64` products each, and `ρ = relDot16 64 = 66·2^-22`,
 `α = absDot16 64 = 66·2^-126`, the library's constants for one fp16 `tl.dot` of `K = 64`
 (`Rules.Num.DotF16`). It is about `1.0e-3·A` at `K = 4096` (the host's largest) and `2.0e-3·A` at
@@ -274,13 +274,23 @@ theorem tol_rel_lt {K : Nat} (hK : K ≤ 2 ^ 13) :
 /-- The exact dot product of row values `va` and column values `vb` over `k < K`. -/
 def dotSum (va vb : Nat → F16) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, (va k).toRat * (vb k).toRat
 
-/-- The sum of the magnitudes of the products. -/
-def dotAbs (va vb : Nat → F16) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, |(va k).toRat * (vb k).toRat|
+/-- The magnitude by which the tensor core aligns a `float16` operand value `q`: `0` for `0`, and
+otherwise `|q|`, or the smallest normal magnitude `2^-14` when `|q|` is below it (a subnormal). It is
+`|q|` for zero and normal values. The library's `Rules.Num.liftMag .f16`, which `Rules.Num.DotF16`
+counts its magnitudes by (`liftMag_f16`; library issue L126). -/
+def mag16 (q : ℚ) : ℚ := if q = 0 then 0 else max |q| (2 ^ (-14 : ℤ))
+
+/-- The sum of the products' lifted magnitudes, `Σ mag16 (va k) · mag16 (vb k)` over `k < K`. With
+no subnormal operand it is `Σ |va k · vb k|`; it is at most `Σ |va k · vb k| + 2^-14·(Σ |va k| +
+Σ |vb k|) + K·2^-28` (`DotLift.liftMag_mul_le`). -/
+def dotMag (va vb : Nat → F16) (K : Nat) : ℚ :=
+  ∑ k ∈ Finset.range K, mag16 (va k).toRat * mag16 (vb k).toRat
 
 /-- What the launch leaves in element `(i, j)` of `c`: some `float16` value `c`; and when row `i` of
 `a` and column `j` of `b` hold finite values `va k`, `vb k` (`k < K`) in the initial memory, `c` is
 the `float16` rounding (to nearest even, up to NaN payload) of a finite `float32` value `v` within
-`tol K A` of the exact sum `S = Σ va k · vb k` (`A = Σ |va k · vb k|`); and when there is room in
+`tol K A` of the exact sum `S = Σ va k · vb k` (`A = dotMag`, `Σ |va k · vb k|` when no operand is
+subnormal, a subnormal operand counted at `2^-14`); and when there is room in
 `float16` (`|S| + tol K A ≤ 65504`), `c` is finite and within `tol K A` plus one `float16`
 rounding (`(|S| + tol K A)·2^-11 + 2^-25`) of `S`. -/
 def OutSpec (d : Inst) (init fin : Mem) (i j : Nat) : Prop :=
@@ -291,12 +301,12 @@ def OutSpec (d : Inst) (init fin : Mem) (i j : Nat) : Prop :=
       (∀ k, k < d.K → init.read .f16 (d.b.ptr ↑(k * d.stride_bk + j * d.stride_bn)).addr = some (vb k) ∧
         (vb k).isFinite = true) →
       ∃ v : F32, v.isFinite = true ∧
-        |v.toRat - dotSum va vb d.K| ≤ tol d.K (dotAbs va vb d.K) ∧
+        |v.toRat - dotSum va vb d.K| ≤ tol d.K (dotMag va vb d.K) ∧
         FloatV.NaNEq (FloatV.cvt v) c ∧
-        (|dotSum va vb d.K| + tol d.K (dotAbs va vb d.K) ≤ Math.Float.Format.binary16.maxVal →
+        (|dotSum va vb d.K| + tol d.K (dotMag va vb d.K) ≤ Math.Float.Format.binary16.maxVal →
           c.isFinite = true ∧
-          |c.toRat - dotSum va vb d.K| ≤ tol d.K (dotAbs va vb d.K) +
-            (|dotSum va vb d.K| + tol d.K (dotAbs va vb d.K)) * Math.Float.Format.binary16.u + Math.Float.Format.binary16.eta)
+          |c.toRat - dotSum va vb d.K| ≤ tol d.K (dotMag va vb d.K) +
+            (|dotSum va vb d.K| + tol d.K (dotMag va vb d.K)) * Math.Float.Format.binary16.u + Math.Float.Format.binary16.eta)
 
 /-- What the launch leaves: every element of the matrix `c` as `OutSpec` says; every byte outside
 the matrix `c` unchanged (`a`, `b`, and the elements of `c`'s storage outside the matrix). -/
@@ -316,9 +326,11 @@ structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) : Prop where
   meet (README, Conditions), and part (B), the environment, which the claim relies on. -/
   faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)
   /-- [rule] `Num.DotF16`: `tl.dot` of `float16` operands into `float32` (`maxImpreciseAcc = 0`,
-  any `input_precision`, the model's line 300): each output element whose row of `a`, column of `b`
-  and accumulator are finite is finite and within `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K` of
-  `acc + Σ a·b`, when that leaves room below the `float32` range. -/
+  any `input_precision`, the model's line 300; `Rules.Num.DotLiftAcc`): each output element whose
+  row of `a`, column of `b` and accumulator are finite is finite and within
+  `relDot16 K·L + absDot16 K` of `acc + Σ a·b`, with `L = |acc| + Σ liftMag a·liftMag b` (a
+  subnormal operand counted at the smallest normal `2^-14`), when that leaves room below the
+  `float32` range. -/
   dot : Rules.Num.DotF16 P
   /-- [rule] `Num.DotTotal`: the model's `tl.dot` (line 300) always has a result. -/
   dot_total : Rules.Num.DotTotal P { a := .f16, b := .f16, acc := .f32, precision := .tf32, maxImpreciseAcc := 0 }

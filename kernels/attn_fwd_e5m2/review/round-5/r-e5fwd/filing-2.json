@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5fwd",
+  "kernel": "attn_fwd_e5m2",
+  "round": 5,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-acceptance after library round 25 (L126), re-gate 4d394d2b36c1c128; the kernel's own files did not change. In the diff of docs/rules/num.md and lean/TVA/Rules, nothing these items rely on changed in meaning. (1) DotE5m2Chunk, DotF8Chunk, DotChunkAcc and the constants rhoChunk8, sigmaChunk8, alphaChunk8, chunks8, relDot8, absDot8, chunk8 and chunkSum8 are unchanged. Dot8Chunk.lean lost only the two moved definitions, and comments changed. (2) liftMag moved to Rules/Num.lean with the same body. minNormal8 gained .f16 = 2^-14 and .bf16 = 2^-126 and keeps .f8e5 = 2^-14 (and .f8e4nv = 2^-6). work/lift_check.lean checks by rfl that minNormal8 .f8e5 = 2^-14 and that liftMag .f8e5 q = if q = 0 then 0 else max |q| 2^-14, and prints DotChunkAcc unchanged (lift_check.out). (3) Sm90.lean changed only DotF16 and DotBF16 (now DotLiftAcc) and a DotScaledMx docstring. Exp2F32, Exp2F32NegInf, Log2F32 and CvtSatF32E5m2 are as before. num.md's rows for DivFull, the totals and DotE5m2Chunk are unchanged; the fp8 text changed only its explanation of the mma.sync path. (4) The spec's library names Dot8Chunk.errB, chunkLift8 and relLift8 are unchanged in lean/TVA/Lemmas/Dot8Chunk.lean. The snapshots' cones differ only by spec gaining the file Rules/Num.lean, where liftMag now lives. main still uses only propext, Classical.choice and Quot.sound."
+}

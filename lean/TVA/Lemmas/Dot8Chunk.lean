@@ -22,13 +22,16 @@ show the facts satisfiable.
 * `Dot8Chunk.DotChunkAcc.err`, `Dot8Chunk.DotF8Chunk.err`: an fp8 `tl.dot`'s result is within
   `errB` (at `n = chunks8 K`) of `acc + Σ a·b`, for any bounds `m j` on the chunks' lifted
   products (`chunkLift8` will do).
-* `Dot8Chunk.LiftAcc P cfg rel abs`: a whole `tl.dot` within `rel K·L + abs K` of `acc + Σ a·b`,
-  `L = |acc| + Σ liftMag a_k · liftMag b_k`, with room on `L`. `Dot8Chunk.DotF8Chunk.liftAcc`: the
-  chunk facts give it with `relLift8 K = (1 + 2^-7 + 2^-12)^⌈K/32⌉ − 1` and
+* `Dot8Chunk.DotF8Chunk.liftAcc`: the chunk facts give `Rules.Num.DotLiftAcc` (a whole `tl.dot`
+  within `rel K·L + abs K` of `acc + Σ a·b`, `L = |acc| + Σ liftMag a_k · liftMag b_k`, with room on
+  `L`; round 24 called this shape `Dot8Chunk.LiftAcc`) with
+  `relLift8 K = (1 + 2^-7 + 2^-12)^⌈K/32⌉ − 1` and
   `absLift8 K = ⌈K/32⌉·(1 + 2^-7 + 2^-12)^⌈K/32⌉·2^-126` (`DotChunkAcc.liftErr` for any constants,
-  as `DotLoop.bound`). For zero and normal operands `liftMag` is `|q|` (`liftMag_of_le`,
-  `liftMag_zero`); in general `|q| ≤ liftMag d q ≤ |q| + minNormal8 d` (`abs_le_liftMag`,
-  `liftMag_le`). This replaces the withdrawn `DotE4m3`, … (library issue L125).
+  as `DotLoop.bound`). This replaces the withdrawn `DotE4m3`, … (library issue L125).
+* For any dtype (the 16-bit facts' `liftMag` too, `TVA.Lemmas.DotLift`): for zero and normal
+  operands `liftMag` is `|q|` (`liftMag_of_le`, `liftMag_zero`); in general
+  `|q| ≤ liftMag d q ≤ |q| + minNormal8 d` (`abs_le_liftMag`, `liftMag_le`), and
+  `|x·y| ≤ liftMag da x · liftMag db y` (`abs_mul_le_liftMag`).
 * `Platform.ref.dotChunkAcc`, `Platform.sm90ref.dotE4m3Chunk`, …: the facts hold of the reference
   platforms (one rounding of the exact result), so a bundle citing them proves `Claim.Consistent`
   with `Platform.sm90ref`, as with the other sm_90 facts.
@@ -222,7 +225,7 @@ theorem abs_le_liftMag (d : DType) (q : ℚ) : |q| ≤ liftMag d q := by
 
 theorem liftMag_zero (d : DType) : liftMag d 0 = 0 := by simp [liftMag]
 
-/-- A value at least the smallest normal magnitude (a normal fp8 value) counts as `|q|`. -/
+/-- A value at least the smallest normal magnitude (a normal value of the dtype) counts as `|q|`. -/
 theorem liftMag_of_le {d : DType} {q : ℚ} (h : minNormal8 d ≤ |q|) : liftMag d q = |q| := by
   unfold liftMag
   split_ifs with h0
@@ -254,23 +257,10 @@ theorem sum_chunkLiftSum8 (da db : DType) {K : ℕ} (va vb : Fin K → ℚ) :
   exact Finset.sum_fiberwise_of_maps_to (g := fun k : Fin K => k.val / 32)
     (fun k _ => Finset.mem_range.mpr (div_lt_chunks8 k)) _
 
-/-- **A whole `tl.dot`, relative to lifted magnitudes**, per output element: with values as in
-`DotAcc` and room on `L = |vc| + Σ liftMag cfg.a (va k) · liftMag cfg.b (vb k)` (`L + rel K·L + abs K`
-at most the accumulator's `DType.bound`), the result has a value `vr` within `rel K·L + abs K` of
-`vc + Σ va·vb`. A lemma's statement, not a device fact: `DotF8Chunk.liftAcc` proves it from the
-chunk facts. -/
-def LiftAcc (P : Platform) (cfg : DotCfg) (rel abs : ℕ → ℚ) : Prop :=
-  ∀ ⦃M N K : Nat⦄ (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
-    (acc r : Tensor [M, N] cfg.acc.Val), P.dot cfg a b acc r →
-    ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
-      (∀ k, cfg.a.val? (a.get2 i k) = some (va k)) → (∀ k, cfg.b.val? (b.get2 k n) = some (vb k)) →
-      cfg.acc.val? (acc.get2 i n) = some vc →
-      |vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k) +
-          (rel K * (|vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k)) + abs K) ≤
-        cfg.acc.bound →
-      ∃ vr, cfg.acc.val? (r.get2 i n) = some vr ∧
-        |vr - (vc + ∑ k, va k * vb k)| ≤
-          rel K * (|vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k)) + abs K
+/- The shape of a whole `tl.dot` relative to lifted magnitudes, `LiftAcc` here in round 24, is
+`Rules.Num.DotLiftAcc` since round 25 (the same statement), which the 16-bit facts `DotF16` and
+`DotBF16` also have (library issue L126). For the fp8 dot it stays a lemma's statement, not a device
+fact: `DotF8Chunk.liftAcc` proves it from the chunk facts. -/
 
 /-- **A whole fp8 `tl.dot` from the chunk steps.** Under `DotChunkAcc` with constants `ρ σ α`, the
 result is within `DotLoop.bound (ρ + σ) α ⌈K/32⌉ L` of `vc + Σ va·vb`,
@@ -361,11 +351,11 @@ theorem relLift8_nonneg (K : ℕ) : 0 ≤ relLift8 K := (relDot8_nonneg K).trans
 theorem absLift8_nonneg (K : ℕ) : 0 ≤ absLift8 K := by
   unfold absLift8 rhoChunk8 sigmaChunk8 alphaChunk8; positivity
 
-/-- **A whole fp8 `tl.dot` from `DotE5m2Chunk` and the other chunk facts**: `LiftAcc` with
+/-- **A whole fp8 `tl.dot` from `DotE5m2Chunk` and the other chunk facts**: `DotLiftAcc` with
 `relLift8`, `absLift8`. The room on lifted magnitudes covers the facts' room (`relDot8 ≤ relLift8`,
 `absDot8 ≤ absLift8`, `|a·b| ≤ liftMag a · liftMag b`). -/
 theorem DotF8Chunk.liftAcc {P : Platform} {da db : DType} (h : DotF8Chunk P da db)
-    (p : InputPrecision) : LiftAcc P ⟨da, db, .f32, p, 2 ^ 30⟩ relLift8 absLift8 := by
+    (p : InputPrecision) : DotLiftAcc P ⟨da, db, .f32, p, 2 ^ 30⟩ relLift8 absLift8 := by
   intro M N K a b acc r hd i n va vb vc hva hvb hvc hroom
   dsimp only at hroom ⊢
   have hT : ∑ k, |va k * vb k| ≤ ∑ k, liftMag da (va k) * liftMag db (vb k) :=

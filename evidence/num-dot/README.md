@@ -28,6 +28,22 @@ has the largest exponent field of its chunk although it is not the largest term)
 of that folder. This folder's fp8 rows stay as the record of what was measured; its Part 1 (the
 13-bit window) still stands.
 
+**Restated (round 25, library issue L126).** `DotF16` and `DotBF16` in the table above, relative to
+`|acc| + Σ|a·b|`, are false of the device when a product with a subnormal 16-bit operand and a large
+partner sets the alignment window: the tensor core reads the subnormal operand's exponent field as
+the smallest normal's, so the other products lose their bits below the window's unit (up to `53`
+times the bound for `float16` and `13` times for `bfloat16` on the coordinator's inputs,
+[evidence/num-dot-sub16](../num-dot-sub16/README.md); `113.7` times in
+[evidence/num-dot-sub16-round25](../num-dot-sub16-round25/README.md)). Part 2 below had no such
+input, and Part 1's "kept down to `2^-23` of the largest term" holds only for normal operands: the
+window keeps 25 bits below the largest exponent field, a subnormal operand read as the smallest
+normal, and the sum is truncated toward zero to `float32` (that folder's Part A, a bit-exact model
+of both paths). Since round 25 the two facts have the same constants relative to
+`|acc| + Σ liftMag a·liftMag b`, a subnormal operand counted at `2^-14` (`float16`) or `2^-126`
+(`bfloat16`); their evidence is that folder. This folder's 16-bit rows stay as the record of what
+was measured, and they hold for the restated facts too (for normal operands the two bounds are the
+same, and lifting only enlarges the bound).
+
 **What Triton runs.** With `M ≥ 64` and `num_warps ≥ 4`, `wgmma` (16 products per instruction
 for 16-bit operands, 32 for fp8); otherwise `mma.sync`, with fp8 operands upcast to `float16`
 first. `float32` with `"ieee"` uses no tensor cores: `fma.rn.f32` along `K`. The script reads

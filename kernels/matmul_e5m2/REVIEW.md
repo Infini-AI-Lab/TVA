@@ -6,7 +6,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 ## Status
 
-- Gate: **PASS**, digest `3b92ad18abf5649a` (2026-11-01T02:51:48Z).
+- Gate: **PASS**, digest `5e4b5331abc9b970` (2026-11-01T05:51:37Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-e5m2 (all), r-e5m2b (all).
 - Certificate: **GRANTED**.
@@ -14,15 +14,15 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 | Item | Digest | r-e5m2 | r-e5m2b |
 |---|---|---|---|
-| `assumption:cvt` | `945d556ba0a4` | accepted | accepted |
-| `assumption:cvt_total` | `e73a67bc1e74` | accepted | accepted |
-| `assumption:dot` | `455b03ee146b` | accepted | accepted |
-| `assumption:dot_total` | `ea7a57f96a7c` | accepted | accepted |
+| `assumption:cvt` | `0300298adb2f` | accepted | accepted |
+| `assumption:cvt_total` | `1850e4bbdd79` | accepted | accepted |
+| `assumption:dot` | `09801184af69` | accepted | accepted |
+| `assumption:dot_total` | `bcb81cec9f8d` | accepted | accepted |
 | `assumption:faithful` | `a6f11c176fc0` | accepted | accepted |
 | `conditions` | `91a8ae003d59` | accepted | accepted |
 | `map` | `517f928841e0` | accepted | accepted |
 | `model` | `7a67c16d2d9a` | accepted | accepted |
-| `spec` | `2f1d1b501970` | accepted | accepted |
+| `spec` | `556af3ea216f` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -151,4 +151,17 @@ The paragraph 'What the tolerance means, and where it stops meaning much' lists 
 `2026-11-01T02:52:42Z`, at gate `3b92ad18abf5649a`. Notes: Confirmation at gate 3b92ad18abf5649a: OutSpec's docstring now says the tolerance E = tol va vb K is the error bound over the loop's 2*cdiv(K, 64) chunks of 32 products, from the exact partial sums and each chunk's largest lifted product. That is what tol = errAt (prodV va vb K) (liftV va vb K) (2 * steps K) computes, as I checked in my previous filing. No item digest changed.
 
 - **accepted** at gate `3b92ad18abf5649a`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T05:53:36Z` coordinator's note: Library round 25 (L126; docs/library-review/ISSUES.md) restated DotF16 and DotBF16 as DotLiftAcc (lifted magnitudes; relDot16, absDot16 unchanged) in lean/TVA/Rules/Num.lean and Sm90.lean, moved liftMag and minNormal8 from Rules/Num/Dot8Chunk.lean to Rules/Num.lean under the same names (minNormal8 gains float16 = 2^-14 and bfloat16 = 2^-126; its fp8 values are unchanged), withdrew Dot8Chunk.LiftAcc (now DotLiftAcc), and changed docs/rules/num.md. This kernel's own files did not change; its reviewers re-accept the items that re-opened.
+
+### r-e5m2b files ([filing](review/round-2/r-e5m2b/filing-4.json), [report](review/round-2/r-e5m2b/report-4.md), [work](review/round-2/r-e5m2b/work/))
+
+`2026-11-01T05:57:39Z`, at gate `5e4b5331abc9b970`. Notes: Library round 25 re-acceptance at gate 5e4b5331abc9b970. Nothing the re-opened items rely on changed in meaning. liftMag moved to Rules.Num with the same formula, and minNormal8 .f8e5 is still 2^-14, so liftV, errAt and tol in the spec mean what they meant. DotE5m2Chunk, DotF8Chunk, DotChunkAcc and the chunk constants are unchanged, and so are CvtF32E5m2, CvtTotal and DotTotal. In num.md the rows listing these facts and their reviewer checks are unchanged. The changes are to the 16-bit facts (DotF16/DotBF16 now DotLiftAcc), the new DotLiftAcc row, the f16/bf16 cases of minNormal8, and mma.sync explanatory text. The work file Round25 prints these definitions, checks the f8e5 values of minNormal8 and liftMag, and shows main, consistent and satisfiable depend only on propext, Classical.choice and Quot.sound.
+
+- **accepted** at gate `5e4b5331abc9b970`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-e5m2 files ([filing](review/round-2/r-e5m2/filing-4.json), [report](review/round-2/r-e5m2/report-4.md), [work](review/round-2/r-e5m2/work/))
+
+`2026-11-01T05:57:59Z`, at gate `5e4b5331abc9b970`. Notes: Re-acceptance after library round 25 (L126), gate 5e4b5331abc9b970; the kernel's files did not change. From the diff of the rules and num.md: liftMag moved to TVA.Rules.Num with the same definition (0 for 0, else max |q| (minNormal8 d)); minNormal8 keeps 2^-14 for float8e5 and 2^-6 for float8e4nv and only gains float16 and bfloat16 cases, which this kernel never uses. DotE5m2Chunk, DotF8Chunk, DotChunkAcc and the constants 2^-7, 2^-12, 2^-126 are unchanged, as are CvtF32E5m2 (CvtRn binary32 e5m2), CvtTotal and DotTotal; their num.md rows are unchanged. Only DotF16, DotBF16 (now DotLiftAcc) and docstrings changed, none cited here. Checked in work/names4.lean: minNormal8 .f8e5 = 2^-14, minNormal8 .f8e4nv = 2^-6 and the unfolding of liftMag .f8e5 hold by rfl; liftV, dotLift and the five assumptions print as before; main uses only propext, Classical.choice and Quot.sound. So spec and the assumptions cvt, cvt_total, dot and dot_total mean what I accepted in round 24.
+
+- **accepted** at gate `5e4b5331abc9b970`: `assumption:cvt`, `assumption:cvt_total`, `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

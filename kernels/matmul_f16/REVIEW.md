@@ -6,21 +6,21 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 
 ## Status
 
-- Gate: **PASS**, digest `00f23d84e4f9dd74` (2026-11-01T02:11:38Z).
-- Phase: round 2: waiting for the prover (1 open finding(s)).
+- Gate: **PASS**, digest `565503552a0c46d3` (2026-11-01T05:56:49Z).
+- Phase: round 3: all reviewers have filed.
 - Reviewers: r-matmul (all), r-matmul2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-matmul | r-matmul2 |
 |---|---|---|---|
-| `assumption:dot` | `f4160bd4d1bd` | accepted | accepted |
-| `assumption:dot_total` | `3cecee3de60c` | accepted | accepted |
+| `assumption:dot` | `6e3d61c2a958` | accepted | accepted |
+| `assumption:dot_total` | `241abaa42064` | accepted | accepted |
 | `assumption:faithful` | `6cf79da61917` | accepted | accepted |
 | `conditions` | `5d4073a65cc3` | accepted | accepted |
 | `map` | `b1821d933822` | accepted | accepted |
 | `model` | `8a58b105aede` | accepted | accepted |
-| `spec` | `2132a6169f92` | accepted | accepted |
+| `spec` | `ee2e6ed0da26` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -30,7 +30,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 | [F4](#f4) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-matmul | 1 | At the largest covered K = 2^16 the tolerance (1.62% of sum/a*b/) no longer rejects a result rounded to bfloat16, and ex |
 | [F5](#f5) | CLOSED (non-blocking) | DOC | `decl:Kernels.Matmul.tol` | r-matmul | 1 | tol's docstring says 'at most 2T*(rho*A + alpha): about 1.0e-3*A at K = 4096, 1.6e-2*A at K = 2^16', but those figures a |
 | [F6](#f6) | CLOSED (non-blocking) | DOC | `decl:Kernels.Matmul.model` | r-matmul | 1 | model's docstring argues that an integer argument equal to 1 gives the same model, use by use, but leaves out K = 1 as t |
-| [F7](#f7) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-matmul2 | 2 | L125's mechanism (a subnormal operand's exponent field setting the wgmma window) may also break DotF16; num-dot's fp16 P |
+| [F7](#f7) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-matmul2 | 2 | L125's mechanism (a subnormal operand's exponent field setting the wgmma window) may also break DotF16; num-dot's fp16 P |
 
 **Certificate: GRANTED**
 
@@ -148,4 +148,27 @@ L125 withdrew the fp8 whole-dot facts. On wgmma a chunk is aligned to the larges
 
 - **accepted** at gate `00f23d84e4f9dd74`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 - `2026-11-01T02:24:37Z` coordinator's note: Library issue L126 (docs/library-review/ISSUES.md; evidence/num-dot-sub16), open: DotF16, which this claim cites, fails on the device when a product with a subnormal float16 operand and a large partner sets the tl.dot window (up to 53 times its bound on wgmma and mma.sync). The certificate rests on DotF16 as stated; the fix (a library round, then a re-proof of this kernel) is not yet scheduled.
+
+### The prover responds ([response](review/round-2/prover/response.json), [notes](review/round-2/prover/notes.md))
+
+`2026-11-01T05:57:26Z`, at gate `565503552a0c46d3`.
+
+- **F7 REFERRED**: This is library issue L126, fixed in library round 25. `DotF16` is now `DotLiftAcc`: its bound is relative to `|acc| + Σ liftMag a·liftMag b`, with a subnormal float16 operand counted at 2^-14 and the same constants. I re-proved the claim on the restated fact. `acc_step` cites it per tl.dot step, and the partial magnitude `partA` now sums the lifted products, so subnormal inputs stay covered. In the specification, the tolerance's magnitude `A` is now `dotMag`, the sum of `mag16(va k)·mag16(vb k)` (`mag16` is `Rules.Num.liftMag .f16` by definition, `liftMag_f16`); it replaces `dotAbs` (Σ|va k·vb k|). With no subnormal operand, `A = Σ|a·b|` and every tolerance figure is unchanged (1.26e-4 at K = 512, 1.01e-3 at 4096, below 0.21% up to 2^13). A subnormal operand x with partner y adds at most 2^-14·(|x|+|y|) + 2^-28 to its term. The README has a new section, 'What changed (library round 25)'. Gate PASS.
+
+## Round 3
+
+- `2026-11-01T05:57:58Z` coordinator's note: Library round 25 (L126) restated DotF16 as DotLiftAcc (lifted magnitudes; relDot16, absDot16 unchanged); the prover re-proved the claim on it, gate 565503552a0c46d3, with the tolerance's magnitude counting a subnormal float16 operand at 2^-14.
+
+### r-matmul2 files ([filing](review/round-3/r-matmul2/filing.json), [report](review/round-3/r-matmul2/report.md), [work](review/round-3/r-matmul2/work/))
+
+`2026-11-01T06:01:03Z`, at gate `565503552a0c46d3`. Notes: Round 3 (gate 565503552a0c46d3). assumption:dot is TVA.Rules.Num.DotF16 P. It is still the num.md fact listed for an fp16 tl.dot into float32 with maxImpreciseAcc = 0 and any precision ('Facts the library states' and 'What a kernel reviewer checks'). It is now forall p, DotLiftAcc P <f16, f16, f32, p, 0> relDot16 absDot16, with relDot16 and absDot16 unchanged, and the field's docstring states DotLiftAcc correctly. dot_total's statement is unchanged; it re-opened only through the library files. spec: OutSpec is unchanged except that A = dotMag = sum mag16(va k) * mag16(vb k) replaces sum |va k * vb k|. mag16 is |q|, with a nonzero |q| below 2^-14 counted at 2^-14, so for zero and normal operands A, every figure and the bfloat16 rejection (normal inputs) are as before. A subnormal x with partner y raises its term by at most (2^-14 - |x|)*|y| (or 2^-28 when y is also subnormal), within the README's '2^-14*|vb k| + 2^-28' and the dotMag docstring's bound (DotLift.liftMag_mul_le). That is negligible against A for the host's randn and rand data, so the tolerance stays explicit, computable from the inputs, and meaningful. The model, launch, conditions and map are unchanged (same digests). The printed model is identical to round 2's (work/Explicit.lean), and axioms are still propext, Classical.choice and Quot.sound. The kernel's Lean has no instance, notation, attribute, export, set_option or renaming; the new names (mag16, dotMag, liftV, and lemmas) are kernel helpers I read in Defs.lean and Basic.lean.
+
+- **released F7**: Settled by L126 (library round 25). DotF16 is restated as DotLiftAcc, relative to |acc| + sum liftMag a * liftMag b, with a subnormal float16 operand counted at 2^-14, which is the case my report raised. Its evidence (num-dot-sub16-round25) is the library's. The claim is re-proved on the restated fact, and the tolerance's magnitude A is now dotMag, whose mag16 is liftMag .f16 by definition (rfl, checked in work/Cover.lean).
+- **accepted** at gate `565503552a0c46d3`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-matmul files ([filing](review/round-3/r-matmul/filing.json), [report](review/round-3/r-matmul/report.md), [work](review/round-3/r-matmul/work/))
+
+`2026-11-01T06:02:19Z`, at gate `565503552a0c46d3`. Notes: Round 3, after library round 25 (L126). (1) assumption:dot is still the right fact. DotF16 is listed, as restated, in num.md's 'Facts the library states' and in the reviewer's table for float16 operands into float32 with maxImpreciseAcc = 0 and any precision. It is now 'forall p, DotLiftAcc P <f16, f16, f32, p, 0> relDot16 absDot16', with relDot16 and absDot16 unchanged. The field's docstring and the README state it as DotLiftAcc, with L = |acc| + sum liftMag a * liftMag b. (2) spec: the tolerance is the same function tol K A, and A is now dotMag = sum mag16(va k) * mag16(vb k). mag16 is the library's liftMag .f16 by definition (rfl, checked in work/Lift.lean), so the specification counts magnitudes as the cited fact does. With no subnormal operand, mag16 q = |q| (work/Lift.lean, mag16_of_normal), so every figure of round 2 stands: 1.26e-4 at K = 512, 1.01e-3 at 4096, below 0.21% up to 2^13, and the rejection of a bfloat16-rounded result on normal one-sign inputs. The README's bound on a lifted term, |x*y| + 2^-14*(|x| + |y|) + 2^-28, is proved in work/Lift.lean (mag16_mul_le). Post still rejects a kernel that flushes subnormal float16 operands to zero: one product 2^-15 * 1 errs by 2^-15 against tol(2^13, 2^-14) < 2^-15 (work/Lift.lean). On the host's randn inputs a subnormal float16 is rare (about 5e-5 of values), and it adds at most about 2^-14*|partner| to A, so the tolerance's meaning at the host's sizes is unchanged. (3) assumption:dot_total re-opened only through the files docs/rules/num.md and lean/TVA/Rules/Num.lean; DotTotal and its listing are unchanged. (4) The kernel's Lean changes are the new defs mag16 and dotMag (dotAbs removed), the lemmas in Basic.lean (partA over liftV, acc_step on the restated fact) and a docstring in Program.lean. There is no instance, notation, attribute or export. The model, launch, conditions and map are unchanged (the gate snapshots show their items' digests as before). main, consistent and satisfiable depend only on propext, Classical.choice and Quot.sound. (5) F7 (r-matmul2's LIBRARY_REPORT on DotF16) is REFERRED to L126, which round 25 fixed by restating DotF16 relative to lifted magnitudes, and the claim is re-proved on it, so the report is settled. Its release is r-matmul2's.
+
+- **accepted** at gate `565503552a0c46d3`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

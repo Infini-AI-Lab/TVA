@@ -5,8 +5,9 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 # `attn_fwd_f16`: real-number facts the error analysis uses
 
 * powers of two: `two_rpow_sub_one` (`|2^δ − 1| ≤ |δ|` for `|δ| ≤ 1/2`), `two_rpow_mul_err`;
-* `acc_step`: one step of a rescaled accumulation (`a' ≈ λ·a + new`), the form both `acc` and
-  `l_i` follow, with the error split into a part relative to the magnitude and an absolute part;
+* `acc_step'`, `acc_step`: one step of a rescaled accumulation (`a' ≈ λ·a + new`), the form both
+  `acc` and `l_i` follow, with the error split into a part relative to the magnitude and an
+  absolute part;
 * `ratio_err`: the error of `acc / l` against `S / W`.
 -/
 
@@ -78,8 +79,77 @@ theorem two_rpow_mul_err {δ e d ε : ℝ} (hδ : |δ| ≤ d) (hd : d ≤ 1 / 2)
 exact value `S` (`|S| ≤ Mg`); the step scales it by `λ ∈ [0, 1]`, which gives `a1` within
 `(Φ − 1)·λ|a| + τ₁` of `λ·a`, and adds a new contribution `cn` within `ψ·Mn + An` of its exact value
 `Sn` (`|Sn| ≤ Mn`), with an addition (or a `tl.dot`) that errs by `ρ·(|a1| + Tn) + τ₂`, `Tn` the
-magnitude of the added terms. Then the new value is within `(F' − 1)·(λ·Mg + Mn) + F'·(Ab + An + τ₁ + τ₂)`
-of `λ·S + Sn`, for any `F' ≥ (1 + ρ)·Φ·F` and `≥ (1 + ρ)(1 + ψ)`. -/
+magnitude of the added terms. Then the new value is within
+`(F' − 1)·(λ·Mg + Mn) + F'·(λ·Ab + An + τ₁ + τ₂)` of `λ·S + Sn`, for any `F' ≥ (1 + ρ)·Φ·F` and
+`≥ (1 + ρ)(1 + ψ)`. -/
+theorem acc_step' {a S Mg Ab F a1 lam Phi tau1 cn Sn Mn An psi Tn a' rho tau2 F' : ℝ}
+    (hF : 1 ≤ F) (hMg : |S| ≤ Mg) (hAb : 0 ≤ Ab) (hold : |a - S| ≤ (F - 1) * Mg + F * Ab)
+    (hlam : 0 ≤ lam) (_hlam1 : lam ≤ 1) (hPhi : 1 ≤ Phi)
+    (ha1 : |a1 - lam * a| ≤ (Phi - 1) * (lam * |a|) + tau1)
+    (hMn : |Sn| ≤ Mn) (hpsi : 0 ≤ psi) (hAn : 0 ≤ An)
+    (hcn : |cn - Sn| ≤ psi * Mn + An) (hTn : Tn ≤ (1 + psi) * Mn + An)
+    (hrho : 0 ≤ rho) (htau1 : 0 ≤ tau1) (htau2 : 0 ≤ tau2)
+    (hcomb : |a' - (a1 + cn)| ≤ rho * (|a1| + Tn) + tau2)
+    (hF1 : (1 + rho) * Phi * F ≤ F') (hF2 : (1 + rho) * (1 + psi) ≤ F') :
+    |a' - (lam * S + Sn)| ≤ (F' - 1) * (lam * Mg + Mn) + F' * (lam * Ab + An + tau1 + tau2) := by
+  have hlA : 0 ≤ lam * Ab := mul_nonneg hlam hAb
+  have hMg0 : 0 ≤ Mg := (abs_nonneg _).trans hMg
+  have hMn0 : 0 ≤ Mn := (abs_nonneg _).trans hMn
+  -- `|a| ≤ F·(Mg + Ab)`
+  have ha : |a| ≤ F * (Mg + Ab) := by
+    have := abs_sub_abs_le_abs_sub a S
+    nlinarith
+  have hPF : 1 ≤ Phi * F := by nlinarith
+  -- the scaled old value against `λ·S`
+  have h1 : |a1 - lam * S| ≤ (Phi * F - 1) * (lam * Mg) + Phi * F * (lam * Ab) + tau1 := by
+    have e : a1 - lam * S = (a1 - lam * a) + lam * (a - S) := by ring
+    rw [e]
+    have t1 := abs_add_le (a1 - lam * a) (lam * (a - S))
+    rw [abs_mul, abs_of_nonneg hlam] at t1
+    have t2 : (Phi - 1) * (lam * |a|) ≤ (Phi - 1) * (lam * (F * (Mg + Ab))) :=
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left ha hlam) (by linarith)
+    have t3 : lam * |a - S| ≤ lam * ((F - 1) * Mg + F * Ab) := mul_le_mul_of_nonneg_left hold hlam
+    nlinarith
+  have ha1 : |a1| ≤ Phi * F * (lam * Mg) + Phi * F * (lam * Ab) + tau1 := by
+    have := abs_sub_abs_le_abs_sub a1 (lam * S)
+    have hS : |lam * S| ≤ lam * Mg := by rw [abs_mul, abs_of_nonneg hlam]; exact mul_le_mul_of_nonneg_left hMg hlam
+    linarith
+  have e : a' - (lam * S + Sn) = (a' - (a1 + cn)) + (a1 - lam * S) + (cn - Sn) := by ring
+  rw [e]
+  have t := abs_add_le ((a' - (a1 + cn)) + (a1 - lam * S)) (cn - Sn)
+  have t' := abs_add_le (a' - (a1 + cn)) (a1 - lam * S)
+  have hlM : 0 ≤ lam * Mg := mul_nonneg hlam hMg0
+  have k1 : rho * |a1| ≤ rho * (Phi * F * (lam * Mg) + Phi * F * (lam * Ab) + tau1) := mul_le_mul_of_nonneg_left ha1 hrho
+  have k2 : rho * Tn ≤ rho * ((1 + psi) * Mn + An) := mul_le_mul_of_nonneg_left hTn hrho
+  rw [mul_add] at hcomb
+  have hB : |a' - (a1 + cn) + (a1 - lam * S) + (cn - Sn)| ≤
+      rho * (Phi * F * (lam * Mg) + Phi * F * (lam * Ab) + tau1) + rho * ((1 + psi) * Mn + An) + tau2 +
+        ((Phi * F - 1) * (lam * Mg) + Phi * F * (lam * Ab) + tau1) + (psi * Mn + An) := by
+    linarith
+  have hF'1 : 1 + rho ≤ F' := by nlinarith
+  have key : 0 ≤ (F' - (1 + rho) * Phi * F) * (lam * Mg) + (F' - (1 + rho) * (1 + psi)) * Mn +
+      (F' - (1 + rho) * Phi * F) * (lam * Ab) + (F' - (1 + rho)) * An + (F' - (1 + rho)) * tau1 +
+      (F' - 1) * tau2 := by
+    have c1 : 0 ≤ F' - (1 + rho) * Phi * F := by linarith
+    have c2 : 0 ≤ F' - (1 + rho) * (1 + psi) := by linarith
+    have c3 : 0 ≤ F' - (1 + rho) := by linarith
+    have c4 : 0 ≤ F' - 1 := by linarith
+    have := mul_nonneg c1 hlM
+    have := mul_nonneg c2 hMn0
+    have := mul_nonneg c1 hlA
+    have := mul_nonneg c3 hAn
+    have := mul_nonneg c3 htau1
+    have := mul_nonneg c4 htau2
+    linarith
+  have iden : (F' - 1) * (lam * Mg + Mn) + F' * (lam * Ab + An + tau1 + tau2) -
+      (rho * (Phi * F * (lam * Mg) + Phi * F * (lam * Ab) + tau1) + rho * ((1 + psi) * Mn + An) + tau2 +
+        ((Phi * F - 1) * (lam * Mg) + Phi * F * (lam * Ab) + tau1) + (psi * Mn + An)) =
+      (F' - (1 + rho) * Phi * F) * (lam * Mg) + (F' - (1 + rho) * (1 + psi)) * Mn +
+      (F' - (1 + rho) * Phi * F) * (lam * Ab) + (F' - (1 + rho)) * An + (F' - (1 + rho)) * tau1 +
+      (F' - 1) * tau2 := by ring
+  linarith
+
+/-- `acc_step'` with the old absolute part unscaled (`λ·Ab ≤ Ab`). -/
 theorem acc_step {a S Mg Ab F a1 lam Phi tau1 cn Sn Mn An psi Tn a' rho tau2 F' : ℝ}
     (hF : 1 ≤ F) (hMg : |S| ≤ Mg) (hAb : 0 ≤ Ab) (hold : |a - S| ≤ (F - 1) * Mg + F * Ab)
     (hlam : 0 ≤ lam) (hlam1 : lam ≤ 1) (hPhi : 1 ≤ Phi)
@@ -90,63 +160,10 @@ theorem acc_step {a S Mg Ab F a1 lam Phi tau1 cn Sn Mn An psi Tn a' rho tau2 F' 
     (hcomb : |a' - (a1 + cn)| ≤ rho * (|a1| + Tn) + tau2)
     (hF1 : (1 + rho) * Phi * F ≤ F') (hF2 : (1 + rho) * (1 + psi) ≤ F') :
     |a' - (lam * S + Sn)| ≤ (F' - 1) * (lam * Mg + Mn) + F' * (Ab + An + tau1 + tau2) := by
-  have hMg0 : 0 ≤ Mg := (abs_nonneg _).trans hMg
-  have hMn0 : 0 ≤ Mn := (abs_nonneg _).trans hMn
-  -- `|a| ≤ F·(Mg + Ab)`
-  have ha : |a| ≤ F * (Mg + Ab) := by
-    have := abs_sub_abs_le_abs_sub a S
-    nlinarith
-  have hPF : 1 ≤ Phi * F := by nlinarith
-  -- the scaled old value against `λ·S`
-  have h1 : |a1 - lam * S| ≤ (Phi * F - 1) * (lam * Mg) + Phi * F * Ab + tau1 := by
-    have e : a1 - lam * S = (a1 - lam * a) + lam * (a - S) := by ring
-    rw [e]
-    have t1 := abs_add_le (a1 - lam * a) (lam * (a - S))
-    rw [abs_mul, abs_of_nonneg hlam] at t1
-    have t2 : (Phi - 1) * (lam * |a|) ≤ (Phi - 1) * (lam * (F * (Mg + Ab))) :=
-      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left ha hlam) (by linarith)
-    have t3 : lam * |a - S| ≤ lam * ((F - 1) * Mg + F * Ab) := mul_le_mul_of_nonneg_left hold hlam
-    have t4 : Phi * F * (lam * Ab) ≤ Phi * F * Ab := by
-      have : lam * Ab ≤ Ab := by nlinarith
-      exact mul_le_mul_of_nonneg_left this (by linarith)
-    nlinarith
-  have ha1 : |a1| ≤ Phi * F * (lam * Mg) + Phi * F * Ab + tau1 := by
-    have := abs_sub_abs_le_abs_sub a1 (lam * S)
-    have hS : |lam * S| ≤ lam * Mg := by rw [abs_mul, abs_of_nonneg hlam]; exact mul_le_mul_of_nonneg_left hMg hlam
-    linarith
-  have e : a' - (lam * S + Sn) = (a' - (a1 + cn)) + (a1 - lam * S) + (cn - Sn) := by ring
-  rw [e]
-  have t := abs_add_le ((a' - (a1 + cn)) + (a1 - lam * S)) (cn - Sn)
-  have t' := abs_add_le (a' - (a1 + cn)) (a1 - lam * S)
-  have hlM : 0 ≤ lam * Mg := mul_nonneg hlam hMg0
-  have k1 : rho * |a1| ≤ rho * (Phi * F * (lam * Mg) + Phi * F * Ab + tau1) := mul_le_mul_of_nonneg_left ha1 hrho
-  have k2 : rho * Tn ≤ rho * ((1 + psi) * Mn + An) := mul_le_mul_of_nonneg_left hTn hrho
-  rw [mul_add] at hcomb
-  have hB : |a' - (a1 + cn) + (a1 - lam * S) + (cn - Sn)| ≤
-      rho * (Phi * F * (lam * Mg) + Phi * F * Ab + tau1) + rho * ((1 + psi) * Mn + An) + tau2 +
-        ((Phi * F - 1) * (lam * Mg) + Phi * F * Ab + tau1) + (psi * Mn + An) := by
-    linarith
-  have hF'1 : 1 + rho ≤ F' := by nlinarith
-  have key : 0 ≤ (F' - (1 + rho) * Phi * F) * (lam * Mg) + (F' - (1 + rho) * (1 + psi)) * Mn +
-      (F' - (1 + rho) * Phi * F) * Ab + (F' - (1 + rho)) * An + (F' - (1 + rho)) * tau1 +
-      (F' - 1) * tau2 := by
-    have c1 : 0 ≤ F' - (1 + rho) * Phi * F := by linarith
-    have c2 : 0 ≤ F' - (1 + rho) * (1 + psi) := by linarith
-    have c3 : 0 ≤ F' - (1 + rho) := by linarith
-    have c4 : 0 ≤ F' - 1 := by linarith
-    have := mul_nonneg c1 hlM
-    have := mul_nonneg c2 hMn0
-    have := mul_nonneg c1 hAb
-    have := mul_nonneg c3 hAn
-    have := mul_nonneg c3 htau1
-    have := mul_nonneg c4 htau2
-    linarith
-  have iden : (F' - 1) * (lam * Mg + Mn) + F' * (Ab + An + tau1 + tau2) -
-      (rho * (Phi * F * (lam * Mg) + Phi * F * Ab + tau1) + rho * ((1 + psi) * Mn + An) + tau2 +
-        ((Phi * F - 1) * (lam * Mg) + Phi * F * Ab + tau1) + (psi * Mn + An)) =
-      (F' - (1 + rho) * Phi * F) * (lam * Mg) + (F' - (1 + rho) * (1 + psi)) * Mn +
-      (F' - (1 + rho) * Phi * F) * Ab + (F' - (1 + rho)) * An + (F' - (1 + rho)) * tau1 +
-      (F' - 1) * tau2 := by ring
+  have h := acc_step' hF hMg hAb hold hlam hlam1 hPhi ha1 hMn hpsi hAn hcn hTn hrho htau1 htau2 hcomb hF1 hF2
+  have h0 : 0 ≤ (1 + rho) * (1 + psi) := mul_nonneg (by linarith) (by linarith)
+  have hlA : lam * Ab ≤ Ab := by nlinarith
+  have := mul_le_mul_of_nonneg_left hlA (by linarith : (0 : ℝ) ≤ F')
   linarith
 
 end Kernels.AttnFwd

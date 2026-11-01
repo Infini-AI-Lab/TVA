@@ -1,0 +1,13 @@
+{
+  "reviewer": "r-fwd2",
+  "kernel": "attn_fwd_f16",
+  "round": 4,
+  "findings": [],
+  "release": [
+    {"id": "F8", "note": "Fixed. With absA = 2^-37 and kapA = 2^-29, tolF is at most 4.23e-8 over the covered sizes (work/tol.out, D=256, N=2^16, X=2^10). The README sentence now reads 'up to the two absolute terms', and the tolF paragraph gives the threshold tolF/(1 - tolO): at most 5.54e-8, below float16's smallest subnormal 2^-24 = 5.96e-8. At that threshold tolO*attnAbs + tolF equals attnAbs, so it is below 2^-24 too, and the bound holds the output within one subnormal step, as the README says."},
+    {"id": "F9", "note": "Fixed with F7's change. absA is now 2^-37. Its docstring's per-block rest is 64*(2^-14*(2^-25 + 2^-125) + 2^-28) = 2^-22 + 2^-33 + 2^-133, so 'at most 2^-22 + 2^-32' holds. Times relDot16 64 that is 66*2^-44 + 66*2^-54, about 0.516*2^-37: 'about 0.52*2^-37' is right (work/check_spec.lean checks it between 0.51 and 0.53 of absA). kapA's docstring also checks: 66*2^-36*8/7 = 0.589*2^-29 <= 2^-29, with psi16 <= 0.0965 <= 1/7 at the largest D and X."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 4, gate 7c52bcaa1a441cb2. Only spec changed (absA, kapA, absQ0); Post, HeadOk and every other item keep their digests. My exact evaluation (work/tol.out) matches the README's table: tolO, tolS and tolM are as in round 3; tolF is 3.17e-8, 3.21e-8, 3.37e-8, 3.93e-8 and 4.23e-8 at the table's rows, below the 4.3e-8 of the README's narrowing. The tolerance is stronger than in round 3 and meaningful at every covered size. tolF is now mostly the output's float16 rounding near zero (2^-25), and the p.v lift adds 1.9e-9 to 1.25e-8. I read the revised AInv (kapAr*psum wt), the kapAr, absAr and the hk bound in Step.astep, and absQ0's facc*kapA/denQ (the kapA*sum wt term divided by l_i >= (1 - betaL)*sum wt, so no wlow). The axioms of main are the standard three (work/check_spec.out). r-fwd's F7 (REVISED) is answered as it asked: the lift is bounded through the block's weights, and tolF no longer grows as N/64*2^-22."
+}

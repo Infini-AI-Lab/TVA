@@ -344,24 +344,34 @@ def keys (d : Inst) (n : Nat) : Finset Nat :=
 def score (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
   ∑ e ∈ Finset.range d.HEAD_DIM, val16 m d.q (idx d bh n e) * val16 m d.k (idx d bh j e)
 
-/-- `Σ_e |q[bh, n, e] · k[bh, j, e]|`. -/
-def scoreAbs (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
-  ∑ e ∈ Finset.range d.HEAD_DIM, |val16 m d.q (idx d bh n e) * val16 m d.k (idx d bh j e)|
+/-- The score's magnitude, `Σ_e liftMag q[bh, n, e] · liftMag k[bh, j, e]`: the magnitude the error
+of the score's `tl.dot` is relative to (`Rules.Num.DotF16`, `Rules.Num.liftMag`). `liftMag` is `|x|`
+for a zero or normal `float16` value and the smallest normal magnitude `2^-14` for a subnormal one
+(the tensor core aligns a subnormal operand at it), so for zero and normal values this is
+`Σ_e |q·k|`, and in general it is at most `Σ_e |q·k| + 2^-14·(Σ_e |q| + Σ_e |k|) + HEAD_DIM·2^-28`
+(`DotLift.sum_liftMag_mul_le`). -/
+def scoreMag (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
+  ∑ e ∈ Finset.range d.HEAD_DIM,
+    Rules.Num.liftMag .f16 (val16 m d.q (idx d bh n e)) * Rules.Num.liftMag .f16 (val16 m d.k (idx d bh j e))
 
 /-- The values of head `bh` are covered: every element of `q`, `k`, `v` in the head is a finite
-`float16`, every `|v| ≤ 2^15`, and every scaled score magnitude `sm_scale · Σ_e |q·k| ≤ 2^10`. On the
-host's inputs, `sm_scale·s²·Σ_e |X_e·Y_e|` with `X`, `Y` independent standard normals (the test:
-`s = 0.5`, `sm_scale = 0.5`; the benchmark: `s = 1`, `sm_scale = 1.3`), a Chernoff bound on the sum
-of `HEAD_DIM = 128` terms, with a union bound over every pair of the largest shape, keeps every
-magnitude below `23` (test) and `240` (benchmark) except with probability below `10^-6`; the means
-are about `10` and `106`. The bound on `v` leaves room for the
+`float16`, every `|v| ≤ 2^15`, and every scaled score magnitude `sm_scale · scoreMag ≤ 2^10`. On the
+host's inputs, `sm_scale·Σ_e |q·k| = sm_scale·s²·Σ_e |X_e·Y_e|` with `X`, `Y` independent standard
+normals (the test: `s = 0.5`, `sm_scale = 0.5`; the benchmark: `s = 1`, `sm_scale = 1.3`); a Chernoff
+bound on the sum of `HEAD_DIM = 128` terms, with a union bound over every pair of the largest shape,
+keeps it below `22.7` (test) and `239.9` (benchmark) except with probability below `10^-6`, the means
+being about `10` and `106`. The lift adds at most `sm_scale·(2^-14·(Σ_e |q| + Σ_e |k|) + 128·2^-28)`;
+with `Σ_e |q| ≤ √128·|q|` and the `χ²` tail of `|q|²` (every row's `|q|² ≤ 288·s²` except with
+probability below `3·10^-6`) that is below `0.006` (test) and `0.031` (benchmark). So every
+`sm_scale · scoreMag` is below `23` (test) and `240` (benchmark), except with probability below
+`4·10^-6`. The bound on `v` leaves room for the
 output's tolerance in `float16`; the bound on the scores keeps the causal mask's `-1e6` below every
 unmasked score and the tolerance's linear bounds valid. -/
 def HeadOk (d : Inst) (m : Mem) (bh : Nat) : Prop :=
   (∀ n e, n < d.N_CTX → e < d.HEAD_DIM →
     fin16 m d.q (idx d bh n e) ∧ fin16 m d.k (idx d bh n e) ∧ fin16 m d.v (idx d bh n e)) ∧
   (∀ n e, n < d.N_CTX → e < d.HEAD_DIM → |val16 m d.v (idx d bh n e)| ≤ 2 ^ 15) ∧
-  (∀ n j, n < d.N_CTX → j < d.N_CTX → sigma d * scoreAbs d m bh n j ≤ 2 ^ 10)
+  (∀ n j, n < d.N_CTX → j < d.N_CTX → sigma d * scoreMag d m bh n j ≤ 2 ^ 10)
 
 /-- The exact softmax weight of key `j` for query `n`, unnormalised: `exp(sm_scale · score)`. -/
 noncomputable def weight (d : Inst) (m : Mem) (bh n j : Nat) : ℝ :=
@@ -387,7 +397,7 @@ noncomputable def lseRef (d : Inst) (m : Mem) (bh n : Nat) : ℝ :=
 
 /-! ### The tolerances
 
-`X` bounds the row's scaled score magnitudes (`sm_scale · Σ_e |q·k| ≤ X` over its keys), and `D`,
+`X` bounds the row's scaled score magnitudes (`sm_scale · scoreMag ≤ X` over its keys), and `D`,
 `N` are `HEAD_DIM` and `N_CTX`. The constants are the library's: `relDot16` (`Rules.Num.DotF16`),
 `2^-22` (`Exp2F32`, `DivFull`, `Log2F32`), and one rounding of `float32` (`2^-24`) and of `float16`
 (`2^-11`). -/
@@ -395,12 +405,12 @@ noncomputable def lseRef (d : Inst) (m : Mem) (bh n : Nat) : ℝ :=
 /-- One rounding of `float32`, relative: `2^-24`. -/
 def u32 : ℚ := 1 / 2 ^ 24
 
-/-- The bound `3X/2` on `qk_scale · Σ_e |q·k|`, in the base-2 exponent (`qk_scale` is
+/-- The bound `3X/2` on `qk_scale · scoreMag`, in the base-2 exponent (`qk_scale` is
 `sm_scale · log₂ e` up to `2^-22` relative). -/
 def ybound (X : ℚ) : ℚ := 3 / 2 * X
 
 /-- The error of each computed exponent `qk·qk_scale − m` against the exact one: the score's
-`tl.dot` error (`relDot16 D` of `Σ|q·k|`) and the roundings. -/
+`tl.dot` error (`relDot16 D` of `scoreMag`) and the roundings. -/
 def expErr (D : Nat) (X : ℚ) : ℚ := (Rules.Num.relDot16 D + 1 / 2 ^ 20) * ybound X + 1 / 2 ^ 50
 
 /-- The relative error of each `p = exp2(·)` against its exact weight. -/
@@ -436,11 +446,22 @@ def fl (D N : Nat) (X : ℚ) : ℚ := (1 + psiL D X) * drift D X * stepL ^ nbloc
 roundings near zero). -/
 def absL : ℚ := 1 / 2 ^ 100
 
-/-- The absolute error of the accumulator per block, besides `omega0·|v|` per key. -/
-def absA : ℚ := 1 / 2 ^ 85
+/-- The absolute error of the accumulator per block, besides `omega0·|v|` per key and `kapA` per
+unit of weight: the `p·v` `tl.dot`'s `relDot16 64 = 66·2^-22` times the rest of the lift of a
+block's operands (`2^-14·(2^-25 + 2^-125) + 2^-28` per key, at most `2^-22 + 2^-32` over the block's
+`64` keys), about `0.52·2^-37`, with the roundings near zero. -/
+def absA : ℚ := 1 / 2 ^ 37
 
-/-- The absolute error of a key's `p.to(float16)` (half `float16`'s smallest subnormal, and more). -/
-def omega0 : ℚ := 1 / 2 ^ 25 + 1 / 2 ^ 125
+/-- The absolute error of the accumulator per unit of weight: the `p·v` `tl.dot`'s `relDot16 64`
+times the lift `2^-14·|p|` of a subnormal `v` (counted at `2^-14`), with
+`|p| ≤ (1 + psi16)·weight + 2^-25 + 2^-125` and `psi16 ≤ 1/7`: `66·2^-36·8/7 ≤ 2^-29`. Over the
+keys it is `kapA` times `l_i`'s exact value, so it adds about `kapA` to `acc / l_i`. -/
+def kapA : ℚ := 1 / 2 ^ 29
+
+/-- The absolute error per key, times `|v|`: half `float16`'s smallest subnormal from
+`p.to(float16)` (`2^-25`, and more), and the `p·v` `tl.dot`'s `relDot16 64` times the lift `2^-14` of
+a subnormal `p` (`66·2^-36`). -/
+def omega0 : ℚ := 1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36
 
 /-- The lower bound `1 − E` on the sum of a row's weights against its maximum. -/
 def wlow (D : Nat) (X : ℚ) : ℚ := 1 - expErr D X
@@ -457,8 +478,9 @@ def relQ (D N : Nat) (X : ℚ) : ℚ := (facc D N X - 1 + betaL D N X) / denQ D 
 /-- The coefficient of `Σ|v|` in the error of `acc / l_i`. -/
 def absQS (D N : Nat) (X : ℚ) : ℚ := facc D N X * omega0 / (wlow D X * denQ D N X)
 
-/-- The absolute error of `acc / l_i`. -/
-def absQ0 (D N : Nat) (X : ℚ) : ℚ := facc D N X * (nblocks N * absA) / (wlow D X * denQ D N X)
+/-- The absolute error of `acc / l_i`: `absA` per block, and `kapA` per unit of weight. -/
+def absQ0 (D N : Nat) (X : ℚ) : ℚ :=
+  facc D N X * (nblocks N * absA) / (wlow D X * denQ D N X) + facc D N X * kapA / denQ D N X
 
 /-- The relative change of the weights from `qk_scale · ln 2` to `sm_scale`: `4θ` with
 `θ = 2^-22·X`. -/
@@ -472,10 +494,13 @@ def tolO (D N : Nat) (X : ℚ) : ℚ :=
   lastRel * (1 + relQ D N X) * (1 + thetaW X) + relQ D N X * (1 + thetaW X) + thetaW X
 
 /-- **The output's tolerance relative to `vAbsSum`** (`Σ|v|` over the row's keys): the `float16`
-rounding of small `p`s (about `2^-24` per key). -/
+rounding of small `p`s and the lift of subnormal `p`s in the `p·v` `tl.dot` (`omega0`, about
+`2^-25` per key). -/
 def tolS (D N : Nat) (X : ℚ) : ℚ := absQS D N X * (1 + lastRel)
 
-/-- **The output's absolute tolerance.** -/
+/-- **The output's absolute tolerance**: mainly the output's `float16` rounding near zero (`2^-25`),
+and `absQ0`, the lift of a subnormal `v` in the `p·v` `tl.dot` (`kapA`, about `2^-29`, and `absA`
+per block over `N/64` blocks). -/
 def tolF (D N : Nat) (X : ℚ) : ℚ :=
   absQ0 D N X * (1 + lastRel) + 1 / 2 ^ 11 * (1 / 2 ^ 148) + 1 / 2 ^ 25 + 1 / 2 ^ 148
 
@@ -500,14 +525,14 @@ def Post (d : Inst) (init fin : Mem) : Prop :=
   (∀ bh n e, bh < d.Z * d.H → n < d.N_CTX → e < d.HEAD_DIM →
     ∃ c : F16, fin.read .f16 (d.o.ptr (idx d bh n e : Int)).addr = some c ∧
       (HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
-        (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+        (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
         |c.toReal - attnRef d init bh n e| ≤
           (tolO d.HEAD_DIM d.N_CTX X : ℝ) * attnAbs d init bh n e +
             (tolS d.HEAD_DIM d.N_CTX X : ℝ) * (vAbsSum d init bh n e : ℝ) + (tolF d.HEAD_DIM d.N_CTX X : ℝ))) ∧
   (∀ bh n, bh < d.Z * d.H → n < d.N_CTX →
     ∃ c : F32, fin.read .f32 (d.M.ptr ((bh * d.N_CTX + n : Nat) : Int)).addr = some c ∧
       (HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
-        (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+        (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
         |c.toReal - lseRef d init bh n| ≤
           (tolM d.HEAD_DIM d.N_CTX X : ℝ) + (u32 : ℝ) * |lseRef d init bh n|)) ∧
   ∀ z, z ∉ outBytes d → fin z = init z

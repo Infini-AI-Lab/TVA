@@ -1,0 +1,107 @@
+def TVA.Rules.Num.DotF16 : TVA.Platform → Prop :=
+fun P =>
+  ∀ (p : TVA.InputPrecision),
+    TVA.Rules.Num.DotLiftAcc P { a := TVA.DType.f16, b := TVA.DType.f16, acc := TVA.DType.f32, precision := p }
+      TVA.Rules.Num.relDot16 TVA.Rules.Num.absDot16
+def TVA.Rules.Num.DotLiftAcc : TVA.Platform → TVA.DotCfg → (ℕ → ℚ) → (ℕ → ℚ) → Prop :=
+fun P cfg rel abs =>
+  ∀ ⦃M N K : ℕ⦄ (a : TVA.Tensor [M, K] cfg.a.Val) (b : TVA.Tensor [K, N] cfg.b.Val)
+    (acc r : TVA.Tensor [M, N] cfg.acc.Val),
+    P.dot cfg a b acc r →
+      ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+        (∀ (k : Fin K), cfg.a.val? (a.get2 i k) = Option.some (va k)) →
+          (∀ (k : Fin K), cfg.b.val? (b.get2 k n) = Option.some (vb k)) →
+            cfg.acc.val? (acc.get2 i n) = Option.some vc →
+              |vc| + ∑ k, TVA.Rules.Num.liftMag cfg.a (va k) * TVA.Rules.Num.liftMag cfg.b (vb k) +
+                    (rel K * (|vc| + ∑ k, TVA.Rules.Num.liftMag cfg.a (va k) * TVA.Rules.Num.liftMag cfg.b (vb k)) +
+                      abs K) ≤
+                  cfg.acc.bound →
+                ∃ vr,
+                  cfg.acc.val? (r.get2 i n) = Option.some vr ∧
+                    |vr - (vc + ∑ k, va k * vb k)| ≤
+                      rel K * (|vc| + ∑ k, TVA.Rules.Num.liftMag cfg.a (va k) * TVA.Rules.Num.liftMag cfg.b (vb k)) +
+                        abs K
+def TVA.Rules.Num.liftMag : TVA.DType → ℚ → ℚ :=
+fun d q => if q = 0 then 0 else Max.max |q| (TVA.Rules.Num.minNormal8 d)
+def TVA.Rules.Num.minNormal8 : TVA.DType → ℚ :=
+fun x =>
+  match x with
+  | TVA.DType.f8e5 => 2 ^ (-14)
+  | TVA.DType.f8e4nv => 2 ^ (-6)
+  | TVA.DType.f16 => 2 ^ (-14)
+  | TVA.DType.bf16 => 2 ^ (-126)
+  | x => 0
+def Kernels.AttnBwd.lm : TVA.F16 → ℝ :=
+fun x => ↑(TVA.Rules.Num.liftMag TVA.DType.f16 (TVA.FloatV.toRat x))
+def Kernels.AttnBwd.lift16 : ℝ → ℝ :=
+fun B => if B < 2 ^ (-24) then 0 else Max.max B (2 ^ (-14))
+def Kernels.AttnBwd.p16L : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n m => Kernels.AttnBwd.lift16 (Kernels.AttnBwd.p16B d hv n m)
+def Kernels.AttnBwd.ds16L : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n m => Kernels.AttnBwd.lift16 (Kernels.AttnBwd.ds16B d hv n m)
+def Kernels.AttnBwd.aQK : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n m => ∑ c ∈ Finset.range d.HEAD_DIM, Kernels.AttnBwd.lm (hv.k n c) * Kernels.AttnBwd.lm (hv.q m c)
+def Kernels.AttnBwd.aVD : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n m => ∑ c ∈ Finset.range d.HEAD_DIM, Kernels.AttnBwd.lm (hv.v n c) * Kernels.AttnBwd.lm (hv.dO m c)
+def Kernels.AttnBwd.dVTol : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n j =>
+  ∑ m ∈ Finset.range d.N_CTX, Kernels.AttnBwd.p16Err d hv n m * |TVA.FloatV.toReal (hv.dO m j)| +
+    Kernels.AttnBwd.accB (Kernels.AttnBwd.stepsKV d n)
+      (∑ m ∈ Finset.range d.N_CTX, Kernels.AttnBwd.p16L d hv n m * Kernels.AttnBwd.lm (hv.dO m j))
+def Kernels.AttnBwd.dKAcc : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n j =>
+  ∑ m ∈ Finset.range d.N_CTX, Kernels.AttnBwd.ds16Err d hv n m * |TVA.FloatV.toReal (hv.q m j)| +
+    Kernels.AttnBwd.accB (Kernels.AttnBwd.stepsKV d n)
+      (∑ m ∈ Finset.range d.N_CTX, Kernels.AttnBwd.ds16L d hv n m * Kernels.AttnBwd.lm (hv.q m j))
+def Kernels.AttnBwd.dQAcc : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv m j =>
+  ∑ n ∈ Finset.range d.N_CTX, Kernels.AttnBwd.ds16Err d hv n m * |TVA.FloatV.toReal (hv.k n j)| +
+    Kernels.AttnBwd.accB (Kernels.AttnBwd.stepsQ d m)
+      (∑ n ∈ Finset.range d.N_CTX, Kernels.AttnBwd.ds16L d hv n m * Kernels.AttnBwd.lm (hv.k n j))
+def Kernels.AttnBwd.pBr : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n m => (1 + 2 ^ (-22)) * 2 ^ (Kernels.AttnBwd.xE d hv n m + Kernels.AttnBwd.eX d hv n m) + 2 ^ (-126)
+def Kernels.AttnBwd.pE : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n m => if Kernels.AttnBwd.Allowed d n m then 2 ^ Kernels.AttnBwd.xE d hv n m else 0
+def Kernels.AttnBwd.p16Err : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n m =>
+  if Kernels.AttnBwd.Allowed d n m then
+    Kernels.AttnBwd.pBr d hv n m - 2 ^ Kernels.AttnBwd.xE d hv n m +
+        Kernels.AttnBwd.u16 * Kernels.AttnBwd.pBr d hv n m +
+      Kernels.AttnBwd.eta16
+  else 0
+def Kernels.AttnBwd.dsErr : Kernels.AttnBwd.Inst → Kernels.AttnBwd.HeadV → ℕ → ℕ → ℝ :=
+fun d hv n m =>
+  (Kernels.AttnBwd.pBr d hv n m - 2 ^ Kernels.AttnBwd.xE d hv n m) * Kernels.AttnBwd.yB d hv n m +
+        2 ^ Kernels.AttnBwd.xE d hv n m * Kernels.AttnBwd.eY d hv n m +
+      Kernels.AttnBwd.u32 * (Kernels.AttnBwd.pBr d hv n m * Kernels.AttnBwd.yB d hv n m) +
+    Kernels.AttnBwd.eta32
+theorem Kernels.AttnBwd.lift16._proof_1 : (1 + 1).AtLeastTwo :=
+Nat.instAtLeastTwoHAddOfNat 1
+spec3.lean:26:7: warning: `Kernels.AttnBwd.lift16._proof_1` refers to an auto-generated auxiliary declaration. These are not stable across refactors; consider using a different approach.
+
+Note: This linter can be disabled with `set_option linter.auxLemma false`
+structure Kernels.AttnBwd.Assumptions (K : TVA.Claim.Behaviour Kernels.AttnBwd.Inst) (P : TVA.Platform) : Prop
+number of parameters: 2
+fields:
+  Kernels.AttnBwd.Assumptions.faithful : ∀ (d : Kernels.AttnBwd.Inst),
+      d.ok → TVA.Rules.Compiler.Faithful P (Kernels.AttnBwd.model d) (Kernels.AttnBwd.launch d) (K d)
+  Kernels.AttnBwd.Assumptions.dot : TVA.Rules.Num.DotF16 P
+  Kernels.AttnBwd.Assumptions.dot_total : TVA.Rules.Num.DotTotal P
+      { a := TVA.DType.f16, b := TVA.DType.f16, acc := TVA.DType.f32 }
+  Kernels.AttnBwd.Assumptions.exp2 : TVA.Rules.Num.Exp2F32 P
+  Kernels.AttnBwd.Assumptions.exp2_total : TVA.Rules.Num.MathTotal P TVA.MathFn.exp2 TVA.Math.Float.Format.binary32
+constructor:
+  Kernels.AttnBwd.Assumptions.mk {K : TVA.Claim.Behaviour Kernels.AttnBwd.Inst} {P : TVA.Platform}
+    (faithful :
+      ∀ (d : Kernels.AttnBwd.Inst),
+        d.ok → TVA.Rules.Compiler.Faithful P (Kernels.AttnBwd.model d) (Kernels.AttnBwd.launch d) (K d))
+    (dot : TVA.Rules.Num.DotF16 P)
+    (dot_total : TVA.Rules.Num.DotTotal P { a := TVA.DType.f16, b := TVA.DType.f16, acc := TVA.DType.f32 })
+    (exp2 : TVA.Rules.Num.Exp2F32 P)
+    (exp2_total : TVA.Rules.Num.MathTotal P TVA.MathFn.exp2 TVA.Math.Float.Format.binary32) :
+    Kernels.AttnBwd.Assumptions K P
+Kernels.AttnBwd.main : ∀ (K : TVA.Claim.Behaviour Kernels.AttnBwd.Inst) (P : TVA.Platform),
+  Kernels.AttnBwd.Assumptions K P → Kernels.AttnBwd.Spec K
+'Kernels.AttnBwd.main' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Kernels.AttnBwd.consistent' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Kernels.AttnBwd.satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]

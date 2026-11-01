@@ -59,6 +59,32 @@ folders' kernels; `_attn_fwd` does not call them). Their headers (149, 156, 248�
 319–330, 366–380) are host lines: they bind `keep`, `prune_invalid_configs` and the four backward
 names, which the launch does not read.
 
+## What changed (library round 25)
+
+Library round 25 (issue L126) restated `Rules.Num.DotF16` as `DotLiftAcc`: a `tl.dot`'s error is now
+relative to `|acc| + Σ liftMag a·liftMag b`, a subnormal `float16` operand counted at `2^-14`, since
+the tensor core aligns it there. The claim was re-proved on it:
+
+- **The score's `tl.dot` (line 73).** The score magnitude is now `scoreMag`, the lifted sum
+  (formerly `scoreAbs = Σ_e |q·k|`; equal for zero and normal values). It is what `HeadOk`'s bound
+  `σ·scoreMag ≤ 2^10` and `Post`'s premise `σ·scoreMag ≤ X` bound. The host's inputs still meet
+  them: the lift adds below `0.031` to `σ·Σ_e|q·k|` (Specification).
+- **The `p·v` `tl.dot` (line 103).** `p.to(float16)` is subnormal for every weight below `2^-14`, and
+  `v` may be. A subnormal `p` adds `66·2^-36·|v|` per key (`omega0`: `2^-25 + 2^-125` before, now
+  `2^-25 + 2^-125 + 66·2^-36`). A subnormal `v` adds `66·2^-36·|p|` per key, and `|p|` is at most
+  `(1 + psi16)·weight + 2^-25 + 2^-125`: over the keys, at most `kapA = 2^-29` times `l_i`'s exact
+  value, which adds about `kapA` to `acc / l_i`, and the rest `absA` per block (`2^-85` before, now
+  `2^-37`).
+- **The tolerances.** `tolO` and `tolM` are unchanged. `tolS` grows about `3%` (`3.0·10^-8` to
+  `3.1·10^-8` at the test's sizes). `tolF` grows from `3.0·10^-8` to `3.2·10^-8` at the test's
+  sizes, and to at most `4.2·10^-8` (`N = 2^16`, `X = 2^10`).
+- **Review round 3 (F7).** The first re-proof bounded a subnormal `v`'s lift with `p ≤ 2.3` on all
+  `64` keys of every block (`5·2^-9` per block, `absA = 2^-22`), so `tolF` grew as `N/64·2^-22`, to
+  `3.3·10^-4` at `N = 2^16`: a figure of the analysis, not of the device. The lift is now bounded
+  through each block's weights, which `l_i` collects: `AInv`'s term `kapAr·Σ 2^(…)`, carried from
+  block to block with the rescaling by `alpha` (`acc_step'`), and `ratio_err`'s `κ·W`, which
+  becomes `kapA` relative to the weighted mean.
+
 ## Specification
 
 Write `D = HEAD_DIM`, `N = N_CTX`, `σ = sm_scale` (the double, as a rational: `sigma`). Element
@@ -66,8 +92,13 @@ Write `D = HEAD_DIM`, `N = N_CTX`, `σ = sm_scale` (the double, as a rational: `
 `idx d bh n e = (bh·N + n)·D + e` of its buffer (`Inst.q` etc., contiguous), and element `(bh, n)`
 of `M` is element `bh·N + n`. For query `n`, its keys are `keys d n`: every `j < N`, and only
 `j ≤ n` when `causal`. With the input values in `init` (`val16`: a `float16` element's value), the
-exact score is `score = Σ_e q[bh, n, e]·k[bh, j, e]` and its magnitude `scoreAbs = Σ_e |q·k|`; the
-exact weight is `weight = exp(σ·score)` (real `exp`), and
+exact score is `score = Σ_e q[bh, n, e]·k[bh, j, e]` and its magnitude
+`scoreMag = Σ_e liftMag q[bh, n, e]·liftMag k[bh, j, e]`, where `liftMag` (`Rules.Num.liftMag`) is
+`|x|` for a zero or normal `float16` value and the smallest normal magnitude `2^-14` for a subnormal
+one: the magnitude the score's `tl.dot` error is relative to (`DotF16`, library round 25). For zero
+and normal values it is `Σ_e |q·k|`, and in general at most
+`Σ_e |q·k| + 2^-14·(Σ_e |q| + Σ_e |k|) + D·2^-28`. The exact weight is `weight = exp(σ·score)` (real
+`exp`), and
 
 - `attnRef d init bh n e = Σ_j weight_j·v[bh, j, e] / Σ_j weight_j` (over `keys d n`), the exact
   attention output;
@@ -76,13 +107,13 @@ exact weight is `weight = exp(σ·score)` (real `exp`), and
   (the kernel computes it as `m_i + log₂ l_i` with base-2 exponents).
 
 A head is covered (`HeadOk d init bh`) when every element of `q`, `k`, `v` in it is a finite
-`float16`, every `|v| ≤ 2^15`, and every `σ·scoreAbs ≤ 2^10` (over all `n, j < N`).
+`float16`, every `|v| ≤ 2^15`, and every `σ·scoreMag ≤ 2^10` (over all `n, j < N`).
 
 `Post d init fin` says three things.
 
 - **The output `o`.** Every element `(bh, n, e)` of `o` (`bh < Z·H`, `n < N`, `e < D`) holds some
   `float16` value `c` in `fin`. When head `bh` is covered, `c` is finite and, for every `X ≤ 2^10`
-  that bounds the row's scaled magnitudes (`σ·scoreAbs(n, j) ≤ X` for every key `j` of `n`),
+  that bounds the row's scaled magnitudes (`σ·scoreMag(n, j) ≤ X` for every key `j` of `n`),
   `|c − attnRef| ≤ tolO D N X · attnAbs + tolS D N X · vAbsSum + tolF D N X`.
 - **The log-sum-exp `M`.** Every element `(bh, n)` of `M` holds some `float32` value `c`. When head
   `bh` is covered, `c` is finite and, for every such `X`, `|c − lseRef| ≤ tolM D N X + 2^-24·|lseRef|`.
@@ -94,32 +125,48 @@ tolerances"), built only from the library's constants: `relDot16 D = (D + 2)·2^
 `tl.dot`, `Rules.Num.DotF16`), `relDot16 64` (the `p·v` `tl.dot`), `2^-22` (`Exp2F32`, `DivFull`,
 `Log2F32`), one `float32` rounding `2^-24` and one `float16` rounding `2^-11`. The main term is the
 error of each computed exponent, `expErr D X = (relDot16 D + 2^-20)·(3X/2) + 2^-50`: the score's
-`tl.dot` error relative to `Σ|q·k|`, times `qk_scale ≈ σ·log₂e ≤ 3σ/2`. It moves each weight by a
+`tl.dot` error relative to `scoreMag`, times `qk_scale ≈ σ·log₂e ≤ 3σ/2`. It moves each weight by a
 factor `2^±expErr`, and the weighted mean by about `expErr`. On top come the `float16` rounding of
-`p` (`2^-11` relative and `2^-25` absolute per key: the `tolS·vAbsSum` term), the `float32`
-accumulation over `N/64` blocks (`stepAcc^(N/64)`, `stepL^(N/64)`), the change from `qk_scale·ln 2`
-to `σ` (`thetaW X = 2^-20·X`), and the last division and rounding (`lastRel`). Some values:
+`p` (`2^-11` relative and `2^-25` absolute per key), the `p·v` `tl.dot` relative to its lifted
+magnitudes (a subnormal `p` counts at `2^-14`, adding `66·2^-36·|v|` per key: with the rounding, the
+`omega0` of the `tolS·vAbsSum` term; a subnormal `v` counts at `2^-14`, adding `66·2^-36·|p|` per
+key: over the keys at most `kapA = 2^-29` times `l_i`, and `absA = 2^-37` per block, the `absQ0`
+part of `tolF`), the `float32` accumulation over `N/64` blocks (`stepAcc^(N/64)`, `stepL^(N/64)`),
+the change from `qk_scale·ln 2` to `σ` (`thetaW X = 2^-20·X`), and the last division and rounding
+(`lastRel`; near zero, the `float16` rounding's `2^-25`, most of `tolF`). Some values:
 
 | `D` | `N` | `X` | `tolO` | `tolS` | `tolF` | `tolM` |
 |---|---|---|---|---|---|---|
-| 64 | 128 | 16 | `1.8·10^-3` | `3.0·10^-8` | `3.0·10^-8` | `8.3·10^-4` |
-| 128 | 4096 | 16 | `3.6·10^-3` | `3.0·10^-8` | `3.0·10^-8` | `1.6·10^-3` |
-| 128 | 2^14 | 256 | `3.1·10^-2` | `3.1·10^-8` | `3.0·10^-8` | `2.5·10^-2` |
-| 256 | 2^16 | 16 | `2.1·10^-2` | `3.1·10^-8` | `3.0·10^-8` | `3.9·10^-3` |
-| 256 | 2^16 | 1024 | `0.24` | `4.1·10^-8` | `3.0·10^-8` | `0.19` |
+| 64 | 128 | 16 | `1.8·10^-3` | `3.1·10^-8` | `3.2·10^-8` | `8.3·10^-4` |
+| 128 | 4096 | 16 | `3.6·10^-3` | `3.1·10^-8` | `3.2·10^-8` | `1.6·10^-3` |
+| 128 | 2^14 | 256 | `3.1·10^-2` | `3.2·10^-8` | `3.4·10^-8` | `2.5·10^-2` |
+| 256 | 2^16 | 16 | `2.1·10^-2` | `3.1·10^-8` | `3.9·10^-8` | `3.9·10^-3` |
+| 256 | 2^16 | 1024 | `0.24` | `4.2·10^-8` | `4.2·10^-8` | `0.19` |
 
 On the host's inputs, `σ·Σ_e|q_e·k_e| = σ·s²·Σ_e|X_e·Y_e|` with `X`, `Y` independent standard
 normals (the test: `s = 0.5`, `σ = 0.5`; the benchmark: `s = 1`, `σ = 1.3`). Its mean at
 `D = 128` is `σ·s²·128·2/π`, about `10` (test) and `106` (benchmark); a Chernoff bound on the sum
 of the `128` independent terms, with a union bound over every pair of the largest shape
-(`3.2·10^9` pairs in the test, `2^35` in the benchmark), keeps every magnitude below `23` (test) and
-`240` (benchmark) except with probability below `10^-6` (and lower at `D = 64`). So at the test
+(`3.2·10^9` pairs in the test, `2^35` in the benchmark), keeps it below `22.7` (test) and `239.9`
+(benchmark) except with probability below `10^-6` (and lower at `D = 64`). The lift adds at most
+`σ·(2^-14·(Σ_e|q| + Σ_e|k|) + 128·2^-28)`; with `Σ_e|q| ≤ √128·|q|` and the `χ²` tail of `|q|²`
+(every row's `|q|² ≤ 288·s²` except with probability below `3·10^-6`), that is below `0.006`
+(test) and `0.031` (benchmark). So every `σ·scoreMag` is below `23` (test) and `240` (benchmark),
+except with probability below `4·10^-6`. So at the test
 (`X = 23`, `D = 128`, `N = 4096`) the output is within about `0.43%` of the weighted mean of `|v|`
 (about nine `float16` roundings), at the benchmark (`X = 240`, `N = 2^14`) within about `2.9%`, and at the largest
 covered values (`X = 2^10`, `D = 256`, `N = 2^16`) within `24%`: still below `1`, so the bound
-always fixes the output to well within its own magnitude. `tolS·vAbsSum` is `tolS·N` times the
-mean of `|v|` over the keys (about `2^-25` per key, the `float16` rounding of a small `p`): at most
-`2.7·10^-3` of that mean at `N = 2^16`, `5·10^-4` at the benchmark's `N = 2^14`. The bound is relative to `attnAbs`, not to `|attnRef|`: for zero-mean `v`,
+fixes the output to well within its own magnitude, up to the two absolute terms. `tolS·vAbsSum` is
+`tolS·N` times the mean of `|v|` over the keys (about `2^-25` per key, the `float16` rounding of a
+small `p` and the lift of a subnormal one): at most `2.8·10^-3` of that mean at `N = 2^16`,
+`5·10^-4` at the benchmark's `N = 2^14`. `tolF` is mostly the output's own `float16` rounding near
+zero (`2^-25`, half `float16`'s smallest subnormal `2^-24 ≈ 6.0·10^-8`); the lift of subnormal `v`
+in the `p·v` `tl.dot` adds about `kapA = 2^-29 ≈ 1.9·10^-9` and `N/64·2^-37`: `3.2·10^-8` at the
+test's `N = 4096`, `3.4·10^-8` at the benchmark's `N = 2^14`, at most `4.2·10^-8` at `N = 2^16`.
+It outweighs `tolO·attnAbs` only when `attnAbs` is below `tolF/(1 − tolO)`, at most `5.5·10^-8`
+(at `N = 2^16`, `X = 2^10`), below `2^-24`: there the exact output rounds to `0` or `±2^-24`, and
+`tolO·attnAbs + tolF` is below `2^-24`, so the bound still fixes the output to within one `float16`
+subnormal step. The bound is relative to `attnAbs`, not to `|attnRef|`: for zero-mean `v`,
 `|attnRef|` can be much smaller than `attnAbs`.
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance and input, every launch
@@ -160,7 +207,7 @@ the others.
 128}`, `N_CTX ∈ {128, 1024, 4096, 2^10, …, 2^14}` (multiples of `128`, at most `2^16`),
 `Z·H ≤ 192`, `Z·H·N_CTX ≤ 2^21`, `sm_scale ∈ {0.5, 1.3}`, fresh contiguous tensors from
 `torch.empty`/`torch.randn`/`normal_` (16-byte aligned, disjoint), both values of `causal` and of
-`warp_specialize`. Their values are finite, far below `2^15`, and have `σ·Σ|q·k|` far below `2^10`
+`warp_specialize`. Their values are finite, far below `2^15`, and have `σ·scoreMag` far below `2^10`
 (Specification), so every head the script runs is covered.
 
 **The kernel and its launches are within part (A) of `Compiler.Faithful`'s scope**
@@ -219,8 +266,10 @@ Ten assumptions, all of kind `[rule]`, each cited as the library states it
   (Conditions), and part (B), the environment, which the claim relies on
   ([rule page](../../docs/rules/compiler-faithful.md)).
 - `dot` — `Rules.Num.DotF16 P`: `tl.dot` of `float16` operands into `float32` (lines 73 and 103),
-  each output element within `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K` of `acc + Σ a·b`, for
-  finite operands and room below the `float32` range.
+  each output element within `relDot16 K·L + absDot16 K` of `acc + Σ a·b`, with the lifted
+  magnitude `L = |acc| + Σ liftMag a·liftMag b` (a subnormal operand counted at `2^-14`;
+  `Rules.Num.DotLiftAcc`, since library round 25), for finite operands and room below the `float32`
+  range.
 - `dot_total` — `Rules.Num.DotTotal P cfg16` (the configuration written out): the model's `tl.dot`
   always has a result.
 - `exp2` — `Rules.Num.Exp2F32 P`: `tl.math.exp2` on `float32` (lines 82, 84), within `2^-22`
@@ -273,9 +322,12 @@ constants are the library's definitions and need no platform fact.
     attended key's `qk_scale·s_j`, and no attended key's is above `m_i + E`), `LInv` (`l_i` is
     within a relative factor `ffac − 1` and an absolute `t·2^-100` of `Σ_j 2^(qk_scale·s_j − m_i)`
     over the attended keys of the first `t` blocks) and `AInv` (the same for `acc` and
-    `Σ_j 2^(…)·v_j`, with `2^-25·Σ|v_j|` and `t·2^-85` absolute). One block (`row_step_plain`,
-    `row_step_masked`): `Num.DotF16` at each score (`qk_lane`) and at each `p·v` element
-    (`pv_lane`), the running maximum (`mstep_plain`, `mstep_masked`; a masked lane's exponent is
+    `Σ_j 2^(…)·v_j`, with `omega0·Σ|v_j|`, `2^-29·Σ_j 2^(…)` and `t·2^-37` absolute). One block
+    (`row_step_plain`, `row_step_masked`): `Num.DotF16` at each score (`qk_lane`, relative to
+    `scoreMag`) and at each `p·v` element (`pv_lane`; in `astep` the lifted magnitudes are at most
+    `Σ|p·v|` plus `2^-14·(|v| + |p|) + 2^-28` per attended key, by `DotLift.liftMag_mul_le`, with
+    `|p| ≤ (1 + psi16r)·2^(…) + omR`, so the `|p|` part stays relative to the weights, and a masked
+    key's `p` is exactly `0`), the running maximum (`mstep_plain`, `mstep_masked`; a masked lane's exponent is
     below `−2^19`, so its `p` is at most about `2^-126` and enters `l_i` and `acc` only through
     their absolute error terms), `Exp2F32` at each `p` and at
     `alpha` (`Exp2F32NegInf` at the first block), the roundings of `acc·alpha`, of `l_i·alpha + l_ij`
@@ -329,13 +381,14 @@ Narrowings, each against the kernel's real use:
 - **`Z·H < 2^16` and `Z·H·N_CTX < 2^31`.** The grid's `y` limit and `int32` row offsets that do not
   wrap; the host's largest are `192` and `2^21`.
 - **`sm_scale` in `[2^-64, 2^64]`, finite.** The host passes `0.5` and `1.3`.
-- **Covered heads** (`HeadOk`): finite inputs, `|v| ≤ 2^15`, `σ·Σ_e|q·k| ≤ 2^10`. For another head
+- **Covered heads** (`HeadOk`): finite inputs, `|v| ≤ 2^15`, `σ·scoreMag ≤ 2^10`. For another head
   the claim says only that `o` and `M` hold some value. The bound on `v` leaves room for `o` in
   `float16`; the bound on the scores keeps the causal mask's `−10^6` below every unmasked exponent
   and the tolerance below `1`. The host's inputs are far inside (Specification).
 - **The tolerance's form.** It is relative to `attnAbs` (the weighted mean of `|v|`), plus a term
-  in `Σ|v|` and a tiny absolute one, and it grows with `X`: it follows the library's `tl.dot` rule,
-  which bounds a score's error by `relDot16 D·Σ|q·k|`, and each weight is an exponential of a
+  in `Σ|v|` and an absolute one (`tolF`, below `4.3·10^-8`, mostly the output's `float16` rounding
+  near zero), and it grows with `X`: it follows the library's `tl.dot` rule,
+  which bounds a score's error by `relDot16 D·scoreMag`, and each weight is an exponential of a
   score.
 - **Alignment and disjointness** (`align`, `disj`): the host's tensors are fresh PyTorch
   allocations; an output overlapping an input would race.

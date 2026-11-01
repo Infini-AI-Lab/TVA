@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5fwd2",
+  "kernel": "attn_fwd_e5m2",
+  "round": 5,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "This is a re-acceptance after library round 25 (L126), at gate 4d394d2b36c1c128. The kernel's own files did not change. Nothing that the re-opened items (spec and the eleven num-fact assumptions) rely on changed in meaning.\n\n- The diff of lean/TVA/Rules moves liftMag and minNormal8 from Rules/Num/Dot8Chunk.lean to Rules/Num.lean, with the same names and the same definition of liftMag. minNormal8 gains cases for float16 and bfloat16; its float8e5 value is still 2^-14 (work/lib25.lean checks minNormal8 .f8e5 = 2^-14 and liftMag .f8e5 q by rfl).\n- The diff adds DotLiftAcc and restates DotF16 and DotBF16, which this kernel does not cite. It changes only docstrings in Dot8Chunk.lean and in Sm90.lean's DotScaledMx. DotE5m2Chunk, DotF8Chunk, DotChunkAcc, rhoChunk8, sigmaChunk8, alphaChunk8, chunk8, chunkSum8, relDot8 and absDot8 are unchanged.\n- docs/rules/num.md changes the 16-bit rows and text. For fp8 it adds only a note on the mma.sync path's lifted fields, with no change to the chunk facts' row.\n- The Assumptions fields print as before: dot is DotE5m2Chunk; the others are DotTotal cfg8, CvtSatF32E5m2, CvtTotal, Exp2F32, Exp2F32NegInf, MathTotal exp2 and log2, Log2F32, DivFull and DivTotal.\n- main, consistent and satisfiable use only propext, Classical.choice and Quot.sound (work/lib25.out)."
+}

@@ -1,0 +1,24 @@
+{
+  "reviewer": "r-bwd",
+  "kernel": "attn_bwd_f16",
+  "round": 3,
+  "findings": [
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/attn_bwd_f16/README.md",
+      "summary": "'What changed (library round 25)': per-pair errors and HeadV.Ok read the lifted aQK, aVD; p16L, ds16L lift bounds, not values; the list of moved figures is incomplete",
+      "detail": "Three wording points in the README's new section, all non-blocking; the Lean and the table are right. (1) 'The per-pair errors, HeadV.Ok, the conditions and the model are unchanged.' The definitions of p16Err, ds16Err and HeadV.Ok are unchanged, but they read eX and eY (through pBr and yB), which now take the lifted aQK and aVD. So on inputs with subnormal elements the per-pair errors are slightly larger, and HeadV.Ok.fits (xE + eX <= 15, pBr*yB <= 2^15) is slightly stronger: it covers slightly fewer inputs. The change is tiny: each subnormal operand adds at most 2^-14 times its partner's lm to aQK or aVD, so rH*a grows by at most about 2^-22*max lm. Suggest 'their definitions are unchanged; through eX and eY they read the lifted aQK and aVD'. (2) 'For inputs and values that are zero or normal these are the old magnitudes.' This holds for aQK, aVD and for lm dO, lm Q, lm K. p16L and ds16L are functions of the bounds p16B and ds16B, not of the float16 values. They equal those bounds when the bounds are at least 2^-14. They are 0, below the old p16B or ds16B, when the bounds are below 2^-24. In between they are 2^-14, even where the float16 value turns out to be 0. (3) The Figures bullet names the test's HEAD_DIM = 128 dVTol (0.20 to 0.21%) and the benchmark's HEAD_DIM = 64 figures. The benchmark's HEAD_DIM = 128 causal dKTol 90th percentile also moved (1.50 to 1.51%), and so did the causal dV maximum in the paragraph after the table (0.91 to 0.92%). The bound 'at most 0.07 percentage points' is right: the largest move is the HEAD_DIM = 64 non-causal dQTol 90th percentile, 2.06 to 2.13%.",
+      "evidence": "Spec.lean: eX, eY, pBr, yB, p16Err, ds16Err, HeadV.Ok, lift16, p16L, ds16L. work/readme_script.out (this round) against round 2's work/readme_script.out.",
+      "blocking": false
+    }
+  ],
+  "release": [
+    {
+      "id": "F6",
+      "note": "Settled by L126 (library round 25), which did what F6 asked. The coordinator's evidence (num-dot-sub16, num-dot-sub16-round25) found that DotF16 failed on such inputs, and the library restated DotF16 and DotBF16 in lifted form as DotLiftAcc, with relDot16 and absDot16 unchanged. The claim is re-proved on the restated fact: aQK and aVD are sums of lm*lm, and the accumulations' B are sums of p16L*lm dO, ds16L*lm Q and ds16L*lm K. So subnormal P, dS and inputs are covered by the fact as now stated."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 3 at gate b28f50727b67c8a8. assumption:dot is Rules.Num.DotF16 P, the fact as listed in num.md's 'Facts the library states' row (DotLiftAcc, relDot16, absDot16, a subnormal float16 operand counted at 2^-14); work/spec3.out prints it with full names. The cone changes match the restatement: added DotLiftAcc, liftMag, minNormal8 and its match helpers (DType.ctorIdx from the wildcard), removed DotAcc. dot_total, exp2 and exp2_total re-opened only through whole-file digests: no changed line of Rules/Num.lean, Rules/Num/Sm90.lean or num.md touches DotTotal, MathTotal or Exp2F32, and DotLoop.lean's diff leaves stepRel and stepAbs as they were (rhoA, alphaA). Spec: the new terms are lm = liftMag .f16, lift16, p16L, ds16L. aQK and aVD now sum lm*lm, and dVTol, dKAcc and dQAcc have B = sum p16L*lm dO, ds16L*lm Q, ds16L*lm K. pBr, pE, p16Err and dsErr hash differently only because the auxiliary proof for the real literal 2, (1 + 1).AtLeastTwo, is now lift16._proof_1 (it was pBr._proof_1). lift16 is a valid bound: a float16 value below 2^-24 is 0. The tolerance is still explicit, computable and meaningful. I extracted the README's inline script and ran it as printed (numpy 2.3.5). It matches Spec.lean's formulas line by line (lm, lift16, p16L, ds16L, aQK, aVD, dVTol, dKAcc, dQAcc). It reproduces every figure of the table and of the paragraph after it: A, the medians and 90th percentiles, the counted maxima 1.04/1.19% and 0.92/5.2%, and the dQ worst rows at 2.6e-4 to 9.25e-3. main, consistent and satisfiable use only propext, Classical.choice and Quot.sound. The README's '0.07 percentage points' holds for the table; uncounted rows move more (benchmark HEAD_DIM = 64 non-causal dV worst row 563% to 582%), where the README already says the floor dominates."
+}

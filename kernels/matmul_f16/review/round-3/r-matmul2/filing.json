@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-matmul2",
+  "kernel": "matmul_f16",
+  "round": 3,
+  "findings": [],
+  "release": [
+    {
+      "id": "F7",
+      "note": "Settled by L126 (library round 25). DotF16 is restated as DotLiftAcc, relative to |acc| + sum liftMag a * liftMag b, with a subnormal float16 operand counted at 2^-14, which is the case my report raised. Its evidence (num-dot-sub16-round25) is the library's. The claim is re-proved on the restated fact, and the tolerance's magnitude A is now dotMag, whose mag16 is liftMag .f16 by definition (rfl, checked in work/Cover.lean)."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 3 (gate 565503552a0c46d3). assumption:dot is TVA.Rules.Num.DotF16 P. It is still the num.md fact listed for an fp16 tl.dot into float32 with maxImpreciseAcc = 0 and any precision ('Facts the library states' and 'What a kernel reviewer checks'). It is now forall p, DotLiftAcc P <f16, f16, f32, p, 0> relDot16 absDot16, with relDot16 and absDot16 unchanged, and the field's docstring states DotLiftAcc correctly. dot_total's statement is unchanged; it re-opened only through the library files. spec: OutSpec is unchanged except that A = dotMag = sum mag16(va k) * mag16(vb k) replaces sum |va k * vb k|. mag16 is |q|, with a nonzero |q| below 2^-14 counted at 2^-14, so for zero and normal operands A, every figure and the bfloat16 rejection (normal inputs) are as before. A subnormal x with partner y raises its term by at most (2^-14 - |x|)*|y| (or 2^-28 when y is also subnormal), within the README's '2^-14*|vb k| + 2^-28' and the dotMag docstring's bound (DotLift.liftMag_mul_le). That is negligible against A for the host's randn and rand data, so the tolerance stays explicit, computable from the inputs, and meaningful. The model, launch, conditions and map are unchanged (same digests). The printed model is identical to round 2's (work/Explicit.lean), and axioms are still propext, Classical.choice and Quot.sound. The kernel's Lean has no instance, notation, attribute, export, set_option or renaming; the new names (mag16, dotMag, liftV, and lemmas) are kernel helpers I read in Defs.lean and Basic.lean."
+}

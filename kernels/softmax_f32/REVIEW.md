@@ -6,7 +6,7 @@ Fused softmax, tutorial 02 (`softmax_kernel`, float32). The claim sheet: [claim.
 
 ## Status
 
-- Gate: **PASS**, digest `1020798749c9aee8` (2026-11-01T02:10:08Z).
+- Gate: **PASS**, digest `365e8713c8282866` (2026-11-01T05:50:03Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-softmax (all), r-softmax2 (all).
 - Certificate: **GRANTED**.
@@ -14,11 +14,11 @@ Fused softmax, tutorial 02 (`softmax_kernel`, float32). The claim sheet: [claim.
 
 | Item | Digest | r-softmax | r-softmax2 |
 |---|---|---|---|
-| `assumption:div_full` | `bdfcba37ccad` | accepted | accepted |
-| `assumption:div_total` | `9f36a737e0e9` | accepted | accepted |
-| `assumption:exp_acc` | `70ad73128758` | accepted | accepted |
-| `assumption:exp_ninf` | `0a7d6acf16a4` | accepted | accepted |
-| `assumption:exp_total` | `7ca7ee2db6d6` | accepted | accepted |
+| `assumption:div_full` | `effb4657eee7` | accepted | accepted |
+| `assumption:div_total` | `99ff2144ed93` | accepted | accepted |
+| `assumption:exp_acc` | `381376b8aade` | accepted | accepted |
+| `assumption:exp_ninf` | `24933895e9ff` | accepted | accepted |
+| `assumption:exp_total` | `498ee8f74121` | accepted | accepted |
 | `assumption:faithful` | `2479993e1691` | accepted | accepted |
 | `conditions` | `573ad1e9d67a` | accepted | accepted |
 | `map` | `1c9186a92ce5` | accepted | accepted |
@@ -179,4 +179,17 @@ README, Conditions, 'Covered in particular' now says that for a contiguous input
 `2026-11-01T02:18:10Z`, at gate `1020798749c9aee8`. Notes: Re-accepting after library round 24 (L124, L125). The diff of docs/rules/num.md and lean/TVA/Rules/Num/Sm90.lean touches only the fp8 tl.dot facts: DotE4m3, DotE5m2, DotE4m3E5m2, DotE5m2E4m3 and DotF8 are withdrawn, the chunk facts are added, and chunks8, relDot8 and absDot8 are moved. None of these reaches this kernel. The five facts it cites are unchanged in their Lean definitions, their rows in 'Facts the library states', their rows in the reviewer's table, and their constants: MathTotal, DivTotal, ExpF32 (2^-22 + 2^-23·X, 2^-140), ExpF32NegInf (+0 at negInfF32) and DivFull (2^126, 2^-22, 2^-148). The page's statements about them are unchanged too, as is the satisfiability paragraph, which still has Platform.sm90ref satisfy them.
 
 - **accepted** at gate `1020798749c9aee8`: `assumption:div_full`, `assumption:div_total`, `assumption:exp_acc`, `assumption:exp_ninf`, `assumption:exp_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+- `2026-11-01T05:53:28Z` coordinator's note: Library round 25 (L126; docs/library-review/ISSUES.md) restated DotF16 and DotBF16 as DotLiftAcc (lifted magnitudes; relDot16, absDot16 unchanged) in lean/TVA/Rules/Num.lean and Sm90.lean, moved liftMag and minNormal8 from Rules/Num/Dot8Chunk.lean to Rules/Num.lean under the same names (minNormal8 gains float16 = 2^-14 and bfloat16 = 2^-126; its fp8 values are unchanged), withdrew Dot8Chunk.LiftAcc (now DotLiftAcc), and changed docs/rules/num.md. This kernel's own files did not change; its reviewers re-accept the items that re-opened.
+
+### r-softmax2 files ([filing](review/round-3/r-softmax2/filing-3.json), [report](review/round-3/r-softmax2/report-3.md))
+
+`2026-11-01T05:56:05Z`, at gate `365e8713c8282866`. Notes: Re-accepting after library round 25 (L126). The diff of docs/rules/num.md and lean/TVA/Rules touches only the 16-bit tl.dot facts and their support: DotF16 and DotBF16 become DotLiftAcc; liftMag and minNormal8 move into Num.lean; DotAcc.liftAcc and DotLiftAcc.mono are added; Dot8Chunk.LiftAcc is withdrawn; and there is a new satisfiability line. The five facts this kernel cites are unchanged: MathTotal, DivTotal, ExpF32 (2^-22 + 2^-23·X, 2^-140), ExpF32NegInf (+0 at negInfF32) and DivFull (2^126, 2^-22, 2^-148). So are the definitions they rest on (MathAcc, MathAt, DivAcc), their rows in 'Facts the library states' and in the reviewer's table, and the page's statements about them, including Platform.sm90ref satisfying them. The kernel uses no tl.dot, so liftMag and minNormal8 do not reach it.
+
+- **accepted** at gate `365e8713c8282866`: `assumption:div_full`, `assumption:div_total`, `assumption:exp_acc`, `assumption:exp_ninf`, `assumption:exp_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-softmax files ([filing](review/round-3/r-softmax/filing-3.json), [report](review/round-3/r-softmax/report-3.md))
+
+`2026-11-01T05:56:11Z`, at gate `365e8713c8282866`. Notes: Library round 25 (L126) re-opened the five Num assumption items. The diff of docs/rules/num.md and lean/TVA/Rules touches only the 16-bit tl.dot facts: DotF16 and DotBF16 are restated as DotLiftAcc. It also adds DotLiftAcc, DotLiftAcc.mono and DotAcc.liftAcc, moves liftMag and minNormal8 into Rules/Num.lean, and edits the dot text, rows and satisfiability list. MathTotal, DivTotal, ExpF32 (rel 2^-22 + 2^-23·X on [−X, X], abs 2^-140), ExpF32NegInf (+0 at negInfF32) and DivFull (qmax 2^126, 2^-22, 2^-148) keep their definitions, their rows in 'Facts the library states' and in the operation table, and their constants. The satisfiability text still lists DivFull and the …Total rules for Platform.sm90ref. This kernel uses no tl.dot, liftMag or minNormal8.
+
+- **accepted** at gate `365e8713c8282866`: `assumption:div_full`, `assumption:div_total`, `assumption:exp_acc`, `assumption:exp_ninf`, `assumption:exp_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

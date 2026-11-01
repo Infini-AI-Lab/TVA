@@ -1,0 +1,36 @@
+D N X | tolO tolS tolF tolM (round 25) | tolS tolF (round-1 constants) | tolS growth
+64 128 16 | 0.00184 3.08e-08 5.08e-07 0.000834 | 2.99e-08 2.98e-08 | 1.0322
+128 4096 16 | 0.0036 3.09e-08 1.54e-05 0.00162 | 2.99e-08 2.98e-08 | 1.0322
+128 4096 23 | 0.00429 3.09e-08 1.54e-05 0.0023 | 3e-08 2.98e-08 | 1.0322
+128 16384 240 | 0.029 3.2e-08 6.36e-05 0.0235 | 3.1e-08 2.98e-08 | 1.0322
+128 16384 256 | 0.0306 3.21e-08 6.37e-05 0.0251 | 3.11e-08 2.98e-08 | 1.0322
+256 65536 16 | 0.0211 3.15e-08 0.00025 0.00389 | 3.05e-08 2.98e-08 | 1.0322
+256 65536 1024 | 0.236 4.2e-08 0.000334 0.194 | 4.07e-08 2.98e-08 | 1.0322
+64 65536 1024 | 0.0734 3.39e-08 0.000269 0.0534 | 3.28e-08 2.98e-08 | 1.0322
+
+tolF against N/64*2^-22, and tolS*N (round 25):
+64 128 16 tolF/(N/64*2^-22) = 1.0647  tolS*N = 3.95e-06
+128 4096 16 tolF/(N/64*2^-22) = 1.0063  tolS*N = 0.000127
+128 4096 23 tolF/(N/64*2^-22) = 1.0073  tolS*N = 0.000127
+128 16384 240 tolF/(N/64*2^-22) = 1.0412  tolS*N = 0.000525
+128 16384 256 tolF/(N/64*2^-22) = 1.0437  tolS*N = 0.000526
+256 65536 16 tolF/(N/64*2^-22) = 1.0227  tolS*N = 0.00206
+256 65536 1024 tolF/(N/64*2^-22) = 1.3664  tolS*N = 0.00275
+64 65536 1024 tolF/(N/64*2^-22) = 1.1007  tolS*N = 0.00222
+
+Where tolF matters: the weighted mean |v| (attnAbs) at which tolF equals tolO*attnAbs:
+64 128 16 attnAbs* = 0.000275
+128 4096 16 attnAbs* = 0.00426
+128 4096 23 attnAbs* = 0.00359
+128 16384 240 attnAbs* = 0.00219
+128 16384 256 attnAbs* = 0.00208
+256 65536 16 attnAbs* = 0.0118
+256 65536 1024 attnAbs* = 0.00141
+64 65536 1024 attnAbs* = 0.00366
+float16 half-ulp at 1: 0.000488; smallest normal float16: 6.1e-05
+
+The p.v lift if charged relative to p (2^-14*p_k summed to 2^-14*l_i): 66*2^-36 = 9.6e-10
+
+test: P(some row |row|^2 > 288 s^2) <= 2.62e-06; lift on sigma*scoreMag <= 0.0059
+benchmark: P(some row |row|^2 > 288 s^2) <= 2.62e-06; lift on sigma*scoreMag <= 0.0305
+test D=64: P(some row |row|^2 > 288 s^2) <= 7.66e-22; lift on sigma*scoreMag <= 0.0041

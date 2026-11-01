@@ -5,7 +5,8 @@ import AttnFwd.RowAcc
 
 * `LInv`, `AInv`: after `t ≥ 1` blocks with running maximum `m`, `l_i` and an element of the
   row's `acc` (column values `ve`) are within a relative error `ffac − 1` and an absolute error of
-  `Σ wt` and `Σ wt·ve` over the attended keys so far.
+  `Σ wt` and `Σ wt·ve` over the attended keys so far (for `acc`: `om0` per key times `|ve|`,
+  `kapAr` per unit of weight, `absAr` per block).
 * `lstep` (lines 82–85, 106) and `astep` (lines 82–84, 95, 101–103): one block keeps them.
 -/
 
@@ -100,7 +101,8 @@ def AInv (R : RowCtx) (ve : ℕ → ℝ) (t : ℕ) (m a : F32) : Prop :=
   a.isFinite = true ∧
     |a.toReal - psum R.al t (fun j => wt R m.toReal j * ve j)| ≤
       (ffac R (psi16r R.E) stepAr t m.toReal - 1) * psum R.al t (fun j => wt R m.toReal j * |ve j|) +
-        ffac R (psi16r R.E) stepAr t m.toReal * (om0 * psum R.al t (fun j => |ve j|) + t * absAr)
+        ffac R (psi16r R.E) stepAr t m.toReal *
+          (om0 * psum R.al t (fun j => |ve j|) + kapAr * psum R.al t (wt R m.toReal) + t * absAr)
 
 theorem stepLr_one : 1 ≤ stepLr := le_trans (by norm_num) stepLr_ge
 
@@ -334,12 +336,17 @@ theorem AInv.bound {R : RowCtx} (hR : R.Ok) {t : ℕ} (ht : t ≤ 1024) {ve : �
     fun j _ _ => hve j
   have hV0 : 0 ≤ psum R.al t (fun j => |ve j|) := psum_nonneg fun j => abs_nonneg _
   have hS := psum_abs_wt R m.toReal t ve
-  have hAb : om0 * psum R.al t (fun j => |ve j|) + t * absAr ≤ 2 ^ 8 := by
-    unfold om0 absAr
-    have : (1 / 2 ^ 25 + 1 / 2 ^ 125 : ℝ) * psum R.al t (fun j => |ve j|) ≤ (1 / 2 ^ 24) * (64 * 1024 * 2 ^ 15) := by
+  have hW := psum_wt1_le hR ht hm
+  have hW0 : 0 ≤ psum R.al t (wt R m.toReal) := psum_nonneg fun j => (wt_pos _ _ _).le
+  have hAb : om0 * psum R.al t (fun j => |ve j|) + kapAr * psum R.al t (wt R m.toReal) + t * absAr ≤
+      2 ^ 8 := by
+    unfold om0 kapAr absAr
+    have : (1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36 : ℝ) * psum R.al t (fun j => |ve j|) ≤
+        (1 / 2 ^ 24) * (64 * 1024 * 2 ^ 15) := by
       apply mul_le_mul (by norm_num) (by nlinarith) hV0 (by norm_num)
     nlinarith
-  have hAb0 : 0 ≤ om0 * psum R.al t (fun j => |ve j|) + t * absAr := by unfold om0 absAr; positivity
+  have hAb0 : 0 ≤ om0 * psum R.al t (fun j => |ve j|) + kapAr * psum R.al t (wt R m.toReal) + t * absAr := by
+    unfold om0 kapAr absAr; positivity
   obtain ⟨-, he⟩ := ha
   have := abs_sub_abs_le_abs_sub a.toReal (psum R.al t (fun j => wt R m.toReal j * ve j))
   have k1 := mul_le_mul_of_nonneg_right (by linarith : ffac R (psi16r R.E) stepAr t m.toReal - 1 ≤ 1) hMg0
@@ -380,8 +387,12 @@ theorem absDot16_64 : ((Rules.Num.absDot16 64 : ℚ) : ℝ) = 66 / 2 ^ 126 := by
 
 /-- **One block for an element of `acc`** (lines 82–84, 95, 101–103): `q` the block's row of
 `p.to(float16)`, `vt` its column of `v` (the values `ve` of keys `64t + jj`), `a1` the element of
-`acc * alpha[:, None]`, `a'` that of `tl.dot(p, v, acc)` (`hdot`: `Num.DotF16` at this element).
-Before the first block the element is `0.0`. -/
+`acc * alpha[:, None]`, `a'` that of `tl.dot(p, v, acc)` (`hdot`: `Num.DotF16` at this element,
+relative to the lifted magnitudes `|a1| + Σ liftMag p·liftMag v`: a subnormal `p` adds at most
+`2^-14·|v|` per key, kept in `om0`, and a subnormal `v` at most `2^-14·|p|`, with
+`|p| ≤ (1 + psi16r)·wt + omR`: the weight part, summed with the earlier blocks' rescaled through
+`psum_step1`, is kept in `kapAr`, the rest (`2^-14·omR + 2^-28` per key) in `absAr`, all times
+`66·2^-22`). Before the first block the element is `0.0`. -/
 theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F32NegInf P)
     {R : RowCtx} (hR : R.Ok) {t : ℕ} (ht : t + 1 ≤ 1024) {ve : ℕ → ℝ} (hve : ∀ j, |ve j| ≤ 2 ^ 15)
     {m m' dm al a a1 a' : F32} {x p : Fin 64 → F32} {q vt : Fin 64 → F16}
@@ -392,11 +403,14 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
     (ha1 : FloatV.NaNEq (FloatV.mul a al) a1)
     (hvt : ∀ jj, (vt jj).isFinite = true ∧ (vt jj).toReal = ve (64 * t + jj))
     (hdot : a1.isFinite = true → (∀ k, (q k).isFinite = true) →
-      |a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| +
-        (Rules.Num.relDot16 64 * (|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat|) + Rules.Num.absDot16 64) ≤
-          Format.binary32.maxVal →
+      |a1.toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k).toRat +
+        (Rules.Num.relDot16 64 * (|a1.toRat| +
+          ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k).toRat) +
+          Rules.Num.absDot16 64) ≤ Format.binary32.maxVal →
       a'.isFinite = true ∧ |a'.toRat - (a1.toRat + ∑ k, (q k).toRat * (vt k).toRat)| ≤
-        Rules.Num.relDot16 64 * (|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat|) + Rules.Num.absDot16 64)
+        Rules.Num.relDot16 64 * (|a1.toRat| +
+          ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k).toRat) +
+          Rules.Num.absDot16 64)
     (hold : (t = 0 ∧ a.isFinite = true ∧ a.toReal = 0) ∨ (0 < t ∧ MInv R t m ∧ AInv R ve t m a)) :
     AInv R ve (t + 1) m' a' := by
   have hE0 := hR.E_nonneg
@@ -405,9 +419,9 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
   have hps1 := psi16r_le hE0 hE8
   -- the lanes
   have hlane : ∀ jj, |(q jj).toReal * (vt jj).toReal - bwg R m'.toReal t ve jj| ≤
-        psi16r R.E * bwg R m'.toReal t (fun j => |ve j|) jj + om0 * bg R t (fun j => |ve j|) jj ∧
+        psi16r R.E * bwg R m'.toReal t (fun j => |ve j|) jj + omR * bg R t (fun j => |ve j|) jj ∧
       |(q jj).toReal * (vt jj).toReal| ≤
-        (1 + psi16r R.E) * bwg R m'.toReal t (fun j => |ve j|) jj + om0 * bg R t (fun j => |ve j|) jj ∧
+        (1 + psi16r R.E) * bwg R m'.toReal t (fun j => |ve j|) jj + omR * bg R t (fun j => |ve j|) jj ∧
       |bwg R m'.toReal t ve jj| ≤ 0 * bwg R m'.toReal t ve jj + bwg R m'.toReal t (fun j => |ve j|) jj ∧
       bwg R m'.toReal t (fun j => |ve j|) jj ≤ 0 * bwg R m'.toReal t ve jj + 2 ^ 16 ∧
       bg R t (fun j => |ve j|) jj ≤ 0 * bwg R m'.toReal t ve jj + 2 ^ 15 ∧
@@ -438,7 +452,7 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
       · rw [abs_mul]
         have := abs_sub_abs_le_abs_sub (q jj).toReal (wt R m'.toReal (64 * t + jj))
         rw [abs_of_pos hGp] at this
-        have := mul_le_mul_of_nonneg_right (show |(q jj).toReal| ≤ (1 + psi16r R.E) * wt R m'.toReal (64 * t + jj) + om0 by linarith) hva
+        have := mul_le_mul_of_nonneg_right (show |(q jj).toReal| ≤ (1 + psi16r R.E) * wt R m'.toReal (64 * t + jj) + omR by linarith) hva
         linarith
       · rw [abs_mul, abs_of_pos hGp]
       · have := mul_le_mul hG2 hv hva (by norm_num); linarith
@@ -477,43 +491,137 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
     rw [abs_mul] at ha1e this
     have := mul_le_mul hab.2 halb.2 (abs_nonneg _) (by norm_num)
     norm_num at ha1e this ⊢; linarith
-  -- line 103
+  -- line 103: the lifted magnitudes of the `tl.dot` (a subnormal `p` or `v` counts at `2^-14`)
+  have hbw : ∀ jj, bw1 R m'.toReal t jj ≤ 2 := by
+    intro jj
+    unfold bw1
+    split_ifs with hal
+    · exact wt_le_two hR hM' (j := 64 * t + jj) (by omega) hal
+    · norm_num
+  have hW1 : ∑ jj, bw1 R m'.toReal t jj ≤ 128 := by
+    have := Finset.sum_le_sum fun jj (_ : jj ∈ Finset.univ) => hbw jj
+    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at this
+    norm_num at this; exact this
+  have hW0 : 0 ≤ ∑ jj, bw1 R m'.toReal t jj := Finset.sum_nonneg fun jj _ => bw1_nonneg _ _ _ _
+  have hlift1 : ∀ jj, (Rules.Num.liftMag .f16 (q jj).toRat : ℝ) * (Rules.Num.liftMag .f16 (vt jj).toRat : ℝ) ≤
+      |(q jj).toReal * (vt jj).toReal| + 1 / 2 ^ 14 * bg R t (fun j => |ve j|) jj +
+        (1 + psi16r R.E) / 2 ^ 14 * bw1 R m'.toReal t jj + (1 / 2 ^ 28 + 1 / 2 ^ 38) := by
+    intro jj
+    obtain ⟨hxf, hxa, hxm⟩ := hX jj
+    obtain ⟨hpf, hpa, hpm⟩ := lane_p hexp hR hxf hxa hxm (fun h => hM'.above _ (by omega) h) (hp jj)
+    obtain ⟨-, hqa, hqm⟩ := lane_p16 hR hpf hpa hpm (fun h => wt_le_two hR hM' (by omega) h) (hq jj)
+    obtain ⟨-, hvv⟩ := hvt jj
+    unfold bg bw1
+    cases hal : R.al (64 * t + jj)
+    · rw [hqm hal, Dot8Chunk.liftMag_zero]
+      simp only [Rat.cast_zero, zero_mul, Bool.false_eq_true, ↓reduceIte, mul_zero, add_zero]
+      positivity
+    · simp only [↓reduceIte]
+      have h1 := hqa hal
+      have hGp := wt_pos R m'.toReal (64 * t + jj)
+      have hqw : |(q jj).toReal| ≤ (1 + psi16r R.E) * wt R m'.toReal (64 * t + jj) + omR := by
+        have := abs_sub_abs_le_abs_sub (q jj).toReal (wt R m'.toReal (64 * t + jj))
+        rw [abs_of_pos hGp] at this
+        linarith
+      have hm := DotLift.liftMag_mul_le .f16 .f16 (q jj).toRat (vt jj).toRat
+      rw [DotLift.minNormal8_f16] at hm
+      have hm' := (Rat.cast_le (K := ℝ)).mpr hm
+      push_cast at hm'
+      simp only [← toReal_def] at hm'
+      rw [hvv] at hm' ⊢
+      have e14 : (2 : ℝ) ^ (-14 : ℤ) = 1 / 2 ^ 14 := by norm_num
+      rw [e14] at hm'
+      have := mul_le_mul_of_nonneg_left hqw (by norm_num : (0 : ℝ) ≤ 1 / 2 ^ 14)
+      have e : 1 / 2 ^ 14 * ((1 + psi16r R.E) * wt R m'.toReal (64 * t + jj) + omR) =
+          (1 + psi16r R.E) / 2 ^ 14 * wt R m'.toReal (64 * t + jj) + omR / 2 ^ 14 := by ring
+      have hom : omR / 2 ^ 14 + 1 / 2 ^ 14 * (1 / 2 ^ 14) ≤ 1 / 2 ^ 28 + 1 / 2 ^ 38 := by
+        unfold omR; norm_num
+      linarith
+  have hL : ∑ jj, (Rules.Num.liftMag .f16 (q jj).toRat : ℝ) * (Rules.Num.liftMag .f16 (vt jj).toRat : ℝ) ≤
+      ∑ jj, |(q jj).toReal * (vt jj).toReal| + 1 / 2 ^ 14 * ∑ jj, bg R t (fun j => |ve j|) jj +
+        (1 + psi16r R.E) / 2 ^ 14 * ∑ jj, bw1 R m'.toReal t jj + (1 / 2 ^ 22 + 1 / 2 ^ 32) := by
+    calc ∑ jj, (Rules.Num.liftMag .f16 (q jj).toRat : ℝ) * (Rules.Num.liftMag .f16 (vt jj).toRat : ℝ)
+        ≤ ∑ jj, (|(q jj).toReal * (vt jj).toReal| + 1 / 2 ^ 14 * bg R t (fun j => |ve j|) jj +
+            (1 + psi16r R.E) / 2 ^ 14 * bw1 R m'.toReal t jj + (1 / 2 ^ 28 + 1 / 2 ^ 38)) :=
+          Finset.sum_le_sum fun jj _ => hlift1 jj
+      _ = _ := by
+        simp only [Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, Finset.card_univ,
+          Fintype.card_fin, nsmul_eq_mul]
+        ring
   have hTb : ∑ jj, |(q jj).toReal * (vt jj).toReal| ≤ 2 ^ 24 := by
     have : (1 + psi16r R.E) * ∑ jj, bwg R m'.toReal t (fun j => |ve j|) jj ≤ 2 * (64 * 2 ^ 16) :=
       mul_le_mul (by linarith) hMb hMn0 (by norm_num)
-    have : om0 * ∑ jj, bg R t (fun j => |ve j|) jj ≤ 1 := by
-      unfold om0; have := mul_le_mul_of_nonneg_left hVb (by positivity : (0 : ℝ) ≤ 1 / 2 ^ 25 + 1 / 2 ^ 125)
+    have : omR * ∑ jj, bg R t (fun j => |ve j|) jj ≤ 1 := by
+      unfold omR; have := mul_le_mul_of_nonneg_left hVb (by positivity : (0 : ℝ) ≤ 1 / 2 ^ 25 + 1 / 2 ^ 125)
       norm_num at this ⊢; linarith
     linarith
-  have hdroom : |a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| +
-      (Rules.Num.relDot16 64 * (|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat|) + Rules.Num.absDot16 64) ≤
-        Format.binary32.maxVal := by
-    have : (((|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat| +
-        (Rules.Num.relDot16 64 * (|a1.toRat| + ∑ k, |(q k).toRat * (vt k).toRat|) + Rules.Num.absDot16 64)) : ℚ) : ℝ) ≤
-        (Format.binary32.maxVal : ℝ) := by
+  have hLb : ∑ jj, (Rules.Num.liftMag .f16 (q jj).toRat : ℝ) * (Rules.Num.liftMag .f16 (vt jj).toRat : ℝ) ≤
+      2 ^ 25 := by
+    have : 1 / 2 ^ 14 * ∑ jj, bg R t (fun j => |ve j|) jj ≤ 1 / 2 ^ 14 * (64 * 2 ^ 15) :=
+      mul_le_mul_of_nonneg_left hVb (by norm_num)
+    have : (1 + psi16r R.E) / 2 ^ 14 * ∑ jj, bw1 R m'.toReal t jj ≤ 2 / 2 ^ 14 * 128 :=
+      mul_le_mul (by linarith) hW1 hW0 (by norm_num)
+    norm_num at this ⊢; linarith
+  have hdroom : |a1.toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k).toRat +
+      (Rules.Num.relDot16 64 * (|a1.toRat| +
+        ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k).toRat) +
+        Rules.Num.absDot16 64) ≤ Format.binary32.maxVal := by
+    have : (((|a1.toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k).toRat +
+        (Rules.Num.relDot16 64 * (|a1.toRat| +
+          ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k).toRat) +
+          Rules.Num.absDot16 64)) : ℚ) : ℝ) ≤ (Format.binary32.maxVal : ℝ) := by
       push_cast
       rw [relDot16_64, absDot16_64, maxVal32]
       simp only [← toReal_def]
+      have hL0 : 0 ≤ ∑ jj, (Rules.Num.liftMag .f16 (q jj).toRat : ℝ) * (Rules.Num.liftMag .f16 (vt jj).toRat : ℝ) :=
+        Finset.sum_nonneg fun jj _ => mul_nonneg (by exact_mod_cast Dot8Chunk.liftMag_nonneg _ _)
+          (by exact_mod_cast Dot8Chunk.liftMag_nonneg _ _)
       nlinarith
     exact_mod_cast this
   obtain ⟨ha'f, ha'e⟩ := hdot ha1f hqf hdroom
   have hcomb : |a'.toReal - (a1.toReal + ∑ jj, (q jj).toReal * (vt jj).toReal)| ≤
-      66 / 2 ^ 22 * (|a1.toReal| + ∑ jj, |(q jj).toReal * (vt jj).toReal|) + 66 / 2 ^ 126 := by
+      66 / 2 ^ 22 * (|a1.toReal| + ∑ jj, |(q jj).toReal * (vt jj).toReal|) +
+        (66 / 2 ^ 22 * (1 / 2 ^ 14 * ∑ jj, bg R t (fun j => |ve j|) jj +
+          (1 + psi16r R.E) / 2 ^ 14 * ∑ jj, bw1 R m'.toReal t jj + (1 / 2 ^ 22 + 1 / 2 ^ 32)) + 66 / 2 ^ 126) := by
     have := (Rat.cast_le (K := ℝ)).mpr ha'e
     push_cast at this
     rw [relDot16_64, absDot16_64] at this
     simp only [← toReal_def] at this
-    exact this
+    have := mul_le_mul_of_nonneg_left hL (by norm_num : (0 : ℝ) ≤ 66 / 2 ^ 22)
+    linarith
+  have htau2 : 0 ≤ 66 / 2 ^ 22 * (1 / 2 ^ 14 * ∑ jj, bg R t (fun j => |ve j|) jj +
+      (1 + psi16r R.E) / 2 ^ 14 * ∑ jj, bw1 R m'.toReal t jj + (1 / 2 ^ 22 + 1 / 2 ^ 32)) + 66 / 2 ^ 126 := by
+    have : 0 ≤ 1 / 2 ^ 14 * ∑ jj, bg R t (fun j => |ve j|) jj := mul_nonneg (by norm_num) hVn0
+    have : 0 ≤ (1 + psi16r R.E) / 2 ^ 14 * ∑ jj, bw1 R m'.toReal t jj :=
+      mul_nonneg (div_nonneg (by linarith) (by norm_num)) hW0
+    positivity
   have hF2 : (1 + 66 / 2 ^ 22) * (1 + psi16r R.E) ≤ ffac R (psi16r R.E) stepAr (t + 1) m'.toReal :=
     ffac_ge hps0 (by positivity) stepAr_ge (m_nonneg hM'.bound)
   have hF'1 : 1 ≤ ffac R (psi16r R.E) stepAr (t + 1) m'.toReal :=
     ffac_one_le hps0 stepAr_one (m_nonneg hM'.bound)
-  have htau : |a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 + 1 / 2 ^ 150 + 66 / 2 ^ 126 ≤ (absAr : ℝ) := by
+  have htau : |a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 + 1 / 2 ^ 150 + 66 / 2 ^ 22 * (1 / 2 ^ 22 + 1 / 2 ^ 32) +
+      66 / 2 ^ 126 ≤ (absAr : ℝ) := by
     have := hab.2; unfold absAr; norm_num at this ⊢; linarith
+  -- what the step adds, per key, per unit of weight and per block
+  have hadd : ∀ tau1 : ℝ, tau1 ≤ |a.toReal| * (1 + 1 / 2 ^ 24) / 2 ^ 126 + 1 / 2 ^ 150 →
+      omR * ∑ jj, bg R t (fun j => |ve j|) jj + tau1 +
+        (66 / 2 ^ 22 * (1 / 2 ^ 14 * ∑ jj, bg R t (fun j => |ve j|) jj +
+          (1 + psi16r R.E) / 2 ^ 14 * ∑ jj, bw1 R m'.toReal t jj + (1 / 2 ^ 22 + 1 / 2 ^ 32)) + 66 / 2 ^ 126) ≤
+      om0 * ∑ jj, bg R t (fun j => |ve j|) jj + kapAr * ∑ jj, bw1 R m'.toReal t jj + absAr := by
+    intro tau1 h
+    have e : om0 * ∑ jj, bg R t (fun j => |ve j|) jj =
+        omR * ∑ jj, bg R t (fun j => |ve j|) jj + 66 / 2 ^ 22 * (1 / 2 ^ 14 * ∑ jj, bg R t (fun j => |ve j|) jj) := by
+      unfold om0 omR; ring
+    have hk : 66 / 2 ^ 22 * ((1 + psi16r R.E) / 2 ^ 14) ≤ kapAr := by
+      unfold kapAr; linarith
+    have hk' := mul_le_mul_of_nonneg_right hk hW0
+    have e2 : 66 / 2 ^ 22 * ((1 + psi16r R.E) / 2 ^ 14) * ∑ jj, bw1 R m'.toReal t jj =
+        66 / 2 ^ 22 * ((1 + psi16r R.E) / 2 ^ 14 * ∑ jj, bw1 R m'.toReal t jj) := by ring
+    rw [e]; linarith
   refine ⟨ha'f, ?_⟩
   push_cast
   rw [psum_stepg R m.toReal m'.toReal t ve, psum_stepg R m.toReal m'.toReal t (fun j => |ve j|),
-    psum_stepv R t (fun j => |ve j|)]
+    psum_stepv R t (fun j => |ve j|), psum_step1 R m.toReal m'.toReal t]
   rcases hold with ⟨ht0, -, ha0⟩ | ⟨ht0, hmi, hA⟩
   · -- the first block: `acc = 0`
     subst ht0
@@ -524,10 +632,11 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
       (rho := 66 / 2 ^ 22) (psi := psi16r R.E)
       (F' := ffac R (psi16r R.E) stepAr (0 + 1) m'.toReal)
       le_rfl (by simp) le_rfl (by rw [ha0]; simp) le_rfl zero_le_one le_rfl ha1'
-      hMn hps0 (by unfold om0; positivity) hcn hTn (by positivity) (by positivity) (by positivity) hcomb
+      hMn hps0 (by unfold omR; positivity) hcn hTn (by positivity) (by positivity) htau2 hcomb
       (by nlinarith) hF2
     simp only [psum_zero, mul_zero, zero_add, Nat.cast_zero] at key ⊢
-    have := mul_le_mul_of_nonneg_left htau (by linarith : (0 : ℝ) ≤ ffac R (psi16r R.E) stepAr (0 + 1) m'.toReal)
+    have h2 := mul_le_mul_of_nonneg_left (hadd _ le_rfl)
+      (by linarith : (0 : ℝ) ≤ ffac R (psi16r R.E) stepAr (0 + 1) m'.toReal)
     nlinarith
   · obtain ⟨-, hle, hae⟩ := alpha_bound hexp hR hin ht0 hmi.bound hM'.bound ha
     have hl1 : (2 : ℝ) ^ (m.toReal - m'.toReal) ≤ 1 := two_rpow_le_one (by linarith)
@@ -537,24 +646,36 @@ theorem astep {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Exp2F
       linarith [div_nonneg this (by norm_num : (0 : ℝ) ≤ 2 ^ 24), (by norm_num : (0 : ℝ) ≤ 1 / 2 ^ 150)]
     have hMg0 : 0 ≤ psum R.al t (fun j => wt R m.toReal j * |ve j|) :=
       psum_nonneg fun j => mul_nonneg (wt_pos _ _ _).le (abs_nonneg _)
-    have hAb0 : 0 ≤ om0 * psum R.al t (fun j => |ve j|) + t * absAr := by
+    have hV0 : 0 ≤ om0 * psum R.al t (fun j => |ve j|) := by
       have : 0 ≤ psum R.al t (fun j => |ve j|) := psum_nonneg fun j => abs_nonneg _
-      unfold om0 absAr; positivity
+      unfold om0; positivity
+    have hWt0 : 0 ≤ kapAr * psum R.al t (wt R m.toReal) := by
+      have : 0 ≤ psum R.al t (wt R m.toReal) := psum_nonneg fun j => (wt_pos _ _ _).le
+      unfold kapAr; positivity
+    have htA0 : 0 ≤ (t : ℝ) * absAr := by unfold absAr; positivity
+    have hAb0 : 0 ≤ om0 * psum R.al t (fun j => |ve j|) + kapAr * psum R.al t (wt R m.toReal) + t * absAr := by
+      linarith
     have hF1 := ffac_one_le (t := t) hps0 stepAr_one (m_nonneg hmi.bound)
     have hsc := scale_err hl0.le hae ha1e
     have hFs := ffac_step (R := R) (psi := psi16r R.E) (rho := 66 / 2 ^ 22)
       (B0 := (1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)) (t := t) hps0 (by positivity) (by positivity) hle
-    have key := acc_step (S := psum R.al t (fun j => wt R m.toReal j * ve j))
+    have key := acc_step' (S := psum R.al t (fun j => wt R m.toReal j * ve j))
       (Mg := psum R.al t (fun j => wt R m.toReal j * |ve j|))
-      (Ab := om0 * psum R.al t (fun j => |ve j|) + t * absAr) (F := ffac R (psi16r R.E) stepAr t m.toReal)
+      (Ab := om0 * psum R.al t (fun j => |ve j|) + kapAr * psum R.al t (wt R m.toReal) + t * absAr)
+      (F := ffac R (psi16r R.E) stepAr t m.toReal)
       (lam := (2 : ℝ) ^ (m.toReal - m'.toReal))
       (Phi := (1 + dAl m.toReal m'.toReal) * ((1 + 1 / 2 ^ 22) * (1 + 1 / 2 ^ 24)))
       (rho := 66 / 2 ^ 22) (psi := psi16r R.E) (F' := ffac R (psi16r R.E) stepAr (t + 1) m'.toReal)
-      hF1 (psum_abs_wt R m.toReal t ve) hAb0 hA.2 hl0.le hl1 (by nlinarith) hsc
-      hMn hps0 (by unfold om0; positivity) hcn hTn (by positivity) (by positivity) (by positivity) hcomb
+      hF1 (psum_abs_wt R m.toReal t ve) hAb0 hA.2 hl0.le hl1
+      (one_le_mul_of_one_le_of_one_le (by linarith) (by norm_num)) hsc
+      hMn hps0 (by unfold omR; positivity) hcn hTn (by positivity) (by positivity) htau2 hcomb
       hFs hF2
-    have := mul_le_mul_of_nonneg_left htau (by linarith : (0 : ℝ) ≤ ffac R (psi16r R.E) stepAr (t + 1) m'.toReal)
-    rw [mul_add om0] 
-    nlinarith
+    refine key.trans (add_le_add le_rfl (mul_le_mul_of_nonneg_left ?_ (le_trans zero_le_one hF'1)))
+    have h2 := hadd _ le_rfl
+    have k1 := mul_le_mul_of_nonneg_right hl1 hV0
+    have k2 := mul_le_mul_of_nonneg_right hl1 htA0
+    have e : ((t : ℝ) + 1) * absAr = t * absAr + absAr := by ring
+    rw [e, mul_add om0, mul_add kapAr]
+    linarith
 
 end Kernels.AttnFwd

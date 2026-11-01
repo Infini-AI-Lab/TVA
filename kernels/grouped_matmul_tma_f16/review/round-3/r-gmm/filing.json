@@ -1,0 +1,12 @@
+{
+  "reviewer": "r-gmm",
+  "kernel": "grouped_matmul_tma_f16",
+  "round": 3,
+  "findings": [],
+  "release": [
+    {"id": "F5", "note": "L126 (FIXED, round 25) records my report and restates DotF16 as DotLiftAcc, relative to |acc| + Σ liftMag a·liftMag b with a subnormal float16 operand counted at 2^-14, with evidence. The kernel cites the restated fact and is re-proved on it, with its tolerance over the lifted magnitudes (dotLift), so the report is settled."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 3 at gate 902c06ecf3fe60ae. work/lift.lean prints the claim with full names. The dot field is still Rules.Num.DotF16 P, now DotLiftAcc P ⟨f16, f16, f32, p, 0⟩ relDot16 absDot16, as num.md lists it for an fp16 tl.dot into float32. dotLift sums TVA.Rules.Num.liftMag .f16 of both operands, the magnitude that fact measures by. On zero and normal float16 values liftMag is |q| (checked in Lean), so the tolerance and the README's figures for normal operands (0.204% and 0.253% at K = 2^13, thresholds 13633 and 15617, my round-1 work/tol.py) are unchanged. For a subnormal operand the extra tolerance is at most 2^10 times the product's magnitude, as the device's error allows. DotTotal, DotAcc and the model, conditions, map and faithful items are unchanged. The axioms are propext, Classical.choice and Quot.sound."
+}

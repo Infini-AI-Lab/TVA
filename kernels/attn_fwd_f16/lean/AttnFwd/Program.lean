@@ -96,7 +96,7 @@ theorem Wr_disj {d : Inst} (hd : d.ok) {i j : ℕ} (hi : i < (launch d).size) (h
 /-- What `Post` asks of element `(bh, n, e)` of `o` holding `c`. -/
 def OutO (d : Inst) (init : Mem) (bh n e : ℕ) (c : F16) : Prop :=
   HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
-    (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+    (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
     |c.toReal - attnRef d init bh n e| ≤
       (tolO d.HEAD_DIM d.N_CTX X : ℝ) * attnAbs d init bh n e +
         (tolS d.HEAD_DIM d.N_CTX X : ℝ) * (vAbsSum d init bh n e : ℝ) + (tolF d.HEAD_DIM d.N_CTX X : ℝ)
@@ -104,7 +104,7 @@ def OutO (d : Inst) (init : Mem) (bh n e : ℕ) (c : F16) : Prop :=
 /-- What `Post` asks of element `(bh, n)` of `M` holding `c`. -/
 def OutM (d : Inst) (init : Mem) (bh n : ℕ) (c : F32) : Prop :=
   HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
-    (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+    (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
     |c.toReal - lseRef d init bh n| ≤ (tolM d.HEAD_DIM d.N_CTX X : ℝ) + (u32 : ℝ) * |lseRef d init bh n|
 
 /-- What program `(sm, bh)` leaves in memory `m`: its rows of `o` and `M` as `Post` asks. -/
@@ -128,7 +128,7 @@ theorem row_out {d : Inst} (hd : d.ok) {init : Mem} {P : Platform} (hdivF : Rule
     {T : ℕ} (hT0 : 0 < T) (hT : T ≤ nblocks d.N_CTX) (hTk : ∀ j, alOf d n j = true → j < 64 * T)
     {acc : Fin d.HEAD_DIM → F32} {l m : F32}
     (hst : HeadOk d init bh → ∀ X : ℚ, X ≤ 2 ^ 10 →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
       RowSt (rowCtx d init c.toReal bh n X) (veOf d init bh) T m l acc)
     {lg Mv : F32} (hlg : P.math .log2 .binary32 l lg) (hMv : FloatV.NaNEq (FloatV.add m lg) Mv)
     {o' : Fin d.HEAD_DIM → F32} (ho' : ∀ e, P.div .binary32 (acc e) l (o' e))
@@ -138,7 +138,7 @@ theorem row_out {d : Inst} (hd : d.ok) {init : Mem} {P : Platform} (hdivF : Rule
   have hN := hd.n_le
   have hne : (keys d n).Nonempty := ⟨0, mem_keys.mpr (by unfold alOf; simp; omega)⟩
   have hσ : (0 : ℝ) ≤ (sigma d : ℝ) := by exact_mod_cast (sigma_pos hd).le
-  have hθ : ∀ X : ℚ, (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) → ∀ j ∈ keys d n,
+  have hθ : ∀ X : ℚ, (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) → ∀ j ∈ keys d n,
       |Real.log 2 * ((rowCtx d init c.toReal bh n X).c * (rowCtx d init c.toReal bh n X).sv j) -
         (sigma d : ℝ) * (rowCtx d init c.toReal bh n X).sv j| ≤ X / 2 ^ 22 := by
     intro X hXk j hj
@@ -146,15 +146,15 @@ theorem row_out {d : Inst} (hd : d.ok) {init : Mem} {P : Platform} (hdivF : Rule
       X / 2 ^ 22
     have e1 : Real.log 2 * (c.toReal * (score d init bh n j : ℝ)) - (sigma d : ℝ) * (score d init bh n j : ℝ) =
         (c.toReal * Real.log 2 - sigma d) * score d init bh n j := by ring
-    have h3 : (sigma d : ℝ) * (scoreAbs d init bh n j : ℝ) ≤ X := by exact_mod_cast hXk j hj
+    have h3 : (sigma d : ℝ) * (scoreMag d init bh n j : ℝ) ≤ X := by exact_mod_cast hXk j hj
     rw [e1, abs_mul]
     calc |c.toReal * Real.log 2 - (sigma d : ℝ)| * |(score d init bh n j : ℝ)|
-        ≤ (sigma d : ℝ) / 2 ^ 22 * (scoreAbs d init bh n j : ℝ) :=
+        ≤ (sigma d : ℝ) / 2 ^ 22 * (scoreMag d init bh n j : ℝ) :=
           mul_le_mul hc.2.2.2.2 (score_le d init bh n j) (abs_nonneg _) (by positivity)
-      _ = (sigma d : ℝ) * (scoreAbs d init bh n j : ℝ) / 2 ^ 22 := by ring
+      _ = (sigma d : ℝ) * (scoreMag d init bh n j : ℝ) / 2 ^ 22 := by ring
       _ ≤ X / 2 ^ 22 := div_le_div_of_nonneg_right h3 (by positivity)
   have hfin : HeadOk d init bh → ∀ X : ℚ, X ≤ 2 ^ 10 →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
       (rowCtx d init c.toReal bh n X).Ok ∧ 0 ≤ X ∧ MInv (rowCtx d init c.toReal bh n X) T m ∧
         LInv (rowCtx d init c.toReal bh n X) T m l ∧
         ∀ e, AInv (rowCtx d init c.toReal bh n X) (veOf d init bh e) T m (acc e) := by
@@ -167,7 +167,7 @@ theorem row_out {d : Inst} (hd : d.ok) {init : Mem} {P : Platform} (hdivF : Rule
       veOf d init bh e j = (val16 init d.v (idx d bh j e) : ℝ) := fun e j hj => by
     unfold veOf; rw [ite_eq_left (keys_lt hj)]
   have hOo : ∀ e : Fin d.HEAD_DIM, HeadOk d init bh → ∀ X : ℚ, X ≤ 2 ^ 10 →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
       (o16 e).isFinite = true ∧ |(o16 e).toReal - attnRef d init bh n e| ≤
         (tolO d.HEAD_DIM d.N_CTX X : ℝ) * attnAbs d init bh n e +
           (tolS d.HEAD_DIM d.N_CTX X : ℝ) * (vAbsSum d init bh n e : ℝ) + (tolF d.HEAD_DIM d.N_CTX X : ℝ) := by
@@ -189,14 +189,14 @@ theorem row_out {d : Inst} (hd : d.ok) {init : Mem} {P : Platform} (hdivF : Rule
     rw [← S1, ← S2, ← S3]
     exact hb
   have hOM : HeadOk d init bh → ∀ X : ℚ, X ≤ 2 ^ 10 →
-      (∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) →
+      (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
       Mv.isFinite = true ∧ |Mv.toReal - lseRef d init bh n| ≤
         (tolM d.HEAD_DIM d.N_CTX X : ℝ) + (u32 : ℝ) * |lseRef d init bh n| := by
     intro hH X hX hXk
     obtain ⟨hRok, hX0, hM, hL, -⟩ := hfin hH X hX hXk
     exact final_M (D := d.HEAD_DIM) (N := d.N_CTX) hlog hRok hD hX0 hX hN rfl rfl hT (psum_keys hTk) hne
       (hθ X hXk) hM hL hlg hMv
-  have hall : HeadOk d init bh → ∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ 2 ^ 10 :=
+  have hall : HeadOk d init bh → ∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ 2 ^ 10 :=
     fun hH j hj => hH.2.2 n j hn (keys_lt hj)
   refine ⟨fun e hH => ⟨(hOo e hH _ le_rfl (hall hH)).1, fun X hX hXk => (hOo e hH X hX hXk).2⟩,
     fun hH => ⟨(hOM hH _ le_rfl (hall hH)).1, fun X hX hXk => (hOM hH X hX hXk).2⟩⟩

@@ -40,7 +40,11 @@ bind `get_cuda_autotune_config`, `get_hip_autotune_config`, `get_autotune_config
   values `va k` and `vb k` (`k < K`) in the initial memory:
   - `c` is the `float16` rounding (to nearest even, `FloatV.cvt`, up to NaN payload) of a finite
     `float32` value `v` with `|v − S| ≤ tol K A`, where `S = Σ_k va k · vb k` is the exact dot
-    product and `A = Σ_k |va k · vb k|`;
+    product and `A = Σ_k mag16(va k)·mag16(vb k)` (`dotMag`) the sum of the products' lifted
+    magnitudes: `mag16 q` is `|q|`, except that a nonzero `q` below `2^-14` (a subnormal `float16`)
+    counts as `2^-14`, as the tensor core aligns it (`Rules.Num.liftMag .f16`, which `DotF16`
+    counts by). With no subnormal operand, `A = Σ_k |va k · vb k|`; a subnormal `va k` adds at most
+    `2^-14·|vb k| + 2^-28` to its term, and likewise for `vb k` (`DotLift.liftMag_mul_le`);
   - when `|S| + tol K A ≤ 65504` (the largest `float16`), `c` is finite and
     `|c − S| ≤ tol K A + (|S| + tol K A)·2^-11 + 2^-25` (one more `float16` rounding:
     `Format.binary16.u = 2^-11`, `Format.binary16.eta = 2^-25`).
@@ -51,12 +55,12 @@ bind `get_cuda_autotune_config`, `get_hip_autotune_config`, `get_autotune_config
   is explicit and computable: `(1 + ρ)^T − 1` is about `1.26·10^-4` at `K = 512` (the test),
   `1.01·10^-3` at `K = 4096` (the benchmark's largest), and `2.02·10^-3` at `K = 2^13` (the
   largest covered; below `0.21%` at every covered `K`, `tol_rel_lt`), and the `α` term is below
-  `10^-34`. So at the largest covered size the accumulation is within `0.21%` of `Σ|a·b|`: about
+  `10^-34`. So at the largest covered size the accumulation is within `0.21%` of `A`: about
   half the largest relative error of a rounding to `bfloat16` (`2^-8/(1 + 2^-8)`, about `0.39%`),
-  so a kernel that rounds its result to `bfloat16` breaks `Post` on some inputs (products of one
-  sign, a sum where the `bfloat16` rounding error is near its largest), and so does one that drops
-  or misplaces a product. The bound is relative to `Σ|a·b|`, not
-  to `|S|`: for zero-mean inputs such as the benchmark's `torch.randn`, `Σ|a·b|` is about
+  so a kernel that rounds its result to `bfloat16` breaks `Post` on some inputs (normal operands
+  whose products have one sign, so `A = |S|`, and a sum where the `bfloat16` rounding error is near
+  its largest), and so does one that drops or misplaces a product. The bound is relative to `A`
+  (`Σ|a·b|` without subnormal operands), not to `|S|`: for zero-mean inputs such as the benchmark's `torch.randn`, `Σ|a·b|` is about
   `(2/π)·K` while `|S|` is typically `√K`, so the bound is about `4%` of a typical `|S|` at
   `K = 4096` and `12%` at `K = 2^13`. (`K_le` stops at `2^13` for this reason: from about
   `K = 15745` the bound would no longer reject a `bfloat16` rounding, and from about `K = 34368` it
@@ -83,7 +87,7 @@ for `b` and `c` (`aIdx`, `bIdx`, `cIdx`).
 | Field | Condition | Why |
 |---|---|---|
 | `M_le`, `N_le` | `M + 128 ≤ 2^31`, `N + 256 ≤ 2^31` | `M` and `N` are `int32` arguments, and `tl.cdiv` computes `M + 127` and `N + 255` in `int32` (lines 253–254); the tile rows and columns `pid_m·128 + i`, `pid_n·256 + j` (lines 282–283, 312–313) then stay below `2^31` |
-| `K_le` | `K ≤ 2^13` | keeps the tolerance meaningful: below `0.21%` of `Σ\|a·b\|` (`tol_rel_lt`), about half a `bfloat16` rounding (Specification, Narrowings); the host's largest `K` is `4096` |
+| `K_le` | `K ≤ 2^13` | keeps the tolerance meaningful: below `0.21%` of `A` (`Σ\|a·b\|` without subnormal operands; `tol_rel_lt`), about half a `bfloat16` rounding (Specification, Narrowings); the host's largest `K` is `4096` |
 | `am`, `ak`, `bk`, `bn`, `cm`, `cn` | each stride is positive and below `2^31` | the kernel's `tl.assume(stride_… > 0)` (lines 268–273) is undefined behaviour otherwise; each stride is an `int32` argument |
 | `a_fit` | `M·stride_am + 64·stride_ak ≤ 2^31` | the `int32` offsets of `a_ptrs`, `offs_am·stride_am + offs_k·stride_ak` (line 285), and the step `64·stride_ak` (line 302) do not wrap |
 | `b_fit` | `64·stride_bk + N·stride_bn ≤ 2^31` | the same for `b_ptrs` (line 286) and its step (line 303) |
@@ -176,10 +180,12 @@ Three assumptions, all of kind `[rule]`, each cited as the library states it:
   environment, which the claim relies on
   ([rule page](../../docs/rules/compiler-faithful.md)).
 - `dot` — `Rules.Num.DotF16 P`, the library's fact for `tl.dot` of `float16` operands into
-  `float32` (line 300; [num.md](../../docs/rules/num.md)): for every `input_precision`, with
-  `maxImpreciseAcc = 0`, each output element whose row of `a` and column of `b` are finite and whose
-  accumulator is finite is finite and within `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K` of
-  `acc + Σ a·b`, when that leaves room below the `float32` range.
+  `float32` (line 300; [num.md](../../docs/rules/num.md)), as restated in library round 25
+  (`Rules.Num.DotLiftAcc`): for every `input_precision`, with `maxImpreciseAcc = 0`, each output
+  element whose row of `a` and column of `b` are finite and whose accumulator is finite is finite
+  and within `relDot16 K·L + absDot16 K` of `acc + Σ a·b`, with
+  `L = |acc| + Σ liftMag a·liftMag b` (a subnormal operand counted at `2^-14`), when that leaves
+  room below the `float32` range.
 - `dot_total` — `Rules.Num.DotTotal P cfg` for the model's configuration (`float16` operands,
   `float32` accumulator, `tf32`, `maxImpreciseAcc = 0`): the `tl.dot` of line 300 always has a
   result.
@@ -218,8 +224,10 @@ There is no `[kernel]` assumption. The `float32`-to-`float16` conversion of line
     zero (`zero_conv`); each enabled lane (`64·t + k < K`) loads its element of `a` (resp. `b`),
     inside the matrix, each disabled lane the zero.
   - Line 300 (`safe_dot`, with `dot_total`), then `acc_step`: by `dot` (`Rules.Num.DotF16`, at
-    `K = 64`) and `DotLoop.accum_step`, the accumulator keeps `AccInv` at `t + 1` (the disabled
-    lanes add exact zeros; the values stay far inside the `float32` range because `K ≤ 2^13`;
+    `K = 64`, relative to the chunk's lifted magnitudes, `liftMag_f16`) and `DotLoop.accum_step`,
+    the accumulator keeps `AccInv` at `t + 1`, whose magnitude `partA` sums the lifted products
+    `liftV` (the disabled lanes add exact zeros, of lifted magnitude `0`; `|S_t| ≤ partA` by
+    `abs_mul_le_mag16`; the values stay far inside the `float32` range because `K ≤ 2^13`;
     `acc_step` needs only `K ≤ 2^16`).
   - Lines 302–303 (`safe_ret`): the pointers advance to `aPtrs d p (t + 1)` and `bPtrs d p (t + 1)`.
   - Line 308 (`safe_cvt`): `c` is the rounding of the accumulator to `float16`, up to NaN payload.
@@ -248,6 +256,27 @@ addresses `2^21`, `2·2^21` and `3·2^21` (`testInst`), in a memory where every 
 `main`, `consistent` and `satisfiable` use only the axioms `propext`, `Classical.choice` and
 `Quot.sound` (the gate checks it).
 
+## What changed (library round 25)
+
+Library round 25 (issue L126) restated `Rules.Num.DotF16`: the tensor core reads a subnormal
+`float16` operand's exponent as the smallest normal's, so a product with a subnormal operand can set
+a chunk's alignment window while far smaller, and the old bound, relative to `|acc| + Σ|a·b|`, failed
+on such inputs. The fact is now `DotLiftAcc`, relative to `|acc| + Σ liftMag a·liftMag b`, with the
+same constants. The claim follows it:
+
+- **The specification.** The tolerance's magnitude `A` is now `dotMag`, the sum of the products'
+  lifted magnitudes (`mag16`, a subnormal operand counted at `2^-14`), in place of
+  `Σ|va k · vb k|` (`dotAbs`, removed). The formula `tol K A` and its constants are unchanged.
+  Subnormal inputs stay covered, with the larger `A` they need.
+- **The figures.** With no subnormal operand `A = Σ|a·b|`, so every figure is unchanged: the
+  relative part of `tol` is `1.26·10^-4` at `K = 512`, `1.01·10^-3` at `K = 4096` and below `0.21%`
+  up to `K = 2^13`, and the `bfloat16` rejection holds on normal inputs as before. A subnormal
+  operand `x` with partner `y` raises its term from `|x·y|` to at most `|x·y| + 2^-14·(|x| + |y|) +
+  2^-28`.
+- **The proof.** `acc_step` cites the restated fact: `partA` now sums the lifted products `liftV`
+  (`mag16` is `Rules.Num.liftMag .f16` by definition, `liftMag_f16`), and `|partS| ≤ partA` follows
+  from `|x·y| ≤ mag16 x·mag16 y`. Nothing else in the proof changed.
+
 ## Narrowings and modelling decisions
 
 Narrowings, each against the kernel's real use:
@@ -267,7 +296,7 @@ Narrowings, each against the kernel's real use:
   kernel itself goes wrong: Triton passes an integer of `2^31` or more as an `int64`, and with
   `int32` arguments the offsets of lines 285, 286 and 314 wrap once a matrix has `2^31` elements or
   more, so lanes would access memory outside the matrices.
-- **`K ≤ 2^13`.** The tolerance grows with `K`. Up to `2^13` it is below `0.21%` of `Σ|a·b|`
+- **`K ≤ 2^13`.** The tolerance grows with `K`. Up to `2^13` it is below `0.21%` of `A`
   (`tol_rel_lt`), about half a `bfloat16` rounding, so `Post` still tells a `float16` result from
   a `bfloat16`-rounded one. From about `K = 15745` it would not (`1.62%` at `K = 2^16`), and from
   about `K = 34368` it would exceed the typical `|S|` of zero-mean inputs such as the benchmark's

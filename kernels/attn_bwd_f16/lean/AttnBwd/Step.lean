@@ -16,7 +16,7 @@ namespace Kernels.AttnBwd
 open TVA
 
 /-- One element of a `tl.dot` (zero accumulator) of a row `f` and a column `g` of `HEAD_DIM`
-finite `float16` values: within `rH·Σ|f·g| + aH` of `Σ f·g`. -/
+finite `float16` values: within `rH·Σ lm f·lm g + aH` of `Σ f·g`. -/
 theorem dot_spec {P : Platform} (hdot : Rules.Num.DotF16 P) {d : Inst} (hd : d.ok) {M N : Nat}
     {a : Tensor [M, d.HEAD_DIM] F16} {b : Tensor [d.HEAD_DIM, N] F16} {r : Tensor [M, N] F32}
     (hr : P.dot dotCfg a b (tl.zeros [M, N] .f32) r) (i : Fin M) (j : Fin N) (f g : Nat → F16)
@@ -24,7 +24,7 @@ theorem dot_spec {P : Platform} (hdot : Rules.Num.DotF16 P) {d : Inst} (hd : d.o
     (hfin : ∀ c, c < d.HEAD_DIM → (f c).isFinite = true ∧ (g c).isFinite = true) :
     (r.get2 i j).isFinite = true ∧
       |(r.get2 i j).toReal - ∑ c ∈ Finset.range d.HEAD_DIM, (f c).toReal * (g c).toReal| ≤
-        rH d * ∑ c ∈ Finset.range d.HEAD_DIM, |(f c).toReal * (g c).toReal| + aH d := by
+        rH d * ∑ c ∈ Finset.range d.HEAD_DIM, lm (f c) * lm (g c) + aH d := by
   obtain ⟨h1, h2⟩ := dot0 hdot (hd_le hd) hr i j (fun c => by rw [hf c]; exact (hfin c c.2).1)
     (fun c => by rw [hg c]; exact (hfin c c.2).2)
   refine ⟨h1, ?_⟩
@@ -32,9 +32,9 @@ theorem dot_spec {P : Platform} (hdot : Rules.Num.DotF16 P) {d : Inst} (hd : d.o
       ∑ c ∈ Finset.range d.HEAD_DIM, (f c).toReal * (g c).toReal := by
     rw [← Fin.sum_univ_eq_sum_range (fun c => (f c).toReal * (g c).toReal)]
     exact Finset.sum_congr rfl fun c _ => by rw [hf c, hg c]
-  have e2 : ∑ c : Fin d.HEAD_DIM, |(a.get2 i c).toReal * (b.get2 c j).toReal| =
-      ∑ c ∈ Finset.range d.HEAD_DIM, |(f c).toReal * (g c).toReal| := by
-    rw [← Fin.sum_univ_eq_sum_range (fun c => |(f c).toReal * (g c).toReal|)]
+  have e2 : ∑ c : Fin d.HEAD_DIM, lm (a.get2 i c) * lm (b.get2 c j) =
+      ∑ c ∈ Finset.range d.HEAD_DIM, lm (f c) * lm (g c) := by
+    rw [← Fin.sum_univ_eq_sum_range (fun c => lm (f c) * lm (g c))]
     exact Finset.sum_congr rfl fun c _ => by rw [hf c, hg c]
   rw [e1, e2] at h2
   exact h2
@@ -43,9 +43,9 @@ theorem sum_mul_comm (K : Nat) (f g : Nat → F16) :
     ∑ c ∈ Finset.range K, (f c).toReal * (g c).toReal = ∑ c ∈ Finset.range K, (g c).toReal * (f c).toReal :=
   Finset.sum_congr rfl fun _ _ => mul_comm _ _
 
-theorem sum_abs_mul_comm (K : Nat) (f g : Nat → F16) :
-    ∑ c ∈ Finset.range K, |(f c).toReal * (g c).toReal| = ∑ c ∈ Finset.range K, |(g c).toReal * (f c).toReal| :=
-  Finset.sum_congr rfl fun _ _ => by rw [mul_comm]
+theorem sum_lm_mul_comm (K : Nat) (f g : Nat → F16) :
+    ∑ c ∈ Finset.range K, lm (f c) * lm (g c) = ∑ c ∈ Finset.range K, lm (g c) * lm (f c) :=
+  Finset.sum_congr rfl fun _ _ => mul_comm _ _
 
 /-- **One pair** `(n, m)` of a covered head: from the computed `Σ K·Q` and `Σ V·dO` to the
 `float16` `P` and `dS`, within `Spec`'s errors and bounds. -/
@@ -151,37 +151,37 @@ theorem kv_step {P : Platform} (hdot : Rules.Num.DotF16 P) (hexp : Rules.Num.Exp
     show (qT.get2 c i).isFinite = true
     rw [hq c i]; exact hO.q _ c (by have := i.2; omega) c.2
   constructor
-  · have hcap := sum_bd_le hd hsub (fun m => p16B d hv (128 * p + r) m) (fun m => hv.dO m c)
-      (fun m hm => p16B_bd hO hn hm) (fun m hm => hO.dO m c hm c.2)
+  · have hcap := sum_bd_le_lm hd hsub (fun m => p16L d hv (128 * p + r) m) (fun m => hv.dO m c)
+      (fun m hm => p16L_bd hO hn hm) (fun m hm => hO.dO m c hm c.2)
     rw [sum_cover hC] at hcap
     have h := accI_dotAdd hdot hBM hdv' r c (fun i => (hlane i).1) hdOf hT hdv
       (fun i => pE d hv (128 * p + r) (mt + i) * (hv.dO (mt + i) c).toReal)
       (fun i => p16Err d hv (128 * p + r) (mt + i) * |(hv.dO (mt + i) c).toReal|)
-      (fun i => p16B d hv (128 * p + r) (mt + i) * |(hv.dO (mt + i) c).toReal|)
+      (fun i => p16L d hv (128 * p + r) (mt + i) * lm (hv.dO (mt + i) c))
       (fun i => by
         rw [hdo i c, ← sub_mul, abs_mul]
         exact mul_le_mul_of_nonneg_right (hlane i).2.2.1 (abs_nonneg _))
       (fun i => by
-        rw [hdo i c, abs_mul]
-        exact mul_le_mul_of_nonneg_right (hlane i).2.2.2.1 (abs_nonneg _))
+        rw [hdo i c]
+        exact mul_le_mul_of_nonneg_right (lm_le_lift16 (hlane i).2.2.2.1) (lm_nn _))
       (by linarith)
     simp only [sum_cover hC]
     exact h
-  · have hcap := sum_bd_le hd hsub (fun m => ds16B d hv (128 * p + r) m) (fun m => hv.q m c)
-      (fun m hm => ds16B_bd hd hO hn hm) (fun m hm => hO.q m c hm c.2)
+  · have hcap := sum_bd_le_lm hd hsub (fun m => ds16L d hv (128 * p + r) m) (fun m => hv.q m c)
+      (fun m hm => ds16L_bd hd hO hn hm) (fun m hm => hO.q m c hm c.2)
     rw [sum_cover hC] at hcap
     have h := accI_dotAdd hdot hBM hdk' r c (fun i => (hlane i).2.1) hqf hT hdk
       (fun i => dsE d hv (128 * p + r) (mt + i) * (hv.q (mt + i) c).toReal)
       (fun i => ds16Err d hv (128 * p + r) (mt + i) * |(hv.q (mt + i) c).toReal|)
-      (fun i => ds16B d hv (128 * p + r) (mt + i) * |(hv.q (mt + i) c).toReal|)
+      (fun i => ds16L d hv (128 * p + r) (mt + i) * lm (hv.q (mt + i) c))
       (fun i => by
         show |(dsT16.get2 r i).toReal * (qT.get2 c i).toReal - _| ≤ _
         rw [hq c i, ← sub_mul, abs_mul]
         exact mul_le_mul_of_nonneg_right (hlane i).2.2.2.2.1 (abs_nonneg _))
       (fun i => by
-        show |(dsT16.get2 r i).toReal * (qT.get2 c i).toReal| ≤ _
-        rw [hq c i, abs_mul]
-        exact mul_le_mul_of_nonneg_right (hlane i).2.2.2.2.2 (abs_nonneg _))
+        show lm (dsT16.get2 r i) * lm (qT.get2 c i) ≤ _
+        rw [hq c i]
+        exact mul_le_mul_of_nonneg_right (lm_le_lift16 (hlane i).2.2.2.2.2) (lm_nn _))
       (by linarith)
     simp only [sum_cover hC]
     exact h
@@ -230,7 +230,7 @@ theorem q_step {P : Platform} (hdot : Rules.Num.DotF16 P) (hexp : Rules.Num.Exp2
       (fun c => (hqd r c).1) (fun c => (hkv c j).1) (fun c hc => ⟨hO.q _ c hmm hc, hO.k _ c hn hc⟩)
     obtain ⟨hdpf, hdp'⟩ := dot_spec hdot hd hdp0 r j (hv.dO (128 * p + r)) (fun c => hv.v (nt + j) c)
       (fun c => (hqd r c).2) (fun c => (hkv c j).2) (fun c hc => ⟨hO.dO _ c hmm hc, hO.v _ c hn hc⟩)
-    rw [sum_mul_comm, sum_abs_mul_comm] at hs hdp'
+    rw [sum_mul_comm, sum_lm_mul_comm] at hs hdp'
     have hx := hxs r j
     rw [(hmD r).1] at hx
     have hy := hys r j
@@ -245,21 +245,21 @@ theorem q_step {P : Platform} (hdot : Rules.Num.DotF16 P) (hexp : Rules.Num.Exp2
   have hkf : ∀ j : Fin BN, (kT.trans.get2 j c).isFinite = true := fun j => by
     show (kT.get2 c j).isFinite = true
     rw [(hkv c j).1]; exact hO.k _ c (by have := j.2; omega) c.2
-  have hcap := sum_bd_le hd hsub (fun n => ds16B d hv n (128 * p + r)) (fun n => hv.k n c)
-    (fun n hn => ds16B_bd hd hO hn hmm) (fun n hn => hO.k n c hn c.2)
+  have hcap := sum_bd_le_lm hd hsub (fun n => ds16L d hv n (128 * p + r)) (fun n => hv.k n c)
+    (fun n hn => ds16L_bd hd hO hn hmm) (fun n hn => hO.k n c hn c.2)
   rw [sum_cover hC] at hcap
   have h := accI_dotAdd hdot hBN hdq' r c (fun j => (hlane j).1) hkf hT hdq
     (fun j => dsE d hv (nt + j) (128 * p + r) * (hv.k (nt + j) c).toReal)
     (fun j => ds16Err d hv (nt + j) (128 * p + r) * |(hv.k (nt + j) c).toReal|)
-    (fun j => ds16B d hv (nt + j) (128 * p + r) * |(hv.k (nt + j) c).toReal|)
+    (fun j => ds16L d hv (nt + j) (128 * p + r) * lm (hv.k (nt + j) c))
     (fun j => by
       show |(ds16.get2 r j).toReal * (kT.get2 c j).toReal - _| ≤ _
       rw [(hkv c j).1, ← sub_mul, abs_mul]
       exact mul_le_mul_of_nonneg_right (hlane j).2.1 (abs_nonneg _))
     (fun j => by
-      show |(ds16.get2 r j).toReal * (kT.get2 c j).toReal| ≤ _
-      rw [(hkv c j).1, abs_mul]
-      exact mul_le_mul_of_nonneg_right (hlane j).2.2 (abs_nonneg _))
+      show lm (ds16.get2 r j) * lm (kT.get2 c j) ≤ _
+      rw [(hkv c j).1]
+      exact mul_le_mul_of_nonneg_right (lm_le_lift16 (hlane j).2.2) (lm_nn _))
     (by linarith)
   simp only [sum_cover hC]
   exact h

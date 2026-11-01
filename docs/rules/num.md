@@ -3,7 +3,8 @@
 Lean: `TVA.Rules.Num` (`lean/TVA/Rules/Num.lean`), the definitions; `TVA.Rules.Num.Sm90`
 (`lean/TVA/Rules/Num/Sm90.lean`), the facts the library states for sm_90 and Triton 3.8.0;
 `TVA.Rules.Num.Dot8Chunk` (`lean/TVA/Rules/Num/Dot8Chunk.lean`), the fp8 `tl.dot` chunk by chunk;
-`TVA.Lemmas.Sm90` and `TVA.Lemmas.Dot8Chunk`, a platform satisfying them all.
+`TVA.Lemmas.Sm90`, `TVA.Lemmas.Dot8Chunk` and `TVA.Lemmas.DotLift`, a platform satisfying them all
+and the lemmas that put the `tl.dot` facts to use.
 
 The Triton documentation does not define these operations exactly:
 - `tl.exp` and the other approximate math functions;
@@ -30,9 +31,9 @@ constants are part of the fact, so the field never restates them:
   dot : Rules.Num.DotF16 P
 ```
 
-A proof may weaken a fact it cites (`MathAcc.mono`, `DotAcc.mono`, `DotScaledAcc.mono`,
-`DotChunkAcc.mono`, `CvtRn.cvtAcc`, `CvtSat.cvtRn`, `DivRn.divAcc`); the field itself is the fact as
-the library states it.
+A proof may weaken a fact it cites (`MathAcc.mono`, `DotAcc.mono`, `DotLiftAcc.mono`,
+`DotScaledAcc.mono`, `DotChunkAcc.mono`, `CvtRn.cvtAcc`, `CvtSat.cvtRn`, `DivRn.divAcc`,
+`DotLift.DotLiftAcc.dotAcc`); the field itself is the fact as the library states it.
 
 The definitions:
 
@@ -49,15 +50,19 @@ The definitions:
 | `CvtRn P f g` | with `.rn`, a finite value in `g`'s range converts to its rounding to nearest even (`FloatV.cvtWith .rn`), up to NaN payload; `CvtRn.cvtAcc` gives `CvtAcc` | fp8 quantisation, bit for bit |
 | `CvtSat P f g` | with `.rn`, every input converts to its saturating rounding to nearest even (`FloatV.cvtSat .rn`), up to NaN payload: in range as `CvtRn` (`CvtSat.cvtRn`), a finite value beyond `g`'s range and `±∞` to `±maxVal`, NaN to a NaN (`FloatV.cvtSat_rn_err`: one rounding of the clamped value; `cvtSat_of_gt`, `cvtSat_of_isInf`) | fp8 quantisation of unbounded values (accumulators) |
 | `AtomicAddAcc P f rel abs` | a float `atomic_add` with an in-range exact sum is finite and within `rel·\|o+v\| + abs` | split-K accumulation |
-| `DotAcc P cfg dom rel abs` | per output `(i, n)`: if row `i` of `a` and column `n` of `b` have values (`DType.val?`: finite floats, integers) in `dom` and the accumulator has one, the result has a value within `rel K·(\|acc\| + Σ\|a·b\|) + abs K` of `acc + Σ a·b`, when that leaves room below the accumulator's `DType.bound` | GEMM accuracy; with `rel = abs = 0`, exact int8 GEMM |
+| `DotAcc P cfg dom rel abs` | per output `(i, n)`: if row `i` of `a` and column `n` of `b` have values (`DType.val?`: finite floats, integers) in `dom` and the accumulator has one, the result has a value within `rel K·(\|acc\| + Σ\|a·b\|) + abs K` of `acc + Σ a·b`, when that leaves room below the accumulator's `DType.bound` | GEMM accuracy (`float32` operands); with `rel = abs = 0`, exact int8 GEMM |
+| `DotLiftAcc P cfg rel abs` | per output `(i, n)`, for every operand value: with `L = \|acc\| + Σ liftMag a·liftMag b` and room (`L + rel K·L + abs K` at most the accumulator's `DType.bound`), the result has a value within `rel K·L + abs K` of `acc + Σ a·b`; `liftMag d q` is `0` for `q = 0` and `max \|q\| (minNormal8 d)` otherwise, a subnormal operand counted at the smallest normal (`2^-14` for `float16` and `float8e5`, `2^-126` for `bfloat16`, `2^-6` for `float8e4nv`) | 16-bit GEMM and attention (`DotF16`, `DotBF16`; one step of a `K` loop: `DotLift.dotAdd_step`); a whole fp8 dot from the chunk facts (`Dot8Chunk.DotF8Chunk.liftAcc`) |
 | `DotChunkAcc P cfg ρ σ α` | per output `(i, n)`, with values and room (`relDot8`, `absDot8` on `\|acc\| + Σ\|a·b\|`): the result has a value, and there are partial values from the accumulator's to the result's, one step per chunk of 32 consecutive `k` in increasing order, each step within `ρ·Mj + σ·\|s j + c_j\| + α` of the previous value plus the chunk's exact sum `c_j`, for every `Mj` bounding the previous value and the chunk's lifted products (`liftMag`) | fp8 GEMM and attention: a bound from the chunks' largest terms (`Dot8Chunk.DotChunkAcc.err`), or on the whole dot from lifted magnitudes (`Dot8Chunk.DotF8Chunk.liftAcc`) |
 | `DotScaledTotal P cfg` | `P.dotScaled cfg` has a result for all operands | `safe_dot_scaled` |
 | `DotScaledAcc P cfg dom sdom rel abs` | per output `(i, n)`: if row `i` of `lhs` and column `n` of `rhs` have finite scaled values in `dom`, scale bits in `sdom`, and the accumulator is finite, the result is finite and within `rel K·(\|acc\| + Σ\|a·b\|) + abs K` of `acc + Σ a·b` | MXFP4/MXFP8 matmuls |
 
 The weakening lemmas (`TVA.Rules.Num`, section `Mono`): `MathAcc.mono` (a smaller domain and a
 pointwise larger bound), `DotAcc.mono` and `DotScaledAcc.mono` (smaller domains, larger
-constants at every `K`), and `DotChunkAcc.mono` (larger constants; `TVA.Rules.Num.Dot8Chunk`). They
-derive weaker statements and state nothing new about the device.
+constants at every `K`), `DotLiftAcc.mono` (larger constants), `DotAcc.liftAcc` (a `DotAcc` fact on
+every value gives `DotLiftAcc` with the same constants, since `|a·b| ≤ liftMag a·liftMag b`), and
+`DotChunkAcc.mono` (larger constants; `TVA.Rules.Num.Dot8Chunk`); and `DotLift.DotLiftAcc.dotAcc`
+(`TVA.Lemmas.DotLift`: on zero and normal values, where `liftMag` is `|q|`, a `DotLiftAcc` fact is
+`DotAcc`). They derive weaker statements and state nothing new about the device.
 
 ## What a kernel reviewer checks
 
@@ -97,7 +102,8 @@ A doubt about the facts themselves is a `LIBRARY_REPORT`.
 ## Facts the library states (sm_90, Triton 3.8.0)
 
 All on an NVIDIA H200 NVL (sm_90), measured with Triton 3.8.0 on 2026-10-28 (the chunk facts
-`DotE4m3Chunk` … on 2026-10-31); each evidence folder has its question, method, script and output.
+`DotE4m3Chunk` … on 2026-10-31, and `DotF16`, `DotBF16` as restated in round 25 on 2026-11-01); each
+evidence folder has its question, method, script and output.
 
 | Fact (`TVA.Rules.Num`) | Operation | Says | What Triton runs | Evidence |
 |---|---|---|---|---|
@@ -112,7 +118,7 @@ All on an NVIDIA H200 NVL (sm_90), measured with Triton 3.8.0 on 2026-10-28 (the
 | `DivRn P .binary64` | `/`, `float64` | IEEE (`FloatV.divRn`), up to NaN payload | `div.rn.f64` | [num-div-f64](../../evidence/num-div-f64/README.md) |
 | `CvtF32E4m3`, `CvtF32E5m2`, `CvtF16E4m3`, `CvtF16E5m2`, `CvtBF16E4m3`, `CvtBF16E5m2` | `.to(fp8)`, `"rtne"` | `CvtRn`: round to nearest even for finite `\|x\| ≤ maxVal` (448, 57344) | `cvt.rn.satfinite.{e4m3,e5m2}x2.{f32,f16x2}`; `bfloat16` widened to `float32` first | [num-cvt8](../../evidence/num-cvt8/README.md) |
 | `CvtSatF32E4m3`, `CvtSatF32E5m2`, `CvtSatF16E4m3`, `CvtSatF16E5m2`, `CvtSatBF16E4m3`, `CvtSatBF16E5m2` | `.to(fp8)`, `"rtne"`, every input | `CvtSat`: `FloatV.cvtSat .rn x` up to NaN payload (beyond `maxVal` and `±∞`: `±maxVal`) | as above (`.satfinite`) | [float-layer](../../evidence/float-layer/README.md) (part A), num-cvt8 |
-| `DotF16`, `DotBF16` | `tl.dot` into `float32` | `DotAcc` for all operand values: `relDot16 K = (K+2)·2^-22`, `absDot16 K = (K+2)·2^-126` | `mma.sync`/`wgmma` with `f32` accumulation | [num-dot](../../evidence/num-dot/README.md) |
+| `DotF16`, `DotBF16` | `tl.dot` of `float16` (`bfloat16`) operands into `float32`, `maxImpreciseAcc = 0`, any `precision` | `DotLiftAcc` for all operand values: `relDot16 K = (K+2)·2^-22`, `absDot16 K = (K+2)·2^-126`, relative to `\|acc\| + Σ liftMag a·liftMag b`, a subnormal operand counted as `2^-14` (`float16`) or `2^-126` (`bfloat16`) | one `mma.sync`/`wgmma` (`k16`) per chunk of 16 in increasing `k`: the accumulator and 16 products aligned to the largest exponent field (a subnormal operand read as the smallest normal), 25 bits kept below it (truncated toward zero), the sum truncated toward zero to `float32` | [num-dot-sub16-round25](../../evidence/num-dot-sub16-round25/README.md), num-dot |
 | `DotE5m2Chunk` | `tl.dot` of `float8e5` by `float8e5` into `float32`, `maxImpreciseAcc = 2^30`, any `precision` | `DotChunkAcc` for all operand values: chunks of 32 consecutive `k` in increasing order, each step within `2^-7·Mj + 2^-12·\|s j + c_j\| + 2^-126`, `Mj` bounding the previous value and the chunk's products with a subnormal operand counted as `2^-14` | one `wgmma` (`k32`) per chunk: the accumulator and 32 products aligned to the largest exponent field, 13 bits kept below it (truncated toward zero), the sum cut to 14 bits; or `mma.sync` after an upcast to `float16`, two per chunk | [num-dot-chunk](../../evidence/num-dot-chunk/README.md) |
 | `DotE4m3Chunk` | `tl.dot` of `float8e4nv` by `float8e4nv`, as `DotE5m2Chunk` | as `DotE5m2Chunk`, a subnormal operand counted as `2^-6` | as `DotE5m2Chunk` | num-dot-chunk |
 | `DotE4m3E5m2Chunk` | `tl.dot` of `float8e4nv` by `float8e5`, as `DotE5m2Chunk` | as `DotE5m2Chunk`, subnormals counted as `2^-6` (`a`) and `2^-14` (`b`) | as `DotE5m2Chunk` | num-dot-chunk |
@@ -177,20 +183,60 @@ library issue L64). No fact is needed for it, and none of these facts may be cit
 
 ## `tl.dot` (the chunk model)
 
-(`DotF16`, `DotBF16`, `DotF32Ieee`; evidence `evidence/num-dot`; the fp8 facts are in the next
-section.) On sm_90 Triton picks `wgmma` when the block has `M ≥ 64` and `num_warps ≥ 4`, and
-`mma.sync` otherwise; each
+(`DotF16`, `DotBF16`, `DotF32Ieee`; evidence `evidence/num-dot`, whose parts "Part 1" … "Part 4"
+below are, and for the 16-bit facts `evidence/num-dot-sub16-round25`, cited by name; the fp8 facts
+are in the next section.) On sm_90 Triton picks
+`wgmma` when the block has `M ≥ 64` and `num_warps ≥ 4`, and `mma.sync` otherwise; each
 instruction adds one chunk of products along `K` (16 for 16-bit operands, 32 for fp8) into the
-accumulator. The evidence measures, for one output element, which bits of the chunk survive
-(Part 1), and then checks the facts on adversarial inputs at every `K` that compiles, on both
-paths (Part 2). The facts hold for every `K`; their constants follow from a per-chunk bound:
-- **16-bit operands.** Each instruction keeps every term's bits down to at least `2^-23` of the
-  largest term of the chunk, the accumulator included, truncating below (Part 1). A chunk with
-  `j` nonzero terms is therefore within `j·2^-23` times their magnitudes' sum, plus a final
-  rounding; over the chunks that is about `(K + ⌈K/16⌉)·2^-23·(|acc| + Σ|a·b|)`, below
-  `relDot16 K = (K+2)·2^-22`. The measured error reaches `0.13` of the bound. The `abs` term covers products below `float32`'s normal range
-  (`bfloat16` has `float32`'s exponent range). `input_precision` makes no difference for these
-  operands (Part 3, bit for bit), so the facts hold for every `precision`.
+accumulator. The evidence measures, for one output element, which bits of the chunk survive, and
+then checks the facts on adversarial inputs at every `K` that compiles, on both paths. The facts
+hold for every `K`; their constants follow from a per-chunk bound:
+- **16-bit operands** (`DotF16`, `DotBF16`, as restated in round 25, library issue L126;
+  [evidence/num-dot-sub16-round25](../../evidence/num-dot-sub16-round25/README.md)).
+  - **What each instruction computes** (that evidence's Part A; in Parts B and D the device equals
+    it on every element tested, on both paths, at every `K` that compiles, chains included). The
+    terms are the accumulator `s` and the 16 exact products of the chunk. Each nonzero term has an
+    exponent field: `e(a) + e(b)` for a product, with `e(x) = max(⌊log₂|x|⌋, emin)` (`emin = −14` for
+    `float16`, `−126` for `bfloat16`: a subnormal operand reads as the smallest normal), and
+    `max(⌊log₂|s|⌋, −126)` for the accumulator. With `E` the largest field and `u = 2^(E−25)`, every
+    term is truncated toward zero to a multiple of `u`, the truncated terms are summed exactly, and
+    the sum is truncated toward zero to `float32` (24 significant bits, and the grid `2^-149` below
+    `2^-126`: subnormal results are kept). The chunks are 16 consecutive `k`, added in increasing
+    order (Part E).
+  - **The constants.** Each of the at most 17 terms loses less than `u`, and no more than its own
+    magnitude; the cut to `float32` loses less than `2^-23·|S'| + 2^-149` of the truncated sum `S'`,
+    and `|S'| ≤ |s| + Σ_chunk |a·b|`. Since `2^e(x) ≤ liftMag x` and the accumulator's field is at
+    most `max(|s|, 2^-126)`, `u ≤ 2^-25·Mj + 2^-151`, with `Mj` the larger of `|s|` and the chunk's
+    largest `liftMag a·liftMag b`, so `Mj ≤ |s| + A_j`, `A_j` the chunk's sum of `liftMag a·liftMag b`.
+    So a chunk's error is below `(17·2^-25 + 2^-23)·(|s| + A_j) + 17·2^-151 + 2^-149`, that is
+    `5.25·2^-23·(|s| + A_j) + 5.25·2^-149`. Truncation toward zero never increases a magnitude, so
+    the accumulator before chunk `j` is at most `|acc| + Σ_{i<j} Σ_chunk |a·b|`, and
+    `|s| + A_j ≤ L = |acc| + Σ liftMag a·liftMag b`. The result's error is the sum of the chunks'
+    errors, below `⌈K/16⌉·(5.25·2^-23·L + 5.25·2^-149)`. As `⌈K/16⌉·5.25 ≤ (K+15)·5.25/16 ≤ 2·(K+2)`
+    for every `K ≥ 1`, that is below `relDot16 K·L + absDot16 K` (a factor `6.9` at `K = 16`, about
+    `6.1` for large `K`). The measured error reaches `0.111` of the bound (the window's worst case
+    with normal operands, `K = 16`), and each chunk of the model's chain is within `0.902` of the
+    per-chunk bound. The `abs` term covers products below `float32`'s normal range (`bfloat16` has
+    `float32`'s exponent range).
+  - **Why the lift.** Until round 25 the facts were `DotAcc` relative to `|acc| + Σ|a·b|`, derived
+    from "every term's bits down to `2^-23` of the largest term" (num-dot Part 1, whose inputs had
+    normal operands only). A product with a subnormal operand has the field of the smallest normal
+    times its partner, so with a large partner it sets the window while far smaller, and the other
+    products lose their bits below `u`. The error then reached `53` times the old bound for
+    `float16` (`a = 2^-23`, `b = 2^14`, 15 products `(2 − 2^-10)·2^-24`) and `13` times for
+    `bfloat16`, on both paths, wherever the product sits
+    ([evidence/num-dot-sub16](../../evidence/num-dot-sub16/README.md), the coordinator's), and
+    `113.7` times in the new evidence (`float16`, `K = 16`); num-dot's Part 2 had no such input.
+    Relative to lifted magnitudes the same inputs are at `0.104` of the bound. For zero and normal
+    operands `L = |acc| + Σ|a·b|`, the old bound (`DotLift.DotLiftAcc.dotAcc`).
+  - **Using them.** A kernel with `acc = tl.dot(a, b, acc)` per `K` step (tutorial 03) takes each
+    step from `DotLift.dotAdd_step`, as it took it from `DotLoop.dotAdd_step`, with
+    `Σ liftMag a·liftMag b` in place of `Σ|a·b|`; `DotLift.sum_liftMag_mul_le` bounds that by
+    `Σ|a·b| + m·Σ|a| + m·Σ|b| + K·m²` (`m = minNormal8`, `2^-14` for `float16`). Subnormal operands
+    stay covered: tutorial 06's `p.to(float16)` makes them, and its inputs, `randn` cast to
+    `float16`, contain them.
+  - `input_precision` makes no difference for these operands (num-dot Part 3, and the new
+    evidence's Part G1 on subnormal operands, bit for bit), so the facts hold for every `precision`.
 - **fp8 operands, `maxImpreciseAcc = 2^30`.** Triton's default on sm_90 accumulates the whole
   `K` in the tensor core's reduced-precision accumulator. On `wgmma` each instruction keeps only
   `13` bits below the largest term, the accumulator included (Part 1: `acc = 1 + 2^-23` comes
@@ -262,7 +308,8 @@ by slack in the fact. `Dot8Chunk.chain_err` composes any chain of such steps.
 
 **A bound on the whole dot** (library issue L125), where the withdrawn facts gave one:
 `Dot8Chunk.DotF8Chunk.liftAcc`, a theorem of the chunk facts (no device fact of its own), gives
-`Dot8Chunk.LiftAcc`: per output element, with room on `L = |vc| + Σ liftMag a_k · liftMag b_k`
+`DotLiftAcc` (round 24's `Dot8Chunk.LiftAcc`, the same statement, moved to `TVA.Rules.Num` in round
+25 for the 16-bit facts): per output element, with room on `L = |vc| + Σ liftMag a_k · liftMag b_k`
 (`L + relLift8 K·L + absLift8 K` at most the `float32` maximum), the result has a value within
 `relLift8 K·L + absLift8 K` of `vc + Σ va·vb`, with `relLift8 K = (1 + 2^-7 + 2^-12)^⌈K/32⌉ − 1` and
 `absLift8 K = ⌈K/32⌉·(1 + 2^-7 + 2^-12)^⌈K/32⌉·2^-126`. Each chunk is taken with
@@ -286,9 +333,11 @@ step (tutorial 03) composes these per-step bounds as it would `DotAcc`'s.
 - **`mma.sync`** (smaller blocks): Triton converts each fp8 operand to `float16` (exact) and runs two
   `mma.sync…m16n8k16.f32.f16.f16.f32` per chunk of 32; the two instructions' `k` interleave within
   the chunk (Part E, chunks of 16), and the chunks of 32 go in increasing order. Each instruction
-  keeps every term's bits down to at least `2^-23` of its largest term and rounds into `float32`
-  ([evidence/num-dot](../../evidence/num-dot/README.md) Part 1; Part A2), and an accumulator passes
-  unchanged, subnormals included (Part A2).
+  is a `float16` one ("`tl.dot` (the chunk model)", above): it keeps every term's bits down to
+  `2^-25` of its largest exponent field, a subnormal `float16` operand (a subnormal `float8e5`
+  value) read as `2^-14`, and truncates the sum toward zero into `float32`
+  ([evidence/num-dot-sub16-round25](../../evidence/num-dot-sub16-round25/README.md) Parts A and G2);
+  an accumulator passes unchanged, subnormals included (Part A2).
 
 **The constants.** On `wgmma` each term loses less than `u`, and no more than its own magnitude,
 so the truncated sum is within `33u` of `s j + c_j`; the cut to 14 bits loses less than `2^-13` of
@@ -298,9 +347,13 @@ subnormal accumulator sets `E`). So a chunk's error is below
 `33·(1 + 2^-13)·2^-13·Mj + 2^-13·|s j + c_j| + 34·2^-139`. The facts keep `2^-7 = 64·2^-13` (a factor
 `1.94` over `33·(1 + 2^-13)·2^-13`), `2^-12`
 (a factor 2) and `2^-126`. On `mma.sync` a chunk of two instructions is within about
-`360·2^-23·Mj ≈ 2^-14.5·Mj` (each within `17·2^-23` of its largest term plus `2^-23` of its result,
-the second's accumulator below `17·Mj`), and no absolute term arises (products of fp8 values are at
-least `2^-32`, and accumulators pass unchanged). The evidence (Part C) checks every element against the
+`360·2^-23·Mj ≈ 2^-14.5·Mj` (each within `17·2^-23` of its largest lifted term plus `2^-23` of its
+result, the second's accumulator below `17·Mj`: a `float16` operand's field is at most its fp8
+`liftMag`, the same `2^-14` for a subnormal `float8e5` value, and every `float8e4nv` value is a normal
+`float16`), and no absolute term arises (products of fp8 values are at least `2^-32`, and
+accumulators pass unchanged). A subnormal `float8e5` operand with a large partner makes `float16`
+products lose bits on `mma.sync` too, far inside the facts (evidence/num-dot-sub16-round25 Part G2,
+below `10^-4` of the bound). The evidence (Part C) checks every element against the
 interval the facts imply for it (the per-chunk bound composed over the chunks with the exact partial
 sums and the worst case of the unknown partial values): none is outside, and the largest error is
 `0.468` of the bound's half-width on `wgmma` (`float8e4nv`, a subnormal operand setting the window,
@@ -322,7 +375,11 @@ multiplied in with `mul.bf16`, and the products go to a `bfloat16` `tl.dot` into
 facts therefore have `DotBF16`'s constants, on the domain where the multiplication by the scale
 is exact: each scaled value `0` or a normal `bfloat16` magnitude (`scaledDomBF16`), each scale's
 bits in `1 … 254` (`e8m0Dom`). The emulation reads the scale `0x00` as `0` (not `2^-127`) and
-`0xFF` as NaN, so both are outside `e8m0Dom`. The evidence checks both `fast_math` values.
+`0xFF` as NaN, so both are outside `e8m0Dom`. The evidence checks both `fast_math` values. On
+`scaledDomBF16` no operand of the emulated `bfloat16` dot is subnormal (a subnormal `e4m3` element,
+`2^-9`, is a normal `bfloat16` value), so its lifted magnitudes are `|a·b|`, and `DotBF16`'s bound,
+relative to lifted magnitudes since round 25, is the bound these facts state relative to
+`|acc| + Σ|a·b|` (library issue L126; evidence/num-dot-sub16-round25 Part G3).
 
 ## Float `atomic_add`
 
@@ -402,7 +459,10 @@ them. A fact for an operation must take into account:
   - the alignment: on sm_90's fp8 `wgmma` the window is set by exponent fields, so a subnormal
     operand counts as the smallest normal ([evidence/num-dot-chunk](../../evidence/num-dot-chunk/README.md)
     Part A), and a bound relative to `|a·b|` must cover that (the withdrawn `DotE4m3`, … did not,
-    Part F; library issue L125).
+    Part F; library issue L125). The same holds for `float16` and `bfloat16` operands on both paths
+    ([evidence/num-dot-sub16-round25](../../evidence/num-dot-sub16-round25/README.md) Part A):
+    `DotF16` and `DotBF16` did not cover it until round 25 (library issue L126), and are now relative
+    to lifted magnitudes (`DotLiftAcc`).
 
   The evidence is a test at every `K` that compiles together with a per-chunk derivation that
   extends it to every `K` ("`tl.dot`", above).
@@ -416,7 +476,8 @@ and every fact of the library must be satisfiable together with the others.
 one rounding's bound (`u·|y| + η`) as every function's bound and `exp(-∞) = exp2(-∞) = +0` in `float32`; its
 conversions to nearest saturate, as sm_90's into fp8 do. Every fact of `TVA.Rules.Num.Sm90` holds
 of it (`Platform.sm90ref.expF32`, `.exp2F32`, …, `.cvtF32E4m3`, …, `.cvtSatF32E4m3`, …,
-`.dotF16`, …, `.dotScaledE4m3`, `.atomicAddF32`), and so do `DivFull`, `DivRn` and every
+`.dotF16`, `.dotBF16` (one rounding of the exact result, `DotAcc.liftAcc`), …, `.dotScaledE4m3`,
+`.atomicAddF32`), and so do `DivFull`, `DivRn` and every
 `…Total` rule, and the chunk facts of `TVA.Rules.Num.Dot8Chunk` (`Platform.sm90ref.dotE4m3Chunk`,
 …, `.dotE5m2E4m3Chunk`, in `lean/TVA/Lemmas/Dot8Chunk.lean`). A bundle that cites any of these facts
 proves `Claim.Consistent` with this one platform.
@@ -443,6 +504,8 @@ together, with `u = 2^-(m+1)` and `η = 2^(emin−m−1)` of the format:
   - with integer operands and a signed accumulator, for any `rel`, `abs ≥ 0` (`dotAcc_int`).
     Triton 3.8.0's only integer `tl.dot` is `int8 × int8 → int32` (`semantic.py:1483-1486`), so
     no other integer case arises;
+- `DotLiftAcc` with a float accumulator, for `rel K ≥ u` and `abs K ≥ η` when `K > 0`
+  (`Platform.ref.dotLiftAcc`, in `TVA.Lemmas.DotLift`: `dotAcc` and `DotAcc.liftAcc`);
 - `DotScaledAcc` for `rel K ≥ u` and `abs K ≥ η` of `float32` when `K > 0` (`dotScaledAcc`);
 - `DotChunkAcc` with a float accumulator, for `σ ≥ u`, `α ≥ η` and any `ρ ≥ 0`
   (`Platform.ref.dotChunkAcc`, in `TVA.Lemmas.Dot8Chunk`: the partial values are the exact partial

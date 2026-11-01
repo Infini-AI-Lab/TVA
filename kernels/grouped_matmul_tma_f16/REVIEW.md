@@ -6,21 +6,21 @@ Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16). The c
 
 ## Status
 
-- Gate: **PASS**, digest `f0e0fd43db6ed2b8` (2026-11-01T02:15:06Z).
-- Phase: round 2: waiting for the prover (2 open finding(s)).
+- Gate: **PASS**, digest `902c06ecf3fe60ae` (2026-11-01T05:57:33Z).
+- Phase: round 3: all reviewers have filed.
 - Reviewers: r-gmm (all), r-gmm2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-gmm | r-gmm2 |
 |---|---|---|---|
-| `assumption:dot` | `7859c7daeb4d` | accepted | accepted |
-| `assumption:dot_total` | `8d99f1f1b1f5` | accepted | accepted |
+| `assumption:dot` | `e8417367c639` | accepted | accepted |
+| `assumption:dot_total` | `318edc5a5885` | accepted | accepted |
 | `assumption:faithful` | `ba5a46235b62` | accepted | accepted |
 | `conditions` | `3fa9d4d3c595` | accepted | accepted |
 | `map` | `d7be69bb0653` | accepted | accepted |
 | `model` | `f819312143dc` | accepted | accepted |
-| `spec` | `93ba5773fd68` | accepted | accepted |
+| `spec` | `9b8a53f99501` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -28,8 +28,8 @@ Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16). The c
 | [F2](#f2) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.tl.make_tensor_descriptor` | r-gmm2 | 1 | Does the evidence behind in-kernel descriptors cover descriptors rebuilt inside a runtime loop, rewriting a program's sc |
 | [F3](#f3) | CLOSED (non-blocking) | DOC | `doc:kernels/grouped_matmul_tma_f16/README.md` | r-gmm | 1 | The bfloat16 margin leaves out Post's last float16 rounding: the whole bound on c is 0.253% at K = 2^13, and it reaches  |
 | [F4](#f4) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | r-gmm | 1 | Scope 5 (descriptor scratch) says nothing of the scratch's alignment, though the launcher passes the allocator an alignm |
-| [F5](#f5) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-gmm | 2 | Does DotF16 survive L125's mechanism? A subnormal float16 operand may set the wgmma window as a subnormal fp8 one does,  |
-| [F6](#f6) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-gmm2 | 2 | L125's mechanism (a subnormal operand's exponent field read as the smallest normal's sets the window) is untested for fl |
+| [F5](#f5) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-gmm | 2 | Does DotF16 survive L125's mechanism? A subnormal float16 operand may set the wgmma window as a subnormal fp8 one does,  |
+| [F6](#f6) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-gmm2 | 2 | L125's mechanism (a subnormal operand's exponent field read as the smallest normal's sets the window) is untested for fl |
 
 **Certificate: GRANTED**
 
@@ -41,7 +41,7 @@ Kernel review trusts the library; these are tracked in [docs/library-review/ISSU
 |---|---|---|---|
 | [L120](../../docs/library-review/ISSUES.md#l120) | OPEN | grouped_matmul_tma_f16#F2 (r-gmm2) | gap: nothing states that a descriptor the kernel builds again in a loop is rewritten only after the accesses through its old contents (a TMA store may still be in flight) |
 | [L121](../../docs/library-review/ISSUES.md#l121) | OPEN | grouped_matmul_tma_f16#F4 (r-gmm) | gap: scope 5 does not ask the allocator to return the `alignment` the launcher asks for the descriptor scratch |
-| [L126](../../docs/library-review/ISSUES.md#l126) | OPEN | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
+| [L126](../../docs/library-review/ISSUES.md#l126) | FIXED | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
 
 ## Round 1
 
@@ -141,4 +141,29 @@ Round 24 withdrew the fp8 dot facts because on wgmma a product with a subnormal 
 
 - **accepted** at gate `f0e0fd43db6ed2b8`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 - `2026-11-01T02:24:51Z` coordinator's note: Library issue L126 (docs/library-review/ISSUES.md; evidence/num-dot-sub16), open: DotF16, which this claim cites, fails on the device when a product with a subnormal float16 operand and a large partner sets the tl.dot window (up to 53 times its bound on wgmma and mma.sync). The certificate rests on DotF16 as stated; the fix (a library round, then a re-proof of this kernel) is not yet scheduled.
+
+### The prover responds ([response](review/round-2/prover/response.json), [notes](review/round-2/prover/notes.md))
+
+`2026-11-01T05:58:13Z`, at gate `902c06ecf3fe60ae`.
+
+- **F5 REFERRED**: Right, and fixed in the library: L126 (round 25) restated DotF16 as DotLiftAcc, bounding the error by relDot16 K*L + absDot16 K with L = |acc| + sum liftMag a*liftMag b (a subnormal float16 operand counted at 2^-14). I re-proved the claim on it: OutSpec's tolerance is now tol (K g) (dotLift ...), the sum of the products' lifted magnitudes (it was dotAbs, the plain magnitudes), equal to the old one when no operand is subnormal; acc_step uses DotLift.dotAdd_step and partA sums the lifted products (liftV). Subnormal inputs stay covered (Pre allows every float16 value). The figures for normal operands (0.204% and 0.253% at K = 2^13, the bfloat16 thresholds) are unchanged; README has a section 'What changed (library round 25)'.
+- **F6 REFERRED**: The same gap as F5, fixed by L126 in library round 25 (evidence/num-dot-sub16, num-dot-sub16-round25): DotF16 is now DotLiftAcc, relative to |acc| + sum liftMag a*liftMag b. The claim is re-proved on it: OutSpec's tolerance takes dotLift (lifted magnitudes) in place of dotAbs, acc_step goes through DotLift.dotAdd_step, and nothing else in the model, conditions, assumptions or map changed; subnormal operands stay covered.
+
+## Round 3
+
+- `2026-11-01T05:58:37Z` coordinator's note: Library round 25 (L126) restated DotF16 as DotLiftAcc (lifted magnitudes; relDot16, absDot16 unchanged); the prover re-proved the claim on it, gate 902c06ecf3fe60ae, with the tolerance's magnitude counting a subnormal float16 operand at 2^-14.
+
+### r-gmm files ([filing](review/round-3/r-gmm/filing.json), [report](review/round-3/r-gmm/report.md), [work](review/round-3/r-gmm/work/))
+
+`2026-11-01T06:00:49Z`, at gate `902c06ecf3fe60ae`. Notes: Round 3 at gate 902c06ecf3fe60ae. work/lift.lean prints the claim with full names. The dot field is still Rules.Num.DotF16 P, now DotLiftAcc P ⟨f16, f16, f32, p, 0⟩ relDot16 absDot16, as num.md lists it for an fp16 tl.dot into float32. dotLift sums TVA.Rules.Num.liftMag .f16 of both operands, the magnitude that fact measures by. On zero and normal float16 values liftMag is |q| (checked in Lean), so the tolerance and the README's figures for normal operands (0.204% and 0.253% at K = 2^13, thresholds 13633 and 15617, my round-1 work/tol.py) are unchanged. For a subnormal operand the extra tolerance is at most 2^10 times the product's magnitude, as the device's error allows. DotTotal, DotAcc and the model, conditions, map and faithful items are unchanged. The axioms are propext, Classical.choice and Quot.sound.
+
+- **released F5**: L126 (FIXED, round 25) records my report and restates DotF16 as DotLiftAcc, relative to |acc| + Σ liftMag a·liftMag b with a subnormal float16 operand counted at 2^-14, with evidence. The kernel cites the restated fact and is re-proved on it, with its tolerance over the lifted magnitudes (dotLift), so the report is settled.
+- **accepted** at gate `902c06ecf3fe60ae`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-gmm2 files ([filing](review/round-3/r-gmm2/filing.json), [report](review/round-3/r-gmm2/report.md), [work](review/round-3/r-gmm2/work/))
+
+`2026-11-01T06:01:21Z`, at gate `902c06ecf3fe60ae`. Notes: Round 3 at gate 902c06ecf3fe60ae. work/Lift.lean prints the restated DotF16 (for all p, DotLiftAcc P <f16, f16, f32, p, 0> relDot16 absDot16), liftMag, minNormal8 (2^-14 for f16), dotLift and OutSpec with full names, and evaluates liftMag .f16 on 0, 3/4, -2^-14, 2^-24 and 1023*2^-24 (0, 3/4, 2^-14, 2^-14, 2^-14); the axioms are propext, Classical.choice, Quot.sound. DotLoop.stepRel, stepAbs and bound are unchanged, so rho, alpha, tol and every figure for normal operands are as before. On inputs made of subnormal-times-large products, the tolerance can exceed |S|: with all a = 2^-24, b = 65504 at K = 2^13, S = 31.98 and tol = 66.8. That is the shape of the library's fact, which the README states (a subnormal product counts up to 2^10 times its magnitude). Post still rejects a kernel that flushes subnormal inputs (a = 1023*2^-24, b = 1: S = 0.4995, bound 0.00126), and the host's torch.rand inputs add less than 2^-14 to A per subnormal operand.
+
+- **released F6**: Library issue L126 records the gap as I raised it: a product with a subnormal float16 operand and a large partner sets the window, and num-dot Part 2 had no such input. Round 25 fixed it: DotF16 is now DotLiftAcc with relDot16 and absDot16, relative to |acc| + sum liftMag a * liftMag b, with evidence num-dot-sub16-round25. The prover re-proved the claim on it, and subnormal operands stay covered.
+- **accepted** at gate `902c06ecf3fe60ae`: `assumption:dot`, `assumption:dot_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

@@ -45,3 +45,4 @@ import TVA.Lemmas.Sm90
 import TVA.Lemmas.SumFused
 import TVA.Lemmas.SharedAcc
 import TVA.Lemmas.Dot8Chunk
+import TVA.Lemmas.DotLift

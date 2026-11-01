@@ -75,7 +75,8 @@ def Q (d : Inst) (init : Mem) (p : Nat) (m : Mem) : Prop :=
     OutSpec d init m (pm d p * 128 + i) (pn d p * 256 + j)
 
 /-- The accumulator after `t` trips: each element of the tile whose row of `a` and column of `b`
-are finite is finite and within `DotLoop.bound` of the exact partial sum. -/
+are finite is finite and within `DotLoop.bound` of the exact partial sum `partS`, relative to the
+partial sum `partA` of the products' lifted magnitudes. -/
 def AccInv (d : Inst) (init : Mem) (p t : Nat) (acc : Tensor [128, 256] F32) : Prop :=
   ∀ (i : Fin 128) (j : Fin 256), pm d p * 128 + i < d.M → pn d p * 256 + j < d.N →
     ∀ va vb : Nat → F16,

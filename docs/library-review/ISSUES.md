@@ -7,7 +7,7 @@ The process is in [../LIBRARY_REVIEW.md](../LIBRARY_REVIEW.md); kernel findings 
 
 States: `OPEN` (to be fixed in the round named), `ACCEPTED` (fixed, and accepted by library
 review), `FIXED` (fixed in a round that no library review followed, by the user's decision under
-L36: rounds 21 to 24), `CLOSED` (settled by the coordinator, as its section says).
+L36: rounds 21 to 25), `CLOSED` (settled by the coordinator, as its section says).
 
 The kernels of the first round (vec-add, grouped GEMM, flash attention) were cleared on
 2026-10-27 at the user's request, to restart from scratch. The issues they raised stand on their
@@ -140,7 +140,7 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L123](#l123) | OPEN | — | attn_fwd_f16#F5 (r-fwd2) | wording: the fusion rule does not say whether a `tl.maximum` or `tl.where` result that carries a product's value is a product |
 | [L124](#l124) | FIXED | 24 | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\|acc\|` too, so an accumulator fed back once per block compounds as `(1 + relDot8 64)^T` |
 | [L125](#l125) | FIXED | 24 | library author, round 24 (evidence/num-dot-chunk Part F) | soundness: `DotE4m3`, `DotE5m2`, `DotE4m3E5m2`, `DotE5m2E4m3` fail on `wgmma` when a product with a subnormal operand sets the window (up to 3.65 times `relDot8`'s bound); `matmul_e5m2` and `attn_fwd_e5m2` cite `DotE5m2` |
-| [L126](#l126) | OPEN | 25 | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
+| [L126](#l126) | FIXED | 25 | grouped_matmul_tma_f16#F5, #F6; attn_fwd_f16#F6; attn_bwd_f16#F5, #F6; matmul_f16 (r-matmul2) | soundness: `DotF16` and `DotBF16` fail when a product with a subnormal operand sets the window (up to 53 and 13 times their bound); `matmul_f16`, `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` cite `DotF16` |
 
 ## L1
 
@@ -2532,3 +2532,14 @@ wrong to call the issue closed on it.
   smallest normal (`liftMag`) in the facts' magnitudes, or state the 16-bit dot chunk by chunk as
   L124 does, with evidence for the window's width (25 bits below the field, by `probe.py`'s losses).
   Then re-prove and re-review the four kernels.
+- **Fixed in round 25** (no library review follows, as for rounds 21 to 24): `DotF16` and `DotBF16`
+  keep their names and `relDot16`, `absDot16`, and are now `DotLiftAcc` (`lean/TVA/Rules/Num.lean`):
+  `DotAcc`'s bound with `|acc| + Σ liftMag a·liftMag b` in place of `|acc| + Σ|a·b|`, a subnormal
+  operand counted at the smallest normal (`minNormal8` now also gives `2^-14` for `float16` and
+  `2^-126` for `bfloat16`; `liftMag` and `minNormal8` move to `Rules/Num.lean` under the same names;
+  round 24's `Dot8Chunk.LiftAcc` becomes `DotLiftAcc`). Evidence: `evidence/num-dot-sub16-round25`, a
+  bit-exact model of the 16-bit tensor-core dot (25 bits below the largest exponent field, the
+  accumulator aligned to it, terms and sum truncated toward zero, a subnormal read as the smallest
+  normal) equal to the device on about `3.4·10^8` results; largest ratio to the new bound `0.111`;
+  the old bound fails up to `113.7` (`float16`) and `14.2` (`bfloat16`) times. `matmul_f16`,
+  `attn_fwd_f16`, `attn_bwd_f16` and `grouped_matmul_tma_f16` no longer build until re-proved.

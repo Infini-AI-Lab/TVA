@@ -50,6 +50,10 @@ fact for the operation its model uses.
   have values (`DType.val?`) in `dom` is within `rel K · (|acc| + Σ |a·b|) + abs K` of
   `acc + Σ a·b`, with room below the accumulator's `DType.bound`. With an integer accumulator
   and `rel = abs = 0`, an exact sum in range is the result.
+* `DotLiftAcc cfg rel abs`: the same for every operand value, relative to
+  `|acc| + Σ liftMag a · liftMag b` (library issue L126): `liftMag d q` counts a nonzero operand
+  below the smallest normal magnitude `minNormal8 d` at that magnitude, as the tensor core aligns
+  it (a subnormal `float16`, `bfloat16` or fp8 operand reads as the smallest normal).
 * `DotScaledTotal cfg`, `DotScaledAcc cfg dom sdom rel abs`: `tl.dot_scaled` has a result; an
   output element whose row of `lhs` and column of `rhs` have scaled values in `dom` and scale
   bits in `sdom` is within `rel K · (|acc| + Σ |a·b|) + abs K` of `acc + Σ a·b`.
@@ -57,9 +61,10 @@ fact for the operation its model uses.
   within `rel · |o + v| + abs`. On NVIDIA, `atom.add.f32` flushes subnormal inputs and results.
   Two operands just below the smallest normal then sum to almost `2 · 2^emin` and give `0`, so
   `abs` must be at least `2^(emin + 1)` (`2^-125` for fp32).
-* `MathAcc.mono`, `DotAcc.mono`, `DotScaledAcc.mono`: a fact implies the same statement with
-  larger constants or a smaller domain; `CvtRn.cvtAcc`, `CvtSat.cvtRn`, `DivRn.divAcc`: a fact
-  implies a weaker shape. They state nothing new about the device.
+* `MathAcc.mono`, `DotAcc.mono`, `DotLiftAcc.mono`, `DotScaledAcc.mono`: a fact implies the same
+  statement with larger constants or a smaller domain; `CvtRn.cvtAcc`, `CvtSat.cvtRn`,
+  `DivRn.divAcc`, `DotAcc.liftAcc`: a fact implies a weaker shape. They state nothing new about the
+  device.
 -/
 namespace TVA.Rules.Num
 
@@ -239,6 +244,44 @@ def DotAcc (cfg : DotCfg) (dom : ℚ → Prop) (rel abs : ℕ → ℚ) : Prop :=
       ∃ vr, cfg.acc.val? (r.get2 i n) = some vr ∧
         |vr - (vc + ∑ k, va k * vb k)| ≤ rel K * (|vc| + ∑ k, |va k * vb k|) + abs K
 
+/-- The smallest normal magnitude of a dtype whose subnormal values the tensor core reads at it:
+`2^-14` for `float8e5` and `float16`, `2^-6` for `float8e4nv`, `2^-126` for `bfloat16`; `0` for the
+other dtypes (no lift). The name is from round 24, when only the fp8 facts used it; round 25 added
+`float16` and `bfloat16` (library issue L126). -/
+def minNormal8 : DType → ℚ
+  | .f8e5 => 2 ^ (-14 : ℤ)
+  | .f8e4nv => 2 ^ (-6 : ℤ)
+  | .f16 => 2 ^ (-14 : ℤ)
+  | .bf16 => 2 ^ (-126 : ℤ)
+  | _ => 0
+
+/-- The magnitude the tensor core aligns an operand value `q` of dtype `d` by: `0` for `0`, and
+otherwise `|q|`, or the smallest normal magnitude when `|q|` is below it (a subnormal `float16`,
+`bfloat16` or fp8 value). For normal values and zero it is `|q|`. -/
+def liftMag (d : DType) (q : ℚ) : ℚ := if q = 0 then 0 else max |q| (minNormal8 d)
+
+/-- **Accuracy of `tl.dot` relative to lifted magnitudes**, per output element `(i, n)`. Suppose
+row `i` of `a` and column `n` of `b` have values `va`, `vb` (`DType.val?`: any finite floats), and
+the accumulator element has value `vc`. Let `L = |vc| + Σₖ liftMag cfg.a (va k) · liftMag cfg.b (vb k)`.
+Then, provided `L + rel K · L + abs K` is at most the accumulator's `DType.bound`, the result
+element has a value within `rel K · L + abs K` of `vc + Σₖ va·vb`. It is `DotAcc` on every value
+with `L` in place of `|vc| + Σₖ |va·vb|`: the tensor core aligns a chunk's terms to the largest
+exponent field, and an operand below the smallest normal reads as `minNormal8`, so a product with a
+subnormal operand can set the window while far smaller (library issue L126). For zero and normal
+operands `L` is `|vc| + Σₖ |va·vb|`. -/
+def DotLiftAcc (cfg : DotCfg) (rel abs : ℕ → ℚ) : Prop :=
+  ∀ ⦃M N K : Nat⦄ (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
+    (acc r : Tensor [M, N] cfg.acc.Val), P.dot cfg a b acc r →
+    ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+      (∀ k, cfg.a.val? (a.get2 i k) = some (va k)) → (∀ k, cfg.b.val? (b.get2 k n) = some (vb k)) →
+      cfg.acc.val? (acc.get2 i n) = some vc →
+      |vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k) +
+          (rel K * (|vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k)) + abs K) ≤
+        cfg.acc.bound →
+      ∃ vr, cfg.acc.val? (r.get2 i n) = some vr ∧
+        |vr - (vc + ∑ k, va k * vb k)| ≤
+          rel K * (|vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k)) + abs K
+
 /-- **A conversion rounds to nearest even in range.** A finite value within `g`'s range
 converts, with the default `.rn`, to its rounding to nearest even (`FloatV.cvtWith .rn`, up to
 NaN payload). It says nothing about inputs beyond `g.maxVal` (Triton's fp8 conversions saturate
@@ -287,6 +330,49 @@ theorem DotAcc.mono {cfg : DotCfg} {dom dom' : ℚ → Prop} {rel abs rel' abs' 
   obtain ⟨vr, hvr, herr⟩ := h a b acc r hr i n va vb vc hva hvb
     (fun k => ⟨hdom _ (hd k).1, hdom _ (hd k).2⟩) hvc (by linarith [habs K])
   exact ⟨vr, hvr, by linarith [habs K]⟩
+
+private theorem liftMag_nonneg' (d : DType) (q : ℚ) : 0 ≤ liftMag d q := by
+  unfold liftMag
+  split_ifs
+  · exact le_rfl
+  · exact (abs_nonneg q).trans (le_max_left _ _)
+
+private theorem abs_mul_le_liftMag' (da db : DType) (x y : ℚ) :
+    |x * y| ≤ liftMag da x * liftMag db y := by
+  have hx : |x| ≤ liftMag da x := by
+    unfold liftMag; split_ifs with h
+    · rw [h, abs_zero]
+    · exact le_max_left _ _
+  have hy : |y| ≤ liftMag db y := by
+    unfold liftMag; split_ifs with h
+    · rw [h, abs_zero]
+    · exact le_max_left _ _
+  rw [abs_mul]
+  exact mul_le_mul hx hy (abs_nonneg y) (liftMag_nonneg' da x)
+
+/-- `DotLiftAcc` with constants at least as large. -/
+theorem DotLiftAcc.mono {cfg : DotCfg} {rel abs rel' abs' : ℕ → ℚ} (h : DotLiftAcc P cfg rel abs)
+    (hrel : ∀ K, rel K ≤ rel' K) (habs : ∀ K, abs K ≤ abs' K) : DotLiftAcc P cfg rel' abs' := by
+  intro M N K a b acc r hr i n va vb vc hva hvb hvc hroom
+  have hL : 0 ≤ |vc| + ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k) :=
+    add_nonneg (abs_nonneg _) (Finset.sum_nonneg fun _ _ =>
+      mul_nonneg (liftMag_nonneg' _ _) (liftMag_nonneg' _ _))
+  have hm := mul_le_mul_of_nonneg_right (hrel K) hL
+  obtain ⟨vr, hvr, herr⟩ := h a b acc r hr i n va vb vc hva hvb hvc (by linarith [habs K])
+  exact ⟨vr, hvr, by linarith [habs K]⟩
+
+/-- A `DotAcc` fact on every value gives `DotLiftAcc` with the same constants, since
+`|va·vb| ≤ liftMag va · liftMag vb`: the lifted room implies `DotAcc`'s, and `DotAcc`'s bound is
+within the lifted one. -/
+theorem DotAcc.liftAcc {cfg : DotCfg} {rel abs : ℕ → ℚ} (h : DotAcc P cfg (fun _ => True) rel abs)
+    (hrel : ∀ K, 0 ≤ rel K) : DotLiftAcc P cfg rel abs := by
+  intro M N K a b acc r hr i n va vb vc hva hvb hvc hroom
+  have hle : ∑ k, |va k * vb k| ≤ ∑ k, liftMag cfg.a (va k) * liftMag cfg.b (vb k) :=
+    Finset.sum_le_sum fun k _ => abs_mul_le_liftMag' _ _ _ _
+  have hm := mul_le_mul_of_nonneg_left (add_le_add_left hle |vc|) (hrel K)
+  obtain ⟨vr, hvr, herr⟩ := h a b acc r hr i n va vb vc hva hvb (fun _ => ⟨trivial, trivial⟩) hvc
+    (by linarith)
+  exact ⟨vr, hvr, by linarith⟩
 
 /-- `DotScaledAcc` on smaller domains with constants at least as large. -/
 theorem DotScaledAcc.mono {cfg : ScaledCfg} {dom dom' : ℚ → Prop} {sdom sdom' : Nat → Prop}

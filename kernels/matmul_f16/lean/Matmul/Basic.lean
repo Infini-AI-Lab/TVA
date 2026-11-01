@@ -6,7 +6,8 @@ import Matmul.Arith
 
 * `int32` arithmetic on small values (`i32_add`, `i32_sub`, `i32_mul`, `i32_lt`, `i32_le`);
 * the zero `other=0.0` converted to `float16` (`zero_conv`);
-* the accumulation of one `tl.dot` step (`acc_step`), from `Rules.Num.DotF16`;
+* the lifted magnitudes `mag16` (`Rules.Num.liftMag .f16`) and the accumulation of one `tl.dot`
+  step (`acc_step`), from `Rules.Num.DotF16`;
 * the last rounding to `float16` (`out_f16`).
 -/
 
@@ -115,8 +116,22 @@ def prodV (va vb : Nat → F16) (K e : Nat) : ℚ := if e < K then (va e).toRat 
 /-- The exact partial sum after `t` steps: the products `e < 64·t`. -/
 def partS (va vb : Nat → F16) (K t : Nat) : ℚ := ∑ e ∈ Finset.range (64 * t), prodV va vb K e
 
-/-- The partial sum of the magnitudes. -/
-def partA (va vb : Nat → F16) (K t : Nat) : ℚ := ∑ e ∈ Finset.range (64 * t), |prodV va vb K e|
+/-- The lifted magnitude of product `e` (`mag16` of each operand), `0` from `K` on. -/
+def liftV (va vb : Nat → F16) (K e : Nat) : ℚ :=
+  if e < K then mag16 (va e).toRat * mag16 (vb e).toRat else 0
+
+/-- The partial sum of the lifted magnitudes. -/
+def partA (va vb : Nat → F16) (K t : Nat) : ℚ := ∑ e ∈ Finset.range (64 * t), liftV va vb K e
+
+/-- `mag16` is the library's `liftMag .f16` (by definition). -/
+theorem liftMag_f16 (q : ℚ) : Rules.Num.liftMag .f16 q = mag16 q := rfl
+
+theorem mag16_nonneg (q : ℚ) : 0 ≤ mag16 q := Dot8Chunk.liftMag_nonneg .f16 q
+
+theorem mag16_zero : mag16 0 = 0 := Dot8Chunk.liftMag_zero .f16
+
+theorem abs_mul_le_mag16 (x y : ℚ) : |x * y| ≤ mag16 x * mag16 y :=
+  Dot8Chunk.abs_mul_le_liftMag .f16 .f16 x y
 
 theorem relDot16_64 : Rules.Num.relDot16 64 = 66 / 2 ^ 22 := by
   unfold Rules.Num.relDot16; norm_num
@@ -128,23 +143,40 @@ theorem f16_abs_le {x : F16} (hx : x.isFinite = true) : |x.toRat| ≤ 65504 := b
   have := FloatV.abs_toRat_le_maxVal Math.Float.Format.binary16_regular hx
   rwa [Math.Float.Format.binary16_maxVal] at this
 
-theorem prodV_le {va vb : Nat → F16} {K : Nat} (hfa : ∀ e, e < K → (va e).isFinite = true)
-    (hfb : ∀ e, e < K → (vb e).isFinite = true) (e : Nat) : |prodV va vb K e| ≤ 2 ^ 32 := by
-  unfold prodV
-  split_ifs with h
-  · rw [abs_mul]
-    have h1 := f16_abs_le (hfa e h)
-    have h2 := f16_abs_le (hfb e h)
-    have h3 : |(va e).toRat| * |(vb e).toRat| ≤ 65504 * 65504 :=
-      mul_le_mul h1 h2 (abs_nonneg _) (by norm_num)
-    linarith
+theorem mag16_le {x : F16} (hx : x.isFinite = true) : mag16 x.toRat ≤ 65504 := by
+  unfold mag16
+  split_ifs
+  · norm_num
+  · exact max_le (f16_abs_le hx) (by norm_num)
+
+theorem liftV_nonneg (va vb : Nat → F16) (K e : Nat) : 0 ≤ liftV va vb K e := by
+  unfold liftV
+  split_ifs
+  · exact mul_nonneg (mag16_nonneg _) (mag16_nonneg _)
+  · exact le_rfl
+
+theorem abs_prodV_le {va vb : Nat → F16} {K : Nat} (e : Nat) : |prodV va vb K e| ≤ liftV va vb K e := by
+  unfold prodV liftV
+  split_ifs
+  · exact abs_mul_le_mag16 _ _
   · simp
+
+theorem liftV_le {va vb : Nat → F16} {K : Nat} (hfa : ∀ e, e < K → (va e).isFinite = true)
+    (hfb : ∀ e, e < K → (vb e).isFinite = true) (e : Nat) : liftV va vb K e ≤ 2 ^ 32 := by
+  unfold liftV
+  split_ifs with h
+  · have h1 := mag16_le (hfa e h)
+    have h2 := mag16_le (hfb e h)
+    have h3 : mag16 (va e).toRat * mag16 (vb e).toRat ≤ 65504 * 65504 :=
+      mul_le_mul h1 h2 (mag16_nonneg _) (by norm_num)
+    linarith
+  · norm_num
 
 theorem partA_le {va vb : Nat → F16} {K : Nat} (hfa : ∀ e, e < K → (va e).isFinite = true)
     (hfb : ∀ e, e < K → (vb e).isFinite = true) (t : Nat) : partA va vb K t ≤ 64 * t * 2 ^ 32 := by
   unfold partA
-  calc ∑ e ∈ Finset.range (64 * t), |prodV va vb K e| ≤ ∑ _e ∈ Finset.range (64 * t), (2 : ℚ) ^ 32 :=
-        Finset.sum_le_sum fun e _ => prodV_le hfa hfb e
+  calc ∑ e ∈ Finset.range (64 * t), liftV va vb K e ≤ ∑ _e ∈ Finset.range (64 * t), (2 : ℚ) ^ 32 :=
+        Finset.sum_le_sum fun e _ => liftV_le hfa hfb e
     _ = 64 * t * 2 ^ 32 := by simp
 
 theorem partS_succ (va vb : Nat → F16) (K t : Nat) :
@@ -154,10 +186,10 @@ theorem partS_succ (va vb : Nat → F16) (K t : Nat) :
     Fin.sum_univ_eq_sum_range (fun k => prodV va vb K (64 * t + k)) 64]
 
 theorem partA_succ (va vb : Nat → F16) (K t : Nat) :
-    partA va vb K (t + 1) = partA va vb K t + ∑ k : Fin 64, |prodV va vb K (64 * t + k)| := by
+    partA va vb K (t + 1) = partA va vb K t + ∑ k : Fin 64, liftV va vb K (64 * t + k) := by
   unfold partA
   rw [show 64 * (t + 1) = 64 * t + 64 by ring, Finset.sum_range_add,
-    Fin.sum_univ_eq_sum_range (fun k => |prodV va vb K (64 * t + k)|) 64]
+    Fin.sum_univ_eq_sum_range (fun k => liftV va vb K (64 * t + k)) 64]
 
 theorem val_f16 {x : F16} {v : ℚ} (hx : x.isFinite = true) (hv : x.toRat = v) :
     DType.val? .f16 x = some v := by
@@ -165,8 +197,9 @@ theorem val_f16 {x : F16} {v : ℚ} (hx : x.isFinite = true) (hv : x.toRat = v) 
   rw [ite_eq_left hx, hv]
 
 /-- **One step of the loop** (line 300), for one output element `(i, j)` of the tile: the
-accumulator stays finite and within `DotLoop.bound` of the exact partial sum, by
-`Rules.Num.DotF16` (`DotLoop.accum_step`). `A` and `B` are the loaded tiles: their enabled lanes
+accumulator stays finite and within `DotLoop.bound` of the exact partial sum, relative to the
+partial sum of the lifted magnitudes, by `Rules.Num.DotF16` (`Rules.Num.DotLiftAcc`) and
+`DotLoop.accum_step`. `A` and `B` are the loaded tiles: their enabled lanes
 hold the matrix elements, their disabled lanes finite zeros. -/
 theorem acc_step {P : Platform} (hdot : Rules.Num.DotF16 P)
     {A : Tensor [128, 64] F16} {B : Tensor [64, 256] F16} {acc r : Tensor [128, 256] F32}
@@ -200,8 +233,14 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotF16 P)
     · rw [ite_eq_right h, ((hA k).2 (by omega)).2, zero_mul]
   have hchunk : ∑ k : Fin 64, (A.get2 i k).toRat * (B.get2 k j).toRat =
       ∑ k : Fin 64, prodV va vb K (64 * t + k) := Finset.sum_congr rfl fun k _ => hprod k
-  have hchunkA : ∑ k : Fin 64, |(A.get2 i k).toRat * (B.get2 k j).toRat| =
-      ∑ k : Fin 64, |prodV va vb K (64 * t + k)| := Finset.sum_congr rfl fun k _ => by rw [hprod k]
+  have hlift : ∀ k : Fin 64, mag16 (A.get2 i k).toRat * mag16 (B.get2 k j).toRat = liftV va vb K (64 * t + k) := by
+    intro k
+    unfold liftV
+    by_cases h : 64 * t + k < K
+    · rw [ite_eq_left h, (hA k).1 h, (hB k).1 h]
+    · rw [ite_eq_right h, ((hA k).2 (by omega)).2, mag16_zero, zero_mul]
+  have hchunkA : ∑ k : Fin 64, Rules.Num.liftMag .f16 (A.get2 i k).toRat * Rules.Num.liftMag .f16 (B.get2 k j).toRat =
+      ∑ k : Fin 64, liftV va vb K (64 * t + k) := Finset.sum_congr rfl fun k _ => hlift k
   -- sizes
   have ht1 : (t : ℚ) ≤ 1024 := by
     have : t ≤ 1024 := by omega
@@ -212,12 +251,12 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotF16 P)
       have : 64 * t ≤ 2 ^ 16 := by omega
       exact_mod_cast this
     nlinarith
-  have hBn : 0 ≤ partA va vb K t := Finset.sum_nonneg fun _ _ => abs_nonneg _
-  have hcA : ∑ k : Fin 64, |prodV va vb K (64 * t + k)| ≤ 2 ^ 38 := by
-    calc ∑ k : Fin 64, |prodV va vb K (64 * t + k)| ≤ ∑ _k : Fin 64, (2 : ℚ) ^ 32 :=
-          Finset.sum_le_sum fun k _ => prodV_le hfa hfb _
+  have hBn : 0 ≤ partA va vb K t := Finset.sum_nonneg fun _ _ => liftV_nonneg _ _ _ _
+  have hcA : ∑ k : Fin 64, liftV va vb K (64 * t + k) ≤ 2 ^ 38 := by
+    calc ∑ k : Fin 64, liftV va vb K (64 * t + k) ≤ ∑ _k : Fin 64, (2 : ℚ) ^ 32 :=
+          Finset.sum_le_sum fun k _ => liftV_le hfa hfb _
       _ = 2 ^ 38 := by simp; norm_num
-  have hcA0 : 0 ≤ ∑ k : Fin 64, |prodV va vb K (64 * t + k)| := Finset.sum_nonneg fun _ _ => abs_nonneg _
+  have hcA0 : 0 ≤ ∑ k : Fin 64, liftV va vb K (64 * t + k) := Finset.sum_nonneg fun _ _ => liftV_nonneg _ _ _ _
   have hρ0 : (0 : ℚ) ≤ Rules.Num.relDot16 64 := by rw [relDot16_64]; norm_num
   have hα0 : (0 : ℚ) ≤ Rules.Num.absDot16 64 := by rw [absDot16_64]; norm_num
   have hbound : DotLoop.bound (Rules.Num.relDot16 64) (Rules.Num.absDot16 64) t (partA va vb K t) ≤ 2 ^ 44 := by
@@ -227,14 +266,17 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotF16 P)
     rw [relDot16_64, absDot16_64]
     have ht0 : (0 : ℚ) ≤ t := Nat.cast_nonneg t
     nlinarith
-  have hSt : |partS va vb K t| ≤ partA va vb K t := Finset.abs_sum_le_sum_abs _ _
+  have hSt : |partS va vb K t| ≤ partA va vb K t :=
+    (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun e _ => abs_prodV_le e)
+  have hSc : |∑ k : Fin 64, prodV va vb K (64 * t + k)| ≤ ∑ k : Fin 64, liftV va vb K (64 * t + k) :=
+    (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun k _ => abs_prodV_le _)
   have hvc : |(acc.get2 i j).toRat| ≤ 2 ^ 49 := by
     have := abs_sub_abs_le_abs_sub (acc.get2 i j).toRat (partS va vb K t)
     linarith [hinv.2]
   -- the step, by `DotF16`
   obtain ⟨vr, hvr, herr⟩ := hdot .tf32 A B acc r hr i j (fun k => (A.get2 i k).toRat)
     (fun k => (B.get2 k j).toRat) (acc.get2 i j).toRat (fun k => val_f16 (hfA k) rfl)
-    (fun k => val_f16 (hfB k) rfl) (fun _ => ⟨trivial, trivial⟩)
+    (fun k => val_f16 (hfB k) rfl)
     (DotLoop.val?_f32.mpr ⟨hinv.1, rfl⟩) (by
       simp only [DType.bound, Math.Float.Format.binary32_maxVal]
       rw [hchunkA, relDot16_64, absDot16_64]
@@ -244,21 +286,25 @@ theorem acc_step {P : Platform} (hdot : Rules.Num.DotF16 P)
   refine ⟨hrfin, ?_⟩
   rw [partS_succ, partA_succ, hrval]
   rw [hchunk, hchunkA] at herr
-  exact DotLoop.accum_step hρ0 hα0 hSt (Finset.abs_sum_le_sum_abs _ _) hinv.2 herr
+  exact DotLoop.accum_step hρ0 hα0 hSt hSc hinv.2 herr
 
 /-- After the last step (`64·T ≥ K`) the partial sums are the whole sums. -/
 theorem partS_end (va vb : Nat → F16) {K T : Nat} (hT : K ≤ 64 * T) :
-    partS va vb K T = dotSum va vb K ∧ partA va vb K T = dotAbs va vb K := by
-  unfold partS partA dotSum dotAbs
+    partS va vb K T = dotSum va vb K ∧ partA va vb K T = dotMag va vb K := by
+  unfold partS partA dotSum dotMag
   obtain ⟨x, hx⟩ : ∃ x, 64 * T = K + x := ⟨64 * T - K, by omega⟩
   rw [hx, Finset.sum_range_add, Finset.sum_range_add]
   have h1 : ∀ e ∈ Finset.range K, prodV va vb K e = (va e).toRat * (vb e).toRat := fun e he => by
     unfold prodV; rw [ite_eq_left (Finset.mem_range.mp he)]
   have h2 : ∀ y, prodV va vb K (K + y) = 0 := fun y => by
     unfold prodV; rw [ite_eq_right (by omega)]
+  have h3 : ∀ e ∈ Finset.range K, liftV va vb K e = mag16 (va e).toRat * mag16 (vb e).toRat :=
+    fun e he => by unfold liftV; rw [ite_eq_left (Finset.mem_range.mp he)]
+  have h4 : ∀ y, liftV va vb K (K + y) = 0 := fun y => by
+    unfold liftV; rw [ite_eq_right (by omega)]
   constructor
   · rw [Finset.sum_congr rfl h1]; simp [h2]
-  · rw [Finset.sum_congr rfl fun e he => by rw [h1 e he]]; simp [h2]
+  · rw [Finset.sum_congr rfl h3]; simp [h4]
 
 /-- **The last rounding** (line 308): a finite `v` within `E` of `S`, rounded to `float16`
 (`c` equal to it up to NaN payload), is finite and within `E` plus one rounding when

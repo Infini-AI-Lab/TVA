@@ -144,10 +144,10 @@ def KVInv (d : Inst) (init : Mem) (b p : Nat) (C : Finset ℕ) (T : ℕ)
   ∀ (r : Fin 128) (c : Fin d.HEAD_DIM) (hv : HeadV), hv.Holds d init b → hv.Ok d →
     AccI (dv.get2 r c) (∑ m ∈ C, pE d hv (128 * p + r) m * (hv.dO m c).toReal)
       (∑ m ∈ C, p16Err d hv (128 * p + r) m * |(hv.dO m c).toReal|)
-      (∑ m ∈ C, p16B d hv (128 * p + r) m * |(hv.dO m c).toReal|) T ∧
+      (∑ m ∈ C, p16L d hv (128 * p + r) m * lm (hv.dO m c)) T ∧
     AccI (dk.get2 r c) (∑ m ∈ C, dsE d hv (128 * p + r) m * (hv.q m c).toReal)
       (∑ m ∈ C, ds16Err d hv (128 * p + r) m * |(hv.q m c).toReal|)
-      (∑ m ∈ C, ds16B d hv (128 * p + r) m * |(hv.q m c).toReal|) T
+      (∑ m ∈ C, ds16L d hv (128 * p + r) m * lm (hv.q m c)) T
 
 /-- The `dq` accumulator of program `p` of head `b`, after `T` steps covering the key rows `C`:
 element `(r, c)` (query row `m = 128p + r`) satisfies `AccI` with the exact sum over `n ∈ C` of
@@ -157,7 +157,7 @@ def QInv (d : Inst) (init : Mem) (b p : Nat) (C : Finset ℕ) (T : ℕ)
   ∀ (r : Fin 128) (c : Fin d.HEAD_DIM) (hv : HeadV), hv.Holds d init b → hv.Ok d →
     AccI (dq.get2 r c) (∑ n ∈ C, dsE d hv n (128 * p + r) * (hv.k n c).toReal)
       (∑ n ∈ C, ds16Err d hv n (128 * p + r) * |(hv.k n c).toReal|)
-      (∑ n ∈ C, ds16B d hv n (128 * p + r) * |(hv.k n c).toReal|) T
+      (∑ n ∈ C, ds16L d hv n (128 * p + r) * lm (hv.k n c)) T
 
 theorem kvInv_zero (d : Inst) (init : Mem) (b p : Nat) :
     KVInv d init b p ∅ 0 (tl.zeros [128, d.HEAD_DIM] .f32) (tl.zeros [128, d.HEAD_DIM] .f32) := by
@@ -191,9 +191,9 @@ theorem prodR_le {x y : F16} (hx : x.isFinite = true) (hy : y.isFinite = true) :
 theorem aQK_le (hd : d.ok) (hok : hv.Ok d) {n m : Nat} (hn : n < d.N_CTX) (hm : m < d.N_CTX) :
     aQK d hv n m ≤ 2 ^ 40 := by
   unfold aQK
-  calc ∑ c ∈ Finset.range d.HEAD_DIM, |(hv.k n c).toReal * (hv.q m c).toReal|
+  calc ∑ c ∈ Finset.range d.HEAD_DIM, lm (hv.k n c) * lm (hv.q m c)
       ≤ ∑ _c ∈ Finset.range d.HEAD_DIM, (2 : ℝ) ^ 32 := Finset.sum_le_sum fun c hc =>
-        prodR_le (hok.k n c hn (Finset.mem_range.mp hc)) (hok.q m c hm (Finset.mem_range.mp hc))
+        lm_mul_le (hok.k n c hn (Finset.mem_range.mp hc)) (hok.q m c hm (Finset.mem_range.mp hc))
     _ = d.HEAD_DIM * 2 ^ 32 := by simp
     _ ≤ 2 ^ 40 := by
       have : (d.HEAD_DIM : ℝ) ≤ 256 := by exact_mod_cast hd_le hd
@@ -202,17 +202,19 @@ theorem aQK_le (hd : d.ok) (hok : hv.Ok d) {n m : Nat} (hn : n < d.N_CTX) (hm : 
 theorem aVD_le (hd : d.ok) (hok : hv.Ok d) {n m : Nat} (hn : n < d.N_CTX) (hm : m < d.N_CTX) :
     aVD d hv n m ≤ 2 ^ 40 := by
   unfold aVD
-  calc ∑ c ∈ Finset.range d.HEAD_DIM, |(hv.v n c).toReal * (hv.dO m c).toReal|
+  calc ∑ c ∈ Finset.range d.HEAD_DIM, lm (hv.v n c) * lm (hv.dO m c)
       ≤ ∑ _c ∈ Finset.range d.HEAD_DIM, (2 : ℝ) ^ 32 := Finset.sum_le_sum fun c hc =>
-        prodR_le (hok.v n c hn (Finset.mem_range.mp hc)) (hok.dO m c hm (Finset.mem_range.mp hc))
+        lm_mul_le (hok.v n c hn (Finset.mem_range.mp hc)) (hok.dO m c hm (Finset.mem_range.mp hc))
     _ = d.HEAD_DIM * 2 ^ 32 := by simp
     _ ≤ 2 ^ 40 := by
       have : (d.HEAD_DIM : ℝ) ≤ 256 := by exact_mod_cast hd_le hd
       nlinarith
 
-theorem sQK_abs (n m : Nat) : |sQK d hv n m| ≤ aQK d hv n m := Finset.abs_sum_le_sum_abs _ _
+theorem sQK_abs (n m : Nat) : |sQK d hv n m| ≤ aQK d hv n m :=
+  (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun _ _ => abs_mul_le_lm _ _)
 
-theorem sVD_abs (n m : Nat) : |sVD d hv n m| ≤ aVD d hv n m := Finset.abs_sum_le_sum_abs _ _
+theorem sVD_abs (n m : Nat) : |sVD d hv n m| ≤ aVD d hv n m :=
+  (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun _ _ => abs_mul_le_lm _ _)
 
 theorem eSub_nn (hd : d.ok) {s a x : ℝ} (ha : 0 ≤ a) : 0 ≤ eSub d s a x := by
   unfold eSub
@@ -222,9 +224,9 @@ theorem eSub_nn (hd : d.ok) {s a x : ℝ} (ha : 0 ≤ a) : 0 ≤ eSub d s a x :=
   have : 0 ≤ eta32 := by rw [eta32_eq]; positivity
   positivity
 
-theorem aQK_nn (n m : Nat) : 0 ≤ aQK d hv n m := Finset.sum_nonneg fun _ _ => abs_nonneg _
+theorem aQK_nn (n m : Nat) : 0 ≤ aQK d hv n m := Finset.sum_nonneg fun _ _ => mul_nonneg (lm_nn _) (lm_nn _)
 
-theorem aVD_nn (n m : Nat) : 0 ≤ aVD d hv n m := Finset.sum_nonneg fun _ _ => abs_nonneg _
+theorem aVD_nn (n m : Nat) : 0 ≤ aVD d hv n m := Finset.sum_nonneg fun _ _ => mul_nonneg (lm_nn _) (lm_nn _)
 
 theorem pBr_le (hok : hv.Ok d) {n m : Nat} (hn : n < d.N_CTX) (hm : m < d.N_CTX) (hal : Allowed d n m) :
     0 ≤ pBr d hv n m ∧ pBr d hv n m ≤ 2 ^ 16 := by
@@ -286,6 +288,33 @@ theorem ds16B_bd (hd : d.ok) (hok : hv.Ok d) {n m : Nat} (hn : n < d.N_CTX) (hm 
       have : (1 + (2 : ℝ) ^ (-11 : ℤ)) * 2 ^ 16 + 2 ^ (-25 : ℤ) ≤ 2 ^ 17 := by norm_num
       linarith
   · exact ⟨le_rfl, by norm_num⟩
+
+theorem p16L_bd (hok : hv.Ok d) {n m : Nat} (hn : n < d.N_CTX) (hm : m < d.N_CTX) :
+    0 ≤ p16L d hv n m ∧ p16L d hv n m ≤ 2 ^ 17 :=
+  ⟨lift16_nn _, lift16_le (p16B_bd hok hn hm).2⟩
+
+theorem ds16L_bd (hd : d.ok) (hok : hv.Ok d) {n m : Nat} (hn : n < d.N_CTX) (hm : m < d.N_CTX) :
+    0 ≤ ds16L d hv n m ∧ ds16L d hv n m ≤ 2 ^ 17 :=
+  ⟨lift16_nn _, lift16_le (ds16B_bd hd hok hn hm).2⟩
+
+/-- A sum over covered rows of bounds `≤ 2^17` times lifted magnitudes: at most `2^47`. -/
+theorem sum_bd_le_lm (hd : d.ok) {C : Finset ℕ} (hC : C ⊆ Finset.range d.N_CTX) (g : ℕ → ℝ) (x : ℕ → F16)
+    (hg : ∀ m, m < d.N_CTX → 0 ≤ g m ∧ g m ≤ 2 ^ 17) (hx : ∀ m, m < d.N_CTX → (x m).isFinite = true) :
+    ∑ m ∈ C, g m * lm (x m) ≤ 2 ^ 47 := by
+  have h1 : ∑ m ∈ C, g m * lm (x m) ≤ ∑ _m ∈ C, (2 : ℝ) ^ 33 := by
+    refine Finset.sum_le_sum fun m hm => ?_
+    have hmN : m < d.N_CTX := Finset.mem_range.mp (hC hm)
+    obtain ⟨h0, h17⟩ := hg m hmN
+    have := lm_le (hx m hmN)
+    have : g m * lm (x m) ≤ 2 ^ 17 * 65504 := mul_le_mul h17 this (lm_nn _) (by norm_num)
+    linarith
+  have h2 : (C.card : ℝ) ≤ 2 ^ 14 := by
+    have := Finset.card_le_card hC
+    rw [Finset.card_range] at this
+    have h := hd.n_le
+    exact_mod_cast this.trans h
+  rw [Finset.sum_const, nsmul_eq_mul] at h1
+  nlinarith
 
 /-- A sum over covered rows of bounds `≤ 2^17` times `float16` magnitudes: at most `2^47`. -/
 theorem sum_bd_le (hd : d.ok) {C : Finset ℕ} (hC : C ⊆ Finset.range d.N_CTX) (g : ℕ → ℝ) (x : ℕ → F16)

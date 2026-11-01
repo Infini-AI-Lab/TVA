@@ -16,7 +16,9 @@ them in memory). For a key row `n` and a query row `m`, with `Allowed n m` (`CAU
 
 `Post` says each stored `dV`, `dK`, `dQ` element is the `float16` rounding of a `float32` value
 within an explicit tolerance of these exact values, whenever the head's inputs are finite and the
-pairs fit (`HeadV.Ok`), and every byte outside the three outputs is unchanged. With the host's `K`
+pairs fit (`HeadV.Ok`), and every byte outside the three outputs is unchanged. The tolerances count
+a `float16` operand of a `tl.dot` by its lifted magnitude (`lm`: a subnormal at `2^-14`, as
+`Rules.Num.DotF16` does since library round 25). With the host's `K`
 (`arg_k = k·sm_scale/ln 2`), the forward's `M` (the row's base-2 log-sum-exp) and
 `delta = Σ_j O·dO`, these are the gradients of attention (README, Specification).
 -/
@@ -94,24 +96,33 @@ def HeadV.Holds (d : Inst) (init : Mem) (b : Nat) (hv : HeadV) : Prop :=
 `offs_m >= offs_n`, lines 297 and 350). -/
 abbrev Allowed (d : Inst) (n m : Nat) : Prop := d.CAUSAL = false ∨ n ≤ m
 
+/-- The lifted magnitude of a `float16` value, by which `Rules.Num.DotF16` counts a `tl.dot`
+operand (`Rules.Num.liftMag`): `0` for `0`, `|x|` for a normal value, `2^-14` for a subnormal one. -/
+noncomputable def lm (x : F16) : ℝ := (Rules.Num.liftMag .f16 x.toRat : ℝ)
+
+/-- A bound on the lifted magnitude of a `float16` value of magnitude at most `B`: `0` when
+`B < 2^-24` (the value is then `0`), else `max B 2^-14`. -/
+noncomputable def lift16 (B : ℝ) : ℝ := if B < 2 ^ (-24 : ℤ) then 0 else max B (2 ^ (-14 : ℤ))
+
 /-- `Σ_c K[n, c]·Q[m, c]`. -/
 noncomputable def sQK (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
   ∑ c ∈ Finset.range d.HEAD_DIM, (hv.k n c).toReal * (hv.q m c).toReal
 
-/-- `Σ_c |K[n, c]·Q[m, c]|`. -/
+/-- `Σ_c lm K[n, c]·lm Q[m, c]`: the lifted magnitude of the dot (`Σ_c |K·Q|` when no operand is
+subnormal). -/
 noncomputable def aQK (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
-  ∑ c ∈ Finset.range d.HEAD_DIM, |(hv.k n c).toReal * (hv.q m c).toReal|
+  ∑ c ∈ Finset.range d.HEAD_DIM, lm (hv.k n c) * lm (hv.q m c)
 
 /-- `Σ_c V[n, c]·dO[m, c]`. -/
 noncomputable def sVD (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
   ∑ c ∈ Finset.range d.HEAD_DIM, (hv.v n c).toReal * (hv.dO m c).toReal
 
-/-- `Σ_c |V[n, c]·dO[m, c]|`. -/
+/-- `Σ_c lm V[n, c]·lm dO[m, c]`, as `aQK`. -/
 noncomputable def aVD (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
-  ∑ c ∈ Finset.range d.HEAD_DIM, |(hv.v n c).toReal * (hv.dO m c).toReal|
+  ∑ c ∈ Finset.range d.HEAD_DIM, lm (hv.v n c) * lm (hv.dO m c)
 
 /-- The error bound of a computed `tl.dot(a, b) − x` (a dot over `HEAD_DIM` products of exact
-sum `s` and magnitude sum `a`, then the `float32` subtraction of `x`):
+sum `s` and lifted magnitude sum `a`, then the `float32` subtraction of `x`):
 `rH·a + aH + 3u32·(|s| + rH·a + aH + |x|) + 4eta32`. -/
 noncomputable def eSub (d : Inst) (s a x : ℝ) : ℝ :=
   rH d * a + aH d + 3 * u32 * (|s| + rH d * a + aH d + |x|) + 4 * eta32
@@ -155,6 +166,9 @@ noncomputable def p16Err (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
 noncomputable def p16B (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
   if Allowed d n m then (1 + u16) * pBr d hv n m + eta16 else 0
 
+/-- A bound on the `float16` `P`'s lifted magnitude, the operand of line 303's `tl.dot`. -/
+noncomputable def p16L (d : Inst) (hv : HeadV) (n m : Nat) : ℝ := lift16 (p16B d hv n m)
+
 /-- The error bound of the `float32` `dS` (line 308), before its rounding to `float16`. -/
 noncomputable def dsErr (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
   (pBr d hv n m - (2 : ℝ) ^ xE d hv n m) * yB d hv n m + (2 : ℝ) ^ xE d hv n m * eY d hv n m +
@@ -171,6 +185,9 @@ noncomputable def ds16Err (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
 /-- A bound on the `float16` `dS`'s magnitude. -/
 noncomputable def ds16B (d : Inst) (hv : HeadV) (n m : Nat) : ℝ :=
   if Allowed d n m then (1 + u16) * dsB d hv n m + eta16 else 0
+
+/-- A bound on the `float16` `dS`'s lifted magnitude, the operand of lines 310 and 358's `tl.dot`. -/
+noncomputable def ds16L (d : Inst) (hv : HeadV) (n m : Nat) : ℝ := lift16 (ds16B d hv n m)
 
 /-- The inputs of head `b` that `Post`'s accuracy covers: every value finite; `|L|` and `|Δ|` at
 most `2^126`; and for every `Allowed` pair, the exponent at most `15` with its error
@@ -211,10 +228,11 @@ noncomputable def dVE (d : Inst) (hv : HeadV) (n j : Nat) : ℝ :=
   ∑ m ∈ Finset.range d.N_CTX, pE d hv n m * (hv.dO m j).toReal
 
 /-- The tolerance of `dV[n, j]`'s `float32` value: the `float16` `P`'s errors weighted by
-`|dO|`, and the accumulation's error over those products' bounds. -/
+`|dO|`, and the accumulation's error over the bounds of those products' lifted magnitudes
+(`p16L·lm dO`). -/
 noncomputable def dVTol (d : Inst) (hv : HeadV) (n j : Nat) : ℝ :=
   ∑ m ∈ Finset.range d.N_CTX, p16Err d hv n m * |(hv.dO m j).toReal| +
-    accB (stepsKV d n) (∑ m ∈ Finset.range d.N_CTX, p16B d hv n m * |(hv.dO m j).toReal|)
+    accB (stepsKV d n) (∑ m ∈ Finset.range d.N_CTX, p16L d hv n m * lm (hv.dO m j))
 
 /-- `Σ_m dS[n, m]·Q[m, j]`. -/
 noncomputable def dKS (d : Inst) (hv : HeadV) (n j : Nat) : ℝ :=
@@ -223,7 +241,7 @@ noncomputable def dKS (d : Inst) (hv : HeadV) (n j : Nat) : ℝ :=
 /-- The tolerance of the accumulated `Σ_m dS[n, m]·Q[m, j]`. -/
 noncomputable def dKAcc (d : Inst) (hv : HeadV) (n j : Nat) : ℝ :=
   ∑ m ∈ Finset.range d.N_CTX, ds16Err d hv n m * |(hv.q m j).toReal| +
-    accB (stepsKV d n) (∑ m ∈ Finset.range d.N_CTX, ds16B d hv n m * |(hv.q m j).toReal|)
+    accB (stepsKV d n) (∑ m ∈ Finset.range d.N_CTX, ds16L d hv n m * lm (hv.q m j))
 
 /-- The exact `dK[n, j] = sm_scale · Σ_m dS[n, m]·Q[m, j]` (`sm_scale` as the kernel receives it). -/
 noncomputable def dKE (d : Inst) (hv : HeadV) (n j : Nat) : ℝ := (smF d).toReal * dKS d hv n j
@@ -241,7 +259,7 @@ noncomputable def dQS (d : Inst) (hv : HeadV) (m j : Nat) : ℝ :=
 /-- The tolerance of the accumulated `Σ_n dS[n, m]·K[n, j]`. -/
 noncomputable def dQAcc (d : Inst) (hv : HeadV) (m j : Nat) : ℝ :=
   ∑ n ∈ Finset.range d.N_CTX, ds16Err d hv n m * |(hv.k n j).toReal| +
-    accB (stepsQ d m) (∑ n ∈ Finset.range d.N_CTX, ds16B d hv n m * |(hv.k n j).toReal|)
+    accB (stepsQ d m) (∑ n ∈ Finset.range d.N_CTX, ds16L d hv n m * lm (hv.k n j))
 
 /-- The exact `dQ[m, j] = LN2 · Σ_n dS[n, m]·K[n, j]`. -/
 noncomputable def dQE (d : Inst) (hv : HeadV) (m j : Nat) : ℝ := ln2F.toReal * dQS d hv m j
@@ -285,8 +303,9 @@ structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) : Prop where
   faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)
   /-- [rule] `Num.DotF16`: `tl.dot` of `float16` operands into `float32` (`maxImpreciseAcc = 0`,
   any `input_precision`; lines 293, 303, 307, 310, 345, 353, 358): each output element whose
-  operands and accumulator are finite is finite and within
-  `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K` of `acc + Σ a·b`, with room in `float32`. -/
+  operands and accumulator are finite is finite and within `relDot16 K·L + absDot16 K` of
+  `acc + Σ a·b`, where `L = |acc| + Σ liftMag a·liftMag b` counts a subnormal operand at `2^-14`
+  (`Rules.Num.DotLiftAcc`, library round 25), with room in `float32`. -/
   dot : Rules.Num.DotF16 P
   /-- [rule] `Num.DotTotal`: the model's `tl.dot` always has a result. -/
   dot_total : Rules.Num.DotTotal P { a := .f16, b := .f16, acc := .f32, precision := .tf32, maxImpreciseAcc := 0 }

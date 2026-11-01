@@ -1,11 +1,11 @@
 {
-  "gate": "1020798749c9aee8d6fb77e381332d5b4ae7afa1ab41d10f304d32c20908ff36",
+  "gate": "365e8713c82828664705e7102615b03dbfbc40807288433aa7479186cf1c61c3",
   "items": {
-    "assumption:div_full": "bdfcba37ccad5287a08e5ea4197111cab5a3129d06c62e2724790cd6ef2cca9d",
-    "assumption:div_total": "9f36a737e0e9f516c04865952ed7e340917818543d17d23c4eb3757385b61af1",
-    "assumption:exp_acc": "70ad73128758f05d61e340cf703cf9c420df88ef72be4bd7de42bca0588d8f19",
-    "assumption:exp_ninf": "0a7d6acf16a43bf31dbe90cedc411c7780ab98acf57b8966bbd6d620d6d56f32",
-    "assumption:exp_total": "7ca7ee2db6d613c89bb1e5d0dba987913584e2d71a92911ebf74cf9dbe6754c7",
+    "assumption:div_full": "effb4657eee7a4d5f34e9f556a24571052c3cf55e4b5271945a6436d246df46e",
+    "assumption:div_total": "99ff2144ed93b6f48498ad8a7dce7098b2ce7bff4a56da760a7ca155630e2a72",
+    "assumption:exp_acc": "381376b8aade5401fd514495e719e90d7b7f6e2620ca8fe47ec594665c8c2c00",
+    "assumption:exp_ninf": "24933895e9ffc5cf6c340f965d689ef3c73b774f94b02fb52de593915df02ad3",
+    "assumption:exp_total": "498ee8f74121c6f4a9adca99c2ed47d834bd0024108e10e36d57330e5ecae248",
     "assumption:faithful": "2479993e1691cb4900120ab43d873452baf545b60c1f19730cb0eb8d665c05c6",
     "conditions": "573ad1e9d67a9f161a19c10b899064d24873bc66ddee3bb415a125a3744abc98",
     "map": "1c9186a92ce5e58531f4ec52e280f93cae962ca7bc0d92f8c157042969860d41",
@@ -17,5 +17,5 @@
     "r-softmax",
     "r-softmax2"
   ],
-  "time": "2026-11-01T04:31:25Z"
+  "time": "2026-11-01T06:44:19Z"
 }

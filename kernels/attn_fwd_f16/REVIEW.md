@@ -6,28 +6,28 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 
 ## Status
 
-- Gate: **PASS**, digest `930f0acadb5b3640` (2026-11-01T02:12:56Z).
-- Phase: round 2: waiting for the prover (1 open finding(s)).
+- Gate: **PASS**, digest `7c52bcaa1a441cb2` (2026-11-01T06:39:14Z).
+- Phase: round 4: all reviewers have filed.
 - Reviewers: r-fwd (all), r-fwd2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-fwd | r-fwd2 |
 |---|---|---|---|
-| `assumption:div_full` | `bbcbf79af9c1` | accepted | accepted |
-| `assumption:div_total` | `7177ecec0bad` | accepted | accepted |
-| `assumption:dot` | `981c3709d75c` | accepted | accepted |
-| `assumption:dot_total` | `e50c29e07e29` | accepted | accepted |
-| `assumption:exp2` | `d215e81fa7b2` | accepted | accepted |
-| `assumption:exp2_ninf` | `923a7a524f03` | accepted | accepted |
-| `assumption:exp2_total` | `fb8894f1b9e5` | accepted | accepted |
+| `assumption:div_full` | `4631d7560d74` | accepted | accepted |
+| `assumption:div_total` | `69ea588c5edd` | accepted | accepted |
+| `assumption:dot` | `4cc548e49980` | accepted | accepted |
+| `assumption:dot_total` | `b6c8f678e10d` | accepted | accepted |
+| `assumption:exp2` | `6430fff1b879` | accepted | accepted |
+| `assumption:exp2_ninf` | `23821e819de4` | accepted | accepted |
+| `assumption:exp2_total` | `f5411c14f37b` | accepted | accepted |
 | `assumption:faithful` | `7b632a90276e` | accepted | accepted |
-| `assumption:log2` | `7a099c276c7a` | accepted | accepted |
-| `assumption:log2_total` | `b642b71b8314` | accepted | accepted |
+| `assumption:log2` | `f4fb4d46203f` | accepted | accepted |
+| `assumption:log2_total` | `bec368f8e13a` | accepted | accepted |
 | `conditions` | `c587de4b858e` | accepted | accepted |
 | `map` | `726c8b30b1cd` | accepted | accepted |
 | `model` | `e98ae22afef9` | accepted | accepted |
-| `spec` | `e6eff589a12e` | accepted | accepted |
+| `spec` | `fa28d3f728d8` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -36,7 +36,10 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 | [F3](#f3) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | r-fwd | 1 | 'Performance-only arguments' calls num_stages and warp_specialize 'given by a model', but Launch and tl.forRange hold ne |
 | [F4](#f4) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/lean/AttnFwd.lean` | r-fwd2 | 1 | Stale or loose wording: AttnFwd.lean's module docstring puts the test at lines 600-650 and the benchmark at 655-705; tes |
 | [F5](#f5) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | r-fwd2 | 1 | SEMANTICS 'Float + and -' does not say whether the value tl.maximum, tl.minimum or tl.where returns, when it is a produc |
-| [F6](#f6) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-fwd2 | 2 | L125's mechanism (a subnormal operand's exponent field sets the wgmma window) may also apply to float16 operands, and Do |
+| [F6](#f6) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-fwd2 | 2 | L125's mechanism (a subnormal operand's exponent field sets the wgmma window) may also apply to float16 operands, and Do |
+| [F7](#f7) | CLOSED (non-blocking) | QUESTION | `item:spec` | r-fwd | 3 | tolF's floor N/64*2^-22 (3.3e-4 at N=2^16) comes from bounding each block's p.v lift with p <= 2.3 on all 64 keys, not t |
+| [F8](#f8) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/README.md` | r-fwd2 | 3 | Specification: 'the bound always fixes the output to well within its own magnitude' no longer holds now that tolF is abo |
+| [F9](#f9) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/lean/AttnFwd/Model.lean` | r-fwd2 | 3 | absA's docstring puts relDot16 64 times the block's lift (5*2^-9) at 'about 1.5*2^-23'; it is 330*2^-31, about 1.29*2^-2 |
 
 **Certificate: GRANTED**
 
@@ -149,4 +152,75 @@ L125 withdrew the fp8 facts because, on wgmma, a chunk's terms are aligned to th
 
 - **accepted** at gate `930f0acadb5b3640`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 - `2026-11-01T02:24:41Z` coordinator's note: Library issue L126 (docs/library-review/ISSUES.md; evidence/num-dot-sub16), open: DotF16, which this claim cites, fails on the device when a product with a subnormal float16 operand and a large partner sets the tl.dot window (up to 53 times its bound on wgmma and mma.sync). The certificate rests on DotF16 as stated; the fix (a library round, then a re-proof of this kernel) is not yet scheduled.
+
+### The prover responds ([response](review/round-2/prover/response.json), [notes](review/round-2/prover/notes.md))
+
+`2026-11-01T06:11:23Z`, at gate `df22d153664804d2`.
+
+- **F6 REFERRED**: A library report on DotF16, which L126 fixed in round 25: DotF16 is now DotLiftAcc, relative to |acc| + sum liftMag a * liftMag b (a subnormal float16 counted at 2^-14). I re-proved the claim on the restated fact, subnormal operands covered. Line 73 (qk_lane): the score magnitude is now scoreMag, the lifted sum (formerly scoreAbs = sum |q*k|, equal for zero and normal values), in HeadOk and Post's premise on X; the host's inputs still meet them (the lift adds below 0.031). Line 103 (pv_lane, Step.astep): the lifted magnitudes are bounded by DotLift.liftMag_mul_le: 2^-14*|v| per attended key (omega0 grows from 2^-25 + 2^-125 to 2^-25 + 2^-125 + 66*2^-36) and 5*2^-9 per block (absA grows from 2^-85 to 2^-22); a masked key's p is exactly 0. tolO and tolM are unchanged; tolS grows about 3%; tolF grows from 3.0e-8 to about N/64 * 2^-22 (1.5e-5 at N = 4096, 6.4e-5 at N = 2^14, 3.3e-4 at N = 2^16). README has a section 'What changed (library round 25)'.
+
+## Round 3
+
+- `2026-11-01T06:11:48Z` coordinator's note: Library round 25 (L126) restated DotF16 as DotLiftAcc (lifted magnitudes; relDot16, absDot16 unchanged); the prover re-proved the claim on it, gate df22d153664804d2. The score magnitude is now lifted (scoreMag, in HeadOk and Post's X premise), and the p·v step's lift grows omega0 and absA.
+
+### r-fwd files ([filing](review/round-3/r-fwd/filing.json), [report](review/round-3/r-fwd/report.md), [work](review/round-3/r-fwd/work/))
+
+`2026-11-01T06:15:58Z`, at gate `df22d153664804d2`. Notes: Round 3, gate df22d153664804d2 (library round 25, L126). assumption:dot is the restated DotF16 as num.md lists it (DotLiftAcc, relDot16, absDot16 unchanged); the other assumption items re-opened only through the library files, whose facts, constants and listings they cite are unchanged (Exp2F32, Exp2F32NegInf, Log2F32, DivFull, DotTotal, MathTotal, DivTotal). The conditions item's digest did not change (my acceptance stands); HeadOk, the value premise in Post, now bounds sigma*scoreMag: the lift adds at most 0.006 (test) and 0.031 (benchmark) to sigma*sum|q.k|, so the host's inputs stay below 23 and 240, far under 2^10. tolO and tolM are unchanged, tolS grows about 3%, and the README's table agrees with my exact evaluation (work/tol.out). F6 (r-fwd2's) is referred to L126, which is fixed and which this claim now cites.
+
+#### F7
+
+**QUESTION** on `item:spec` (non-blocking): tolF's floor N/64*2^-22 (3.3e-4 at N=2^16) comes from bounding each block's p.v lift with p <= 2.3 on all 64 keys, not through sum p = l_i; normalised, the lift is about 5e-9. Intended?
+
+absA = 2^-22 per block (Model.lean) bounds relDot16 64 times the block's extra lifted magnitude, sum_k (2^-14*|p_k| + 2^-28) with |p_k| <= 2.3, and absQ0 multiplies it by N/64 blocks over wlow*denQ. But the 2^-14*|p_k| part arises only for a subnormal v_k and sums, over every block and after the alpha rescalings, to at most 2^-14 times l_i (plus 2^-28 per key with a subnormal p), so after the division by l_i >= 1 - E the p.v lift contributes about 66*2^-36 + N*66*2^-50, below 5e-9 at N = 2^16, not 3.3e-4. The present tolF is sound, and meaningful on the host's data: at most 1.5e-5 at the test's sizes and 6.4e-5 at the benchmark's, against tolO*attnAbs of about 2e-3 and 2e-2 (work/tol.out). It dominates only for small-scale v (mean |v| below about 1e-2 at N = 2^16). Non-blocking: either tighten absA's argument, or say in README that the floor is the analysis's, not the device's, and when it matters.
+
+- **accepted** at gate `df22d153664804d2`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-fwd2 files ([filing](review/round-3/r-fwd2/filing.json), [report](review/round-3/r-fwd2/report.md), [work](review/round-3/r-fwd2/work/))
+
+`2026-11-01T06:20:43Z`, at gate `df22d153664804d2`. Notes: Round 3, gate df22d153664804d2 (library round 25, L126). assumption:dot is TVA.Rules.Num.DotF16 P, the fact num.md lists for tl.dot of float16 into float32 with maxImpreciseAcc 0 at any precision (cfg16 is tf32). It is now DotLiftAcc with relDot16 and absDot16 unchanged (work/check_lift.out prints the fields). The other eight assumption items were re-opened only through num.md, Num.lean and Sm90.lean. The facts they cite, and those facts' rows, are unchanged. The conditions item's digest is unchanged: HeadOk sits in spec. On the host's inputs, the lift adds at most 0.0059 (test) and 0.0305 (benchmark) to sigma*sum|q.k| (a chi-square tail, union bound over 2^22 rows, probability 2.6e-6), so sigma*scoreMag stays below 23 and 240, far under 2^10. My exact evaluation (work/tol.out) matches the README's table: tolO and tolM are unchanged, tolS grows 3.2%, and tolF is 1.5e-5, 6.4e-5 and 3.3e-4 at N = 4096, 2^14 and 2^16. On the host's data the tolerance stays meaningful at the largest covered sizes. I agree with r-fwd's F7: charged relative to p, the v lift would add about 66*2^-36 = 9.6e-10.
+
+#### F8
+
+**DOC** on `doc:kernels/attn_fwd_f16/README.md` (non-blocking): Specification: 'the bound always fixes the output to well within its own magnitude' no longer holds now that tolF is about N/64*2^-22: at N=2^16 it needs attnAbs above about 4.4e-4.
+
+README.md (Specification, after the table) says that at the largest covered values tolO is 24%, 'still below 1, so the bound always fixes the output to well within its own magnitude'. That reads only tolO. Since round 25, tolF is about N/64*2^-22, an absolute term that does not scale with v (work/tol.out: 3.34e-4 at D=256, N=2^16, X=2^10, and 2.5e-4 at X=16). So the bound is below attnAbs only when attnAbs > tolF/(1 - tolO), about 4.4e-4 (X=2^10) and 2.6e-4 (X=16) at N=2^16. tolF exceeds tolO*attnAbs when attnAbs is below 1.4e-3 to 1.2e-2 there, and below 3.6e-3 at the test's N=4096, X=23. HeadOk puts no lower bound on |v|. So a covered head whose v are all normal float16 values near 2^-12 gets a bound larger than its output. Before round 25 the threshold was about 4e-8, inside float16's subnormal range. On the host's v (randn times 0.5 or 1, attnAbs about 0.4 to 0.8), tolF is at most about 3% of tolO*attnAbs (D=256, N=2^16, X=16, s=0.5), and 0.9% at the test's sizes. So the tolerance stays meaningful in the kernel's real use. Resolve by qualifying the sentence: the bound fixes the output within its own magnitude when attnAbs is well above tolF. And say that tolF is the analysis's floor, not the device's, as r-fwd's F7 suggests. Wording; non-blocking.
+
+*Evidence:* work/tol.py, work/tol.out
+
+#### F9
+
+**DOC** on `doc:kernels/attn_fwd_f16/lean/AttnFwd/Model.lean` (non-blocking): absA's docstring puts relDot16 64 times the block's lift (5*2^-9) at 'about 1.5*2^-23'; it is 330*2^-31, about 1.29*2^-23.
+
+Model.lean, absA's docstring: 'the p.v tl.dot's relDot16 64 = 66*2^-22 times the lift of a block's operands (... at most 5*2^-9 over the block's 64 keys ...), about 1.5*2^-23, with the roundings near zero'. The product is 66*5*2^-31 = 330*2^-31, about 1.29*2^-23 (work/check_lift.lean checks the value and that it is below absA = 2^-22, the margin covering the roundings that Step.astep's htau adds). The constant is sound. Only the figure in the words is off. Write 'about 1.3*2^-23', or 'below 1.5*2^-23'. Wording; non-blocking.
+
+*Evidence:* work/check_lift.lean, work/check_lift.out
+
+- **released F6**: Settled by L126 (FIXED in round 25). It restates DotF16 and DotBF16 as DotLiftAcc, relative to |acc| + sum liftMag a*liftMag b, with a subnormal float16 operand counted at 2^-14, and its evidence is num-dot-sub16-round25 (a bit-exact model; the old bound failed by up to 113.7 times, the new bound's worst ratio is 0.111). This claim cites the restated fact as num.md lists it (assumption:dot = Rules.Num.DotF16 P). qk_lane (scoreMag) and pv_lane/astep (omega0, absA) use the lifted magnitude, including p.to(float16)'s subnormals.
+- **accepted** at gate `df22d153664804d2`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### The prover responds ([response](review/round-3/prover/response.json), [notes](review/round-3/prover/notes.md))
+
+`2026-11-01T06:40:35Z`, at gate `7c52bcaa1a441cb2`.
+
+- **F7 REVISED** (changed: item:spec): Tightened as suggested. The lift 2^-14*|p| of a subnormal v is now bounded through the block's weights, not with p <= 2.3 on all 64 keys. Per attended key |p| <= (1 + psi16r)*wt + omR, so relDot16 64 times the weight part is at most kapAr = 2^-29 per unit of weight. AInv has a new term kapAr * sum wt, which is rescaled by alpha with the rest (acc_step' keeps lam*Ab) and gains the block's weights (psum_step1). ratio_err takes kappa*W and gives F*kappa/(1 - beta). The remainder per block (2^-14*omR + 2^-28 per key) is absA = 2^-37, formerly 2^-22. In Model: absA = 1/2^37, a new kapA = 1/2^29, and absQ0 = facc*(nblocks*absA)/(wlow*denQ) + facc*kapA/denQ. tolF is now 3.2e-8 at the test's sizes, 3.4e-8 at the benchmark's and at most 4.2e-8 at N = 2^16, X = 2^10 (was 1.5e-5, 6.4e-5, 3.3e-4); most of it is the output's float16 rounding near zero, 2^-25. tolO, tolS and tolM are unchanged. The README has the new table, the tolF prose and a round-3 note.
+- **F8 CLARIFIED**: Corrected. With F7's tightening tolF is at most 4.2e-8, so the exception is now confined to attnAbs below tolF/(1 - tolO), at most 5.5e-8 (N = 2^16, X = 2^10). That is below float16's smallest subnormal 2^-24 (6.0e-8). There the exact output rounds to 0 or +-2^-24, and tolO*attnAbs + tolF is below 2^-24, so the bound still fixes the output to within one float16 subnormal step. The sentence now reads 'fixes the output to well within its own magnitude, up to the two absolute terms', and the tolF paragraph gives the threshold and what holds below it.
+- **F9 CLARIFIED**: absA itself changed under F7: it is now 1/2^37. Its docstring describes the new bound, relDot16 64 times at most 2^-22 + 2^-32 per block, about 0.52*2^-37 (66*2^-44). The old figure (330*2^-31, about 1.29*2^-23, not 1.5*2^-23) went away with the old bound. The new kapA = 2^-29 has its own docstring (66*2^-36*8/7 <= 2^-29).
+
+## Round 4
+
+
+### r-fwd files ([filing](review/round-4/r-fwd/filing.json), [report](review/round-4/r-fwd/report.md), [work](review/round-4/r-fwd/work/))
+
+`2026-11-01T06:42:34Z`, at gate `7c52bcaa1a441cb2`. Notes: Round 4, gate 7c52bcaa1a441cb2: only spec re-opened (absA, absQ0, kapA changed; Post's form, tolO, tolS and tolM unchanged). kapA's derivation checks: 66*2^-36*8/7 is about 0.59*2^-29, with psi16 <= 1/7 at the largest covered X and D. F9's figure matches absA's definition: 66*2^-22 times 64*(2^-14*(2^-25 + 2^-125) + 2^-28) is about 0.516*2^-37, below absA = 2^-37. F8's threshold tolF/(1 - tolO) is 4.23e-8/0.764, about 5.5e-8 at N = 2^16, X = 2^10, below float16's smallest subnormal. The README's table agrees with my evaluation.
+
+- **released F7**: Revised as asked: the p.v lift of a subnormal v is now bounded through the block's weights (kapA = 2^-29 per unit of weight, rescaled with acc), and absA keeps only the per-key remainder (2^-37, covering 66*2^-22*(2^-22 + 2^-32), about 0.52*2^-37). tolF is now 3.2e-8 (test), 3.4e-8 (benchmark) and at most 4.2e-8 (N = 2^16, X = 2^10), as my exact re-evaluation gives (work/tol.out); the floor that grew with N is gone.
+- **accepted** at gate `7c52bcaa1a441cb2`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
+
+### r-fwd2 files ([filing](review/round-4/r-fwd2/filing.json), [report](review/round-4/r-fwd2/report.md), [work](review/round-4/r-fwd2/work/))
+
+`2026-11-01T06:43:53Z`, at gate `7c52bcaa1a441cb2`. Notes: Round 4, gate 7c52bcaa1a441cb2. Only spec changed (absA, kapA, absQ0); Post, HeadOk and every other item keep their digests. My exact evaluation (work/tol.out) matches the README's table: tolO, tolS and tolM are as in round 3; tolF is 3.17e-8, 3.21e-8, 3.37e-8, 3.93e-8 and 4.23e-8 at the table's rows, below the 4.3e-8 of the README's narrowing. The tolerance is stronger than in round 3 and meaningful at every covered size. tolF is now mostly the output's float16 rounding near zero (2^-25), and the p.v lift adds 1.9e-9 to 1.25e-8. I read the revised AInv (kapAr*psum wt), the kapAr, absAr and the hk bound in Step.astep, and absQ0's facc*kapA/denQ (the kapA*sum wt term divided by l_i >= (1 - betaL)*sum wt, so no wlow). The axioms of main are the standard three (work/check_spec.out). r-fwd's F7 (REVISED) is answered as it asked: the lift is bounded through the block's weights, and tolF no longer grows as N/64*2^-22.
+
+- **released F8**: Fixed. With absA = 2^-37 and kapA = 2^-29, tolF is at most 4.23e-8 over the covered sizes (work/tol.out, D=256, N=2^16, X=2^10). The README sentence now reads 'up to the two absolute terms', and the tolF paragraph gives the threshold tolF/(1 - tolO): at most 5.54e-8, below float16's smallest subnormal 2^-24 = 5.96e-8. At that threshold tolO*attnAbs + tolF equals attnAbs, so it is below 2^-24 too, and the bound holds the output within one subnormal step, as the README says.
+- **released F9**: Fixed with F7's change. absA is now 2^-37. Its docstring's per-block rest is 64*(2^-14*(2^-25 + 2^-125) + 2^-28) = 2^-22 + 2^-33 + 2^-133, so 'at most 2^-22 + 2^-32' holds. Times relDot16 64 that is 66*2^-44 + 66*2^-54, about 0.516*2^-37: 'about 0.52*2^-37' is right (work/check_spec.lean checks it between 0.51 and 0.53 of absA). kapA's docstring also checks: 66*2^-36*8/7 = 0.589*2^-29 <= 2^-29, with psi16 <= 0.0965 <= 1/7 at the largest D and X.
+- **accepted** at gate `7c52bcaa1a441cb2`: `assumption:div_full`, `assumption:div_total`, `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_ninf`, `assumption:exp2_total`, `assumption:faithful`, `assumption:log2`, `assumption:log2_total`, `conditions`, `map`, `model`, `spec`
 

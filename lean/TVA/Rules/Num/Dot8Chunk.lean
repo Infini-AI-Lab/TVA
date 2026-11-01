@@ -17,20 +17,21 @@ bounded by the largest term the chunk's instruction aligns to, the accumulator i
   `liftMag a_k · liftMag b_k` of the chunk, `s (j+1)` is within
   `rho·Mj + sigma·|s j + c_j| + alpha` of `s j + c_j`, `c_j` the chunk's exact sum (`chunkSum8`).
 
-`liftMag d q` is `0` for `q = 0` and `max |q| (2^emin)` otherwise (`minNormal8`: `2^-14` for
-`float8e5`, `2^-6` for `float8e4nv`): the tensor core aligns a product by its operands' exponent
-fields, and a subnormal operand's field reads as the smallest normal's.
+`liftMag d q` (`TVA.Rules.Num`) is `0` for `q = 0` and `max |q| (2^emin)` otherwise (`minNormal8`:
+`2^-14` for `float8e5`, `2^-6` for `float8e4nv`): the tensor core aligns a product by its operands'
+exponent fields, and a subnormal operand's field reads as the smallest normal's.
 
 The constants are `rhoChunk8 = 2^-7`, `sigmaChunk8 = 2^-12`, `alphaChunk8 = 2^-126`. On the `wgmma`
 path (the evidence's bit-level model, equal to the device on every element tested) a chunk's error is
 below `33·(1 + 2^-13)·2^-13·Mj + 2^-13·|s j + c_j| + 34·2^-139`: each of the 33 terms loses less than
 the window's unit `u = 2^(E-13) ≤ 2^-13·Mj` (with `E` the largest exponent field), and the sum is
 then cut to 14 significant bits. `rho` and `sigma` keep a factor of about 2 over that. On the
-`mma.sync` path (fp8 converted to `float16`, two `float16` instructions per chunk) the error is far
-smaller.
+`mma.sync` path (fp8 converted to `float16`, two `float16` instructions per chunk, each aligned to
+its largest field with 25 bits below it, `evidence/num-dot-sub16-round25`) the error is far smaller.
 
 A bound on the whole dot follows by a lemma, relative to `|acc| + Σ liftMag a_k · liftMag b_k`:
-`Dot8Chunk.DotF8Chunk.liftAcc` (`TVA.Lemmas.Dot8Chunk`), with `(1 + 2^-7 + 2^-12)^⌈K/32⌉ − 1`.
+`Dot8Chunk.DotF8Chunk.liftAcc` (`TVA.Lemmas.Dot8Chunk`), the shape `DotLiftAcc` with
+`(1 + 2^-7 + 2^-12)^⌈K/32⌉ − 1`.
 -/
 namespace TVA.Rules.Num
 
@@ -46,17 +47,8 @@ def relDot8 (K : ℕ) : ℚ := (1 + 2 ^ (-7 : ℤ)) ^ chunks8 K - 1
 /-- The absolute constant of the chunk facts' room: `⌈K/32⌉·(1 + 2^-7)^⌈K/32⌉·2^-126`. -/
 def absDot8 (K : ℕ) : ℚ := chunks8 K * (1 + 2 ^ (-7 : ℤ)) ^ chunks8 K * 2 ^ (-126 : ℤ)
 
-/-- The smallest normal magnitude of an fp8 dtype: `2^-14` for `float8e5`, `2^-6` for
-`float8e4nv`; `0` for the other dtypes (no lift). -/
-def minNormal8 : DType → ℚ
-  | .f8e5 => 2 ^ (-14 : ℤ)
-  | .f8e4nv => 2 ^ (-6 : ℤ)
-  | _ => 0
-
-/-- The magnitude the tensor core aligns an operand value `q` of dtype `d` by: `0` for `0`, and
-otherwise `|q|`, or the smallest normal magnitude when `|q|` is below it (a subnormal fp8 value).
-For normal values and zero it is `|q|`. -/
-def liftMag (d : DType) (q : ℚ) : ℚ := if q = 0 then 0 else max |q| (minNormal8 d)
+/- `minNormal8` and `liftMag`, defined here in round 24, are in `TVA.Rules.Num` (`Rules/Num.lean`)
+since round 25, with the same names, where the 16-bit facts use them too (library issue L126). -/
 
 /-- Chunk `j` of `K` products: the `k < K` with `k / 32 = j`, that is the `32` consecutive `k`
 from `32·j` (fewer in a last, partial chunk). -/

@@ -1,0 +1,12 @@
+{
+  "kernel": "attn_fwd_f16",
+  "round": 2,
+  "responses": [
+    {
+      "id": "F6",
+      "response": "REFERRED",
+      "text": "A library report on DotF16, which L126 fixed in round 25: DotF16 is now DotLiftAcc, relative to |acc| + sum liftMag a * liftMag b (a subnormal float16 counted at 2^-14). I re-proved the claim on the restated fact, subnormal operands covered. Line 73 (qk_lane): the score magnitude is now scoreMag, the lifted sum (formerly scoreAbs = sum |q*k|, equal for zero and normal values), in HeadOk and Post's premise on X; the host's inputs still meet them (the lift adds below 0.031). Line 103 (pv_lane, Step.astep): the lifted magnitudes are bounded by DotLift.liftMag_mul_le: 2^-14*|v| per attended key (omega0 grows from 2^-25 + 2^-125 to 2^-25 + 2^-125 + 66*2^-36) and 5*2^-9 per block (absA grows from 2^-85 to 2^-22); a masked key's p is exactly 0. tolO and tolM are unchanged; tolS grows about 3%; tolF grows from 3.0e-8 to about N/64 * 2^-22 (1.5e-5 at N = 4096, 6.4e-5 at N = 2^14, 3.3e-4 at N = 2^16). README has a section 'What changed (library round 25)'.",
+      "issue": "L126"
+    }
+  ]
+}

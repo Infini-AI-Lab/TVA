@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-softmax2",
+  "kernel": "softmax_f32",
+  "round": 3,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Re-accepting after library round 25 (L126). The diff of docs/rules/num.md and lean/TVA/Rules touches only the 16-bit tl.dot facts and their support: DotF16 and DotBF16 become DotLiftAcc; liftMag and minNormal8 move into Num.lean; DotAcc.liftAcc and DotLiftAcc.mono are added; Dot8Chunk.LiftAcc is withdrawn; and there is a new satisfiability line. The five facts this kernel cites are unchanged: MathTotal, DivTotal, ExpF32 (2^-22 + 2^-23·X, 2^-140), ExpF32NegInf (+0 at negInfF32) and DivFull (2^126, 2^-22, 2^-148). So are the definitions they rest on (MathAcc, MathAt, DivAcc), their rows in 'Facts the library states' and in the reviewer's table, and the page's statements about them, including Platform.sm90ref satisfying them. The kernel uses no tl.dot, so liftMag and minNormal8 do not reach it."
+}

@@ -1,0 +1,16 @@
+{
+  "kernel": "attn_bwd_f16",
+  "round": 3,
+  "responses": [
+    {
+      "id": "F7",
+      "response": "CLARIFIED",
+      "text": "README, 'What changed (library round 25)', with no Lean change. (1) It now says that the definitions of p16Err, ds16Err and HeadV.Ok are unchanged but read the lifted aQK and aVD through eX and eY (pBr, yB). So on inputs with subnormal elements the per-pair errors are slightly larger and HeadV.Ok.fits slightly stronger; each subnormal operand adds at most 2^-14 times its partner's lm. (2) lm is the old magnitude on zero and normal values. p16L and ds16L lift the bounds p16B and ds16B, not the values: they equal the bounds when these are at least 2^-14, are 2^-14 for a bound in [2^-24, 2^-14) even where the value is 0, and are 0 below 2^-24. (3) The Figures bullet now lists every table cell that moved, including the benchmark's HEAD_DIM = 128 causal dKTol 90th percentile (1.50 to 1.51%), and the causal dV maximum in the text (0.91 to 0.92%). It also lists the dQTol 90th percentiles that moved below the table's rounding; the largest is 2.06 to 2.13%."
+    },
+    {
+      "id": "F8",
+      "response": "CLARIFIED",
+      "text": "README only, the same revision as F7. (1) The sentence about zero and normal values now says that lm is the old magnitude on such values. It says that p16L and ds16L equal p16B and ds16B only when the bound is at least 2^-14 (2^-14 for a bound in [2^-24, 2^-14), 0 below 2^-24). (2) The Figures bullet now lists the HEAD_DIM = 128 changes: causal dKTol 90th percentile 1.50 to 1.51%, causal dV maximum 0.91 to 0.92%, and dQTol 90th percentiles 4.75 to 4.76% and 15.92 to 15.93% (below the table's rounding). (3) The worst dQ rows' absolute tolerance now reads 9.2*10^-3 (0.0092498)."
+    }
+  ]
+}

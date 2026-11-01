@@ -1,25 +1,25 @@
 {
-  "gate": "930f0acadb5b364051008cf5c233b769bf293b0de320348c5e7b7ce5f30aab29",
+  "gate": "7c52bcaa1a441cb25c8a9d7986f17d4e248b5c8e9ac3faf72e83f767dad6c1be",
   "items": {
-    "assumption:div_full": "bbcbf79af9c19852f57ef39f83d7c27d460406a425882f77093e7451156bbdb8",
-    "assumption:div_total": "7177ecec0badc1d3bba65be1c0c6bbeffedc2b8d7f411757f10967551d0c1779",
-    "assumption:dot": "981c3709d75ca7042fed35306699d6307ed426a68823af8e8282e6829bc6b2d8",
-    "assumption:dot_total": "e50c29e07e2944190cf29fbd116a38acda52e03bc009af10367d6735afb65f31",
-    "assumption:exp2": "d215e81fa7b2cbf4d1091d6723624dddb7684a7fc5d55317c6e13dc8e5aad608",
-    "assumption:exp2_ninf": "923a7a524f03c233eb71ee2a6c3c314dec62e3c48aa366335212153b8ef8fa9e",
-    "assumption:exp2_total": "fb8894f1b9e511dec62305ecbd6292740dd73ddd817e118f3b178d420c5263ac",
+    "assumption:div_full": "4631d7560d742f11a63db8a9cfeec3479986fffc3264e264de19ac2805700c72",
+    "assumption:div_total": "69ea588c5edd63f7767fe7f52b586358de79c11cad89b9c13f97c1e4b0cec90f",
+    "assumption:dot": "4cc548e49980ddbd90247c77625322a78e524ae8c84a8eff5d81bd5b10856960",
+    "assumption:dot_total": "b6c8f678e10d0a4e49e130316f37e57b18fad05cd9cc8f04bdc16b419ac9c3ac",
+    "assumption:exp2": "6430fff1b879012df12e6217c09db1a886e49f7306a28aa237098e4074fdf4d6",
+    "assumption:exp2_ninf": "23821e819de4f2819db0dbca38631b7838de13c8113947c04aa506ce4d98bacb",
+    "assumption:exp2_total": "f5411c14f37b80cef8c6ac5f4a950494c9f7ac19bc5084dde1783fba9e366fe5",
     "assumption:faithful": "7b632a90276e677921fb8cfd3c0c926ed8bf38caaec320fddd1933f46a11a41c",
-    "assumption:log2": "7a099c276c7af2c8d61a1086262bb37c4c4e1a7af3234ab0d945cc06ec134048",
-    "assumption:log2_total": "b642b71b831437b7888c33c348a44e029c9c92f69516725e0de4e8662a2d900f",
+    "assumption:log2": "f4fb4d46203f01ef2280a8fa9dcb78d208361dff44dca816802d1d0e9f579ea1",
+    "assumption:log2_total": "bec368f8e13aecc98fc080eb4be164bad71bb333f5adb0ebe6d02d051566da44",
     "conditions": "c587de4b858eece0fea252853aee3b528c6c645531f94efc415291f498d197f5",
     "map": "726c8b30b1cd3e2adcfb6a0c4bb3085b35021c43d81c3a9d7ec4b6c836625558",
     "model": "e98ae22afef95f2e930e23201df6851ccb997ea81c525688de3fc3bca1faec15",
-    "spec": "e6eff589a12ed8bf14dbafb2787d4fd8ad68eeb0e1af80d8f54768b751d76f34"
+    "spec": "fa28d3f728d8bd610fbca3d46e82b9d961412bfc982cb4c98538335f7f6624fc"
   },
   "kernel": "attn_fwd_f16",
   "reviewers": [
     "r-fwd",
     "r-fwd2"
   ],
-  "time": "2026-11-01T04:31:22Z"
+  "time": "2026-11-01T06:44:15Z"
 }

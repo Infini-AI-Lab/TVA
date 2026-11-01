@@ -145,21 +145,27 @@ def relDot16 (K : ℕ) : ℚ := (K + 2) * 2 ^ (-22 : ℤ)
 def absDot16 (K : ℕ) : ℚ := (K + 2) * 2 ^ (-126 : ℤ)
 
 /-- **`tl.dot` of `float16` operands into `float32`** (`max_num_imprecise_acc = 0`, any
-`input_precision`, which Triton ignores for these operands). Triton chains `mma.sync` or
-`wgmma` instructions of `16` products each along `K`. Each instruction keeps every term's bits
-down to at least `2^-23` of the largest term, the accumulator included (truncating below), so a
-chunk of `j` nonzero terms is within `j·2^-23` times their magnitudes' sum; over the `⌈K/16⌉`
-instructions this stays below the constants. Per output element:
-within `(K+2)·2^-22·(|acc| + Σ|a·b|) + (K+2)·2^-126` of `acc + Σ a·b`, with room in `float32`.
-Evidence: `evidence/num-dot` (the accumulation window, and adversarial inputs at every `K` that
-compiles, on both instruction paths). -/
+`input_precision`, which Triton ignores for these operands), relative to lifted magnitudes
+(`DotLiftAcc`; library issue L126, round 25). Triton chains `mma.sync` or `wgmma` instructions of
+`16` products each along `K`, in increasing `k`. Each instruction aligns the accumulator and its
+products to the largest exponent field `E` (a product's field is its operands' fields added, a
+subnormal operand's field read as the smallest normal's, `2^-14`), truncates every term toward zero
+to a multiple of `2^(E-25)`, sums them exactly and truncates the sum toward zero to `float32`. So a
+chunk's error is below `5.25·2^-23·(|s| + A) + 5.25·2^-149`, with `s` the accumulator before it
+(which never grows past `|acc| + Σ|a·b|`) and `A` the chunk's sum of `liftMag a·liftMag b`; over
+the `⌈K/16⌉` instructions this stays below the constants. Per output element, with `L = |acc| + Σ liftMag a·liftMag b` and room in `float32`:
+within `(K+2)·2^-22·L + (K+2)·2^-126` of `acc + Σ a·b`. Before round 25 the fact had `Σ|a·b|` in
+place of the lifted sum, which a subnormal operand with a large partner breaks. Evidence:
+`evidence/num-dot-sub16-round25` (a bit-exact model of both instruction paths, and adversarial
+inputs at every `K` that compiles), `evidence/num-dot`. -/
 def DotF16 : Prop :=
-  ∀ p : InputPrecision, DotAcc P ⟨.f16, .f16, .f32, p, 0⟩ (fun _ => True) relDot16 absDot16
+  ∀ p : InputPrecision, DotLiftAcc P ⟨.f16, .f16, .f32, p, 0⟩ relDot16 absDot16
 
-/-- **`tl.dot` of `bfloat16` operands into `float32`**: as `DotF16`, with the same constants
-(the absolute term covers products below `float32`'s normal range). Evidence: `evidence/num-dot`. -/
+/-- **`tl.dot` of `bfloat16` operands into `float32`**: as `DotF16`, with the same constants, a
+subnormal operand counted at `2^-126` (the absolute term covers products below `float32`'s normal
+range). Evidence: `evidence/num-dot-sub16-round25`, `evidence/num-dot`. -/
 def DotBF16 : Prop :=
-  ∀ p : InputPrecision, DotAcc P ⟨.bf16, .bf16, .f32, p, 0⟩ (fun _ => True) relDot16 absDot16
+  ∀ p : InputPrecision, DotLiftAcc P ⟨.bf16, .bf16, .f32, p, 0⟩ relDot16 absDot16
 
 /- The fp8 `tl.dot` facts are `DotE4m3Chunk`, …, `DotE5m2E4m3Chunk` (`TVA.Rules.Num.Dot8Chunk`).
 The whole-dot facts `DotE4m3`, `DotE5m2`, `DotE4m3E5m2`, `DotE5m2E4m3` (and their family `DotF8`)
@@ -188,7 +194,8 @@ def e8m0Dom (b : ℕ) : Prop := 1 ≤ b ∧ b ≤ 254
 /-- `tl.dot_scaled` with `e8m0` scales on both sides, groups of `32`, `K`-packed operands and
 either `fast_math`, as sm_90 runs it: each element and its scale are converted to `bfloat16` and
 multiplied there (exact on `scaledDomBF16`), then a `bfloat16` `tl.dot` into `float32`
-(`DotBF16`'s constants). -/
+(`DotBF16`'s constants). On `scaledDomBF16` no operand of that dot is subnormal, so its lifted
+magnitudes are `|a·b|` and the bound is relative to `|acc| + Σ|a·b|`. -/
 def DotScaledMx (lhs rhs : MXFmt) : Prop :=
   ∀ fm : Bool, DotScaledAcc P ⟨lhs, rhs, .e8m0, .e8m0, 32, true, true, fm⟩ scaledDomBF16 e8m0Dom
     relDot16 absDot16

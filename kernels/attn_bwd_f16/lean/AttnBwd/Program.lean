@@ -224,10 +224,10 @@ theorem scaled_size (hd : d.ok) {hv : HeadV} (_hok : hv.Ok d) {T : ℕ} (hT : T 
     (hh : ∀ m, m < d.N_CTX → 0 ≤ h m ∧ h m ≤ 2 ^ 17) :
     |∑ m ∈ Finset.range d.N_CTX, e m * (x m).toReal| +
       (∑ m ∈ Finset.range d.N_CTX, g m * |(x m).toReal| +
-        accB T (∑ m ∈ Finset.range d.N_CTX, h m * |(x m).toReal|)) ≤ 2 ^ 49 ∧
+        accB T (∑ m ∈ Finset.range d.N_CTX, h m * lm (x m))) ≤ 2 ^ 49 ∧
     0 ≤ |∑ m ∈ Finset.range d.N_CTX, e m * (x m).toReal| +
       (∑ m ∈ Finset.range d.N_CTX, g m * |(x m).toReal| +
-        accB T (∑ m ∈ Finset.range d.N_CTX, h m * |(x m).toReal|)) := by
+        accB T (∑ m ∈ Finset.range d.N_CTX, h m * lm (x m))) := by
   have hsub : Finset.range d.N_CTX ⊆ Finset.range d.N_CTX := subset_rfl
   have h1 : |∑ m ∈ Finset.range d.N_CTX, e m * (x m).toReal| ≤ 2 ^ 47 := by
     refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
@@ -235,11 +235,11 @@ theorem scaled_size (hd : d.ok) {hv : HeadV} (_hok : hv.Ok d) {T : ℕ} (hT : T 
     refine le_trans (le_of_eq ?_) this
     exact Finset.sum_congr rfl fun m _ => abs_mul _ _
   have h2 := sum_bd_le hd hsub g x hg hx
-  have h3 := sum_bd_le hd hsub h x hh hx
-  have h30 : 0 ≤ ∑ m ∈ Finset.range d.N_CTX, h m * |(x m).toReal| :=
-    Finset.sum_nonneg fun m hm => mul_nonneg (hh m (Finset.mem_range.mp hm)).1 (abs_nonneg _)
+  have h3 := sum_bd_le_lm hd hsub h x hh hx
+  have h30 : 0 ≤ ∑ m ∈ Finset.range d.N_CTX, h m * lm (x m) :=
+    Finset.sum_nonneg fun m hm => mul_nonneg (hh m (Finset.mem_range.mp hm)).1 (lm_nn _)
   have h4 := accB_le hT h30
-  have : (2 : ℝ) ^ (-5 : ℤ) * ∑ m ∈ Finset.range d.N_CTX, h m * |(x m).toReal| ≤ 2 ^ (-5 : ℤ) * 2 ^ 47 :=
+  have : (2 : ℝ) ^ (-5 : ℤ) * ∑ m ∈ Finset.range d.N_CTX, h m * lm (x m) ≤ 2 ^ (-5 : ℤ) * 2 ^ 47 :=
     mul_le_mul_of_nonneg_left h3 (by positivity)
   have : (2 : ℝ) ^ 47 + 2 ^ 47 + 2 ^ (-5 : ℤ) * 2 ^ 47 + 2 ^ (-85 : ℤ) ≤ 2 ^ 49 := by norm_num
   have h20 : 0 ≤ ∑ m ∈ Finset.range d.N_CTX, g m * |(x m).toReal| :=
@@ -285,13 +285,13 @@ theorem qp_final {d : Inst} (hd : d.ok) {init mC : Mem} {b p : Nat} (hp : 128 * 
   · have h := (hinv2 r j hv hH hO).2
     rw [kv_steps hd hp r] at h
     have h' := accI_range (kv_cover_sub hd hp) (fun m hm hn' => by
-      obtain ⟨-, -, -, h4, h5, h6⟩ := vanish (hv := hv) (kv_vanish hd hp r hm hn')
-      rw [h4, h5, h6]; simp) h
+      obtain ⟨-, -, -, h4, h5, -⟩ := vanish (hv := hv) (kv_vanish hd hp r hm hn')
+      rw [h4, h5, (vanishL (hv := hv) (kv_vanish hd hp r hm hn')).2]; simp) h
     have hsz := scaled_size hd hO (stepsKV_le hd (128 * p + r)) (fun m => hv.q m j)
       (fun m hm => hO.q m j hm j.2) (fun m => dsE d hv (128 * p + r) m)
-      (fun m => ds16Err d hv (128 * p + r) m) (fun m => ds16B d hv (128 * p + r) m)
+      (fun m => ds16Err d hv (128 * p + r) m) (fun m => ds16L d hv (128 * p + r) m)
       (fun m hm => dsE_abs hd hO hn hm) (fun m hm => ds16Err_bd hd hO hn hm)
-      (fun m hm => ds16B_bd hd hO hn hm)
+      (fun m hm => ds16L_bd hd hO hn hm)
     have hs := sm_abs hd
     exact out_scaled h' hd.sm.1 (by
         have := mul_le_mul hs hsz.1 hsz.2 (by norm_num)
@@ -300,13 +300,13 @@ theorem qp_final {d : Inst} (hd : d.ok) {init mC : Mem} {b p : Nat} (hp : 128 * 
   · have h := hinvq r j hv hH hO
     rw [q_steps r] at h
     have h' := accI_range (q_cover_sub hd hp) (fun n hn' hnc => by
-      obtain ⟨-, -, -, h4, h5, h6⟩ := vanish (hv := hv) (q_vanish hd hp r hn' hnc)
-      rw [h4, h5, h6]; simp) h
+      obtain ⟨-, -, -, h4, h5, -⟩ := vanish (hv := hv) (q_vanish hd hp r hn' hnc)
+      rw [h4, h5, (vanishL (hv := hv) (q_vanish hd hp r hn' hnc)).2]; simp) h
     have hsz := scaled_size hd hO (stepsQ_le hd hn) (fun n => hv.k n j)
       (fun n hn' => hO.k n j hn' j.2) (fun n => dsE d hv n (128 * p + r))
-      (fun n => ds16Err d hv n (128 * p + r)) (fun n => ds16B d hv n (128 * p + r))
+      (fun n => ds16Err d hv n (128 * p + r)) (fun n => ds16L d hv n (128 * p + r))
       (fun n hn' => dsE_abs hd hO hn' hn) (fun n hn' => ds16Err_bd hd hO hn' hn)
-      (fun n hn' => ds16B_bd hd hO hn' hn)
+      (fun n hn' => ds16L_bd hd hO hn' hn)
     exact out_scaled h' ln2_fin (by
         have := mul_le_mul hln2le hsz.1 hsz.2 (by norm_num)
         refine this.trans ?_; norm_num)

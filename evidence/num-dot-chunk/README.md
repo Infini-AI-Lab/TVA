@@ -149,6 +149,12 @@ new facts' ratio stays below `0.47`. On `mma.sync` the errors are below `10^-4` 
 4. **`mma.sync`.** Each `float16` instruction keeps every term's bits down to at least `2^-23` of its
    largest term and rounds into `float32` (evidence/num-dot Part 1; Part A2), and accumulators pass
    unchanged; a chunk of two is within about `360·2^-23·Mj`, far below the facts (ratio `0.0002`).
+   (Round 25, library issue L126: precisely, each `float16` instruction keeps 25 bits below its
+   largest exponent field, a subnormal `float16` operand, such as a subnormal `float8e5` value, read
+   as `2^-14`, and truncates its sum toward zero into `float32`; so "its largest term" is its largest
+   lifted term, which `Mj` bounds, and the derivation stands. A subnormal `float8e5` operand with a
+   large partner stays below `10^-4` of the facts' bound on `mma.sync`:
+   [evidence/num-dot-sub16-round25](../num-dot-sub16-round25/README.md) Parts A and G2.)
 5. **The facts hold** on every element tested, on both paths, for every pair and every `K` that
    compiles, the chains included.
 6. **The existing facts `DotE4m3`, `DotE5m2`, `DotE4m3E5m2`, `DotE5m2E4m3` do not hold** for a chunk

@@ -6,23 +6,23 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 
 ## Status
 
-- Gate: **PASS**, digest `ca23f13ad8ef224a` (2026-11-01T02:14:23Z).
-- Phase: round 2: waiting for the prover (2 open finding(s)).
+- Gate: **PASS**, digest `b28f50727b67c8a8` (2026-11-01T06:18:23Z).
+- Phase: round 4: all reviewers have filed.
 - Reviewers: r-bwd (all), r-bwd2 (all).
 - Certificate: **GRANTED**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-bwd | r-bwd2 |
 |---|---|---|---|
-| `assumption:dot` | `43d7c5220102` | accepted | accepted |
-| `assumption:dot_total` | `b97746a80071` | accepted | accepted |
-| `assumption:exp2` | `273263578e39` | accepted | accepted |
-| `assumption:exp2_total` | `ab66c8ed1205` | accepted | accepted |
+| `assumption:dot` | `b81b33788ad3` | accepted | accepted |
+| `assumption:dot_total` | `b4fe85491915` | accepted | accepted |
+| `assumption:exp2` | `f0b12c7c10b4` | accepted | accepted |
+| `assumption:exp2_total` | `0406703f21c4` | accepted | accepted |
 | `assumption:faithful` | `4c343bd534fc` | accepted | accepted |
 | `conditions` | `1ea438ae16fd` | accepted | accepted |
 | `map` | `546ddbd1d499` | accepted | accepted |
 | `model` | `4fc657ef0210` | accepted | accepted |
-| `spec` | `4f63b9280372` | accepted | accepted |
+| `spec` | `d549665c8f36` | accepted | accepted |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -30,8 +30,10 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 | [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd2 | 1 | Narrowings: 'the host asserts only that the strides are equal' omits do.is_contiguous() (line 585); and a Python float s |
 | [F3](#f3) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd | 1 | The README's tolerance figures understate Post: about 1%, not 0.5%, of the magnitude sums at the benchmark's largest siz |
 | [F4](#f4) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd | 1 | The README's layout narrowing misdescribes the host's checks: do.is_contiguous() and equal strides already fix the conti |
-| [F5](#f5) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-bwd2 | 2 | Does DotF16 hold when a subnormal float16 operand sets the wgmma window (L125's mechanism)? This kernel's ppT and dsT ar |
-| [F6](#f6) | OPEN (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-bwd | 2 | L125's mechanism (a subnormal operand's exponent field, read as the smallest normal's, sets the wgmma window) is unteste |
+| [F5](#f5) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-bwd2 | 2 | Does DotF16 hold when a subnormal float16 operand sets the wgmma window (L125's mechanism)? This kernel's ppT and dsT ar |
+| [F6](#f6) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-bwd | 2 | L125's mechanism (a subnormal operand's exponent field, read as the smallest normal's, sets the wgmma window) is unteste |
+| [F7](#f7) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd | 3 | 'What changed (library round 25)': per-pair errors and HeadV.Ok read the lifted aQK, aVD; p16L, ds16L lift bounds, not v |
+| [F8](#f8) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd2 | 3 | 'What changed (library round 25)': 'for inputs and values that are zero or normal these are the old magnitudes' is wrong |
 
 **Certificate: GRANTED**
 
@@ -149,4 +151,69 @@ Same doubt as attn_fwd_f16#F6 and grouped_matmul_tma_f16#F5/F6, filed for this k
 
 - **accepted** at gate `ca23f13ad8ef224a`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 - `2026-11-01T02:24:46Z` coordinator's note: Library issue L126 (docs/library-review/ISSUES.md; evidence/num-dot-sub16), open: DotF16, which this claim cites, fails on the device when a product with a subnormal float16 operand and a large partner sets the tl.dot window (up to 53 times its bound on wgmma and mma.sync). The certificate rests on DotF16 as stated; the fix (a library round, then a re-proof of this kernel) is not yet scheduled.
+
+### The prover responds ([response](review/round-2/prover/response.json), [notes](review/round-2/prover/notes.md))
+
+`2026-11-01T06:07:18Z`, at gate `b28f50727b67c8a8`.
+
+- **F5 REFERRED**: Referred to library issue L126, which library round 25 fixed. DotF16 is now a DotLiftAcc fact: its bound is relative to |acc| + sum liftMag a * liftMag b, with a subnormal float16 operand counted at 2^-14. I re-proved the claim on the restated fact, and subnormal operands stay covered. dot0 and accI_dotAdd now use DotLift.dotAdd_step. The specification counts each dot operand by its lifted magnitude lm: aQK and aVD are sums of lm * lm. The accumulation bounds are sum p16L * lm dO, sum ds16L * lm Q and sum ds16L * lm K, where p16L = lift16 p16B and ds16L = lift16 ds16B (0 when the bound is below 2^-24, because such a float16 value is 0; otherwise max B 2^-14). The new lemmas are lm_le_lift16, f16_small_zero, lm_le, abs_mul_le_lm, sum_bd_le_lm and vanishL. The README's tolerance figures moved by at most 0.07 percentage points. The gate passes.
+- **F6 REFERRED**: Referred to library issue L126, which library round 25 fixed: DotF16 and DotBF16 are restated in the lifted form you asked for (DotLiftAcc, subnormal operands counted at minNormal8 = 2^-14 for float16), with new evidence (evidence/num-dot-sub16-round25). I re-proved the claim on the restated fact. The tl.dot steps on the fp16 P and dS (lines 303, 310, 358) now bound each product's lifted magnitude by p16L * lm dO, ds16L * lm Q or ds16L * lm K (lm_le_lift16), and the per-pair dots of lines 293, 307, 345 and 353 use the lifted aQK and aVD. Subnormal P, dS and inputs stay covered. The README has a section 'What changed (library round 25)', and its figures moved by at most 0.07 percentage points. The gate passes.
+
+## Round 3
+
+- `2026-11-01T06:07:47Z` coordinator's note: Library round 25 (L126) restated DotF16 as DotLiftAcc (lifted magnitudes; relDot16, absDot16 unchanged); the prover re-proved the claim on it, gate b28f50727b67c8a8, with each tl.dot operand counted by its lifted magnitude.
+
+### r-bwd files ([filing](review/round-3/r-bwd/filing.json), [report](review/round-3/r-bwd/report.md), [work](review/round-3/r-bwd/work/))
+
+`2026-11-01T06:14:25Z`, at gate `b28f50727b67c8a8`. Notes: Round 3 at gate b28f50727b67c8a8. assumption:dot is Rules.Num.DotF16 P, the fact as listed in num.md's 'Facts the library states' row (DotLiftAcc, relDot16, absDot16, a subnormal float16 operand counted at 2^-14); work/spec3.out prints it with full names. The cone changes match the restatement: added DotLiftAcc, liftMag, minNormal8 and its match helpers (DType.ctorIdx from the wildcard), removed DotAcc. dot_total, exp2 and exp2_total re-opened only through whole-file digests: no changed line of Rules/Num.lean, Rules/Num/Sm90.lean or num.md touches DotTotal, MathTotal or Exp2F32, and DotLoop.lean's diff leaves stepRel and stepAbs as they were (rhoA, alphaA). Spec: the new terms are lm = liftMag .f16, lift16, p16L, ds16L. aQK and aVD now sum lm*lm, and dVTol, dKAcc and dQAcc have B = sum p16L*lm dO, ds16L*lm Q, ds16L*lm K. pBr, pE, p16Err and dsErr hash differently only because the auxiliary proof for the real literal 2, (1 + 1).AtLeastTwo, is now lift16._proof_1 (it was pBr._proof_1). lift16 is a valid bound: a float16 value below 2^-24 is 0. The tolerance is still explicit, computable and meaningful. I extracted the README's inline script and ran it as printed (numpy 2.3.5). It matches Spec.lean's formulas line by line (lm, lift16, p16L, ds16L, aQK, aVD, dVTol, dKAcc, dQAcc). It reproduces every figure of the table and of the paragraph after it: A, the medians and 90th percentiles, the counted maxima 1.04/1.19% and 0.92/5.2%, and the dQ worst rows at 2.6e-4 to 9.25e-3. main, consistent and satisfiable use only propext, Classical.choice and Quot.sound. The README's '0.07 percentage points' holds for the table; uncounted rows move more (benchmark HEAD_DIM = 64 non-causal dV worst row 563% to 582%), where the README already says the floor dominates.
+
+#### F7
+
+**DOC** on `doc:kernels/attn_bwd_f16/README.md` (non-blocking): 'What changed (library round 25)': per-pair errors and HeadV.Ok read the lifted aQK, aVD; p16L, ds16L lift bounds, not values; the list of moved figures is incomplete
+
+Three wording points in the README's new section, all non-blocking; the Lean and the table are right. (1) 'The per-pair errors, HeadV.Ok, the conditions and the model are unchanged.' The definitions of p16Err, ds16Err and HeadV.Ok are unchanged, but they read eX and eY (through pBr and yB), which now take the lifted aQK and aVD. So on inputs with subnormal elements the per-pair errors are slightly larger, and HeadV.Ok.fits (xE + eX <= 15, pBr*yB <= 2^15) is slightly stronger: it covers slightly fewer inputs. The change is tiny: each subnormal operand adds at most 2^-14 times its partner's lm to aQK or aVD, so rH*a grows by at most about 2^-22*max lm. Suggest 'their definitions are unchanged; through eX and eY they read the lifted aQK and aVD'. (2) 'For inputs and values that are zero or normal these are the old magnitudes.' This holds for aQK, aVD and for lm dO, lm Q, lm K. p16L and ds16L are functions of the bounds p16B and ds16B, not of the float16 values. They equal those bounds when the bounds are at least 2^-14. They are 0, below the old p16B or ds16B, when the bounds are below 2^-24. In between they are 2^-14, even where the float16 value turns out to be 0. (3) The Figures bullet names the test's HEAD_DIM = 128 dVTol (0.20 to 0.21%) and the benchmark's HEAD_DIM = 64 figures. The benchmark's HEAD_DIM = 128 causal dKTol 90th percentile also moved (1.50 to 1.51%), and so did the causal dV maximum in the paragraph after the table (0.91 to 0.92%). The bound 'at most 0.07 percentage points' is right: the largest move is the HEAD_DIM = 64 non-causal dQTol 90th percentile, 2.06 to 2.13%.
+
+*Evidence:* Spec.lean: eX, eY, pBr, yB, p16Err, ds16Err, HeadV.Ok, lift16, p16L, ds16L. work/readme_script.out (this round) against round 2's work/readme_script.out.
+
+- **released F6**: Settled by L126 (library round 25), which did what F6 asked. The coordinator's evidence (num-dot-sub16, num-dot-sub16-round25) found that DotF16 failed on such inputs, and the library restated DotF16 and DotBF16 in lifted form as DotLiftAcc, with relDot16 and absDot16 unchanged. The claim is re-proved on the restated fact: aQK and aVD are sums of lm*lm, and the accumulations' B are sums of p16L*lm dO, ds16L*lm Q and ds16L*lm K. So subnormal P, dS and inputs are covered by the fact as now stated.
+- **accepted** at gate `b28f50727b67c8a8`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-bwd2 files ([filing](review/round-3/r-bwd2/filing.json), [report](review/round-3/r-bwd2/report.md), [work](review/round-3/r-bwd2/work/))
+
+`2026-11-01T06:16:38Z`, at gate `b28f50727b67c8a8`. Notes: Round 3, gate b28f50727b67c8a8. Re-opened: assumption:dot, dot_total, exp2, exp2_total and spec. model, map, conditions and faithful are unchanged. assumption:dot: the field is Rules.Num.DotF16 P, the fact as listed in num.md's 'Facts the library states' (row DotF16, DotBF16, restated 2026-11-01), now a DotLiftAcc. Its docstring describes it correctly. dot_total, exp2, exp2_total: against the round-24 commit, the diffs of Num.lean, Sm90.lean and num.md leave DotTotal, Exp2F32 and MathTotal and their num.md rows unchanged; they re-opened only through the file digests. spec: the new lm (liftMag .f16 of the value) and lift16 are explicit and computable. lift16 B bounds lm x for |x| <= B, since a float16 value below 2^-24 is 0. rH and aH are still relDot16 and absDot16 at HEAD_DIM. stepRel and stepAbs (DotLoop) are unchanged. pBr, pE, p16Err and dsErr changed digest only through aQK and aVD. The README's new inline script implements these formulas, and its output matches every table figure. Each change from the old figures is at most 0.07 percentage points. The floor statement still holds: on the benchmark's low-mass rows the lift adds at most about 5e-5 (at most about 250 lifted pairs per row) to a 2^-25-per-pair floor of 3.9e-4. One DOC finding, on the change log's wording, does not block.
+
+#### F8
+
+**DOC** on `doc:kernels/attn_bwd_f16/README.md` (non-blocking): 'What changed (library round 25)': 'for inputs and values that are zero or normal these are the old magnitudes' is wrong for p16L and ds16L; the Figures bullet omits the HEAD_DIM = 128 changes
+
+(1) README, What changed (library round 25), after the Specification bullets: 'For inputs and values that are zero or normal these are the old magnitudes.' This holds for lm (aQK, aVD, lm dO, lm Q, lm K). It does not hold for p16L = lift16 p16B and ds16L = lift16 ds16B. These are functions of the bound, not of the float16 value. They differ from the old p16B, ds16B whenever the bound is below 2^-14, whatever the value: 2^-14 when the bound is in [2^-24, 2^-14), which includes pairs whose float16 P or dS is 0; and 0 when the bound is below 2^-24. That is where the table's changes come from. The Specification section states the lift correctly ('may be a nonzero subnormal ... one certainly below 2^-24 is 0 and counts 0'). What would resolve it: say that lm is the old magnitude on zero and normal values, and that p16L, ds16L equal p16B, ds16B when the bound is at least 2^-14. (2) The Figures bullet says only the test's HEAD_DIM = 128 dVTol and 'the benchmark's HEAD_DIM = 64 figures' changed. The benchmark's HEAD_DIM = 128 row changed as well (causal dKTol 90th percentile 1.50 to 1.51%). So did the text below the table (largest causal dV ratio 0.91 to 0.92%). (3) Minor, in text unchanged since round 2: the largest dQ absolute tolerance among the worst sampled rows is 0.0092498 (benchmark, HEAD_DIM = 128, CAUSAL), so 9.2*10^-3, not 9.3*10^-3. Not blocking: Spec.lean is right, and the table matches the script.
+
+*Evidence:* work/readme_script.out: the README's inline script, run as written (numpy 2.3.5); it matches the table. The old figures are those of my round-2 run of the previous script. work/floor.out: per-row floor figures on the benchmark's low-mass rows, and the 5-digit dQ absolute value.
+
+- **released F5**: Settled by L126 (library round 25). DotF16 is now forall p, DotLiftAcc P <f16, f16, f32, p, 0> relDot16 absDot16, with the same constants, relative to |acc| + sum liftMag a * liftMag b. liftMag counts a subnormal float16 operand at minNormal8 .f16 = 2^-14, which is the device mechanism I asked about. num.md lists it under 'Facts the library states', with evidence num-dot-sub16-round25. The claim is re-proved on the restated fact. The spec counts every tl.dot operand by its lifted magnitude (lm in aQK and aVD; p16L * lm dO, ds16L * lm Q, ds16L * lm K in the accumulations), so ppT, dsT and subnormal inputs stay covered.
+- **accepted** at gate `b28f50727b67c8a8`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### The prover responds ([response](review/round-3/prover/response.json), [notes](review/round-3/prover/notes.md))
+
+`2026-11-01T06:18:52Z`, at gate `b28f50727b67c8a8`.
+
+- **F7 CLARIFIED**: README, 'What changed (library round 25)', with no Lean change. (1) It now says that the definitions of p16Err, ds16Err and HeadV.Ok are unchanged but read the lifted aQK and aVD through eX and eY (pBr, yB). So on inputs with subnormal elements the per-pair errors are slightly larger and HeadV.Ok.fits slightly stronger; each subnormal operand adds at most 2^-14 times its partner's lm. (2) lm is the old magnitude on zero and normal values. p16L and ds16L lift the bounds p16B and ds16B, not the values: they equal the bounds when these are at least 2^-14, are 2^-14 for a bound in [2^-24, 2^-14) even where the value is 0, and are 0 below 2^-24. (3) The Figures bullet now lists every table cell that moved, including the benchmark's HEAD_DIM = 128 causal dKTol 90th percentile (1.50 to 1.51%), and the causal dV maximum in the text (0.91 to 0.92%). It also lists the dQTol 90th percentiles that moved below the table's rounding; the largest is 2.06 to 2.13%.
+- **F8 CLARIFIED**: README only, the same revision as F7. (1) The sentence about zero and normal values now says that lm is the old magnitude on such values. It says that p16L and ds16L equal p16B and ds16B only when the bound is at least 2^-14 (2^-14 for a bound in [2^-24, 2^-14), 0 below 2^-24). (2) The Figures bullet now lists the HEAD_DIM = 128 changes: causal dKTol 90th percentile 1.50 to 1.51%, causal dV maximum 0.91 to 0.92%, and dQTol 90th percentiles 4.75 to 4.76% and 15.92 to 15.93% (below the table's rounding). (3) The worst dQ rows' absolute tolerance now reads 9.2*10^-3 (0.0092498).
+
+## Round 4
+
+
+### r-bwd files ([filing](review/round-4/r-bwd/filing.json), [report](review/round-4/r-bwd/report.md))
+
+`2026-11-01T06:20:08Z`, at gate `b28f50727b67c8a8`. Notes: Round 4: the gate and every item digest are unchanged (b28f50727b67c8a8), and only the README changed. I took no new samples. On F8 (r-bwd2's), each of its points is answered: the zero/normal sentence now separates lm from p16L and ds16L; the HEAD_DIM = 128 moves are listed; the worst dQ rows' tolerance now reads 9.2e-3, which agrees with my round-3 four-digit run (0.00925, just below the rounding boundary per r-bwd2's 0.0092498). A wording point too small for a finding: the Figures bullet's 'The tolerances moved by at most 0.07 percentage points' holds for the README's figures (the table and the quoted ratios). The ratio on a low-mass row, which neither counts nor is quoted, moves more (benchmark HEAD_DIM = 64 non-causal dV worst row 563% to 582%); line 107 says it precisely ('the figures below').
+
+- **released F7**: The section now says what F7 asked. (1) p16Err, ds16Err and HeadV.Ok keep their definitions but read the lifted aQK and aVD through eX and eY, so they are slightly larger, and fits slightly stronger, on subnormal inputs. (2) lm is the old magnitude on zero and normal values, while p16L and ds16L lift the bounds: equal to them at 2^-14 and above, 2^-14 in [2^-24, 2^-14) even where the value is 0, and 0 below 2^-24. (3) The list of moved figures is complete against my round-2 and round-3 script outputs: four table cells, the causal dV maximum, and the four dQTol 90th percentiles below the table's rounding.
+- **accepted** at gate `b28f50727b67c8a8`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
+
+### r-bwd2 files ([filing](review/round-4/r-bwd2/filing.json), [report](review/round-4/r-bwd2/report.md))
+
+`2026-11-01T06:20:10Z`, at gate `b28f50727b67c8a8`. Notes: Round 4, gate b28f50727b67c8a8, unchanged; only README.md changed, so every item is as I accepted it in round 3. I took no new samples. On F7 (r-bwd's): the new paragraph is correct. p16Err, ds16Err and HeadV.Ok read the lifted aQK and aVD through eX and eY (and so pBr and yB). Since |x| <= lm x, the per-pair errors can only grow and HeadV.Ok.fits can only get stronger. The added amount is lm x * lm y - |x*y| = (lm x - |x|) * lm y + |x| * (lm y - |y|) <= 2^-14 * lm y + 2^-14 * lm x, which is what 'each subnormal operand adds at most 2^-14 times its partner's lm' says. The rest of the section and the floor text are unchanged and still right.
+
+- **released F8**: The section 'What changed (library round 25)' now says it correctly. (1) lm is the old magnitude on zero and normal values. p16L and ds16L lift the bounds p16B and ds16B, not the values: they equal the bounds when these are at least 2^-14, are 2^-14 for a bound in [2^-24, 2^-14) even where the float16 P or dS is 0, and are 0 below 2^-24. This matches Spec.lean's lift16. (2) The Figures bullet lists every cell that moved. These are test HD128 non-causal dV (0.20 to 0.21), benchmark HD64 non-causal dV 90th (0.83 to 0.85), benchmark HD64 causal dV (0.49/0.60 to 0.50/0.61) and benchmark HD128 causal dK 90th (1.50 to 1.51). It also gives the causal dV maximum (0.91 to 0.92) and the four dQ 90th percentiles below the table's rounding (2.06 to 2.13, 3.27 to 3.30, 4.75 to 4.76, 15.92 to 15.93). All of these agree with my round-2 and round-3 runs of the script. (3) The worst dQ rows' absolute tolerance reads 9.2*10^-3 (I computed 0.0092498).
+- **accepted** at gate `b28f50727b67c8a8`: `assumption:dot`, `assumption:dot_total`, `assumption:exp2`, `assumption:exp2_total`, `assumption:faithful`, `conditions`, `map`, `model`, `spec`
 

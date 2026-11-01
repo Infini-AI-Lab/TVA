@@ -51,7 +51,11 @@ host code for this claim), and its header (lines 52–72) is a host line: it bin
   hold finite `float16` values `va k` and `vb k` (`k < K g`) in the initial memory:
   - `c` is the `float16` rounding (to nearest even, `FloatV.cvt`, up to NaN payload) of a finite
     `float32` value `v` with `|v − S| ≤ tol (K g) A`, where `S = Σ_k va k · vb k` is the exact dot
-    product (`dotSum`) and `A = Σ_k |va k · vb k|` (`dotAbs`);
+    product (`dotSum`) and `A = Σ_k liftMag (va k) · liftMag (vb k)` (`dotLift`) the sum of the
+    products' lifted magnitudes: `liftMag q` (`Rules.Num.liftMag .f16`) is `|q|` for zero and
+    normal `float16` values and `2^-14`, the smallest normal magnitude, for a nonzero subnormal one,
+    the magnitude `Rules.Num.DotF16` measures its error by (library round 25). So `A = Σ_k |va k · vb k|`
+    when no operand is subnormal, and in general `Σ|va k · vb k| ≤ A ≤ Σ (|va k| + 2^-14)·(|vb k| + 2^-14)`;
   - when `|S| + tol (K g) A ≤ 65504` (the largest `float16`), `c` is finite and
     `|c − S| ≤ tol (K g) A + (|S| + tol (K g) A)·2^-11 + 2^-25` (one more `float16` rounding:
     `Format.binary16.u = 2^-11`, `Format.binary16.eta = 2^-25`).
@@ -66,16 +70,22 @@ host code for this claim), and its header (lines 52–72) is a host line: it bin
   `K = 128`, `2.55·10^-4` at `K = 1024` (the test's and the square benchmark's largest), and
   `2.04·10^-3` at `K = 8192 = 2^13` (the batch benchmark's `K`, the largest covered; below `0.21%`
   at every covered `K`, `tol_rel_lt`), and the `α` term is below `10^-34`. `Post`'s whole bound on
-  the stored `c` adds the last `float16` rounding: with products of one sign (`Σ|a·b| = |S|`) it
-  allows a relative error of `(1 + ρ)^T − 1 + (1 + ((1 + ρ)^T − 1))·2^-11` (plus the absolute terms
-  `T·(1 + ρ)^T·α` and `2^-25`), about `5.20·10^-4` at `K = 128`, `7.43·10^-4` at `K = 1024` and
+  the stored `c` adds the last `float16` rounding: with products of one sign and no subnormal
+  operand (`A = Σ|a·b| = |S|`) it allows a relative error of
+  `(1 + ρ)^T − 1 + (1 + ((1 + ρ)^T − 1))·2^-11` (plus the absolute terms `T·(1 + ρ)^T·α` and `2^-25`), about `5.20·10^-4` at `K = 128`, `7.43·10^-4` at `K = 1024` and
   `2.528·10^-3` (`0.253%`) at `K = 2^13`. So at the largest covered size `Post` allows `0.253%`, below
   the largest relative error of a rounding to `bfloat16` (`2^-8/(1 + 2^-8)`, about `0.389%`), so a
   kernel that rounds its accumulator to `bfloat16` breaks `Post` on some inputs (products of one
-  sign, a sum where the `bfloat16` rounding error is near its largest), and so does one that drops
+  sign, normal operands, a sum where the `bfloat16` rounding error is near its largest), and so does
+  one that drops
   or misplaces a product, or computes another group's or another tile's element. The host's inputs
   come from `torch.rand` (values in `[0, 1)`), so every product is non-negative and `Σ|a·b| = S`:
-  the bound is then relative to the result itself. (`K_le` stops at `2^13`: `Post`'s whole relative
+  the bound is then relative to the result itself, up to the operands below `2^-14` that `torch.rand`
+  makes now and then, each of which adds less than `2^-14` (`2^-14` times its partner, below `1`)
+  to `A`. With subnormal operands the tolerance is looser than `Σ|a·b|` would make it: a product of
+  a subnormal `a` and a large `b` counts as `2^-14·|b|`, up to `2^10` times its own magnitude. That
+  is the device's behaviour (the tensor core aligns a subnormal operand as the smallest normal,
+  library issue L126), not slack of the proof. (`K_le` stops at `2^13`: `Post`'s whole relative
   bound reaches `2^-8/(1 + 2^-8)` at `T = 214` steps, so from `K = 13633` it would no longer reject a
   `bfloat16` rounding; the accumulation part `(1 + ρ)^T − 1` alone reaches it at `T = 245`, from
   `K = 15617`.)
@@ -225,8 +235,9 @@ Three assumptions, all of kind `[rule]`, each cited as the library states it:
 - `dot` — `Rules.Num.DotF16 P`, the library's fact for `tl.dot` of `float16` operands into
   `float32` (line 266; [num.md](../../docs/rules/num.md)): for every `input_precision`, with
   `maxImpreciseAcc = 0`, each output element whose row of `a` and column of `b` are finite and whose
-  accumulator is finite is finite and within `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K` of
-  `acc + Σ a·b`, when that leaves room below the `float32` range.
+  accumulator is finite is finite and within `relDot16 K·L + absDot16 K` of `acc + Σ a·b`, with
+  `L = |acc| + Σ liftMag a·liftMag b` (`Rules.Num.DotLiftAcc`, the shape the fact has since library
+  round 25: a subnormal operand counts at `2^-14`), when that leaves room below the `float32` range.
 - `dot_total` — `Rules.Num.DotTotal P cfg` for the model's configuration (`float16` operands,
   `float32` accumulator, `tf32`, `maxImpreciseAcc = 0`): the `tl.dot` of line 266 always has a
   result.
@@ -276,16 +287,20 @@ platform fact beyond `dot`.
     (`safe_forRange`, `cdiv(K g, 64)` trips) with the invariant: memory unchanged, and `AccInv`:
     every element of the tile whose rows of `A g` and `B g` are finite is finite and within
     `DotLoop.bound ρ α s (partA s)` of the exact partial sum `partS s` (the products of
-    `k < 64·s`); it holds at `s = 0` (`acc0`: `+0.0`, exact).
+    `k < 64·s`; `partA s` sums their lifted magnitudes, `liftV`); it holds at `s = 0` (`acc0`:
+    `+0.0`, exact).
   - Lines 264–265 (`safe_desc_load`, `access2`, `lane2`): each access meets the descriptor's
     requirements (positive shape entries below `2^31`, `16`-byte-aligned base, row stride and inner
     offset of multiples of `16` bytes); a lane `(i, k)` inside the tensor reads element
     `(tm·128 + i)·lda g + 64·s + k` of `A g` (inside the matrix, in `R`), which the memory holds
     as `init` does; a lane outside reads the padding `+0.0` (`f16_zero`).
   - Line 266 (`safe_dot_add`, with `dot_total`), then `acc_step`: by `dot` (`Rules.Num.DotF16`, at
-    `K = 64`), `DotLoop.dotAdd_step` (either form of `tl.dot_add`) and `DotLoop.accum_step`, the
-    accumulator keeps `AccInv` at `s + 1` (the padded lanes add exact zeros; the values stay far
-    inside the `float32` range because `K ≤ 2^13`; `acc_step` needs only `K ≤ 2^16`).
+    `K = 64`), `DotLift.dotAdd_step` (either form of `tl.dot_add`, relative to the lifted
+    magnitudes) and `DotLoop.accum_step` (with `|partS s| ≤ partA s`, since `|a·b| ≤ liftMag a·liftMag b`,
+    `Dot8Chunk.abs_mul_le_liftMag`), the accumulator keeps `AccInv` at `s + 1` (the padded lanes add
+    exact zeros, of lifted magnitude `0`; the values stay far inside the `float32` range because
+    `K ≤ 2^13` and a finite `float16`'s lifted magnitude is at most `65504`; `acc_step` needs only
+    `K ≤ 2^16`).
   - Line 271 (`safe_cvt`): `c` is the rounding of the accumulator to `float16`, up to NaN payload.
   - Line 272 (`safe_desc_store`): lanes inside `M g × N g` store to element
     `(tm·128 + i)·ldc g + tn·128 + j` of `C g`, inside the tile `t` (the write footprint `Wv`), distinct
@@ -335,9 +350,9 @@ Narrowings, each against the kernel's real use:
   arithmetic (`g * 3 + 2`, `gm + 127`, `num_m_tiles * num_n_tiles`, `last_problem_end + num_tiles`,
   `tile_idx + NUM_SM`) from wrapping. The host's largest launch (`start 4 ≤ 2048` tiles) is far
   inside.
-- **`K ≤ 2^13`.** The tolerance grows with `K`. Up to `2^13` it is below `0.21%` of `Σ|a·b|`
-  (`tol_rel_lt`), and `Post`'s whole bound on `c`, with the last `float16` rounding, below `0.253%`
-  (products of one sign), under a `bfloat16` rounding's `0.389%`, so `Post` still tells a `float16`
+- **`K ≤ 2^13`.** The tolerance grows with `K`. Up to `2^13` it is below `0.21%` of `A` (the
+  lifted magnitudes, `Σ|a·b|` without subnormal operands; `tol_rel_lt`), and `Post`'s whole bound on
+  `c`, with the last `float16` rounding, below `0.253%` (products of one sign, normal operands), under a `bfloat16` rounding's `0.389%`, so `Post` still tells a `float16`
   result from a `bfloat16`-rounded one; from `K = 13633` (`T = 214` steps) it would not. The host's
   largest `K` is exactly
   `8192 = 2^13`. The proof also uses the bound to keep the partial sums inside the `float32`
@@ -389,3 +404,22 @@ Modelling decisions:
   `[64, 128]`, `b.T`; `[128, 128]`, the accumulator, `c` and its block); `enable_fp_fusion` is
   written as Triton's default `true`; `num_warps=4` and `num_stages=3` change no result and are not
   recorded.
+
+## What changed (library round 25)
+
+Library round 25 (library issue L126) restated `Rules.Num.DotF16`: the tensor core reads a
+subnormal `float16` operand at the smallest normal magnitude when it aligns a chunk's products, so
+the fact now bounds the error by `relDot16 K·L + absDot16 K` with
+`L = |acc| + Σ liftMag a·liftMag b` (`Rules.Num.DotLiftAcc`) instead of `|acc| + Σ|a·b|`; the
+constants `relDot16`, `absDot16` are unchanged. The claim follows it:
+
+- **Specification.** `OutSpec`'s tolerance is `tol (K g) (dotLift …)`, the sum of the products'
+  lifted magnitudes, where it was `tol (K g) (dotAbs …)`, the sum of their magnitudes (`dotAbs` is
+  gone). The two are equal when no operand is subnormal, so every figure above (`ρ`, `α`, `0.204%`
+  and `0.253%` at `K = 2^13`, the thresholds `K = 13633` and `15617`) and the `bfloat16` rejection,
+  whose inputs are normal, are unchanged. With subnormal operands the tolerance is larger, as the
+  device's error is (Specification). Subnormal operands stay covered: `Pre` allows every `float16`
+  value.
+- **Proof.** `acc_step` uses `DotLift.dotAdd_step` where it used `DotLoop.dotAdd_step`, and the
+  partial magnitude `partA` sums the lifted products (`liftV`); `partS_end` ends at `dotLift`. The
+  rest of the proof, the model, the conditions, the assumptions and the map are unchanged.

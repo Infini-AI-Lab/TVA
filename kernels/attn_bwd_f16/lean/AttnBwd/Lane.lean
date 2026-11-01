@@ -12,7 +12,7 @@ import AttnBwd.Spec
 * `dot0`: a `tl.dot` with the zero accumulator (lines 293, 307, 345, 353), from
   `Rules.Num.DotF16`.
 * `AccI`, `accI_dotAdd`: the accumulator invariant and one step `acc += tl.dot(a, b)` (lines
-  303, 310, 358), from `Rules.Num.DotF16` (`DotLoop.dotAdd_step`).
+  303, 310, 358), from `Rules.Num.DotF16` (`DotLift.dotAdd_step`).
 -/
 
 namespace Kernels.AttnBwd

@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-bwd",
+  "kernel": "attn_bwd_f16",
+  "round": 4,
+  "findings": [],
+  "release": [
+    {
+      "id": "F7",
+      "note": "The section now says what F7 asked. (1) p16Err, ds16Err and HeadV.Ok keep their definitions but read the lifted aQK and aVD through eX and eY, so they are slightly larger, and fits slightly stronger, on subnormal inputs. (2) lm is the old magnitude on zero and normal values, while p16L and ds16L lift the bounds: equal to them at 2^-14 and above, 2^-14 in [2^-24, 2^-14) even where the value is 0, and 0 below 2^-24. (3) The list of moved figures is complete against my round-2 and round-3 script outputs: four table cells, the causal dV maximum, and the four dQTol 90th percentiles below the table's rounding."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 4: the gate and every item digest are unchanged (b28f50727b67c8a8), and only the README changed. I took no new samples. On F8 (r-bwd2's), each of its points is answered: the zero/normal sentence now separates lm from p16L and ds16L; the HEAD_DIM = 128 moves are listed; the worst dQ rows' tolerance now reads 9.2e-3, which agrees with my round-3 four-digit run (0.00925, just below the rounding boundary per r-bwd2's 0.0092498). A wording point too small for a finding: the Figures bullet's 'The tolerances moved by at most 0.07 percentage points' holds for the README's figures (the table and the quoted ratios). The ratio on a low-mass row, which neither counts nor is quoted, moves more (benchmark HEAD_DIM = 64 non-causal dV worst row 563% to 582%); line 107 says it precisely ('the figures below')."
+}

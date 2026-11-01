@@ -11,6 +11,9 @@ combine pass may turn it into `tl.dot(a, b, acc)`, or not (`tl.dot_add`). Given
 
 * `DotLoop.dotAdd_step`: one step, for a `float32` accumulator, with `ρ' = stepRel rel K` and
   `α' = stepAbs abs K`. The extra terms cover the separate addition (`FloatV.AddRel.err`).
+  `DotLoop.dotAdd_step_of` is the same step for any magnitude `A` of the products in place of
+  `Σ|a·b|`; `DotLift.dotAdd_step` (`TVA.Lemmas.DotLift`) is its instance for the 16-bit facts
+  (`DotLiftAcc`, `A = Σ liftMag a·liftMag b`).
 * `DotLoop.accum`, `DotLoop.accum_step`: `T` such steps from `0` are within
   `bound ρ' α' T (Σ|a·b|)` of the exact sum.
 * `DotLoop.bound_le`: when `T·ρ' ≤ 1/2`, that bound is at most `2T·(ρ'·Σ|a·b| + α')`.
@@ -150,9 +153,73 @@ theorem zero_val : DType.val? .f32 (FloatV.ofPat 0 : F32) = some 0 := by
   exact ⟨Format.isFinite_zero Format.binary32_regular,
     Format.toRat_of_isZero (by decide)⟩
 
+/-- **One step, for any magnitude `A`** of the products, for one output element `(i, n)`: if every
+`tl.dot` of `a` and `b` from an accumulator with value `vc` (with room on `|vc| + A`) has a result
+within `ρ·(|vc| + A) + α` of `vc + S`, with `|S| ≤ A`, then whether the device ran `tl.dot(a, b, c)`
+or `c + tl.dot(a, b)` (the two forms of `tl.dot_add`) the result is finite and within
+`(ρ + 3u(1 + ρ))·(|c| + A) + α(1 + 3u) + 4η` of `c + S`, given room in `float32`. `dotAdd_step`
+(`A = Σ|a·b|`, from `DotAcc`) and `DotLift.dotAdd_step` (`A = Σ liftMag a·liftMag b`, from
+`DotLiftAcc`) are its instances. -/
+theorem dotAdd_step_of {P : Platform} {fusion : Bool} {da db : DType} {pr : InputPrecision} {mi : Nat}
+    {M N K : Nat} {ρ α A S : ℚ} (hrel : 0 ≤ ρ) (habs : 0 ≤ α)
+    {a : Tensor [M, K] da.Val} {b : Tensor [K, N] db.Val} {c r : Tensor [M, N] F32}
+    (i : Fin M) (n : Fin N) (hSA : |S| ≤ A)
+    (hacc : ∀ (c' r' : Tensor [M, N] F32) (vc : ℚ), P.dot ⟨da, db, .f32, pr, mi⟩ a b c' r' →
+      DType.val? .f32 (c'.get2 i n) = some vc →
+      |vc| + A + (ρ * (|vc| + A) + α) ≤ DType.bound .f32 →
+      ∃ vr, DType.val? .f32 (r'.get2 i n) = some vr ∧ |vr - (vc + S)| ≤ ρ * (|vc| + A) + α)
+    (hr : P.dot ⟨da, db, .f32, pr, mi⟩ a b c r ∨
+      ∃ d, P.dot ⟨da, db, .f32, pr, mi⟩ a b (Tensor.full (FloatV.ofPat 0)) d ∧
+        ∀ ix, AccAdd fusion .f32 (d.get ix) (c.get ix) (r.get ix))
+    (hc : (c.get2 i n).isFinite = true)
+    (hroom : 2 * ((1 + ρ) * (|(c.get2 i n).toRat| + A) + α + 2 * Format.binary32.eta) ≤
+      Format.binary32.maxVal) :
+    (r.get2 i n).isFinite = true ∧
+      |(r.get2 i n).toRat - ((c.get2 i n).toRat + S)| ≤
+        (ρ + 3 * Format.binary32.u * (1 + ρ)) * (|(c.get2 i n).toRat| + A) +
+          (α * (1 + 3 * Format.binary32.u) + 4 * Format.binary32.eta) := by
+  have hu0 := Format.u_nonneg (f := Format.binary32)
+  have he0 := Format.eta_nonneg (f := Format.binary32)
+  have hA0 : 0 ≤ A := (abs_nonneg _).trans hSA
+  set cv := (c.get2 i n).toRat with hcv
+  have hcv0 := abs_nonneg cv
+  have hmA : 0 ≤ ρ * (|cv| + A) := mul_nonneg hrel (by linarith)
+  rcases hr with h1 | ⟨d, hd, hadd⟩
+  · obtain ⟨vr, hvr, herr⟩ := hacc c r cv h1 (val?_f32.mpr ⟨hc, rfl⟩)
+      (by simp only [DType.bound]; nlinarith)
+    obtain ⟨hfin, hval⟩ := val?_f32.mp hvr
+    refine ⟨hfin, ?_⟩
+    rw [hval]
+    refine herr.trans ?_
+    nlinarith [mul_nonneg (mul_nonneg hu0 (by linarith : (0 : ℚ) ≤ 1 + ρ)) (by linarith : (0 : ℚ) ≤ |cv| + A),
+      mul_nonneg hu0 habs]
+  · have hz : DType.val? .f32 ((Tensor.full (FloatV.ofPat 0) : Tensor [M, N] F32).get2 i n) = some 0 :=
+      zero_val
+    obtain ⟨vd, hvd, herrd⟩ := hacc _ d 0 hd hz
+      (by simp only [DType.bound, abs_zero, zero_add]; nlinarith)
+    obtain ⟨hdfin, hdval⟩ := val?_f32.mp hvd
+    simp only [abs_zero, zero_add] at herrd
+    have hdS : |(d.get2 i n).toRat - S| ≤ ρ * A + α := by rw [hdval]; exact herrd
+    have hdabs : |(d.get2 i n).toRat| ≤ (1 + ρ) * A + α := by
+      have := abs_sub_abs_le_abs_sub (d.get2 i n).toRat S
+      linarith
+    have hrel' : AddRel fusion (d.get2 i n) (c.get2 i n) (r.get2 i n) := hadd (i, n, ())
+    obtain ⟨hrfin, hrerr⟩ := FloatV.AddRel.err Format.binary32_regular binary32_specials
+      (by rw [binary32_u]; norm_num) hrel' hdfin hc (by nlinarith)
+    refine ⟨hrfin, ?_⟩
+    have e : (r.get2 i n).toRat - (cv + S) =
+        ((r.get2 i n).toRat - ((d.get2 i n).toRat + cv)) + ((d.get2 i n).toRat - S) := by ring
+    rw [e]
+    refine (abs_add_le _ _).trans ?_
+    have hu3 : 3 * Format.binary32.u * (|(d.get2 i n).toRat| + |cv|) ≤
+        3 * Format.binary32.u * ((1 + ρ) * A + α + |cv|) :=
+      mul_le_mul_of_nonneg_left (by linarith) (by linarith)
+    nlinarith [mul_nonneg (mul_nonneg hu0 hrel) hcv0, mul_nonneg hrel hcv0]
+
 /-- **One step**, for one output element `(i, n)`. Whether the device ran `tl.dot(a, b, c)` or
 `c + tl.dot(a, b)` (the two forms of `tl.dot_add`), the result is finite and within
-`stepRel·(|c| + Σ|a·b|) + stepAbs` of `c + Σ a·b`, given `DotAcc` and room in `float32`. -/
+`stepRel·(|c| + Σ|a·b|) + stepAbs` of `c + Σ a·b`, given `DotAcc` and room in `float32`. For the
+16-bit facts (`DotLiftAcc`) the same step is `DotLift.dotAdd_step`. -/
 theorem dotAdd_step {P : Platform} {fusion : Bool} {da db : DType} {pr : InputPrecision} {mi : Nat}
     {dom : ℚ → Prop} {rel abs : ℕ → ℚ}
     (hacc : Rules.Num.DotAcc P ⟨da, db, .f32, pr, mi⟩ dom rel abs)
@@ -169,47 +236,9 @@ theorem dotAdd_step {P : Platform} {fusion : Bool} {da db : DType} {pr : InputPr
     (r.get2 i n).isFinite = true ∧
       |(r.get2 i n).toRat - ((c.get2 i n).toRat + ∑ k, va k * vb k)| ≤
         stepRel rel K * (|(c.get2 i n).toRat| + ∑ k, |va k * vb k|) + stepAbs abs K := by
-  have hu0 := Format.u_nonneg (f := Format.binary32)
-  have he0 := Format.eta_nonneg (f := Format.binary32)
-  have hA0 : 0 ≤ ∑ k, |va k * vb k| := Finset.sum_nonneg fun _ _ => abs_nonneg _
-  have hSA : |∑ k, va k * vb k| ≤ ∑ k, |va k * vb k| := Finset.abs_sum_le_sum_abs _ _
-  set cv := (c.get2 i n).toRat with hcv
-  set A := ∑ k, |va k * vb k|
-  have hcv0 := abs_nonneg cv
-  have hmA : 0 ≤ rel K * (|cv| + A) := mul_nonneg hrel (by linarith)
   unfold stepRel stepAbs
-  rcases hr with h1 | ⟨d, hd, hadd⟩
-  · obtain ⟨vr, hvr, herr⟩ := hacc a b c r h1 i n va vb cv hva hvb hdom
-      (val?_f32.mpr ⟨hc, rfl⟩) (by simp only [DType.bound]; nlinarith)
-    obtain ⟨hfin, hval⟩ := val?_f32.mp hvr
-    refine ⟨hfin, ?_⟩
-    rw [hval]
-    refine herr.trans ?_
-    nlinarith [mul_nonneg (mul_nonneg hu0 (by linarith : (0 : ℚ) ≤ 1 + rel K)) (by linarith : (0 : ℚ) ≤ |cv| + A),
-      mul_nonneg hu0 habs]
-  · have hz : DType.val? .f32 ((Tensor.full (FloatV.ofPat 0) : Tensor [M, N] F32).get2 i n) = some 0 :=
-      zero_val
-    obtain ⟨vd, hvd, herrd⟩ := hacc a b _ d hd i n va vb 0 hva hvb hdom hz
-      (by simp only [DType.bound, abs_zero, zero_add]; nlinarith)
-    obtain ⟨hdfin, hdval⟩ := val?_f32.mp hvd
-    simp only [abs_zero, zero_add] at herrd
-    have hdS : |(d.get2 i n).toRat - ∑ k, va k * vb k| ≤ rel K * A + abs K := by rw [hdval]; exact herrd
-    have hdabs : |(d.get2 i n).toRat| ≤ (1 + rel K) * A + abs K := by
-      have := abs_sub_abs_le_abs_sub (d.get2 i n).toRat (∑ k, va k * vb k)
-      linarith
-    have hrel' : AddRel fusion (d.get2 i n) (c.get2 i n) (r.get2 i n) := hadd (i, n, ())
-    obtain ⟨hrfin, hrerr⟩ := FloatV.AddRel.err Format.binary32_regular binary32_specials
-      (by rw [binary32_u]; norm_num) hrel' hdfin hc (by nlinarith)
-    refine ⟨hrfin, ?_⟩
-    have e : (r.get2 i n).toRat - (cv + ∑ k, va k * vb k) =
-        ((r.get2 i n).toRat - ((d.get2 i n).toRat + cv)) +
-          ((d.get2 i n).toRat - ∑ k, va k * vb k) := by ring
-    rw [e]
-    refine (abs_add_le _ _).trans ?_
-    have hu3 : 3 * Format.binary32.u * (|(d.get2 i n).toRat| + |cv|) ≤
-        3 * Format.binary32.u * ((1 + rel K) * A + abs K + |cv|) :=
-      mul_le_mul_of_nonneg_left (by linarith) (by linarith)
-    nlinarith [mul_nonneg (mul_nonneg hu0 hrel) hcv0, mul_nonneg hrel hcv0]
+  exact dotAdd_step_of (fusion := fusion) hrel habs i n (Finset.abs_sum_le_sum_abs _ _)
+    (fun c' r' vc hd' hvc' hroom' => hacc a b c' r' hd' i n va vb vc hva hvb hdom hvc' hroom') hr hc hroom
 
 end DotLoop
 

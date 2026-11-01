@@ -5,7 +5,7 @@ import AttnFwd.Lane
 
 For one query row, the analysis tracks the keys the row attends to (`RowCtx.al`) among the keys of
 the blocks processed so far, `j < 64·t`. `RowCtx` holds the row's data: `qk_scale` (`c`), the exact
-scores `sv j` (`q·k_j`), their magnitudes `bv j` (`Σ|q·k_j|`), and the bounds `Y` (on `c·bv j`) and
+scores `sv j` (`q·k_j`), their magnitudes `bv j` (`scoreMag`), and the bounds `Y` (on `c·bv j`) and
 `E` (on each exponent's error).
 
 * `MInv`: the running maximum `m_i` after `t ≥ 1` blocks is within `E` of some attended key's
@@ -23,7 +23,7 @@ open TVA TVA.Math.Float
 structure RowCtx where
   /-- `qk_scale` (line 219), as a real number. -/
   c : ℝ
-  /-- The bound on `c·Σ|q·k_j|` over the attended keys. -/
+  /-- The bound on `c·bv j` over the attended keys. -/
   Y : ℝ
   /-- The bound on each exponent's error. -/
   E : ℝ
@@ -33,7 +33,8 @@ structure RowCtx where
   aD : ℝ
   /-- The exact scores `q·k_j`. -/
   sv : ℕ → ℝ
-  /-- Their magnitudes `Σ_e |q_e·k_{j,e}|`. -/
+  /-- Their magnitudes, which bound `|sv j|` and the score's `tl.dot` error (`scoreMag`, the
+  lifted magnitudes). -/
   bv : ℕ → ℝ
   /-- The keys the row attends to. -/
   al : ℕ → Bool
@@ -278,7 +279,7 @@ theorem mstep_plain {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx 
 /-- **The block's maximum and exponents, `STAGE` 2** (lines 75–78, 84): the masked block. `w` is
 the `tl.where` of line 76 (`+0` on an attended lane, `float32(-1e6)` on a masked one), `x'` the
 `tl.mul_add`, `mx` its row maximum, `m'` the new maximum, `x` the exponents (line 78). Every lane's
-`c·Σ|q·k|` is at most `1536`, which keeps the masked lanes below the attended ones. Before the first
+`c·bv` is at most `1536`, which keeps the masked lanes below the attended ones. Before the first
 block, the block's first lane is attended. -/
 theorem mstep_masked {R : RowCtx} (hR : R.Ok) {t : ℕ} {fusion : Bool} {cq m mx m' dm : F32}
     {S w x' x : Fin 64 → F32}

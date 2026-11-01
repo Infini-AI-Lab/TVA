@@ -32,16 +32,18 @@ noncomputable def rowCtx (d : Inst) (init : Mem) (c : ℝ) (bh n : ℕ) (X : ℚ
   rhoD := (Rules.Num.relDot16 d.HEAD_DIM : ℝ)
   aD := (Rules.Num.absDot16 d.HEAD_DIM : ℝ)
   sv j := (score d init bh n j : ℝ)
-  bv j := (scoreAbs d init bh n j : ℝ)
+  bv j := (scoreMag d init bh n j : ℝ)
   al := alOf d n
 
 theorem score_le (d : Inst) (init : Mem) (bh n j : ℕ) :
-    |(score d init bh n j : ℝ)| ≤ (scoreAbs d init bh n j : ℝ) := by
-  have : |score d init bh n j| ≤ scoreAbs d init bh n j := Finset.abs_sum_le_sum_abs _ _
+    |(score d init bh n j : ℝ)| ≤ (scoreMag d init bh n j : ℝ) := by
+  have : |score d init bh n j| ≤ scoreMag d init bh n j :=
+    (Finset.abs_sum_le_sum_abs _ _).trans
+      (Finset.sum_le_sum fun _ _ => Dot8Chunk.abs_mul_le_liftMag _ _ _ _)
   exact_mod_cast this
 
-theorem scoreAbs_nonneg (d : Inst) (init : Mem) (bh n j : ℕ) : 0 ≤ scoreAbs d init bh n j :=
-  Finset.sum_nonneg fun _ _ => abs_nonneg _
+theorem scoreMag_nonneg (d : Inst) (init : Mem) (bh n j : ℕ) : 0 ≤ scoreMag d init bh n j :=
+  Finset.sum_nonneg fun _ _ => mul_nonneg (Dot8Chunk.liftMag_nonneg _ _) (Dot8Chunk.liftMag_nonneg _ _)
 
 theorem sigma_pos {d : Inst} (hd : d.ok) : 0 < sigma d := by
   have := hd.scale.2.1; unfold sigma; linarith [show (0 : ℚ) < 1 / 2 ^ 64 by positivity]
@@ -50,13 +52,13 @@ theorem sigma_pos {d : Inst} (hd : d.ok) : 0 < sigma d := by
 magnitudes. -/
 theorem rowCtx_ok {d : Inst} (hd : d.ok) (init : Mem) {c : ℝ} (hc0 : 0 < c) (hc65 : c ≤ 2 ^ 65)
     (hc32 : c ≤ 3 / 2 * (sigma d : ℝ)) (bh : ℕ) {n : ℕ} (hn : n < d.N_CTX) {X : ℚ} (hX : X ≤ 2 ^ 10)
-    (hXk : ∀ j ∈ keys d n, sigma d * scoreAbs d init bh n j ≤ X) :
+    (hXk : ∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) :
     (rowCtx d init c bh n X).Ok ∧ 0 ≤ X := by
   have hσ := sigma_pos hd
   have hX0 : 0 ≤ X := by
     have h0 : (0 : ℕ) ∈ keys d n := mem_keys.mpr (by unfold alOf; simp; omega)
     have := hXk 0 h0
-    have := mul_nonneg hσ.le (scoreAbs_nonneg d init bh n 0)
+    have := mul_nonneg hσ.le (scoreMag_nonneg d init bh n 0)
     linarith
   have hD := headDim_le hd
   have hD' : (d.HEAD_DIM : ℝ) ≤ 256 := by exact_mod_cast hD
@@ -74,10 +76,10 @@ theorem rowCtx_ok {d : Inst} (hd : d.ok) (init : Mem) {c : ℝ} (hc0 : 0 < c) (h
   · show (expErr d.HEAD_DIM X : ℝ) = ((Rules.Num.relDot16 d.HEAD_DIM : ℝ) + 1 / 2 ^ 20) * (3 / 2 * (X : ℝ)) + 1 / 2 ^ 50
     exact expErr_cast _ _
   · intro j hj
-    show c * (scoreAbs d init bh n j : ℝ) ≤ 3 / 2 * (X : ℝ)
+    show c * (scoreMag d init bh n j : ℝ) ≤ 3 / 2 * (X : ℝ)
     have h1 := hXk j (mem_keys.mpr hj)
-    have h1' : (sigma d : ℝ) * (scoreAbs d init bh n j : ℝ) ≤ X := by exact_mod_cast h1
-    have h2 : (0 : ℝ) ≤ (scoreAbs d init bh n j : ℝ) := by exact_mod_cast scoreAbs_nonneg d init bh n j
+    have h1' : (sigma d : ℝ) * (scoreMag d init bh n j : ℝ) ≤ X := by exact_mod_cast h1
+    have h2 : (0 : ℝ) ≤ (scoreMag d init bh n j : ℝ) := by exact_mod_cast scoreMag_nonneg d init bh n j
     have := mul_le_mul_of_nonneg_right hc32 h2
     nlinarith
 
@@ -144,11 +146,11 @@ theorem row_tail {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.Num.Ex
     (ha1 : ∀ e, FloatV.NaNEq (FloatV.mul (acc e) al) (a1 e))
     (hvt : ∀ jj e, (vt jj e).isFinite = true ∧ (vt jj e).toReal = ve e (64 * t + jj))
     (hdot : ∀ e, (a1 e).isFinite = true → (∀ k, (q k).isFinite = true) →
-      |(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat| +
-        (Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat|) + Rules.Num.absDot16 64) ≤
+      |(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat +
+        (Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat) + Rules.Num.absDot16 64) ≤
           Format.binary32.maxVal →
       (acc' e).isFinite = true ∧ |(acc' e).toRat - ((a1 e).toRat + ∑ k, (q k).toRat * (vt k e).toRat)| ≤
-        Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat|) + Rules.Num.absDot16 64)
+        Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat) + Rules.Num.absDot16 64)
     (hl' : FloatV.NaNEq (FloatV.add (FloatV.mul l al) lij) l' ∨
       (fusion = true ∧ FloatV.NaNEq (FloatV.fma l al lij) l'))
     (hold : RowSt R ve t m l acc) : RowSt R ve (t + 1) m' l' acc' := by
@@ -184,11 +186,11 @@ theorem row_step_plain {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules.
     (ha1 : ∀ e, FloatV.NaNEq (FloatV.mul (acc e) al) (a1 e))
     (hvt : ∀ jj e, (vt jj e).isFinite = true ∧ (vt jj e).toReal = ve e (64 * t + jj))
     (hdot : ∀ e, (a1 e).isFinite = true → (∀ k, (q k).isFinite = true) →
-      |(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat| +
-        (Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat|) + Rules.Num.absDot16 64) ≤
+      |(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat +
+        (Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat) + Rules.Num.absDot16 64) ≤
           Format.binary32.maxVal →
       (acc' e).isFinite = true ∧ |(acc' e).toRat - ((a1 e).toRat + ∑ k, (q k).toRat * (vt k e).toRat)| ≤
-        Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat|) + Rules.Num.absDot16 64)
+        Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat) + Rules.Num.absDot16 64)
     (hl' : FloatV.NaNEq (FloatV.add (FloatV.mul l al) lij) l' ∨
       (fusion = true ∧ FloatV.NaNEq (FloatV.fma l al lij) l'))
     (hold : RowSt R ve t m l acc) : RowSt R ve (t + 1) m' l' acc' := by
@@ -221,11 +223,11 @@ theorem row_step_masked {P : Platform} (hexp : Rules.Num.Exp2F32 P) (hni : Rules
     (ha1 : ∀ e, FloatV.NaNEq (FloatV.mul (acc e) al) (a1 e))
     (hvt : ∀ jj e, (vt jj e).isFinite = true ∧ (vt jj e).toReal = ve e (64 * t + jj))
     (hdot : ∀ e, (a1 e).isFinite = true → (∀ k, (q k).isFinite = true) →
-      |(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat| +
-        (Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat|) + Rules.Num.absDot16 64) ≤
+      |(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat +
+        (Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat) + Rules.Num.absDot16 64) ≤
           Format.binary32.maxVal →
       (acc' e).isFinite = true ∧ |(acc' e).toRat - ((a1 e).toRat + ∑ k, (q k).toRat * (vt k e).toRat)| ≤
-        Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, |(q k).toRat * (vt k e).toRat|) + Rules.Num.absDot16 64)
+        Rules.Num.relDot16 64 * (|(a1 e).toRat| + ∑ k, Rules.Num.liftMag .f16 (q k).toRat * Rules.Num.liftMag .f16 (vt k e).toRat) + Rules.Num.absDot16 64)
     (hl' : FloatV.NaNEq (FloatV.add (FloatV.mul l al) lij) l' ∨
       (fusion = true ∧ FloatV.NaNEq (FloatV.fma l al lij) l'))
     (h0 : t = 0 → R.al (64 * t) = true)

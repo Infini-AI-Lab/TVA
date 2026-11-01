@@ -251,11 +251,12 @@ structure TolFacts (D N : ℕ) (X : ℚ) : Prop where
   relQ0 : 0 ≤ ((relQ D N X : ℚ) : ℝ)
   relQ1 : ((relQ D N X : ℚ) : ℝ) ≤ 3 / 5
   absQS_eq : ((absQS D N X : ℚ) : ℝ) =
-    ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 25 + 1 / 2 ^ 125) / (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ))
+    ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36) / (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ))
   absQS0 : 0 ≤ ((absQS D N X : ℚ) : ℝ)
   absQS1 : ((absQS D N X : ℚ) : ℝ) ≤ 1 / 2 ^ 23
   absQ0_eq : ((absQ0 D N X : ℚ) : ℝ) =
-    ((facc D N X : ℚ) : ℝ) * ((nblocks N : ℝ) * (1 / 2 ^ 85)) / (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ))
+    ((facc D N X : ℚ) : ℝ) * ((nblocks N : ℝ) * (1 / 2 ^ 37)) / (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ)) +
+      ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 29) / ((denQ D N X : ℚ) : ℝ)
   absQ00 : 0 ≤ ((absQ0 D N X : ℚ) : ℝ)
   absQ01 : ((absQ0 D N X : ℚ) : ℝ) ≤ 1
 
@@ -317,11 +318,12 @@ theorem tol_facts {D N : ℕ} {X : ℚ} (hD : D ≤ 256) (hX0 : 0 ≤ X) (hX : X
       (((facc D N X : ℚ) : ℝ) - 1 + ((betaL D N X : ℚ) : ℝ)) / ((denQ D N X : ℚ) : ℝ) := by
     unfold relQ; push_cast; rfl
   have hqs : ((absQS D N X : ℚ) : ℝ) =
-      ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 25 + 1 / 2 ^ 125) / (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ)) := by
+      ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36) / (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ)) := by
     unfold absQS omega0; push_cast; rfl
   have hq0 : ((absQ0 D N X : ℚ) : ℝ) =
-      ((facc D N X : ℚ) : ℝ) * ((nblocks N : ℝ) * (1 / 2 ^ 85)) / (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ)) := by
-    unfold absQ0 absA; push_cast; rfl
+      ((facc D N X : ℚ) : ℝ) * ((nblocks N : ℝ) * (1 / 2 ^ 37)) / (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ)) +
+        ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 29) / ((denQ D N X : ℚ) : ℝ) := by
+    unfold absQ0 absA kapA; push_cast; rfl
   have hwd : 21 / 32 ≤ ((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ) := by
     have := mul_le_mul hw1 hden1 (by norm_num) (by linarith); norm_num at this ⊢; linarith
   refine ⟨hE0, hE1, hd1, hd2, hfa1, hfa2, hfl1, hfl2, hw, hb, hb0, hb1, hden, hrq, ?_, ?_, hqs, ?_, ?_, hq0, ?_, ?_⟩
@@ -329,14 +331,22 @@ theorem tol_facts {D N : ℕ} {X : ℚ} (hD : D ≤ 256) (hX0 : 0 ≤ X) (hX : X
   · rw [hrq, div_le_iff₀ (by linarith)]; nlinarith
   · rw [hqs]; apply div_nonneg (by positivity) (by nlinarith)
   · rw [hqs, div_le_iff₀ (by linarith)]
-    have : ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 25 + 1 / 2 ^ 125) ≤ 6 / 5 * (1 / 2 ^ 25 + 1 / 2 ^ 125) :=
+    have : ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36) ≤ 6 / 5 * (1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36) :=
       mul_le_mul_of_nonneg_right hfa2 (by positivity)
     nlinarith
-  · rw [hq0]; apply div_nonneg (by positivity) (by nlinarith)
-  · rw [hq0, div_le_iff₀ (by linarith)]
-    have : ((facc D N X : ℚ) : ℝ) * ((nblocks N : ℝ) * (1 / 2 ^ 85)) ≤ 6 / 5 * (1024 * (1 / 2 ^ 85)) :=
-      mul_le_mul hfa2 (mul_le_mul_of_nonneg_right hnb' (by positivity)) (by positivity) (by norm_num)
-    norm_num at this ⊢; linarith
+  · rw [hq0]
+    exact add_nonneg (div_nonneg (by positivity) (by nlinarith)) (div_nonneg (by positivity) (by linarith))
+  · rw [hq0]
+    have h1 : ((facc D N X : ℚ) : ℝ) * ((nblocks N : ℝ) * (1 / 2 ^ 37)) /
+        (((wlow D X : ℚ) : ℝ) * ((denQ D N X : ℚ) : ℝ)) ≤ 1 / 2 := by
+      rw [div_le_iff₀ (by linarith)]
+      have : ((facc D N X : ℚ) : ℝ) * ((nblocks N : ℝ) * (1 / 2 ^ 37)) ≤ 6 / 5 * (1024 * (1 / 2 ^ 37)) :=
+        mul_le_mul hfa2 (mul_le_mul_of_nonneg_right hnb' (by positivity)) (by positivity) (by norm_num)
+      linarith
+    have h2 : ((facc D N X : ℚ) : ℝ) * (1 / 2 ^ 29) / ((denQ D N X : ℚ) : ℝ) ≤ 1 / 2 := by
+      rw [div_le_iff₀ (by linarith)]
+      linarith
+    exact (add_le_add h1 h2).trans (by norm_num)
 
 /-! ## Facts about the row after the loop -/
 
@@ -383,13 +393,14 @@ theorem ffac_le_drift {R : RowCtx} (hR : R.Ok) {psi step : ℝ} {T nb : ℕ} {m 
     _ ≤ (1 + psi) * (1 + 4 * (1 / 2 ^ 24) * (R.Y + R.E)) * step ^ nb :=
         mul_le_mul_of_nonneg_left h2 (by have := hR.Y_nonneg; have := hR.E_nonneg; positivity)
 
-/-- **`acc / l_i` against `S / W`.** -/
-theorem ratio_err {a S Mg Vs l W F β wl ω Ta : ℝ}
+/-- **`acc / l_i` against `S / W`.** The accumulator's absolute error `F·(ω·Vs + κ·W + Ta)` adds
+`F·κ/(1 − β)` for the part `κ·W` that grows with the weights. -/
+theorem ratio_err {a S Mg Vs l W F β wl ω κ Ta : ℝ}
     (hW : wl ≤ W) (hwl : 0 < wl) (hβ0 : 0 ≤ β) (hβ : β < 1) (hS : |S| ≤ Mg)
-    (hl : |l - W| ≤ β * W) (ha : |a - S| ≤ (F - 1) * Mg + F * (ω * Vs + Ta))
-    (hF : 1 ≤ F) (hVs : 0 ≤ Vs) (hTa : 0 ≤ Ta) (hω : 0 ≤ ω) :
+    (hl : |l - W| ≤ β * W) (ha : |a - S| ≤ (F - 1) * Mg + F * (ω * Vs + κ * W + Ta))
+    (hF : 1 ≤ F) (hVs : 0 ≤ Vs) (hTa : 0 ≤ Ta) (hω : 0 ≤ ω) (_hκ : 0 ≤ κ) :
     (1 - β) * W ≤ l ∧ |a / l - S / W| ≤ (F - 1 + β) / (1 - β) * (Mg / W) + F * ω / (wl * (1 - β)) * Vs +
-      F * Ta / (wl * (1 - β)) := by
+      (F * Ta / (wl * (1 - β)) + F * κ / (1 - β)) := by
   have hW0 : 0 < W := lt_of_lt_of_le hwl hW
   have hlW : (1 - β) * W ≤ l := by have := neg_abs_le (l - W); nlinarith
   have h1β : 0 < 1 - β := by linarith
@@ -413,8 +424,9 @@ theorem ratio_err {a S Mg Vs l W F β wl ω Ta : ℝ}
       _ = (|a - S| + β * Mg) * (l * W) := by ring
   refine key.trans ?_
   rw [div_le_iff₀ (mul_pos h1β hW0)]
-  have e : ((F - 1 + β) / (1 - β) * (Mg / W) + F * ω / (wl * (1 - β)) * Vs + F * Ta / (wl * (1 - β))) *
-      ((1 - β) * W) = (F - 1 + β) * Mg + (F * ω * Vs + F * Ta) * (W / wl) := by
+  have e : ((F - 1 + β) / (1 - β) * (Mg / W) + F * ω / (wl * (1 - β)) * Vs +
+      (F * Ta / (wl * (1 - β)) + F * κ / (1 - β))) * ((1 - β) * W) =
+      (F - 1 + β) * Mg + (F * ω * Vs + F * Ta) * (W / wl) + F * κ * W := by
     field_simp
     ring
   rw [e]
@@ -528,23 +540,28 @@ theorem final_o {P : Platform} (hdivF : Rules.Num.DivFull P) {R : RowCtx} (hR : 
     rw [facc_cast, drift_cast, hY, hE]
   have ha : |a.toReal - psum R.al T (fun j => wt R m.toReal j * ve j)| ≤
       ((facc D N X : ℝ) - 1) * psum R.al T (fun j => wt R m.toReal j * |ve j|) +
-        (facc D N X : ℝ) * ((1 / 2 ^ 25 + 1 / 2 ^ 125) * psum R.al T (fun j => |ve j|) +
-          nblocks N * (1 / 2 ^ 85)) := by
+        (facc D N X : ℝ) * ((1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36) * psum R.al T (fun j => |ve j|) +
+          1 / 2 ^ 29 * psum R.al T (wt R m.toReal) + nblocks N * (1 / 2 ^ 37)) := by
     have h := hA.2
     have hFa1 := ffac_one_le (t := T) (psi16r_nonneg hE0) stepAr_one (m_nonneg hM.bound)
     have k1 : (ffac R (psi16r R.E) stepAr T m.toReal - 1) * psum R.al T (fun j => wt R m.toReal j * |ve j|) ≤
         ((facc D N X : ℝ) - 1) * psum R.al T (fun j => wt R m.toReal j * |ve j|) :=
       mul_le_mul_of_nonneg_right (by linarith) hMg0
-    have k2 : ffac R (psi16r R.E) stepAr T m.toReal * (om0 * psum R.al T (fun j => |ve j|) + T * absAr) ≤
-        (facc D N X : ℝ) * ((1 / 2 ^ 25 + 1 / 2 ^ 125) * psum R.al T (fun j => |ve j|) + nblocks N * (1 / 2 ^ 85)) := by
-      unfold om0 absAr
-      refine mul_le_mul hFa ?_ (by positivity) (by linarith [tf.facc1])
-      have := mul_le_mul_of_nonneg_right hTr (by positivity : (0 : ℝ) ≤ 1 / 2 ^ 85)
+    have k2 : ffac R (psi16r R.E) stepAr T m.toReal *
+          (om0 * psum R.al T (fun j => |ve j|) + kapAr * psum R.al T (wt R m.toReal) + T * absAr) ≤
+        (facc D N X : ℝ) * ((1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36) * psum R.al T (fun j => |ve j|) +
+          1 / 2 ^ 29 * psum R.al T (wt R m.toReal) + nblocks N * (1 / 2 ^ 37)) := by
+      unfold om0 kapAr absAr
+      have hc0 : 0 ≤ (1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36) * psum R.al T (fun j => |ve j|) +
+          1 / 2 ^ 29 * psum R.al T (wt R m.toReal) + T * (1 / 2 ^ 37) :=
+        add_nonneg (add_nonneg (mul_nonneg (by norm_num) hVs0) (mul_nonneg (by norm_num) hW0.le)) (by positivity)
+      refine mul_le_mul hFa ?_ hc0 (by linarith [tf.facc1])
+      have := mul_le_mul_of_nonneg_right hTr (by positivity : (0 : ℝ) ≤ 1 / 2 ^ 37)
       linarith
     linarith
   -- the ratio `acc / l_i` against the kernel's weighted mean
   obtain ⟨hlW, hq⟩ := ratio_err hWl hwl0 tf.beta0 (by linarith [tf.beta1]) hS hl ha tf.facc1 hVs0
-    (by positivity) (by positivity)
+    (by positivity) (by positivity) (by positivity)
   rw [← tf.den_eq] at hq hlW
   rw [← tf.relQ_eq, ← tf.absQS_eq, ← tf.absQ0_eq] at hq
   -- the kernel's weights against the exact ones

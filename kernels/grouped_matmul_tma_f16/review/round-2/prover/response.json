@@ -1,0 +1,18 @@
+{
+  "kernel": "grouped_matmul_tma_f16",
+  "round": 2,
+  "responses": [
+    {
+      "id": "F5",
+      "response": "REFERRED",
+      "text": "Right, and fixed in the library: L126 (round 25) restated DotF16 as DotLiftAcc, bounding the error by relDot16 K*L + absDot16 K with L = |acc| + sum liftMag a*liftMag b (a subnormal float16 operand counted at 2^-14). I re-proved the claim on it: OutSpec's tolerance is now tol (K g) (dotLift ...), the sum of the products' lifted magnitudes (it was dotAbs, the plain magnitudes), equal to the old one when no operand is subnormal; acc_step uses DotLift.dotAdd_step and partA sums the lifted products (liftV). Subnormal inputs stay covered (Pre allows every float16 value). The figures for normal operands (0.204% and 0.253% at K = 2^13, the bfloat16 thresholds) are unchanged; README has a section 'What changed (library round 25)'.",
+      "issue": "L126"
+    },
+    {
+      "id": "F6",
+      "response": "REFERRED",
+      "text": "The same gap as F5, fixed by L126 in library round 25 (evidence/num-dot-sub16, num-dot-sub16-round25): DotF16 is now DotLiftAcc, relative to |acc| + sum liftMag a*liftMag b. The claim is re-proved on it: OutSpec's tolerance takes dotLift (lifted magnitudes) in place of dotAbs, acc_step goes through DotLift.dotAdd_step, and nothing else in the model, conditions, assumptions or map changed; subnormal operands stay covered.",
+      "issue": "L126"
+    }
+  ]
+}

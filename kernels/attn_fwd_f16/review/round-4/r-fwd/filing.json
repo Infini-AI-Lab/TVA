@@ -1,0 +1,12 @@
+{
+  "reviewer": "r-fwd",
+  "kernel": "attn_fwd_f16",
+  "round": 4,
+  "findings": [],
+  "release": [
+    {"id": "F7", "note": "Revised as asked: the p.v lift of a subnormal v is now bounded through the block's weights (kapA = 2^-29 per unit of weight, rescaled with acc), and absA keeps only the per-key remainder (2^-37, covering 66*2^-22*(2^-22 + 2^-32), about 0.52*2^-37). tolF is now 3.2e-8 (test), 3.4e-8 (benchmark) and at most 4.2e-8 (N = 2^16, X = 2^10), as my exact re-evaluation gives (work/tol.out); the floor that grew with N is gone."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Round 4, gate 7c52bcaa1a441cb2: only spec re-opened (absA, absQ0, kapA changed; Post's form, tolO, tolS and tolM unchanged). kapA's derivation checks: 66*2^-36*8/7 is about 0.59*2^-29, with psi16 <= 1/7 at the largest covered X and D. F9's figure matches absA's definition: 66*2^-22 times 64*(2^-14*(2^-25 + 2^-125) + 2^-28) is about 0.516*2^-37, below absA = 2^-37. F8's threshold tolF/(1 - tolO) is 4.23e-8/0.764, about 5.5e-8 at N = 2^16, X = 2^10, below float16's smallest subnormal. The README's table agrees with my evaluation."
+}

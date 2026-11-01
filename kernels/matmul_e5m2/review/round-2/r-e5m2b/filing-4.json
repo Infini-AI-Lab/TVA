@@ -1,0 +1,10 @@
+{
+  "reviewer": "r-e5m2b",
+  "kernel": "matmul_e5m2",
+  "round": 2,
+  "findings": [],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Library round 25 re-acceptance at gate 5e4b5331abc9b970. Nothing the re-opened items rely on changed in meaning. liftMag moved to Rules.Num with the same formula, and minNormal8 .f8e5 is still 2^-14, so liftV, errAt and tol in the spec mean what they meant. DotE5m2Chunk, DotF8Chunk, DotChunkAcc and the chunk constants are unchanged, and so are CvtF32E5m2, CvtTotal and DotTotal. In num.md the rows listing these facts and their reviewer checks are unchanged. The changes are to the 16-bit facts (DotF16/DotBF16 now DotLiftAcc), the new DotLiftAcc row, the f16/bf16 cases of minNormal8, and mma.sync explanatory text. The work file Round25 prints these definitions, checks the f8e5 values of minNormal8 and liftMag, and shows main, consistent and satisfiable depend only on propext, Classical.choice and Quot.sound."
+}

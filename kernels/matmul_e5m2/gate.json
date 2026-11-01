@@ -1,6 +1,6 @@
 {
   "build": {
-    "lean/TVA.lean": "171f2abf9caff17b183bec57830f06b7b59510bb347d8b849b9379e3b874dc85",
+    "lean/TVA.lean": "3533e502e3f6ce56c72d73dbc8be31463d45cb736e792f9b3b26c655878d5a43",
     "lean/TVA/Claim.lean": "5c2b60d3b2177b61d808f37c83b8e5fb7cdead467e90a5619bab3fb3071da093",
     "lean/TVA/Lang/BlockPtr.lean": "5c121ff17dd9b6f3b49adbbd9572d7f87055bfaabba8ab60025d69ac19f2fe4f",
     "lean/TVA/Lang/Desc.lean": "f6f836aff2342615a2aac7752b46e621308d1edd71a3efe989f7fd12f93c29f6",
@@ -21,8 +21,9 @@
     "lean/TVA/Lemmas/Claim.lean": "8728d976b555d281bfebf9901cf82d015604bc7642f9c24b0cb7276ddebc2942",
     "lean/TVA/Lemmas/Consistency.lean": "7ab47bca832a86b6c483b279d87ed2cae8fa78d2f5876a018c1847cb80d6a5ea",
     "lean/TVA/Lemmas/Desc.lean": "f91390ef65e1eab413b83bbbb8e1ba7f19af990949c72f460374887866ea23df",
-    "lean/TVA/Lemmas/Dot8Chunk.lean": "847246e7b02f8fb9b0ab2753071c01060bd70a98241734c91a16226a7f0cde76",
-    "lean/TVA/Lemmas/DotLoop.lean": "de41c859d5c9b2d11cfd55d31fab92312805c5bf2b16761d9d911336c9e60f63",
+    "lean/TVA/Lemmas/Dot8Chunk.lean": "072471456fac93d56dc0603ef8733a48da0913f9f974d4a81cd86315c2c2d83c",
+    "lean/TVA/Lemmas/DotLift.lean": "5fa4de37a74884b32cded31a630f69ef21942a5f08b76a7dc8b8f9b511665e1a",
+    "lean/TVA/Lemmas/DotLoop.lean": "1bfa6405888e399b03f6cec7db1ee34c0dc050e98df594773dc485616d2ba175",
     "lean/TVA/Lemmas/FloatErr.lean": "09fe7f250a3b988ba7a4efcf997e65b12ac9e040edab7341c570bf79bd8efb46",
     "lean/TVA/Lemmas/FloatMax.lean": "456f0b772e866aa954c837a910ad93da686d194c84893bba5e0d205538a5d324",
     "lean/TVA/Lemmas/FusedErr.lean": "97890b6705dc81c5afed6e86fe6fec9ba3cfac7fe326a7d9e2e12ffada638e85",
@@ -38,7 +39,7 @@
     "lean/TVA/Lemmas/Scan.lean": "9ae63bcbff031807c68f4e94631155b75e6941387a07938872e9367b51bcad9e",
     "lean/TVA/Lemmas/Shared.lean": "3bb137f3355e0164d4852adc4e72c0a8f232195b7ee18db833f1fcfc67607ddb",
     "lean/TVA/Lemmas/SharedAcc.lean": "9af6e59cd1376d09131623eb357717d44dde71af236f1af5a0879489bb24b447",
-    "lean/TVA/Lemmas/Sm90.lean": "82f21dbc091980c9340b42175440eefba7ec031e18f739d7b691f0f522c41249",
+    "lean/TVA/Lemmas/Sm90.lean": "c2a9c4f1329597fb99f32213a0eb8e0278668b4bd3b8ea4895912eafa5e5170f",
     "lean/TVA/Lemmas/Sum.lean": "e4cf5bfed24f41db7347befc13c10a291ba2974f1b6cdb7e86a304d8dc807427",
     "lean/TVA/Lemmas/SumFused.lean": "7b50dd56c38f33283603a4f296b170fa954a86db2c3ee88aa3f3cd113c0bc696",
     "lean/TVA/Lemmas/Tree.lean": "68c596165ed4a37059c5699712916c34b1c083e611b6cdc400e53b4918cfdc30",
@@ -49,9 +50,9 @@
     "lean/TVA/Math/LittleEndian.lean": "5db9bb20becf6165928865b5b26e74c0c08f67dd867df9cec5767b8ab3778aa9",
     "lean/TVA/Math/Rounding.lean": "d9b4b60bd4ad6d16fe47a13c1e803b900c4e7d380f092e5614a82861dad5d9c6",
     "lean/TVA/Rules/Compiler.lean": "24ff59ea326f1e0c51bff84a87c3bc420743f7d3cc7180afeb91cb6388753a4a",
-    "lean/TVA/Rules/Num.lean": "b6e744d5e1c70ca2bdd36bf0538d24541134c1f51f103a901f735413d03b3cae",
-    "lean/TVA/Rules/Num/Dot8Chunk.lean": "a48810afc632e8881b160e584468835db24f3f0f3b60588b6c82bae6583d1c3f",
-    "lean/TVA/Rules/Num/Sm90.lean": "9a604a31b50dd1ce73a156652c5f7df27c802d79f5d821f0a07110319ad2e081",
+    "lean/TVA/Rules/Num.lean": "f413053397de369e106217127cb6fea66c542d866910379ef6319058f6622e94",
+    "lean/TVA/Rules/Num/Dot8Chunk.lean": "3f25ef33e4cd17f09d920bc53014b10b313201dd504fb165da1eaf5e8ca5a990",
+    "lean/TVA/Rules/Num/Sm90.lean": "88f2782932f61c7e7aa4517f94f45a3ebedda447893a19c53e604bad81b96bd6",
     "lean/TVA/Sem/Launch.lean": "05ff97e010e389d6c077066b779f2d4fd8903ea5ee3d5a71486c7e7307dc9c99",
     "lean/TVA/Sem/Step.lean": "cd4f53042d571451bf9322306ea189cde68a96678776aedf9c4605227e3af0df",
     "lean/lake-manifest.json": "8849b5a16f151e87bd16cb6df4dd29a93a093beecf7a0fdedb0d4e887f4cb8cc",
@@ -125,7 +126,7 @@
       "ok": true
     }
   ],
-  "digest": "3b92ad18abf5649a71fba7e16254703286032a43460af37f560df39a4a66bf68",
+  "digest": "5e4b5331abc9b970e3d532ae62e78c212b6b216ca15ca9654058112f6724de20",
   "files": {
     "README.md": "671a2adc3f091bd485539897cfb6752620fe895ad09eff7706d2b045ace74875",
     "kernel.json": "c195e19c4bcbd4a39d47fc6f202f7fb49df71ec1396d6542dfefa4150aa348b2",
@@ -139,15 +140,15 @@
     "source/03-matrix-multiplication.py": "0214d122b309ed88b97c8b88a66ddc03b0d7dcc7cca8444e887d4c8b71447ba5"
   },
   "items": {
-    "assumption:cvt": "945d556ba0a46c11b0fc8daf2ac2433912427d166efb38f448fa48d0c23eaa12",
-    "assumption:cvt_total": "e73a67bc1e746b927eff7303c74c24d4bba4fdfbd91f701de2a3f61e69b0ce53",
-    "assumption:dot": "455b03ee146b48949159dbe967a1b6b15087b6486d2b557af1d90cd7f57ada42",
-    "assumption:dot_total": "ea7a57f96a7cfa5c137568fe29cebcc152ad0b84afc984930aba7db5b8aebfd7",
+    "assumption:cvt": "0300298adb2ffda7a0dec9fb3559c8df810947adf5f4e1589ae43f8b8034cf26",
+    "assumption:cvt_total": "1850e4bbdd793d4b842eee53d073a4c3034ead73857ab9aeed89f71a9653ecf8",
+    "assumption:dot": "09801184af69db4c8cfaf938722928ea54a544ba6dca6923daf9373af57dfcd5",
+    "assumption:dot_total": "bcb81cec9f8d467b564193b0e89aabd1d35d98ab6fb0860be03d197b50b7fbf8",
     "assumption:faithful": "a6f11c176fc0174752b88ad8d41820a20025afe5d21667276c09ddd4d1960e0b",
     "conditions": "91a8ae003d59cfa027d947ab3376b75dfc1b41b284622417b2e6a9618cfa3a55",
     "map": "517f928841e0be85ddbc61be9168e5e46ebe13e0ef35495e032557bb4e86e6cc",
     "model": "7a67c16d2d9a93f1d2a4df71b97b250a39a6cba71ce4b3cde3203d985ec612ee",
-    "spec": "2f1d1b501970d252305a779496549c034ae51ffcf5b11c5413e7e1ed080a2c88"
+    "spec": "556af3ea216fdd015bd4bca902b9cafda6fd66d1337de9db0c5ac57ba81118d6"
   },
   "kernel": "matmul_e5m2",
   "kinds": {
@@ -159,7 +160,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-01T02:51:48Z",
+  "time": "2026-11-01T05:51:37Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "b94d0e68beded7d8c2fcf96c4bd89e62a7547cb24a1f00eb722e1312f953652a"

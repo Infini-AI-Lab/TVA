@@ -247,8 +247,10 @@ structure Inst.ok (d : Inst) : Prop where
   /-- As `M_le`, for `N g` (line 218). -/
   N_le : ∀ g, g < d.group_size → d.N g + 128 ≤ 2 ^ 31
   /-- `K g ≤ 2^13`: the tolerance of `Post` grows with `K`; up to `2^13` it is below `0.21%` of
-  `Σ|a·b|` (`tol_rel_lt`), so `Post` still rejects a result rounded to `bfloat16` (whose largest
-  relative error is `2^-8/(1 + 2^-8)`, about `0.39%`). The host's largest `K` is `8192 = 2^13`. -/
+  `Σ liftMag a·liftMag b` (`tol_rel_lt`), and with the last `float16` rounding `Post` allows below
+  `0.253%` (products of one sign, normal operands), so it still rejects a result rounded to
+  `bfloat16` (whose largest relative error is `2^-8/(1 + 2^-8)`, about `0.389%`). The host's largest
+  `K` is `8192 = 2^13`. -/
   K_le : ∀ g, g < d.group_size → d.K g ≤ 2 ^ 13
   /-- `lda g` is an `int32` and a multiple of `8`: the descriptor's row stride is a multiple of
   `16` bytes (`TensorDesc.Valid`). -/
@@ -338,7 +340,7 @@ absDot16 64·(1 + 3·2^-24) + 4·2^-150`, below `10^-36`. -/
 def alpha : ℚ := DotLoop.stepAbs Rules.Num.absDot16 64
 
 /-- The tolerance of the `float32` accumulation, for a reduction length `K` and the sum `A` of the
-products' magnitudes: `DotLoop.bound rho alpha T A = ((1 + rho)^T − 1)·A + T·(1 + rho)^T·alpha`,
+products' lifted magnitudes (`dotLift`): `DotLoop.bound rho alpha T A = ((1 + rho)^T − 1)·A + T·(1 + rho)^T·alpha`,
 with `T = steps K` steps of `64` products each. It is about `2.5·10^-4·A` at `K = 1024` (the
 test's largest) and `2.04·10^-3·A` at `K = 2^13` (the benchmark's largest and the largest covered;
 below `0.21%`, `tol_rel_lt`), plus below `10^-34`. -/
@@ -347,13 +349,19 @@ def tol (K : Nat) (A : ℚ) : ℚ := DotLoop.bound rho alpha (steps K) A
 /-- The exact dot product of row values `va` and column values `vb` over `k < K`. -/
 def dotSum (va vb : Nat → F16) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, (va k).toRat * (vb k).toRat
 
-/-- The sum of the magnitudes of the products. -/
-def dotAbs (va vb : Nat → F16) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, |(va k).toRat * (vb k).toRat|
+/-- The sum of the products' lifted magnitudes, the magnitude `Rules.Num.DotF16` measures its error
+by (`Rules.Num.DotLiftAcc`, library issue L126): `Rules.Num.liftMag .f16 q` is `|q|` for zero and
+normal `float16` values, and `2^-14` (the smallest normal magnitude) for a nonzero subnormal one. So
+`dotLift va vb K = Σ |va k · vb k|` when no operand is subnormal, and in general
+`|va k · vb k| ≤ liftMag (va k) · liftMag (vb k) ≤ (|va k| + 2^-14)·(|vb k| + 2^-14)`. -/
+def dotLift (va vb : Nat → F16) (K : Nat) : ℚ :=
+  ∑ k ∈ Finset.range K, Rules.Num.liftMag .f16 (va k).toRat * Rules.Num.liftMag .f16 (vb k).toRat
 
 /-- What the launch leaves in element `(i, j)` of `C g`: some `float16` value `c`; and when row
 `i` of `A g` and row `j` of `B g` hold finite values `va k`, `vb k` (`k < K g`) in the initial
 memory, `c` is the `float16` rounding (to nearest even, up to NaN payload) of a finite `float32`
-value `v` within `tol (K g) A` of the exact sum `S = Σ va k · vb k` (`A = Σ |va k · vb k|`); and
+value `v` within `tol (K g) A` of the exact sum `S = Σ va k · vb k` (`A = dotLift`, the sum of the
+products' lifted magnitudes: `Σ |va k · vb k|` when no operand is subnormal); and
 when there is room in `float16` (`|S| + tol ≤ 65504`), `c` is finite and within `tol` plus one
 `float16` rounding (`(|S| + tol)·2^-11 + 2^-25`) of `S`. -/
 def OutSpec (d : Inst) (init fin : Mem) (g i j : Nat) : Prop :=
@@ -364,12 +372,12 @@ def OutSpec (d : Inst) (init fin : Mem) (g i j : Nat) : Prop :=
       (∀ k, k < d.K g → init.read .f16 ((d.B g).ptr ↑(j * d.ldb g + k)).addr = some (vb k) ∧
         (vb k).isFinite = true) →
       ∃ v : F32, v.isFinite = true ∧
-        |v.toRat - dotSum va vb (d.K g)| ≤ tol (d.K g) (dotAbs va vb (d.K g)) ∧
+        |v.toRat - dotSum va vb (d.K g)| ≤ tol (d.K g) (dotLift va vb (d.K g)) ∧
         FloatV.NaNEq (FloatV.cvt v) c ∧
-        (|dotSum va vb (d.K g)| + tol (d.K g) (dotAbs va vb (d.K g)) ≤ Math.Float.Format.binary16.maxVal →
+        (|dotSum va vb (d.K g)| + tol (d.K g) (dotLift va vb (d.K g)) ≤ Math.Float.Format.binary16.maxVal →
           c.isFinite = true ∧
-          |c.toRat - dotSum va vb (d.K g)| ≤ tol (d.K g) (dotAbs va vb (d.K g)) +
-            (|dotSum va vb (d.K g)| + tol (d.K g) (dotAbs va vb (d.K g))) * Math.Float.Format.binary16.u +
+          |c.toRat - dotSum va vb (d.K g)| ≤ tol (d.K g) (dotLift va vb (d.K g)) +
+            (|dotSum va vb (d.K g)| + tol (d.K g) (dotLift va vb (d.K g))) * Math.Float.Format.binary16.u +
               Math.Float.Format.binary16.eta)
 
 /-- What the launch leaves: every element of every matrix `C g` as `OutSpec` says; every byte
@@ -392,8 +400,9 @@ structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) : Prop where
   faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)
   /-- [rule] `Num.DotF16`: `tl.dot` of `float16` operands into `float32` (`maxImpreciseAcc = 0`,
   any `input_precision`, the model's line 266): each output element whose row of `a`, column of `b`
-  and accumulator are finite is finite and within `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K` of
-  `acc + Σ a·b`, when that leaves room below the `float32` range. -/
+  and accumulator are finite is finite and within `relDot16 K·L + absDot16 K` of `acc + Σ a·b`,
+  with `L = |acc| + Σ liftMag a·liftMag b` (`Rules.Num.DotLiftAcc`: a subnormal operand counted at
+  `2^-14`), when that leaves room below the `float32` range. -/
   dot : Rules.Num.DotF16 P
   /-- [rule] `Num.DotTotal`: the model's `tl.dot` (line 266) always has a result. -/
   dot_total : Rules.Num.DotTotal P { a := .f16, b := .f16, acc := .f32, precision := .tf32, maxImpreciseAcc := 0 }
