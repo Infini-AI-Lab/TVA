@@ -1,0 +1,14 @@
+heads 32/8 head_dim 128 page 16 seq_lens [1, 15, 16, 17, 1000, 4096, 333]:
+  max scale*scoreAbs 10.9601, mean 7.1564, max pages 256
+  max attnAbs 3.8691, max bound tolO*attnAbs+tolF 3.4218e-03
+  float32 emulation: max abs error vs exact 4.881e-04
+heads 8/8 head_dim 64 page 16 seq_lens [5, 64, 2049]:
+  max scale*scoreAbs 9.0395, mean 5.3922, max pages 129
+  max attnAbs 1.9195, max bound tolO*attnAbs+tolF 1.2683e-03
+  float32 emulation: max abs error vs exact 4.861e-04
+heads 16/2 head_dim 128 page 32 seq_lens [31, 32, 33, 8191]:
+  max scale*scoreAbs 10.4842, mean 6.8450, max pages 256
+  max attnAbs 1.5896, max bound tolO*attnAbs+tolF 1.4648e-03
+  float32 emulation: max abs error vs exact 2.430e-04
+overall: max scale*scoreAbs 10.9601, max attnAbs 3.8691, max bound 3.4218e-03
+largest (emulation error / bound) over every element: 0.6919

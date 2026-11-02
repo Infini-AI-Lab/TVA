@@ -56,7 +56,7 @@
     "lean/TVA/Sem/Launch.lean": "05ff97e010e389d6c077066b779f2d4fd8903ea5ee3d5a71486c7e7307dc9c99",
     "lean/TVA/Sem/Step.lean": "cd4f53042d571451bf9322306ea189cde68a96678776aedf9c4605227e3af0df",
     "lean/lake-manifest.json": "8849b5a16f151e87bd16cb6df4dd29a93a093beecf7a0fdedb0d4e887f4cb8cc",
-    "lean/lakefile.toml": "aa8997a37545801aa66b7673112dffb67ea0cbaa1badfbfbeec2373db5344cf6",
+    "lean/lakefile.toml": "b1e4f4fe49a95433c235ca6a0f4b404e8995db4822def5cd08b5ecf9b058665c",
     "lean/lean-toolchain": "ca5f1f601d34c49079e38d7e7041eb0f2a9c227fbc1df0f404820069a052330c"
   },
   "checks": [
@@ -160,7 +160,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-01T19:11:38Z",
+  "time": "2026-11-02T04:39:10Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "b94d0e68beded7d8c2fcf96c4bd89e62a7547cb24a1f00eb722e1312f953652a"

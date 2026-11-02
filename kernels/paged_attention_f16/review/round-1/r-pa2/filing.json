@@ -1,0 +1,47 @@
+{
+  "reviewer": "r-pa2",
+  "kernel": "paged_attention_f16",
+  "round": 1,
+  "findings": [
+    {
+      "kind": "MODEL_MISMATCH",
+      "target": "map:68",
+      "summary": "At PAGE_SIZE = 1 (covered: b = 0) line 68 adds two products, since the one-leaf tl.sum is p*v itself: the addition is tl.addc, not tl.mul_add",
+      "detail": "Inst.ok.page_size admits PAGE_SIZE = 2^0 = 1. Then `tl.sum(p[:, None] * v, axis=0)` reduces a [1, HEAD_DIM] block: the reduction has one leaf and no addition, and its value is the product p*v (the model's `tl.sum0c` with `Tree.Covers 1` returns exactly the leaf, the rounded product of `tl.mul (p.col HEAD_DIM) v`). So both operands of line 68's `acc * alpha + tl.sum(...)` are products. SEMANTICS.md, 'Float + and -: IEEE or fusable': a product is an operand computed by `*` 'through any dataflow, inlined helpers and library functions included' (`tl.sum` is one), and the backend may contract a product and an addition into one fma; Ops.lean's `tl.addc` docstring says to use it 'when both are products'. `tl.mul_add a b c` allows only `round(round(a*b) + c)` and `fma(a, b, c)` with `c` the rounded p*v; it does not allow the other contraction, `fma(p, v, round(acc*alpha))`, which the library's rule lets the device compute. So on every covered instance with PAGE_SIZE = 1 (for example one sequence of length 2, one head, HEAD_DIM = 128, PAGE_SIZE = 1), the model of line 68 has fewer results than the source, and `main` says nothing about the result it leaves out. For PAGE_SIZE >= 2 the reduction's result is an addition, not a product, and the entry is right. (Line 61 at HEAD_DIM = 1 is not affected: its one-leaf row sum is multiplied by `scale`, not added; line 66's one-leaf `tl.sum(p)` is an `exp`, not a product.) To resolve, either narrow `Inst.ok.page_size` to `1 <= b <= 8` (PAGE_SIZE >= 2; the test uses 16 and 32, so no covered use of the wrapper is lost) and state the narrowing and its reason in the README; or write line 68 so that either product may be fused, e.g. `tl.addc (<- tl.mul acc (bc alpha)) (<- tl.sum0c (<- tl.mul (p.col HEAD_DIM) v))`, update the map entry, and re-prove `astep`.",
+      "evidence": "SEMANTICS.md lines 709-728 (the fusion rule and its table); lean/TVA/Lang/Ops.lean `addc` ('when both are products'), `mul_add`, `sum0With` (a `Tree.Covers m` tree; with m = 1 the only tree is a leaf); lean/TVA/Lang/Tensor.lean `Tree.Eval.leaf`. The model as Lean elaborates it, with full names: work/names.out (`TVA.tl.mul_add acc (TVA.bc alpha) __do_lift` after `TVA.tl.sum0c`).",
+      "affects": ["item:model", "item:map"]
+    },
+    {
+      "kind": "LIBRARY_REPORT",
+      "target": "src:65",
+      "summary": "Open library issue L123 (is a tl.where or tl.maximum of a product a product?) decides lines 64 and 65, which the model writes as IEEE tl.sub",
+      "detail": "Line 61's `s = tl.sum(...) * scale` is a product. Line 62 passes it through `tl.where(mask, s, -inf)` into line 65's `s - m_new`, and line 63 passes `tl.max(s)` through `tl.maximum` (and the loop-carried `m_i`) into line 64's `m_i - m_new` and line 65's `m_new`. The model writes both subtractions as the IEEE `tl.sub`, which agrees with `tl.add`'s docstring in Ops.lean (a `+` 'whose operands are not, in the compiled dataflow, results of a floating multiplication': here they are results of a select and a max). SEMANTICS.md's 'computed by `*` ... through any dataflow' leaves the other reading open, which is L123, raised from `attn_fwd_f16` for `tl.maximum` and `tl.where`. This kernel depends on it too: under the other reading lines 64 and 65 would be `tl.subc`, and the proof's `AlphaIn` (alpha's input exactly `0` when the maximum does not move, error relative to `m_new - m_i`) would no longer follow from the IEEE subtraction. Carried on as if the library meant the model's reading; not blocking. Please record this kernel against L123.",
+      "evidence": "SEMANTICS.md lines 709-714; lean/TVA/Lang/Ops.lean `add`, `sub`, `subc`; docs/library-review/ISSUES.md L123; kernel lean/PagedAttention/RowMax.lean `AlphaIn`, `alphaIn_of`."
+    },
+    {
+      "kind": "DOC",
+      "target": "decl:Kernels.PagedAttention.model",
+      "summary": "The stride-equal-to-1 argument says every use of a stride multiplies an int32 tensor; line 59's `page * stride_kp` multiplies the int64 `page`",
+      "detail": "`model`'s and `paged_attention_kernel`'s docstrings and the map entry for lines 31-41 say that a stride argument equal to 1 (a compile-time constant) is, at every use (lines 49, 57, 59, 72), an operand of `*` with an `int32` tensor, so built in `int32`. At line 59, `stride_kp` is an operand of `*` with `page`, an `int64`, so the constant 1 is built in `int64` (SEMANTICS.md 'Constants', with an arithmetic operator). The model's `tl.convert .i32 .i64 (Tensor.scalar (IntV.ofNat 1))` is the same `int64` value 1, so the model is right; only the stated reason is inaccurate. Suggest: 'built in the dtype of the tensor it multiplies (`int32`, or `int64` for `page`), with the same value 1'."
+    },
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/paged_attention_f16/README.md",
+      "summary": "The write-up calls the length seq_lens[s], but the kernel reads element s of seq_lens's storage, and the wrapper does not assert seq_lens is contiguous",
+      "detail": "`paged_attention` asserts the last stride of `q`, `k_cache` and `block_tables` (line 82) but nothing of `seq_lens`; line 45 reads `seq_lens_ptr + seq`, element `seq` from the data pointer. The claim (`Inst.seq_lens : Buf .i32`, `seqLen` = `val32 m d.seq_lens s`) is about that storage, which is right. But the README's Conditions list the unit last strides of five tensors and say `seq_lens[s]` throughout, so a reader may take the certificate to cover a strided `seq_lens` view (e.g. `lens[::2]`), for which the kernel reads other lengths than `seq_lens[s]`. Suggest one sentence in Conditions: `seq_lens` is read as `num_seqs` consecutive `int32` (a contiguous tensor, as the test's `torch.tensor(...)`), which the wrapper does not check."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": [
+    "item:conditions",
+    "item:spec",
+    "item:assumption:faithful",
+    "item:assumption:exp_acc",
+    "item:assumption:exp_ninf",
+    "item:assumption:exp_total",
+    "item:assumption:div_full",
+    "item:assumption:div_total"
+  ],
+  "notes": "Recomputed figures (work/tol.py, work/tol.out; work/testdata.py, work/testdata.out): tolO is 1.2450e-3, 1.2488e-3, 0.8607e-3, 1.9000e-3 and 0.17429 at the README's five rows, and tolF/2^-25 is 1.000000 in each, as the README says; at T = 2^16 pages with X = 11 tolO is 5.81e-2. On the test's inputs (its generator, seed 0, rebuilt on the CPU) the largest scale*scoreAbs is 10.9601 (mean 7.156 at head_dim 128, 5.392 at 64), the largest attnAbs 3.8691, at most 256 pages, so the bound is at most 4.83e-3, as stated. Model and launch printed with full names (work/names.lean, work/names.out): every operation is TVA.* or a kernel definition read in full; #print axioms of main, consistent, satisfiable: propext, Classical.choice, Quot.sound."
+}

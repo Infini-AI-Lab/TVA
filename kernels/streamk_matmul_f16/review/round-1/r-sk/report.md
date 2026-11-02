@@ -1,0 +1,35 @@
+# Review of streamk_matmul_f16, round 1, by r-sk
+
+## Verdict
+
+accept
+The model is the source line by line by SEMANTICS.md, on every class of argument the conditions admit (an integer argument equal to `1` included), and every operation in it is the library's. The schedule's split of `c` into stored tiles and atomically accumulated cells is the kernel's own, the loop ends, and no `int32` value wraps at the largest covered sizes. The conditions cover every launch the test makes, and each narrowing is stated with its reason. `Post` determines every element of `c` within a tolerance that, at the largest covered `K = 2^13`, is `2.03e-3` of `Σ|a·b|`, still below the largest error of a rounding to `bfloat16`, and it keeps every other byte unchanged. The five assumptions are the library's facts for the operations the model uses. The one finding is a sentence of the write-up, and does not block.
+
+## Findings
+
+- **DOC** `doc:kernels/streamk_matmul_f16/README.md` — Specification: the test's data is said to have no subnormal operand (so A = (|A| @ |B|)[i, j]); float16 torch.randn data does have subnormal operands.
+
+## Accepted
+
+All items.
+
+## Checked
+
+- Every model line (source lines 36–64) against SEMANTICS.md: `tl.cdiv` as `(x + (div - 1)) // div` with the constexpr `div - 1` computed by Python; `tl.minimum` of `int32` scalars as the exact `tl.iminimum`; the wrapping `int32` `+ - *` and the truncating `//`, `%`; `while it < end:` as `tl.whileLoop` with the signed condition and the carried `it` (the only name defined before the loop that the body assigns); `range(k_first, k_last)` as `tl.forRange` with step `1` and the carried `acc`; `offs[:, None]`, `offs[None, :]` as `col`/`row` (broadcasting before the product gives the same values); the masks as signed comparisons and `&`; `other=0.0` as the `float32` `+0.0` converted to `float16`; `tl.dot(a, b, acc)` with `tf32` and `maxImpreciseAcc = 0`; the runtime `if` with neither branch assigning a name; `tl.store` with no conversion; `tl.atomic_add` with `acq_rel`, `gpu`; `it += k_last - k_first`.
+- The arguments equal to `1` (compile-time constants), case by case: `M`, `N`, `K` in the comparisons and in `tl.cdiv(1, B)` (a compile-time `1`, held as an `int32` tensor by the name it is assigned to), each stride as an operand of `*`, `iters_per_program` in `*` and `+`, `total_iters` as an argument of `tl.minimum`: each gives the model's `int32` value.
+- What the names mean: every Lean file of the kernel read in full (`Defs`, `Facts`, `Sched`, `Basic`, `Parts`, `Chunk`, `Tail`, `Program`, `StreamKMatmul`); the model printed with full names (`work/print_model.lean`, `work/print_model.out`): every operation is `TVA.*`, the operators resolve to the library's instances for pointers, `int32` scalars and tensors, and there is no kernel instance, notation, renaming or binder named like a library namespace; `Assumptions` is a structure with exactly `(K : Claim.Behaviour Inst) (P : Platform)`; `#print axioms main` gives `propext`, `Classical.choice`, `Quot.sound`.
+- The map and the manifest: the drops of lines 22, 23 and 26; the kernel lines hold the only function the launch runs (`tl.cdiv` and the other calls are Triton's own); the kernel reads only `triton` and `tl` at module level, each bound only by its import; line 67's `BLOCK_M`, `BLOCK_N`, `BLOCK_K` are shadowed by the kernel's constexpr parameters, and the names the `__main__` block binds (`a`, `b`, `M`, `N`, `K`, …) are parameters of the kernel or locals assigned before use; no unused function.
+- The supported subset: `while` with a runtime condition, `name op= e`, `range` with two positional arguments, a runtime `if` with `else`, expression statements, one comparison per expression, no name of a loop body used after the loop.
+- The launch: `Launch.grid1 num_programs` with the source's nine block shapes (all listed), `enable_fp_fusion = true`, `debug = false`, `num_ctas = 1`, no `launch_pdl`; part (A) of `Compiler.Faithful`'s scope: only `num_warps` and `num_stages` are given, a bare `@triton.jit`, no heuristics, no descriptor, a direct JIT launch, no CUDA graph capture.
+- The schedule: program `p`'s range `[p·ipp, min(p·ipp + ipp, total))`; `k_first = it mod T` and `k_last = min(T, k_first + (end − it)) > k_first`, so `it` grows each iteration and the loop ends; line 60's condition holds exactly when the program owns the whole tile (`iter_owns`), and otherwise no program of the grid owns it (`iter_split`, `owns_unique`); a program touches each tile at most once (its range is contiguous); the stored tiles (`W`) and the cells of split tiles (`cells`) are disjoint, and two enabled lanes address one element only as the same lane of the same tile (`lane_inj`, from `c_rows` and `cn`).
+- The integer arithmetic at the largest covered sizes: `pid·ipp + ipp ≤ num_programs·ipp < 2^31`; `tile·T ≤ it`; `k_first + (end − it) ≤ end`; the tile rows and columns below `M + 127`, `N + 127`; the enabled lanes' products below `2^31` by the fits.
+- The conditions against the launches the test makes (`work/check_conditions.py`, `work/check_conditions.out`): all six meet `Inst.ok`, and both branches run (654 stored and 114 split tiles at `3072 × 4096 × 1024`, every tile split at `1000³`, the one tile stored and two programs idle at `64³`); the narrowings (`K ≤ 2^13`, the `int32` bounds, a row-major zero `c` disjoint from `a` and `b`, the block sizes) are stated with their reasons; `Pre` gives `c`'s matrix a finite zero, as `torch.zeros` does.
+- The specification: the tolerance recomputed in exact arithmetic for each test `K` and at `2^13` (`2.0315e-3·A`, absolute part `1.1e-34`), matching the README's table; at `2^13` it is below the largest relative error of a `bfloat16` rounding (`3.89e-3`), so a result rounded to `bfloat16` breaks `Post` (one nonzero product `1 + 2^-8`), as do a dropped or duplicated partial sum and a dropped product (inputs where only that part is nonzero); `Post` holds whatever order the atomic additions ran in (`TVA.shared`), and keeps every byte outside the matrix `c` unchanged.
+- Each `[rule]` assumption against docs/rules/num.md and its Lean definition: `DotF16` (`DotLiftAcc` with `relDot16`, `absDot16`, every precision, `maxImpreciseAcc = 0`) for line 57, `DotTotal` for the model's configuration, `AtomicAddF32` (every `sem` and `scope`, `float32`) for line 63, `AtomicAddTotal` for `binary32`, `Compiler.Faithful` as `∀ d, d.ok → Faithful P (model d) (launch d) (K d)`; there is no `[kernel]` assumption.
+- The write-up against the Lean: the specification, the conditions table (every field of `Inst.ok`), the assumptions, the proof's outline and the narrowings; the README's figures for the test's fits and `progs_lt`.
+
+## Not checked
+
+- The coordinator's H200 figures (`6.2e-8` to `9.3e-7`): no GPU; they lie within the claim's per-shape bounds.
+- Part (B) of `Compiler.Faithful`'s scope (the environment), which is assumed.
+- The library's lemmas the proof applies (`TVA.shared`, `TVA.meets_of_faithful`, `replay_err_shared`), which I trust; Lean checks the kernel's own proofs.

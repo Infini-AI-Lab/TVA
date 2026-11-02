@@ -1,0 +1,49 @@
+{
+  "reviewer": "r-pa",
+  "kernel": "paged_attention_f16",
+  "round": 1,
+  "findings": [
+    {
+      "kind": "MODEL_MISMATCH",
+      "target": "map:68",
+      "summary": "At PAGE_SIZE = 1 (covered: page_size admits b = 0) line 68 adds two products, which the library writes tl.addc; the model's tl.mul_add leaves out a fusion the device may do.",
+      "detail": "Inst.ok.page_size admits PAGE_SIZE = 2^0 = 1. Then line 68's tl.sum(p[:, None] * v, axis=0) reduces a [1, HEAD_DIM] block over its one row. By the library's tl.sum0c (sum0With: a Tree that Covers 1, which can only be the leaf itself), each column's value is the rounded product p*v of that row, and no addition is left in the reduction (work/one_lane.lean proves covers_one and eval_one). So the source's acc * alpha + tl.sum(...) adds two products: acc * alpha, and p * v through the one-lane reduction. SEMANTICS.md, 'Float + and -: IEEE or fusable', counts as a product any operand computed by * through any dataflow. Ops.lean's tl.addc says to use it 'when an operand's product is not visible to the model, or when both are products'. So the addition is tl.addc, which lets the device fuse either product, for example fma(p, v, round(acc*alpha)). The model's tl.mul_add acc (bc alpha) (sum0c ...) allows only round(round(acc*alpha) + round(p*v)) or fma(acc, alpha, round(p*v)). The fused result fma(p, v, round(acc*alpha)) is not one of the model's outcomes. On these covered instances the model is narrower than what the library says the device may do, and Compiler.Faithful is then assumed of a model that leaves out a device result. For PAGE_SIZE >= 2 the reduction ends in an addition, and tl.mul_add is right. To resolve: require PAGE_SIZE >= 2 in Inst.ok (page_size with 1 <= b <= 8) and state it in the README's narrowings (the test uses 16 and 32, and a one-token page is not this kernel's use). Or write line 68 for PAGE_SIZE = 1 with tl.addc and prove that case.",
+      "evidence": "Source lines 39 (PAGE_SIZE: tl.constexpr), 47, 67-68; Model.lean Inst.ok.page_size; lean/TVA/Lang/Ops.lean sum0With, sum0c, mul_add, addc; lean/TVA/Lang/Tensor.lean Tree.Covers, Tree.Eval; work/one_lane.lean (checked with lake env lean, no messages).",
+      "affects": ["item:model", "item:map"]
+    },
+    {
+      "kind": "DOC",
+      "target": "decl:Kernels.PagedAttention.Inst",
+      "summary": "Inst and the README take seq_lens contiguous (element s at offset s), but the wrapper does not assert seq_lens's stride; state the narrowing.",
+      "detail": "seqLen reads the int32 at d.seq_lens.ptr s, which is what the kernel reads (seq_lens_ptr + seq, line 45). So Inst takes seq_lens with stride 1. The host asserts the last stride of q, k_cache and block_tables (line 82) and v_cache's strides (line 79), but nothing of seq_lens. A 1-D int32 seq_lens with stride other than 1 (a view such as lens2d[:, 0]) passes the wrapper, and the kernel then reads other elements than seq_lens[s]. The claim stays true of memory. But the README's 'seq_lens[s]' (Specification, Conditions) and Inst's docstring ('the last stride of q, k_cache, v_cache, block_tables and out is 1') do not say that seq_lens must be contiguous. The test's seq_lens is contiguous (torch.tensor, line 115). To resolve: say in Inst's docstring and in the README's Conditions that seq_lens is contiguous, which the wrapper does not check.",
+      "evidence": "Source lines 45, 79, 82, 115; Model.lean Inst, seqLen, SeqOk."
+    },
+    {
+      "kind": "DOC",
+      "target": "decl:Kernels.PagedAttention.model",
+      "summary": "The stated reason why a stride equal to 1 changes nothing is wrong for line 59's page * stride_kp, whose other operand is int64; the conclusion still holds.",
+      "detail": "model's docstring, and map entry 31-41, say that each use of a stride (lines 49, 57, 59, 72) is an operand of * with an int32 tensor, which builds the constant 1 in int32. At line 59, page * stride_kp multiplies the int64 page. With stride_kp = 1 the constant is built in int64 (SEMANTICS.md, 'Constants': in the dtype the operation computes in), while the model converts the int32 IntV.ofNat 1 to int64. Both give 1, so the model is right, but the reason as written does not hold for stride_kp. To resolve: reword the docstring and the map entry for that use.",
+      "evidence": "Source line 59; Model.lean model docstring; claim.md section 6, map entry 31-41."
+    },
+    {
+      "kind": "LIBRARY_REPORT",
+      "target": "lib:docs/SEMANTICS.md",
+      "summary": "The fusion rule's 'a product ... through any dataflow' does not say whether a tl.where of a product, or a reduction over one element, is still a product.",
+      "detail": "SEMANTICS.md, 'Float + and -: IEEE or fusable', calls a product 'an operand computed by *, tl.dot or tl.rand, through any dataflow'. Ops.lean's tl.add docstring says 'operands are not, in the compiled dataflow, results of a floating multiplication'. Neither says whether a value that reaches an addition through (a) a tl.where (select) whose taken side is a product, or (b) a reduction over a single element (by sumWith and Tree.Covers 1, the element itself), is a product for that addition. This kernel depends on both cases. Line 65's s - m_new, where s = tl.where(mask, tl.sum(...) * scale, -inf), is modelled as the IEEE tl.sub, which reads (a) as not a product; I carried on as if that reading were the library's. Line 68 at PAGE_SIZE = 1 (finding above) reads (b) as a product. Please state both cases explicitly in SEMANTICS.md and TRANSCRIPTION.md section 3.",
+      "evidence": "Source lines 61-62, 65, 68; docs/SEMANTICS.md lines 709-732; lean/TVA/Lang/Ops.lean tl.add, tl.addc, sumWith."
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": [
+    "item:conditions",
+    "item:spec",
+    "item:assumption:faithful",
+    "item:assumption:exp_acc",
+    "item:assumption:exp_ninf",
+    "item:assumption:exp_total",
+    "item:assumption:div_full",
+    "item:assumption:div_total"
+  ],
+  "notes": "Apart from the one-lane case at line 68, every model line and drop means what the source does by SEMANTICS.md: the -inf and 0.0 assigned to names (float32 scalars), other=0.0 (float32 then float16), the -inf of tl.where (float32), tl.cdiv as (x + (PAGE_SIZE - 1)) // PAGE_SIZE in int32, the int32 induction variable, the int64 page offset with int32 products widened, the masks, tl.maxAll/tl.maximum, tl.sum1c/sum0c/sum, tl.mul_add, tl.div and the float16 store. The tolerance grows mainly with the number of pages T: tolO is about T * 9e-7 from step^T. At 2^16 pages it is 5.8e-2 even at the test's X = 11 (work/tol.out); at the test's sizes it is 1.25e-3. The README's table shows only the extreme 0.174. A long-context row would help readers, but this does not block."
+}

@@ -1,0 +1,26 @@
+{
+  "reviewer": "r-sk2",
+  "kernel": "streamk_matmul_f16",
+  "round": 1,
+  "findings": [
+    {
+      "kind": "DOC",
+      "target": "doc:kernels/streamk_matmul_f16/README.md",
+      "summary": "README (Specification) says the test's data has no subnormal operand; torch.randn float16 gives subnormal operands at most test shapes, where A exceeds (|A| @ |B|)[i, j]",
+      "detail": "README.md, Specification, lines 73-74: 'On the test's data (no subnormal operand, so A = (|A| @ |B|)[i, j]), the claim bounds the test's error measure by 1.6e-5 to 1.03e-3 per shape'. A standard normal falls below 2^-14 in magnitude with probability about 4.9e-5, so torch.randn(dtype=torch.float16) gives nonzero subnormal float16 values at these sizes: work/subnormals.py (the CPU generator, seed 0) found 3 and 4 in a and b at 1000^3, 8 and 10 at 3072x4096x1024, 6 in a at 257x129x4097, and 102 and 93 at 8192x8192x4096 (the H200 run uses another generator; the normal law expects dozens to about 1600 per matrix). For an element whose row of a or column of b holds one, A = dotMag counts that operand at 2^-14 (mag16), so A exceeds the test's normaliser. The figures themselves stand to the digits given (the difference is below 1e-7 of A at these sizes); only the parenthesis is wrong. To resolve: say that A is (|A| @ |B|)[i, j] for the elements whose operands are all zero or normal, and that the test's few subnormal operands change the figures by less than 1e-7 relative, or drop the statement about the test's data.",
+      "evidence": "work/subnormals.py, work/subnormals.out",
+      "affects": ["item:spec"]
+    },
+    {
+      "kind": "DOC",
+      "target": "decl:Kernels.StreamKMatmul.Inst.ok.K_le",
+      "summary": "K_le's docstring says tol is below 0.21% of sum|a*b| (tol_le); tol_le bounds it by 0.21% of A = dotMag, which exceeds sum|a*b| when an operand is subnormal",
+      "detail": "Defs.lean, the docstring of Inst.ok.K_le (lines 194-197, quoted in claim.md section 3): 'up to 2^13 it is below 0.21% of Sum|a.b| (tol_le)'. tol_le proves tol K A <= 0.0021*A + 1e-33 with A = dotMag, the sum of the lifted magnitudes mag16(va k)*mag16(vb k). With subnormal operands A can exceed Sum|a.b| by up to 2^10: a row of a at the smallest subnormal 2^-24 and a column of b of ones give A = K*2^-14 and Sum|a.b| = K*2^-24, so tol is then about 2.1 times Sum|a.b|, not below 0.21% of it. The README's K_le row and the docstrings of tol and OutSpec say 'of A', correctly. To resolve: write 'of A (dotMag; Sum|a.b| when no operand is subnormal)' in the docstring.",
+      "affects": ["item:conditions"]
+    }
+  ],
+  "release": [],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Non-blocking remarks. (1) For K >= 2048 (T >= 32) tol K A exceeds 4.88e-4*A, the largest relative error of one rounding to float16 (work/tol_table.py: 5.07e-4*A at K = 2048, 1.015e-3*A at K = 4096), so Post does not tell a result rounded to float16 from a float32 one at K = 4096, a test shape. This follows from the library's DotF16 constant (relDot16 64 = 66*2^-22 per tl.dot step, about T*rho*A over the worst inputs), so no tighter bound in terms of A is available to the prover, and the README says correctly what Post does reject (a bfloat16 rounding, a dropped or duplicated partial sum). A sentence saying what it does not reject would help readers. (2) M_le asks M + 128 <= 2^31 where M + 127 <= 2^31 would do for the tile rows of line 48; no real use is affected. (3) The Lean docstring of testInst cites line 99 for the first test instance, which is line 100 (the README says 100)."
+}

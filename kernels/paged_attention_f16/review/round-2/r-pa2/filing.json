@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-pa2",
+  "kernel": "paged_attention_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {"id": "F1", "note": "Inst.ok.page_size now requires PAGE_SIZE = 2^b with 1 <= b <= 8. So every reduction at line 68 has at least two lanes and ends in an addition, and tl.mul_add is right. The narrowing and its reason are in the field's docstring, the README's Conditions table and Narrowings, and the map entry for line 68. The test's pages (16, 32) and satisfiable's instance (16) stay covered."},
+    {"id": "F2", "note": "Referred to L123, which tracks the tl.where / tl.maximum reading. The README's modelling decisions now record this kernel against it."},
+    {"id": "F3", "note": "paged_attention_kernel's and model's docstrings, the map entry for lines 31-41 and the README now say that the constant 1 is built in the dtype of the other operand: int64 for line 59's page * stride_kp. The value is the same."},
+    {"id": "F4", "note": "Stated as a narrowing. Inst's docstring, the seq_lens field, the map entry for line 45 and the README's Conditions and Narrowings now say the claim is about element s of seq_lens's storage, contiguous, which the wrapper does not check."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "At gate 22c8afda93dec27b, the Lean printing of round 1 was rerun (work/names.lean, work/names.out). It is byte-identical to round 1's for paged_attention_kernel, model, launch, Post, SeqOk, Pre and Assumptions, and #print axioms of main, consistent and satisfiable is unchanged (propext, Classical.choice, Quot.sound). The only change of meaning is Inst.ok.page_size (1 <= b), as REVIEW.md lists. Post and the tolerances are unchanged, so round 1's figures stand (round-1 work/tol.out, work/testdata.out)."
+}

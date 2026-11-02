@@ -1,0 +1,20 @@
+{
+  "gate": "16c9926eb17e72c93608de14319293d2c61a012e4f57fc4c3a69cd4cc652fce7",
+  "items": {
+    "assumption:atomic": "374fff28a3c2adcccd5d736a210b493fc57de61dd09ccec2b729f0a5a65b4138",
+    "assumption:atomic_total": "de55beb2b3927f198967c1ac4f2977cd7180a98a168be8fd0696c2c946bbe16f",
+    "assumption:dot": "50cb0a3c3fad4d2f1eb566f940c319caed39f6afb50aa00c4c99c50ebb5db089",
+    "assumption:dot_total": "c0bf2eb9c1fd91bab882699f1827ae28218c3e3bf0e7e924f4e45c1102cd84f4",
+    "assumption:faithful": "6103e8fd74665278a9344454ac5eeda83ce97ffeb683fc6550fe82100bde2c55",
+    "conditions": "8b21c82df666dc462689848227ed9e2d27b255b829ad557e9cc6459cede00ff8",
+    "map": "b73ee103b54ca1cf28d72b9af97bd40ea9d30422448d30f66d6590b736982ee3",
+    "model": "c5cc0f88cd26b7a090d532988c8d37a5323942f5035a3060cc77f48325b51027",
+    "spec": "9f9f8efa8d3261afe6be924e9c18dbc0d08f531c1aaa9e308f7f92845e6c67c3"
+  },
+  "kernel": "streamk_matmul_f16",
+  "reviewers": [
+    "r-sk",
+    "r-sk2"
+  ],
+  "time": "2026-11-02T05:30:13Z"
+}

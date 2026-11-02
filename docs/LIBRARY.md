@@ -82,7 +82,8 @@ rationals; its agreement with the device is [evidence/float-layer](../evidence/f
 
 ## Kernels (`kernels/<kernel>/`, one folder each; index: [kernels/README.md](../kernels/README.md))
 
-Ten kernels, each a Triton tutorial function; [kernels/README.md](../kernels/README.md) is the
+Twelve kernels: ten Triton tutorial functions, and two kernels written for TVA (each folder's
+`SETUP.md` says where its source comes from). [kernels/README.md](../kernels/README.md) is the
 index, with each kernel's gate, review phase and certificate.
 
 | Kernel | What it exercises |
@@ -97,3 +98,5 @@ index, with each kernel's gate, review phase and certificate.
 | `attn_bwd_f16` | tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bwd_dq`, `float16`): the backward `tl.dot`s, causal masking |
 | `grouped_matmul_tma_f16` | tutorial 08 (`grouped_matmul_tma_kernel`, `float16`): tensor descriptors (TMA), a persistent grouped GEMM |
 | `block_scaled_matmul_mxfp8` | tutorial 10 (`block_scaled_matmul_kernel`, mxfp8): `tl.dot_scaled` of `e4m3` operands with `e8m0` scales (`DotScaledE4m3`, Triton's emulation on sm_90), 5-D scale descriptors |
+| `paged_attention_f16` | written for TVA (`paged_attention_kernel`, `float16`): decode-phase paged attention; loads at addresses taken from a block table loaded in the same program (`int64` page offsets), a runtime `range` bound, an online softmax with a `-inf` start (`ExpF32NegInf`), programs sharing read-only pages |
+| `streamk_matmul_f16` | written for TVA (`streamk_matmul_kernel`, `float16` into `float32`): stream-K GEMM; a `while` loop over a program's range of K iterations, a runtime `if` between a store and a masked `tl.atomic_add` (`AtomicAddF32`), programs sharing tiles only through atomics (`shared`, `replay_err_shared`) |

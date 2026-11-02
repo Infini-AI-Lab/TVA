@@ -1,0 +1,21 @@
+{
+  "gate": "22c8afda93dec27b93c14d041bf0fee7dd32958b0e1683aa83aab2e53f7ffb1e",
+  "items": {
+    "assumption:div_full": "f1170fae390bc5bd338aa09c46d48002099af21b832003722101724735d57bb5",
+    "assumption:div_total": "05a4fc8282576a0772a0af5988dff4954fb80824c9ddcf78931e722328fab65f",
+    "assumption:exp_acc": "b2bfe37414e591ec9a1bb8cc1dce95fc2174d71916504fa7e524903df3e9026a",
+    "assumption:exp_ninf": "966398311c65b7d990fa7478d98deebc863cc9e866c66fcd6572d0b753c6d34c",
+    "assumption:exp_total": "22ebf07e56e9b21cddc9975841c38407f14c688fbe12b4d7e606ebbf2bd19833",
+    "assumption:faithful": "bb1d541518a4844fb661808805477c18bc807e7e8279f0075398326f6dba617a",
+    "conditions": "17f261cdca406147bf1ed67806706ff5f4173d985b155fec62bfe5c9a25733bd",
+    "map": "b5a5a6a683c6e192c9a3c32a521684f220b0b7fbc02b2914240574ae97f51d96",
+    "model": "1a26e3a33210851c23db8981901063ac7ec7427f94ff59092c8e360c134dd14e",
+    "spec": "fe964002fa25a7cb064faadeb2bed8c440561df8da1078204780ddaeab993688"
+  },
+  "kernel": "paged_attention_f16",
+  "reviewers": [
+    "r-pa",
+    "r-pa2"
+  ],
+  "time": "2026-11-02T05:30:11Z"
+}

@@ -1,0 +1,236 @@
+{
+ "entries": [
+  {
+   "src": [
+    22
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the decorator `@triton.jit` of line 26 names (SEMANTICS.md, the supported subset: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); the kernel's body does not name `triton`; it adds no step to the program"
+  },
+  {
+   "src": [
+    23
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 36–63 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    26
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); no other statement of the module binds `streamk_matmul_kernel` (line 83 only launches it); the model is the `Kernel` `streamk_matmul_kernel`"
+  },
+  {
+   "src": [
+    "27-35"
+   ],
+   "model": [
+    "def streamk_matmul_kernel (a_ptr b_ptr : Ptr .f16) (c_ptr : Ptr .f32) (M N K : I32)",
+    "(stride_am stride_ak stride_bk stride_bn stride_cm stride_cn : I32)",
+    "(iters_per_program total_iters : I32) (BLOCK_M BLOCK_N BLOCK_K : Nat) : Kernel where"
+   ],
+   "note": "the pointers `a_ptr`, `b_ptr` are `*fp16` and `c_ptr` is `*fp32` (`streamk_matmul` passes `float16` `a`, `b` and the `float32` `c` of line 78); `M`, `N`, `K`, the six strides, `iters_per_program` and `total_iters` are `int32`: an integer argument in `[-2^31, 2^31)` other than `1` is a runtime `int32` (SEMANTICS.md, Scalar arguments; each is below `2^31` by `Inst.ok`), and an argument equal to `1` is the constant `1`, which gives the same model (the docstring of `model` goes through each use); the constexprs `BLOCK_M`, `BLOCK_N`, `BLOCK_K` are Lean parameters (`model` passes the launch's `128, 128, 64`); no parameter has a default or an annotation other than `tl.constexpr`; the trailing `#` are comments; line 35 closes the signature"
+  },
+  {
+   "src": [
+    36
+   ],
+   "model": "let pid := tl.program_id ctx 0",
+   "note": "axis 0 of the 1-D grid, an `int32`"
+  },
+  {
+   "src": [
+    37
+   ],
+   "model": "let num_pid_n := (← tl.idiv (Tensor.scalar (N + (IntV.ofNat (BLOCK_N - 1) : I32))) (Tensor.scalar (IntV.ofNat BLOCK_N : I32))).item",
+   "note": "`tl.cdiv(x, div)` is `(x + div - 1) // div` (SEMANTICS.md, `tl.cdiv`): the constexpr `BLOCK_N - 1` is computed by Python and built in `int32` as an operand of `+` with the `int32` `N`; the wrapping `int32` `+`, then the truncating `int32` `//` (`tl.idiv`, undefined on a zero divisor or overflow); on covered instances `N + 127 < 2^31` (`Inst.ok.N_le`)"
+  },
+  {
+   "src": [
+    38
+   ],
+   "model": "let iters_per_tile := (← tl.idiv (Tensor.scalar (K + (IntV.ofNat (BLOCK_K - 1) : I32))) (Tensor.scalar (IntV.ofNat BLOCK_K : I32))).item",
+   "note": "as line 37 with `K` and `BLOCK_K`; `K + 63 < 2^31` (`Inst.ok.K_le`)"
+  },
+  {
+   "src": [
+    39
+   ],
+   "model": "let it := pid * iters_per_program",
+   "note": "the wrapping `int32` product of two `int32` scalars (no wrap on covered instances: `pid · iters_per_program < num_programs · iters_per_program < 2^31`, `Inst.ok.progs_lt`)"
+  },
+  {
+   "src": [
+    40
+   ],
+   "model": "let «end» := (tl.iminimum (Tensor.scalar (it + iters_per_program)) (Tensor.scalar total_iters)).item",
+   "note": "`tl.minimum` of two `int32` scalars is the exact signed minimum `tl.iminimum` (SEMANTICS.md); the wrapping `int32` `+`; the source's name `end` is a Lean keyword, written `«end»` (the same name, `streamk_matmul_kernel`'s docstring)"
+  },
+  {
+   "src": [
+    41
+   ],
+   "model": [
+    "let _it ← tl.whileLoop it (fun it => pure (IntV.lt it «end»)) fun it => do",
+    "pure ()"
+   ],
+   "note": "`while it < end:` is `tl.whileLoop` (SEMANTICS.md, `while`): the condition is the signed `int32` comparison `it < end`, computed before each iteration; the loop carries `it`, the one name defined before the loop that its body assigns (line 64), and the names the body defines (lines 42–63) are not read after it; the loop is the body's last statement, so its result is not used and the program ends (`pure ()`)"
+  },
+  {
+   "src": [
+    42
+   ],
+   "model": "let tile := (← tl.idiv (Tensor.scalar it) (Tensor.scalar iters_per_tile)).item",
+   "note": "the truncating `int32` `//` (`tl.idiv`); line 43 is a comment"
+  },
+  {
+   "src": [
+    44
+   ],
+   "model": "let k_first := it - tile * iters_per_tile",
+   "note": "the wrapping `int32` `*` and `-`"
+  },
+  {
+   "src": [
+    45
+   ],
+   "model": "let k_last := (tl.iminimum (Tensor.scalar iters_per_tile) (Tensor.scalar (k_first + («end» - it)))).item",
+   "note": "`tl.minimum` on `int32` scalars (`tl.iminimum`); the wrapping `-`, then `+`"
+  },
+  {
+   "src": [
+    46
+   ],
+   "model": "let pid_m := (← tl.idiv (Tensor.scalar tile) (Tensor.scalar num_pid_n)).item",
+   "note": "the truncating `int32` `//`"
+  },
+  {
+   "src": [
+    47
+   ],
+   "model": "let pid_n := (← tl.irem (Tensor.scalar tile) (Tensor.scalar num_pid_n)).item",
+   "note": "the truncating `int32` `%` (`tl.irem`, the sign of the dividend)"
+  },
+  {
+   "src": [
+    48
+   ],
+   "model": "let offs_m : Tensor [BLOCK_M] I32 := pid_m * (IntV.ofNat BLOCK_M : I32) + tl.arange 0 BLOCK_M",
+   "note": "the constexpr `BLOCK_M` built in `int32` as an operand of `*` with the `int32` `pid_m`; the `int32` scalar added to every lane of `tl.arange(0, BLOCK_M)` (`int32` lanes `0 … BLOCK_M − 1`)"
+  },
+  {
+   "src": [
+    49
+   ],
+   "model": "let offs_n : Tensor [BLOCK_N] I32 := pid_n * (IntV.ofNat BLOCK_N : I32) + tl.arange 0 BLOCK_N",
+   "note": "as line 48 with `pid_n`, `BLOCK_N`"
+  },
+  {
+   "src": [
+    50
+   ],
+   "model": "let acc := tl.zeros [BLOCK_M, BLOCK_N] .f32",
+   "note": "`tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)`: `+0.0` in every element"
+  },
+  {
+   "src": [
+    51
+   ],
+   "model": "let acc ← tl.forRange k_first k_last (IntV.ofInt 1 : I32) acc fun kk acc => do",
+   "note": "`for kk in range(k_first, k_last)`: two `int32` bounds, step `1` (SEMANTICS.md, `range`), an `int32` induction variable; the loop carries `acc`, the one name defined before it (line 50) that its body assigns (line 57), and the names `offs_k`, `a`, `b` the body defines are not read after it"
+  },
+  {
+   "src": [
+    52
+   ],
+   "model": "let offs_k : Tensor [BLOCK_K] I32 := kk * (IntV.ofNat BLOCK_K : I32) + tl.arange 0 BLOCK_K",
+   "note": "as line 48 with `kk`, `BLOCK_K`"
+  },
+  {
+   "src": [
+    "53-54"
+   ],
+   "model": [
+    "let a ← tl.load (a_ptr + offs_m.col BLOCK_K * stride_am + offs_k.row BLOCK_M * stride_ak)",
+    "(some (((offs_m.col BLOCK_K).ltS M).and ((offs_k.row BLOCK_M).ltS K)))",
+    "(some (← tl.convert .f32 .f16 (tl.full [BLOCK_M, BLOCK_K] (FloatV.litF32 (FloatV.ofPat 0)))))"
+   ],
+   "note": "`offs_m[:, None]` and `offs_k[None, :]` are `col` and `row`, broadcast to `[BLOCK_M, BLOCK_K]` by the binary operations; the pointer expression `a_ptr + X * stride_am + Y * stride_ak` is `(a_ptr + X·stride_am) + Y·stride_ak`, two pointer additions of `int32` products (each offset taken at its value, SEMANTICS.md); the mask is two signed `int32` comparisons with the scalars `M`, `K`, then `&` of the `int1` tensors; `other=0.0` is the `float32` constant `+0.0` (a tensor of its own type), broadcast, and converted to the pointer's element type `float16` (`tl.convert`, SEMANTICS.md, `tl.load`); the conversion is evaluated before the load, which reads nothing it depends on"
+  },
+  {
+   "src": [
+    "55-56"
+   ],
+   "model": [
+    "let b ← tl.load (b_ptr + offs_k.col BLOCK_N * stride_bk + offs_n.row BLOCK_K * stride_bn)",
+    "(some (((offs_k.col BLOCK_N).ltS K).and ((offs_n.row BLOCK_K).ltS N)))",
+    "(some (← tl.convert .f32 .f16 (tl.full [BLOCK_K, BLOCK_N] (FloatV.litF32 (FloatV.ofPat 0)))))"
+   ],
+   "note": "as lines 53–54 for `b`, `[BLOCK_K, BLOCK_N]`, with `offs_k[:, None]`, `offs_n[None, :]` and the scalars `K`, `N`"
+  },
+  {
+   "src": [
+    57
+   ],
+   "model": [
+    "let acc ← tl.dot { a := .f16, b := .f16, acc := .f32, precision := .tf32, maxImpreciseAcc := 0 }",
+    "a b acc",
+    "return acc"
+   ],
+   "note": "`tl.dot(a, b, acc)` of `float16` operands into the loop-carried `float32` accumulator (no separate addition): no `input_precision` (the default, `tf32`; `Rules.Num.DotF16` covers every precision) and no `max_num_imprecise_acc` (`0`); the body's result is the new `acc`"
+  },
+  {
+   "src": [
+    58
+   ],
+   "model": "let c_ptrs := c_ptr + offs_m.col BLOCK_N * stride_cm + offs_n.row BLOCK_M * stride_cn",
+   "note": "as lines 53–54: `(c_ptr + offs_m[:, None]·stride_cm) + offs_n[None, :]·stride_cn`, broadcast to `[BLOCK_M, BLOCK_N]`"
+  },
+  {
+   "src": [
+    59
+   ],
+   "model": "let c_mask := ((offs_m.col BLOCK_N).ltS M).and ((offs_n.row BLOCK_M).ltS N)",
+   "note": "two signed `int32` comparisons with the scalars `M`, `N`, broadcast, then `&`"
+  },
+  {
+   "src": [
+    60
+   ],
+   "model": "if IntV.eq k_first (IntV.ofInt 0 : I32) && IntV.eq k_last iters_per_tile then",
+   "note": "a runtime `if` (SEMANTICS.md, `if`: the condition is a scalar `int1` tensor, not a compile-time constant): `k_first == 0` compares the `int32` scalar with the Python `0` built as an `int32` tensor of its own type, `k_last == iters_per_tile` two `int32` scalars, each an `int1`, and `&` of two `int1` scalars is their `and`; neither branch defines a name read after the `if`"
+  },
+  {
+   "src": [
+    61
+   ],
+   "model": "tl.store c_ptrs acc (some c_mask)",
+   "note": "a masked store; `acc` is already `float32`, the pointer's element type, so nothing is converted"
+  },
+  {
+   "src": [
+    62
+   ],
+   "model": "else",
+   "note": "the `else` branch of the runtime `if`"
+  },
+  {
+   "src": [
+    63
+   ],
+   "model": [
+    "let _ ← tl.atomic_add c_ptrs acc (some c_mask)",
+    "pure ()"
+   ],
+   "note": "`tl.atomic_add(c_ptrs, acc, mask=c_mask)` with the defaults `sem=\"acq_rel\"` and `scope=\"gpu\"` (the library's defaults of `tl.atomic_add`); `float32` values into `float32` elements of global memory; the result (the old values) is not used"
+  },
+  {
+   "src": [
+    64
+   ],
+   "model": "return it + (k_last - k_first)",
+   "note": "`it += k_last - k_first`: the wrapping `int32` `-`, then `+`; the iteration's result is the new `it`, the loop-carried value"
+  }
+ ]
+}

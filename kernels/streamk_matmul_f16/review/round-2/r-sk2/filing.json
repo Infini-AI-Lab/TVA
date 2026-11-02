@@ -1,0 +1,13 @@
+{
+  "reviewer": "r-sk2",
+  "kernel": "streamk_matmul_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {"id": "F2", "note": "The README's Specification paragraph no longer says the test's data has no subnormal operand. It now says A is the test's normaliser up to the subnormal operands' excess, each counted at 2^-14, and that the per-shape figures hold to the digits given; my round-1 counts (work/subnormals.out in round 1: 0 to 102 per matrix) agree with the text."},
+    {"id": "F3", "note": "Inst.ok.K_le's docstring now says below 0.21% of A (dotMag; the sum of |a*b| when no operand is subnormal), which is what tol_le proves."}
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": ""
+}

@@ -1,0 +1,15 @@
+{
+  "reviewer": "r-sk",
+  "kernel": "streamk_matmul_f16",
+  "round": 2,
+  "findings": [],
+  "release": [
+    {
+      "id": "F1",
+      "note": "README, Specification, no longer says the test's data has no subnormal operand: it says A is the test's normaliser up to the subnormal operands' excess, 0 to 102 subnormal operands per matrix and at most 1.9e-7 relative on the sampled shapes, which is what round-1/r-sk/work/subnormals.out recorded; the per-shape bounds hold to the digits given."
+    }
+  ],
+  "reraise": [],
+  "accept": "all",
+  "notes": "Gate and item digests unchanged since round 1. The new README sentence on what Post does not reject checks by arithmetic: tol/A is 4.76e-4 at T = 30 and 4.92e-4 at T = 31 (K = 1921 is the first K with T = 31), against 4.88e-4 for one float16 rounding."
+}

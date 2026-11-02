@@ -1,0 +1,7 @@
+P(|x| < 2^-14) for N(0,1): 4.870e-05
+M=512 N=512 K=512: subnormal a=0 b=0 (expected 12.8, 12.8); max A/(|A|@|B|) - 1 = 0.00e+00
+M=1000 N=1000 K=1000: subnormal a=3 b=4 (expected 48.7, 48.7); max A/(|A|@|B|) - 1 = 1.90e-07
+M=3072 N=4096 K=1024: subnormal a=8 b=10 (expected 153.2, 204.3)
+M=257 N=129 K=4097: subnormal a=6 b=0 (expected 51.3, 25.7); max A/(|A|@|B|) - 1 = 4.85e-08
+M=64 N=64 K=64: subnormal a=0 b=0 (expected 0.2, 0.2); max A/(|A|@|B|) - 1 = 0.00e+00
+M=8192 N=8192 K=4096: subnormal a=102 b=93 (expected 1634.1, 1634.1)

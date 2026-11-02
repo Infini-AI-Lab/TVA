@@ -12,5 +12,7 @@
 | [grouped_matmul_tma_f16](grouped_matmul_tma_f16/README.md) | Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16) | PASS | [round 3: all reviewers have filed](grouped_matmul_tma_f16/REVIEW.md) | 0 | GRANTED |
 | [matmul_e5m2](matmul_e5m2/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5) | PASS | [round 3: all reviewers have filed](matmul_e5m2/REVIEW.md) | 0 | GRANTED |
 | [matmul_f16](matmul_f16/README.md) | Matrix multiplication, tutorial 03 (`matmul_kernel`, float16) | PASS | [round 3: all reviewers have filed](matmul_f16/REVIEW.md) | 0 | GRANTED |
+| [paged_attention_f16](paged_attention_f16/README.md) | Paged attention, decode (`paged_attention_kernel`, float16) | PASS | [round 2: all reviewers have filed](paged_attention_f16/REVIEW.md) | 0 | GRANTED |
 | [softmax_f32](softmax_f32/README.md) | Fused softmax, tutorial 02 (`softmax_kernel`, float32) | PASS | [round 3: all reviewers have filed](softmax_f32/REVIEW.md) | 0 | GRANTED |
+| [streamk_matmul_f16](streamk_matmul_f16/README.md) | Stream-K matrix multiplication (`streamk_matmul_kernel`, float16 into float32 with atomic adds) | PASS | [round 2: all reviewers have filed](streamk_matmul_f16/REVIEW.md) | 0 | GRANTED |
 | [vec_add_f32](vec_add_f32/README.md) | Vector addition, tutorial 01 (`add_kernel`, float32) | PASS | [round 2: all reviewers have filed](vec_add_f32/REVIEW.md) | 0 | GRANTED |

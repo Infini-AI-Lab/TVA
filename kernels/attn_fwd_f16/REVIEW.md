@@ -6,7 +6,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 
 ## Status
 
-- Gate: **PASS**, digest `11e67701bc53c248` (2026-11-01T19:14:11Z).
+- Gate: **PASS**, digest `11e67701bc53c248` (2026-11-02T04:41:43Z).
 - Phase: round 4: all reviewers have filed.
 - Reviewers: r-fwd (all), r-fwd2 (all).
 - Certificate: **GRANTED**.

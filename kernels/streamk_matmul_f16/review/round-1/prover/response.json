@@ -1,0 +1,21 @@
+{
+  "kernel": "streamk_matmul_f16",
+  "round": 1,
+  "responses": [
+    {
+      "id": "F1",
+      "response": "CLARIFIED",
+      "text": "README, Specification, the paragraph after the tolerance table: the parenthesis 'no subnormal operand, so A = (|A| @ |B|)[i, j]' is replaced. It now says that A is the test's normaliser up to a negligible excess: float16 torch.randn gives a few subnormal operands (the reviewers' sample found 0 to 102 per matrix), each counted at 2^-14 in A, which raised A above the normaliser by at most 1.9e-7 of it on the sampled shapes, so the per-shape bounds 1.6e-5 to 1.03e-3 hold to the digits given. Only the write-up changed; no item digest changed."
+    },
+    {
+      "id": "F2",
+      "response": "CLARIFIED",
+      "text": "The same change as F1: README, Specification, no longer says the test's data has no subnormal operand. It says A exceeds (|A| @ |B|)[i, j] by the subnormal operands' excess, at most 1.9e-7 relative on the sampled shapes, so the figures stand to the digits given. Only the write-up changed; no item digest changed."
+    },
+    {
+      "id": "F3",
+      "response": "CLARIFIED",
+      "text": "The docstring of Inst.ok.K_le now says the tolerance is below 0.21% of A (dotMag; Σ|a·b| when no operand is subnormal) (tol_le), in place of 0.21% of Σ|a·b|. A field's docstring is not in the conditions item's digest, which is unchanged (8b21c82df666), as is the gate digest; claim.md section 3 shows the new text."
+    }
+  ]
+}
