@@ -105,6 +105,9 @@ HOME_OK = (("fpv", "tva"), (".elan",), (".triton",))
 SYSTEM_DIRS = {"usr", "bin", "sbin", "lib", "lib64", "etc", "dev", "proc", "sys"}
 PLACEHOLDER_ROOTS = {"path"}
 SKIP_DIRS = {".lake", ".venv", ".git", "__pycache__"}  # build outputs, the Python environment, git
+# The sandbox (library issue L135): the containers in which agents prove and review a kernel. Its files run
+# there and name the containers' own paths, so the text scan skips its generic path tests for them.
+SANDBOX = os.path.join(ROOT, "sandbox")
 LREVIEW = os.path.join(ROOT, "docs", "library-review")
 # A Lean name as the claim reader takes it from a kernel's manifest (library issue L38): plain ASCII
 # components, so that the text spliced into the reader can be nothing but a name.
@@ -397,7 +400,7 @@ def _home_ok(parts):
     return any(tuple(parts[:len(ok)]) == ok or tuple(ok[:len(parts)]) == tuple(parts) for ok in HOME_OK)
 
 
-def foreign_refs(text, where=None, absolute=True, relative=True):
+def foreign_refs(text, where=None, absolute=True, relative=True, home=True):
     """References to other projects in a text: a hashed name, or a path that leads outside TVA.
 
     A name counts as a word, as a piece of a word (`Name_v2`, `NameLemmas`, `nameLemmas`), or at the
@@ -408,7 +411,8 @@ def foreign_refs(text, where=None, absolute=True, relative=True):
     another absolute path of two components or more outside the system directories; or when it is
     relative, climbs with `..`, and leaves TVA from `where` (the directory of the file that holds it).
     `absolute=False` skips the generic absolute-path test, `relative=False` the relative one (Triton's
-    own pinned files skip both). The test is lexical: a path computed at run time is not seen."""
+    own pinned files skip both), `home=False` the home-path test (the sandbox's files skip all three).
+    The test is lexical: a path computed at run time is not seen."""
     out = set()
     norm = unicodedata.normalize("NFKC", text)
     if any(_piece_hit(x) for x in _pieces(norm) | _pieces(_unescape(norm))):
@@ -420,7 +424,7 @@ def foreign_refs(text, where=None, absolute=True, relative=True):
             comps = [x for x in posixpath.normpath(rest).split("/") if x and x != "."] if rest else []
             if comps and comps[0] != "tva":
                 out.add(f"a path outside TVA (a sibling folder, fpv/{rest[:50]})")
-        toks = {m.group(0) for m in _HOME_START.finditer(t)}
+        toks = {m.group(0) for m in _HOME_START.finditer(t)} if home else set()
         if absolute:
             toks |= {m.group(0) for m in _ABS.finditer(t)}
         for raw in sorted(toks):
@@ -452,11 +456,13 @@ def foreign_refs(text, where=None, absolute=True, relative=True):
 def scan_files(paths):
     """Every file must be UTF-8 text that names no other project and has no path into one; a symbolic
     link must stay inside TVA. Triton's own pinned files skip the generic absolute-path and relative-path
-    tests (`upstream_files`); the name, `fpv` and home tests apply to every file, and a kernel's source
-    gets every test (library issue L7)."""
+    tests (`upstream_files`), and the sandbox's files skip those and the home test too, since they name
+    the paths of the containers they run in (`SANDBOX`, library issue L135); the name and `fpv` tests
+    apply to every file, and a kernel's source gets every test (library issue L7)."""
     bad = []
     root = os.path.realpath(ROOT)
     upstream = upstream_files()
+    sandbox = os.path.realpath(SANDBOX) + os.sep
     for p in paths:
         if os.path.islink(p):
             dest = os.path.realpath(p)
@@ -472,8 +478,9 @@ def scan_files(paths):
             bad.append(f"{rel(p)}: unreadable ({e.strerror})")
             continue
         real = os.path.realpath(p)
-        for r in foreign_refs(text, os.path.dirname(real), absolute=real not in upstream,
-                              relative=real not in upstream):
+        own = real not in upstream and not real.startswith(sandbox)
+        for r in foreign_refs(text, os.path.dirname(real), absolute=own, relative=own,
+                              home=not real.startswith(sandbox)):
             bad.append(f"{rel(p)}: {r}")
     return bad
 

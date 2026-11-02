@@ -6,7 +6,7 @@ Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16). The c
 
 ## Status
 
-- Gate: **PASS**, digest `ea472d49ce692007` (2026-11-02T04:45:10Z).
+- Gate: **PASS**, digest `ea472d49ce692007` (2026-11-02T19:24:00Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-gmm (all), r-gmm2 (all).
 - Certificate: **GRANTED**.

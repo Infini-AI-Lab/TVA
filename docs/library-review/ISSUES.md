@@ -7,7 +7,7 @@ The process is in [../LIBRARY_REVIEW.md](../LIBRARY_REVIEW.md); kernel findings 
 
 States: `OPEN` (to be fixed in the round named), `ACCEPTED` (fixed, and accepted by library
 review), `FIXED` (fixed in a round that no library review followed, by the user's decision under
-L36: rounds 21 to 23 and 26; the fixes of rounds 24 and 25 were reviewed later), `CLOSED` (settled by the coordinator, as its section says).
+L36: rounds 21 to 23, 26 and 27; the fixes of rounds 24 and 25 were reviewed later), `CLOSED` (settled by the coordinator, as its section says).
 
 The kernels of the first round (vec-add, grouped GEMM, flash attention) were cleared on
 2026-10-27 at the user's request, to restart from scratch. The issues they raised stand on their
@@ -149,6 +149,7 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L132](#l132) | FIXED | 26 | round 25 review (lr-25b) | wording: `evidence/num-dot-sub16/README.md` conclusion 1 says `DotF16` and `DotBF16` do not hold, without "as stated before round 25" |
 | [L133](#l133) | FIXED | 26 | round 25 review (lr-25b) | wording: round 25's list of constants whose meaning changed leaves out the generic `DotChunkAcc` and the `liftMag_*` lemmas, which change meaning at `float16` and `bfloat16` (no kernel uses them there) |
 | [L134](#l134) | OPEN | — | library author, round 26 | sharpness: the fp8 chunk facts do not state that a partial value never grows past `|acc| + Σ|a·b|`; stating it (with evidence) would remove the remaining `1 + 2^-11` per chunk of a fed-back accumulator |
+| [L135](#l135) | FIXED | 27 | user, 2026-11-02 | tool: the sandbox's files (`sandbox/`, agents proving and reviewing a kernel in containers) name the containers' own paths, which the text scan read as paths out of TVA, so no gate could pass with the folder in the tree |
 
 ## L1
 
@@ -2607,3 +2608,16 @@ wrong to call the issue closed on it.
 author, round 26). By the window model a partial value never grows past `|acc| + Σ|a·b|` (no result
 in round 26's evidence did). Stating that, with evidence, would remove the remaining compounding.
 Open; not scheduled.
+
+## L135
+
+**The sandbox's files name the containers' own paths, which the text scan read as paths out of TVA**
+(tool; user, 2026-11-02). The user's goal: the sandbox (`sandbox/`: a review service, an agent harness,
+the images and the verifier, in which agents prove and review one kernel in containers) is part of TVA.
+Its files run in those containers and name their paths: the test harness's folders, the review
+service's folder, the agents' homes and scratch folders, the toolchain's folder. The gate's text scan
+(`library_independence`, run by every `tvr check` and by `tvr audit`) read 60 of them, in 14 of the
+folder's 26 files, as paths out of TVA, so with the folder in the tree no kernel's gate could pass.
+Round 27: the files under `sandbox/` skip the scan's generic absolute-path, relative-path and home-path
+tests; the name test and the `fpv/<name>` test apply to them as to every file. Fixed in round 27
+(`round-27/author/notes.md`).

@@ -32,6 +32,9 @@ Reviewers judge the model against the source, the specification and the assumpti
 - Plan: [docs/plan/PLAN.md](docs/plan/PLAN.md)
 - Kernels: [kernels/](kernels/README.md), one folder per kernel with its Lean bundle, source,
   write-up and review. Restarted from scratch on 2026-10-27, beginning with vector addition
+- Agents in containers: [sandbox/](sandbox/README.md) runs the protocol on one kernel with a prover
+  agent, reviewer agents and a review service, each in a container (a Harbor task), with a harness
+  that helps weaker models ([sandbox/HARNESS.md](sandbox/HARNESS.md))
 
 Build:
 

@@ -1,0 +1,25 @@
+{
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "600000",
+    "BASH_MAX_TIMEOUT_MS": "1800000",
+    "BASH_MAX_OUTPUT_LENGTH": "40000",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "{{context_window}}",
+    "TVA_HARNESS_AUTOBUILD": "{{autobuild}}"
+  },
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/hook.py session-start", "timeout": 120}]}
+    ],
+    "PreToolUse": [
+      {"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|Grep|Glob",
+       "hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/hook.py pre-tool", "timeout": 30}]}
+    ],
+    "PostToolUse": [
+      {"matcher": "Write|Edit|MultiEdit|NotebookEdit",
+       "hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/hook.py post-tool", "timeout": 900}]}
+    ],
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/hook.py stop", "timeout": 300}]}
+    ]
+  }
+}

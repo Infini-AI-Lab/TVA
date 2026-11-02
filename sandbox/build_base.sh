@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Build tva-sandbox-base from TVA's tree at its commit: the files TVA ships (git archive), never its history.
+#   sandbox/build_base.sh [TAG]
+set -euo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+tva="$(cd "$here/.." && pwd)"
+rev="$(git -C "$tva" rev-parse --short HEAD)"
+tag="${1:-tva-sandbox-base:$rev}"
+if [ -n "$(git -C "$tva" status --porcelain)" ]; then
+  echo "TVA has uncommitted changes; commit them first" >&2; exit 1
+fi
+ctx="$(mktemp -d)"
+trap 'rm -rf "$ctx"' EXIT
+mkdir -p "$ctx/tva"
+# The tracked files at HEAD, exactly (no build output, no .git).
+git -C "$tva" archive --format=tar HEAD | tar -x -C "$ctx/tva"
+cp "$here/base/Dockerfile" "$ctx/Dockerfile"
+echo "$rev" > "$ctx/tva/TVA_COMMIT"
+docker build -t "$tag" "$ctx"
+docker tag "$tag" tva-sandbox-base:latest
+echo "built $tag (TVA $rev)"

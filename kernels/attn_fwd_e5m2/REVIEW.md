@@ -6,7 +6,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first ‚å
 
 ## Status
 
-- Gate: **PASS**, digest `3d7848ee51b5e6a6` (2026-11-02T04:42:48Z).
+- Gate: **PASS**, digest `3d7848ee51b5e6a6` (2026-11-02T19:21:30Z).
 - Phase: round 7: all reviewers have filed.
 - Reviewers: r-e5fwd (all), r-e5fwd2 (all).
 - Certificate: **GRANTED**.

@@ -292,8 +292,12 @@ every role.
     group without spaces (`{a,b}`) replaced by one of its alternatives (as a shell expands it). A
     symbolic link may not lead out of TVA. These tests apply to every file. Triton's own files,
     pinned by sha256 in `primitives/` and `tutorials/`, skip only the generic absolute-path and
-    relative-path tests (Triton's text holds paths of its own build tree and placeholders). A
-    kernel's source is the prover's file, though it pins it by sha256: every test applies to it.
+    relative-path tests (Triton's text holds paths of its own build tree and placeholders). The
+    files of `sandbox/` (the containers in which agents prove and review a kernel) skip those two
+    and the home-path test, since they name the containers' own paths (the service's folder, the
+    agents' scratch folders in their homes);
+    the name test and the `fpv/<name>` test apply to them (library issue L135). A kernel's source
+    is the prover's file, though it pins it by sha256: every test applies to it.
 
     **The text scan is lexical.** It reads paths as they are written. A path a program or a shell
     computes at run time is not checked: `os.path.join`, an f-string, `Path.home()`, a shell
