@@ -458,7 +458,12 @@ def run_claude(r, prompt, tag):
         f.write(out)
     res = cli_result(out)
     cost = res.get("total_cost_usd") or 0
-    use = res.get("usage") or {}
+    # the session's tokens, by model (`usage` can hold only the last request's)
+    use = {"input": 0, "cached": 0, "output": 0}
+    for m in (res.get("modelUsage") or {}).values():
+        use["input"] += (m.get("inputTokens") or 0) + (m.get("cacheCreationInputTokens") or 0)
+        use["cached"] += m.get("cacheReadInputTokens") or 0
+        use["output"] += m.get("outputTokens") or 0
 
     def keep(S):
         if res.get("session_id"):
@@ -466,9 +471,8 @@ def run_claude(r, prompt, tag):
         S["costs"][r] = S["costs"].get(r, 0) + cost
         # the tokens are the endpoint's count; the cost is Claude Code's estimate at Anthropic's prices
         tk = S.setdefault("tokens", {}).setdefault(r, {"input": 0, "cached": 0, "output": 0})
-        tk["input"] += (use.get("input_tokens") or 0) + (use.get("cache_creation_input_tokens") or 0)
-        tk["cached"] += use.get("cache_read_input_tokens") or 0
-        tk["output"] += use.get("output_tokens") or 0
+        for key in tk:
+            tk[key] += use[key]
         S["agent_runs"].append({"reviewer": r, "tag": tag, "exit": rc, "seconds": round(time.time() - t0),
                                 "turns": res.get("num_turns"), "cost_usd": cost, "error": bool(res.get("is_error"))})
     update(keep)
