@@ -77,7 +77,10 @@ solution (`-a oracle`); a kernel without a certificate has no oracle. Of the twe
 **Result.** Harbor's reward (`/logs/verifier/reward.json`) is 1 when the verifier's own gate passes and
 the certificate holds; it also reports `rounds_reviewed`, `rejected`, `findings`, `reviewer_cost_usd`,
 `service_error` (a reviewer or the service failed, not the prover) and `escalated`. The exported record,
-with the job logs and the reviewer agents' transcripts, is in the trial's `artifacts/export/`.
+with the job logs and the reviewer agents' transcripts, is in the trial's `artifacts/export/`. Its
+`kernel/` folder is the kernel's folder as TVA keeps it: put in place of `kernels/<kernel>/` in TVA's
+tree at the same commit, `tvr status` reads its certificate as it reads any other (a record made by
+the scripted reviewers, who read nothing, is a plumbing test and nothing more).
 
 Without a key, or with a bad one, the reviewer container stops at start (it runs one short agent call
 first), and Harbor fails the trial before the prover starts.
