@@ -65,11 +65,18 @@ def main():
         finish()
     S = json.load(open(state_p))
     end = S.get("status_at_end", S.get("status"))
-    details["service"] = {k: S.get(k) for k in ("mode", "model", "status_at_end", "reviewed", "rejected", "costs",
-                                                 "error", "tva_commit", "started", "exported")}
+    details["service"] = {k: S.get(k) for k in ("mode", "model", "endpoint", "status_at_end", "reviewed", "rejected",
+                                                 "costs", "tokens", "error", "tva_commit", "started", "exported")}
+    tokens = list((S.get("tokens") or {}).values())
     reward.update(rounds_reviewed=S.get("reviewed", 0), rejected=S.get("rejected", 0),
-                  reviewer_cost_usd=round(sum((S.get("costs") or {}).values()), 4),
+                  reviewer_input_tokens=sum(x["input"] for x in tokens),
+                  reviewer_cached_tokens=sum(x["cached"] for x in tokens),
+                  reviewer_output_tokens=sum(x["output"] for x in tokens),
                   service_error=1 if end == "error" else 0, escalated=1 if end == "escalated" else 0)
+    # Claude Code prices what it spends at Anthropic's rates: a cost only for Anthropic's own endpoint (with
+    # another endpoint, the credit meter's ledger is the account, HARNESS.md)
+    if S.get("endpoint", "api.anthropic.com") == "api.anthropic.com":
+        reward["reviewer_cost_usd"] = round(sum((S.get("costs") or {}).values()), 4)
     if S.get("mode") != "claude" and not TASK.get("allow_scripted"):
         check("the reviewers are agents", False, f"the service ran {S.get('mode')} reviewers, which this task does not allow")
         finish()

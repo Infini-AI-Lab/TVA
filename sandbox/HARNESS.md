@@ -79,8 +79,10 @@ few lines with file references. `lean-fixer` makes one Lean file build. Both kee
 error loops out of the main context.
 
 **Settings.** Long Bash timeouts (10 minutes by default, 30 at most; builds are slow), a 40 000-character
-output limit, and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, so compaction happens before a smaller context
-overflows (`make_task.py --context-window`, default 128 000).
+output limit, and the context window (`make_task.py --context-window`, default 128 000):
+`CLAUDE_CODE_MAX_CONTEXT_TOKENS`, the window Claude Code assumes for a model it does not know (it
+assumes 200 000 otherwise, and ignores this for Claude models), and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`,
+the size at which it compacts (at most the model's window).
 
 ## Running with a public model
 
@@ -111,9 +113,35 @@ With a base URL the service sets every model alias to `TVA_REVIEWER_MODEL` and t
 minutes. It makes one short call at start and stops if that fails, so a wrong endpoint, key or model
 fails the trial before the prover starts.
 
-Make the task with `--context-window` set to the model's context length (`python3 -I make_task.py
-<kernel> --context-window 64000`). `--no-autobuild` turns off the build after each edit, for a machine
+Make the task with `--context-window` below the model's context length, with a margin: an endpoint
+without Anthropic's token counting (`/v1/messages/count_tokens`; Fireworks answers 404) leaves Claude
+Code to estimate how full its context is. For DeepSeek V4.1 Flash (1M tokens) on Fireworks we use
+`--context-window 650000`. `--no-autobuild` turns off the build after each edit, for a machine
 where builds are too slow for it.
+
+### Tracking the spend
+
+`meter.py` runs on the host between the agents and the endpoint. It records every request's tokens and
+cost in a ledger, labelled by who made it, stops the agents at a budget (HTTP 402 once it is spent), and
+keeps the endpoint's key on the host: the containers get only the meter's own client key, which works
+nowhere else. With Fireworks, for example (prices in dollars per million uncached input, cached input
+and output tokens, as the account's billing summary rates the model):
+
+```bash
+python3 -I $TVA/sandbox/meter.py serve --upstream https://api.fireworks.ai/inference \
+    --key-file <file with the key> --price 0.30,0.006,1.20 --ledger run/meter.jsonl --budget 20 &
+K=$(cat run/meter.jsonl.client-key); H=<the host's address, as the containers reach it>
+export ANTHROPIC_BASE_URL=http://$H:18800/prover ANTHROPIC_API_KEY=$K
+export TVA_REVIEWER_ANTHROPIC_BASE_URL=http://$H:18800/reviewer TVA_REVIEWER_ANTHROPIC_API_KEY=$K
+export TVA_REVIEWER_MODEL=<model-id>
+harbor run -p tasks/tva-prove-<kernel> -a claude-code -m anthropic/<model-id> -e docker
+python3 -I $TVA/sandbox/meter.py report run/meter.jsonl      # at any time: requests, tokens, cost by label
+```
+
+The ledger is the account of a run's spend: the provider's own billing covers the whole account and
+may lag by a day, and Claude Code prices its own use at Anthropic's rates (the reward reports a
+reviewer cost only with Anthropic's endpoint; in the first Fireworks pilot Claude Code's estimate was
+$15.28 for reviewers whose metered spend was $0.67).
 
 ## How it was tested
 

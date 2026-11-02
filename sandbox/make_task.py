@@ -10,8 +10,8 @@ scripted plumbing reviewer that accepts everything unread, and whose verifier al
 `tasks` in the working directory by default, and must be outside TVA: the gate reads every file of
 TVA's tree. The kernel is the one in TVA's tree at its commit (`--tva`, by default the tree that holds
 this file). A certified kernel's task carries its certified proof as the oracle solution; a kernel
-without a certificate has none. The task's images start from tva-sandbox-base:<TVA's short commit>,
-which build_base.sh builds from the same commit.
+without a certificate has none. The task's images start from tva-sandbox-base:<commit>, which
+build_base.sh builds from TVA's tree at the last commit that changed anything outside sandbox/.
 """
 import argparse
 import hashlib
@@ -221,7 +221,8 @@ def main():
     ap.add_argument("--cpus", type=int, default=16)
     ap.add_argument("--memory-mb", type=int, default=65536)
     ap.add_argument("--context-window", type=int, default=128000,
-                    help="the agents' context window for Claude Code's auto-compaction (CLAUDE_CODE_AUTO_COMPACT_WINDOW)")
+                    help="the context window Claude Code assumes for a model it does not know "
+                         "(CLAUDE_CODE_MAX_CONTEXT_TOKENS) and its compaction window (CLAUDE_CODE_AUTO_COMPACT_WINDOW)")
     ap.add_argument("--no-autobuild", action="store_true", help="no automatic Lean build after each edit")
     a = ap.parse_args()
     if not 1 <= a.reviewers <= 4:
@@ -232,8 +233,9 @@ def main():
     kd = os.path.join(tva, "kernels", k)
     man = json.load(open(os.path.join(kd, "kernel.json")))
     certified = os.path.isfile(os.path.join(kd, "review", "certificate.json"))
-    rev = subprocess.run(["git", "-C", tva, "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
-                         check=True).stdout.strip()
+    # the base image's commit: the last one that changed anything outside sandbox/ (build_base.sh)
+    rev = subprocess.run(["git", "-C", tva, "log", "-1", "--format=%h", "--", ".", ":(exclude)sandbox"],
+                         capture_output=True, text=True, check=True).stdout.strip()
     if subprocess.run(["git", "-C", tva, "status", "--porcelain", "--", f"kernels/{k}"], capture_output=True,
                       text=True, check=True).stdout.strip():
         sys.exit(f"kernels/{k} has uncommitted changes: the images hold TVA's tree at its commit, so commit them first")
@@ -258,7 +260,7 @@ def main():
 
     write(os.path.join(out, "instruction.md"), instruction(tva, k, man, cfg, setup))
     mode_line = "scripted reviewers (plumbing test: they accept everything unread)" if a.scripted else \
-        f"{a.reviewers} Claude reviewer agents ({a.model})"
+        f"{a.reviewers} Claude Code reviewer agents ({a.model})"
     write(os.path.join(out, "task.toml"), f'''schema_version = "1.4"
 
 [task]

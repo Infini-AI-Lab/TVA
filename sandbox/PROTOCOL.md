@@ -154,8 +154,9 @@ with no network. `verify.py`:
    service's `certificate.json` names this gate's digest and the task's reviewers.
 
 `/logs/verifier/reward.json`: `reward` (1 when all checks pass), `gate_pass`, `certificate`,
-`rounds_reviewed`, `rejected`, `findings`, `reviewer_cost_usd`, `service_error`, `escalated` (and
-`scripted`). `/logs/verifier/details.json` has each check, the gate's output and the status text.
+`rounds_reviewed`, `rejected`, `findings`, `reviewer_input_tokens`, `reviewer_cached_tokens`,
+`reviewer_output_tokens`, `reviewer_cost_usd` (Claude Code's estimate at Anthropic's prices, so only with
+Anthropic's endpoint), `service_error`, `escalated` (and `scripted`). `/logs/verifier/details.json` has each check, the gate's output and the status text.
 
 ## 7. Trust, and what is not defended
 

@@ -28,6 +28,7 @@ than the protocol was written for, and how to run the agents on public models.
 | `verifier/verify.py`, `verifier/test.sh` | the verifier |
 | `harness/` | the agent harness (HARNESS.md): `tvakit.py`, `hook.py`, `settings.json`, the manuals, skills and subagents |
 | `make_task.py` | writes the Harbor task `tva-prove-<kernel>[-scripted]/` |
+| `meter.py` | the credit meter (HARNESS.md): a proxy on the host that records every agent request's tokens and cost, stops at a budget, and keeps the endpoint's key out of the containers |
 
 TVA's gate reads every file of TVA's tree, so generated tasks and Harbor's job folders go outside it:
 `make_task.py` writes to `tasks/` in the working directory and refuses a folder inside TVA, and
@@ -41,8 +42,8 @@ Harbor 0.25.0 (`pip install harbor==0.25.0`) and Docker are needed. From a work 
 `TVA` standing for TVA's root:
 
 ```bash
-# 1. the base image, from TVA's tree at its commit (about 10 minutes, 11 GB; TVA must have no
-#    uncommitted changes)
+# 1. the base image, from TVA's tree at the last commit that changed anything outside sandbox/ (about
+#    10 minutes, 11 GB; no uncommitted changes outside sandbox/); a sandbox-only commit needs no new one
 $TVA/sandbox/build_base.sh
 
 # 2. a task, for a kernel of TVA's tree at that commit
@@ -57,7 +58,8 @@ export TVA_REVIEWER_ANTHROPIC_API_KEY=...        # or TVA_REVIEWER_CLAUDE_CODE_O
 export TVA_REVIEWER_MODEL=claude-opus-5-5        # optional
 harbor run -p tasks/tva-prove-vec_add_f32 -a claude-code -m <model> -e docker
 
-# 3c. public models (any Anthropic-compatible endpoint; HARNESS.md has the details)
+# 3c. public models (any Anthropic-compatible endpoint; HARNESS.md has the details, and how to track
+#     the spend through meter.py)
 export ANTHROPIC_BASE_URL=https://... ANTHROPIC_API_KEY=...                       # the prover's
 export TVA_REVIEWER_ANTHROPIC_BASE_URL=https://... TVA_REVIEWER_ANTHROPIC_API_KEY=... TVA_REVIEWER_MODEL=<model-id>
 harbor run -p tasks/tva-prove-vec_add_f32 -a claude-code -m anthropic/<model-id> -e docker
@@ -65,8 +67,9 @@ harbor run -p tasks/tva-prove-vec_add_f32 -a claude-code -m anthropic/<model-id>
 
 Options of `make_task.py`: `--out DIR` (default `tasks`), `--reviewers N` (1–4, default 2), `--model`,
 `--agent-timeout` (default 8 h), `--max-reviewed` (default 6), `--max-rejected` (default 40), `--cpus`,
-`--memory-mb`, `--context-window` (when the agents compact their context, default 128 000 tokens: set it
-to the model's context length) and `--no-autobuild` (no Lean build after each of the prover's edits).
+`--memory-mb`, `--context-window` (the context window Claude Code assumes and compacts at, default 128 000
+tokens: set it below the model's context length, HARNESS.md) and `--no-autobuild` (no Lean build after
+each of the prover's edits).
 
 **Kernels.** Any kernel folder of TVA's tree at the base image's commit, with its source and
 `kernel.json` (`tvr new` makes one). A certified kernel's task carries its certified proof as the oracle
@@ -75,8 +78,10 @@ solution (`-a oracle`); a kernel without a certificate has no oracle. Of the twe
 `streamk_matmul_f16` (atomics) are among the hardest.
 
 **Result.** Harbor's reward (`/logs/verifier/reward.json`) is 1 when the verifier's own gate passes and
-the certificate holds; it also reports `rounds_reviewed`, `rejected`, `findings`, `reviewer_cost_usd`,
-`service_error` (a reviewer or the service failed, not the prover) and `escalated`. The exported record,
+the certificate holds; it also reports `rounds_reviewed`, `rejected`, `findings`, the reviewers' tokens
+(`reviewer_input_tokens`, `reviewer_cached_tokens`, `reviewer_output_tokens`; and `reviewer_cost_usd` with
+Anthropic's own endpoint only), `service_error` (a reviewer or the service failed, not the prover) and
+`escalated`. With another endpoint, the spend is in the credit meter's ledger (HARNESS.md). The exported record,
 with the job logs and the reviewer agents' transcripts, is in the trial's `artifacts/export/`. Its
 `kernel/` folder is the kernel's folder as TVA keeps it: put in place of `kernels/<kernel>/` in TVA's
 tree at the same commit, `tvr status` reads its certificate as it reads any other (a record made by
