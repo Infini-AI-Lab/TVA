@@ -115,6 +115,13 @@ def harness_files(E, tva, k, man, cfg, setup, a):
     return ex, entry
 
 
+# Claude Code, pinned, in both agent images: one RUN line, so that the prover's and the reviewer's images share
+# the layer, and Harbor's claude-code agent finds `claude` in the prover's image instead of installing it
+CLAUDE_CODE = """RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \\
+    && rm -rf /var/lib/apt/lists/* \\
+    && npm install -g @anthropic-ai/claude-code@2.1.316 && npm cache clean --force"""
+
+
 def harness_install(role):
     """Dockerfile lines that put a role's harness at the image's root (/CLAUDE.md, /.claude/) and its tools in
     /usr/local; the agent starts in /, so Claude Code loads it as the project's configuration."""
@@ -304,9 +311,10 @@ service = "reviewer"
     copy(os.path.join(SERVICE, "prepare_kernel.py"), os.path.join(E, "prepare_kernel.py"))
     copy(os.path.join(SERVICE, "tva-review"), os.path.join(E, "tva-review"), 0o755)
     ex, entry = harness_files(E, tva, k, man, cfg, setup, a)
-    write(os.path.join(E, "Dockerfile"), f"""# The prover's container: TVA with the kernel reset to its skeleton, the review service's client, and
-# the prover's harness at the root (/CLAUDE.md, /.claude/: Claude Code started in / loads it).
+    write(os.path.join(E, "Dockerfile"), f"""# The prover's container: Claude Code, TVA with the kernel reset to its skeleton, the review service's client,
+# and the prover's harness at the root (/CLAUDE.md, /.claude/: Claude Code started in / loads it).
 FROM {base}
+{CLAUDE_CODE}
 COPY task.json prepare_kernel.py /etc/tva-sandbox/
 COPY tva-review /usr/local/bin/tva-review
 RUN chmod 755 /usr/local/bin/tva-review \\
@@ -321,9 +329,7 @@ WORKDIR /
     write(os.path.join(E, "reviewer", "Dockerfile"), f"""# The reviewer's container: the review service (root), the authority copy of TVA (the library root's,
 # the kernel's folder `tva`'s), and a user per reviewer agent (rv1 to rv4).
 FROM {base}
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \\
-    && rm -rf /var/lib/apt/lists/* \\
-    && npm install -g @anthropic-ai/claude-code@2.1.316 && npm cache clean --force
+{CLAUDE_CODE}
 RUN for i in 1 2 3 4; do \\
         useradd -m -u $((2000 + i)) -s /bin/bash rv$i && ln -s /opt/elan /home/rv$i/.elan && chmod 700 /home/rv$i \\
         && install -d -o rv$i -g rv$i /home/rv$i/scratch; \\

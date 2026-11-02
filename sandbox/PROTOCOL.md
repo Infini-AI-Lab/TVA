@@ -29,8 +29,9 @@ All three images start from `tva-sandbox-base:<TVA commit>`: Ubuntu, the pinned 
 prebuilt cache, and the TVA library built, from the files TVA ships (no git history). The kernel's own
 certified proof and review record are removed from the prover's and the reviewer's trees at image build
 (`prepare_kernel.py`); the tree's other kernels stay, as the library's worked examples. The prover's and
-the reviewer's images also carry the agent harness at `/` (HARNESS.md): a manual, hooks, skills,
-subagents and `tva-kit`. Its hooks refuse some actions early with a reason, but the protocol does not
+the reviewer's images also carry Claude Code 2.1.316 (one shared layer; Harbor's `claude-code` agent finds
+it and installs nothing) and the agent harness at `/` (HARNESS.md): a manual, hooks, skills, subagents
+and `tva-kit`. Its hooks refuse some actions early with a reason, but the protocol does not
 rely on them: the checks below are the service's.
 
 **Start.** The service assigns the reviewers (`tvr assign`) and, with agent reviewers, first runs one
