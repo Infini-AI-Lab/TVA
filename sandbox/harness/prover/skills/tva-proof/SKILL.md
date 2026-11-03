@@ -1,17 +1,19 @@
 ---
 name: tva-proof
-description: Prove main, consistent and satisfiable for a TVA kernel (meets_independent or shared, Safe rules per line, footprints, int32 arithmetic), and fix Lean errors. Use at stage 6, or whenever a Lean proof does not build.
+description: Prove the lemmas of a TVA kernel's design and main, consistent, satisfiable (meets_independent or shared, Safe rules per line, footprints, int32 arithmetic), and fix Lean errors. Use at stage 8 (the statements come from stage 6, skill tva-design), and when writing the program walk, or whenever a Lean proof does not build.
 ---
 
 # The proofs (PROVER_GUIDE §4)
 
-Work sorry-first: write every lemma and theorem with `:= by sorry`, make the file build, then replace one
-`sorry` at a time, building after each (the hook builds after every edit). `tva-kit stage` counts what is
-left. Keep the example's lemma structure; it is the shortest route.
+The statements come first (stage 6, skill **tva-design**): every lemma stated, `sorry` only as a whole
+proof, `main` and the program walk proved from the statements. Then replace one `sorry` at a time, the
+hardest first (each loop's step lemma), building after each (the hook builds after every edit).
+`tva-kit stage` lists what is left. Keep the example's lemma structure; it is the shortest route. Change a
+statement when its proof does not close (and the statements that use it), never weaken one silently.
 
 Keep each try fast. Lean re-checks the whole file at every build, so do not grow one file around a big
-proof: give a hard step (one loop trip, one numeric bound) its own lemma, with the hypotheses it uses, in
-a small file of `lean/` imported by the file that uses it, and move lemmas that are done out of the file
+proof: a hard step (one loop trip, one numeric bound) is its own lemma, with the hypotheses it uses, in
+a small file of `lean/` imported by the file that uses it; move lemmas that are done out of the file
 you are editing. The whole output of each build is in `~/scratch/build/<Module>.log`.
 
 ## The route for kernels whose programs touch disjoint tiles: `TVA.meets_independent`

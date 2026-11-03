@@ -12,8 +12,11 @@ Both roles
                                 how the certified kernels map source lines that match REGEX
   tva-kit lookup NAME [-n N]    a Lean declaration of the library or of a certified kernel
   tva-kit doc QUERY [-n N]      the sections of TVA's documents that mention QUERY
+  tva-kit outline [KERNEL] [FILE]
+                                a kernel's proof design: its Lean files bottom-up, each with its docstring and
+                                declarations (`sorry`s marked for your own); with FILE, that file's statements
 Prover
-  tva-kit stage                 the checklist of the proof, with what is done and what is next
+  tva-kit stage                 the checklist of the proof, with what is done and what is next, and each `sorry`
   tva-kit classify [--write]    propose kernel.json's line classes (source.ranges, source.host)
   tva-kit map-skeleton          add a model-map entry for every code line of the ranges not yet mapped
   tva-kit map-check             the gate's map check, without building
@@ -787,6 +790,166 @@ def cmd_gate(argv):
     return rc
 
 
+# ---------------------------------------------------------------- the proof's design
+
+DECL0 = re.compile(r"^(?:@\[[^\]]*\]\s*)?(?:(?:private|protected|noncomputable|partial|nonrec|unsafe)\s+)*"
+                   r"(theorem|lemma|def|abbrev|structure|inductive|class|instance|axiom|opaque)\s+([^\s(:{\[]+)")
+# where a declaration ends: the next one, or a command at the start of a line
+BOUND = re.compile(r"^(?:namespace|end|section|open|variable|universe|attribute|set_option|example|#|@\[)|" +
+                   DECL0.pattern[1:])
+LONG_PROOF = 150  # lines: a `sorry` inside a longer proof is a lemma that is not stated yet
+AUDIT = os.path.join(SCRATCH, "audit.md")  # the claim-audit subagent's report
+
+
+def strip_comments(text):
+    """`text` with its comments (`--` to the end of the line, `/- … -/` nested, docstrings) blanked out, so
+    that every character keeps its offset and every line its number."""
+    out, i, depth, n = [], 0, 0, len(text)
+    while i < n:
+        if text.startswith("/-", i):
+            depth, i = depth + 1, i + 2
+            out.append("  ")
+        elif depth and text.startswith("-/", i):
+            depth, i = depth - 1, i + 2
+            out.append("  ")
+        elif depth:
+            out.append("\n" if text[i] == "\n" else " ")
+            i += 1
+        elif text.startswith("--", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+def lean_decls(path):
+    """The declarations that start a line of a Lean file, [(kind, name, first, last)] (0-based lines,
+    inclusive), and the file's lines with comments blanked."""
+    ls = strip_comments(open(path).read()).split("\n")
+    out = []
+    for i, l in enumerate(ls):
+        m = DECL0.match(l)
+        if m:
+            j = i + 1
+            while j < len(ls) and not BOUND.match(ls[j]):
+                j += 1
+            while j > i + 1 and not ls[j - 1].strip():
+                j -= 1
+            out.append((m.group(1), m.group(2), i, j - 1))
+    return out, ls
+
+
+def sorry_sites(files=None):
+    """Each `sorry` of the kernel's Lean (the gate refuses the word anywhere, comments too): (file, line, the
+    declaration it is in, that declaration's length in lines, how it sits: "whole" when it is the whole proof,
+    "inside" a longer proof, or "comment")."""
+    out = []
+    for p in files if files is not None else lean_files():
+        raw = open(p).read()
+        ds, ls = lean_decls(p)
+        code = "\n".join(ls)
+        for m in re.finditer(r"\bsorry\b", raw):
+            line = raw.count("\n", 0, m.start())
+            d = next((d for d in reversed(ds) if d[2] <= line <= d[3]), None)
+            name, n = (d[1], d[3] - d[2] + 1) if d else ("?", 0)
+            if code[m.start():m.end()] != "sorry":
+                how = "comment"
+            else:
+                body = "\n".join(ls[d[2]:d[3] + 1]) if d else ""
+                how = "whole" if re.fullmatch(r"\s*(by\s+)?sorry\s*", body.split(":=", 1)[-1]) else "inside"
+            out.append((p, line + 1, name, n, how))
+    return out
+
+
+def sorry_line(s, base):
+    p, line, name, n, how = s
+    where = f"{os.path.relpath(p, base)}:{line}" + (f" in {name}" if name != "?" else "")
+    if how == "comment":
+        return f"{where}: in a comment (the gate refuses the word anywhere)"
+    if how == "whole":
+        return f"{where} (its whole proof)"
+    return f"{where}, inside its {n}-line proof" + (": state what is left as its own lemma (layer 2 if it is about "
+                                                     "values) and use it here" if n > LONG_PROOF else "")
+
+
+def module_doc(raw):
+    m = re.search(r"/-!(.*?)-/", raw, re.S)
+    return m.group(1).strip() if m else ""
+
+
+def signature(raw_ls, code_ls, kind, a, b, limit=45):
+    """What a declaration (lines a..b) states: a theorem up to the end of its statement (`:=`), a definition
+    whole (an invariant is its body), at most `limit` lines."""
+    end = a
+    if kind in ("theorem", "lemma"):
+        while end < b and ":=" not in code_ls[end]:
+            end += 1
+    else:
+        end = b
+    cut = min(end, a + limit - 1)
+    return raw_ls[a:cut + 1] + (["    …"] if cut < end else [])
+
+
+def cmd_outline(argv):
+    k = argv[0] if argv else K
+    lean_root = os.path.join(ROOT, "kernels", k, "lean")
+    files = sorted(glob.glob(os.path.join(lean_root, "**", "*.lean"), recursive=True))
+    if not files:
+        die(f"no Lean files in kernels/{k}/lean/ (`tva-kit outline KERNEL [FILE]`; the examples: "
+            f"{', '.join(CONFIG.get('examples', [])) or 'see kernels/'})")
+    mods = {os.path.relpath(p, lean_root)[:-5].replace(os.sep, "."): p for p in files}
+    imports = {m: [x for x in re.findall(r"^import\s+(\S+)", open(p).read(), re.M) if x in mods] for m, p in mods.items()}
+    order, seen = [], set()
+
+    def visit(m):
+        if m not in seen:
+            seen.add(m)
+            for x in sorted(imports[m]):
+                visit(x)
+            order.append(m)
+    for m in sorted(mods):
+        visit(m)
+    sorries = {}
+    if k == K:
+        for s in sorry_sites(files):
+            sorries.setdefault((s[0], s[2]), []).append(s[4])
+    if len(argv) > 1:  # one file's statements
+        q = argv[1][:-5] if argv[1].endswith(".lean") else argv[1]
+        hit = [m for m in order if m == q or m.endswith("." + q)]
+        if not hit:
+            die(f"no file {argv[1]!r} in kernels/{k}/lean/: {', '.join(order)}")
+        p = mods[hit[0]]
+        raw_ls = open(p).read().split("\n")
+        ds, code_ls = lean_decls(p)
+        print(f"== kernels/{k}/lean/{os.path.relpath(p, lean_root)}: the statements ({len(ds)} declarations)")
+        for kind, name, a, b in ds:
+            print("\n".join(signature(raw_ls, code_ls, kind, a, b)) +
+                  (f"\n    -- sorry ({', '.join(sorries[(p, name)])})" if (p, name) in sorries else ""))
+        return 0
+    total = sum(open(p).read().count("\n") for p in files)
+    print(f"kernels/{k}/lean: {len(files)} files, {total} lines, bottom-up (each file after the files it imports)")
+    for m in order:
+        p = mods[m]
+        raw = open(p).read()
+        ds, _ = lean_decls(p)
+        print(f"\n== {os.path.relpath(p, lean_root)} ({raw.count(chr(10))} lines" +
+              (f"; imports {', '.join(imports[m])}" if imports[m] else "") + ")")
+        doc = module_doc(raw).split("\n")
+        print("\n".join("   " + l for l in doc[:24]) + ("\n   …" if len(doc) > 24 else ""))
+        for kinds, label in ((("theorem", "lemma"), "theorems"), (("def", "abbrev", "structure", "inductive", "class"),
+                                                                      "definitions")):
+            marked = [f"{n} (sorry: {', '.join(sorries[(p, n)])})" for kd, n, a, b in ds if kd in kinds and (p, n) in sorries]
+            names = marked + [n for kd, n, a, b in ds if kd in kinds and (p, n) not in sorries]
+            if names:
+                print(f"   {label}: " + ", ".join(names[:40]) + (f" … ({len(names) - 40} more)" if len(names) > 40 else ""))
+    print(f"\n`tva-kit outline {k} FILE` prints one file's statements; `tva-kit lookup NAME` one declaration in full.")
+    return 0
+
+
 # ---------------------------------------------------------------- the prover's checklist
 
 def service_status():
@@ -811,31 +974,44 @@ def stages():
     except Exception as e:  # noqa: BLE001
         mm, probs = {"entries": []}, [str(e)]
     cls_probs = [p for p in probs if "lies neither" in p or "leave out" in p or "outside every function" in p]
-    out.append(("1 classes", bool(s.get("ranges")) and not cls_probs,
+    out.append(("2 classes", bool(s.get("ranges")) and not cls_probs,
                 "kernel.json source.ranges/host: `tva-kit classify --write`" if not s.get("ranges") else
                 (short(cls_probs[0], 200) if cls_probs else "set")))
     files = lean_files()
     text = lean_text()
-    out.append(("2 model", bool(files) and "def model" in text and "Kernel" in text,
+    out.append(("3 model", bool(files) and "def model" in text and "Kernel" in text,
                 "write the model (`def <kernel> … : Kernel where body ctx := do …`, `def model`, `def launch`) in "
                 f"lean/{man.get('lean', {}).get('module', '?')}.lean, from a certified example" if not files else
                 f"{len(files)} Lean file(s)"))
     todo = sum(1 for e in mm.get("entries", []) if "TODO" in json.dumps(e))
-    out.append(("3 map", bool(mm.get("entries")) and not missing and not todo and not probs,
+    out.append(("4 map", bool(mm.get("entries")) and not missing and not todo and not probs,
                 "`tva-kit map-skeleton`, then fill the TODOs" if not mm.get("entries") else
                 f"{len(mm['entries'])} entries, {todo} TODO, {len(missing)} lines uncovered, {len(probs)} problem(s)"))
-    out.append(("4 claim", all(x in text for x in ("structure Inst", "Inst.ok", "def Pre", "def Post", "def Spec",
+    out.append(("5 claim", all(x in text for x in ("structure Inst", "Inst.ok", "def Pre", "def Post", "def Spec",
                                                    "structure Assumptions")),
                 "Inst, Inst.ok, Pre, Post, Spec, Assumptions"))
-    proofs = [x for x in ("theorem main", "theorem consistent", "theorem satisfiable") if x in text]
-    out.append(("5 proofs", len(proofs) == 3 and "sorry" not in text,
-                f"{', '.join(proofs) or 'none'} written" + ("; `sorry` left" if "sorry" in text else "")))
+    tops = [x for x in ("main", "consistent", "satisfiable") if f"theorem {x}" in text]
+    sites = sorry_sites(files)
+    in_main = [x for x in sites if x[2] == "main" and x[4] != "comment"]
+    deep = [x for x in sites if x[4] == "inside" and x[3] > LONG_PROOF]
+    out.append(("6 design", len(tops) == 3 and not in_main and not deep,
+                f"state every lemma (`sorry` as whole proofs only) and prove main, consistent, satisfiable from them; "
+                f"written: {', '.join(tops) or 'none'}" if len(tops) < 3 else
+                "`main` has a `sorry`: prove it from the statements of the lemmas below it" if in_main else
+                f"a `sorry` inside a long proof: {sorry_line(deep[0], KD)}" if deep else
+                f"the statements compose; {len(sites)} `sorry` left"))
+    out.append(("7 audit", os.path.exists(AUDIT),
+                "~/scratch/audit.md written: fix what it reports before the long proofs" if os.path.exists(AUDIT) else
+                "run the claim-audit subagent on the claim and the design (it writes ~/scratch/audit.md)"))
+    out.append(("8 lemmas", len(tops) == 3 and not sites,
+                f"{len(sites)} `sorry` left in {len({(x[0], x[2]) for x in sites})} declaration(s): `tva-kit stage` "
+                "lists them" if sites else "all proved" if len(tops) == 3 else "main, consistent, satisfiable not all written"))
     readme = open(os.path.join(KD, "README.md")).read() if os.path.exists(os.path.join(KD, "README.md")) else ""
     empty = [h for h, b in tvr.md_sections(readme)[1] if not "".join(b).strip()]
-    out.append(("6 write-up", not empty, f"README.md sections still empty: {', '.join(empty)}" if empty else "filled"))
+    out.append(("9 write-up", not empty, f"README.md sections still empty: {', '.join(empty)}" if empty else "filled"))
     g = gate()
     stale = tvr.gate_staleness(K, g) if g.get("digest") else ["never run"]
-    out.append(("7 gate", bool(g.get("ok")) and not stale,
+    out.append(("10 gate", bool(g.get("ok")) and not stale,
                 f"PASS {g['digest'][:16]}" if g.get("ok") and not stale else
                 ("FAIL" if g.get("digest") and not g.get("ok") else "not run on the current files") + ": `tva-kit gate`"))
     return out
@@ -848,6 +1024,10 @@ def cmd_stage(argv):
         print(f"[{'x' if done else ' '}] {name:11s} {detail}")
         if not done and nxt is None:
             nxt = name
+    sites = sorry_sites()
+    if sites:
+        print(f"`sorry` left ({len(sites)}):\n" + "\n".join("  " + sorry_line(s, KD) for s in sites[:10]) +
+              (f"\n  … and {len(sites) - 10} more" if len(sites) > 10 else ""))
     svc = service_status()
     if svc:
         print(f"service: {svc['status']}, round {svc.get('round')}, certificate "
@@ -860,8 +1040,8 @@ def cmd_stage(argv):
     return 0
 
 
-STAGE_SKILLS = {"2 model": "tva-model-map", "3 map": "tva-model-map", "4 claim": "tva-claim", "5 proofs": "tva-proof",
-                "7 gate": "tva-gate"}
+STAGE_SKILLS = {"3 model": "tva-model-map", "4 map": "tva-model-map", "5 claim": "tva-claim", "6 design": "tva-design",
+                "7 audit": "tva-design", "8 lemmas": "tva-proof", "10 gate": "tva-gate"}
 
 
 def cmd_brief(argv):
@@ -879,7 +1059,8 @@ def cmd_brief(argv):
     ex = CONFIG.get("examples", [])
     if ex:
         print("closest certified examples (read their lean/ and model-map.json): " +
-              ", ".join(f"~/fpv/tva/kernels/{e}/" for e in ex))
+              ", ".join(f"~/fpv/tva/kernels/{e}/" for e in ex) +
+              f"; the design of a proof, file by file: `tva-kit outline {ex[0]}`")
     cmd_stage([])
     return 0
 
@@ -1324,7 +1505,7 @@ def cmd_filing(argv):
 
 
 COMMANDS = {"brief": cmd_brief, "source": cmd_source, "examples": cmd_examples, "lookup": cmd_lookup, "doc": cmd_doc,
-            "stage": cmd_stage, "classify": cmd_classify, "map-skeleton": cmd_map_skeleton, "map-check": cmd_map_check,
+            "outline": cmd_outline, "stage": cmd_stage, "classify": cmd_classify, "map-skeleton": cmd_map_skeleton, "map-check": cmd_map_check,
             "build": cmd_build, "gate": cmd_gate, "findings": cmd_findings, "respond": cmd_respond,
             "review-brief": cmd_review_brief, "targets": cmd_targets, "filing": cmd_filing}
 

@@ -13,10 +13,10 @@ In the prover's container and in the reviewers' container alike:
 
 | Path | What |
 |---|---|
-| `/CLAUDE.md` | the role's operating manual (prover: the path in nine stages; reviewer: the procedure and its calibration) |
+| `/CLAUDE.md` | the role's operating manual (prover: the path in eleven stages; reviewer: the procedure and its calibration) |
 | `/.claude/settings.json` | the hooks and environment settings |
-| `/.claude/skills/` | prover: `tva-model-map`, `tva-claim`, `tva-proof`, `tva-gate`, `tva-respond`; reviewer: `tva-review-method`, `tva-filing` |
-| `/.claude/agents/` | subagents: `tva-scout` (both roles), `lean-fixer` (prover) |
+| `/.claude/skills/` | prover: `tva-model-map`, `tva-claim`, `tva-design`, `tva-proof`, `tva-gate`, `tva-respond`; reviewer: `tva-review-method`, `tva-filing` |
+| `/.claude/agents/` | subagents: `tva-scout` (both roles), `lean-fixer` and `claim-audit` (prover) |
 | `/usr/local/bin/tva-kit`, `/usr/local/lib/tva-harness/` | the helper and the hook script (`tvakit.py`, `hook.py`) |
 | `/etc/tva-sandbox/harness.json` | the role, kernel, examples, entry kernels and reviewer ids |
 
@@ -36,7 +36,7 @@ resume and compaction, with the role's brief and the tail of `~/scratch/progress
 
 **The manual.** One page per role. The prover's manual gives the time limit (the task's agent timeout,
 also in `harness.json` as `time_limit_sec`; `tva-kit stage` shows the time used) and a path in stages:
-read, classes, model, map, claim, proofs, write-up, gate and submit, rounds. Each stage names its command and skill, and the
+read, classes, model, map, claim, design, audit, lemmas, write-up, gate and submit, rounds. Each stage names its command and skill, and the
 manual lists the worked examples to copy from: three certified kernels chosen for the task's kernel
 (the table `EXAMPLES` in `make_task.py`), never the kernel itself. The reviewer's manual is a procedure in six steps, with calibration
 rules: accept nothing unread, invent nothing, and do not move the goalposts.
@@ -46,7 +46,8 @@ check them the way `tvr` does (they import `tvr`'s own functions):
 
 | Command | Role | What |
 |---|---|---|
-| `brief`, `stage` | prover | where you are: the stage checklist with what is done and what is next |
+| `brief`, `stage` | prover | where you are: the stage checklist with what is done and what is next, and each `sorry` with its lemma (flagged when it sits inside a proof of more than 150 lines) |
+| `outline [KERNEL] [FILE]` | both | a kernel's proof design: its Lean files bottom-up, each with its docstring and declarations (`sorry`s marked for one's own kernel); with FILE, that file's statements |
 | `source [A-B]` | both | the source with line numbers and each line's class |
 | `examples REGEX`, `lookup NAME`, `doc QUERY` | both | how certified kernels map a construct; a library or kernel declaration with its signature; the passages of TVA's documents about a topic |
 | `classify [--write]` | prover | proposes `kernel.json`'s `source.ranges`, `source.host` and `source.unused` from the JIT functions reachable from the launched kernel |
@@ -70,14 +71,23 @@ The hooks guard against mistakes; they are not the security boundary. That is th
 holds the authority copy of TVA, takes only whitelisted files from a submission, gates them itself, and
 records the ledger. The verifier re-checks the record.
 
-**Skills.** One per stage that needs know-how: how to transcribe and map, write a claim, structure
-proofs (with the lemma layout the examples use), pass the gate, and answer findings. For the reviewer:
+**Skills.** One per stage that needs know-how: how to transcribe and map, write a claim, design the
+proof, prove its lemmas, pass the gate, and answer findings. The design skill (`tva-design`) is the
+process the certified kernels follow: read the closest example's design (`tva-kit outline`); state
+every lemma in layers (facts; the numbers, with each loop's invariant, step lemma and end lemma on values
+only; the program walk; the composition), with `sorry` only as whole proofs and the walk and `main`
+proved from the statements; have the claim and the design audited; then prove the lemmas, the hardest
+first. `make_task.py` fills it with every certified kernel's design but the task's own (each file
+bottom-up, with its title) and with real step lemmas of those kernels (`DESIGN_LEMMAS`). For the reviewer:
 the review method part by part, with the question to ask and the finding kind for each defect, and
 filing. Claude Code shows each skill's description to the model, which loads the skill when the stage
 comes up.
 
 **Subagents.** `tva-scout` answers one question about the library, the documents or the examples in a
-few lines with file references. `lean-fixer` makes one Lean file build. Both keep long searches and
+few lines with file references. `lean-fixer` proves one stated lemma (or makes one Lean file build).
+`claim-audit` checks the prover's claim and design before the long proofs (integer wrap-around under
+`Inst.ok`, the tolerances at the extremes, each invariant's room for one trip's error, every `sorry` a
+stated lemma) and writes `~/scratch/audit.md`, which stage 7 waits for. They keep long searches and
 error loops out of the main context. They run in the foreground: the agent that starts one gets its
 report as the call's result, and several started in one message run at once. None is resumed: to
 continue one's work, the agent starts a new subagent with the earlier report.
@@ -173,6 +183,12 @@ $15.28 for reviewers whose metered spend was $0.67).
   module in the output or in a file written while the command ran gets the advice; a library module, a
   module under the threshold, a file older than the command and a redirection inside a here-document
   do not.
+- The design tools in the paged-attention task's image: `tva-kit outline attn_fwd_f16` gives its 13
+  files bottom-up, and `tva-kit outline attn_fwd_f16 Row` the statement of `row_step_masked`; the task's
+  own kernel is in neither the design skill's designs nor its lemmas. With the second paged pilot's
+  final files in the kernel's folder, `tva-kit stage` holds stage 6 at the one `sorry`, inside the
+  507-line `safe_program` (the certified proof's `safe_program` is 298 lines with no numeric reasoning:
+  it calls `row_step`).
 
 - The pilots on Fireworks (DeepSeek V4.1 Flash 1017): the provers used `tva-kit` in the early stages,
   the `lean-fixer` subagent for long proofs, and almost no skills; the stop hook kept them working

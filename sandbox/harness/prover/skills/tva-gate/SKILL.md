@@ -1,6 +1,6 @@
 ---
 name: tva-gate
-description: Run TVA's gate (tvr check) on the kernel, fix each failing check, and submit to the review service. Use at stage 8, before every submission, and whenever tva-kit gate prints FAIL.
+description: Run TVA's gate (tvr check) on the kernel, fix each failing check, and submit to the review service. Use at stage 10, before every submission, and whenever tva-kit gate prints FAIL.
 ---
 
 # The gate, and submitting

@@ -9,7 +9,8 @@ documents say what each part must be.
 **Time.** You have {{time_limit}} in all, from your first start (`tva-kit stage` shows the time used, and
 you are told it every hour). A round of review takes 20 to 60 minutes, and findings need a second round:
 submit by three quarters of the time at the latest. A proof that is not finished when time runs out
-earns nothing, so narrow early rather than late (below, "When you are stuck").
+earns nothing, so narrow early rather than late (below, "When you are stuck"). Most lost time goes into
+proving statements that turn out wrong: design and audit them (stages 6 and 7) before the long proofs.
 
 ## Where things are
 
@@ -19,7 +20,9 @@ earns nothing, so narrow early rather than late (below, "When you are stuck").
 - Your notes and trials: `~/scratch` (keep `~/scratch/progress.md` up to date: it is shown to you
   again after a compaction).
 - **Worked examples** (certified kernels: read their `lean/`, `model-map.json`, `kernel.json`,
-  `README.md`): {{examples}}. Copy their structure; most of your file has the same shape.
+  `README.md`): {{examples}}, the closest first. Copy their structure; most of your files have the same
+  shape. `tva-kit outline KERNEL` shows how a kernel's proof is designed, file by file; every certified
+  kernel in `kernels/` can serve as an example (the skill **tva-design** lists their designs).
 - Helpers: `tva-kit` (run `tva-kit` for the list) and `tva-review` (the review service).
 
 ## The path, stage by stage
@@ -27,8 +30,9 @@ earns nothing, so narrow early rather than late (below, "When you are stuck").
 Start every session with `tva-kit brief` (it says which stage you are at). Do the stages in order;
 after each, write one line in `~/scratch/progress.md`.
 
-1. **Read.** The source (`tva-kit source`){{setup_read}}, the closest example's whole Lean file and
-   its model map, and `~/fpv/tva/docs/PROVER_GUIDE.md` (§1–§4).
+1. **Read.** The source (`tva-kit source`){{setup_read}}, the closest example's model (its
+   `Model.lean`, or its one Lean file) and model map, its design (`tva-kit outline {{example}}`), and
+   `~/fpv/tva/docs/PROVER_GUIDE.md` (§1–§4).
 2. **Classes.** `tva-kit classify` proposes `source.ranges`, `source.host`, `source.unused`; check
    them, then `tva-kit classify --write`.
 3. **Model.** Create `lean/{{module_path}}.lean` from the example's file: keep its layout (`import TVA`,
@@ -40,17 +44,23 @@ after each, write one line in `~/scratch/progress.md`.
 4. **Map.** `tva-kit map-skeleton` adds an entry for every code line; fill each `TODO` (model text
    copied from your Lean, or a drop with its reason); `tva-kit map-check` until it is regular.
 5. **Claim.** `Inst`, `Inst.ok`, `launch`, `Pre`, `Post`, `Spec`, `Assumptions` (skill **tva-claim**).
-6. **Proofs.** `main`, `consistent`, `satisfiable` (skill **tva-proof**). First make the whole file build
-   with `sorry` in every proof, then replace them one at a time, building after each. Keep every file
-   quick to build: Lean re-checks a whole file at every build, so a long file with a big proof costs
-   minutes per try. State each hard piece as its own lemma in a small file (imported where it is used),
-   and move lemmas that are done out of the file you are working on. When a build takes more than a
-   minute, split before going on.
-7. **Write-up.** `README.md`: Specification, Conditions, Assumptions, Proof, Narrowings, in words that
+6. **Design.** State every lemma before proving any (skill **tva-design**): in layers, as the examples
+   are built (facts; the numbers: each loop's invariant, its step lemma and its end lemma, on values
+   only; the program walk; `main`), one file per part, each with a docstring listing its lemmas and
+   source lines. `sorry` only as a lemma's whole proof; the walk and `main` proved from the statements
+   below them; the whole build green. `tva-kit stage` lists every `sorry` with its lemma.
+7. **Audit.** Start the **claim-audit** subagent on the claim and the design; it writes
+   `~/scratch/audit.md`. Fix what it finds (claim, conditions, statements) before the long proofs.
+8. **Lemmas.** Replace the `sorry`s (skill **tva-proof**), hardest first (the step lemma of each loop),
+   about an hour per lemma: if one does not close, change its statement (split it, strengthen the
+   invariant, add a condition and say so in README.md) instead of pushing on. Keep every file quick to
+   build: Lean re-checks a whole file at every build, so work on a lemma in a small file of its own,
+   and when a build takes more than a minute, split before going on.
+9. **Write-up.** `README.md`: Specification, Conditions, Assumptions, Proof, Narrowings, in words that
    match the Lean.
-8. **Gate and submit.** `tva-kit gate` until `gate PASS` (skill **tva-gate**), then `tva-review submit`,
+10. **Gate and submit.** `tva-kit gate` until `gate PASS` (skill **tva-gate**), then `tva-review submit`,
    then `tva-review wait` again and again until the round is over.
-9. **Rounds.** When findings come back: `tva-kit findings`, fix, `tva-kit gate`, `tva-kit respond init`,
+11. **Rounds.** When findings come back: `tva-kit findings`, fix, `tva-kit gate`, `tva-kit respond init`,
    `tva-kit respond set F<n> …` for each, `tva-kit respond lint`, `tva-review submit`, `tva-review wait`
    (skill **tva-respond**). Repeat until the certificate is granted.
 
@@ -91,7 +101,9 @@ after each, write one line in `~/scratch/progress.md`.
 - If the kernel needs a fact, an operation or a meaning the library lacks, say so as a library request
   (README.md, and later `tva-kit respond request …`); you cannot add it yourself.
 - Delegate to keep your context small: the subagent **tva-scout** answers "how does TVA/an example do
-  X?" in a few lines; **lean-fixer** makes one Lean file build. Subagents run in the foreground (their
+  X?" in a few lines; **lean-fixer** proves one stated lemma (give it the lemma, its file, and the
+  example's lemma to follow), not "finish the proof"; **claim-audit** checks the claim and the design.
+  Subagents run in the foreground (their
   report is the result of the call; several started in one message run at once). Give each its own file:
   two agents editing one file undo each other's work. When a report comes back, check it yourself
   (`tva-kit stage`, `tva-kit gate`) before going on. To continue a subagent's work, start a new one and

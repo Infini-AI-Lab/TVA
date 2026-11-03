@@ -14,6 +14,7 @@ without a certificate has none. The task's images start from tva-sandbox-base:<c
 build_base.sh builds from TVA's tree at the last commit that changed anything outside sandbox/.
 """
 import argparse
+import glob
 import hashlib
 import json
 import os
@@ -42,6 +43,61 @@ EXAMPLES = {
     "attn_fwd_e5m2": ["attn_fwd_f16", "matmul_e5m2", "softmax_f32"],
     "attn_bwd_f16": ["attn_fwd_f16", "attn_bwd_pre_f16", "matmul_f16"],
 }
+
+
+# Lemmas of certified kernels that show a proof's design at work (skill tva-design): (kernel, file, lemma, what)
+DESIGN_LEMMAS = [
+    ("attn_fwd_f16", "Row", "row_step_masked", "one block of an online softmax keeps the row's state "
+     "(running maximum, rescaled sum, accumulator): one hypothesis per model line of the loop body"),
+    ("attn_fwd_f16", "Inner", "safe_loop_masked", "the loop's walk, which calls `row_step_masked` at each trip"),
+    ("paged_attention_f16", "Facts", "row_step", "one page of an online softmax over a block table"),
+    ("attn_fwd_e5m2", "Row", "row_step_masked", "the same with `float8` values"),
+    ("attn_bwd_f16", "Step", "kv_step", "one step of the backward pass's loop for `dk` and `dv`"),
+    ("matmul_f16", "Basic", "acc_step", "one step of a `tl.dot` accumulation along K"),
+    ("matmul_f16", "Program", "safe_program", "the K loop's walk, with `acc_step` at each trip"),
+    ("matmul_e5m2", "Basic", "acc_step", "the same with `float8` chunks"),
+    ("block_scaled_matmul_mxfp8", "Basic", "acc_step", "the same with block-scaled `tl.dot_scaled`"),
+    ("softmax_f32", "Err", "row_bound", "a row's error without a loop state (max, exp, sum, division)"),
+    ("softmax_f32", "Proof", "safe_row", "one trip's walk, ending in `row_bound`"),
+    ("attn_bwd_pre_f16", "Err", "row_bound", "a row's error: an elementwise product and a sum"),
+]
+
+
+def lean_order(tva, e):
+    """A kernel's Lean modules bottom-up (each after the ones it imports), each with its file's title."""
+    root = os.path.join(tva, "kernels", e, "lean")
+    files = {os.path.relpath(p, root)[:-5].replace(os.sep, "."): p
+             for p in glob.glob(os.path.join(root, "**", "*.lean"), recursive=True)}
+    imports = {m: [x for x in re.findall(r"^import\s+(\S+)", open(p).read(), re.M) if x in files] for m, p in files.items()}
+    order = []
+
+    def visit(m):
+        if m not in order:
+            for x in sorted(imports[m]):
+                visit(x)
+            order.append(m)
+    for m in sorted(files):
+        visit(m)
+    titles = {}
+    for m in order:
+        t = re.search(r"/-!\s*#\s*(.*)", open(files[m]).read())
+        titles[m] = re.sub(r"^`[^`]*`:\s*", "", t.group(1).strip()) if t else ""
+    return [(m, titles[m]) for m in order]
+
+
+def design_fields(tva, k, ex):
+    """The skill tva-design's examples: the certified kernels' designs (the task's examples first) and the
+    lemmas of DESIGN_LEMMAS that are in them; the task's own kernel is never among them."""
+    have = [d for d in sorted(os.listdir(os.path.join(tva, "kernels")))
+            if os.path.isfile(os.path.join(tva, "kernels", d, "review", "certificate.json")) and d != k]
+    kernels = [e for e in ex if e in have] + [e for e in have if e not in ex]
+    designs = []
+    for e in kernels:
+        mods = lean_order(tva, e)
+        designs.append(f"- `{e}`: " + " → ".join(f"{m.split('.')[-1]}" + (f" ({t[:70]})" if t else "") for m, t in mods))
+    lemmas = [f"- `{e}`, `{f}.lean`, `{n}`: {what} (`tva-kit lookup {n}`, or `tva-kit outline {e} {f}`)"
+              for e, f, n, what in DESIGN_LEMMAS if e in have]
+    return {"{{designs}}": "\n".join(designs) or "- (none)", "{{design_lemmas}}": "\n".join(lemmas) or "- (none)"}
 
 
 def examples_for(tva, k):
@@ -73,6 +129,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
         "{{kernel}}": k, "{{module}}": man["lean"]["module"], "{{namespace}}": man["lean"]["namespace"],
         "{{module_path}}": man["lean"]["module"].replace(".", "/"),
         "{{examples}}": ", ".join(f"`kernels/{e}/`" for e in ex) or "none",
+        "{{example}}": ex[0] if ex else "vec_add_f32",
         "{{example_file}}": (f"~/fpv/tva/kernels/{ex[0]}/lean/{ex_man['lean']['module'].replace('.', '/')}.lean"
                              if ex else "an example's Lean file"),
         "{{context_window}}": str(a.context_window), "{{autobuild}}": "0" if a.no_autobuild else "1",
@@ -80,6 +137,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
                           4: "four reviewer agents"}[a.reviewers],
         "{{time_limit}}": (f"{a.agent_timeout // 3600} hours" if a.agent_timeout % 3600 == 0
                            else f"{a.agent_timeout // 60} minutes"),
+        **design_fields(tva, k, ex),
     }
 
     def render(src, dst, extra=None):
@@ -100,7 +158,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
                     "service": "http://reviewer:8765", "time_limit_sec": a.agent_timeout},
                    {"{{setup}}": "`SETUP.md`, " if setup else "",
                     "{{setup_read}}": ", `SETUP.md` (the launch the kernel is checked for)" if setup else ""},
-                   ["tva-scout.md", "lean-fixer.md"]),
+                   ["tva-scout.md", "lean-fixer.md", "claim-audit.md"]),
         "reviewer": ({"role": "reviewer", "kernel": k, "entry": entry, "examples": ex,
                       "reviewers": {f"rv{i + 1}": r for i, r in enumerate(cfg["reviewers"])}},
                      {"{{setup}}": ", `SETUP.md`" if setup else ""}, ["tva-scout.md"]),
