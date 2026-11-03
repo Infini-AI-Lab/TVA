@@ -4,10 +4,12 @@
   hook.py session-start | pre-tool | post-tool | stop      (the hook's JSON on stdin, Claude Code's on stdout)
 
 - session-start: where the agent is and what to do next (also after a compaction).
-- pre-tool: writes only where the role writes; no command that records for the service, breaks the
-  prebuilt toolchain, or writes into the library; no search of the whole filesystem.
+- pre-tool: the Write and Edit tools write only where the role writes (their path is exact); no command
+  that records for the service or breaks the prebuilt toolchain; no search of the whole filesystem. A
+  Bash command is not read for the files it writes: shell is too irregular to read reliably.
 - post-tool: after an edit of the kernel's Lean, build it and report the errors; after an edit of a JSON
-  record, say whether it parses.
+  record, say whether it parses; after the prover's Bash command, say which fixed files it changed
+  (compared with a snapshot taken at the session's start).
 - stop: the prover does not stop while the service is reviewing or findings are open, or before a first
   submission; a reviewer does not stop before its filing is regular.
 """
@@ -78,6 +80,9 @@ def session_start(inp):
                      "`tva-kit filing …`) and in ~/scratch.")
         lines.append(captured(kit.cmd_review_brief, ["--short"]))
     else:
+        if not os.path.exists(SNAPSHOT):
+            with contextlib.suppress(OSError):
+                save(SNAPSHOT, fixed_files())
         lines.append(f"You are the prover of the TVA kernel `{kit.K}` (CLAUDE.md is your operating manual). TVA is "
                      f"~/fpv/tva; you write only in ~/fpv/tva/kernels/{kit.K}/ and ~/scratch.")
         lines.append(captured(kit.cmd_brief, []))
@@ -93,40 +98,21 @@ def session_start(inp):
 # ---------------------------------------------------------------- before a tool
 
 EDIT_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
 RECORDING = re.compile(r"\btvr(\.py)?\s+(respond|file|assign|new|freeze|decide|note|record|release)\b")
 TOOLCHAIN = re.compile(r"\blake\s+(update|clean|new|init|upgrade)\b|\blake\s+exe\s+cache\b|\belan\s+"
                        r"(update|toolchain|default|override|self)\b|rm\s+-\S*r\S*\s+[^;&|]*\.lake\b")
-def write_targets(cmd, cwd):
-    """The paths a shell command writes, as far as plain reading tells: the destination of cp/mv/install/rsync,
-    the files of sed -i, tee, rm, touch, mkdir, truncate, chmod, and the target of each redirection."""
-    import shlex
-    out = [m.group(1) for m in re.finditer(r"(?<![0-9&<])>>?\s*([^\s;&|<>]+)", cmd) if m.group(1) != "/dev/null"
-           and not m.group(1).startswith("&")]
-    for seg in re.split(r"&&|\|\||[;|\n]", cmd):
-        try:
-            tok = shlex.split(seg, comments=True)
-        except ValueError:
-            tok = seg.split()
-        while tok and (re.match(r"^\w+=", tok[0]) or tok[0] in ("sudo", "env", "command", "nohup", "time")):
-            tok = tok[1:]
-        if not tok:
-            continue
-        args = [t for t in tok[1:] if not t.startswith("-")]
-        name = os.path.basename(tok[0])
-        if name in ("cp", "mv", "install", "rsync", "ln") and args:
-            out.append(args[-1])
-        elif name == "sed" and any(t.startswith("-i") or t == "--in-place" for t in tok):
-            out += args[1:]
-        elif name in ("tee", "rm", "rmdir", "unlink", "touch", "mkdir", "truncate", "chmod", "chown", "patch"):
-            out += args
-    return [real(t, cwd) for t in out if t and not t.startswith("$")]
-
-
-def protected(p):
-    """A path the role must not write: inside the TVA tree, outside what the role writes."""
-    if not under(p, os.path.realpath(kit.ROOT)):
-        return False
-    return bool(reviewer_write_ok(p) if kit.ROLE == "reviewer" else prover_write_ok(p))
+def without_heredocs(cmd):
+    """The command without the bodies of its here-documents, which are text, not commands."""
+    lines, out, i = cmd.split("\n"), [], 0
+    while i < len(lines):
+        out.append(lines[i])
+        i += 1
+        for m in HEREDOC.finditer(out[-1]):
+            while i < len(lines) and lines[i].strip() != m.group(2):
+                i += 1
+            i += 1
+    return "\n".join(out)
 
 
 def deny(reason):
@@ -178,7 +164,7 @@ def pre_tool(inp):
         if why:
             deny(f"{p}: {why}.")
     elif tool == "Bash":
-        cmd = ti.get("command", "")
+        cmd = without_heredocs(ti.get("command", ""))
         if RECORDING.search(cmd):
             deny("the review service records the protocol's steps; you never run `tvr respond`, `tvr file`, `tvr assign` "
                  "and the like. " + ("Submit with `tva-review submit` (answer findings with `tva-kit respond …`)."
@@ -189,11 +175,6 @@ def pre_tool(inp):
         if kit.ROLE == "reviewer" and re.search(r"\blake\s+build\b|\btvr(\.py)?\s+check\b|\btva-kit\s+(gate|build)\b", cmd):
             deny("the build folder is the service's and read-only to you, and the gate has passed: check Lean on your "
                  "work files with `cd ~/fpv/tva/lean && lake env lean <file>`.")
-        bad = [p for p in write_targets(cmd, cwd) if protected(p)]
-        if bad:
-            deny(f"this command writes {bad[0]}, which is fixed (the library, its tools and documents, another kernel, "
-                 "or a generated record). " + ("Write only in your kernel's folder and ~/scratch."
-                                               if kit.ROLE != "reviewer" else "Write only in your round folder and ~/scratch."))
     elif tool in ("Grep", "Glob") and not ti.get("path") and os.path.realpath(cwd) == "/":
         deny("give a `path` (for example ~/fpv/tva/docs, ~/fpv/tva/lean/TVA or ~/fpv/tva/kernels): a search from / "
              "reads the whole filesystem, Mathlib's 8 GB included")
@@ -202,8 +183,57 @@ def pre_tool(inp):
 
 # ---------------------------------------------------------------- after a tool
 
+SNAPSHOT = os.path.join(kit.SCRATCH, ".fixed-files.json")
+GENERATED = ("kernels/README.md", "docs/library-review/REPORTS.md")  # indexes that `tvr check` rewrites
+
+
+def save(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    json.dump(obj, open(path, "w"))
+
+
+def fixed_files():
+    """The prover's fixed files, by path from TVA's root, with their size and modification time: the tree
+    outside the kernel's folder (build folders aside, and the indexes `tvr` rewrites) and the kernel's source."""
+    root, kd = os.path.realpath(kit.ROOT), os.path.realpath(kit.KD)
+    files = {}
+    for d, dirs, names in os.walk(root):
+        if d == kd:
+            dirs[:], names = [x for x in dirs if x == "source"], []
+        dirs[:] = [x for x in dirs if x not in (".lake", "__pycache__", ".git")]
+        for n in names:
+            r = os.path.relpath(os.path.join(d, n), root)
+            with contextlib.suppress(OSError):
+                st = os.lstat(os.path.join(d, n))
+                if r not in GENERATED:
+                    files[r] = [st.st_size, st.st_mtime_ns]
+    return files
+
+
+def check_fixed():
+    """Tell the prover which fixed files its last command changed, each change once."""
+    before = kit.load(SNAPSHOT, None)
+    now = fixed_files()
+    if before is None:
+        save(SNAPSHOT, now)
+        return
+    changed = sorted(r for r in set(before) | set(now) if before.get(r) != now.get(r))
+    if not changed:
+        return
+    save(SNAPSHOT, now)
+    how = lambda r: "removed" if r not in now else "added" if r not in before else "changed"
+    out({"decision": "block", "reason": "this command changed files that are fixed: " +
+         ", ".join(f"{r} ({how(r)})" for r in changed[:6]) + (f" and {len(changed) - 6} more" if len(changed) > 6 else "") +
+         ". The review service gates your submission against its own copy of TVA, so a change here has no effect "
+         "there, and your local gate may pass where the service's fails. Undo it; write only in "
+         f"kernels/{kit.K}/ (not its source/) and ~/scratch."})
+
+
 def post_tool(inp):
     tool, ti, cwd = inp.get("tool_name", ""), inp.get("tool_input") or {}, inp.get("cwd") or os.getcwd()
+    if tool == "Bash" and kit.ROLE != "reviewer":
+        check_fixed()
+        sys.exit(0)
     if tool not in EDIT_TOOLS:
         sys.exit(0)
     p = real(ti.get("file_path") or ti.get("notebook_path") or "", cwd)

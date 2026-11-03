@@ -319,7 +319,8 @@ COPY task.json prepare_kernel.py /etc/tva-sandbox/
 COPY tva-review /usr/local/bin/tva-review
 RUN chmod 755 /usr/local/bin/tva-review \\
     && python3 -I /etc/tva-sandbox/prepare_kernel.py /etc/tva-sandbox/task.json \\
-    && ln -s /home/tva/fpv /root/fpv && ln -s /opt/elan /root/.elan && mkdir -p /root/scratch
+    && ln -s /home/tva/fpv /root/fpv && ln -s /opt/elan /root/.elan && mkdir -p /root/scratch \\
+    && ln -s /root/scratch /home/tva/scratch
 {harness_install("prover")}
 ENV TVA_REVIEW_URL=http://reviewer:8765
 WORKDIR /

@@ -60,8 +60,8 @@ check them the way `tvr` does (they import `tvr`'s own functions):
 | Event | What it does |
 |---|---|
 | `SessionStart` | the manual, the role's brief and the progress notes (at start, resume and compaction) |
-| `PreToolUse` | refuses writes outside the role's folders (prover: the kernel folder and `~/scratch`; reviewer: its round folder and `~/scratch`), recording commands (`tvr respond`, `tvr file`, …), toolchain changes (`lake update`/`clean`, `lake exe cache`, `elan …`, deleting `.lake`), for reviewers `lake build`/`tvr check`/`tva-kit gate`, and searches of `/` with no path. Each refusal says why and what to do instead |
-| `PostToolUse` | after the prover edits a kernel file: JSON validity, the map check for `model-map.json`, and a build of the edited Lean module whose errors come back at once (`TVA_HARNESS_AUTOBUILD`, on by default) |
+| `PreToolUse` | refuses a Write or Edit outside the role's folders (prover: the kernel folder and `~/scratch`; reviewer: its round folder and `~/scratch`), recording commands (`tvr respond`, `tvr file`, …), toolchain changes (`lake update`/`clean`, `lake exe cache`, `elan …`, deleting `.lake`), for reviewers `lake build`/`tvr check`/`tva-kit gate`, and searches of `/` with no path. The tool's path is exact; a command is read without its here-documents, and never for the files it writes. Each refusal says why and what to do instead |
+| `PostToolUse` | after the prover edits a kernel file: JSON validity, the map check for `model-map.json`, and a build of the edited Lean module whose errors come back at once (`TVA_HARNESS_AUTOBUILD`, on by default). After the prover's Bash command: the fixed files it changed (the tree outside the kernel's folder, and the kernel's source), compared with a snapshot taken at the session's start, each change reported once |
 | `Stop` | the prover cannot stop while a review is running, findings are open, or the proof is unfinished, unless the service says the task is over; a reviewer cannot stop before `tvr lint` says `regular`. After 8 (prover) or 6 (reviewer) identical refusals it lets the agent stop, so a stuck model ends instead of looping |
 
 The hooks guard against mistakes; they are not the security boundary. That is the review service: it
@@ -157,6 +157,14 @@ $15.28 for reviewers whose metered spend was $0.67).
   through review. Both reviewers' filings are recorded, and the certificate is granted.
 - The same through Harbor (`-a claude-code -m anthropic/<model>` with `ANTHROPIC_BASE_URL`), verifier
   included.
+
+- The pilots on Fireworks (DeepSeek V4.1 Flash 1017): the provers used `tva-kit` in the early stages,
+  the `lean-fixer` subagent for long proofs, and almost no skills; the stop hook kept them working
+  four times, the build after each edit reported about 60 times in one run. A first version of the
+  write guard also read each Bash command for the files it writes: it refused 32 commands in two runs,
+  none of them a real violation (here-documents read as shell, `awk 'NR>=608'` read as a redirection,
+  `cd` within a command ignored). It now checks only what is exact, and reports a changed fixed file
+  after the command instead.
 
 These tests show that the harness is wired correctly. They do not measure how much it helps a given
 model. That takes real runs.

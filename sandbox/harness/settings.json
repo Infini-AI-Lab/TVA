@@ -16,7 +16,7 @@
        "hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/hook.py pre-tool", "timeout": 30}]}
     ],
     "PostToolUse": [
-      {"matcher": "Write|Edit|MultiEdit|NotebookEdit",
+      {"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
        "hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/hook.py post-tool", "timeout": 900}]}
     ],
     "Stop": [
