@@ -228,8 +228,9 @@ def pre_tool(inp):
                   if kit.ROLE != "reviewer" else "."))
     elif tool == "SendMessage":
         deny(RESUME)
-    elif tool in ("Agent", "Task") and ti.get("run_in_background"):
-        # in the background, the agent that started it has nothing to do but poll for it
+    elif tool in ("Agent", "Task") and ti.get("run_in_background") is not False:
+        # in the background, the agent that started it has nothing to do but poll for it; Claude Code may run
+        # a subagent there when the field is absent (its test is `run_in_background !== false`), so set it
         out({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
                                     "updatedInput": {**ti, "run_in_background": False},
                                     "additionalContext": "The harness runs subagents in the foreground: this one's "
