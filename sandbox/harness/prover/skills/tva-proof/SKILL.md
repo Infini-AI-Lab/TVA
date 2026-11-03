@@ -9,6 +9,11 @@ Work sorry-first: write every lemma and theorem with `:= by sorry`, make the fil
 `sorry` at a time, building after each (the hook builds after every edit). `tva-kit stage` counts what is
 left. Keep the example's lemma structure; it is the shortest route.
 
+Keep each try fast. Lean re-checks the whole file at every build, so do not grow one file around a big
+proof: give a hard step (one loop trip, one numeric bound) its own lemma, with the hypotheses it uses, in
+a small file of `lean/` imported by the file that uses it, and move lemmas that are done out of the file
+you are editing. The whole output of each build is in `~/scratch/build/<Module>.log`.
+
 ## The route for kernels whose programs touch disjoint tiles: `TVA.meets_independent`
 
 ```lean
@@ -83,4 +88,5 @@ field and `Pre` (`norm_num [testInst]`, `simp [testMem]`).
 - `simp` loops or times out: `simp only [the lemmas you need]`.
 - `maximum recursion depth` / `deterministic timeout`: split the proof into lemmas; avoid `decide` on big
   numbers (use `norm_num`).
-- To see a goal mid-proof, put `trace_state` (or leave `sorry`) at that point and build.
+- To see a goal mid-proof, put `trace_state` (or leave `sorry`) at that point and build; the goal is in
+  the build's log (`~/scratch/build/<Module>.log`), in full.

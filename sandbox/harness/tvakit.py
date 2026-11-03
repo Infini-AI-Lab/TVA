@@ -30,6 +30,7 @@ Reviewer
                                 write filing.json and report.md (`tva-kit filing` for help)
 """
 import ast
+import contextlib
 import fcntl
 import glob
 import json
@@ -109,6 +110,26 @@ def state():
 def short(text, n=160):
     text = " ".join(str(text).split())
     return text if len(text) <= n else text[:n - 1] + "…"
+
+
+CLOCK = os.path.join(SCRATCH, ".clock.json")  # {"start": …}, written at the prover's first session start
+
+
+def clock():
+    """(seconds used, seconds allowed) of the prover's time, or None: the limit is the task's agent timeout,
+    counted from the first session's start."""
+    limit, start = CONFIG.get("time_limit_sec"), (load(CLOCK, {}) or {}).get("start")
+    return (time.time() - start, limit) if limit and start else None
+
+
+def hm(s):
+    m = int(s) // 60
+    return f"{m // 60} h {m % 60:02d} min" if m >= 60 else f"{m} min"
+
+
+def clock_line():
+    c = clock()
+    return f"time: {hm(c[0])} used of {hm(c[1])} ({hm(max(0, c[1] - c[0]))} left)" if c else ""
 
 
 def parse_lines(spec):
@@ -600,8 +621,8 @@ ERR = re.compile(r"^(error|warning): (?:\S*?/)?([^/\s:]+\.lean):(\d+):(\d+): (.*
 
 
 def summarize_build(out, limit=8):
-    """The errors of a `lake build` output, each with its source line, and the count of warnings and of
-    `sorry`s."""
+    """The errors of a `lake build` output, each with its source line, and the count of the kernel's
+    warnings and `sorry`s (Lake replays the library's own warnings at every build)."""
     lines = out.split("\n")
     errs, warns, sorries, cur = [], 0, 0, None
     for l in lines:
@@ -609,8 +630,9 @@ def summarize_build(out, limit=8):
         if m:
             cur = None
             if m.group(1) == "warning":
-                warns += 1
-                sorries += "declaration uses 'sorry'" in l
+                if f"kernels/{K}/" in l:
+                    warns += 1
+                    sorries += "declaration uses 'sorry'" in l
                 continue
             cur = {"file": m.group(2), "line": int(m.group(3)), "col": int(m.group(4)), "msg": [m.group(5)]}
             errs.append(cur)
@@ -633,11 +655,27 @@ def summarize_build(out, limit=8):
     return errs, warns, sorries, out_lines + [f"- {short(l, 300)}" for l in other[:4]]
 
 
+BUILD_LOGS = os.path.join(SCRATCH, "build")
+
+
+def save_build_log(module, text):
+    """Keep a build's whole output (every error with its goal) where the agent can read it, so that it need
+    not build again to see a goal; return the path as the agent writes it."""
+    with contextlib.suppress(OSError):
+        os.makedirs(BUILD_LOGS, exist_ok=True)
+        open(os.path.join(BUILD_LOGS, f"{module}.log"), "w").write(text)
+    return f"~/scratch/build/{module}.log"
+
+
+LAST_BUILD = {"seconds": 0.0}  # how long the last `build` ran, waiting for another agent's build aside
+
+
 def build(module=None, timeout=1800):
     module = module or manifest().get("lean", {}).get("module")
     os.makedirs(os.path.join(ROOT, "lean", ".lake"), exist_ok=True)
     lock = open("/tmp/tva-kit-build.lock", "w")
     fcntl.flock(lock, fcntl.LOCK_EX)  # one build at a time (lake's own lock would make a second one fail)
+    t0 = time.time()
     try:
         p = subprocess.run(["lake", "build", module], cwd=os.path.join(ROOT, "lean"), capture_output=True, text=True,
                            timeout=timeout, errors="replace")
@@ -645,6 +683,7 @@ def build(module=None, timeout=1800):
     except subprocess.TimeoutExpired:
         return 124, f"error: lake build {module} timed out after {timeout} s"
     finally:
+        LAST_BUILD["seconds"] = time.time() - t0
         fcntl.flock(lock, fcntl.LOCK_UN)
 
 
@@ -656,11 +695,13 @@ def cmd_build(argv):
         man = manifest()
         die(f"no Lean file yet: create lean/{man['lean']['module'].replace('.', '/')}.lean in your kernel folder "
             "(start from the closest example's file)")
+    mod = mod or manifest()["lean"]["module"]
     t0 = time.time()
     rc, out = build(mod)
     errs, warns, sorries, lines = summarize_build(out)
-    head = f"lake build {mod or manifest()['lean']['module']}: " + ("OK" if rc == 0 else f"{len(errs)} error(s)")
-    print(head + f" ({time.time() - t0:.0f} s; {warns} warning(s), {sorries} `sorry`)")
+    head = f"lake build {mod}: " + ("OK" if rc == 0 else f"{len(errs)} error(s)")
+    print(head + f" ({time.time() - t0:.0f} s; {warns} warning(s), {sorries} `sorry`); "
+          f"the whole output: {save_build_log(mod, out)}")
     print("\n".join(lines))
     if len(errs) > 8:
         print(f"({len(errs) - 8} more errors: fix the first ones first, they often cause the rest)")
@@ -782,9 +823,16 @@ def cmd_stage(argv):
     if svc:
         print(f"service: {svc['status']}, round {svc.get('round')}, certificate "
               f"{'GRANTED' if svc.get('certificate') else 'not yet'}; next: {svc.get('next')}")
+    if clock_line():
+        print(clock_line())
     if nxt:
-        print(f"next stage: {nxt} (the skill for it is listed in CLAUDE.md)")
+        skill = STAGE_SKILLS.get(nxt)
+        print(f"next stage: {nxt}" + (f"; how to do it: read /.claude/skills/{skill}/SKILL.md" if skill else ""))
     return 0
+
+
+STAGE_SKILLS = {"2 model": "tva-model-map", "3 map": "tva-model-map", "4 claim": "tva-claim", "5 proofs": "tva-proof",
+                "7 gate": "tva-gate"}
 
 
 def cmd_brief(argv):

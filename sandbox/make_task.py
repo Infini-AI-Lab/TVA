@@ -78,6 +78,8 @@ def harness_files(E, tva, k, man, cfg, setup, a):
         "{{context_window}}": str(a.context_window), "{{autobuild}}": "0" if a.no_autobuild else "1",
         "{{reviewers}}": {1: "one reviewer agent", 2: "two reviewer agents", 3: "three reviewer agents",
                           4: "four reviewer agents"}[a.reviewers],
+        "{{time_limit}}": (f"{a.agent_timeout // 3600} hours" if a.agent_timeout % 3600 == 0
+                           else f"{a.agent_timeout // 60} minutes"),
     }
 
     def render(src, dst, extra=None):
@@ -95,7 +97,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
     entry = entry_kernels(tva, k, man)
     roles = {
         "prover": ({"role": "prover", "kernel": k, "tva": "/home/tva/fpv/tva", "entry": entry, "examples": ex,
-                    "service": "http://reviewer:8765"},
+                    "service": "http://reviewer:8765", "time_limit_sec": a.agent_timeout},
                    {"{{setup}}": "`SETUP.md`, " if setup else "",
                     "{{setup_read}}": ", `SETUP.md` (the launch the kernel is checked for)" if setup else ""},
                    ["tva-scout.md", "lean-fixer.md"]),

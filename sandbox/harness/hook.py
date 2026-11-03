@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """The sandbox harness's Claude Code hooks (HARNESS.md), for the prover and the reviewers.
 
-  hook.py session-start | pre-tool | post-tool | stop      (the hook's JSON on stdin, Claude Code's on stdout)
+  hook.py session-start | subagent-start | pre-tool | post-tool | stop   (the hook's JSON on stdin, Claude Code's on stdout)
 
-- session-start: where the agent is and what to do next (also after a compaction).
+- session-start: where the agent is and what to do next (also after a compaction); the prover's clock starts.
+- subagent-start: a subagent gets the role's rules and the Lean advice (the manual reaches only the main agent).
 - pre-tool: the Write and Edit tools write only where the role writes (their path is exact); no command
-  that records for the service or breaks the prebuilt toolchain; no search of the whole filesystem. A
-  Bash command is not read for the files it writes: shell is too irregular to read reliably.
-- post-tool: after an edit of the kernel's Lean, build it and report the errors; after an edit of a JSON
-  record, say whether it parses; after the prover's Bash command, say which fixed files it changed
-  (compared with a snapshot taken at the session's start).
+  that records for the service or breaks the prebuilt toolchain; no search of the whole filesystem; no
+  waiting loop that spins a core; a subagent runs in the foreground. A Bash command is not read for the
+  files it writes: shell is too irregular to read reliably.
+- post-tool: after an edit of the kernel's Lean, build it, keep the whole output in ~/scratch/build/ and
+  report the errors (and that the file is too slow to build, when it is); after an edit of a JSON record,
+  say whether it parses; after the prover's Bash command, say which fixed files it changed (compared with
+  a snapshot taken at the session's start). Every hour, the prover's agents are told the time left.
 - stop: the prover does not stop while the service is reviewing or findings are open, or before a first
   submission; a reviewer does not stop before its filing is regular.
 """
@@ -83,6 +86,9 @@ def session_start(inp):
         if not os.path.exists(SNAPSHOT):
             with contextlib.suppress(OSError):
                 save(SNAPSHOT, fixed_files())
+        if not os.path.exists(kit.CLOCK):
+            with contextlib.suppress(OSError):
+                save(kit.CLOCK, {"start": time.time()})
         lines.append(f"You are the prover of the TVA kernel `{kit.K}` (CLAUDE.md is your operating manual). TVA is "
                      f"~/fpv/tva; you write only in ~/fpv/tva/kernels/{kit.K}/ and ~/scratch.")
         lines.append(captured(kit.cmd_brief, []))
@@ -95,6 +101,35 @@ def session_start(inp):
     out({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "\n\n".join(lines)}})
 
 
+LEAN_ADVICE = (
+    "Lean work here: look a name up before you use it (`tva-kit lookup NAME`). A kernel Lean file is built "
+    "after each Edit or Write, and the build's whole output, every error with its goal, is kept in "
+    "~/scratch/build/<Module>.log: read the goals there instead of building again. Lean re-checks a whole "
+    "file at every build, so keep files short: work on a hard lemma in a small file of its own (imported "
+    "where it is used), so that a try takes seconds, not minutes, and make all the edits of one try before "
+    "the build. Never edit a file another agent is editing.")
+
+
+def subagent_start(inp):
+    if kit.ROLE == "reviewer":
+        text = (f"You are a subagent of reviewer `{kit.reviewer_id()}` of the TVA kernel `{kit.K}` (TVA at ~/fpv/tva). "
+                "Read only: never edit a file, never run `lake build`, `tvr` or anything that writes outside ~/scratch. "
+                "Answer in a few lines with path:line references.")
+    else:
+        text = (f"You are a subagent of the prover of the TVA kernel `{kit.K}` (TVA at ~/fpv/tva). Write only in "
+                f"~/fpv/tva/kernels/{kit.K}/ (never its source/) and ~/scratch; the library, its documents and tools "
+                "and the other kernels are fixed. Never run `tvr respond`/`tvr file`, `lake update`/`lake clean`, nor "
+                "touch `.lake`. " + LEAN_ADVICE + " End with a short report: what builds, what you changed, what is left.")
+        c = kit.clock()
+        if c:
+            seen = kit.load(CLOCK_NOTES, {}) or {}
+            seen[inp.get("agent_id") or "?"] = sum(1 for m in clock_marks(c[1]) if m <= c[0])
+            with contextlib.suppress(OSError):
+                save(CLOCK_NOTES, seen)
+            text += f" The prover's {kit.clock_line()}: report back before you run out of it."
+    out({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": text}})
+
+
 # ---------------------------------------------------------------- before a tool
 
 EDIT_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
@@ -102,6 +137,8 @@ HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
 RECORDING = re.compile(r"\btvr(\.py)?\s+(respond|file|assign|new|freeze|decide|note|record|release)\b")
 TOOLCHAIN = re.compile(r"\blake\s+(update|clean|new|init|upgrade)\b|\blake\s+exe\s+cache\b|\belan\s+"
                        r"(update|toolchain|default|override|self)\b|rm\s+-\S*r\S*\s+[^;&|]*\.lake\b")
+# `read -t N < /dev/zero` returns at once and is retried: a wait that keeps a core busy (Claude Code blocks `sleep`)
+SPIN = re.compile(r"\bread\b[^;&|\n]*<\s*/dev/(zero|urandom|random)\b")
 def without_heredocs(cmd):
     """The command without the bodies of its here-documents, which are text, not commands."""
     lines, out, i = cmd.split("\n"), [], 0
@@ -175,6 +212,18 @@ def pre_tool(inp):
         if kit.ROLE == "reviewer" and re.search(r"\blake\s+build\b|\btvr(\.py)?\s+check\b|\btva-kit\s+(gate|build)\b", cmd):
             deny("the build folder is the service's and read-only to you, and the gate has passed: check Lean on your "
                  "work files with `cd ~/fpv/tva/lean && lake env lean <file>`.")
+        if SPIN.search(cmd):
+            deny("`read` from /dev/zero returns at once, so this loop keeps a CPU core busy that the Lean builds need. "
+                 "Do not wait: subagents run in the foreground here (their report comes back when they finish)" +
+                 (", `tva-review wait` waits for the review service, and a long build is better split than waited on."
+                  if kit.ROLE != "reviewer" else "."))
+    elif tool in ("Agent", "Task") and ti.get("run_in_background"):
+        # in the background, the agent that started it has nothing to do but poll for it
+        out({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
+                                    "updatedInput": {**ti, "run_in_background": False},
+                                    "additionalContext": "The harness runs subagents in the foreground: this one's "
+                                    "report is the result of this call. To run several at once, start them in one "
+                                    "message, each on its own file."}})
     elif tool in ("Grep", "Glob") and not ti.get("path") and os.path.realpath(cwd) == "/":
         deny("give a `path` (for example ~/fpv/tva/docs, ~/fpv/tva/lean/TVA or ~/fpv/tva/kernels): a search from / "
              "reads the whole filesystem, Mathlib's 8 GB included")
@@ -219,47 +268,114 @@ def check_fixed():
         return
     changed = sorted(r for r in set(before) | set(now) if before.get(r) != now.get(r))
     if not changed:
-        return
+        return None
     save(SNAPSHOT, now)
     how = lambda r: "removed" if r not in now else "added" if r not in before else "changed"
-    out({"decision": "block", "reason": "this command changed files that are fixed: " +
-         ", ".join(f"{r} ({how(r)})" for r in changed[:6]) + (f" and {len(changed) - 6} more" if len(changed) > 6 else "") +
-         ". The review service gates your submission against its own copy of TVA, so a change here has no effect "
-         "there, and your local gate may pass where the service's fails. Undo it; write only in "
-         f"kernels/{kit.K}/ (not its source/) and ~/scratch."})
+    return {"decision": "block", "reason": "this command changed files that are fixed: " +
+            ", ".join(f"{r} ({how(r)})" for r in changed[:6]) + (f" and {len(changed) - 6} more" if len(changed) > 6 else "") +
+            ". The review service gates your submission against its own copy of TVA, so a change here has no effect "
+            "there, and your local gate may pass where the service's fails. Undo it; write only in "
+            f"kernels/{kit.K}/ (not its source/) and ~/scratch."}
 
 
-def post_tool(inp):
-    tool, ti, cwd = inp.get("tool_name", ""), inp.get("tool_input") or {}, inp.get("cwd") or os.getcwd()
-    if tool == "Bash" and kit.ROLE != "reviewer":
-        check_fixed()
-        sys.exit(0)
-    if tool not in EDIT_TOOLS:
-        sys.exit(0)
-    p = real(ti.get("file_path") or ti.get("notebook_path") or "", cwd)
+SLOW_BUILD = int(os.environ.get("TVA_HARNESS_SLOW_BUILD", "60"))  # seconds: a file this slow should be split
+
+
+def after_edit(p):
+    """What the agent hears after it wrote the kernel file `p`: whether a JSON record parses (and the map
+    check), or the automatic build of a Lean module."""
     if p.endswith(".json") and under(p, os.path.realpath(kit.KD)):
         try:
             json.load(open(p))
         except ValueError as e:
-            out({"decision": "block", "reason": f"{os.path.basename(p)} is no longer valid JSON ({e}): fix it now"})
+            return {"decision": "block", "reason": f"{os.path.basename(p)} is no longer valid JSON ({e}): fix it now"}
         if kit.ROLE != "reviewer" and p.endswith("model-map.json"):
             msg = captured(kit.cmd_map_check, [])
-            out({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "tva-kit map-check:\n" +
-                                        kit.short(msg, 1500)}})
-        sys.exit(0)
-    if (kit.ROLE != "reviewer" and p.endswith(".lean") and under(p, os.path.realpath(os.path.join(kit.KD, "lean")))
+            return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "tva-kit map-check:\n" +
+                                           kit.short(msg, 1500)}}
+        return None
+    if not (kit.ROLE != "reviewer" and p.endswith(".lean") and under(p, os.path.realpath(os.path.join(kit.KD, "lean")))
             and os.environ.get("TVA_HARNESS_AUTOBUILD", "1") != "0"):
-        mod = kit.module_of(p)
-        t0 = time.time()
-        rc, text = kit.build(mod, timeout=int(os.environ.get("TVA_HARNESS_AUTOBUILD_TIMEOUT", "840")))
-        errs, warns, sorries, lines = kit.summarize_build(text, limit=6)
-        took = f"{time.time() - t0:.0f} s"
-        if rc != 0:
-            out({"decision": "block", "reason": f"automatic `lake build {mod}` after your edit ({took}): {len(errs)} "
-                 "error(s). Fix the first one first.\n" + "\n".join(lines)[:6000]})
-        out({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext":
-                                    f"automatic `lake build {mod}`: OK ({took}; {warns} warning(s), {sorries} `sorry`)"
-                                    + (" — the gate refuses `sorry`: replace each one" if sorries else "")}})
+        return None
+    mod = kit.module_of(p)
+    t0 = time.time()
+    rc, text = kit.build(mod, timeout=int(os.environ.get("TVA_HARNESS_AUTOBUILD_TIMEOUT", "840")))
+    took, ran = time.time() - t0, kit.LAST_BUILD["seconds"]
+    log = kit.save_build_log(mod, text)
+    errs, warns, sorries, lines = kit.summarize_build(text, limit=6)
+    slow = (f"\nThis build took {ran:.0f} s because Lean re-checks the whole file at every build. Split the file "
+            "before going on: move the lemmas that are done into a module of their own (a new file in "
+            f"kernels/{kit.K}/lean/, imported by this one), and state the piece you are working on as its own lemma "
+            "in a small file, so that a try takes seconds." if ran >= SLOW_BUILD else "")
+    if took - ran >= 10:
+        slow += f"\n({took - ran:.0f} of the {took:.0f} s were spent waiting for another agent's build.)"
+    if rc != 0:
+        return {"decision": "block", "reason": f"automatic `lake build {mod}` after your edit ({took:.0f} s): {len(errs)} "
+                f"error(s). Fix the first one first. The whole output, with every goal, is in {log}: read it there "
+                "rather than building again.\n" + "\n".join(lines)[:6000] + slow}
+    return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext":
+                                   f"automatic `lake build {mod}`: OK ({took:.0f} s; {warns} warning(s), {sorries} `sorry`)"
+                                   + (" — the gate refuses `sorry`: replace each one" if sorries else "") + slow}}
+
+
+CLOCK_NOTES = os.path.join(kit.SCRATCH, ".clock-notes.json")  # {agent: marks already told}
+
+
+def clock_marks(limit):
+    """When the prover's agents are told the time (seconds from the start): every hour, and at three
+    quarters and seven eighths of the limit."""
+    return sorted(set(range(3600, limit, 3600)) | {int(limit * 0.75), int(limit * 0.875)})
+
+
+def clock_note(inp):
+    """The time used, once per mark for each agent (the prover or one of its subagents), with what it
+    means while nothing is submitted."""
+    c = kit.clock()
+    if not c:
+        return ""
+    used, limit = c
+    passed = sum(1 for m in clock_marks(limit) if m <= used)
+    who = inp.get("agent_id") or "main"
+    seen = kit.load(CLOCK_NOTES, {}) or {}
+    if passed <= seen.get(who, 0):
+        return ""
+    seen[who] = passed
+    with contextlib.suppress(OSError):
+        save(CLOCK_NOTES, seen)
+    note = f"Clock: {kit.clock_line()}."
+    st = kit.service_status() or {}
+    if st.get("status") == "busy" or (st.get("submissions") or {}).get("reviewed"):
+        return note
+    if inp.get("agent_id"):
+        return note + (" Report back to the prover soon with what builds and what is left." if used >= limit / 2 else "")
+    if used >= limit * 0.75:
+        return note + (" Nothing is submitted yet, and the task succeeds only with a certificate: finish or narrow what "
+                       "is left now (a smaller `Inst.ok`, each narrowing stated in README.md), then `tva-kit gate` and "
+                       "`tva-review submit`. A round of review takes 20 to 60 minutes.")
+    if used >= limit / 2:
+        return note + (" Half the time is gone and nothing is submitted. A round of review takes 20 to 60 minutes and "
+                       f"findings need another: aim to submit by {kit.hm(limit * 0.75)}. If a proof is not converging, "
+                       "narrow the claim (each narrowing stated in README.md) so that the rest is provable.")
+    return note
+
+
+def post_tool(inp):
+    tool, ti, cwd = inp.get("tool_name", ""), inp.get("tool_input") or {}, inp.get("cwd") or os.getcwd()
+    res = None
+    if tool == "Bash" and kit.ROLE != "reviewer":
+        res = check_fixed()
+    elif tool in EDIT_TOOLS:
+        res = after_edit(real(ti.get("file_path") or ti.get("notebook_path") or "", cwd))
+    note = clock_note(inp) if kit.ROLE != "reviewer" else ""
+    if note:
+        if res and res.get("decision") == "block":
+            res["reason"] += "\n\n" + note
+        elif res:
+            res["hookSpecificOutput"]["additionalContext"] += "\n\n" + note
+        else:
+            res = {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": note}}
+    if res:
+        out(res)
     sys.exit(0)
 
 
@@ -315,7 +431,8 @@ def stop_prover(inp):
     block(rejected + "Do not stop: no submission of yours has been reviewed yet, and the task succeeds only with a "
           "granted certificate. What is left:\n" + "\n".join(todo[:7]) + "\nContinue with the first of these; when "
           "`tva-kit gate` passes, run `tva-review submit`. If a proof is too hard at full generality, narrow the "
-          "conditions (state each narrowing in README.md) rather than stopping.")
+          "conditions (state each narrowing in README.md) rather than stopping." +
+          (f"\n{kit.clock_line()}." if kit.clock() else ""))
 
 
 def stop_reviewer(inp):
@@ -350,6 +467,8 @@ def main():
         sys.exit(0)
     if event == "session-start":
         session_start(inp)
+    elif event == "subagent-start":
+        subagent_start(inp)
     elif event == "pre-tool":
         pre_tool(inp)
     elif event == "post-tool":

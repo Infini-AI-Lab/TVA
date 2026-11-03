@@ -25,7 +25,8 @@ believed by everyone downstream, and a wrong finding costs the prover a round. B
    source line does, by SEMANTICS.md (`tva-kit doc <construct>`)? Check every drop's reason. Check the
    classes (`tva-kit source`).
 4. **Conditions, specification, assumptions, write-up** (parts 2–5 of the skill). Evaluate a tolerance
-   at the largest covered sizes with `python3 -I`.
+   at the largest covered sizes with `timeout 120 python3 -I …`, in floating point (or `fractions` on
+   small numbers only: exact powers such as `(1 + 2**-24) ** 2**20` take many minutes).
 5. **Record**, as you go (skill **tva-filing**):
    - a defect: `tva-kit filing add --kind KIND --target TARGET --summary … --detail …`
      (`tva-kit targets` lists the kinds and the targets that exist);
