@@ -62,8 +62,8 @@ check them the way `tvr` does (they import `tvr`'s own functions):
 |---|---|
 | `SessionStart` | the manual, the role's brief and the progress notes (at start, resume and compaction); the prover's clock starts at its first start |
 | `SubagentStart` | every subagent (the harness's or Claude Code's own `general-purpose`) gets the role's rules and, for the prover, the Lean advice and the time left: the manual reaches only the main agent |
-| `PreToolUse` | refuses a Write or Edit outside the role's folders (prover: the kernel folder and `~/scratch`; reviewer: its round folder and `~/scratch`), recording commands (`tvr respond`, `tvr file`, …), toolchain changes (`lake update`/`clean`, `lake exe cache`, `elan …`, deleting `.lake`), for reviewers `lake build`/`tvr check`/`tva-kit gate`, searches of `/` with no path, and waiting loops that keep a core busy (`read -t N < /dev/zero`). The tool's path is exact; a command is read without its here-documents, and never for the files it writes. Each refusal says why and what to do instead. A subagent asked for in the background runs in the foreground (the hook rewrites `run_in_background` and says so) |
-| `PostToolUse` | after the prover edits a kernel file: JSON validity, the map check for `model-map.json`, and a build of the edited Lean module whose errors come back at once (`TVA_HARNESS_AUTOBUILD`, on by default), with the whole output kept in `~/scratch/build/<Module>.log` and, when the build took a minute or more (`TVA_HARNESS_SLOW_BUILD`), the advice to split the file. After the prover's Bash command: the fixed files it changed (the tree outside the kernel's folder, and the kernel's source), compared with a snapshot taken at the session's start, each change reported once. Every hour (and at three quarters and seven eighths of the limit), each of the prover's agents is told the time used and left, and while nothing is submitted, what that means: submit by three quarters, narrow what does not converge |
+| `PreToolUse` | refuses a Write or Edit outside the role's folders (prover: the kernel folder and `~/scratch`; reviewer: its round folder and `~/scratch`), recording commands (`tvr respond`, `tvr file`, …), toolchain changes (`lake update`/`clean`, `lake exe cache`, `elan …`, deleting `.lake`), for reviewers `lake build`/`tvr check`/`tva-kit gate`, searches of `/` with no path, and waiting loops that keep a core busy (`read -t N < /dev/zero`). The tool's path is exact; a command is read without its here-documents, and never for the files it writes. Each refusal says why and what to do instead. A subagent asked for in the background runs in the foreground (the hook rewrites `run_in_background` and says so), and `SendMessage` is refused: Claude Code resumes a subagent in the background, so the refusal says to start a new one with the earlier report |
+| `PostToolUse` | after the prover edits a kernel file: JSON validity, the map check for `model-map.json`, and a build of the edited Lean module whose errors come back at once (`TVA_HARNESS_AUTOBUILD`, on by default), with the whole output kept in `~/scratch/build/<Module>.log`. After the prover's Bash command: the fixed files it changed (the tree outside the kernel's folder, and the kernel's source), compared with a snapshot taken at the session's start, each change reported once. A kernel module that Lake reports took a minute or more (`TVA_HARNESS_SLOW_BUILD`) gets the advice to split the file: in the automatic build, in `tva-kit build`, and in a Bash command that runs `lake build`, from its output or from a file it sent the output to and wrote while it ran (Lake prints each module's time when its output is not a terminal). After a subagent's report, which Claude Code ends with an invitation to continue it with `SendMessage`, the agent is told to start a new one instead. Every hour (and at three quarters and seven eighths of the limit), each of the prover's agents is told the time used and left, and while nothing is submitted, what that means: submit by three quarters, narrow what does not converge |
 | `Stop` | the prover cannot stop while a review is running, findings are open, or the proof is unfinished, unless the service says the task is over; a reviewer cannot stop before `tvr lint` says `regular`. After 8 (prover) or 6 (reviewer) identical refusals it lets the agent stop, so a stuck model ends instead of looping |
 
 The hooks guard against mistakes; they are not the security boundary. That is the review service: it
@@ -79,7 +79,8 @@ comes up.
 **Subagents.** `tva-scout` answers one question about the library, the documents or the examples in a
 few lines with file references. `lean-fixer` makes one Lean file build. Both keep long searches and
 error loops out of the main context. They run in the foreground: the agent that starts one gets its
-report as the call's result, and several started in one message run at once.
+report as the call's result, and several started in one message run at once. None is resumed: to
+continue one's work, the agent starts a new subagent with the earlier report.
 
 **Settings.** Long Bash timeouts (10 minutes by default, 30 at most; builds are slow), a 40 000-character
 output limit, and the context window (`make_task.py --context-window`, default 128 000):
@@ -165,6 +166,13 @@ $15.28 for reviewers whose metered spend was $0.67).
   foreground (its report was the call's result), it got the `SubagentStart` brief with the time, the
   loop was refused, and the prover was told the time once. Claude Code 2.1.316 blocks a foreground
   `sleep`, which is why the pilot's prover wrote such loops.
+- The same, with the prover also trying to resume its subagent with `SendMessage` and running
+  `lake build` with the output sent to a file (split threshold 0 for the test): the subagent's report
+  came back with the note to start a new subagent instead, `SendMessage` was refused with that note,
+  and the build got the advice to split, from Lake's time in the file. The hook alone: a slow kernel
+  module in the output or in a file written while the command ran gets the advice; a library module, a
+  module under the threshold, a file older than the command and a redirection inside a here-document
+  do not.
 
 - The pilots on Fireworks (DeepSeek V4.1 Flash 1017): the provers used `tva-kit` in the early stages,
   the `lean-fixer` subagent for long proofs, and almost no skills; the stop hook kept them working
@@ -188,6 +196,16 @@ $15.28 for reviewers whose metered spend was $0.67).
     prover now knows the limit, is told the time every hour, and is told to narrow by half-time;
   - Claude Code's own `general-purpose` subagents did most of the proof without the manual: every
     subagent now gets the rules and the Lean advice when it starts.
+- The second paged-attention pilot, with the harness above, ended the same way (one proof short, no
+  submission), but with no waiting loop, and its builds took 4.2 hours instead of 7.4. It showed two
+  gaps, closed since:
+  - the prover resumed a subagent with `SendMessage`, as Claude Code's report invites, which runs it in
+    the background, then polled `ListAgents` 12 times in 12 minutes: `SendMessage` is now refused, and
+    each report comes with the note to start a new subagent instead;
+  - the agents ran `lake build` in 495 Bash commands (52 of them took over a minute), mostly with the
+    output sent to a file, and the advice after an edit never saw those builds: it now comes from
+    Lake's own time for each module, in such a command's output or the file it wrote, as well as in
+    the automatic build.
   In the softmax pilot both reviewers lost 10 minutes to an exact `Fraction` computation of
   `(1 + 2^-24)^(2^20)`; the reviewer's manual now says to compute tolerances in floating point, under
   `timeout`.

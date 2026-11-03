@@ -94,7 +94,9 @@ after each, write one line in `~/scratch/progress.md`.
   X?" in a few lines; **lean-fixer** makes one Lean file build. Subagents run in the foreground (their
   report is the result of the call; several started in one message run at once). Give each its own file:
   two agents editing one file undo each other's work. When a report comes back, check it yourself
-  (`tva-kit stage`, `tva-kit gate`) before going on.
+  (`tva-kit stage`, `tva-kit gate`) before going on. To continue a subagent's work, start a new one and
+  give it the earlier report: a resumed subagent (SendMessage) would run in the background, so the
+  harness refuses SendMessage.
 - Never wait in a loop: `sleep` is blocked, and a `read` loop keeps a core busy that the builds need.
   There is nothing to wait for but the review (`tva-review wait`).
 - Long outputs: redirect to `~/scratch/…` and read the part you need.

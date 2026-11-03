@@ -667,6 +667,32 @@ def save_build_log(module, text):
     return f"~/scratch/build/{module}.log"
 
 
+SLOW_BUILD = float(os.environ.get("TVA_HARNESS_SLOW_BUILD", "60"))  # seconds: a module this slow should be split
+# Lake's line for a module's job; when its output is not a terminal it ends with the job's time ("115s", "2.6s", "870ms")
+LAKE_JOB = re.compile(r"\[\d+/\d+\] (?:Built|Building) ([^\s()]+) \((?:(\d+)ms|(\d+(?:\.\d+)?)s)\)")
+
+
+def slow_modules(text):
+    """The kernel's modules that Lake's output `text` reports took SLOW_BUILD seconds or more, slowest first."""
+    root = manifest().get("lean", {}).get("module")
+    found = {}
+    for mod, ms, s in LAKE_JOB.findall(text):
+        secs = int(ms) / 1000 if ms else float(s)
+        if root and (mod == root or mod.startswith(root + ".")) and secs >= SLOW_BUILD:
+            found[mod] = max(found.get(mod, 0), secs)
+    return sorted(found.items(), key=lambda x: -x[1])
+
+
+def split_advice(slow):
+    """What to do about the slow modules `slow_modules` found ("" when there are none)."""
+    if not slow:
+        return ""
+    return ("Lake reports " + ", ".join(f"{m} took {s:.0f} s" for m, s in slow[:3]) + " to build: Lean re-checks a "
+            "whole file at every build. Split the file before going on: move the lemmas that are done into a module "
+            f"of their own (a new file in kernels/{K}/lean/, imported by this one), and state the piece you are "
+            "working on as its own lemma in a small file, so that a try takes seconds.")
+
+
 LAST_BUILD = {"seconds": 0.0}  # how long the last `build` ran, waiting for another agent's build aside
 
 
@@ -707,6 +733,9 @@ def cmd_build(argv):
         print(f"({len(errs) - 8} more errors: fix the first ones first, they often cause the rest)")
     if rc == 0 and sorries:
         print("the gate refuses `sorry`: replace each before `tva-kit gate`")
+    advice = split_advice(slow_modules(out))
+    if advice:
+        print(advice)
     return rc
 
 

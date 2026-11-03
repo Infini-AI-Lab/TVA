@@ -7,12 +7,13 @@
 - subagent-start: a subagent gets the role's rules and the Lean advice (the manual reaches only the main agent).
 - pre-tool: the Write and Edit tools write only where the role writes (their path is exact); no command
   that records for the service or breaks the prebuilt toolchain; no search of the whole filesystem; no
-  waiting loop that spins a core; a subagent runs in the foreground. A Bash command is not read for the
-  files it writes: shell is too irregular to read reliably.
+  waiting loop that spins a core; a subagent runs in the foreground, and none is resumed (SendMessage).
+  A Bash command is not read for the files it writes: shell is too irregular to read reliably.
 - post-tool: after an edit of the kernel's Lean, build it, keep the whole output in ~/scratch/build/ and
-  report the errors (and that the file is too slow to build, when it is); after an edit of a JSON record,
-  say whether it parses; after the prover's Bash command, say which fixed files it changed (compared with
-  a snapshot taken at the session's start). Every hour, the prover's agents are told the time left.
+  report the errors; after an edit of a JSON record, say whether it parses; after the prover's Bash
+  command, say which fixed files it changed (compared with a snapshot taken at the session's start). A
+  kernel module that Lake reports slow, in the automatic build or in a Bash `lake build` (its output, or
+  the file it went to), gets the advice to split it. Every hour, the prover's agents are told the time left.
 - stop: the prover does not stop while the service is reviewing or findings are open, or before a first
   submission; a reviewer does not stop before its filing is regular.
 """
@@ -22,6 +23,7 @@ import io
 import json
 import os
 import re
+import stat
 import sys
 import time
 
@@ -139,6 +141,13 @@ TOOLCHAIN = re.compile(r"\blake\s+(update|clean|new|init|upgrade)\b|\blake\s+exe
                        r"(update|toolchain|default|override|self)\b|rm\s+-\S*r\S*\s+[^;&|]*\.lake\b")
 # `read -t N < /dev/zero` returns at once and is retried: a wait that keeps a core busy (Claude Code blocks `sleep`)
 SPIN = re.compile(r"\bread\b[^;&|\n]*<\s*/dev/(zero|urandom|random)\b")
+# a subagent resumed with SendMessage runs in the background, and the agent that resumed it can only poll for it
+RESUME = ("The harness does not resume subagents (SendMessage): a resumed subagent runs in the background, and you "
+          "could only wait for it. To continue its work, start a new subagent with the Agent tool: it runs in the "
+          "foreground, and its report is the result of the call. Give it the earlier report (what builds, what is "
+          "left) and what to do next; the files are on disk.")
+
+
 def without_heredocs(cmd):
     """The command without the bodies of its here-documents, which are text, not commands."""
     lines, out, i = cmd.split("\n"), [], 0
@@ -217,6 +226,8 @@ def pre_tool(inp):
                  "Do not wait: subagents run in the foreground here (their report comes back when they finish)" +
                  (", `tva-review wait` waits for the review service, and a long build is better split than waited on."
                   if kit.ROLE != "reviewer" else "."))
+    elif tool == "SendMessage":
+        deny(RESUME)
     elif tool in ("Agent", "Task") and ti.get("run_in_background"):
         # in the background, the agent that started it has nothing to do but poll for it
         out({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
@@ -278,9 +289,6 @@ def check_fixed():
             f"kernels/{kit.K}/ (not its source/) and ~/scratch."}
 
 
-SLOW_BUILD = int(os.environ.get("TVA_HARNESS_SLOW_BUILD", "60"))  # seconds: a file this slow should be split
-
-
 def after_edit(p):
     """What the agent hears after it wrote the kernel file `p`: whether a JSON record parses (and the map
     check), or the automatic build of a Lean module."""
@@ -303,10 +311,8 @@ def after_edit(p):
     took, ran = time.time() - t0, kit.LAST_BUILD["seconds"]
     log = kit.save_build_log(mod, text)
     errs, warns, sorries, lines = kit.summarize_build(text, limit=6)
-    slow = (f"\nThis build took {ran:.0f} s because Lean re-checks the whole file at every build. Split the file "
-            "before going on: move the lemmas that are done into a module of their own (a new file in "
-            f"kernels/{kit.K}/lean/, imported by this one), and state the piece you are working on as its own lemma "
-            "in a small file, so that a try takes seconds." if ran >= SLOW_BUILD else "")
+    slow = kit.split_advice(kit.slow_modules(text))
+    slow = "\n" + slow if slow else ""
     if took - ran >= 10:
         slow += f"\n({took - ran:.0f} of the {took:.0f} s were spent waiting for another agent's build.)"
     if rc != 0:
@@ -316,6 +322,38 @@ def after_edit(p):
     return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext":
                                    f"automatic `lake build {mod}`: OK ({took:.0f} s; {warns} warning(s), {sorries} `sorry`)"
                                    + (" — the gate refuses `sorry`: replace each one" if sorries else "") + slow}}
+
+
+LAKE_BUILD = re.compile(r"\blake\s+build\b")
+REDIRECT = re.compile(r"(?:&>>?|\d?>>?|\btee(?:\s+-a)?)\s*([^\s;&|<>()]+)")  # the files a command sends output to
+
+
+def after_lake(inp, cmd):
+    """After a Bash command that ran `lake build`: the advice to split the kernel's modules that Lake reports
+    slow, from the command's output or from a file it sent the output to (one written while it ran)."""
+    resp = inp.get("tool_response")
+    text = "\n".join(str(resp.get(k) or "") for k in ("stdout", "stderr")) if isinstance(resp, dict) else str(resp or "")
+    start = time.time() - (inp.get("duration_ms") or 0) / 1000 - 2
+    for f in REDIRECT.findall(cmd):
+        p = real(f.strip("'\""), inp.get("cwd"))
+        with contextlib.suppress(OSError):
+            st = os.stat(p)
+            if stat.S_ISREG(st.st_mode) and st.st_mtime >= start and st.st_size < 32 << 20:
+                text += "\n" + open(p, errors="replace").read()
+    return kit.split_advice(kit.slow_modules(text))
+
+
+def add_note(res, note):
+    """The PostToolUse answer `res` (or None) with `note` added to what the agent hears."""
+    if not note:
+        return res
+    if res and res.get("decision") == "block":
+        res["reason"] += "\n\n" + note
+    elif res:
+        res["hookSpecificOutput"]["additionalContext"] += "\n\n" + note
+    else:
+        res = {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": note}}
+    return res
 
 
 CLOCK_NOTES = os.path.join(kit.SCRATCH, ".clock-notes.json")  # {agent: marks already told}
@@ -364,16 +402,16 @@ def post_tool(inp):
     res = None
     if tool == "Bash" and kit.ROLE != "reviewer":
         res = check_fixed()
+        cmd = without_heredocs(ti.get("command", ""))
+        if LAKE_BUILD.search(cmd):
+            res = add_note(res, after_lake(inp, cmd))
     elif tool in EDIT_TOOLS:
         res = after_edit(real(ti.get("file_path") or ti.get("notebook_path") or "", cwd))
-    note = clock_note(inp) if kit.ROLE != "reviewer" else ""
-    if note:
-        if res and res.get("decision") == "block":
-            res["reason"] += "\n\n" + note
-        elif res:
-            res["hookSpecificOutput"]["additionalContext"] += "\n\n" + note
-        else:
-            res = {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": note}}
+    elif tool in ("Agent", "Task") and "SendMessage" in json.dumps(inp.get("tool_response") or ""):
+        # Claude Code ends a subagent's report with "use SendMessage … to continue this agent"
+        res = add_note(res, RESUME)
+    if kit.ROLE != "reviewer":
+        res = add_note(res, clock_note(inp))
     if res:
         out(res)
     sys.exit(0)

@@ -15,7 +15,7 @@
       {"hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/hook.py subagent-start", "timeout": 30}]}
     ],
     "PreToolUse": [
-      {"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|Grep|Glob|Agent|Task",
+      {"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|Grep|Glob|Agent|Task|SendMessage",
        "hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/hook.py pre-tool", "timeout": 30}]}
     ],
     "PostToolUse": [
