@@ -36,5 +36,7 @@ rejections are limited).
    submit again.
 5. Findings? Skill tva-respond. Certificate GRANTED? You are done.
 
-Before submitting, read your README against the Lean once: reviewers file `DOC` findings for a write-up
-that says something the Lean does not.
+Before submitting, read your README against the Lean once: a constant, tolerance, condition or
+assumption that README (or a docstring) states other than its definition is a `DOC_WRONG` finding,
+which blocks the certificate. After you change a constant, search README and the docstrings for its
+old value (`grep -n '2^-9' README.md lean/`) and change every sentence that states it.

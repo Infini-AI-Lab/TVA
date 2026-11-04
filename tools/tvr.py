@@ -79,6 +79,8 @@ KINDS = {
     "ASSUMPTION_UNCLEAR": (True, ("item:assumption:",), "kernel"),
     "EVIDENCE_REQUEST": (True, ("item:assumption:",), "kernel"),
     "LIBRARY_REPORT": (False, ("decl:", "lib:", "src:"), None),
+    # the write-up states a claim other than the Lean's (library issue L136): blocks, unlike wording
+    "DOC_WRONG": (True, ("item:", "decl:", "doc:"), None),
     "DOC": (False, ("item:", "decl:", "src:", "map:", "lib:", "doc:"), None),
     "QUESTION": (False, ("item:", "decl:", "src:", "map:", "lib:", "doc:"), None),
 }

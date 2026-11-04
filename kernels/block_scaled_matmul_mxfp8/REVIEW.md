@@ -6,7 +6,7 @@ Block-scaled matmul, tutorial 10 (`block_scaled_matmul_kernel`, mxfp8). The clai
 
 ## Status
 
-- Gate: **PASS**, digest `2fac55fa1cb0c3c5` (2026-11-02T19:23:09Z).
+- Gate: **PASS**, digest `2fac55fa1cb0c3c5` (2026-11-04T02:27:51Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-mx8 (all), r-mx8b (all).
 - Certificate: **GRANTED**.

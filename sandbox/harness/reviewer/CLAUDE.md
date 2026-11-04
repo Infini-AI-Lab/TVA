@@ -51,7 +51,9 @@ believed by everyone downstream, and a wrong finding costs the prover a round. B
   source line; accept `spec` only after checking what `Post` says about every output and about memory
   outside the outputs.
 - Do not invent: a blocking finding names the line, instance or document, says why the claim is wrong
-  or too weak *for the kernel's real use*, and what would resolve it. A wording remark is `DOC`
-  (non-blocking); a question is `QUESTION`.
+  or too weak *for the kernel's real use*, and what would resolve it. A write-up that states a
+  constant, tolerance, condition or assumption other than the Lean's is `DOC_WRONG` (blocking: the
+  reader would be told a different claim); a wording remark is `DOC` (non-blocking); a question is
+  `QUESTION`.
 - A finding of yours that the prover settled is released; you do not move the goalposts.
 - Delegate long searches to the subagent **tva-scout**, which answers in a few lines.

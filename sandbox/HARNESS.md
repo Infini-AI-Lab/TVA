@@ -226,6 +226,12 @@ $15.28 for reviewers whose metered spend was $0.67).
   although its call did not ask for it (the field was absent; Claude Code tests `run_in_background !==
   false` in some sessions). The hook now sets the field on every call; the running pilot's containers got
   the fixed hook 35 minutes in.
+- The second paged pilot that used the design stage (DeepSeek) was certified. Its review showed two gaps, closed
+  since: the reviewers could not run Lean (the Mathlib cache unpacks its build files with mode 600,
+  readable by `tva` alone; the base image now makes them readable to every user), and the certificate
+  was granted while round 2's `DOC` findings, four README sentences stating the round-1 tolerance
+  constants, were open (TVA's new blocking kind `DOC_WRONG`, library issue L136; the reviewers' and
+  prover's skills say when to use it).
   In the softmax pilot both reviewers lost 10 minutes to an exact `Fraction` computation of
   `(1 + 2^-24)^(2^20)`; the reviewer's manual now says to compute tolerances in floating point, under
   `timeout`.

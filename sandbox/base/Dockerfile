@@ -36,15 +36,18 @@ COPY --chown=tva:tva tva /home/tva/fpv/tva
 
 # Mathlib's prebuilt cache for the pinned commit, then the TVA library itself, built as `tva` so that
 # no layer copies the build to change its owner. (The cache unpacks thousands of files at once: the
-# default soft limit of 1024 open files is too low.)
+# default soft limit of 1024 open files is too low.) The cache unpacks Mathlib's build files with mode
+# 600, readable by `tva` alone, and a reviewer runs Lean as its own user on this build: make it
+# readable to every user in the same step, so that no layer copies it to change its mode.
 USER tva
 WORKDIR /home/tva/fpv/tva/lean
-RUN ulimit -n 65536 && lake exe cache get && lake build TVA && rm -rf /home/tva/.cache
+RUN ulimit -n 65536 && lake exe cache get && lake build TVA && chmod -R a+rX .lake && rm -rf /home/tva/.cache
 
 # Smoke test: the protocol tool runs here, and a shipped certificate still holds against this tree (the
 # library files and the packages' versions its gate recorded). It builds no kernel: a task's prover must
 # find no kernel's build output in the image.
 WORKDIR /home/tva/fpv/tva
 RUN python3 -I tools/tvr.py status vec_add_f32 | grep -q "Certificate: GRANTED" \
-    && test ! -e lean/.lake/build/lib/lean/VecAdd.olean
+    && test ! -e lean/.lake/build/lib/lean/VecAdd.olean \
+    && test -z "$(find lean/.lake -type f ! -perm -o+r -not -path '*/.git/*' -print -quit)"
 USER root

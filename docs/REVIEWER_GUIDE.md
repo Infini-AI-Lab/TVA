@@ -221,10 +221,14 @@ An assumption is where a claim can hide what it did not prove.
   constant, a bound) mean what the write-up says, so that the statement says what the write-up
   claims? Ask for an argument (`EVIDENCE_REQUEST`) when that is not evident.
 
-## 5. The write-up (`DOC`)
+## 5. The write-up (`DOC_WRONG`, `DOC`)
 
 Does `README.md` say in words what the Lean says: the specification, the conditions with every
-narrowing, the assumptions, the proof's outline?
+narrowing, the assumptions, the proof's outline? A reader who trusts the write-up must be told the
+claim the Lean proves. Where it states a different one, a constant, tolerance, condition, narrowing or
+assumption that differs from its definition (in `README.md`, or in the docstring of a constant in an
+item's cone), that is `DOC_WRONG`, which blocks the certificate until the text agrees (library issue
+L136). Wording that misleads without stating a different claim is `DOC`.
 
 ## Before you accept
 

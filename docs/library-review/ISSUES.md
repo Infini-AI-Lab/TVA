@@ -7,7 +7,7 @@ The process is in [../LIBRARY_REVIEW.md](../LIBRARY_REVIEW.md); kernel findings 
 
 States: `OPEN` (to be fixed in the round named), `ACCEPTED` (fixed, and accepted by library
 review), `FIXED` (fixed in a round that no library review followed, by the user's decision under
-L36: rounds 21 to 23, 26 and 27; the fixes of rounds 24 and 25 were reviewed later), `CLOSED` (settled by the coordinator, as its section says).
+L36: rounds 21 to 23 and 26 to 28; the fixes of rounds 24 and 25 were reviewed later), `CLOSED` (settled by the coordinator, as its section says).
 
 The kernels of the first round (vec-add, grouped GEMM, flash attention) were cleared on
 2026-10-27 at the user's request, to restart from scratch. The issues they raised stand on their
@@ -150,6 +150,7 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L133](#l133) | FIXED | 26 | round 25 review (lr-25b) | wording: round 25's list of constants whose meaning changed leaves out the generic `DotChunkAcc` and the `liftMag_*` lemmas, which change meaning at `float16` and `bfloat16` (no kernel uses them there) |
 | [L134](#l134) | OPEN | — | library author, round 26 | sharpness: the fp8 chunk facts do not state that a partial value never grows past `|acc| + Σ|a·b|`; stating it (with evidence) would remove the remaining `1 + 2^-11` per chunk of a fed-back accumulator |
 | [L135](#l135) | FIXED | 27 | user, 2026-11-02 | tool: the sandbox's files (`sandbox/`, agents proving and reviewing a kernel in containers) name the containers' own paths, which the text scan read as paths out of TVA, so no gate could pass with the folder in the tree |
+| [L136](#l136) | FIXED | 28 | user, 2026-11-04 (sandbox pilot, paged_attention_f16) | protocol: a write-up that states a claim other than the Lean's (a constant, tolerance or condition its definition does not have) could only be filed as `DOC`, which does not block, so a kernel was certified with a README stating a looser tolerance and a wider covered range than its Lean proves |
 
 ## L1
 
@@ -2621,3 +2622,17 @@ folder's 26 files, as paths out of TVA, so with the folder in the tree no kernel
 Round 27: the files under `sandbox/` skip the scan's generic absolute-path, relative-path and home-path
 tests; the name test and the `fpv/<name>` test apply to them as to every file. Fixed in round 27
 (`round-27/author/notes.md`).
+
+## L136
+
+**A write-up that states a claim other than the Lean's could not block the certificate** (protocol;
+user, 2026-11-04). In a sandbox run on `paged_attention_f16`, the prover tightened its tolerance in
+round 1 (`Xcap` from `2^6` to `2^4`, `tolR`'s last term from `2^-9` to `2^-10`) and left four sentences
+of `README.md` with the old constants. Both reviewers found them in round 2, but the only kind for them
+was `DOC` (non-blocking), so the certificate was granted with a write-up that told its reader the bound
+covers scores up to 64 where the Lean covers 16. `CONDITION_WRONG` covers a condition "not what the
+write-up says", but nothing covered the specification's constants, a narrowing, or an assumption.
+Round 28: a new kind `DOC_WRONG` (blocking; targets `item:`, `decl:`, `doc:`) for a write-up, or a
+docstring of a constant in an item's cone, that states a constant, tolerance, condition, narrowing or
+assumption other than its definition; `DOC` stays for wording. Fixed in round 28
+(`round-28/author/notes.md`).

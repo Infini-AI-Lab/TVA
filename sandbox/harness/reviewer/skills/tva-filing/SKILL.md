@@ -38,6 +38,7 @@ tva-kit filing lint                              # until: regular — then stop 
 | `RULE_MISCITED` | yes | `item:assumption:<field>` of a `[rule]` |
 | `ASSUMPTION_FALSE`, `ASSUMPTION_TOO_STRONG`, `ASSUMPTION_UNCLEAR`, `EVIDENCE_REQUEST` | yes | `item:assumption:<field>` of a `[kernel]` |
 | `LIBRARY_REPORT` | no | `decl:`, `lib:<path>`, `src:` |
+| `DOC_WRONG` | yes | `item:<item>`, `decl:<name>`, `doc:<path>` (README.md, or a docstring that states a constant, tolerance, condition, narrowing or assumption other than the Lean's definition) |
 | `DOC`, `QUESTION` | no | any `item:`, `decl:`, `src:`, `map:`, `lib:`, `doc:` |
 
 `src:N`/`map:N` must be a line in the kernel or host lines; `decl:NAME` a declaration in an item's cone

@@ -52,10 +52,14 @@ operation the model uses (same function, format, target; `docs/rules/num.md`)? `
 `∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)`. `[kernel]`: is it needed, clear, and
 do the constants it constrains mean what README says?
 
-## 5. Write-up → `DOC` (non-blocking)
+## 5. Write-up → `DOC_WRONG` (blocking), `DOC` (non-blocking)
 
 Does README say in words what the Lean says (specification, conditions with every narrowing,
-assumptions, proof outline)?
+assumptions, proof outline)? Compare every number and condition README states with its definition:
+a constant, tolerance, condition, narrowing or assumption that differs (in README, or in the docstring
+of a constant the claim uses) tells the reader a different claim, and is `DOC_WRONG`, which blocks
+the certificate. A prover who changes a constant must change every sentence that states it. Wording
+that misleads without stating a different claim is `DOC`.
 
 ## Deciding
 

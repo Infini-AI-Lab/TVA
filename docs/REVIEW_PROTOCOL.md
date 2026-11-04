@@ -768,6 +768,7 @@ feeds (§7).
 | `ASSUMPTION_FALSE`, `ASSUMPTION_TOO_STRONG`, `ASSUMPTION_UNCLEAR` | `item:assumption:<f>`, `[kernel]` only | yes | the kernel's own assumption is false of what the write-up says it is about (its statement, which `consistent` proves, says something else), stronger than needed, or unclear |
 | `EVIDENCE_REQUEST` | `item:assumption:<f>`, `[kernel]` only | yes | an argument for the kernel's own assumption: that it is needed, or that the constants it constrains mean what the write-up says (Lean proves the statement itself, through `consistent`) |
 | `LIBRARY_REPORT` | `decl:<TVA name>`, `lib:<path>`, `src:<line>` | no | a doubt about the library; listed in `docs/library-review/REPORTS.md` for triage |
+| `DOC_WRONG` | `item:<item>`, `decl:<name>`, `doc:<path>` | yes | the write-up (`README.md`, or a docstring of a constant in an item's cone) states a claim other than the Lean's: a constant, tolerance, condition, narrowing or assumption that differs from its definition (library issue L136) |
 | `DOC`, `QUESTION` | any, or `doc:<path>` | no | wording, or a question |
 
 - `decl:<name>` must be a constant in some item's cone. `src:`/`map:` lines must be in the
