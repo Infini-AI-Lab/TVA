@@ -152,6 +152,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
         os.makedirs(os.path.join(H, "lib"), exist_ok=True)
         shutil.copyfile(os.path.join(HARNESS, f), os.path.join(H, "lib", f))
     write(os.path.join(H, "tva-kit"), "#!/bin/sh\nexec python3 -I /usr/local/lib/tva-harness/tvakit.py \"$@\"\n", 0o755)
+    copy(os.path.join(HARNESS, "lake"), os.path.join(H, "lake"), 0o755)
     entry = entry_kernels(tva, k, man)
     roles = {
         "prover": ({"role": "prover", "kernel": k, "tva": "/home/tva/fpv/tva", "entry": entry, "examples": ex,
@@ -190,7 +191,12 @@ COPY harness/tva-kit /usr/local/bin/tva-kit
 COPY harness/{role}/harness.json /etc/tva-sandbox/harness.json
 COPY harness/{role}/CLAUDE.md /CLAUDE.md
 COPY harness/{role}/.claude/ /.claude/
-RUN chmod -R a+rX /usr/local/lib/tva-harness /.claude /CLAUDE.md /etc/tva-sandbox && chmod 755 /usr/local/bin/tva-kit"""
+RUN chmod -R a+rX /usr/local/lib/tva-harness /.claude /CLAUDE.md /etc/tva-sandbox && chmod 755 /usr/local/bin/tva-kit""" + (
+        "" if role != "prover" else """
+# One `lake` at a time on the shared build folder (harness/lake): the wrapper takes elan's proxy's place.
+COPY harness/lake /tmp/tva-lake
+RUN mv /opt/elan/bin/lake /opt/elan/bin/lake.elan && install -m 755 /tmp/tva-lake /opt/elan/bin/lake && rm /tmp/tva-lake \\
+    && touch /tmp/tva-lake.turn /tmp/tva-lake.lock && chmod 666 /tmp/tva-lake.turn /tmp/tva-lake.lock""")
 
 
 def sha(p):

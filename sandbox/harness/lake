@@ -1,0 +1,25 @@
+#!/bin/bash
+# The prover's `lake` (installed over elan's proxy at /opt/elan/bin/lake; the proxy is kept as lake.elan).
+# The prover and its subagents share one build folder, and a Lean process that reads an `.olean` while
+# another `lake build` rewrites it reports errors that are not in the file. So every `lake` waits for its
+# turn: `lake env …` (it reads the build) shares the lock with other readers, and everything else
+# (`lake build`, which writes it) holds it alone. A writer that waits stops new readers from going ahead
+# (the turnstile), so a stream of `lake env lean` cannot keep a build waiting. tva-kit's own builds take
+# the same locks (tvakit.lake_lock) and run lake with TVA_LAKE_LOCKED set.
+real=/opt/elan/bin/lake.elan
+if [ -n "$TVA_LAKE_LOCKED" ]; then exec -a lake "$real" "$@"; fi
+mode=-x
+for a in "$@"; do
+  case "$a" in
+    -*) continue ;;
+    env) mode=-s ;;
+  esac
+  break
+done
+exec 8>>/tmp/tva-lake.turn 9>>/tmp/tva-lake.lock
+flock -x 8
+flock "$mode" 9
+flock -u 8
+exec 8>&-
+export TVA_LAKE_LOCKED=1
+exec -a lake "$real" "$@"

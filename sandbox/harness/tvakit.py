@@ -699,21 +699,35 @@ def split_advice(slow):
 LAST_BUILD = {"seconds": 0.0}  # how long the last `build` ran, waiting for another agent's build aside
 
 
+@contextlib.contextmanager
+def lake_lock(exclusive=True):
+    """The prover's image runs every `lake` under these locks (harness/lake): a build holds the build folder
+    alone, `lake env` shares it with other readers, and a waiting build stops new readers (the turnstile)."""
+    with open("/tmp/tva-lake.turn", "a") as turn, open("/tmp/tva-lake.lock", "a") as lock:
+        fcntl.flock(turn, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        finally:
+            fcntl.flock(turn, fcntl.LOCK_UN)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def build(module=None, timeout=1800):
     module = module or manifest().get("lean", {}).get("module")
     os.makedirs(os.path.join(ROOT, "lean", ".lake"), exist_ok=True)
-    lock = open("/tmp/tva-kit-build.lock", "w")
-    fcntl.flock(lock, fcntl.LOCK_EX)  # one build at a time (lake's own lock would make a second one fail)
-    t0 = time.time()
-    try:
-        p = subprocess.run(["lake", "build", module], cwd=os.path.join(ROOT, "lean"), capture_output=True, text=True,
-                           timeout=timeout, errors="replace")
-        return p.returncode, (p.stdout or "") + (p.stderr or "")
-    except subprocess.TimeoutExpired:
-        return 124, f"error: lake build {module} timed out after {timeout} s"
-    finally:
-        LAST_BUILD["seconds"] = time.time() - t0
-        fcntl.flock(lock, fcntl.LOCK_UN)
+    with lake_lock():
+        t0 = time.time()
+        try:
+            p = subprocess.run(["lake", "build", module], cwd=os.path.join(ROOT, "lean"), capture_output=True,
+                               text=True, timeout=timeout, errors="replace", env={**os.environ, "TVA_LAKE_LOCKED": "1"})
+            return p.returncode, (p.stdout or "") + (p.stderr or "")
+        except subprocess.TimeoutExpired:
+            return 124, f"error: lake build {module} timed out after {timeout} s"
+        finally:
+            LAST_BUILD["seconds"] = time.time() - t0
 
 
 def cmd_build(argv):
@@ -787,7 +801,22 @@ def cmd_gate(argv):
     print(f"({time.time() - t0:.0f} s)" + ("" if rc else "  next: `tva-review submit` (prover) when you are ready"))
     if not any(l.startswith("gate ") for l in out.split("\n")):
         print(short(out, 2000))
+    for l in readme_stale_lines():
+        print(l)
     return rc
+
+
+def readme_stale_lines():
+    """The warning lines for constants README states other than the Lean defines (stale_constants)."""
+    p = os.path.join(KD, "README.md")
+    if not os.path.exists(p):
+        return []
+    st = stale_constants(open(p).read(), [open(f).read() for f in lean_files()])
+    if not st:
+        return []
+    return [f"README.md may state constants the Lean no longer has (reviewers file DOC_WRONG, which blocks; a "
+            f"history of earlier values is fine, say it is one):"] + [
+        f"  README.md:{n}: `{name} = {v}`; the Lean: `{name} := {lean}`" for n, name, v, lean in st[:8]]
 
 
 # ---------------------------------------------------------------- the proof's design
@@ -962,6 +991,66 @@ def service_status():
         return None
 
 
+LEAN_CONST = re.compile(r"^(?:@\[[^\]]*\]\s*)?(?:noncomputable\s+)?(?:abbrev|def)\s+([A-Za-z_][\w.']*)((?:\s+\(?\w+(?:\s*:\s*[^)]*)?\)?)*)\s*:\s*[^:=\n]+:=\s*(\S.*)$")
+NUM = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?")
+ASCRIBE = re.compile(r"\(\s*([^():]+?)\s*:\s*[ℤℕℚℝ]\s*\)")
+
+
+def norm_expr(e):
+    """An expression as README and Lean write it, compared as text: no spaces, no type ascriptions, `2^(-10)`
+    as `2^-10`, `·` and `*` alike."""
+    e = ASCRIBE.sub(r"\1", e)
+    e = re.sub(r"\s+", "", e).replace("·", "*").replace("−", "-")
+    return re.sub(r"\^\((-?\d+)\)", r"^\1", e)
+
+
+def eval_expr(e):
+    """The value of a numeric expression (digits, + - * / ^ and parentheses), or None."""
+    from fractions import Fraction
+    if not re.fullmatch(r"[\d+\-*/^().]+", e) or "**" in e:
+        return None
+    try:
+        v = eval(re.sub(r"(\d+(?:\.\d+)?)", r"Fraction('\1')", e.replace("^", "**")), {"__builtins__": {}},
+                 {"Fraction": Fraction})
+        return Fraction(v)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def stale_constants(readme, lean_texts):
+    """[(README line, name, README's value, the Lean's)]: each `NAME = value` (in backticks) that README states
+    for a one-line `def NAME … := value` of the Lean, where the two differ (a constant changed in the Lean
+    and not in the write-up is a DOC_WRONG finding)."""
+    from fractions import Fraction
+    defs = {}
+    for t in lean_texts:
+        code = strip_comments(t).split("\n")
+        for i, l in enumerate(code):
+            m = LEAN_CONST.match(l)
+            if m and not (i + 1 < len(code) and code[i + 1].startswith((" ", "\t")) and code[i + 1].strip()):
+                nargs = sum(len(g[0].split(":")[0].split()) if g[0] else 1
+                            for g in re.findall(r"[({\[]([^)}\]]*)[)}\]]|(\w+)", m.group(2)))
+                defs[m.group(1).split(".")[-1]] = (m.group(1), nargs, norm_expr(m.group(3)), m.group(3).strip())
+    out = []
+    for n, line in enumerate(readme.split("\n"), 1):
+        for span in re.findall(r"`([^`]+)`", line):
+            for m in re.finditer(r"(?<![\w.])([A-Za-z_][\w']*)((?:\s+[a-z]\w*)*)\s*=\s*([^=,;≤≥<>]+?)\s*(?=$|,|;|≤|≥|<|>|\bwhere\b)", span):
+                name, args, val = m.group(1), m.group(2).split(), norm_expr(m.group(3))
+                if name not in defs or len(args) != defs[name][1]:
+                    continue
+                lean, shown = defs[name][2], defs[name][3]
+                stated = " ".join([name, *args])
+                a, b = eval_expr(val), eval_expr(lean)
+                if a is not None and b is not None:
+                    dec = re.search(r"\.(\d+)$", val)  # a decimal README rounds to its digits
+                    if abs(a - b) > (Fraction(51, 100) * Fraction(1, 10 ** len(dec.group(1))) if dec else 0):
+                        out.append((n, stated, m.group(3).strip(), shown))
+                elif a is None and b is None and val != lean and NUM.sub("N", val) == NUM.sub("N", lean):
+                    # the same expression with other numbers (`relQ d + 2^-9` for `relQ d + 2^-10`)
+                    out.append((n, stated, m.group(3).strip(), shown))
+    return out
+
+
 def stages():
     """[(name, done, detail)] for the prover's proof, from the files."""
     out = []
@@ -1008,7 +1097,10 @@ def stages():
                 "lists them" if sites else "all proved" if len(tops) == 3 else "main, consistent, satisfiable not all written"))
     readme = open(os.path.join(KD, "README.md")).read() if os.path.exists(os.path.join(KD, "README.md")) else ""
     empty = [h for h, b in tvr.md_sections(readme)[1] if not "".join(b).strip()]
-    out.append(("9 write-up", not empty, f"README.md sections still empty: {', '.join(empty)}" if empty else "filled"))
+    oldc = stale_constants(readme, [open(f).read() for f in files]) if readme else []
+    out.append(("9 write-up", not empty, (f"README.md sections still empty: {', '.join(empty)}" if empty else "filled") +
+                (f"; {len(oldc)} constant(s) README may state stale (first: README.md:{oldc[0][0]} `{oldc[0][1]} = "
+                 f"{oldc[0][2]}`; the Lean: `{oldc[0][3]}`): `tva-kit gate` lists them" if oldc else "")))
     g = gate()
     stale = tvr.gate_staleness(K, g) if g.get("digest") else ["never run"]
     out.append(("10 gate", bool(g.get("ok")) and not stale,
@@ -1017,13 +1109,27 @@ def stages():
     return out
 
 
+SIDE_STAGES = ("4 map", "9 write-up")  # due before the gate; once the claim is written, proof work need not wait for them
+
+
+def next_stage(st):
+    """(the stage to work on, the side stages still open): the first unfinished stage, except that the map and
+    the write-up do not hold up the proof once the claim is written (a prover told "next: 4 map" for hours
+    went on proving without the design stage's advice)."""
+    todo = [name for name, done, _ in st if not done]
+    claim = any(name == "5 claim" and done for name, done, _ in st)
+    side = [n for n in todo if n in SIDE_STAGES and claim]
+    main = [n for n in todo if n not in side]
+    if main == ["10 gate"]:  # the gate cannot pass without them
+        main, side = side + main, []
+    return (main[0] if main else side[0] if side else None), [n for n in side if main]
+
+
 def cmd_stage(argv):
     st = stages()
-    nxt = None
     for name, done, detail in st:
         print(f"[{'x' if done else ' '}] {name:11s} {detail}")
-        if not done and nxt is None:
-            nxt = name
+    nxt, side = next_stage(st)
     sites = sorry_sites()
     if sites:
         print(f"`sorry` left ({len(sites)}):\n" + "\n".join("  " + sorry_line(s, KD) for s in sites[:10]) +
@@ -1034,9 +1140,14 @@ def cmd_stage(argv):
               f"{'GRANTED' if svc.get('certificate') else 'not yet'}; next: {svc.get('next')}")
     if clock_line():
         print(clock_line())
+    deep = [x for x in sites if x[4] == "inside" and x[3] > LONG_PROOF]
+    if deep and nxt != "6 design":
+        print(f"design: {len(deep)} `sorry` inside a proof over {LONG_PROOF} lines (first: {sorry_line(deep[0], KD)}); "
+              "state what is left as its own lemma first (/.claude/skills/tva-design/SKILL.md)")
     if nxt:
         skill = STAGE_SKILLS.get(nxt)
-        print(f"next stage: {nxt}" + (f"; how to do it: read /.claude/skills/{skill}/SKILL.md" if skill else ""))
+        print(f"next stage: {nxt}" + (f"; how to do it: read /.claude/skills/{skill}/SKILL.md" if skill else "") +
+              (f" (also before the gate: {', '.join(side)})" if side else ""))
     return 0
 
 

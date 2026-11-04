@@ -19,10 +19,14 @@ Loop:
    `#check @Name` in `~/scratch/T.lean` (`import TVA`) with `cd ~/fpv/tva/lean && lake env lean ~/scratch/T.lean`.
 4. Prefer small steps: `have` intermediate facts, `simp only [...]`, `omega`, `norm_num`, `exact`. Split a
    long proof into lemmas. To see a goal, put `trace_state` there and build.
-5. Keep builds fast: Lean re-checks the whole file at every build. If a build takes more than a minute,
+5. Other agents may build at the same time: the harness runs one `lake build` at a time (and each
+   `lake env lean` while no build runs), so a build may first wait its turn. Build your own module
+   (`tva-kit build <file>`) rather than checking it with `lake env lean`: the build keeps its result, so
+   the files that import it are not checked again.
+6. Keep builds fast: Lean re-checks the whole file at every build. If a build takes more than a minute,
    state the piece you are working on as its own lemma (with the hypotheses it uses) in a new small file
    of the kernel's `lean/` folder, imported by this one, and work there: each try then takes seconds.
-6. If a proof seems impossible as stated, stop and report why (the statement may be wrong or too strong);
+7. If a proof seems impossible as stated, stop and report why (the statement may be wrong or too strong);
    do not weaken a theorem or add an axiom, `sorry`, `native_decide` or `instance`.
 
 Never edit outside the kernel's folder, nor a file another agent is working on; never run `lake update`,

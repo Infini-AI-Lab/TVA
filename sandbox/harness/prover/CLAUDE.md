@@ -42,7 +42,9 @@ after each, write one line in `~/scratch/progress.md`.
    how other kernels wrote a construct; `tva-kit lookup NAME` shows a library definition. The Lean is
    built automatically after each edit, and the errors come back to you.
 4. **Map.** `tva-kit map-skeleton` adds an entry for every code line; fill each `TODO` (model text
-   copied from your Lean, or a drop with its reason); `tva-kit map-check` until it is regular.
+   copied from your Lean, or a drop with its reason); `tva-kit map-check` until it is regular. The map
+   is due before the gate, not before the proof: once the claim is written, `tva-kit stage` names the
+   proof's next stage first and lists the map (and the write-up) as due before the gate.
 5. **Claim.** `Inst`, `Inst.ok`, `launch`, `Pre`, `Post`, `Spec`, `Assumptions` (skill **tva-claim**).
 6. **Design.** State every lemma before proving any (skill **tva-design**): in layers, as the examples
    are built (facts; the numbers: each loop's invariant, its step lemma and its end lemma, on values
@@ -57,7 +59,10 @@ after each, write one line in `~/scratch/progress.md`.
    build: Lean re-checks a whole file at every build, so work on a lemma in a small file of its own,
    and when a build takes more than a minute, split before going on.
 9. **Write-up.** `README.md`: Specification, Conditions, Assumptions, Proof, Narrowings, in words that
-   match the Lean.
+   match the Lean. Every constant README states must be the Lean's: reviewers file a README value
+   that differs from its definition as `DOC_WRONG`, which blocks the certificate. After changing a
+   constant, search README and the docstrings for its old value; `tva-kit stage` and `tva-kit gate`
+   warn of a `NAME = value` in README that the Lean's `def NAME` no longer has.
 10. **Gate and submit.** `tva-kit gate` until `gate PASS` (skill **tva-gate**), then `tva-review submit`,
    then `tva-review wait` again and again until the round is over.
 11. **Rounds.** When findings come back: `tva-kit findings`, fix, `tva-kit gate`, `tva-kit respond init`,
@@ -105,7 +110,9 @@ after each, write one line in `~/scratch/progress.md`.
   example's lemma to follow), not "finish the proof"; **claim-audit** checks the claim and the design.
   Subagents run in the foreground (their
   report is the result of the call; several started in one message run at once). Give each its own file:
-  two agents editing one file undo each other's work. When a report comes back, check it yourself
+  two agents editing one file undo each other's work. They may all build: the harness runs one
+  `lake build` at a time, and `lake env lean` only while no build runs (a Lean process that reads a file
+  another build is writing reports errors that are not there), so do not tell them not to build. When a report comes back, check it yourself
   (`tva-kit stage`, `tva-kit gate`) before going on. To continue a subagent's work, start a new one and
   give it the earlier report: a resumed subagent (SendMessage) would run in the background, so the
   harness refuses SendMessage.

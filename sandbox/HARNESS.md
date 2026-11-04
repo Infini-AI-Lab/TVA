@@ -46,13 +46,13 @@ check them the way `tvr` does (they import `tvr`'s own functions):
 
 | Command | Role | What |
 |---|---|---|
-| `brief`, `stage` | prover | where you are: the stage checklist with what is done and what is next, and each `sorry` with its lemma (flagged when it sits inside a proof of more than 150 lines) |
+| `brief`, `stage` | prover | where you are: the stage checklist with what is done and what is next, and each `sorry` with its lemma (flagged when it sits inside a proof of more than 150 lines, whatever the next stage). The map and the write-up are due before the gate: once the claim is written, the next stage is the proof's, with them listed beside it |
 | `outline [KERNEL] [FILE]` | both | a kernel's proof design: its Lean files bottom-up, each with its docstring and declarations (`sorry`s marked for one's own kernel); with FILE, that file's statements |
 | `source [A-B]` | both | the source with line numbers and each line's class |
 | `examples REGEX`, `lookup NAME`, `doc QUERY` | both | how certified kernels map a construct; a library or kernel declaration with its signature; the passages of TVA's documents about a topic |
 | `classify [--write]` | prover | proposes `kernel.json`'s `source.ranges`, `source.host` and `source.unused` from the JIT functions reachable from the launched kernel |
 | `map-skeleton`, `map-check` | prover | an entry for every code line (imports and decorators pre-filled as drops), then the gate's map check without a build |
-| `build [MODULE]`, `gate` | prover | Lean errors with their source lines; the gate with a hint for each failing check |
+| `build [MODULE]`, `gate` | prover | Lean errors with their source lines; the gate with a hint for each failing check, and a warning for each `NAME = value` in README that the Lean's `def NAME` no longer has |
 | `findings`, `respond …` | prover | the open findings in full; `response.json` and `notes.md` written and linted |
 | `review-brief`, `targets` | reviewer | items, assumptions, your findings, the source beside each model-map entry; the targets a finding may name |
 | `filing …` | reviewer | `filing.json` and `report.md` written together, consistent and linted |
@@ -64,7 +64,7 @@ check them the way `tvr` does (they import `tvr`'s own functions):
 | `SessionStart` | the manual, the role's brief and the progress notes (at start, resume and compaction); the prover's clock starts at its first start |
 | `SubagentStart` | every subagent (the harness's or Claude Code's own `general-purpose`) gets the role's rules and, for the prover, the Lean advice and the time left: the manual reaches only the main agent |
 | `PreToolUse` | refuses a Write or Edit outside the role's folders (prover: the kernel folder and `~/scratch`; reviewer: its round folder and `~/scratch`), recording commands (`tvr respond`, `tvr file`, …), toolchain changes (`lake update`/`clean`, `lake exe cache`, `elan …`, deleting `.lake`), for reviewers `lake build`/`tvr check`/`tva-kit gate`, searches of `/` with no path, and waiting loops that keep a core busy (`read -t N < /dev/zero`). The tool's path is exact; a command is read without its here-documents, and never for the files it writes. Each refusal says why and what to do instead. Every subagent runs in the foreground: the hook sets `run_in_background` to false and says so (Claude Code 2.1.316 may run a subagent in the background when the field is absent), and `SendMessage` is refused: Claude Code resumes a subagent in the background, so the refusal says to start a new one with the earlier report |
-| `PostToolUse` | after the prover edits a kernel file: JSON validity, the map check for `model-map.json`, and a build of the edited Lean module whose errors come back at once (`TVA_HARNESS_AUTOBUILD`, on by default), with the whole output kept in `~/scratch/build/<Module>.log`. After the prover's Bash command: the fixed files it changed (the tree outside the kernel's folder, and the kernel's source), compared with a snapshot taken at the session's start, each change reported once. A kernel module that Lake reports took a minute or more (`TVA_HARNESS_SLOW_BUILD`) gets the advice to split the file: in the automatic build, in `tva-kit build`, and in a Bash command that runs `lake build`, from its output or from a file it sent the output to and wrote while it ran (Lake prints each module's time when its output is not a terminal). After a subagent's report, which Claude Code ends with an invitation to continue it with `SendMessage`, the agent is told to start a new one instead. Every hour (and at three quarters and seven eighths of the limit), each of the prover's agents is told the time used and left, and while nothing is submitted, what that means: submit by three quarters, narrow what does not converge |
+| `PostToolUse` | after the prover edits a kernel file: JSON validity, the map check for `model-map.json`, and a build of the edited Lean module whose errors come back at once (`TVA_HARNESS_AUTOBUILD`, on by default), with the whole output kept in `~/scratch/build/<Module>.log`. After the prover's Bash command: the fixed files it changed (the tree outside the kernel's folder, and the kernel's source), compared with a snapshot taken at the session's start, each change reported once. A kernel module that Lake reports took a minute or more (`TVA_HARNESS_SLOW_BUILD`) gets the advice to split the file: in the automatic build, in `tva-kit build`, and in a Bash command that runs `lake build`, from its output or from a file it sent the output to and wrote while it ran (Lake prints each module's time when its output is not a terminal). After a subagent's report, which Claude Code ends with an invitation to continue it with `SendMessage`, the agent is told to start a new one instead. Every hour (and at three quarters and seven eighths of the limit), each of the prover's agents is told the time used and left, and while nothing is submitted, what that means: submit by three quarters, narrow what does not converge; the prover, while its claim is written and not audited, to start the claim-audit subagent. After an agent's Lean edit or `lake` command, a `sorry` inside a proof of more than 150 lines is reported to that agent, once per declaration and again when the proof has grown by half |
 | `Stop` | the prover cannot stop while a review is running, findings are open, or the proof is unfinished, unless the service says the task is over; a reviewer cannot stop before `tvr lint` says `regular`. After 8 (prover) or 6 (reviewer) identical refusals it lets the agent stop, so a stuck model ends instead of looping |
 
 The hooks guard against mistakes; they are not the security boundary. That is the review service: it
@@ -91,6 +91,13 @@ stated lemma) and writes `~/scratch/audit.md`, which stage 7 waits for. They kee
 error loops out of the main context. They run in the foreground: the agent that starts one gets its
 report as the call's result, and several started in one message run at once. None is resumed: to
 continue one's work, the agent starts a new subagent with the earlier report.
+
+**Builds.** The prover and its subagents share one build folder, and a Lean process that reads an
+`.olean` while another `lake build` writes it reports errors that are not in the file. So in the
+prover's image `lake` is a wrapper (`harness/lake`, in elan's proxy's place, which it runs): `lake env …`
+shares a lock with other readers, anything else (`lake build`) holds it alone, and a waiting build stops
+new readers (a turnstile), so a stream of `lake env lean` cannot keep it waiting. `tva-kit`'s builds
+take the same locks.
 
 **Settings.** Long Bash timeouts (10 minutes by default, 30 at most; builds are slow), a 40 000-character
 output limit, and the context window (`make_task.py --context-window`, default 128 000):
@@ -190,6 +197,14 @@ $15.28 for reviewers whose metered spend was $0.67).
   507-line `safe_program` (the certified proof's `safe_program` is 298 lines with no numeric reasoning:
   it calls `row_step`).
 
+- After the fourth and fifth paged pilots, in the paged task's image: elan's proxy runs behind the
+  `lake` wrapper; `lake env` waited for a build holding the lock (4.4 s of 4) and went ahead beside a
+  reader; `lake build` waited for a reader; a build waiting behind a reader went before a reader that
+  came later; the automatic build after an edit ran under the wrapper (no deadlock). With the GLM
+  pilot's final files and no map, `tva-kit stage` names stage 6, the map and write-up beside it; the
+  hook's design note came once for an agent and again for another. With the DeepSeek pilot's certified
+  files, the README check found `tolR d = relQ d + 2^-9` and `Xcap = 2^6`. The Claude Code mock test
+  above passed again (10 checks) with the wrapper installed.
 - The pilots on Fireworks (DeepSeek V4.1 Flash 1017): the provers used `tva-kit` in the early stages,
   the `lean-fixer` subagent for long proofs, and almost no skills; the stop hook kept them working
   four times, the build after each edit reported about 60 times in one run. A first version of the
@@ -226,15 +241,34 @@ $15.28 for reviewers whose metered spend was $0.67).
   although its call did not ask for it (the field was absent; Claude Code tests `run_in_background !==
   false` in some sessions). The hook now sets the field on every call; the running pilot's containers got
   the fixed hook 35 minutes in.
-- The second paged pilot that used the design stage (DeepSeek) was certified. Its review showed two gaps, closed
-  since: the reviewers could not run Lean (the Mathlib cache unpacks its build files with mode 600,
-  readable by `tva` alone; the base image now makes them readable to every user), and the certificate
-  was granted while round 2's `DOC` findings, four README sentences stating the round-1 tolerance
-  constants, were open (TVA's new blocking kind `DOC_WRONG`, library issue L136; the reviewers' and
-  prover's skills say when to use it).
   In the softmax pilot both reviewers lost 10 minutes to an exact `Fraction` computation of
   `(1 + 2^-24)^(2^20)`; the reviewer's manual now says to compute tolerances in floating point, under
   `timeout`.
+- The fourth paged-attention pilot (DeepSeek V4.1 Flash, with the design stage) was certified after two
+  rounds, in 5 h 40 min for $7.07. A fifth, run beside it on GLM-5.3, followed the design stage but was
+  cancelled with 8 `sorry`s after 6 hours and $114. What they showed, and what the harness does since:
+  - the certificate was granted while four README sentences stated the round-1 tolerance constants
+    (`Xcap = 2^6`, `+ 2^-9`; the Lean had `2^4`, `2^-10`): both reviewers found them, but as `DOC`,
+    which does not block. TVA's new kind `DOC_WRONG` (library issue L136) blocks; the reviewers' skills
+    say when to use it; `tva-kit stage` and `tva-kit gate` warn of a `NAME = value` in README that the
+    Lean's one-line `def NAME` no longer has (on the pilot's README it finds two of the four sentences;
+    on the twelve certified kernels, one history paragraph);
+  - the reviewers could not run Lean: the Mathlib cache unpacks its build files with mode 600, readable
+    by `tva` alone. The base image now makes them readable to every user, and checks it;
+  - DeepSeek's prover never did the design stage: `tva-kit stage` said "next stage: 4 map" 13 times in
+    4.5 hours while it proved lemmas, so it never saw the design advice, and four successive subagents
+    (2.5 hours) worked on one `sorry` inside the 341-line `body_safe`, which grew to 1 600 lines. The map
+    and the write-up are now due before the gate, not before the proof: once the claim is written,
+    `stage` names the proof's next stage and lists them beside it. A `sorry` inside a long proof is
+    shown whatever the next stage, and the hook tells each agent of one after its Lean edit or build;
+  - GLM's prover started four `lean-fixer`s at once; their concurrent builds made Lean read `.olean`
+    files another build was writing, with errors that were not in the files ("transient `.olean` cache
+    corruption"), so the prover told them not to build: they checked files with `lake env lean` 400
+    times, 27 s each (3 of their hours). Every `lake` in the prover's image now runs under a lock (the
+    wrapper `harness/lake`), and the manual says builds are safe in parallel;
+  - DeepSeek's prover never started the claim-audit subagent, and GLM's audit found six false or
+    unprovable statements in 13 minutes: the hourly clock note now says to start it while the claim is
+    written and not audited.
 
 These tests show that the harness is wired correctly. They do not measure how much it helps a given
 model. That takes real runs.

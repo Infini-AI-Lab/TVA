@@ -357,6 +357,32 @@ def add_note(res, note):
     return res
 
 
+DESIGN_NOTES = os.path.join(kit.SCRATCH, ".design-notes.json")  # {agent|file:declaration: proof length when told}
+
+
+def design_note(inp):
+    """A `sorry` inside a long proof (a lemma nobody stated), told to the agent that works on it right after
+    its edit or build: once per declaration, and again each time the proof has grown by half."""
+    who = inp.get("agent_id") or "main"
+    seen = kit.load(DESIGN_NOTES, {}) or {}
+    new = []
+    for s in kit.sorry_sites():
+        p, line, name, n, how = s
+        key = f"{who}|{os.path.relpath(p, kit.KD)}:{name}"
+        if how == "inside" and n > kit.LONG_PROOF and n >= 1.5 * seen.get(key, 0):
+            new.append(s)
+            seen[key] = n
+    if not new:
+        return ""
+    with contextlib.suppress(OSError):
+        save(DESIGN_NOTES, seen)
+    where = "; ".join(f"{os.path.relpath(p, kit.KD)}:{line} in {name} ({n}-line proof)" for p, line, name, n, _ in new[:3])
+    return (f"Design: a `sorry` inside a long proof ({where}). A `sorry` inside a long proof is "
+            "a lemma nobody stated. State what is left as its own lemma, with one hypothesis per model line it needs "
+            "(numeric steps on plain values, in a small file of their own), and have this proof call it (skill "
+            "tva-design, §2-3): a hole in a long walk costs minutes per build and hides what is left.")
+
+
 CLOCK_NOTES = os.path.join(kit.SCRATCH, ".clock-notes.json")  # {agent: marks already told}
 
 
@@ -385,6 +411,10 @@ def clock_note(inp):
     st = kit.service_status() or {}
     if st.get("status") == "busy" or (st.get("submissions") or {}).get("reviewed"):
         return note
+    if not inp.get("agent_id") and not os.path.exists(kit.AUDIT) and "def Post" in kit.lean_text():
+        note += (" The claim is written but not audited: start the claim-audit subagent (stage 7) before more proof "
+                 "work. In an earlier run it found six statements that were false or could not be proved, before "
+                 "any time went into them.")
     if inp.get("agent_id"):
         return note + (" Report back to the prover soon with what builds and what is left." if used >= limit / 2 else "")
     if used >= limit * 0.75:
@@ -412,6 +442,9 @@ def post_tool(inp):
         # Claude Code ends a subagent's report with "use SendMessage … to continue this agent"
         res = add_note(res, RESUME)
     if kit.ROLE != "reviewer":
+        if (tool in EDIT_TOOLS and str(ti.get("file_path", "")).endswith(".lean")) or (
+                tool == "Bash" and re.search(r"\blake\b", ti.get("command", ""))):
+            res = add_note(res, design_note(inp))
         res = add_note(res, clock_note(inp))
     if res:
         out(res)
@@ -466,7 +499,8 @@ def stop_prover(inp):
               "with a granted certificate. Answer them: `tva-kit findings`; fix what they show; `tva-kit gate`; "
               "`tva-kit respond init` and `tva-kit respond set …` for each; `tva-kit respond lint`; `tva-review submit`.")
     stages = kit.stages()
-    todo = [f"[ ] {n_} — {d}" for n_, done, d in stages if not done]
+    nxt, _ = kit.next_stage(stages)
+    todo = [f"[ ] {n_} — {d}" for n_, done, d in sorted(stages, key=lambda x: x[0] != nxt) if not done]
     block(rejected + "Do not stop: no submission of yours has been reviewed yet, and the task succeeds only with a "
           "granted certificate. What is left:\n" + "\n".join(todo[:7]) + "\nContinue with the first of these; when "
           "`tva-kit gate` passes, run `tva-review submit`. If a proof is too hard at full generality, narrow the "
