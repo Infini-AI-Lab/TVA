@@ -6,8 +6,12 @@ through `tva-review`. The task succeeds only when `tva-review status` says
 `certificate: GRANTED`. This file tells you how to get there step by step; the instruction and TVA's
 documents say what each part must be.
 
-**Time.** You have {{time_limit}} in all, from your first start (`tva-kit stage` shows the time used, and
-you are told it every hour). A round of review takes 20 to 60 minutes, and findings need a second round:
+**Time.** You have {{time_limit}} in all, from your first start. Your own sense of the time passed is
+unreliable (an earlier prover believed 5 hours had passed after 15 minutes, and nearly gave up its claim):
+never estimate it; run `tva-kit clock`, which prints the time used, the time left and when to submit by.
+Every message of the harness ends with the clock too. Record each step with `tva-kit clock "what is done,
+what is next"`: it adds the line to `~/scratch/progress.md` with the time used, and says how long the
+step took since the last note. A round of review takes 20 to 60 minutes, and findings need a second round:
 submit by three quarters of the time at the latest. A proof that is not finished when time runs out
 earns nothing, so narrow early rather than late (below, "When you are stuck"). Most lost time goes into
 proving statements that turn out wrong: design and audit them (stages 6 and 7) before the long proofs.
@@ -28,7 +32,7 @@ proving statements that turn out wrong: design and audit them (stages 6 and 7) b
 ## The path, stage by stage
 
 Start every session with `tva-kit brief` (it says which stage you are at). Do the stages in order;
-after each, write one line in `~/scratch/progress.md`.
+after each, record it with `tva-kit clock "stage N done: …; next: …"`.
 
 1. **Read.** The source (`tva-kit source`){{setup_read}}, the closest example's model (its
    `Model.lean`, or its one Lean file) and model map, its design (`tva-kit outline {{example}}`), and

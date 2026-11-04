@@ -35,8 +35,24 @@ STOP_STATE = os.path.join(kit.SCRATCH, ".stop-hook.json")
 PROGRESS = os.path.join(kit.SCRATCH, "progress.md")
 
 
+TEXT_FIELDS = ("additionalContext", "permissionDecisionReason", "reason")
+
+
+def with_clock(obj):
+    """`obj` with the prover's clock at the end of each text the agent hears (once): a model's own sense of
+    the time passed can be hours off (pilot 7 guessed 5 h at 15 min), and every note is a chance to correct it."""
+    line = kit.clock_line() if kit.ROLE != "reviewer" else ""
+    if not line:
+        return obj
+    for d in (obj, obj.get("hookSpecificOutput") or {}):
+        for k in TEXT_FIELDS:
+            if isinstance(d.get(k), str) and "used of" not in d[k]:
+                d[k] += f"\n\nClock: {line}."
+    return obj
+
+
 def out(obj):
-    print(json.dumps(obj))
+    print(json.dumps(with_clock(obj)))
     sys.exit(0)
 
 
@@ -128,7 +144,8 @@ def subagent_start(inp):
             seen[inp.get("agent_id") or "?"] = sum(1 for m in clock_marks(c[1]) if m <= c[0])
             with contextlib.suppress(OSError):
                 save(CLOCK_NOTES, seen)
-            text += f" The prover's {kit.clock_line()}: report back before you run out of it."
+            text += (f" The prover's {kit.clock_line()}: report back before you run out of it (`tva-kit clock` "
+                     "prints the time; do not estimate it).")
     out({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": text}})
 
 

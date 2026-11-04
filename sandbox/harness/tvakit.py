@@ -17,6 +17,8 @@ Both roles
                                 declarations (`sorry`s marked for your own); with FILE, that file's statements
 Prover
   tva-kit stage                 the checklist of the proof, with what is done and what is next, and each `sorry`
+  tva-kit clock ["NOTE"]        the time used and left; with NOTE, the line `[time used] NOTE` added to
+                                ~/scratch/progress.md, and how long it was since the last note
   tva-kit classify [--write]    propose kernel.json's line classes (source.ranges, source.host)
   tva-kit map-skeleton          add a model-map entry for every code line of the ranges not yet mapped
   tva-kit map-check             the gate's map check, without building
@@ -1151,6 +1153,34 @@ def cmd_stage(argv):
     return 0
 
 
+PROGRESS = os.path.join(SCRATCH, "progress.md")
+TIME_LOG = os.path.join(SCRATCH, ".time-log.json")  # [[seconds used, note], …], written by `tva-kit clock NOTE`
+
+
+def cmd_clock(argv):
+    """The time used and left (a model's own sense of it can be hours off); with a note, the note recorded
+    with the time used, in ~/scratch/progress.md and the time log."""
+    c = clock()
+    if not c:
+        die("no clock: it starts at the prover's first session")
+    used, limit = c
+    note = " ".join(argv).strip()
+    log = load(TIME_LOG, []) or []
+    print(clock_line() + (f"; submit by {hm(limit * 0.75)} ({hm(limit * 0.75 - used)} from now)"
+                          if used < limit * 0.75 else "; three quarters are gone: submit now"))
+    if log:
+        print(f"last note, {hm(used - log[-1][0])} ago at {hm(log[-1][0])}: {short(log[-1][1], 200)}")
+    if note:
+        os.makedirs(SCRATCH, exist_ok=True)
+        log.append([round(used), note])
+        with open(TIME_LOG, "w") as f:
+            json.dump(log, f)
+        with open(PROGRESS, "a") as f:
+            f.write(f"- [{hm(used)}] {note}\n")
+        print(f"recorded in ~/scratch/progress.md: [{hm(used)}] {short(note, 200)}")
+    return 0
+
+
 STAGE_SKILLS = {"3 model": "tva-model-map", "4 map": "tva-model-map", "5 claim": "tva-claim", "6 design": "tva-design",
                 "7 audit": "tva-design", "8 lemmas": "tva-proof", "10 gate": "tva-gate"}
 
@@ -1616,7 +1646,7 @@ def cmd_filing(argv):
 
 
 COMMANDS = {"brief": cmd_brief, "source": cmd_source, "examples": cmd_examples, "lookup": cmd_lookup, "doc": cmd_doc,
-            "outline": cmd_outline, "stage": cmd_stage, "classify": cmd_classify, "map-skeleton": cmd_map_skeleton, "map-check": cmd_map_check,
+            "outline": cmd_outline, "stage": cmd_stage, "clock": cmd_clock, "classify": cmd_classify, "map-skeleton": cmd_map_skeleton, "map-check": cmd_map_check,
             "build": cmd_build, "gate": cmd_gate, "findings": cmd_findings, "respond": cmd_respond,
             "review-brief": cmd_review_brief, "targets": cmd_targets, "filing": cmd_filing}
 
