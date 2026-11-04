@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "KvCacheWrite",
+    "namespace": "Kernels.KvCacheWrite"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/reshape_and_cache_flash.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "1f2fcc499cf8129184807e331a42a8562a3ef5816845af7ee788da3ce1c50a74"
+  },
+  "title": "KV cache write, flash layout (`reshape_and_cache_kernel_flash`, bfloat16), vLLM"
+}

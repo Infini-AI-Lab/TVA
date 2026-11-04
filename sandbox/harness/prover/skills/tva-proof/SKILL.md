@@ -92,3 +92,35 @@ field and `Pre` (`norm_num [testInst]`, `simp [testMem]`).
   numbers (use `norm_num`).
 - To see a goal mid-proof, put `trace_state` (or leave `sorry`) at that point and build; the goal is in
   the build's log (`~/scratch/build/<Module>.log`), in full.
+
+## Several attempts at one lemma (best of N)
+
+When a stated lemma resists (about an hour without closing, or one of the last before the gate), run
+several attempts at it at once, each with its own approach, instead of one subagent after another:
+
+```
+tva-kit try start LEMMA [--n 3] [--minutes 45] [--strategies example,decompose,forward] [--hint TEXT]
+```
+
+It copies the kernel file up to the lemma into `~/scratch/tries/LEMMA/a1 … aN/Try.lean` (the text above a
+marker line is fixed; below it the attempt writes helper lemmas and the proof) and prints one
+`proof-attempt` subagent call per attempt. Start them **all in one message**, so that they run at once,
+and add to each prompt what you know: the goal, the facts it needs, the example's lemma. The approaches:
+`example` (transcribe the closest certified lemma), `decompose` (state helpers first, prove the lemma
+from them), `forward` (unfold, collect bounds, `linarith`/`nlinarith`/`calc`), `backward` (`refine`/`apply`
+with holes, the easiest goal first), `generalize` (a more general helper, by induction, then specialize).
+
+Each attempt checks its file with `tva-kit try check LEMMA K`, which accepts a proof only if Lean has no
+error, no `sorry` is left, and the lemma's type (as Lean prints it) is the original's. The first to pass
+is the winner: the harness stops the others at their next step, so the call returns soon after. Then:
+
+- `tva-kit try status LEMMA`: each attempt's last state (solved, partial, failing, changed, refused);
+- `tva-kit try accept LEMMA`: merges the winner (its helpers and the proof) in place of the lemma in the
+  kernel file and builds the module; if the build fails, the file is restored;
+- no winner: `tva-kit try accept LEMMA K --partial` takes attempt K's stated helpers with their `sorry`
+  proofs (each `sorry` must be a helper's whole proof), and a new round goes at the hardest helper; or
+  `tva-kit try start LEMMA --from K` starts every attempt from attempt K's text.
+
+Two rounds without a proof mean the statement is wrong or too strong: change it, or narrow the claim.
+Each attempt costs as much as one subagent, so use it for the lemmas that block, not for every lemma.
+

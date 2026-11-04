@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "RejectionGreedy",
+    "namespace": "Kernels.RejectionGreedy"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/rejection_greedy.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "9fed7f969a2a6e3941100df373adc8955446668158e8c63f8dd2ef8991354efc"
+  },
+  "title": "Greedy rejection sampling for speculative decoding (`rejection_greedy_sample_kernel`, int32), vLLM"
+}

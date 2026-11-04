@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "GdnGating",
+    "namespace": "Kernels.GdnGating"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/fused_gdn_gating.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "53b3fe099f1deef4eb5d48658005e7e03c8c1beef88a4a7d34f4884f83ffc48f"
+  },
+  "title": "Gated DeltaNet gating, softplus decay and sigmoid (`fused_gdn_gating_kernel`, bfloat16), SGLang"
+}

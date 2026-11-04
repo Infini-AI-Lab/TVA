@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "ChunkKkt",
+    "namespace": "Kernels.ChunkKkt"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/chunk_kkt.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "bf739f1e2ec051ef11dd4b3e1a33956d66b123bf4a68a267ca9afe2bafd7e69b"
+  },
+  "title": "Chunk-scaled K·Kᵀ, forward (`chunk_scaled_dot_kkt_fwd_kernel`, bfloat16), fla"
+}

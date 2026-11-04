@@ -16,7 +16,7 @@ In the prover's container and in the reviewers' container alike:
 | `/CLAUDE.md` | the role's operating manual (prover: the path in eleven stages; reviewer: the procedure and its calibration) |
 | `/.claude/settings.json` | the hooks and environment settings |
 | `/.claude/skills/` | prover: `tva-model-map`, `tva-claim`, `tva-design`, `tva-proof`, `tva-gate`, `tva-respond`; reviewer: `tva-review-method`, `tva-filing` |
-| `/.claude/agents/` | subagents: `tva-scout` (both roles), `lean-fixer` and `claim-audit` (prover) |
+| `/.claude/agents/` | subagents: `tva-scout` (both roles), `lean-fixer`, `claim-audit` and `proof-attempt` (prover) |
 | `/usr/local/bin/tva-kit`, `/usr/local/lib/tva-harness/` | the helper and the hook script (`tvakit.py`, `hook.py`) |
 | `/etc/tva-sandbox/harness.json` | the role, kernel, examples, entry kernels and reviewer ids |
 
@@ -54,6 +54,7 @@ check them the way `tvr` does (they import `tvr`'s own functions):
 | `examples REGEX`, `lookup NAME`, `doc QUERY` | both | how certified kernels map a construct; a library or kernel declaration with its signature; the passages of TVA's documents about a topic |
 | `classify [--write]` | prover | proposes `kernel.json`'s `source.ranges`, `source.host` and `source.unused` from the JIT functions reachable from the launched kernel |
 | `map-skeleton`, `map-check` | prover | an entry for every code line (imports and decorators pre-filled as drops), then the gate's map check without a build |
+| `try start\|brief\|check\|status\|accept\|stop` | prover | several attempts at one lemma at once (best of N; below) |
 | `build [MODULE]`, `gate` | prover | Lean errors with their source lines; the gate with a hint for each failing check, and a warning for each `NAME = value` in README that the Lean's `def NAME` no longer has |
 | `findings`, `respond …` | prover | the open findings in full; `response.json` and `notes.md` written and linted |
 | `review-brief`, `targets` | reviewer | items, assumptions, your findings, the source beside each model-map entry; the targets a finding may name |
@@ -65,7 +66,7 @@ check them the way `tvr` does (they import `tvr`'s own functions):
 |---|---|
 | `SessionStart` | the manual, the role's brief and the progress notes (at start, resume and compaction); the prover's clock starts at its first start |
 | `SubagentStart` | every subagent (the harness's or Claude Code's own `general-purpose`) gets the role's rules and, for the prover, the Lean advice and the time left: the manual reaches only the main agent |
-| `PreToolUse` | refuses a Write or Edit outside the role's folders (prover: the kernel folder and `~/scratch`; reviewer: its round folder and `~/scratch`), recording commands (`tvr respond`, `tvr file`, …), toolchain changes (`lake update`/`clean`, `lake exe cache`, `elan …`, deleting `.lake`), for reviewers `lake build`/`tvr check`/`tva-kit gate`, searches of `/` with no path, and waiting loops that keep a core busy (`read -t N < /dev/zero`). The tool's path is exact; a command is read without its here-documents, and never for the files it writes. Each refusal says why and what to do instead. Every subagent runs in the foreground: the hook sets `run_in_background` to false and says so (Claude Code 2.1.316 may run a subagent in the background when the field is absent), and `SendMessage` is refused: Claude Code resumes a subagent in the background, so the refusal says to start a new one with the earlier report |
+| `PreToolUse` | refuses a Write or Edit outside the role's folders (prover: the kernel folder and `~/scratch`; reviewer: its round folder and `~/scratch`), recording commands (`tvr respond`, `tvr file`, …), toolchain changes (`lake update`/`clean`, `lake exe cache`, `elan …`, deleting `.lake`), for reviewers `lake build`/`tvr check`/`tva-kit gate`, searches of `/` with no path, and waiting loops that keep a core busy (`read -t N < /dev/zero`). The tool's path is exact; a command is read without its here-documents, and never for the files it writes. Each refusal says why and what to do instead. Every subagent runs in the foreground: the hook sets `run_in_background` to false and says so (Claude Code 2.1.316 may run a subagent in the background when the field is absent), and `SendMessage` is refused: Claude Code resumes a subagent in the background, so the refusal says to start a new one with the earlier report. A proof attempt (best of N, below) writes only in its own folder, never builds with `lake build`, and once the attempts are over (another attempt won, the prover accepted or stopped them, or their time is up) every tool call it makes is refused with the order to end with its report (at the deadline, one last `tva-kit try check` first) |
 | `PostToolUse` | after the prover edits a kernel file: JSON validity, the map check for `model-map.json`, and a build of the edited Lean module whose errors come back at once (`TVA_HARNESS_AUTOBUILD`, on by default), with the whole output kept in `~/scratch/build/<Module>.log`. After the prover's Bash command: the fixed files it changed (the tree outside the kernel's folder, and the kernel's source), compared with a snapshot taken at the session's start, each change reported once. A kernel module that Lake reports took a minute or more (`TVA_HARNESS_SLOW_BUILD`) gets the advice to split the file: in the automatic build, in `tva-kit build`, and in a Bash command that runs `lake build`, from its output or from a file it sent the output to and wrote while it ran (Lake prints each module's time when its output is not a terminal). After a subagent's report, which Claude Code ends with an invitation to continue it with `SendMessage`, the agent is told to start a new one instead. Every hour (and at three quarters and seven eighths of the limit), each of the prover's agents is told the time used and left, and while nothing is submitted, what that means: submit by three quarters, narrow what does not converge; the prover, while its claim is written and not audited, to start the claim-audit subagent. Every message a hook gives the prover's agents (a note, a refusal, a block) ends with the clock, unless it already states the time. After an agent's Lean edit or `lake` command, a `sorry` inside a proof of more than 150 lines is reported to that agent, once per declaration and again when the proof has grown by half |
 | `Stop` | the prover cannot stop while a review is running, findings are open, or the proof is unfinished, unless the service says the task is over; a reviewer cannot stop before `tvr lint` says `regular`. After 8 (prover) or 6 (reviewer) identical refusals it lets the agent stop, so a stuck model ends instead of looping |
 
@@ -93,6 +94,28 @@ stated lemma) and writes `~/scratch/audit.md`, which stage 7 waits for. They kee
 error loops out of the main context. They run in the foreground: the agent that starts one gets its
 report as the call's result, and several started in one message run at once. None is resumed: to
 continue one's work, the agent starts a new subagent with the earlier report.
+
+**Best of N.** A lemma that resists gets several attempts at once instead of one subagent after
+another (the paged pilots 7 and 8 each spent their last three hours on one or two lemmas, one subagent
+at a time). `tva-kit try start LEMMA [--n 3] [--minutes 45] [--strategies …] [--hint TEXT] [--from K]`
+copies the kernel file up to the lemma into `~/scratch/tries/LEMMA/a1 … aN/Try.lean`: the text above a
+marker line is fixed, and below it each attempt writes helper lemmas and the proof. It builds the
+module's imports, records the lemma's type as Lean prints it (`pp.all`), writes a brief per attempt, and
+prints the `proof-attempt` subagent calls to start in one message. Each attempt takes its own approach,
+told the others' so that they differ: `example` (transcribe the closest certified lemma), `decompose`
+(state helpers first), `forward` (unfold and bound), `backward` (holes from the goal), `generalize` (a
+more general helper, by induction). An attempt checks its file with `tva-kit try check LEMMA K`, Lean
+on the file (`lake env lean`, a reader, so the attempts check side by side; never a build), which says
+`solved` only when Lean reports no error, no `sorry` is left, the text above the marker is the
+original's, the region has nothing the gate's hygiene refuses, and the lemma's type is the recorded one
+(a `#check` of it under `pp.all`, compared as text). The first `solved` writes `WINNER` (atomically), and
+the hook refuses every later tool call of the other attempts, so the call that started them returns
+soon after. The prover then merges the winner (`tva-kit try accept LEMMA`: its helpers and proof in
+place of the lemma, then a build of the module; if the build fails the file is restored), or takes the
+stated helpers of the best attempt with their `sorry` proofs (`--partial`, each `sorry` a whole proof)
+and starts a new round on the hardest helper, or one from that attempt's text (`--from K`). The manual,
+`tva-kit stage` (at the lemmas, write-up and gate stages), the half-time clock note and the proof skill
+point to it; two rounds without a proof mean the statement or the claim should change.
 
 **Builds.** The prover and its subagents share one build folder, and a Lean process that reads an
 `.olean` while another `lake build` writes it reports errors that are not in the file. So in the
@@ -271,6 +294,22 @@ $15.28 for reviewers whose metered spend was $0.67).
   - DeepSeek's prover never started the claim-audit subagent, and GLM's audit found six false or
     unprovable statements in 13 minutes: the hourly clock note now says to start it while the claim is
     written and not audited.
+
+- Best of N, in the paged task's prover image (Claude Code 2.1.316) with the certified proof and one
+  lemma (`RowCtx.Ok.E_le`, 8 lines) reopened as `sorry`: `tva-kit try start` set up three attempts in 36 s
+  (5 s per check after). The check said `partial` for the `sorry`, `failing` for a wrong proof,
+  `changed` for a weaker statement (`R.E ≤ 1 / 8 ∨ True`), `refused` for `native_decide` and for an
+  edit above the marker, and `solved` for the certified proof; the first `solved` was the winner and a
+  later one was told so. The hook bound each attempt to its folder, refused its writes elsewhere (the
+  kernel's files, another attempt's folder) and its `lake build`, refused every call after the winner,
+  allowed one last check after the deadline, and left a `lean-fixer` that ran `tva-kit try check`
+  unbound. Accepting the winner gave back the certified file byte for byte; `--partial` took a helper
+  with a `sorry` and the lemma proved from it; `--from 1` seeded a new round. Then Claude Code against a
+  scripted API: the prover started three `proof-attempt` subagents in one message, which ran at once
+  (their first requests within 0.1 s, each with the attempt's rules from `SubagentStart`); attempt 2
+  proved the lemma 16 s in, attempts 1 and 3 were refused at their next call (1 s later) and reported,
+  the prover had the three reports 0.1 s after that, and `tva-kit try accept` merged attempt 2's proof
+  and built the module.
 
 These tests show that the harness is wired correctly. They do not measure how much it helps a given
 model. That takes real runs.

@@ -61,7 +61,11 @@ after each, record it with `tva-kit clock "stage N done: …; next: …"`.
    about an hour per lemma: if one does not close, change its statement (split it, strengthen the
    invariant, add a condition and say so in README.md) instead of pushing on. Keep every file quick to
    build: Lean re-checks a whole file at every build, so work on a lemma in a small file of its own,
-   and when a build takes more than a minute, split before going on.
+   and when a build takes more than a minute, split before going on. For a lemma that resists (an
+   hour without closing, or the last ones before the gate): `tva-kit try start LEMMA` sets up
+   several attempts at it, each with its own approach (follow the example, decompose, work forward,
+   work backward, generalize); start the **proof-attempt** subagents it prints, all in one message.
+   The first proof Lean accepts wins and stops the others; `tva-kit try accept LEMMA` merges it.
 9. **Write-up.** `README.md`: Specification, Conditions, Assumptions, Proof, Narrowings, in words that
    match the Lean. Every constant README states must be the Lean's: reviewers file a README value
    that differs from its definition as `DOC_WRONG`, which blocks the certificate. After changing a
@@ -111,7 +115,12 @@ after each, record it with `tva-kit clock "stage N done: …; next: …"`.
   (README.md, and later `tva-kit respond request …`); you cannot add it yourself.
 - Delegate to keep your context small: the subagent **tva-scout** answers "how does TVA/an example do
   X?" in a few lines; **lean-fixer** proves one stated lemma (give it the lemma, its file, and the
-  example's lemma to follow), not "finish the proof"; **claim-audit** checks the claim and the design.
+  example's lemma to follow), not "finish the proof"; **claim-audit** checks the claim and the design;
+  **proof-attempt** is one of several attempts at one lemma at once (best of N: only through
+  `tva-kit try start LEMMA`, which prints the calls; `tva-kit try` for the commands). When none of the
+  attempts closes the lemma, take the best one's stated helpers (`tva-kit try accept LEMMA K --partial`)
+  and start a new round on the hardest helper, or from the best attempt (`--from K`), or change the
+  statement: two rounds without a proof mean the statement needs to change, or the claim to narrow.
   Subagents run in the foreground (their
   report is the result of the call; several started in one message run at once). Give each its own file:
   two agents editing one file undo each other's work. They may all build: the harness runs one

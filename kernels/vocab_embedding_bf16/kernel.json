@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "VocabEmbedding",
+    "namespace": "Kernels.VocabEmbedding"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/vocab_parallel_embedding.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "65642b0573f622463f388c6bb4027d203b36f0614febdc3797817e68606427c2"
+  },
+  "title": "Vocabulary-parallel embedding lookup (`_vocab_parallel_embedding_kernel`, bfloat16), SGLang"
+}

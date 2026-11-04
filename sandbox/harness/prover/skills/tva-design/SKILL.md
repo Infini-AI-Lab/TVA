@@ -95,4 +95,6 @@ false (an `int32` product could wrap around) and that an invariant had no room f
 Hardest first: the step lemma of each loop, since that is where a statement turns out wrong. Give each
 lemma about an hour; if it does not close, change its statement (split it, add the bound it needs to the
 invariant, add a condition to `Inst.ok` and say so in README.md) rather than pushing on. Delegate one
-lemma per subagent, in its own file, with its statement and the example's lemma to follow.
+lemma per subagent, in its own file, with its statement and the example's lemma to follow. For a lemma
+that resists, run several attempts at it at once with different approaches: `tva-kit try start LEMMA`
+(skill **tva-proof**, "Several attempts at one lemma").

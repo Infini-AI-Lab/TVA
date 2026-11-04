@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "MoeRouter",
+    "namespace": "Kernels.MoeRouter"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/moe_router.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "10a053252d935345fb9f531cca7bc2cf4609d8b14bcb31c2ac181f5ffb874ac3"
+  },
+  "title": "MoE router, soft cap and top-k by argmax (`fused_moe_router_cudacore_kernel`, bfloat16), SGLang"
+}

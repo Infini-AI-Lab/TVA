@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "BlockFp8Matmul",
+    "namespace": "Kernels.BlockFp8Matmul"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/block_fp8_matmul.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "30ea57917a2c2a1e1d4b6b571c823c0aafc2029b3d53c61d0710fdad0bdc8024"
+  },
+  "title": "Block-scaled fp8 GEMM (`_w8a8_triton_block_scaled_mm`, e4m3 with per-token-group and 128×128 block scales, bfloat16 output), vLLM"
+}

@@ -23,6 +23,9 @@ Prover
   tva-kit map-skeleton          add a model-map entry for every code line of the ranges not yet mapped
   tva-kit map-check             the gate's map check, without building
   tva-kit build [MODULE]        build the kernel's Lean; the errors with their source lines
+  tva-kit try start|brief|check|status|accept|stop
+                                several subagents at one lemma at once, each with its own approach; the first
+                                proof Lean accepts wins (`tva-kit try` for help)
   tva-kit gate                  run the gate (tvr check); each failing check with what to do
   tva-kit findings [--all]      the open findings, in full
   tva-kit respond init|set|change|request|show|lint
@@ -1142,6 +1145,9 @@ def cmd_stage(argv):
               f"{'GRANTED' if svc.get('certificate') else 'not yet'}; next: {svc.get('next')}")
     if clock_line():
         print(clock_line())
+    if sites and nxt in ("8 lemmas", "9 write-up", "10 gate"):
+        print("a lemma that resists: `tva-kit try start LEMMA` runs several subagents at it at once, each with its "
+              "own approach (best of N)")
     deep = [x for x in sites if x[4] == "inside" and x[3] > LONG_PROOF]
     if deep and nxt != "6 design":
         print(f"design: {len(deep)} `sorry` inside a proof over {LONG_PROOF} lines (first: {sorry_line(deep[0], KD)}); "
@@ -1645,10 +1651,473 @@ def cmd_filing(argv):
     return 0
 
 
+# ---------------------------------------------------------------- best-of-N: attempts at one lemma (prover)
+
+TRIES = os.path.join(SCRATCH, "tries")
+TRY_AGENTS = os.path.join(TRIES, ".agents.json")  # {agent id: [lemma, attempt]}: which attempt a subagent works on
+TRY_MARK = "-- ==== tva-kit try: the text above this line is fixed; below it, helper lemmas and the proof of `{}` ===="
+TRY_END = "\nNat.zero : "  # how the sentinel `#check`'s answer starts: the guard's type ends before it
+STRATEGIES = {
+    "example": "Follow the closest certified example. Find the example lemma that plays this lemma's role "
+               "(`tva-kit outline <example>`, `tva-kit examples REGEX`, `tva-kit lookup NAME`) and transcribe its "
+               "proof step by step, adapting names, constants and hypotheses.",
+    "decompose": "Decompose first. Before any tactic work, write two to five helper lemmas above the target, each "
+                 "one fact the proof needs (on plain values where you can), with `sorry` proofs; prove the target "
+                 "from them; then prove the helpers, the easiest first. Even if you run out of time, stated helpers "
+                 "with the target proved from them are progress the prover can take.",
+    "forward": "Work forward from the hypotheses. Unfold the definitions in the goal (`simp only [defs]`, "
+               "`unfold`), collect the facts you need as `have`s with explicit bounds, and close with "
+               "`linarith`, `nlinarith`, `gcongr`, `positivity`, `omega` or a `calc` chain.",
+    "backward": "Work backward from the goal. `refine`, `apply` or `constructor` with a lemma whose conclusion "
+                "matches, leaving `?_` holes; read each remaining goal (`trace_state`, or the check's log) and close "
+                "the easiest first, turning a hard one into a helper lemma.",
+    "generalize": "Generalize. If the goal is about one loop trip, one index or a fixed constant, state a more "
+                  "general helper (for every n, by induction on the trip count, or for any bound), prove it, and "
+                  "specialize it to the target.",
+}
+TRY_ORDER = ["example", "decompose", "forward", "backward", "generalize"]
+
+
+def decls_of(text):
+    """lean_decls on a text instead of a file."""
+    ls = strip_comments(text).split("\n")
+    out = []
+    for i, l in enumerate(ls):
+        m = DECL0.match(l)
+        if m:
+            j = i + 1
+            while j < len(ls) and not BOUND.match(ls[j]):
+                j += 1
+            while j > i + 1 and not ls[j - 1].strip():
+                j -= 1
+            out.append((m.group(1), m.group(2), i, j - 1))
+    return out, ls
+
+
+def region_start(raw, code, i):
+    """The first line of declaration i's block: its docstring and attribute lines directly above it."""
+    while i > 0 and raw[i - 1].strip() and (not code[i - 1].strip() or code[i - 1].lstrip().startswith("@[")):
+        i -= 1
+    return i
+
+
+def namespaces_at(code, n):
+    """The namespaces open before line n (comments blanked)."""
+    ns = []
+    for l in code[:n]:
+        m = re.match(r"^namespace\s+(\S+)", l)
+        if m:
+            ns.append(m.group(1))
+        elif re.match(r"^section\b", l):
+            ns.append("")
+        elif re.match(r"^end\b", l) and ns:
+            ns.pop()
+    return [x for x in ns if x]
+
+
+def find_lemma(name):
+    """(file, raw lines, first line of its block, its last line, kind, full name) of the kernel declaration `name`."""
+    hits = []
+    for p in lean_files():
+        raw = open(p).read().split("\n")
+        ds, code = decls_of("\n".join(raw))
+        for kind, n, a, b in ds:
+            if n == name or n.endswith("." + name):
+                full = n[len("_root_."):] if n.startswith("_root_.") else ".".join(namespaces_at(code, a) + [n])
+                hits.append((p, raw, region_start(raw, code, a), b, kind, full, bool(re.match(r"^(@\[[^\]]*\]\s*)?private\b", code[a]))))
+    if not hits:
+        die(f"no declaration `{name}` in the kernel's Lean (`tva-kit stage` lists each `sorry` with its lemma)")
+    if len(hits) > 1:
+        die(f"`{name}` names {len(hits)} declarations: " + ", ".join(f"{h[5]} ({os.path.relpath(h[0], KD)})" for h in hits)
+            + "; give the name as the file writes it, qualified enough to be unique")
+    if hits[0][6]:
+        die(f"`{name}` is private: make it non-private first (the attempts check it by its full name)")
+    return hits[0][:6]
+
+
+def try_dir(name):
+    return os.path.join(TRIES, re.sub(r"[^\w.'-]", "_", name))
+
+
+def try_task(name):
+    t = load(os.path.join(try_dir(name), "task.json"))
+    if not t:
+        die(f"no attempts at `{name}`: start them with `tva-kit try start {name}`")
+    return t
+
+
+def try_over(t):
+    """Why the attempts of task `t` are over ("" while they run): a winner, the prover's accept or stop, the deadline."""
+    d = try_dir(t["name"])
+    w = load(os.path.join(d, "WINNER"))
+    if t.get("done"):
+        return f"the prover has {t['done']}"
+    if w:
+        return f"attempt {w['attempt']} proved `{t['name']}`"
+    if time.time() > t["deadline"]:
+        return "the attempts' time is over"
+    return ""
+
+
+def lean_check(path, timeout=900):
+    """`lake env lean path` from TVA's lean/ (a reader: it runs beside other readers, never during a build)."""
+    with lake_lock(exclusive=False):
+        try:
+            p = subprocess.run(["lake", "env", "lean", path], cwd=os.path.join(ROOT, "lean"), capture_output=True,
+                               text=True, timeout=timeout, errors="replace", env={**os.environ, "TVA_LAKE_LOCKED": "1"})
+            return p.returncode, (p.stdout or "") + (p.stderr or "")
+        except subprocess.TimeoutExpired:
+            return 124, f"{path}:1:0: error: lean timed out after {timeout} s"
+
+
+MSG = re.compile(r"^(\S+?\.lean):(\d+):(\d+): (error|warning|info): ?(.*)$")
+
+
+def lean_messages(out):
+    """[(line, kind, text)] of `lean`'s output, each message with the lines that follow it (Lean prints a
+    `#check`'s answer with no location: the guard's comes last, after every message, and is cut off by guard_split)."""
+    msgs = []
+    for l in out.split("\n"):
+        m = MSG.match(l)
+        if m:
+            msgs.append([int(m.group(2)), m.group(4), m.group(5)])
+        elif msgs:
+            msgs[-1][2] += "\n" + l
+    return [tuple(m) for m in msgs]
+
+
+def guard_split(out, full):
+    """(Lean's messages before the guard's answer, the type the guard's `#check` printed for `full` or None).
+    Lean prints a `#check`'s answer with no location, after every message: the last answer for `full` (with
+    `@` before the name when the lemma has implicit binders), up to the sentinel's."""
+    out = "\n" + out
+    i = max(out.rfind("\n" + full + " : "), out.rfind("\n@" + full + " : "))
+    j = out.find(TRY_END, i + 1)
+    if i < 0 or j < i:
+        return out[1:], None
+    return out[1:i + 1], " ".join(out[out.index(" : ", i) + 3:j].split())
+
+
+def try_run(t, k, text):
+    """Check attempt k's text: (state, details, the messages of the region). The state is one of solved
+    (no error, no `sorry`, the statement unchanged), partial (no error, the statement unchanged, `sorry` left),
+    failing (errors), changed (the statement is not the original's), refused (the fixed text or a forbidden
+    construct)."""
+    d = os.path.join(try_dir(t["name"]), f"a{k}")
+    mark = TRY_MARK.format(t["name"])
+    if mark not in text:
+        return "refused", [f"the marker line is gone: restore it (the original file is {try_dir(t['name'])}/prefix.lean "
+                           "followed by the marker and the lemma)"], []
+    head, region = text.split(mark, 1)
+    if head != t["prefix"]:
+        return "refused", [f"the text above the marker was changed: it is fixed (the original is "
+                           f"{try_dir(t['name'])}/prefix.lean); helpers go below the marker"], []
+    bad = []
+    for what, pat in tvr.HYGIENE:
+        for m in re.finditer(pat, region, re.M):
+            if re.fullmatch(r"sorry|admit", m.group(0).strip()):
+                continue
+            bad.append(f"line {head.count(chr(10)) + region.count(chr(10), 0, m.start()) + 1}: {what} ({m.group(0).strip()[:24]})")
+    for i, l in enumerate(strip_comments(region).split("\n")):
+        if re.match(r"^\s*(namespace|end|section|import)\b", l):
+            bad.append(f"line {head.count(chr(10)) + i + 1}: `{l.split()[0]}`: the attempt stays in the file's namespace")
+    if not any(n == t["decl"] for _, n, _, _ in decls_of(region)[0]):
+        bad.append(f"no declaration `{t['decl']}` below the marker: keep the lemma, with its statement unchanged")
+    if bad:
+        return "refused", bad, []
+    chk = os.path.join(d, ".check.lean")
+    open(chk, "w").write(text.rstrip("\n") + f"\n\nset_option pp.all true in\n#check @_root_.{t['full']}\n"
+                         f"#check @_root_.Nat.zero\n")
+    rc, out = lean_check(chk)
+    out = out.replace(chk, os.path.join(d, "Try.lean"))
+    open(os.path.join(d, "check.log"), "w").write(out)
+    body, ty = guard_split(out, t["full"])
+    msgs = lean_messages(body)
+    first, end = head.count("\n") + 1, text.rstrip("\n").count("\n") + 1
+    errs = [m for m in msgs if m[1] == "error"]
+    if any(m[0] < first for m in errs):
+        return "refused", [f"line {m[0]}: {short(m[2], 200)}" for m in errs if m[0] < first][:4] + [
+            "errors in the fixed part: an import is not built (ask the prover to build the module)"], msgs
+    if [m for m in errs if m[0] <= end]:
+        return "failing", [f"line {m[0]}: {m[2].rstrip()}" for m in errs if m[0] <= end], msgs
+    if t["type"] is not None and ty != t["type"]:
+        return "changed", ["the lemma's statement (its type, as Lean prints it with pp.all) is not the original's: "
+                           "restore the statement exactly; change only the proof"], msgs
+    sorries = [m for m in msgs if m[1] == "warning" and "sorry" in m[2] and m[0] >= first] or (
+        [(0, "warning", "sorry")] if re.search(r"\b(sorry|admit)\b", strip_comments(region)) else [])
+    if sorries:
+        return "partial", [f"line {m[0]}: {short(m[2], 120)}" for m in sorries], msgs
+    return "solved", [], msgs
+
+
+def try_save_status(t, k, state, details):
+    d = os.path.join(try_dir(t["name"]), f"a{k}")
+    region = open(os.path.join(d, "Try.lean")).read().split(TRY_MARK.format(t["name"]), 1)[-1]
+    st = {"state": state, "details": details[:12], "time": time.time(), "lines": region.count("\n"),
+          "errors": len(details) if state == "failing" else 0, "sorries": len(details) if state == "partial" else 0}
+    json.dump(st, open(os.path.join(d, "status.json"), "w"), indent=1)
+    if state == "solved":
+        with contextlib.suppress(FileExistsError):
+            fd = os.open(os.path.join(try_dir(t["name"]), "WINNER"), os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            os.write(fd, json.dumps({"attempt": k, "time": time.time()}).encode())
+            os.close(fd)
+    return st
+
+
+def try_brief(t, k, strategy, others, hint, seeded):
+    d = os.path.join(try_dir(t["name"]), f"a{k}")
+    left = max(0, t["deadline"] - time.time())
+    hint = f"\n{hint}\n" if hint else ""
+    return f"""# Attempt {k} of {t['n']} at `{t['name']}`
+
+You are one of {t['n']} attempts, started at once, at the same lemma of the TVA kernel `{K}`. Each attempt has
+its own approach; the first whose proof Lean accepts wins, and the others are stopped. Work only in your
+attempt's folder: `{d}/`.
+
+- The lemma: `{t['full']}` in `{os.path.relpath(t['file'], KD)}` (lines {t['first'] + 1}-{t['last'] + 1}).
+- Your file: `{d}/Try.lean`: the kernel file up to the lemma, a marker line, then the lemma{' (seeded from an earlier attempt)' if seeded else ''}.
+  The text above the marker is fixed. Below it: write the proof, and any helper lemmas you need above
+  the lemma (new names, in the same namespace). Never change the lemma's statement (the check compares its
+  type as Lean prints it). No `axiom`, `native_decide`, `set_option` beyond `maxHeartbeats`, or the like.
+- Check: `tva-kit try check {t['name']} {k}`: Lean on your file (a minute or less for most files; it runs
+  beside the other attempts), the errors with their lines, the whole output in `{d}/check.log`. Run it
+  first, before you change anything, to see where you start.
+- Look things up: `tva-kit lookup NAME`, `tva-kit outline`, `tva-kit examples REGEX`; for Mathlib, `#check` in
+  `{d}/T.lean` (`import TVA`) with `cd ~/fpv/tva/lean && lake env lean {d}/T.lean`.
+- Time: about {hm(left)} for the attempts (until the prover's {hm(t['deadline'] - t['clock0'])} mark at the latest).
+  When the check says `solved`, stop and report. When the harness tells you that another attempt won or
+  the time is over, stop at once and report.
+
+## Your approach: {strategy}
+
+{STRATEGIES[strategy]}
+{hint}
+The other attempts take: {', '.join(others) or 'none'}. Keep to your own approach: the point of several
+attempts is that they try different routes.
+
+## Report (at most 10 lines)
+
+The check's last state (solved, partial with the `sorry`s left, or failing with the first error), the
+helper lemmas you stated, and what you would try next.
+"""
+
+
+def try_start(argv):
+    import argparse
+    ap = argparse.ArgumentParser(prog="tva-kit try start")
+    ap.add_argument("name")
+    ap.add_argument("--n", type=int, default=3)
+    ap.add_argument("--minutes", type=int, default=45)
+    ap.add_argument("--strategies", default="")
+    ap.add_argument("--hint", action="append", default=[], help="added to every attempt's brief (once per line)")
+    ap.add_argument("--from", dest="seed", type=int, default=0, help="start every attempt from the earlier attempt N's text")
+    a = ap.parse_args(argv)
+    if not 2 <= a.n <= 5:
+        die("--n: 2 to 5 attempts (each runs Lean beside the others)")
+    strategies = [s.strip() for s in a.strategies.split(",") if s.strip()] or TRY_ORDER[:a.n]
+    bad = [s for s in strategies if s not in STRATEGIES]
+    if bad or len(strategies) != a.n:
+        die(f"--strategies: {a.n} of {', '.join(TRY_ORDER)} (comma-separated)" + (f"; unknown: {', '.join(bad)}" if bad else ""))
+    p, raw, first, last, kind, full = find_lemma(a.name)
+    d = try_dir(a.name)
+    seed = None
+    old = load(os.path.join(d, "task.json"))
+    if old:
+        if a.seed:
+            sp = os.path.join(d, f"a{a.seed}", "Try.lean")
+            if not os.path.exists(sp):
+                die(f"--from {a.seed}: no attempt {a.seed} at `{a.name}`")
+            seed = open(sp).read().split(TRY_MARK.format(old["name"]), 1)[-1]
+        if not old.get("done") and not try_over(old):
+            die(f"attempts at `{a.name}` are running (`tva-kit try status {a.name}`); `tva-kit try stop {a.name}` first")
+        n = 1
+        while os.path.exists(f"{d}.{n}"):
+            n += 1
+        os.rename(d, f"{d}.{n}")
+    elif a.seed:
+        die(f"--from {a.seed}: no earlier attempts at `{a.name}`")
+    c = clock()
+    used = c[0] if c else 0
+    limit = c[1] if c else used + 3600 * 8
+    minutes = max(10, min(a.minutes, int((limit - used) / 60) - 20))
+    module = module_of(p)
+    print(f"building {module}'s imports (the attempts import them) …", flush=True)
+    build(module)  # its imports must be built; the module's own errors do not matter here
+    prefix = "\n".join(raw[:first]) + "\n"
+    region = seed if seed is not None else "\n" + "\n".join(raw[first:last + 1]) + "\n"
+    decl = next(n for _, n, _, _ in decls_of("\n".join(raw[first:last + 1]))[0])
+    t = {"name": a.name, "decl": decl, "full": full, "file": p, "module": module, "first": first, "last": last,
+         "prefix": prefix, "region": "\n".join(raw[first:last + 1]), "n": a.n, "strategies": strategies,
+         "deadline": time.time() + 60 * minutes, "clock0": time.time() - used, "started": time.time(), "type": None}
+    os.makedirs(d, exist_ok=True)
+    open(os.path.join(d, "prefix.lean"), "w").write(prefix)
+    text = prefix + TRY_MARK.format(a.name) + "\n" + "\n".join(raw[first:last + 1]) + "\n"
+    os.makedirs(os.path.join(d, "a1"), exist_ok=True)
+    open(os.path.join(d, "a1", "Try.lean"), "w").write(text)
+    st, det, _ = try_run(t, 1, text)
+    t["type"] = guard_split(open(os.path.join(d, "a1", "check.log")).read(), full)[1]
+    if st == "refused" or not t["type"]:
+        die(f"cannot start: Lean on the file up to `{a.name}` ({d}/a1/check.log):\n  " + "\n  ".join(det[:6] or
+            ["the lemma's statement does not elaborate"]))
+    json.dump(t, open(os.path.join(d, "task.json"), "w"), indent=1)
+    base = st
+    for k in range(1, a.n + 1):
+        ad = os.path.join(d, f"a{k}")
+        os.makedirs(ad, exist_ok=True)
+        open(os.path.join(ad, "Try.lean"), "w").write(prefix + TRY_MARK.format(a.name) + "\n" + region.lstrip("\n"))
+        others = [s for j, s in enumerate(strategies) if j != k - 1]
+        open(os.path.join(ad, "BRIEF.md"), "w").write(
+            try_brief(t, k, strategies[k - 1], others, "\n".join(a.hint), seed is not None))
+    print(f"{a.n} attempts at `{full}` ({os.path.relpath(p, KD)}:{first + 1}-{last + 1}; as it stands: {base}), "
+          f"{minutes} min, in {d}/a1 … a{a.n}.\nNow start them all in ONE message (they run at once; you get the "
+          f"reports when the last one ends, and the first to prove the lemma stops the others):")
+    for k in range(1, a.n + 1):
+        print(f"  Agent(subagent_type=\"proof-attempt\", description=\"attempt {k} at {a.name}\", "
+              f"prompt=\"Attempt {k} at {a.name}: run `tva-kit try brief {a.name} {k}` and follow it. <add what you "
+              f"know: the goal, the facts it needs, the example lemma>\")")
+    print(f"Then `tva-kit try status {a.name}` and `tva-kit try accept {a.name}` (the winner), or "
+          f"`tva-kit try accept {a.name} K --partial` to take attempt K's helpers with their `sorry`s, or a new "
+          f"round from the best one: `tva-kit try start {a.name} --from K`.")
+    return 0
+
+
+def try_lines(t):
+    w = load(os.path.join(try_dir(t["name"]), "WINNER"))
+    out = []
+    for k in range(1, t["n"] + 1):
+        st = load(os.path.join(try_dir(t["name"]), f"a{k}", "status.json")) or {"state": "not checked", "details": []}
+        det = "; ".join(st.get("details") or [])[:160]
+        out.append(f"  a{k} {t['strategies'][k - 1]:10s} {st['state']:11s}" + (" WINNER" if w and w["attempt"] == k else "")
+                   + (f"  {det}" if det else ""))
+    return out
+
+
+def try_accept(t, k, partial):
+    d = os.path.join(try_dir(t["name"]), f"a{k}")
+    text = open(os.path.join(d, "Try.lean")).read()
+    st, det, _ = try_run(t, k, text)
+    try_save_status(t, k, st, det)
+    if st != "solved" and not (partial and st == "partial"):
+        die(f"attempt {k} is {st}" + (": " + "; ".join(det[:3]) if det else "") +
+            ("" if st != "partial" else f" (`--partial` takes it with its `sorry`s)"))
+    region = text.split(TRY_MARK.format(t["name"]), 1)[1].strip("\n")
+    if st == "partial":
+        tmp = os.path.join(d, ".region.lean")
+        open(tmp, "w").write(region + "\n")
+        inside = [s for s in sorry_sites([tmp]) if s[4] != "whole"]
+        if inside:
+            die(f"attempt {k}: a `sorry` that is not a lemma's whole proof ({', '.join(f'{s[2]}' for s in inside[:3])}); "
+                "take only stated lemmas")
+    raw = open(t["file"]).read()
+    ls = raw.split("\n")
+    ds, code = decls_of(raw)
+    hit = [(region_start(ls, code, a), b) for _, n, a, b in ds if n == t["decl"]]
+    if len(hit) != 1 or "\n".join(ls[hit[0][0]:hit[0][1] + 1]) != t["region"]:
+        die(f"`{t['name']}` changed in {os.path.relpath(t['file'], KD)} since the attempts started: merge by hand from "
+            f"{d}/Try.lean (below the marker)")
+    a, b = hit[0]
+    new = "\n".join(ls[:a] + region.split("\n") + ls[b + 1:])
+    open(t["file"], "w").write(new)
+    rc, out = build(t["module"])
+    log = save_build_log(t["module"], out)
+    errs, warns, sorries, lines = summarize_build(out)
+    if rc != 0:
+        open(t["file"], "w").write(raw)
+        die(f"attempt {k} merged into {os.path.relpath(t['file'], KD)}, but `lake build {t['module']}` failed "
+            f"({len(errs)} error(s); {log}), so the file is back as it was:\n" + "\n".join(lines[:8]) +
+            "\n(a helper's name may clash with a declaration below the lemma: rename it in the attempt, then accept again)")
+    t["done"] = f"accepted attempt {k}"
+    json.dump(t, open(os.path.join(try_dir(t["name"]), "task.json"), "w"), indent=1)
+    left = [x for x in sorry_sites([t["file"]]) if x[4] != "comment"]
+    print(f"attempt {k} ({t['strategies'][k - 1]}) merged into {os.path.relpath(t['file'], KD)}: `lake build "
+          f"{t['module']}` OK; {len(left)} `sorry` left in the file" + (": " + ", ".join(x[2] for x in left[:5]) if left else "")
+          + ". `tva-kit stage` shows what is left.")
+    return 0
+
+
+TRY_HELP = """tva-kit try: several subagents at one lemma at once, each with its own approach (best of N)
+
+  tva-kit try start NAME [--n 3] [--minutes 45] [--strategies a,b,c] [--hint TEXT] [--from K]
+        copy the kernel file up to lemma NAME into ~/scratch/tries/NAME/a1 … aN and print the subagent calls
+        to start in one message; approaches: example, decompose, forward, backward, generalize
+  tva-kit try brief NAME K      attempt K's brief (the attempt's first command)
+  tva-kit try check NAME K      Lean on attempt K: solved, partial, failing, changed or refused
+  tva-kit try status [NAME]     every attempt's last state, and the winner
+  tva-kit try accept NAME [K] [--partial]
+        merge attempt K (default: the winner) into the kernel file and build it; --partial takes stated
+        helper lemmas with `sorry` proofs
+  tva-kit try stop NAME         end the attempts (the harness stops the subagents at their next step)
+"""
+
+
+def cmd_try(argv):
+    if ROLE == "reviewer":
+        die("tva-kit try is the prover's")
+    if not argv or argv[0] not in ("start", "brief", "check", "status", "accept", "stop"):
+        print(TRY_HELP)
+        return 0 if not argv else 1
+    sub, rest = argv[0], argv[1:]
+    if sub == "start":
+        return try_start(rest)
+    if sub == "status" and not rest:
+        names = sorted(n for n in os.listdir(TRIES) if os.path.exists(os.path.join(TRIES, n, "task.json"))) \
+            if os.path.isdir(TRIES) else []
+        if not names:
+            print("no attempts yet (`tva-kit try start NAME`)")
+        for n in names:
+            t = load(os.path.join(TRIES, n, "task.json"))
+            print(f"{t['name']}: " + (try_over(t) or f"running, {hm(max(0, t['deadline'] - time.time()))} left"))
+        return 0
+    if not rest:
+        die(TRY_HELP)
+    t = try_task(rest[0])
+    if sub == "status":
+        print(f"{t['name']} ({t['full']}): " + (try_over(t) or f"running, {hm(max(0, t['deadline'] - time.time()))} left"))
+        print("\n".join(try_lines(t)))
+        return 0
+    if sub == "stop":
+        t["done"] = t.get("done") or "stopped the attempts"
+        json.dump(t, open(os.path.join(try_dir(t["name"]), "task.json"), "w"), indent=1)
+        print(f"attempts at `{t['name']}` stopped")
+        return 0
+    if sub == "accept":
+        ks = [x for x in rest[1:] if x.isdigit()]
+        w = load(os.path.join(try_dir(t["name"]), "WINNER"))
+        if not ks and not w:
+            die(f"no attempt has proved `{t['name']}`: give the attempt (`tva-kit try accept {t['name']} K --partial`)")
+        return try_accept(t, int(ks[0]) if ks else w["attempt"], "--partial" in rest)
+    if len(rest) < 2 or not rest[1].isdigit() or not 1 <= int(rest[1]) <= t["n"]:
+        die(f"tva-kit try {sub} {t['name']} K, with K from 1 to {t['n']}")
+    k = int(rest[1])
+    d = os.path.join(try_dir(t["name"]), f"a{k}")
+    if sub == "brief":
+        print(open(os.path.join(d, "BRIEF.md")).read())
+        over = try_over(t)
+        if over:
+            print(f"NOTE: {over}: the attempts are over; report and stop.")
+        return 0
+    t0 = time.time()
+    st, det, _ = try_run(t, k, open(os.path.join(d, "Try.lean")).read())
+    try_save_status(t, k, st, det)
+    w = load(os.path.join(try_dir(t["name"]), "WINNER"))
+    print(f"attempt {k}: {st} ({time.time() - t0:.0f} s; the whole output: {d}/check.log)")
+    for x in det[:8]:
+        print("  " + short(x, 400) if st != "failing" else "  " + x[:1500])
+    if st == "solved":
+        print("you proved it: stop and report." if w and w["attempt"] == k else
+              f"proved, but attempt {w['attempt']} was first: stop and report.")
+    elif try_over(t):
+        print(f"{try_over(t)}: stop now and report your state.")
+    else:
+        print(f"{hm(max(0, t['deadline'] - time.time()))} left for the attempts")
+    return 0 if st == "solved" else 1
+
+
 COMMANDS = {"brief": cmd_brief, "source": cmd_source, "examples": cmd_examples, "lookup": cmd_lookup, "doc": cmd_doc,
             "outline": cmd_outline, "stage": cmd_stage, "clock": cmd_clock, "classify": cmd_classify, "map-skeleton": cmd_map_skeleton, "map-check": cmd_map_check,
             "build": cmd_build, "gate": cmd_gate, "findings": cmd_findings, "respond": cmd_respond,
-            "review-brief": cmd_review_brief, "targets": cmd_targets, "filing": cmd_filing}
+            "review-brief": cmd_review_brief, "targets": cmd_targets, "filing": cmd_filing,
+            "try": cmd_try}
 
 
 def main(argv):

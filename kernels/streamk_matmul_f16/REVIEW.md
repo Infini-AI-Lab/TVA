@@ -6,7 +6,7 @@ Stream-K matrix multiplication (`streamk_matmul_kernel`, float16 into float32 wi
 
 ## Status
 
-- Gate: **PASS**, digest `16c9926eb17e72c9` (2026-11-04T02:32:36Z).
+- Gate: **PASS**, digest `16c9926eb17e72c9` (2026-11-04T08:39:43Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-sk (all), r-sk2 (all).
 - Certificate: **GRANTED**.

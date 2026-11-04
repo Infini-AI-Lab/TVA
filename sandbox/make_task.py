@@ -42,6 +42,32 @@ EXAMPLES = {
     "attn_fwd_f16": ["attn_fwd_e5m2", "paged_attention_f16", "softmax_f32"],
     "attn_fwd_e5m2": ["attn_fwd_f16", "matmul_e5m2", "softmax_f32"],
     "attn_bwd_f16": ["attn_fwd_f16", "attn_bwd_pre_f16", "matmul_f16"],
+    # the test set (TESTSET.md)
+    "l2norm_fwd_bf16": ["softmax_f32", "attn_bwd_pre_f16", "vec_add_f32"],
+    "act_and_mul_bf16": ["vec_add_f32", "attn_bwd_pre_f16", "softmax_f32"],
+    "layer_norm_fwd_bf16": ["softmax_f32", "attn_bwd_pre_f16", "vec_add_f32"],
+    "vocab_embedding_bf16": ["vec_add_f32", "paged_attention_f16", "softmax_f32"],
+    "moe_sum_reduce_bf16": ["attn_bwd_pre_f16", "vec_add_f32", "softmax_f32"],
+    "route_histogram_i32": ["streamk_matmul_f16", "vec_add_f32", "softmax_f32"],
+    "count_expert_tokens_i32": ["vec_add_f32", "streamk_matmul_f16", "softmax_f32"],
+    "gdn_gating_bf16": ["vec_add_f32", "softmax_f32", "attn_bwd_pre_f16"],
+    "rotary_varlen_bf16": ["vec_add_f32", "paged_attention_f16", "softmax_f32"],
+    "cross_entropy_fwd_bf16": ["softmax_f32", "attn_fwd_f16", "attn_bwd_pre_f16"],
+    "kv_cache_write_bf16": ["paged_attention_f16", "vec_add_f32", "softmax_f32"],
+    "kv_indices_i32": ["paged_attention_f16", "vec_add_f32", "softmax_f32"],
+    "merge_attn_states_bf16": ["attn_fwd_f16", "softmax_f32", "paged_attention_f16"],
+    "rejection_greedy_i32": ["vec_add_f32", "softmax_f32", "paged_attention_f16"],
+    "chunk_cumsum_f32": ["softmax_f32", "paged_attention_f16", "vec_add_f32"],
+    "causal_conv1d_fwd_bf16": ["paged_attention_f16", "softmax_f32", "vec_add_f32"],
+    "moe_router_bf16": ["matmul_f16", "softmax_f32", "attn_fwd_f16"],
+    "block_fp8_matmul": ["block_scaled_matmul_mxfp8", "matmul_e5m2", "matmul_f16"],
+    "fused_moe_bf16": ["grouped_matmul_tma_f16", "matmul_f16", "paged_attention_f16"],
+    "lora_shrink_bf16": ["grouped_matmul_tma_f16", "matmul_f16", "streamk_matmul_f16"],
+    "prefill_attn_varlen_bf16": ["attn_fwd_f16", "paged_attention_f16", "matmul_f16"],
+    "decode_attn_gqa_bf16": ["paged_attention_f16", "attn_fwd_f16", "softmax_f32"],
+    "chunk_kkt_bf16": ["matmul_f16", "attn_fwd_f16", "softmax_f32"],
+    "gated_delta_rule_recurrent_bf16": ["paged_attention_f16", "attn_fwd_f16", "matmul_f16"],
+    "ssd_state_passing_f32": ["paged_attention_f16", "softmax_f32", "vec_add_f32"],
 }
 
 
@@ -108,12 +134,14 @@ def examples_for(tva, k):
 
 
 def entry_kernels(tva, k, man):
-    """The launched kernel: the JIT functions of the kernel lines that no other one there calls."""
+    """The launched kernel: the JIT functions of the kernel lines that no other one there calls (for a kernel
+    not yet proved, whose `kernel.json` has no ranges, of the whole source)."""
     sys.path.insert(0, os.path.join(tva, "tools"))
     import tvr
     text = open(os.path.join(tva, "kernels", k, man["source"]["file"])).read()
     lines, jit = text.split("\n"), tvr.jit_functions(text) or {}
-    inr = {i for a, b in man["source"]["ranges"] for i in range(a, b + 1)}
+    inr = ({i for a, b in man["source"]["ranges"] for i in range(a, b + 1)} if man["source"]["ranges"]
+           else set(range(1, len(lines) + 1)))
     mine = [n for n, sp in jit.items() if all(set(range(a, b + 1)) <= inr for a, b in sp)]
     called = {g for f in mine for a, b in jit[f] for g in mine
               if g != f and re.search(rf"\b{re.escape(g)}\s*\(", "\n".join(lines[a - 1:b]))}
@@ -159,7 +187,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
                     "service": "http://reviewer:8765", "time_limit_sec": a.agent_timeout},
                    {"{{setup}}": "`SETUP.md`, " if setup else "",
                     "{{setup_read}}": ", `SETUP.md` (the launch the kernel is checked for)" if setup else ""},
-                   ["tva-scout.md", "lean-fixer.md", "claim-audit.md"]),
+                   ["tva-scout.md", "lean-fixer.md", "claim-audit.md", "proof-attempt.md"]),
         "reviewer": ({"role": "reviewer", "kernel": k, "entry": entry, "examples": ex,
                       "reviewers": {f"rv{i + 1}": r for i, r in enumerate(cfg["reviewers"])}},
                      {"{{setup}}": ", `SETUP.md`" if setup else ""}, ["tva-scout.md"]),

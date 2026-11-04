@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "LayerNormFwd",
+    "namespace": "Kernels.LayerNormFwd"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/layernorm.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "39e34f0182e3883377ec1a886ba57960abbf0ffba84aa69245fcb61935e135b9"
+  },
+  "title": "LayerNorm with a residual, forward (`layer_norm_fwd_kernel`, bfloat16), fla"
+}

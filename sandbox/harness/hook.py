@@ -128,7 +128,24 @@ LEAN_ADVICE = (
     "the build. Never edit a file another agent is editing.")
 
 
+ATTEMPT_RULES = (
+    "You are one proof attempt of several, started at once by the prover at one lemma, each with its own approach "
+    "(best of N). Your prompt names the lemma and your attempt K: run `tva-kit try brief LEMMA K` first and follow it. "
+    "Work only in your attempt's folder (~/scratch/tries/LEMMA/aK/): your Try.lean below its marker line, and scratch "
+    "files there; never edit the kernel's files (the prover merges the winner), never run `lake build`, `tva-kit "
+    "build` or `tva-kit gate` (an exclusive build would stop the other attempts' checks). Check with `tva-kit try "
+    "check LEMMA K`. The first attempt that Lean accepts wins: when the harness says the attempts are over, end at "
+    "once with your report. ")
+
+
 def subagent_start(inp):
+    if kit.ROLE != "reviewer" and inp.get("agent_type") == "proof-attempt":
+        text = ATTEMPT_RULES + LEAN_ADVICE.replace("A kernel Lean file is built after each Edit or Write, and the build's "
+                                                   "whole output, every error with its goal, is kept in ~/scratch/build/"
+                                                   "<Module>.log: read the goals there instead of building again. ",
+                                                   "The check keeps Lean's whole output in your folder's check.log: read "
+                                                   "the goals there instead of checking again. ")
+        out({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": text}})
     if kit.ROLE == "reviewer":
         text = (f"You are a subagent of reviewer `{kit.reviewer_id()}` of the TVA kernel `{kit.K}` (TVA at ~/fpv/tva). "
                 "Read only: never edit a file, never run `lake build`, `tvr` or anything that writes outside ~/scratch. "
@@ -219,8 +236,74 @@ def reviewer_write_ok(p):
             "its work/ folder) and in ~/scratch; you raise findings, you never change the kernel")
 
 
+TRY_CMD = re.compile(r"\btva-kit\s+try\s+(brief|check)\s+(\S+)\s+(\d+)\b")
+ATTEMPT_FORBIDDEN = re.compile(r"\blake\s+build\b|\btva-kit\s+(build|gate)\b|\btva-kit\s+try\s+(start|accept|stop)\b|"
+                               r"\btva-review\b")
+
+
+def attempt_of(inp, tool, ti, cwd):
+    """[lemma, K]: the attempt a subagent works on, bound at its first `tva-kit try brief|check LEMMA K` or its
+    first write in an attempt's folder (~/scratch/tries/LEMMA/aK/), or None."""
+    aid = inp.get("agent_id")
+    if not aid or inp.get("agent_type") not in (None, "proof-attempt"):
+        return None  # only an attempt is bound (Claude Code names a subagent's type; without it, any subagent)
+    m = kit.load(kit.TRY_AGENTS, {}) or {}
+    if aid in m:
+        return m[aid]
+    got = None
+    if tool == "Bash":
+        x = TRY_CMD.search(without_heredocs(ti.get("command", "")))
+        if x and kit.load(os.path.join(kit.try_dir(x.group(2)), "task.json")):
+            got = [x.group(2), int(x.group(3))]
+    elif tool in EDIT_TOOLS:
+        x = re.match(re.escape(os.path.realpath(kit.TRIES)) + r"/([^/]+)/a(\d+)/",
+                     real(ti.get("file_path") or ti.get("notebook_path") or "", cwd))
+        t = kit.load(os.path.join(kit.TRIES, x.group(1), "task.json")) if x else None
+        if t:
+            got = [t["name"], int(x.group(2))]
+    if got:
+        m[aid] = got
+        with contextlib.suppress(OSError):
+            save(kit.TRY_AGENTS, m)
+    return got
+
+
+def pre_attempt(inp, tool, ti, cwd):
+    """The rules of a proof attempt (`tva-kit try`): its own folder only, no exclusive build, and nothing more once
+    the attempts are over (another attempt won, the prover accepted or stopped them, or the time is up)."""
+    att = attempt_of(inp, tool, ti, cwd)
+    if not att and inp.get("agent_type") != "proof-attempt":
+        return
+    cmd = without_heredocs(ti.get("command", "")) if tool == "Bash" else ""
+    if att:
+        t = kit.load(os.path.join(kit.try_dir(att[0]), "task.json")) or {}
+        over = kit.try_over(t) if t else ""
+        if over:
+            w = kit.load(os.path.join(kit.try_dir(att[0]), "WINNER")) or {}
+            last_check = not w and not t.get("done") and re.match(r"^\s*tva-kit\s+try\s+(check|status)\b", cmd)
+            if not last_check or os.path.exists(os.path.join(kit.try_dir(att[0]), f"a{att[1]}", ".final")):
+                deny(f"{over}" + (" (yours)" if w.get("attempt") == att[1] else "") + f": attempt {att[1]} is over. End "
+                     "now, with no more tool calls: reply with your report (the check's last state, the helper lemmas "
+                     "you stated, what you would try next).")
+            with contextlib.suppress(OSError):
+                open(os.path.join(kit.try_dir(att[0]), f"a{att[1]}", ".final"), "w").close()
+    if tool in EDIT_TOOLS:
+        p = real(ti.get("file_path") or ti.get("notebook_path") or "", cwd)
+        mine = os.path.join(os.path.realpath(kit.try_dir(att[0])), f"a{att[1]}") if att else None
+        if not (mine and under(p, mine)) and not under(p, "/tmp"):
+            deny(f"{p}: a proof attempt writes only in its own folder" + (f" ({mine}/)" if mine else
+                 " (~/scratch/tries/LEMMA/aK/: run `tva-kit try brief LEMMA K` first, as your prompt says)") +
+                 "; the prover merges the winner into the kernel's files.")
+    if ATTEMPT_FORBIDDEN.search(cmd):
+        deny("a proof attempt checks its file with `tva-kit try check LEMMA K` only: a `lake build` (or `tva-kit build`/"
+             "`gate`) holds the build folder alone and would stop every other attempt's check, and starting, "
+             "accepting or stopping attempts, and submitting, are the prover's.")
+
+
 def pre_tool(inp):
     tool, ti, cwd = inp.get("tool_name", ""), inp.get("tool_input") or {}, inp.get("cwd") or os.getcwd()
+    if kit.ROLE != "reviewer" and inp.get("agent_id"):
+        pre_attempt(inp, tool, ti, cwd)
     if tool in EDIT_TOOLS:
         p = real(ti.get("file_path") or ti.get("notebook_path") or "", cwd)
         why = reviewer_write_ok(p) if kit.ROLE == "reviewer" else prover_write_ok(p)
@@ -441,7 +524,9 @@ def clock_note(inp):
     if used >= limit / 2:
         return note + (" Half the time is gone and nothing is submitted. A round of review takes 20 to 60 minutes and "
                        f"findings need another: aim to submit by {kit.hm(limit * 0.75)}. If a proof is not converging, "
-                       "narrow the claim (each narrowing stated in README.md) so that the rest is provable.")
+                       "narrow the claim (each narrowing stated in README.md) so that the rest is provable. For a "
+                       "stated lemma that resists, `tva-kit try start LEMMA` runs several subagents at it at once, "
+                       "each with its own approach; the first proof Lean accepts wins.")
     return note
 
 
@@ -459,8 +544,9 @@ def post_tool(inp):
         # Claude Code ends a subagent's report with "use SendMessage … to continue this agent"
         res = add_note(res, RESUME)
     if kit.ROLE != "reviewer":
-        if (tool in EDIT_TOOLS and str(ti.get("file_path", "")).endswith(".lean")) or (
-                tool == "Bash" and re.search(r"\blake\b", ti.get("command", ""))):
+        if inp.get("agent_type") != "proof-attempt" and (
+                (tool in EDIT_TOOLS and str(ti.get("file_path", "")).endswith(".lean")) or (
+                tool == "Bash" and re.search(r"\blake\b", ti.get("command", "")))):
             res = add_note(res, design_note(inp))
         res = add_note(res, clock_note(inp))
     if res:

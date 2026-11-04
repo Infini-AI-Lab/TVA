@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "ActAndMul",
+    "namespace": "Kernels.ActAndMul"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/act_and_mul.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "800e5a50331223e6ad7582aa4e26f40239c2ed8817e24853665fdd1768c6f33b"
+  },
+  "title": "MoE activation and multiply, SiLU with clamp (`act_and_mul_kernel`, bfloat16), SGLang"
+}

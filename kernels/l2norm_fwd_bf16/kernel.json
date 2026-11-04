@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "L2NormFwd",
+    "namespace": "Kernels.L2NormFwd"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/l2norm.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "ab8238b18a5bdfb526880ebb4673375f1ef3298a09a63a39204dcd8cbfeb9c73"
+  },
+  "title": "L2 normalisation, forward (`l2norm_fwd_kernel`, bfloat16), fla"
+}

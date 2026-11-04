@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "KvIndices",
+    "namespace": "Kernels.KvIndices"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/kv_indices.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "44e7ae1ddfeec75d44cfd1661dac63bb87cc4ed8688075456ce43033754f0e6a"
+  },
+  "title": "KV indices for FlashInfer, gathered from `req_to_token` (`create_flashinfer_kv_indices_triton`, int32), SGLang"
+}

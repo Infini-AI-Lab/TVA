@@ -1,0 +1,15 @@
+{
+  "doc": "README.md",
+  "lean": {
+    "module": "CrossEntropyFwd",
+    "namespace": "Kernels.CrossEntropyFwd"
+  },
+  "protocol": "tvr-2",
+  "source": {
+    "file": "source/cross_entropy.py",
+    "host": [],
+    "ranges": [],
+    "sha256": "41fa1d0599fc2638d19541eac1d759f97b8c76c4484a999c9beca4ed11b182f1"
+  },
+  "title": "Cross entropy, forward, over vocabulary blocks (`cross_entropy_fwd_kernel`, bfloat16 logits, float32 loss), fla"
+}
