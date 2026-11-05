@@ -43,11 +43,13 @@ USER tva
 WORKDIR /home/tva/fpv/tva/lean
 RUN ulimit -n 65536 && lake exe cache get && lake build TVA && chmod -R a+rX .lake && rm -rf /home/tva/.cache
 
-# Smoke test: the protocol tool runs here, and a shipped certificate still holds against this tree (the
-# library files and the packages' versions its gate recorded). It builds no kernel: a task's prover must
-# find no kernel's build output in the image.
+# Smoke test: the protocol tool runs here, and a shipped gate is not stale against this tree (the library
+# files and the packages' versions it recorded). Not that a certificate is granted: a library change
+# withdraws every certificate until its reviewers re-accept (round 29). It builds no kernel: a task's
+# prover must find no kernel's build output in the image.
 WORKDIR /home/tva/fpv/tva
-RUN python3 -I tools/tvr.py status vec_add_f32 | grep -q "Certificate: GRANTED" \
+RUN python3 -I tools/tvr.py status vec_add_f32 > /tmp/status.txt && grep -q "Certificate:" /tmp/status.txt \
+    && ! grep -q "the gate is stale" /tmp/status.txt && rm /tmp/status.txt \
     && test ! -e lean/.lake/build/lib/lean/VecAdd.olean \
     && test -z "$(find lean/.lake -type f ! -perm -o+r -not -path '*/.git/*' -print -quit)"
 USER root
