@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/dsh_hook.py session-start", "timeout": 120}]}
+    ],
+    "SubagentStart": [
+      {"hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/dsh_hook.py subagent-start", "timeout": 30}]}
+    ],
+    "PreToolUse": [
+      {"matcher": "bash|write|edit|grep|glob|subagent",
+       "hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/dsh_hook.py pre-tool", "timeout": 30}]}
+    ],
+    "PostToolUse": [
+      {"matcher": "bash|write|edit|subagent",
+       "hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/dsh_hook.py post-tool", "timeout": 900}]}
+    ],
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "python3 -I /usr/local/lib/tva-harness/dsh_hook.py stop", "timeout": 300}]}
+    ]
+  }
+}

@@ -1990,9 +1990,13 @@ def try_start(argv):
           f"{minutes} min, in {d}/a1 … a{a.n}.\nNow start them all in ONE message (they run at once; you get the "
           f"reports when the last one ends, and the first to prove the lemma stops the others):")
     for k in range(1, a.n + 1):
-        print(f"  Agent(subagent_type=\"proof-attempt\", description=\"attempt {k} at {a.name}\", "
-              f"prompt=\"Attempt {k} at {a.name}: run `tva-kit try brief {a.name} {k}` and follow it. <add what you "
-              f"know: the goal, the facts it needs, the example lemma>\")")
+        task = (f"Attempt {k} at {a.name}: run `tva-kit try brief {a.name} {k}` and follow it. <add what you "
+                f"know: the goal, the facts it needs, the example lemma>")
+        if CONFIG.get("agent") == "dsh":  # dsh's subagent tool: the role is the prompt's first line (dsh_hook.py)
+            print(f"  subagent(description=\"attempt {k} at {a.name}\", prompt=\"Role: proof-attempt\\n{task}\")")
+        else:
+            print(f"  Agent(subagent_type=\"proof-attempt\", description=\"attempt {k} at {a.name}\", "
+                  f"prompt=\"{task}\")")
     print(f"Then `tva-kit try status {a.name}` and `tva-kit try accept {a.name}` (the winner), or "
           f"`tva-kit try accept {a.name} K --partial` to take attempt K's helpers with their `sorry`s, or a new "
           f"round from the best one: `tva-kit try start {a.name} --from K`.")

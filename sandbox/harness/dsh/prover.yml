@@ -1,0 +1,65 @@
+# The prover's dsh profile patch (HARNESS.md, "The dsh prover"), over dsh's headless profile.
+# The model: an Anthropic Messages route through the meter (pi-ai), never dsh's DeepSeek adapter, which
+# would send the session's log with every request. TVA_LLM_BASE_URL, TVA_LLM_API_KEY and TVA_LLM_MODEL come
+# from the agent's environment (the Harbor agent sets them).
+- id: llm-pi-ai
+  config:
+    providers:
+      tva:
+        api: anthropic-messages
+        baseURL: !!js process.env.TVA_LLM_BASE_URL
+        apiKeyEnv: TVA_LLM_API_KEY
+        timeoutMs: 900000
+        retryPolicy: {mode: normal, maxRetries: 8}
+        models:
+          - id: !!js process.env.TVA_LLM_MODEL
+            contextWindow: {{context_window}}
+            maxTokens: 32768
+            input: [text]
+            reasoningEfforts:
+              'off':
+              high: high
+- id: agent-default-model
+  config: {provider: tva, model: !!js process.env.TVA_LLM_MODEL, reasoningEffort: high}
+# Nothing leaves the container but the model's requests: no telemetry, no web tools, no DeepSeek account.
+- id: otel
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+- id: tool-web
+  disabled: true
+- id: session-log-deepseek
+  disabled: true
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: session-title-llm
+  disabled: true
+# Tools the Claude Code prover does not have: a fan-out script, goals, a subagent that inherits the context.
+- id: tool-workflow
+  disabled: true
+- id: tool-goal
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+# Lean builds are slow: 10 minutes by default, 30 at most (Claude Code's BASH_*_TIMEOUT_MS here).
+- id: bash-sandbox
+  config:
+    timeoutMs: 600000
+    maxTimeoutMs: 1800000
+# The skills are the Claude Code harness's (/.claude/skills).
+- id: skill-filesystem
+  config:
+    customSkillDirs: [/.claude/skills]
+# A plain JSONL session log in $DSH_HOME/sessions (the agent's log folder): the run's transcript.
+- id: session-persistence-jsonl
+  config:
+    root: !!js dshHomePath('sessions')
+    compression: none
+# The harness's hooks (dsh_hook.py, over hook.py).
+- insert:
+    - id: tva-hooks
+      # by path: the package is not one of dsh's dependencies, but is unpacked in dsh's tree (make_task.py)
+      name: /opt/node24/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-hooks-claude-code/lib/index.js
+      config:
+        configPath: /etc/tva-sandbox/dsh/hooks.json
+        defaultTimeoutMs: 900000

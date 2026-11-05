@@ -203,7 +203,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
             sys.exit(f"{src}: a field this generator does not fill: {re.findall(r'{{\w+}}', text)}")
         write(dst, text)
 
-    for f in ("tvakit.py", "hook.py"):
+    for f in ("tvakit.py", "hook.py", "dsh_hook.py"):
         os.makedirs(os.path.join(H, "lib"), exist_ok=True)
         shutil.copyfile(os.path.join(HARNESS, f), os.path.join(H, "lib", f))
     write(os.path.join(H, "tva-kit"), "#!/bin/sh\nexec python3 -I /usr/local/lib/tva-harness/tvakit.py \"$@\"\n", 0o755)
@@ -211,7 +211,8 @@ def harness_files(E, tva, k, man, cfg, setup, a):
     entry = entry_kernels(tva, k, man)
     roles = {
         "prover": ({"role": "prover", "kernel": k, "tva": "/home/tva/fpv/tva", "entry": entry, "examples": ex,
-                    "service": "http://reviewer:8765", "time_limit_sec": a.agent_timeout},
+                    "service": "http://reviewer:8765", "time_limit_sec": a.agent_timeout,
+                    "agent": a.prover_agent},
                    {"{{setup}}": "`SETUP.md`, " if setup else "",
                     "{{setup_read}}": ", `SETUP.md` (the launch the kernel is checked for)" if setup else ""},
                    ["tva-scout.md", "lean-fixer.md", "claim-audit.md", "proof-attempt.md"]),
@@ -228,7 +229,63 @@ def harness_files(E, tva, k, man, cfg, setup, a):
             render(os.path.join(HARNESS, role, "skills", s, "SKILL.md"), os.path.join(R, ".claude", "skills", s, "SKILL.md"), extra)
         for g in agents:
             render(os.path.join(HARNESS, "agents", g), os.path.join(R, ".claude", "agents", g), extra)
+        if role == "prover" and a.prover_agent == "dsh":
+            render(os.path.join(HARNESS, "dsh", "prover.yml"), os.path.join(R, "dsh", "prover.yml"))
+            render(os.path.join(HARNESS, "dsh", "hooks.json"), os.path.join(R, "dsh", "hooks.json"))
+            write(os.path.join(R, "dsh", "AGENTS.md"), dsh_manual(open(os.path.join(R, "CLAUDE.md")).read()))
+            # what Claude Code's settings.json gives the hooks' environment (dsh_agent.py sources it)
+            write(os.path.join(R, "dsh", "env"), f"TVA_HARNESS_AUTOBUILD={fields['{{autobuild}}']}\n")
     return ex, entry
+
+
+def dsh_manual(t):
+    """The prover's manual for dsh (its instructions file, $DSH_HOME/AGENTS.md): Claude Code's, with dsh's
+    subagents (background, a role line instead of a type) and its shell (no blocked `sleep`). dsh gives this file to
+    every agent, subagents too, and a subagent's role instructions (dsh_hook.py) reach it after its first step: so it
+    opens with what a subagent does with it."""
+    if not t.startswith("# Prover's operating manual"):
+        sys.exit("the prover's manual changed: no title line")
+    head, rest = t.split("\n", 1)
+    t = (head + "\n\n> **Subagents:** if your task began with a line `Role: NAME`, you are a subagent of the prover, "
+         "not the prover. Read `/.claude/agents/NAME.md` first (your instructions; none for `general`), do only "
+         "your task, never run `tva-review` (submitting and waiting are the prover's), and end with your report. "
+         "This manual is background for you.\n" + rest)
+    t = sub(t, """  Subagents run in the foreground (their
+  report is the result of the call; several started in one message run at once).""",
+            """  Start a subagent with the `subagent` tool. Its prompt's first line names its role, `Role: NAME`
+  (`tva-scout`, `lean-fixer`, `claim-audit`, `proof-attempt`, or `general` for none), and the rest is the
+  whole task: it does not see your conversation. Subagents run in the background: the call returns at
+  once, several started in one message run at once, and each one's closing report comes to you as a
+  message when it ends. Work on something else meanwhile, or end your turn when only waiting is left:
+  the next report starts a new turn.""")
+    t = sub(t, """To continue a subagent's work, start a new one and
+  give it the earlier report: a resumed subagent (SendMessage) would run in the background, so the
+  harness refuses SendMessage.""", """To continue a subagent's work, start a new one and
+  give it the earlier report.""")
+    t = sub(t, """- Never wait in a loop: `sleep` is blocked, and a `read` loop keeps a core busy that the builds need.
+  There is nothing to wait for but the review (`tva-review wait`).""",
+            """- Never wait with `sleep` or in a loop: a subagent's report comes to you by itself, and the review is
+  waited for with `tva-review wait`.""")
+    return t
+
+
+# DeepSeek Harness (dsh), pinned, in the prover's image when it is the prover's agent (--prover-agent dsh): Node 24
+# (dsh needs >= 24.9), from nodejs.org with its checksum, beside Ubuntu's Node 18 that Claude Code runs on. dsh's
+# Claude Code hook bridge and its protocol are only dsh's development dependencies: unpacked into dsh's own tree
+# (their imports are dsh's packages), at the same version, with no install script.
+DSH = """RUN apt-get update && apt-get install -y --no-install-recommends xz-utils && rm -rf /var/lib/apt/lists/* \\
+    && curl -fsSLo /tmp/node.tar.xz https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-x64.tar.xz \\
+    && echo "6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6  /tmp/node.tar.xz" | sha256sum -c - \\
+    && mkdir -p /opt/node24 && tar -xJf /tmp/node.tar.xz -C /opt/node24 --strip-components=1 && rm /tmp/node.tar.xz \\
+    && PATH=/opt/node24/bin:$PATH npm install -g @deepseek-ai/dsh@0.2.2-rc.1 \\
+    && cd /tmp && N=/opt/node24/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai \\
+    && for p in dsh-hooks-claude-code dsh-hook-protocol; do PATH=/opt/node24/bin:$PATH npm pack --ignore-scripts @deepseek-ai/$p@0.2.2-rc.1 \\
+        && mkdir -p $N/$p && tar -xzf deepseek-ai-$p-0.2.2-rc.1.tgz -C $N/$p --strip-components=1 && rm deepseek-ai-$p-0.2.2-rc.1.tgz; done \\
+    && PATH=/opt/node24/bin:$PATH npm cache clean --force \\
+    && printf '#!/bin/sh\\nPATH=/opt/node24/bin:$PATH exec /opt/node24/bin/dsh "$@"\\n' > /usr/local/bin/dsh \\
+    && chmod 755 /usr/local/bin/dsh && dsh --version
+COPY harness/prover/dsh/ /etc/tva-sandbox/dsh/
+RUN chmod -R a+rX /etc/tva-sandbox/dsh"""
 
 
 # Claude Code, pinned, in both agent images: one RUN line, so that the prover's and the reviewer's images share
@@ -352,6 +409,9 @@ def main():
                     help="the context window Claude Code assumes for a model it does not know "
                          "(CLAUDE_CODE_MAX_CONTEXT_TOKENS) and its compaction window (CLAUDE_CODE_AUTO_COMPACT_WINDOW)")
     ap.add_argument("--no-autobuild", action="store_true", help="no automatic Lean build after each edit")
+    ap.add_argument("--prover-agent", choices=("claude-code", "dsh"), default="claude-code",
+                    help="the prover's agent: Claude Code (Harbor's claude-code), or DeepSeek Harness (dsh; run "
+                         "with Harbor's -a sandbox.harness.dsh_agent:Dsh, HARNESS.md)")
     a = ap.parse_args()
     if not 1 <= a.reviewers <= 4:
         sys.exit("1 to 4 reviewers (the reviewer image has the users rv1 to rv4)")
@@ -402,6 +462,7 @@ tva_commit = "{rev}"
 reviewers = {a.reviewers}
 reviewer_mode = "{cfg['mode']}"
 reviewer_model = "{a.model if not a.scripted else ''}"
+prover_agent = "{a.prover_agent}"
 
 [agent]
 timeout_sec = {a.agent_timeout}
@@ -442,7 +503,7 @@ RUN chmod 755 /usr/local/bin/tva-review \\
     && python3 -I /etc/tva-sandbox/prepare_kernel.py /etc/tva-sandbox/task.json \\
     && ln -s /home/tva/fpv /root/fpv && ln -s /opt/elan /root/.elan && mkdir -p /root/scratch \\
     && ln -s /root/scratch /home/tva/scratch
-{harness_install("prover")}
+{harness_install("prover")}{chr(10) + DSH if a.prover_agent == "dsh" else ""}
 ENV TVA_REVIEW_URL=http://reviewer:8765
 WORKDIR /
 """)

@@ -18,7 +18,8 @@ In the prover's container and in the reviewers' container alike:
 | `/.claude/skills/` | prover: `tva-model-map`, `tva-claim`, `tva-design`, `tva-proof`, `tva-gate`, `tva-respond`; reviewer: `tva-review-method`, `tva-filing` |
 | `/.claude/agents/` | subagents: `tva-scout` (both roles), `lean-fixer`, `claim-audit` and `proof-attempt` (prover) |
 | `/usr/local/bin/tva-kit`, `/usr/local/lib/tva-harness/` | the helper and the hook script (`tvakit.py`, `hook.py`) |
-| `/etc/tva-sandbox/harness.json` | the role, kernel, examples, entry kernels and reviewer ids |
+| `/etc/tva-sandbox/harness.json` | the role, kernel, examples, entry kernels and reviewer ids (and the prover's agent) |
+| `/etc/tva-sandbox/dsh/` | with a dsh prover only: its profile patch, hooks, manual and hook environment (below, "The dsh prover") |
 
 Agents start in `/`: the prover's image has `WORKDIR /`, and the review service starts each reviewer
 with working directory `/`. So `/.claude/` is the project's settings directory, and Claude Code loads its
@@ -192,6 +193,57 @@ The ledger is the account of a run's spend: the provider's own billing covers th
 may lag by a day, and Claude Code prices its own use at Anthropic's rates (the reward reports a
 reviewer cost only with Anthropic's endpoint; in the first Fireworks pilot Claude Code's estimate was
 $15.28 for reviewers whose metered spend was $0.67).
+
+## The dsh prover
+
+The prover can run on DeepSeek Harness (dsh, `@deepseek-ai/dsh`, pinned at 0.2.2-rc.1 on Node 24.22.1)
+instead of Claude Code, with the same harness; the reviewers stay Claude Code agents. Make the task with
+`make_task.py --prover-agent dsh` and run it with this folder's Harbor agent:
+
+```bash
+PYTHONPATH=$TVA/sandbox/harness harbor run -p tasks/tva-prove-<kernel> -a dsh_agent:Dsh \
+    -m anthropic/<model-id> -e docker      # ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY as for Claude Code
+```
+
+What is the same: the task, the instruction, `tva-kit`, the skills (`/.claude/skills`, through dsh's
+`customSkillDirs`), the `lake` wrapper, the meter (dsh speaks Anthropic's Messages API to it), and every hook
+of `hook.py`. What differs, and how the harness makes up for it:
+
+| | Claude Code | dsh |
+|---|---|---|
+| the manual | `/CLAUDE.md`, given by the `SessionStart` hook | `$DSH_HOME/AGENTS.md` (dsh's instructions file, restored after a compaction), the same text with dsh's subagents (`dsh_manual` in `make_task.py`) |
+| hooks | Claude Code's | dsh's Claude Code hook bridge (`@deepseek-ai/dsh-hooks-claude-code`) with `dsh/hooks.json`; `dsh_hook.py` renames dsh's tools (`bash`, `write`, `edit`, `grep`, `glob`, `subagent`) to Claude Code's for `hook.py` |
+| who is acting | each event names the subagent | each event carries its session's id: the first session seen is the prover's, any other a subagent's (`agent_id`); a subagent's end is not the prover's `Stop` |
+| subagents | foreground, typed (`.claude/agents/`) | background (each report comes as a message), typed by the prompt's first line `Role: NAME`: a call without a known role is refused, and the role's agent file reaches the child at its start |
+| the start | the `SessionStart` hook starts the clock | `dsh_agent.py` runs `hook.py session-start` before dsh (dsh's own runs detached) and puts the brief in the task |
+| stopping | the `Stop` hook | the same hook through the bridge; after an error exit (a request that failed after dsh's retries) `dsh_agent.py` resumes the session, at most 3 times |
+| transcript | `claude-code.txt` | `/logs/agent/dsh/sessions/**/session.v*.jsonl` (plain JSONL) and the event stream `dsh-N.jsonl` |
+
+The profile patch (`dsh/prover.yml`) routes the model through pi-ai's Anthropic Messages adapter: dsh's own
+DeepSeek adapter, given a custom endpoint, sends the session's log (up to 8 MiB) with every request. It
+turns off what would leave the container or what Claude Code's prover lacks: telemetry, web search and
+fetch, session titles, the `workflow` fan-out, goals and the context-inheriting `subagent_fork`. Thinking is
+on (`reasoningEffort: high`, a 16 384-token budget), Bash takes 10 minutes by default and 30 at most, and
+the model's window is `--context-window`. dsh's file sandbox is off (`danger-full-access`, approvals never
+asked): bubblewrap does not run in the container, and the write guard is `hook.py`'s, as with Claude Code.
+The bridge is one of dsh's development dependencies only, so the image unpacks it and its protocol package
+(same version, no install script) into dsh's own tree, and the patch names it by path.
+
+dsh gives its instructions file to every agent, subagents too, and a subagent's role instructions reach it
+only after its first step (the bridge's `SubagentStart` runs detached): so the dsh manual opens with what a
+subagent does with it (read `/.claude/agents/NAME.md`, do only its task), and `dsh_hook.py` refuses
+`tva-review` to subagents. The bridge's `stop_hook_active` is always false, which kept `hook.py` from ever
+counting refusals in a row (a scripted agent that only tried to stop was refused 1 600 times): `dsh_hook.py`
+now says whether the prover's last stop was blocked.
+
+Tested: Harbor runs of the vec_add task with scripted reviewers against a scripted model (dsh's tools by
+their names): a write into the library refused with its reason, a Lean edit built with its errors reported,
+a subagent without a role refused, one with `Role: tva-scout` started and given its instructions, the main
+and child sessions told apart, a stop before any submission refused with the stage list and allowed after 8
+identical refusals, plain JSONL session logs in the agent's folder. Then on Fireworks (DeepSeek V4.1 Flash,
+reviewers as usual): `vocab_embedding_bf16` certified in one round in 50 minutes for $1.96, the prover
+starting the claim-audit subagent itself (Claude Code: 1 h 05 and 1 h 11, $1.40 and $1.44). Not tested yet:
+best of N under dsh.
 
 ## How it was tested
 

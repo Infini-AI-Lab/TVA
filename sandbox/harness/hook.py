@@ -92,7 +92,7 @@ def session_start(inp):
     lines = []
     # Claude Code reads CLAUDE.md from the working directory and its parents but not from /, where the
     # harness lives; so the manual comes from here, at every start, resume and compaction
-    if os.path.exists(MANUAL):
+    if os.path.exists(MANUAL) and os.environ.get("TVA_HARNESS_MANUAL", "1") != "0":  # dsh: AGENTS.md holds it
         lines.append(f"Contents of {MANUAL} (your operating manual; follow it):\n\n" + open(MANUAL).read().strip())
     if kit.ROLE == "reviewer":
         who = kit.reviewer_id()
