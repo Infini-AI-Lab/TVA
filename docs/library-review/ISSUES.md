@@ -152,6 +152,7 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L135](#l135) | FIXED | 27 | user, 2026-11-02 | tool: the sandbox's files (`sandbox/`, agents proving and reviewing a kernel in containers) name the containers' own paths, which the text scan read as paths out of TVA, so no gate could pass with the folder in the tree |
 | [L136](#l136) | FIXED | 28 | user, 2026-11-04 (sandbox pilot, paged_attention_f16) | protocol: a write-up that states a claim other than the Lean's (a constant, tolerance or condition its definition does not have) could only be filed as `DOC`, which does not block, so a kernel was certified with a README stating a looser tolerance and a wider covered range than its Lean proves |
 | [L137](#l137) | FIXED | 29 | sandbox test-set run, 2026-11-05 (`gdn_gating_bf16`, a REFERRED `UNSUPPORTED` finding) | gap: SEMANTICS.md names `tl.sigmoid` among the `tl.*` functions Triton writes in Triton but states no body, so a model of it cannot be judged against the page |
+| [L138](#l138) | FIXED | 30 | sandbox test-set run, 2026-11-05 (`l2norm_fwd_bf16`: every submission after round 1 rejected) | tool: the generated REVIEW.md writes a `|` of a finding's summary as `/`, so a reviewer's `|x|=2^30` becomes `/x/` followed directly by `=2^30`, which the kernel's independence check reads as an absolute path outside TVA; the prover cannot edit the page, so its gate fails on the service's own record |
 
 ## L1
 
@@ -2651,3 +2652,18 @@ not state; the prover referred it to the library. The run on `act_and_mul_bf16` 
 (evidence/sigmoid-round29: every `fp32` input bit for bit, the method form, `fp64`, compile-time values;
 `bfloat16`, `float16` and `int32` rejected on the host). No Lean constant changed. Fixed in round 29
 (`round-29/author/notes.md`).
+
+## L138
+
+**The generated REVIEW.md fails its own kernel's independence check** (tool; sandbox test-set run,
+2026-11-05). `tvr` writes each finding's summary into a Markdown table of `REVIEW.md` (and of
+`docs/library-review/REPORTS.md`, and the gate's detail into the review packet) with every `|` replaced
+by `/`, so that the cell does not split the row. In a sandbox run on `l2norm_fwd_bf16`, a reviewer's
+summary held `|x|=2^30`; the page then held `/x/` followed directly by `=2^30`, which `foreign_refs` reads as an absolute path of
+two components outside TVA, and the kernel folder's text scan (the gate's `independence` check) failed.
+The page is generated from the review service's ledger, which the prover may not edit, so every
+submission after the reviewers filed round 1 was rejected on that line. Round 30: the three tables
+escape `|` as `\|` (`md_cell`), which Markdown renders as `|` and the scan does not read as a path. The
+gate's own code changed, so every gate was stale; `tvr check` was re-run on the twelve kernels with a
+gate (all PASS, digests unchanged). No Lean file and no fact page changed. Fixed in round 30
+(`round-30/author/notes.md`).

@@ -6,7 +6,7 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 
 ## Status
 
-- Gate: **PASS**, digest `b94ad03856cf3987` (2026-11-05T04:13:43Z).
+- Gate: **PASS**, digest `b94ad03856cf3987` (2026-11-05T14:09:06Z).
 - Phase: round 4: all reviewers have filed.
 - Reviewers: r-bwd (all), r-bwd2 (all).
 - Certificate: **not yet**.
@@ -26,7 +26,7 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
-| [F1](#f1) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd2 | 1 | Specification: 'within about 0.5% of sum/P*dO/ at every covered size' understates the bound: about 0.8% at the benchmark |
+| [F1](#f1) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd2 | 1 | Specification: 'within about 0.5% of sum\|P*dO\| at every covered size' understates the bound: about 0.8% at the benchmark |
 | [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd2 | 1 | Narrowings: 'the host asserts only that the strides are equal' omits do.is_contiguous() (line 585); and a Python float s |
 | [F3](#f3) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd | 1 | The README's tolerance figures understate Post: about 1%, not 0.5%, of the magnitude sums at the benchmark's largest siz |
 | [F4](#f4) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd | 1 | The README's layout narrowing misdescribes the host's checks: do.is_contiguous() and equal strides already fix the conti |

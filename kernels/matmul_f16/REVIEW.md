@@ -6,7 +6,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 
 ## Status
 
-- Gate: **PASS**, digest `10f2256f507c881d` (2026-11-05T04:08:13Z).
+- Gate: **PASS**, digest `10f2256f507c881d` (2026-11-05T14:03:28Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-matmul (all), r-matmul2 (all).
 - Certificate: **not yet**.
@@ -26,8 +26,8 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 |---|---|---|---|---|---|---|
 | [F1](#f1) | CLOSED (non-blocking) | DOC | `decl:Kernels.Matmul.model` | r-matmul2 | 1 | model's docstring goes through each use of an argument equal to 1 but leaves out the loop bound of line 294 at K = 1, wh |
 | [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/matmul_f16/README.md` | r-matmul2 | 1 | README Narrowings says a 'column-major or otherwise overlapping layout of c' is not covered; a column-major c does not o |
-| [F3](#f3) | CLOSED (non-blocking) | DOC | `item:spec` | r-matmul2 | 1 | tol at the largest covered K (2^16) is 1.62% of sum/a*b/: for sign-cancelling data like randn that exceeds the typical / |
-| [F4](#f4) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-matmul | 1 | At the largest covered K = 2^16 the tolerance (1.62% of sum/a*b/) no longer rejects a result rounded to bfloat16, and ex |
+| [F3](#f3) | CLOSED (non-blocking) | DOC | `item:spec` | r-matmul2 | 1 | tol at the largest covered K (2^16) is 1.62% of sum\|a*b\|: for sign-cancelling data like randn that exceeds the typical \| |
+| [F4](#f4) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-matmul | 1 | At the largest covered K = 2^16 the tolerance (1.62% of sum\|a*b\|) no longer rejects a result rounded to bfloat16, and ex |
 | [F5](#f5) | CLOSED (non-blocking) | DOC | `decl:Kernels.Matmul.tol` | r-matmul | 1 | tol's docstring says 'at most 2T*(rho*A + alpha): about 1.0e-3*A at K = 4096, 1.6e-2*A at K = 2^16', but those figures a |
 | [F6](#f6) | CLOSED (non-blocking) | DOC | `decl:Kernels.Matmul.model` | r-matmul | 1 | model's docstring argues that an integer argument equal to 1 gives the same model, use by use, but leaves out K = 1 as t |
 | [F7](#f7) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-matmul2 | 2 | L125's mechanism (a subnormal operand's exponent field setting the wgmma window) may also break DotF16; num-dot's fp16 P |

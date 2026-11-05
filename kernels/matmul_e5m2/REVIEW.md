@@ -6,7 +6,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 ## Status
 
-- Gate: **PASS**, digest `ba872cff63cf0f2a` (2026-11-05T04:08:57Z).
+- Gate: **PASS**, digest `ba872cff63cf0f2a` (2026-11-05T14:04:13Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-e5m2 (all), r-e5m2b (all).
 - Certificate: **not yet**.
@@ -29,7 +29,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 | [F1](#f1) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-e5m2 | 1 | From K = 2817 to 4096 (10 of the 31 benchmark sizes) Post accepts an all-zero c, and from K = 448 (the test's 512 too) a |
 | [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/matmul_e5m2/README.md` | r-e5m2 | 1 | README on K > 2816: 'no bound tighter than the fact follows' is inaccurate (an input-dependent one does), and Post still |
 | [F3](#f3) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.relDot8` | r-e5m2 | 1 | relDot8's per-chunk 2^-7 is about twice the 33*2^-13 plus a rounding that DotE4m3's docstring derives; over the 128 chun |
-| [F4](#f4) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-e5m2b | 1 | For 2817 <= K <= 4096 (covered; 10 of the 31 benchmark fp8 sizes) tol K A exceeds sum/a*b/, so Post holds for a kernel t |
+| [F4](#f4) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-e5m2b | 1 | For 2817 <= K <= 4096 (covered; 10 of the 31 benchmark fp8 sizes) tol K A exceeds sum\|a*b\|, so Post holds for a kernel t |
 | [F5](#f5) | CLOSED (non-blocking) | DOC | `doc:kernels/matmul_e5m2/README.md` | r-e5m2b | 1 | README, what the tolerance rejects: below K = 2817 it fixes the result only within 1 +- gamma (S/2 passes from K = 1665) |
 | [F6](#f6) | CLOSED (non-blocking) | DOC | `decl:Kernels.MatmulE5m2.OutSpec` | r-e5m2b | 2 | OutSpec's docstring says E = tol comes from the exact partial sums and each chunk's largest lifted product; it now also  |
 

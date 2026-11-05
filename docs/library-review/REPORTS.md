@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|
 | [attn_bwd_f16#F5](../../kernels/attn_bwd_f16/REVIEW.md#f5) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | CLOSED | Does DotF16 hold when a subnormal float16 operand sets the wgmma window (L125's mechanism)? This kernel's ppT and dsT ar | L126 |
 | [attn_bwd_f16#F6](../../kernels/attn_bwd_f16/REVIEW.md#f6) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | CLOSED | L125's mechanism (a subnormal operand's exponent field, read as the smallest normal's, sets the wgmma window) is unteste | L126 |
-| [attn_fwd_e5m2#F2](../../kernels/attn_fwd_e5m2/REVIEW.md#f2) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotE5m2` | CLOSED | DotE5m2's relDot8 charges every fp8 tl.dot 2^-7 per chunk of /acc/ too; fed back once per block it compounds as (1+relDo | L124 |
+| [attn_fwd_e5m2#F2](../../kernels/attn_fwd_e5m2/REVIEW.md#f2) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotE5m2` | CLOSED | DotE5m2's relDot8 charges every fp8 tl.dot 2^-7 per chunk of \|acc\| too; fed back once per block it compounds as (1+relDo | L124 |
 | [attn_fwd_f16#F3](../../kernels/attn_fwd_f16/REVIEW.md#f3) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | CLOSED | 'Performance-only arguments' calls num_stages and warp_specialize 'given by a model', but Launch and tl.forRange hold ne | L122 |
 | [attn_fwd_f16#F5](../../kernels/attn_fwd_f16/REVIEW.md#f5) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | CLOSED | SEMANTICS 'Float + and -' does not say whether the value tl.maximum, tl.minimum or tl.where returns, when it is a produc | L123 |
 | [attn_fwd_f16#F6](../../kernels/attn_fwd_f16/REVIEW.md#f6) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | CLOSED | L125's mechanism (a subnormal operand's exponent field sets the wgmma window) may also apply to float16 operands, and Do | L126 |

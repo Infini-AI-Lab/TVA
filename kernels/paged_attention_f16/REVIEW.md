@@ -6,7 +6,7 @@ Paged attention, decode (`paged_attention_kernel`, float16). The claim sheet: [c
 
 ## Status
 
-- Gate: **PASS**, digest `eaa4633f6e162cd5` (2026-11-05T04:14:30Z).
+- Gate: **PASS**, digest `eaa4633f6e162cd5` (2026-11-05T14:09:54Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-pa (all), r-pa2 (all).
 - Certificate: **not yet**.

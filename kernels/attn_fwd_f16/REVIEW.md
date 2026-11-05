@@ -6,7 +6,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 
 ## Status
 
-- Gate: **PASS**, digest `7008bc4894323a19` (2026-11-05T04:11:58Z).
+- Gate: **PASS**, digest `7008bc4894323a19` (2026-11-05T14:07:20Z).
 - Phase: round 4: all reviewers have filed.
 - Reviewers: r-fwd (all), r-fwd2 (all).
 - Certificate: **not yet**.
@@ -32,7 +32,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
 | [F1](#f1) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/lean/AttnFwd.lean` | r-fwd | 1 | The module docstring cites the test as lines 600-650 and the benchmark as lines 655-705; in source/ they are 631-695 (te |
-| [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/README.md` | r-fwd | 1 | The write-up's estimates of sigma*sum/q.k/ for the host's inputs (below 20, some 200) differ from HeadOk's docstring (ab |
+| [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/README.md` | r-fwd | 1 | The write-up's estimates of sigma*sum\|q.k\| for the host's inputs (below 20, some 200) differ from HeadOk's docstring (ab |
 | [F3](#f3) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | r-fwd | 1 | 'Performance-only arguments' calls num_stages and warp_specialize 'given by a model', but Launch and tl.forRange hold ne |
 | [F4](#f4) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/lean/AttnFwd.lean` | r-fwd2 | 1 | Stale or loose wording: AttnFwd.lean's module docstring puts the test at lines 600-650 and the benchmark at 655-705; tes |
 | [F5](#f5) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | r-fwd2 | 1 | SEMANTICS 'Float + and -' does not say whether the value tl.maximum, tl.minimum or tl.where returns, when it is a produc |

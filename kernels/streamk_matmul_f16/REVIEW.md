@@ -6,7 +6,7 @@ Stream-K matrix multiplication (`streamk_matmul_kernel`, float16 into float32 wi
 
 ## Status
 
-- Gate: **PASS**, digest `3ae070d997509ad2` (2026-11-05T04:11:08Z).
+- Gate: **PASS**, digest `3ae070d997509ad2` (2026-11-05T14:06:28Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-sk (all), r-sk2 (all).
 - Certificate: **not yet**.
@@ -26,9 +26,9 @@ Stream-K matrix multiplication (`streamk_matmul_kernel`, float16 into float32 wi
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
-| [F1](#f1) | CLOSED (non-blocking) | DOC | `doc:kernels/streamk_matmul_f16/README.md` | r-sk | 1 | Specification: the test's data is said to have no subnormal operand (so A = (/A/ @ /B/)[i, j]); float16 torch.randn data |
+| [F1](#f1) | CLOSED (non-blocking) | DOC | `doc:kernels/streamk_matmul_f16/README.md` | r-sk | 1 | Specification: the test's data is said to have no subnormal operand (so A = (\|A\| @ \|B\|)[i, j]); float16 torch.randn data |
 | [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/streamk_matmul_f16/README.md` | r-sk2 | 1 | README (Specification) says the test's data has no subnormal operand; torch.randn float16 gives subnormal operands at mo |
-| [F3](#f3) | CLOSED (non-blocking) | DOC | `decl:Kernels.StreamKMatmul.Inst.ok.K_le` | r-sk2 | 1 | K_le's docstring says tol is below 0.21% of sum/a*b/ (tol_le); tol_le bounds it by 0.21% of A = dotMag, which exceeds su |
+| [F3](#f3) | CLOSED (non-blocking) | DOC | `decl:Kernels.StreamKMatmul.Inst.ok.K_le` | r-sk2 | 1 | K_le's docstring says tol is below 0.21% of sum\|a*b\| (tol_le); tol_le bounds it by 0.21% of A = dotMag, which exceeds su |
 
 **Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 

@@ -402,6 +402,13 @@ def _home_ok(parts):
     return any(tuple(parts[:len(ok)]) == ok or tuple(ok[:len(parts)]) == tuple(parts) for ok in HOME_OK)
 
 
+def md_cell(text):
+    """Text for a cell of a Markdown table: a `|` escaped as `\\|` (library issue L138). Writing it as
+    `/` turned a reviewer's `|x|=2^30` into `/x/=2^30`, which `foreign_refs` reads as an absolute path,
+    so the generated REVIEW.md failed the kernel's own independence check."""
+    return text.replace("\n", " ").replace("|", "\\|")
+
+
 def foreign_refs(text, where=None, absolute=True, relative=True, home=True):
     """References to other projects in a text: a hashed name, or a path that leads outside TVA.
 
@@ -2685,7 +2692,7 @@ def render_claim(k, man, gate, surf, consts, items, mm, src_lines, jit=None, fun
     w("## 7. Gate\n")
     w("| Check | | Detail |\n|---|---|---|")
     for c in gate["checks"]:
-        w(f"| {c['name']} | {'PASS' if c['ok'] else 'FAIL'} | {c['detail'].replace('|', '/')} |")
+        w(f"| {c['name']} | {'PASS' if c['ok'] else 'FAIL'} | {md_cell(c['detail'])} |")
     w("\n| Item | Digest |\n|---|---|")
     for i, v in sorted(items.items()):
         w(f"| `{i}` | `{v['digest'][:16]}` |")
@@ -3073,7 +3080,7 @@ def status_text(k, who=None):
             if f["state"] == "ANSWERED":
                 st += f" — {f['last_response']}"
             L.append(f"| [{i}](#{i.lower()}) | {st} | {f['kind']} | `{f['target']}` | {', '.join(sorted(f['raisers']))} "
-                     f"| {f['round']} | {f['summary'][:120].replace('|', '/')} |")
+                     f"| {f['round']} | {md_cell(f['summary'][:120])} |")
         L.append("")
     cert, blocking, full = cert_state(k, S, gate)
     stale = gate_staleness(k, gate)
@@ -3265,7 +3272,7 @@ def render_reports():
                 if e["type"] == "respond" and e["response"] == "REFERRED":
                     ref = e.get("issue") or ", ".join(sorted(set(re.findall(r"\bL\d+\b", e["text"]))))
             out.append(f"| [{k}#{i}]({link(f'kernels/{k}/REVIEW.md', LREVIEW)}#{i.lower()}) | {f['kind']} | `{f['target']}` | {f['state']} | "
-                       f"{f['summary'][:120].replace('|', '/')} | {ref} |")
+                       f"{md_cell(f['summary'][:120])} | {ref} |")
     write(os.path.join(LREVIEW, "REPORTS.md"), "\n".join(out) + "\n")
 
 

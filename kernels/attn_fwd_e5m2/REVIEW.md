@@ -6,7 +6,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 
 ## Status
 
-- Gate: **PASS**, digest `a650083757b23ba1` (2026-11-05T04:12:54Z).
+- Gate: **PASS**, digest `a650083757b23ba1` (2026-11-05T14:08:16Z).
 - Phase: round 7: all reviewers have filed.
 - Reviewers: r-e5fwd (all), r-e5fwd2 (all).
 - Certificate: **not yet**.
@@ -34,12 +34,12 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first âŒ
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
 | [F1](#f1) | CLOSED | SPEC_TOO_WEAK | `item:spec` | r-e5fwd2 | 1 | tolO does not tell o from an all-zero output on the test's own data (every sampled element at D=128, 88-100% at D=64), i |
-| [F2](#f2) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotE5m2` | r-e5fwd2 | 1 | DotE5m2's relDot8 charges every fp8 tl.dot 2^-7 per chunk of /acc/ too; fed back once per block it compounds as (1+relDo |
+| [F2](#f2) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotE5m2` | r-e5fwd2 | 1 | DotE5m2's relDot8 charges every fp8 tl.dot 2^-7 per chunk of \|acc\| too; fed back once per block it compounds as (1+relDo |
 | [F3](#f3) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 1 | Say up front (README's opening, kernel.json's title, which kernels/README.md lists) that the claim certifies output 0 fo |
 | [F4](#f4) | CLOSED | SPEC_TOO_WEAK | `decl:Kernels.AttnFwdE5m2.tolO` | r-e5fwd | 1 | tolO accepts o = 0 on 96.8-100% of elements on the test's and the benchmark's data; at the benchmark (D = 128) it is abo |
 | [F5](#f5) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 1 | Say up front that only the first ceil(Z*H/D) heads get their v (others output Â±0); drop 'meaningful on the test's data'  |
 | [F6](#f6) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 2 | README's figures on the test's data overstate the fp8 floor: at N = 128 and on causal rows it covers 27-73% of elements, |
-| [F7](#f7) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 2 | The test-data figures (0 meets Post on 97.7-100%, median /attnRef/ 0.009-0.04, p's fp8 rounding >= /attnRef/ on 81-100%) |
+| [F7](#f7) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 2 | The test-data figures (0 meets Post on 97.7-100%, median \|attnRef\| 0.009-0.04, p's fp8 rounding >= \|attnRef\| on 81-100%) |
 | [F8](#f8) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 2 | Say plainly that tolV accepts every output within the range of the row's own values, whatever q, k, sm_scale (tolV >= 9/ |
 | [F9](#f9) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 3 | Some sample-based figures in the new tables do not hold over larger uniform row samples, e.g. 0 rejected on causal rows  |
 | [F10](#f10) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 3 | The causal test-data figures at N_CTX >= 1024 (0 rejected on 7-8% and 4-5%) come from 24-row samples in which row 0 (one |
