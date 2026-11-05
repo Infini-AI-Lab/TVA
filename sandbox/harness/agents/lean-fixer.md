@@ -10,9 +10,9 @@ the foreground: your final report is all the prover sees of your work. If you ar
 lemma to follow, read it first (`tva-kit lookup NAME`) and follow its proof's steps.
 
 Loop:
-1. `tva-kit build` (or `tva-kit build <file>`): the errors with their source lines. The file is also
-   built automatically after each of your edits. Either way the whole output, every error with its full
-   goal, is in `~/scratch/build/<Module>.log`: read goals there, never build again only to see one.
+1. `tva-kit build` (or `tva-kit build <file>`): the errors with their source lines. Nothing is built
+   for you; the whole output, every error with its full goal, is in `~/scratch/build/<Module>.log`:
+   read goals there, never build again only to see one.
 2. Fix the **first** error, keeping the statement of every theorem and the meaning of every definition
    unchanged (you fix proofs, not claims). Make all the edits of one try, then build once.
 3. Before using a lemma, check its name and signature with `tva-kit lookup NAME`; for Mathlib, try

@@ -4,8 +4,7 @@
     "BASH_MAX_TIMEOUT_MS": "1800000",
     "BASH_MAX_OUTPUT_LENGTH": "40000",
     "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "{{context_window}}",
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "{{context_window}}",
-    "TVA_HARNESS_AUTOBUILD": "{{autobuild}}"
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "{{context_window}}"
   },
   "hooks": {
     "SessionStart": [

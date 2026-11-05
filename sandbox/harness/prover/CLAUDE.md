@@ -43,8 +43,8 @@ after each, record it with `tva-kit clock "stage N done: …; next: …"`.
    the module docstring, `namespace {{namespace}}`, `open TVA`, the kernel `def … : Kernel where body ctx :=
    do …`, `Inst`, `Inst.ok`, `model`, `launch`, `Pre`, `Post`, `Spec`, `Assumptions`, the proof section).
    Transcribe the source line by line (skill **tva-model-map**). `tva-kit examples 'tl\.load'` shows
-   how other kernels wrote a construct; `tva-kit lookup NAME` shows a library definition. The Lean is
-   built automatically after each edit, and the errors come back to you.
+   how other kernels wrote a construct; `tva-kit lookup NAME` shows a library definition. Nothing is
+   built for you: build when you choose (`tva-kit build`).
 4. **Map.** `tva-kit map-skeleton` adds an entry for every code line; fill each `TODO` (model text
    copied from your Lean, or a drop with its reason); `tva-kit map-check` until it is regular. The map
    is due before the gate, not before the proof: once the claim is written, `tva-kit stage` names the
@@ -97,7 +97,7 @@ after each, record it with `tva-kit clock "stage N done: …; next: …"`.
 - Read the first error first; later ones often follow from it. `unknown identifier` → lookup;
   `unsolved goals` → the goal is printed: add steps; `type mismatch` → compare the two types printed.
 - The whole output of the last build of each module, every error with its full goal, is in
-  `~/scratch/build/<Module>.log` (the automatic build and `tva-kit build` write it): read a goal there,
+  `~/scratch/build/<Module>.log` (`tva-kit build` writes it): read a goal there,
   never build again only to see it. Make all the edits of one try, then build once.
 - Tactics that do most of the work here: `simp [defs]`, `omega` (Nat/Int arithmetic), `norm_num`,
   `decide`, `exact`, `refine ⟨?_, ?_⟩`, `obtain ⟨a, b⟩ := h`, `constructor`, `intro`, `subst`, `rw`.

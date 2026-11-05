@@ -3,7 +3,7 @@
 
   sandbox/make_task.py KERNEL [--out DIR] [--tva DIR] [--scripted] [--reviewers N] [--model M]
                [--agent-timeout S] [--max-reviewed N] [--max-rejected N] [--cpus N] [--memory-mb N]
-               [--context-window N] [--no-autobuild]
+               [--context-window N]
 
 writes OUT/tva-prove-KERNEL/ (OUT/tva-prove-KERNEL-scripted/ with --scripted, whose reviewers are the
 scripted plumbing reviewer that accepts everything unread, and whose verifier allows it). OUT is
@@ -187,7 +187,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
         "{{example}}": ex[0] if ex else "vec_add_f32",
         "{{example_file}}": (f"~/fpv/tva/kernels/{ex[0]}/lean/{ex_man['lean']['module'].replace('.', '/')}.lean"
                              if ex else "an example's Lean file"),
-        "{{context_window}}": str(a.context_window), "{{autobuild}}": "0" if a.no_autobuild else "1",
+        "{{context_window}}": str(a.context_window),
         "{{reviewers}}": {1: "one reviewer agent", 2: "two reviewer agents", 3: "three reviewer agents",
                           4: "four reviewer agents"}[a.reviewers],
         "{{time_limit}}": (f"{a.agent_timeout // 3600} hours" if a.agent_timeout % 3600 == 0
@@ -233,8 +233,6 @@ def harness_files(E, tva, k, man, cfg, setup, a):
             render(os.path.join(HARNESS, "dsh", "prover.yml"), os.path.join(R, "dsh", "prover.yml"))
             render(os.path.join(HARNESS, "dsh", "hooks.json"), os.path.join(R, "dsh", "hooks.json"))
             write(os.path.join(R, "dsh", "AGENTS.md"), dsh_manual(open(os.path.join(R, "CLAUDE.md")).read()))
-            # what Claude Code's settings.json gives the hooks' environment (dsh_agent.py sources it)
-            write(os.path.join(R, "dsh", "env"), f"TVA_HARNESS_AUTOBUILD={fields['{{autobuild}}']}\n")
     return ex, entry
 
 
@@ -408,7 +406,6 @@ def main():
     ap.add_argument("--context-window", type=int, default=128000,
                     help="the context window Claude Code assumes for a model it does not know "
                          "(CLAUDE_CODE_MAX_CONTEXT_TOKENS) and its compaction window (CLAUDE_CODE_AUTO_COMPACT_WINDOW)")
-    ap.add_argument("--no-autobuild", action="store_true", help="no automatic Lean build after each edit")
     ap.add_argument("--prover-agent", choices=("claude-code", "dsh"), default="claude-code",
                     help="the prover's agent: Claude Code (Harbor's claude-code), or DeepSeek Harness (dsh; run "
                          "with Harbor's -a sandbox.harness.dsh_agent:Dsh, HARNESS.md)")

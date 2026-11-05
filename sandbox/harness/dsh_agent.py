@@ -30,7 +30,6 @@ RUN = r"""
 set -u
 export DSH_HOME={home} HOME=/root
 mkdir -p "$DSH_HOME" && cp /etc/tva-sandbox/dsh/AGENTS.md "$DSH_HOME/AGENTS.md"
-[ -f /etc/tva-sandbox/dsh/env ] && . /etc/tva-sandbox/dsh/env && export TVA_HARNESS_AUTOBUILD
 cd /
 brief=$(echo '{{}}' | TVA_HARNESS_MANUAL=0 python3 -I /usr/local/lib/tva-harness/hook.py session-start \
         | python3 -I -c 'import json,sys; d=json.load(sys.stdin); print(d["hookSpecificOutput"]["additionalContext"])' \

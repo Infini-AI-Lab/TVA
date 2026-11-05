@@ -68,8 +68,7 @@ harbor run -p tasks/tva-prove-vec_add_f32 -a claude-code -m anthropic/<model-id>
 Options of `make_task.py`: `--out DIR` (default `tasks`), `--reviewers N` (1–4, default 2), `--model`,
 `--agent-timeout` (default 8 h), `--max-reviewed` (default 6), `--max-rejected` (default 40), `--cpus`,
 `--memory-mb`, `--context-window` (the context window Claude Code assumes and compacts at, default 128 000
-tokens: set it below the model's context length, HARNESS.md) and `--no-autobuild` (no Lean build after
-each of the prover's edits).
+tokens: set it below the model's context length, HARNESS.md).
 
 **Kernels.** Any kernel folder of TVA's tree at the base image's commit, with its source and
 `kernel.json` (`tvr new` makes one). A certified kernel's task carries its certified proof as the oracle

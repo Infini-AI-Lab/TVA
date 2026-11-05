@@ -9,10 +9,10 @@
   that records for the service or breaks the prebuilt toolchain; no search of the whole filesystem; no
   waiting loop that spins a core; a subagent runs in the foreground, and none is resumed (SendMessage).
   A Bash command is not read for the files it writes: shell is too irregular to read reliably.
-- post-tool: after an edit of the kernel's Lean, build it, keep the whole output in ~/scratch/build/ and
-  report the errors; after an edit of a JSON record, say whether it parses; after the prover's Bash
-  command, say which fixed files it changed (compared with a snapshot taken at the session's start). A
-  kernel module that Lake reports slow, in the automatic build or in a Bash `lake build` (its output, or
+- post-tool: after an edit of a JSON record, say whether it parses; after the prover's Bash command, say
+  which fixed files it changed (compared with a snapshot taken at the session's start). An edit of the
+  kernel's Lean is not built: the prover builds when it chooses (`tva-kit build`, `lake build`), and the
+  gate builds everything. A kernel module that Lake reports slow, in a Bash `lake build` (its output, or
   the file it went to), gets the advice to split it. Every hour, the prover's agents are told the time left.
 - stop: the prover does not stop while the service is reviewing or findings are open, or before a first
   submission; a reviewer does not stop before its filing is regular.
@@ -120,9 +120,9 @@ def session_start(inp):
 
 
 LEAN_ADVICE = (
-    "Lean work here: look a name up before you use it (`tva-kit lookup NAME`). A kernel Lean file is built "
-    "after each Edit or Write, and the build's whole output, every error with its goal, is kept in "
-    "~/scratch/build/<Module>.log: read the goals there instead of building again. Lean re-checks a whole "
+    "Lean work here: look a name up before you use it (`tva-kit lookup NAME`). Nothing is built for you: "
+    "build when you choose (`tva-kit build`); the build's whole output, every error with its goal, is "
+    "kept in ~/scratch/build/<Module>.log: read the goals there instead of building again. Lean re-checks a whole "
     "file at every build, so keep files short: work on a hard lemma in a small file of its own (imported "
     "where it is used), so that a try takes seconds, not minutes, and make all the edits of one try before "
     "the build. Never edit a file another agent is editing.")
@@ -140,9 +140,10 @@ ATTEMPT_RULES = (
 
 def subagent_start(inp):
     if kit.ROLE != "reviewer" and inp.get("agent_type") == "proof-attempt":
-        text = ATTEMPT_RULES + LEAN_ADVICE.replace("A kernel Lean file is built after each Edit or Write, and the build's "
-                                                   "whole output, every error with its goal, is kept in ~/scratch/build/"
-                                                   "<Module>.log: read the goals there instead of building again. ",
+        text = ATTEMPT_RULES + LEAN_ADVICE.replace("Nothing is built for you: build when you choose (`tva-kit build`); "
+                                                   "the build's whole output, every error with its goal, is "
+                                                   "kept in ~/scratch/build/<Module>.log: read the goals there instead "
+                                                   "of building again. ",
                                                    "The check keeps Lean's whole output in your folder's check.log: read "
                                                    "the goals there instead of checking again. ")
         out({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": text}})
@@ -392,7 +393,7 @@ def check_fixed():
 
 def after_edit(p):
     """What the agent hears after it wrote the kernel file `p`: whether a JSON record parses (and the map
-    check), or the automatic build of a Lean module."""
+    check). A Lean file is not built: the prover builds when it chooses, and the gate builds everything."""
     if p.endswith(".json") and under(p, os.path.realpath(kit.KD)):
         try:
             json.load(open(p))
@@ -402,27 +403,7 @@ def after_edit(p):
             msg = captured(kit.cmd_map_check, [])
             return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "tva-kit map-check:\n" +
                                            kit.short(msg, 1500)}}
-        return None
-    if not (kit.ROLE != "reviewer" and p.endswith(".lean") and under(p, os.path.realpath(os.path.join(kit.KD, "lean")))
-            and os.environ.get("TVA_HARNESS_AUTOBUILD", "1") != "0"):
-        return None
-    mod = kit.module_of(p)
-    t0 = time.time()
-    rc, text = kit.build(mod, timeout=int(os.environ.get("TVA_HARNESS_AUTOBUILD_TIMEOUT", "840")))
-    took, ran = time.time() - t0, kit.LAST_BUILD["seconds"]
-    log = kit.save_build_log(mod, text)
-    errs, warns, sorries, lines = kit.summarize_build(text, limit=6)
-    slow = kit.split_advice(kit.slow_modules(text))
-    slow = "\n" + slow if slow else ""
-    if took - ran >= 10:
-        slow += f"\n({took - ran:.0f} of the {took:.0f} s were spent waiting for another agent's build.)"
-    if rc != 0:
-        return {"decision": "block", "reason": f"automatic `lake build {mod}` after your edit ({took:.0f} s): {len(errs)} "
-                f"error(s). Fix the first one first. The whole output, with every goal, is in {log}: read it there "
-                "rather than building again.\n" + "\n".join(lines)[:6000] + slow}
-    return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext":
-                                   f"automatic `lake build {mod}`: OK ({took:.0f} s; {warns} warning(s), {sorries} `sorry`)"
-                                   + (" — the gate refuses `sorry`: replace each one" if sorries else "") + slow}}
+    return None
 
 
 LAKE_BUILD = re.compile(r"\blake\s+build\b")

@@ -23,7 +23,7 @@ pitfalls. Read §2 and §3 before you start; come back to them for each unfamili
 4. For each source line: `tva-kit examples '<regex of the construct>'` shows how certified kernels wrote
    it (and their notes say why); `tva-kit lookup tl.<op>` shows the library's definition and arguments;
    `tva-kit doc <construct>` the SEMANTICS section.
-5. The file builds after each edit; fix errors as they come.
+5. Build when you choose (`tva-kit build`); fix the first error first.
 6. `tva-kit map-skeleton`, then fill each `TODO` entry (below); `tva-kit map-check` until regular.
 
 ## The points that decide most models (PROVER_GUIDE §1)
