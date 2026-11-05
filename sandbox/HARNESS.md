@@ -39,7 +39,11 @@ also in `harness.json` as `time_limit_sec`; `tva-kit clock` and `tva-kit stage` 
 the manual says never to estimate it) and a path in stages:
 read, classes, model, map, claim, design, audit, lemmas, write-up, gate and submit, rounds. Each stage names its command and skill, and the
 manual lists the worked examples to copy from: three certified kernels chosen for the task's kernel
-(the table `EXAMPLES` in `make_task.py`), never the kernel itself. The reviewer's manual is a procedure in six steps, with calibration
+(the table `EXAMPLES` in `make_task.py`), never the kernel itself. A kernel counts as certified here
+also when a later library change withdrew its certificate (a page in every item's digest, such as
+SEMANTICS.md) while its gate still passes and every assigned reviewer has accepted every current item
+at some gate: its proof is the one certified, and only the re-acceptance waits (`example_kernels`,
+`tva-kit`'s `certified`). The reviewer's manual is a procedure in six steps, with calibration
 rules: accept nothing unread, invent nothing, and do not move the goalposts.
 
 **`tva-kit`.** Short commands that print little. They write the mechanical parts of the protocol and

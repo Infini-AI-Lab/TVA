@@ -111,11 +111,39 @@ def lean_order(tva, e):
     return [(m, titles[m]) for m in order]
 
 
+def example_kernels(tva, k):
+    """The kernels a task may show as worked examples: those certified, and those whose certificate a later
+    change withdrew (a library page in every item's digest) while the gate still passes and every assigned
+    reviewer has accepted every current item at some gate. Their Lean proofs are what was certified; only
+    the re-acceptance waits. The task's own kernel is never among them."""
+    out = []
+    for d in sorted(os.listdir(os.path.join(tva, "kernels"))):
+        kd = os.path.join(tva, "kernels", d)
+        if d == k or not os.path.isdir(kd):
+            continue
+        if os.path.isfile(os.path.join(kd, "review", "certificate.json")):
+            out.append(d)
+            continue
+        try:
+            gate = json.load(open(os.path.join(kd, "gate.json")))
+            ev = [json.loads(l) for l in open(os.path.join(kd, "review", "ledger.jsonl")) if l.strip()]
+        except (OSError, ValueError):
+            continue
+        items = set(gate.get("items") or {})
+        reviewers = {e["actor"] for e in ev if e.get("type") == "assign"}
+        accepted = {r: set() for r in reviewers}
+        for e in ev:
+            if e.get("type") == "accept" and e.get("actor") in accepted and isinstance(e.get("items"), dict):
+                accepted[e["actor"]] |= set(e["items"])
+        if gate.get("ok") and items and reviewers and all(items <= a for a in accepted.values()):
+            out.append(d)
+    return out
+
+
 def design_fields(tva, k, ex):
     """The skill tva-design's examples: the certified kernels' designs (the task's examples first) and the
     lemmas of DESIGN_LEMMAS that are in them; the task's own kernel is never among them."""
-    have = [d for d in sorted(os.listdir(os.path.join(tva, "kernels")))
-            if os.path.isfile(os.path.join(tva, "kernels", d, "review", "certificate.json")) and d != k]
+    have = example_kernels(tva, k)
     kernels = [e for e in ex if e in have] + [e for e in have if e not in ex]
     designs = []
     for e in kernels:
@@ -127,8 +155,7 @@ def design_fields(tva, k, ex):
 
 
 def examples_for(tva, k):
-    have = [d for d in sorted(os.listdir(os.path.join(tva, "kernels")))
-            if os.path.isfile(os.path.join(tva, "kernels", d, "review", "certificate.json")) and d != k]
+    have = example_kernels(tva, k)
     pick = [e for e in EXAMPLES.get(k, []) if e in have]
     return (pick + [e for e in ("vec_add_f32", "softmax_f32", "matmul_f16") if e in have and e not in pick])[:3]
 

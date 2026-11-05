@@ -6,23 +6,23 @@ Stream-K matrix multiplication (`streamk_matmul_kernel`, float16 into float32 wi
 
 ## Status
 
-- Gate: **PASS**, digest `16c9926eb17e72c9` (2026-11-04T08:39:43Z).
+- Gate: **PASS**, digest `3ae070d997509ad2` (2026-11-05T04:11:08Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-sk (all), r-sk2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-sk | r-sk2 |
 |---|---|---|---|
-| `assumption:atomic` | `374fff28a3c2` | accepted | accepted |
-| `assumption:atomic_total` | `de55beb2b392` | accepted | accepted |
-| `assumption:dot` | `50cb0a3c3fad` | accepted | accepted |
-| `assumption:dot_total` | `c0bf2eb9c1fd` | accepted | accepted |
-| `assumption:faithful` | `6103e8fd7466` | accepted | accepted |
-| `conditions` | `8b21c82df666` | accepted | accepted |
-| `map` | `b73ee103b54c` | accepted | accepted |
-| `model` | `c5cc0f88cd26` | accepted | accepted |
-| `spec` | `9f9f8efa8d32` | accepted | accepted |
+| `assumption:atomic` | `8a7d1011142d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:atomic_total` | `ee2ba01970a9` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot` | `7db2028eeecb` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot_total` | `ff769ef448db` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `186ba7747968` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `db7cbf6ad5bb` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `c914323886ad` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `aad68746c175` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `45b16c109c06` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -30,7 +30,7 @@ Stream-K matrix multiplication (`streamk_matmul_kernel`, float16 into float32 wi
 | [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/streamk_matmul_f16/README.md` | r-sk2 | 1 | README (Specification) says the test's data has no subnormal operand; torch.randn float16 gives subnormal operands at mo |
 | [F3](#f3) | CLOSED (non-blocking) | DOC | `decl:Kernels.StreamKMatmul.Inst.ok.K_le` | r-sk2 | 1 | K_le's docstring says tol is below 0.21% of sum/a*b/ (tol_le); tol_le bounds it by 0.21% of A = dotMag, which exceeds su |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ## Round 1
 

@@ -151,6 +151,7 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L134](#l134) | OPEN | — | library author, round 26 | sharpness: the fp8 chunk facts do not state that a partial value never grows past `|acc| + Σ|a·b|`; stating it (with evidence) would remove the remaining `1 + 2^-11` per chunk of a fed-back accumulator |
 | [L135](#l135) | FIXED | 27 | user, 2026-11-02 | tool: the sandbox's files (`sandbox/`, agents proving and reviewing a kernel in containers) name the containers' own paths, which the text scan read as paths out of TVA, so no gate could pass with the folder in the tree |
 | [L136](#l136) | FIXED | 28 | user, 2026-11-04 (sandbox pilot, paged_attention_f16) | protocol: a write-up that states a claim other than the Lean's (a constant, tolerance or condition its definition does not have) could only be filed as `DOC`, which does not block, so a kernel was certified with a README stating a looser tolerance and a wider covered range than its Lean proves |
+| [L137](#l137) | FIXED | 29 | sandbox test-set run, 2026-11-05 (`gdn_gating_bf16`, a REFERRED `UNSUPPORTED` finding) | gap: SEMANTICS.md names `tl.sigmoid` among the `tl.*` functions Triton writes in Triton but states no body, so a model of it cannot be judged against the page |
 
 ## L1
 
@@ -2636,3 +2637,17 @@ Round 28: a new kind `DOC_WRONG` (blocking; targets `item:`, `decl:`, `doc:`) fo
 docstring of a constant in an item's cone, that states a constant, tolerance, condition, narrowing or
 assumption other than its definition; `DOC` stays for wording. Fixed in round 28
 (`round-28/author/notes.md`).
+
+## L137
+
+**`tl.sigmoid` has no stated meaning** (gap; sandbox test-set run, 2026-11-05). SEMANTICS.md lists
+`sigmoid` among the `tl.*` functions Triton writes in Triton and inlines ("Compiler hints", "Which
+value"), but, unlike `tl.cdiv` (L88), states no body for it. In a sandbox run on `gdn_gating_bf16`, a
+reviewer filed the model of `tl.sigmoid(blk_b.to(tl.float32))` as `UNSUPPORTED` (blocking): the model
+wrote the body `1 / (1 + math.exp(-x))` from `primitives/triton-3.8.0-standard.py`, a fact the page does
+not state; the prover referred it to the library. The run on `act_and_mul_bf16` modelled SiLU's
+`x * tl.sigmoid(x)` the same way, unflagged. Round 29: SEMANTICS.md states `tl.sigmoid(x)` and
+`x.sigmoid()` as the expression, by the page's rules, and that only `fp32` and `fp64` are accepted
+(evidence/sigmoid-round29: every `fp32` input bit for bit, the method form, `fp64`, compile-time values;
+`bfloat16`, `float16` and `int32` rejected on the host). No Lean constant changed. Fixed in round 29
+(`round-29/author/notes.md`).

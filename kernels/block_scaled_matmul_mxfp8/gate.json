@@ -126,7 +126,7 @@
       "ok": true
     }
   ],
-  "digest": "2fac55fa1cb0c3c577e2a9abe3fd51d2ce1ef1b4b6a5a3ac52de02308a08367e",
+  "digest": "91420cbefb857edd7e93ccc92e064c6eea84e4718d57a0fbeb934e995fa5c02e",
   "files": {
     "README.md": "5c8934ee7012164a80219eb1ba4f8bf0040c7378f71cea347b637df9a1fa9416",
     "kernel.json": "1f1fd39722143da0e97ab6ae025241df368d4ec461a624ebedd59ff066643e52",
@@ -138,13 +138,13 @@
     "source/10-block-scaled-matmul.py": "22ca9616acab1ee6a017746cffc7bae5a34109510cc49f4a64e6d40cfc331885"
   },
   "items": {
-    "assumption:dot": "20e8eb749ac32948142b1397b741ac8e99cc24b7274ec9420a83de474587b6b5",
-    "assumption:dot_total": "4dde8ad6cd70a1d29e2b7a7b87f3a321c62bf969fb59f15faaf43074542879ec",
-    "assumption:faithful": "38cb4517ef4ab9e9601ddbe9dcdda94dae4d82810c15f7642bd67a6eae5428ee",
-    "conditions": "5995a3537c21b5ebea2a2e0e456d64e9fbcb7a5aaf3cf3179e6d58f160d29322",
-    "map": "17c9d6d9db7aaeb3b48415234ee4f415d9b92a5c6fffd188252b85b0a830cf4b",
-    "model": "67ce131170a753851d415b5b0fb7b31522cb727c61c6fd725312009816c7d85b",
-    "spec": "93f1c0a576d403c78b1e9f8922aa9717a3babd3d7d51291de248b8997118a942"
+    "assumption:dot": "61c025df53e5df2184575b7b4e92a0b1e066e8da9d79ad9106d64c52c795a2a4",
+    "assumption:dot_total": "14615c4ac4a3c433153c04653f7f48cf165bba7ccb8fac1e364a0181698929f1",
+    "assumption:faithful": "1e41a2b2952cb9787f28c4f640c863d4cf300475cb1a2fbdd86dc01a5ad8ef99",
+    "conditions": "670bf59a7751dc0093f73cf0ba49fa9e3aaf456370f3db4847377c8e824f11d4",
+    "map": "ac10b093d68ef36251e9c408b85fab57e6d97a0543e07503962f2975802a4284",
+    "model": "bb263281d1980ac1276ce2c595cf0a5f028233836541b75c7322f354d3a51143",
+    "spec": "e8e662ef58718b59824f735de2f3b18f0fbf4e9322e07f302a865eb399b7bfaf"
   },
   "kernel": "block_scaled_matmul_mxfp8",
   "kinds": {
@@ -154,7 +154,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-04T08:35:07Z",
+  "time": "2026-11-05T04:09:41Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "ce003819a2f2cbbd602c4b0862bbd0161373a0a3b0a7969bdfe4d8c5b2dfbd2f"

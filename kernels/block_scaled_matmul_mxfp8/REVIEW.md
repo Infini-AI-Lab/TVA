@@ -6,28 +6,28 @@ Block-scaled matmul, tutorial 10 (`block_scaled_matmul_kernel`, mxfp8). The clai
 
 ## Status
 
-- Gate: **PASS**, digest `2fac55fa1cb0c3c5` (2026-11-04T08:35:07Z).
+- Gate: **PASS**, digest `91420cbefb857edd` (2026-11-05T04:09:41Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-mx8 (all), r-mx8b (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-mx8 | r-mx8b |
 |---|---|---|---|
-| `assumption:dot` | `20e8eb749ac3` | accepted | accepted |
-| `assumption:dot_total` | `4dde8ad6cd70` | accepted | accepted |
-| `assumption:faithful` | `38cb4517ef4a` | accepted | accepted |
-| `conditions` | `5995a3537c21` | accepted | accepted |
-| `map` | `17c9d6d9db7a` | accepted | accepted |
-| `model` | `67ce131170a7` | accepted | accepted |
-| `spec` | `93f1c0a576d4` | accepted | accepted |
+| `assumption:dot` | `61c025df53e5` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot_total` | `14615c4ac4a3` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `1e41a2b2952c` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `670bf59a7751` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `ac10b093d68e` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `bb263281d198` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `e8e662ef5871` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
 | [F1](#f1) | CLOSED (non-blocking) | DOC | `doc:kernels/block_scaled_matmul_mxfp8/README.md` | r-mx8 | 1 | README says the benchmark's launches are covered, but they run under proton's hook="triton" (line 756), which Compiler.F |
 | [F2](#f2) | CLOSED | CONDITION_WRONG | `item:conditions` | r-mx8b | 1 | The benchmark's launches run under proton's launch hook (line 756), outside Compiler.Faithful's point 3, yet the README  |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ## Round 1
 

@@ -6,23 +6,23 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 
 ## Status
 
-- Gate: **PASS**, digest `752f03b36e81309e` (2026-11-04T08:36:39Z).
+- Gate: **PASS**, digest `ba872cff63cf0f2a` (2026-11-05T04:08:57Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-e5m2 (all), r-e5m2b (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-e5m2 | r-e5m2b |
 |---|---|---|---|
-| `assumption:cvt` | `744a748008a7` | accepted | accepted |
-| `assumption:cvt_total` | `ee243df15fde` | accepted | accepted |
-| `assumption:dot` | `b814e73ae00b` | accepted | accepted |
-| `assumption:dot_total` | `4374a900b991` | accepted | accepted |
-| `assumption:faithful` | `a6f11c176fc0` | accepted | accepted |
-| `conditions` | `91a8ae003d59` | accepted | accepted |
-| `map` | `517f928841e0` | accepted | accepted |
-| `model` | `7a67c16d2d9a` | accepted | accepted |
-| `spec` | `b329888752ff` | accepted | accepted |
+| `assumption:cvt` | `76faa36a2e8d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:cvt_total` | `553c3384af3a` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot` | `83bb89fa081c` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot_total` | `1d39597fe2a1` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `e1a1093d971b` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `e70d0277bf4a` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `219461fd7361` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `4101afb34c34` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `c7d963bf340d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -33,7 +33,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float8e5). The claim sheet:
 | [F5](#f5) | CLOSED (non-blocking) | DOC | `doc:kernels/matmul_e5m2/README.md` | r-e5m2b | 1 | README, what the tolerance rejects: below K = 2817 it fixes the result only within 1 +- gamma (S/2 passes from K = 1665) |
 | [F6](#f6) | CLOSED (non-blocking) | DOC | `decl:Kernels.MatmulE5m2.OutSpec` | r-e5m2b | 2 | OutSpec's docstring says E = tol comes from the exact partial sums and each chunk's largest lifted product; it now also  |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ### Library issues raised from this kernel
 

@@ -6,19 +6,19 @@ Vector addition, tutorial 01 (`add_kernel`, float32). The claim sheet: [claim.md
 
 ## Status
 
-- Gate: **PASS**, digest `5f65eb1f7a961315` (2026-11-04T08:40:22Z).
+- Gate: **PASS**, digest `426a399654f7c446` (2026-11-05T04:06:06Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-vecadd (all), r-vecadd2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-vecadd | r-vecadd2 |
 |---|---|---|---|
-| `assumption:faithful` | `b50b996797f6` | accepted | accepted |
-| `conditions` | `8e766778801c` | accepted | accepted |
-| `map` | `f29709c72fab` | accepted | accepted |
-| `model` | `60be74de9c81` | accepted | accepted |
-| `spec` | `6b0f2e380fa0` | accepted | accepted |
+| `assumption:faithful` | `f15ec5a06f46` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `8345127bd605` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `5839c4bc0b82` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `c2a0f6b34fb3` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `c682b3debf3e` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 Round 1 is blind: findings are hidden until every assigned reviewer has filed.
 
@@ -28,7 +28,7 @@ Round 1 is blind: findings are hidden until every assigned reviewer has filed.
 | [F3](#f3) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | r-vecadd | 2 | Scope 11's reuse clause names the source, compile-time values and settings, not the runtime arguments' specialisation; i |
 | [F4](#f4) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/rules/compiler-faithful.md` | r-vecadd2 | 2 | Scope 11 admits code compiled 'earlier for the same source, compile-time values and settings' without asking for the sam |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ### Library issues raised from this kernel
 

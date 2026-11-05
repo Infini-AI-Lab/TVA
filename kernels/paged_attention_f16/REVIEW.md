@@ -6,24 +6,24 @@ Paged attention, decode (`paged_attention_kernel`, float16). The claim sheet: [c
 
 ## Status
 
-- Gate: **PASS**, digest `22c8afda93dec27b` (2026-11-04T08:38:13Z).
+- Gate: **PASS**, digest `eaa4633f6e162cd5` (2026-11-05T04:14:30Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-pa (all), r-pa2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-pa | r-pa2 |
 |---|---|---|---|
-| `assumption:div_full` | `f1170fae390b` | accepted | accepted |
-| `assumption:div_total` | `05a4fc828257` | accepted | accepted |
-| `assumption:exp_acc` | `b2bfe37414e5` | accepted | accepted |
-| `assumption:exp_ninf` | `966398311c65` | accepted | accepted |
-| `assumption:exp_total` | `22ebf07e56e9` | accepted | accepted |
-| `assumption:faithful` | `bb1d541518a4` | accepted | accepted |
-| `conditions` | `17f261cdca40` | accepted | accepted |
-| `map` | `b5a5a6a683c6` | accepted | accepted |
-| `model` | `1a26e3a33210` | accepted | accepted |
-| `spec` | `fe964002fa25` | accepted | accepted |
+| `assumption:div_full` | `7bb15f00e13e` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:div_total` | `e594c55266dc` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp_acc` | `3ad52801f0e4` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp_ninf` | `e5f5dcf9b78f` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp_total` | `10858b4e2a04` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `03fc26cfb9c5` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `e5b668049e8f` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `eb0bfbed1dc7` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `f9d05a65e037` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `b7211d71ce14` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -36,7 +36,7 @@ Paged attention, decode (`paged_attention_kernel`, float16). The claim sheet: [c
 | [F7](#f7) | CLOSED (non-blocking) | DOC | `decl:Kernels.PagedAttention.model` | r-pa | 1 | The stated reason why a stride equal to 1 changes nothing is wrong for line 59's page * stride_kp, whose other operand i |
 | [F8](#f8) | CLOSED (non-blocking) | LIBRARY_REPORT | `lib:docs/SEMANTICS.md` | r-pa | 1 | The fusion rule's 'a product ... through any dataflow' does not say whether a tl.where of a product, or a reduction over |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ## Round 1
 

@@ -6,21 +6,21 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 
 ## Status
 
-- Gate: **PASS**, digest `471e3872cf6cb659` (2026-11-04T08:37:25Z).
+- Gate: **PASS**, digest `10f2256f507c881d` (2026-11-05T04:08:13Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-matmul (all), r-matmul2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-matmul | r-matmul2 |
 |---|---|---|---|
-| `assumption:dot` | `706c85369e58` | accepted | accepted |
-| `assumption:dot_total` | `28868cd31206` | accepted | accepted |
-| `assumption:faithful` | `6cf79da61917` | accepted | accepted |
-| `conditions` | `5d4073a65cc3` | accepted | accepted |
-| `map` | `b1821d933822` | accepted | accepted |
-| `model` | `8a58b105aede` | accepted | accepted |
-| `spec` | `ec2a163bc3fb` | accepted | accepted |
+| `assumption:dot` | `2b29b9c33471` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot_total` | `0705ce950718` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `63685d8bd2dd` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `abd50f021120` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `9c1b83a8dfbe` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `8b95a782c517` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `6902b0729683` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -32,7 +32,7 @@ Matrix multiplication, tutorial 03 (`matmul_kernel`, float16). The claim sheet: 
 | [F6](#f6) | CLOSED (non-blocking) | DOC | `decl:Kernels.Matmul.model` | r-matmul | 1 | model's docstring argues that an integer argument equal to 1 gives the same model, use by use, but leaves out K = 1 as t |
 | [F7](#f7) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-matmul2 | 2 | L125's mechanism (a subnormal operand's exponent field setting the wgmma window) may also break DotF16; num-dot's fp16 P |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ## Round 1
 

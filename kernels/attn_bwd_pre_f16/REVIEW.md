@@ -6,26 +6,26 @@ Attention backward preprocess, tutorial 06 (`_attn_bwd_preprocess`, `float16` in
 
 ## Status
 
-- Gate: **PASS**, digest `74a1e051af7b1c1b` (2026-11-04T08:32:32Z).
+- Gate: **PASS**, digest `47fc2df993ff86b2` (2026-11-05T04:07:29Z).
 - Phase: round 2: all reviewers have filed.
 - Reviewers: r-bwdpre (all), r-bwdpre2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-bwdpre | r-bwdpre2 |
 |---|---|---|---|
-| `assumption:faithful` | `c640e40a45d8` | accepted | accepted |
-| `conditions` | `170a713afb16` | accepted | accepted |
-| `map` | `d268f7b24f77` | accepted | accepted |
-| `model` | `6f0bd12a4ca3` | accepted | accepted |
-| `spec` | `8c5314ff470a` | accepted | accepted |
+| `assumption:faithful` | `3dc70a80d85f` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `47d476fb5ecf` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `1eace924af48` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `a92fdaba1081` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `075b518c0de2` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
 | [F1](#f1) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_pre_f16/README.md` | r-bwdpre2 | 1 | Narrowings, 'The grid': 'the host's largest has Z·H = 192 and 128 · 128 programs' joins two different launches' maxima i |
 | [F2](#f2) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_pre_f16/README.md` | r-bwdpre | 1 | README Narrowings, 'The grid': 'the host's largest has Z·H = 192 and 128 · 128 programs' joins two maxima of different l |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ## Round 1
 

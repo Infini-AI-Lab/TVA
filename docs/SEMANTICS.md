@@ -1015,6 +1015,17 @@ Each definition's docstring states its reading of the documentation. The non-obv
     `tl.cdiv(-5, 4)` with an `int32` `-5` is `0` (C1-C5: every `int32` `x` for eight constant
     divisors, `2^24` random runtime pairs and their edges, `int64` and the method form, all as the
     expression gives).
+- **`tl.sigmoid(x)`** (and the method `x.sigmoid()`) is Triton's `@triton.jit` function whose body is
+  `1 / (1 + math.exp(-x))` (`triton-3.8.0-standard.py:44-50`; `math.exp` is `tl.exp`), inlined like
+  a helper, so it means that expression by the rules of this page (library issue L137,
+  [evidence/sigmoid-round29](../evidence/sigmoid-round29/README.md)): the float negation `-x`,
+  `tl.exp`, the addition of the Python number `1`, and the default float division `/` of the Python
+  number `1` by the sum, each in `x`'s dtype, with the accuracy those operations have here
+  (`tl.exp`'s `Rules.Num.MathAcc`, `/`'s `Rules.Num.DivFull` for fp32). It is the same bits as that
+  expression on every `fp32` input, in the method form, on `fp64` and on compile-time values (S1-S3,
+  S5). `tl.exp` admits only `fp32` and `fp64`, so the front end rejects `tl.sigmoid` of a `bfloat16`,
+  `float16` or integer tensor on the host (S4): a kernel converts first
+  (`tl.sigmoid(b.to(tl.float32))`), and its model writes the conversion.
 - **Compiler hints** (`tl.multiple_of`, `tl.max_contiguous`, `tl.max_constancy`, `tl.assume`)
   are checks (undefined behaviour if false), not no-ops. Triton applies a hint to a value: it is an
   attribute of the operation that defined the value (`set_attr`, `ir.cc:411-425`), and holds at

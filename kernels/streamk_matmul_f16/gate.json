@@ -126,7 +126,7 @@
       "ok": true
     }
   ],
-  "digest": "16c9926eb17e72c93608de14319293d2c61a012e4f57fc4c3a69cd4cc652fce7",
+  "digest": "3ae070d997509ad23280a9f3aff28afe78824994aa65fd805871d872f0d3ffd4",
   "files": {
     "README.md": "c61f595683eda999de1a47a2be63e78b70309de9ca1470d66a3de9d6a1a398ec",
     "kernel.json": "c79020fd22aff4c4280bece48265d2dbe05652081a6c3bfaef01434d63d360c5",
@@ -143,15 +143,15 @@
     "source/streamk_matmul.py": "7d04a930fae74c16d1f7d3011e26d52e7c6f18537330460197effe08d30de6c7"
   },
   "items": {
-    "assumption:atomic": "374fff28a3c2adcccd5d736a210b493fc57de61dd09ccec2b729f0a5a65b4138",
-    "assumption:atomic_total": "de55beb2b3927f198967c1ac4f2977cd7180a98a168be8fd0696c2c946bbe16f",
-    "assumption:dot": "50cb0a3c3fad4d2f1eb566f940c319caed39f6afb50aa00c4c99c50ebb5db089",
-    "assumption:dot_total": "c0bf2eb9c1fd91bab882699f1827ae28218c3e3bf0e7e924f4e45c1102cd84f4",
-    "assumption:faithful": "6103e8fd74665278a9344454ac5eeda83ce97ffeb683fc6550fe82100bde2c55",
-    "conditions": "8b21c82df666dc462689848227ed9e2d27b255b829ad557e9cc6459cede00ff8",
-    "map": "b73ee103b54ca1cf28d72b9af97bd40ea9d30422448d30f66d6590b736982ee3",
-    "model": "c5cc0f88cd26b7a090d532988c8d37a5323942f5035a3060cc77f48325b51027",
-    "spec": "9f9f8efa8d3261afe6be924e9c18dbc0d08f531c1aaa9e308f7f92845e6c67c3"
+    "assumption:atomic": "8a7d1011142d992da61864b149934104ac23baebc960fd2379eb000e1d7b52db",
+    "assumption:atomic_total": "ee2ba01970a9069e484085eaf4efb1ea93fb70d2ae486a7cd0c9c9ff29848e63",
+    "assumption:dot": "7db2028eeecb67f3dc043ac1994f9454db992d5eceea12612920a28aebece578",
+    "assumption:dot_total": "ff769ef448db6a242cc86394a13bc7e138784dff6ff9aaab8fff064dce4a7bae",
+    "assumption:faithful": "186ba7747968962a6e61d1d08444897f1f8006aff1c2db235efe248d813f8c52",
+    "conditions": "db7cbf6ad5bb6db5ea036ad1998c0501217e94beed3290c3e1a0c0f01b3a62b7",
+    "map": "c914323886ad13a4d315f43ae11f451fbedf331e5d1c911ee6b04df9fb77f1e8",
+    "model": "aad68746c175d086eb264b7dc4a291bc4e204f1c03d9c1405092815dba66c686",
+    "spec": "45b16c109c06dedb77cf11a40dddcd9387e800c9dc2f904e8852d6f6e9c2fa94"
   },
   "kernel": "streamk_matmul_f16",
   "kinds": {
@@ -163,7 +163,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-04T08:39:43Z",
+  "time": "2026-11-05T04:11:08Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "ce003819a2f2cbbd602c4b0862bbd0161373a0a3b0a7969bdfe4d8c5b2dfbd2f"

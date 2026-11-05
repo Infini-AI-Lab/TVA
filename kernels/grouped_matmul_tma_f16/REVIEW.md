@@ -6,21 +6,21 @@ Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16). The c
 
 ## Status
 
-- Gate: **PASS**, digest `ea472d49ce692007` (2026-11-04T08:35:52Z).
+- Gate: **PASS**, digest `5755a188096d1262` (2026-11-05T04:10:24Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-gmm (all), r-gmm2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-gmm | r-gmm2 |
 |---|---|---|---|
-| `assumption:dot` | `6277e22d8319` | accepted | accepted |
-| `assumption:dot_total` | `3f2706338d0d` | accepted | accepted |
-| `assumption:faithful` | `ba5a46235b62` | accepted | accepted |
-| `conditions` | `3fa9d4d3c595` | accepted | accepted |
-| `map` | `d7be69bb0653` | accepted | accepted |
-| `model` | `f819312143dc` | accepted | accepted |
-| `spec` | `2559d6a40f41` | accepted | accepted |
+| `assumption:dot` | `943dca554afa` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot_total` | `104ade9890e2` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `7025b749ae9d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `e04c99657f16` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `c88767be709a` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `ad6a9197d574` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `b304ac49c942` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -31,7 +31,7 @@ Grouped GEMM with TMA, tutorial 08 (`grouped_matmul_tma_kernel`, float16). The c
 | [F5](#f5) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-gmm | 2 | Does DotF16 survive L125's mechanism? A subnormal float16 operand may set the wgmma window as a subnormal fp8 one does,  |
 | [F6](#f6) | CLOSED (non-blocking) | LIBRARY_REPORT | `decl:TVA.Rules.Num.DotF16` | r-gmm2 | 2 | L125's mechanism (a subnormal operand's exponent field read as the smallest normal's sets the window) is untested for fl |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ### Library issues raised from this kernel
 

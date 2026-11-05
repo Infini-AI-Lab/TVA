@@ -6,23 +6,23 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 
 ## Status
 
-- Gate: **PASS**, digest `e30b28fa701ed30a` (2026-11-04T08:31:34Z).
+- Gate: **PASS**, digest `b94ad03856cf3987` (2026-11-05T04:13:43Z).
 - Phase: round 4: all reviewers have filed.
 - Reviewers: r-bwd (all), r-bwd2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-bwd | r-bwd2 |
 |---|---|---|---|
-| `assumption:dot` | `c2ed7c4b2635` | accepted | accepted |
-| `assumption:dot_total` | `f109cebf6e66` | accepted | accepted |
-| `assumption:exp2` | `714b30f76ac3` | accepted | accepted |
-| `assumption:exp2_total` | `7a3d25528b35` | accepted | accepted |
-| `assumption:faithful` | `4c343bd534fc` | accepted | accepted |
-| `conditions` | `1ea438ae16fd` | accepted | accepted |
-| `map` | `546ddbd1d499` | accepted | accepted |
-| `model` | `4fc657ef0210` | accepted | accepted |
-| `spec` | `61385b24caea` | accepted | accepted |
+| `assumption:dot` | `fb51319a27f9` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot_total` | `b2553e72ad3d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp2` | `d8327a5b8b0f` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp2_total` | `ac101174c8fd` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `b70b7acb48f3` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `9b4991db593d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `92af6c9f5832` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `f51a67cf3b7d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `46513425831a` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -35,7 +35,7 @@ Attention backward, tutorial 06 (`_attn_bwd` with `_attn_bwd_dkdv` and `_attn_bw
 | [F7](#f7) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd | 3 | 'What changed (library round 25)': per-pair errors and HeadV.Ok read the lifted aQK, aVD; p16L, ds16L lift bounds, not v |
 | [F8](#f8) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_bwd_f16/README.md` | r-bwd2 | 3 | 'What changed (library round 25)': 'for inputs and values that are zero or normal these are the old magnitudes' is wrong |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ## Round 1
 

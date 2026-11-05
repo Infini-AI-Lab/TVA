@@ -6,24 +6,24 @@ Fused softmax, tutorial 02 (`softmax_kernel`, float32). The claim sheet: [claim.
 
 ## Status
 
-- Gate: **PASS**, digest `58bd069c9b972989` (2026-11-04T08:38:56Z).
+- Gate: **PASS**, digest `8d3e9143014b6e82` (2026-11-05T04:06:48Z).
 - Phase: round 3: all reviewers have filed.
 - Reviewers: r-softmax (all), r-softmax2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-softmax | r-softmax2 |
 |---|---|---|---|
-| `assumption:div_full` | `bcfda3de0ce7` | accepted | accepted |
-| `assumption:div_total` | `dc88fa81663e` | accepted | accepted |
-| `assumption:exp_acc` | `4d93205b60d6` | accepted | accepted |
-| `assumption:exp_ninf` | `e6c0e34d06db` | accepted | accepted |
-| `assumption:exp_total` | `41413ee7af02` | accepted | accepted |
-| `assumption:faithful` | `2479993e1691` | accepted | accepted |
-| `conditions` | `573ad1e9d67a` | accepted | accepted |
-| `map` | `1c9186a92ce5` | accepted | accepted |
-| `model` | `92cb68c90bf7` | accepted | accepted |
-| `spec` | `1691dfb2c46a` | accepted | accepted |
+| `assumption:div_full` | `986245805089` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:div_total` | `a91b4b61b572` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp_acc` | `d542ef35581b` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp_ninf` | `aa43758218b1` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp_total` | `cae4b3af5412` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `28b8cbb55c8b` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `39fa667b4ee6` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `8e4b42865f61` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `317f689cfaa0` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `1f2819d9dedf` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -36,7 +36,7 @@ Fused softmax, tutorial 02 (`softmax_kernel`, float32). The claim sheet: [claim.
 | [F7](#f7) | CLOSED (non-blocking) | DOC | `doc:kernels/softmax_f32/README.md` | r-softmax | 2 | Two wording slips: README says 'the last condition alone' limits n_rows (it is in_off, not the buffer lengths); Err.lean |
 | [F8](#f8) | CLOSED (non-blocking) | DOC | `doc:kernels/softmax_f32/README.md` | r-softmax2 | 2 | README 'Covered in particular': 16384-column rows are covered up to 131072 rows, not 131073, and the limit is (n_rows -  |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ## Round 1
 

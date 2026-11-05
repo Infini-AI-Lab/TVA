@@ -6,28 +6,28 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 
 ## Status
 
-- Gate: **PASS**, digest `11e67701bc53c248` (2026-11-04T08:34:22Z).
+- Gate: **PASS**, digest `7008bc4894323a19` (2026-11-05T04:11:58Z).
 - Phase: round 4: all reviewers have filed.
 - Reviewers: r-fwd (all), r-fwd2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-fwd | r-fwd2 |
 |---|---|---|---|
-| `assumption:div_full` | `0dee01844598` | accepted | accepted |
-| `assumption:div_total` | `87a54307dbd6` | accepted | accepted |
-| `assumption:dot` | `15eb22451474` | accepted | accepted |
-| `assumption:dot_total` | `a817b274cd49` | accepted | accepted |
-| `assumption:exp2` | `6a84738be8a0` | accepted | accepted |
-| `assumption:exp2_ninf` | `471b7d70cd9b` | accepted | accepted |
-| `assumption:exp2_total` | `718f88401d68` | accepted | accepted |
-| `assumption:faithful` | `7b632a90276e` | accepted | accepted |
-| `assumption:log2` | `aaaf77beb593` | accepted | accepted |
-| `assumption:log2_total` | `4788be145e72` | accepted | accepted |
-| `conditions` | `c587de4b858e` | accepted | accepted |
-| `map` | `726c8b30b1cd` | accepted | accepted |
-| `model` | `e98ae22afef9` | accepted | accepted |
-| `spec` | `c53c09256a85` | accepted | accepted |
+| `assumption:div_full` | `024c964fded7` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:div_total` | `76d5511a1754` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot` | `150ae5879b50` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot_total` | `26c25cbea4c0` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp2` | `be30441a5d17` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp2_ninf` | `8bfd23b4ebb0` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp2_total` | `3e92edb0330b` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `3970b9f5277d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:log2` | `6b988aa9110b` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:log2_total` | `47ffb67ed5f9` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `77f56ed59b46` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `5c462b76ecf4` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `880b73be8856` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `3140b014adf3` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -41,7 +41,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float16). The claim sheet: [claim.md]
 | [F8](#f8) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/README.md` | r-fwd2 | 3 | Specification: 'the bound always fixes the output to well within its own magnitude' no longer holds now that tolF is abo |
 | [F9](#f9) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_f16/lean/AttnFwd/Model.lean` | r-fwd2 | 3 | absA's docstring puts relDot16 64 times the block's lift (5*2^-9) at 'about 1.5*2^-23'; it is 330*2^-31, about 1.29*2^-2 |
 
-**Certificate: GRANTED**
+**Certificate: not yet** — 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ### Library issues raised from this kernel
 

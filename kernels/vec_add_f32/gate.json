@@ -126,7 +126,7 @@
       "ok": true
     }
   ],
-  "digest": "5f65eb1f7a961315165a854c6eea124c5b1b3452f2aabcc66bc2d40daa6e2e91",
+  "digest": "426a399654f7c4466941dfe3b5557ce33f7436d06048bf6254c5891326251cab",
   "files": {
     "README.md": "2cf6a33f875cd9af7bab83c00a4e7d508b9ce16844fb3bcebd18c725ca38c578",
     "kernel.json": "94fef9de8d3b064c6c47f0aa3afc42393ba58963304caa68f610cd0592b5dbe8",
@@ -135,11 +135,11 @@
     "source/01-vector-add.py": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3"
   },
   "items": {
-    "assumption:faithful": "b50b996797f64cce9d75b3730b9a508e620e59afffb5b4c4a3873963f291da49",
-    "conditions": "8e766778801c20c47b8405d522ab79c88400cfda15c9b137e38d0e6b49700790",
-    "map": "f29709c72fabf23750951640c504d8a7ab994e41d051eda78665f5bef399db5c",
-    "model": "60be74de9c8103f3e36f527bb83b3df672e92a54fbf9f92392318d9cca5a5790",
-    "spec": "6b0f2e380fa039d09dd881fdc69c9b380459d5e95723b9c9ac92df2fa0b25641"
+    "assumption:faithful": "f15ec5a06f46eccd73c4cdc6beb52ad61083ed4a13cefc56ee7151600faad630",
+    "conditions": "8345127bd605b587b7f754895081351971cc3647e50b9d1bd42f614252c97387",
+    "map": "5839c4bc0b82357034b623542ae748c04af3dba312cbfb618a01c8471c162849",
+    "model": "c2a0f6b34fb30f635dd456af8143c330bbb2aea798719425889f7c2b3fd75ec1",
+    "spec": "c682b3debf3e9198fa7fad4488ddd8ff8b3fe10f1d6ebcca1eea99e9c934d6ee"
   },
   "kernel": "vec_add_f32",
   "kinds": {
@@ -147,7 +147,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-04T08:40:22Z",
+  "time": "2026-11-05T04:06:06Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "ce003819a2f2cbbd602c4b0862bbd0161373a0a3b0a7969bdfe4d8c5b2dfbd2f"

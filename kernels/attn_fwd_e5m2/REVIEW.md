@@ -6,30 +6,30 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first ‚å
 
 ## Status
 
-- Gate: **PASS**, digest `3d7848ee51b5e6a6` (2026-11-04T08:33:31Z).
+- Gate: **PASS**, digest `a650083757b23ba1` (2026-11-05T04:12:54Z).
 - Phase: round 7: all reviewers have filed.
 - Reviewers: r-e5fwd (all), r-e5fwd2 (all).
-- Certificate: **GRANTED**.
+- Certificate: **not yet**.
 - Recorded files: all unchanged since they were recorded, and every event follows from them.
 
 | Item | Digest | r-e5fwd | r-e5fwd2 |
 |---|---|---|---|
-| `assumption:cvt` | `359221207bf7` | accepted | accepted |
-| `assumption:cvt_total` | `d3dd5700e991` | accepted | accepted |
-| `assumption:div_full` | `7c99f269a360` | accepted | accepted |
-| `assumption:div_total` | `86ce72147b43` | accepted | accepted |
-| `assumption:dot` | `73aa4f404bbf` | accepted | accepted |
-| `assumption:dot_total` | `66eae7b77fb9` | accepted | accepted |
-| `assumption:exp2` | `57eb7f577ca9` | accepted | accepted |
-| `assumption:exp2_ninf` | `336e24a777f1` | accepted | accepted |
-| `assumption:exp2_total` | `a10859cce02b` | accepted | accepted |
-| `assumption:faithful` | `eba025833640` | accepted | accepted |
-| `assumption:log2` | `5db9272a7d58` | accepted | accepted |
-| `assumption:log2_total` | `0fddb38a5175` | accepted | accepted |
-| `conditions` | `b0121b83480b` | accepted | accepted |
-| `map` | `3a8a04772396` | accepted | accepted |
-| `model` | `af17db8da4c4` | accepted | accepted |
-| `spec` | `5f86912316ef` | accepted | accepted |
+| `assumption:cvt` | `2827224d68c1` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:cvt_total` | `48917803010d` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:div_full` | `9c7841707f67` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:div_total` | `856a8c2229be` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot` | `f61f9e04de60` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:dot_total` | `5bb52ac0d232` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp2` | `d8533542f3cc` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp2_ninf` | `b2419f611a00` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:exp2_total` | `0e2d59193283` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:faithful` | `7bc53afcafb8` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:log2` | `84b054949b4e` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `assumption:log2_total` | `642ffcdde8de` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `conditions` | `35f4d81a2163` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `map` | `7f8b29b9dc40` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `model` | `59fd532dbdd5` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
+| `spec` | `977a1d2308e9` | STALE (changed: `file:docs/SEMANTICS.md`) | STALE (changed: `file:docs/SEMANTICS.md`) |
 
 | Id | State | Kind | Target | By | Round | Summary |
 |---|---|---|---|---|---|---|
@@ -49,7 +49,7 @@ Fused attention, tutorial 06 (`_attn_fwd`, float8e5); as given only the first ‚å
 | [F14](#f14) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd2 | 6 | The table's benchmark D = 128 causal tolO range (0.53-0.65) misses my seed-1 head's 0.689, though the note says ranges a |
 | [F15](#f15) | CLOSED (non-blocking) | DOC | `doc:kernels/attn_fwd_e5m2/README.md` | r-e5fwd | 6 | The benchmark paragraph says its N = 1024 ranges cover the reviewers' samples, but some of mine are outside: D = 128 cau |
 
-**Certificate: GRANTED**
+**Certificate: not yet** ‚Äî 0 blocking finding(s) unresolved; not every item is accepted by every reviewer at its current digest
 
 ### Library issues raised from this kernel
 

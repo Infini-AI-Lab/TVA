@@ -1,0 +1,7 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+S1: tl.sigmoid on every fp32 bit pattern: 0 of 4294967296 differ from 1 / (1 + tl.exp(-x))
+S2: x.sigmoid() on 402653184 fp32 bit patterns: 0 differ
+S3: fp64, 16777231 bit patterns (15 edges): 0 differ
+S4: bfloat16: rejected (CompilationError: Expected dtype ['fp32', 'fp64'] but got bf16); float16: rejected (CompilationError: Expected dtype ['fp32', 'fp64'] but got fp16); int32: rejected (CompilationError: Expected dtype ['fp32', 'fp64'] but got int32)
+S5: C=0.0: 0.5 (same bits); C=1.0: 0.731058598 (same bits); C=-3.5: 0.0293122306 (same bits); C=20.0: 1 (same bits); C=-100.0: 0 (same bits)
+Run: `CUDA_VISIBLE_DEVICES=0 .venv/bin/python -I evidence/sigmoid-round29/run.py` from TVA's root.

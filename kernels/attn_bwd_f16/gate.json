@@ -126,7 +126,7 @@
       "ok": true
     }
   ],
-  "digest": "e30b28fa701ed30a2e66aa7f50bf9708d5555dbee600892431dbdf1409ecdc85",
+  "digest": "b94ad03856cf3987a5cd18d547dd46231c7a8024fe1977affe2835de76d20b28",
   "files": {
     "README.md": "3da1af2599c30a3af5d1dc6c5e3163d04da06591a69221367ebf7173f6a5854e",
     "kernel.json": "e05aba7248f22e450a40fa8d1bc39867b47876af372387a9acbd6df322549344",
@@ -145,15 +145,15 @@
     "source/06-fused-attention.py": "4ea8883061399de75d0ca973b446bed97abd9749bb9616aa7044e93256148db8"
   },
   "items": {
-    "assumption:dot": "c2ed7c4b26350c4a81a3856d9dbe93d45ddf359b442a68aa466fe69007310969",
-    "assumption:dot_total": "f109cebf6e66a9fdeda3f1ae07fdda6a577f1187f1a69a57c1c471e6d93f9e58",
-    "assumption:exp2": "714b30f76ac3b1c5e34231a8e9a7745e3f94d4c563d613978af79c3d397ecd88",
-    "assumption:exp2_total": "7a3d25528b35adb52f1d5eb0b5c9adfe4ba0a430463f4ee3e8d2b4d91d82bce4",
-    "assumption:faithful": "4c343bd534fc8c73b14611a6343d946a65b2ff3547d440574ad8567a0937612d",
-    "conditions": "1ea438ae16fd7af674d8226579aff647febadd9e349abe5b6e0ee478b60bc2b3",
-    "map": "546ddbd1d4992b2254ca5e5252aaebcbe0bf1a89c8cf595ce5903498bd4f35e3",
-    "model": "4fc657ef02109f8dca6a81b6b334962e8ad0e9e7d5f766c62fe65d5d17e694cc",
-    "spec": "61385b24caea62a2c5c90d1d74798c8022da8ce7a87918938dfb5b66d7aeddcc"
+    "assumption:dot": "fb51319a27f9154d333f6ae197228f59b9e136fcc45657d0c75a0360191a5f67",
+    "assumption:dot_total": "b2553e72ad3ddbba2bd28588976e0ffe6ef49d41c46815dcefbb897195d4f8bb",
+    "assumption:exp2": "d8327a5b8b0f74a8b9644fc93e001c8db06a30f8675dc71c1bb11c2c14717399",
+    "assumption:exp2_total": "ac101174c8fd2e0ca99849d43745312086331ebfe292e0726fe7b529a49e2adb",
+    "assumption:faithful": "b70b7acb48f3ca1671cd1e1876fd848415959abb0d3fa0bdf0e9fe80948c6c50",
+    "conditions": "9b4991db593d42135c624d77363e8208e3b6327487dc0fddf24940cb6af60a2e",
+    "map": "92af6c9f58320272ed5f8b54479114f0a118010e8e451e3367043075f51fc790",
+    "model": "f51a67cf3b7d5a17c72938e2b2abc04ccf5dd26186e8ef5ebeb97141a84548ed",
+    "spec": "46513425831a00e9ac45fd12d8bbfb4601c5c16ba91947ede272e4adeda273d7"
   },
   "kernel": "attn_bwd_f16",
   "kinds": {
@@ -165,7 +165,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-04T08:31:34Z",
+  "time": "2026-11-05T04:13:43Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "ce003819a2f2cbbd602c4b0862bbd0161373a0a3b0a7969bdfe4d8c5b2dfbd2f"

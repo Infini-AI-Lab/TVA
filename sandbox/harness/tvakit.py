@@ -429,10 +429,28 @@ def cmd_map_check(argv):
 # ---------------------------------------------------------------- examples, lookup, documents
 
 def certified():
+    """The kernels shown as worked examples: those certified, and those whose certificate a later change
+    withdrew (a library page in every item's digest) while the gate still passes and every assigned
+    reviewer has accepted every current item at some gate (make_task.py's `example_kernels`)."""
     out = []
     for kd in sorted(glob.glob(os.path.join(ROOT, "kernels", "*"))):
         k = os.path.basename(kd)
-        if k != K and os.path.exists(os.path.join(kd, "review", "certificate.json")):
+        if k == K:
+            continue
+        if os.path.exists(os.path.join(kd, "review", "certificate.json")):
+            out.append(k)
+            continue
+        try:
+            gate = json.load(open(os.path.join(kd, "gate.json")))
+            ev = [json.loads(l) for l in open(os.path.join(kd, "review", "ledger.jsonl")) if l.strip()]
+        except (OSError, ValueError):
+            continue
+        items = set(gate.get("items") or {})
+        accepted = {e["actor"]: set() for e in ev if e.get("type") == "assign"}
+        for e in ev:
+            if e.get("type") == "accept" and e.get("actor") in accepted and isinstance(e.get("items"), dict):
+                accepted[e["actor"]] |= set(e["items"])
+        if gate.get("ok") and items and accepted and all(items <= a for a in accepted.values()):
             out.append(k)
     return out
 

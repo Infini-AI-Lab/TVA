@@ -126,7 +126,7 @@
       "ok": true
     }
   ],
-  "digest": "22c8afda93dec27b93c14d041bf0fee7dd32958b0e1683aa83aab2e53f7ffb1e",
+  "digest": "eaa4633f6e162cd5466a33bd4693a5d471c9ea8ed0b3998bf416a7efb1d6db82",
   "files": {
     "README.md": "37b9a61f892e8a57776db826b339c6f02d856c936e526d528d50b93e939adf48",
     "kernel.json": "f441408a0a36661d40d2680aef8dab6019e7e20d750d6d384662a0943abe06be",
@@ -144,16 +144,16 @@
     "source/paged_attention.py": "f9c86dde4426760215c0a095d01cd9d211fb129118995cb3e440b747a068ac5e"
   },
   "items": {
-    "assumption:div_full": "f1170fae390bc5bd338aa09c46d48002099af21b832003722101724735d57bb5",
-    "assumption:div_total": "05a4fc8282576a0772a0af5988dff4954fb80824c9ddcf78931e722328fab65f",
-    "assumption:exp_acc": "b2bfe37414e591ec9a1bb8cc1dce95fc2174d71916504fa7e524903df3e9026a",
-    "assumption:exp_ninf": "966398311c65b7d990fa7478d98deebc863cc9e866c66fcd6572d0b753c6d34c",
-    "assumption:exp_total": "22ebf07e56e9b21cddc9975841c38407f14c688fbe12b4d7e606ebbf2bd19833",
-    "assumption:faithful": "bb1d541518a4844fb661808805477c18bc807e7e8279f0075398326f6dba617a",
-    "conditions": "17f261cdca406147bf1ed67806706ff5f4173d985b155fec62bfe5c9a25733bd",
-    "map": "b5a5a6a683c6e192c9a3c32a521684f220b0b7fbc02b2914240574ae97f51d96",
-    "model": "1a26e3a33210851c23db8981901063ac7ec7427f94ff59092c8e360c134dd14e",
-    "spec": "fe964002fa25a7cb064faadeb2bed8c440561df8da1078204780ddaeab993688"
+    "assumption:div_full": "7bb15f00e13ef1a4a6de7333fe1e2dc9373cb1c6a5feb442771a62da00bb48ed",
+    "assumption:div_total": "e594c55266dcba920585f366e6463197364ecfc20417cd9e9201c4ffdca6f892",
+    "assumption:exp_acc": "3ad52801f0e4c607dd16a1f35c9a2afa01176494439454546998d8899f025530",
+    "assumption:exp_ninf": "e5f5dcf9b78f50d4401610f9288eb8555ee0ebee5b59f76d5956c36c993dd2ba",
+    "assumption:exp_total": "10858b4e2a048617ccc9f103f86a43d4639bf74694e598c3c31b8e0fd704476f",
+    "assumption:faithful": "03fc26cfb9c55d6b5132cf829ea577d00df616722070964d957c37c62f7184e1",
+    "conditions": "e5b668049e8fcacbfa5a7bec24ee038d28ac8249bc147947416d7f68df92d31a",
+    "map": "eb0bfbed1dc71345e2bf4d0d3bc3b980a172704e788378f5369492ae9fce7d19",
+    "model": "f9d05a65e037265579e97c1298ddfd7ff29c453d575d4256df90914f890841f6",
+    "spec": "b7211d71ce14c9dcd6bae9c7be95405df0c8dd952349bcb498e7787c35c0219a"
   },
   "kernel": "paged_attention_f16",
   "kinds": {
@@ -166,7 +166,7 @@
   },
   "ok": true,
   "protocol": "tvr-2",
-  "time": "2026-11-04T08:38:13Z",
+  "time": "2026-11-05T04:14:30Z",
   "tool": {
     "tools/claim_reader.lean.in": "b46319f3a9f14126c94a32e24d13381e06dc6808ec585e8394914bb39059d4dc",
     "tools/tvr.py": "ce003819a2f2cbbd602c4b0862bbd0161373a0a3b0a7969bdfe4d8c5b2dfbd2f"
