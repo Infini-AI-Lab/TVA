@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """tva-review: the prover's client of the review service (PROTOCOL.md).
 
-  tva-review status            the round, the open findings, the last submission, and what to do next
+  tva-review status            the round, the open findings, the last submission, and what to do next; when the
+                               service is not busy, also copies REVIEW.md and review/ into your kernel folder
   tva-review submit [--dry-run]
                                send the kernel's files (and, from round 2, your response) for review;
                                returns at once: then run `tva-review wait`
@@ -28,6 +29,7 @@ URL = os.environ.get("TVA_REVIEW_URL", "http://reviewer:8765")
 KD = os.path.join(os.environ.get("TVA_ROOT", "/home/tva/fpv/tva"), "kernels", K)
 NOTE_EXT = (".json", ".md", ".txt", ".lean", ".py")
 SYNC = ("REVIEW.md", "claim.md", "gate.json", "review")
+RECORD = ("REVIEW.md", "review")  # what `status` copies: not gate.json and claim.md, which `tva-kit gate` writes
 
 
 def call(method, path, data=None, timeout=60, raw=False):
@@ -93,23 +95,35 @@ def files_to_submit(rnd):
     return out
 
 
-def fetch(quiet=False):
+def fetch(quiet=False, strict=True, names=SYNC):
+    """Copy the service's record (the top-level `names` of it) into the kernel folder; True when it did. On a
+    failure: exit when `strict`, else say so and return False."""
     code, body = call("GET", "/bundle", raw=True, timeout=120)
     if code != 200:
-        sys.exit(f"fetch failed ({code}): {body}")
+        msg = f"fetch failed ({code}): {body}"
+        if strict:
+            sys.exit(msg)
+        print(msg + f"; kernels/{K}/REVIEW.md may be out of date (`tva-review fetch` to try again)", file=sys.stderr)
+        return False
     n = 0
     with tarfile.open(fileobj=io.BytesIO(body), mode="r:gz") as tf:
-        members = [m for m in tf.getmembers() if m.name.split("/")[0] in SYNC and (m.isfile() or m.isdir())]
+        members = [m for m in tf.getmembers() if m.name.split("/")[0] in names and (m.isfile() or m.isdir())]
         tf.extractall(KD, members=members, filter="data")
         n = sum(1 for m in members if m.isfile())
     if not quiet:
         print(f"copied the record into kernels/{K}/ ({n} files: REVIEW.md, claim.md, gate.json, review/)")
+    return True
 
 
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else "status"
     if cmd == "status":
-        show(call("GET", "/status")[1])
+        st = call("GET", "/status")[1]
+        # status says the record in the kernel folder has the findings: make it so (while the service is busy
+        # the record is being written, and `wait` copies it when the review is done)
+        if st.get("status") != "busy":
+            fetch(quiet=True, strict=False, names=RECORD)
+        show(st)
     elif cmd == "submit":
         st = call("GET", "/status")[1]
         if st["status"] != "ready":

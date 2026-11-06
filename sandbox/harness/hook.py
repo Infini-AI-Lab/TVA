@@ -411,8 +411,9 @@ REDIRECT = re.compile(r"(?:&>>?|\d?>>?|\btee(?:\s+-a)?)\s*([^\s;&|<>()]+)")  # t
 
 
 def after_lake(inp, cmd):
-    """After a Bash command that ran `lake build`: the advice to split the kernel's modules that Lake reports
-    slow, from the command's output or from a file it sent the output to (one written while it ran)."""
+    """After a Bash command that ran `lake build`: the module times Lake reports, recorded, the warning when one
+    puts the gate at risk, and the advice to split the slow modules, from the command's output or from a file
+    it sent the output to (one written while it ran)."""
     resp = inp.get("tool_response")
     text = "\n".join(str(resp.get(k) or "") for k in ("stdout", "stderr")) if isinstance(resp, dict) else str(resp or "")
     start = time.time() - (inp.get("duration_ms") or 0) / 1000 - 2
@@ -422,7 +423,8 @@ def after_lake(inp, cmd):
             st = os.stat(p)
             if stat.S_ISREG(st.st_mode) and st.st_mtime >= start and st.st_size < 32 << 20:
                 text += "\n" + open(p, errors="replace").read()
-    return kit.split_advice(kit.slow_modules(text))
+    times = kit.note_build_times(text)
+    return "\n\n".join(x for x in (kit.gate_risk_advice(times), kit.split_advice(kit.slow_modules(text))) if x)
 
 
 def add_note(res, note):

@@ -26,6 +26,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SERVICE = os.path.join(HERE, "service")
 VERIFIER = os.path.join(HERE, "verifier")
+GATE_TIMEOUT = 3600  # seconds: the service's gate (build from scratch + replay); the prover's kit warns against it
 HARNESS = os.path.join(HERE, "harness")
 
 # The certified kernels each kernel's prover is pointed to as worked examples, closest first.
@@ -212,6 +213,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
     roles = {
         "prover": ({"role": "prover", "kernel": k, "tva": "/home/tva/fpv/tva", "entry": entry, "examples": ex,
                     "service": "http://reviewer:8765", "time_limit_sec": a.agent_timeout,
+                    "gate_timeout_sec": GATE_TIMEOUT,
                     "agent": a.prover_agent},
                    {"{{setup}}": "`SETUP.md`, " if setup else "",
                     "{{setup_read}}": ", `SETUP.md` (the launch the kernel is checked for)" if setup else ""},
@@ -434,7 +436,7 @@ def main():
     cfg = {"kernel": k, "module": man["lean"]["module"], "namespace": man["lean"]["namespace"],
            "source": src["file"], "source_sha256": src["sha256"], "reviewers": reviewers,
            "mode": "scripted" if a.scripted else "claude", "model": a.model,
-           "max_reviewed": a.max_reviewed, "max_rejected": a.max_rejected, "gate_timeout_sec": 3600,
+           "max_reviewed": a.max_reviewed, "max_rejected": a.max_rejected, "gate_timeout_sec": GATE_TIMEOUT,
            "reviewer_timeout_sec": 5400, "file_retries": 2, "refiles": 2, "tva_commit": rev,
            "allow_scripted": a.scripted}
     if sha(os.path.join(kd, src["file"])) != src["sha256"]:

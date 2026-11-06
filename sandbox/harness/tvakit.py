@@ -719,6 +719,82 @@ def split_advice(slow):
             "working on as its own lemma in a small file, so that a try takes seconds.")
 
 
+# The service's gate builds every module of the kernel from scratch, then replays them (leanchecker), within
+# its own time; a module that alone takes a fair share of it puts the certificate at risk whatever its proof
+GATE_BUDGET = float(CONFIG.get("gate_timeout_sec") or 3600)
+GATE_RISK = float(os.environ.get("TVA_HARNESS_GATE_RISK", str(GATE_BUDGET / 6)))  # seconds for one module
+BUILD_TIMES = os.path.join(BUILD_LOGS, "times.json")  # {module: {"s": seconds, "done": bool}}, the last seen
+IMPORT = re.compile(r"^import\s+(\S+)", re.M)
+
+
+def kernel_modules():
+    """{module: path} of the kernel's Lean files."""
+    base = os.path.join(KD, "lean")
+    return {os.path.relpath(p, base)[:-5].replace(os.sep, "."): p for p in lean_files()}
+
+
+def unfinished_modules():
+    """After a build that was stopped: the kernel's modules Lake was still building, those whose `.olean` is
+    missing or older than their file while every kernel module they import is up to date."""
+    mods = kernel_modules()
+    olean = os.path.join(ROOT, "lean", ".lake", "build", "lib", "lean")
+
+    def stale(m):
+        o = os.path.join(olean, *m.split(".")) + ".olean"
+        try:
+            return os.path.getmtime(o) < os.path.getmtime(mods[m])
+        except OSError:
+            return True
+
+    old = {m for m in mods if stale(m)}
+    out = []
+    for m in sorted(old):
+        with contextlib.suppress(OSError):
+            if not any(i in old for i in IMPORT.findall(open(mods[m]).read())):
+                out.append(m)
+    return out
+
+
+def note_build_times(text, unfinished=(), elapsed=0.0):
+    """Record the kernel's module times that Lake's output `text` reports (and, for a stopped build, the
+    modules it had not finished after `elapsed` seconds) in ~/scratch/build/times.json; return the record."""
+    times = load(BUILD_TIMES, {}) or {}
+    root = manifest().get("lean", {}).get("module")
+    for mod, ms, s in LAKE_JOB.findall(text):
+        if root and (mod == root or mod.startswith(root + ".")):
+            times[mod] = {"s": round(int(ms) / 1000 if ms else float(s), 1), "done": True}
+    for m in unfinished:
+        times[m] = {"s": round(elapsed), "done": False}  # `s`: when the build was stopped
+    known = kernel_modules()
+    times = {m: v for m, v in times.items() if m in known}
+    with contextlib.suppress(OSError):
+        os.makedirs(BUILD_LOGS, exist_ok=True)
+        json.dump(times, open(BUILD_TIMES, "w"), indent=1)
+    return times
+
+
+def gate_risk_advice(times=None):
+    """The warning for the kernel's modules whose last build took GATE_RISK seconds or more, or was stopped
+    unfinished after as long ("" when there are none)."""
+    times = load(BUILD_TIMES, {}) if times is None else times
+    risky = sorted(((m, v) for m, v in (times or {}).items() if v.get("s", 0) >= GATE_RISK),
+                   key=lambda x: -x[1].get("s", 0))
+    if not risky:
+        return ""
+    total = sum(v.get("s", 0) for v in times.values())
+    said = ", ".join(f"{m} took {v['s'] / 60:.0f} min" if v.get("done") else
+                     f"{m} was unfinished when the build stopped at {v['s'] / 60:.0f} min" for m, v in risky[:3])
+    return (f"Build time puts the gate at risk: {said} (the kernel's modules: {total / 60:.0f} min or more in all, "
+            f"at their last builds). The gate builds every module from scratch and then re-checks them (leanchecker) within "
+            f"{GATE_BUDGET / 60:.0f} min, so a module over {GATE_RISK / 60:.0f} min can fail it however sound its "
+            "proof. Make the module faster before you add to it: find the slow step (cut the proof in halves in a "
+            "scratch copy, or `set_option profiler true`), state it as its own lemma and prove it once with named "
+            "rewrites (`simp only [...]`, `rw`), not a `simp`/`decide`/`rfl` that unfolds the program or a tensor "
+            "chain. If the slowness comes from generality the launch in SETUP.md does not need (a symbolic block "
+            "size where SETUP.md fixes one), proving the fixed value, stated as a narrowing, is a choice to weigh. "
+            "The times: ~/scratch/build/times.json.")
+
+
 LAST_BUILD = {"seconds": 0.0}  # how long the last `build` ran, waiting for another agent's build aside
 
 
@@ -747,8 +823,9 @@ def build(module=None, timeout=1800):
             p = subprocess.run(["lake", "build", module], cwd=os.path.join(ROOT, "lean"), capture_output=True,
                                text=True, timeout=timeout, errors="replace", env={**os.environ, "TVA_LAKE_LOCKED": "1"})
             return p.returncode, (p.stdout or "") + (p.stderr or "")
-        except subprocess.TimeoutExpired:
-            return 124, f"error: lake build {module} timed out after {timeout} s"
+        except subprocess.TimeoutExpired as e:
+            part = "".join(x.decode(errors="replace") if isinstance(x, bytes) else (x or "") for x in (e.stdout, e.stderr))
+            return 124, part + f"\nerror: lake build {module} timed out after {timeout} s"
         finally:
             LAST_BUILD["seconds"] = time.time() - t0
 
@@ -765,7 +842,15 @@ def cmd_build(argv):
     t0 = time.time()
     rc, out = build(mod)
     errs, warns, sorries, lines = summarize_build(out)
-    head = f"lake build {mod}: " + ("OK" if rc == 0 else f"{len(errs)} error(s)")
+    stopped = unfinished_modules() if rc == 124 else []
+    times = note_build_times(out, stopped, LAST_BUILD["seconds"])
+    if rc == 0:
+        head = f"lake build {mod}: OK"
+    elif rc == 124:
+        head = (f"lake build {mod}: TIMED OUT" + (f" with {', '.join(stopped)} unfinished" if stopped else "") +
+                (f", {len(errs)} error(s) before it" if errs else ""))
+    else:
+        head = f"lake build {mod}: {len(errs)} error(s)"
     print(head + f" ({time.time() - t0:.0f} s; {warns} warning(s), {sorries} `sorry`); "
           f"the whole output: {save_build_log(mod, out)}")
     print("\n".join(lines))
@@ -773,9 +858,9 @@ def cmd_build(argv):
         print(f"({len(errs) - 8} more errors: fix the first ones first, they often cause the rest)")
     if rc == 0 and sorries:
         print("the gate refuses `sorry`: replace each before `tva-kit gate`")
-    advice = split_advice(slow_modules(out))
-    if advice:
-        print(advice)
+    for advice in (gate_risk_advice(times), split_advice(slow_modules(out))):
+        if advice:
+            print(advice)
     return rc
 
 
@@ -1157,6 +1242,9 @@ def cmd_stage(argv):
     if sites:
         print(f"`sorry` left ({len(sites)}):\n" + "\n".join("  " + sorry_line(s, KD) for s in sites[:10]) +
               (f"\n  … and {len(sites) - 10} more" if len(sites) > 10 else ""))
+    risk = gate_risk_advice()
+    if risk:
+        print(risk)
     svc = service_status()
     if svc:
         print(f"service: {svc['status']}, round {svc.get('round')}, certificate "
@@ -1249,11 +1337,24 @@ def finding_lines(i, f):
 
 def cmd_findings(argv):
     S = state()
+    svc = service_status()
+    behind = [f for f in (svc or {}).get("open_findings") or [] if (S["findings"].get(f) or {}).get("state") != "OPEN"]
+    if behind and svc.get("status") != "busy":
+        # the service has findings the kernel folder's record lacks (no `tva-review wait` or `fetch` since):
+        # `status` copies REVIEW.md and review/ (not gate.json, which the prover's own gate wrote)
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            subprocess.run(["tva-review", "status"], capture_output=True, timeout=180)
+        S = state()
+        behind = [f for f in behind if (S["findings"].get(f) or {}).get("state") != "OPEN"]
+    if behind:
+        print(f"the service reports open findings your copy of the record lacks: {', '.join(behind)}; "
+              "run `tva-review status`, then `tva-kit findings` again")
     show_all = "--all" in argv
     ids = sorted(S["findings"], key=lambda x: int(x[1:]))
     sel = [i for i in ids if show_all or S["findings"][i]["state"] == "OPEN"]
     if not sel:
-        print("no open finding" + ("" if show_all else " (--all shows every finding)"))
+        if not behind:
+            print("no open finding" + ("" if show_all else " (--all shows every finding)"))
         return 0
     for i in sel:
         print("\n".join(finding_lines(i, S["findings"][i])))
