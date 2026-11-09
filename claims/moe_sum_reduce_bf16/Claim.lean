@@ -147,8 +147,8 @@ structure Inst.ok (d : Inst) : Prop where
   accumulation's error bound leaves room in `float32` (README, Exclusions). -/
   K_le : d.K ≤ 2 ^ 20
   D_lt : d.D < 2 ^ 31
-  /-- `hidden_dim` is a model dimension: a multiple of `128`, at most `2^17` (README, Exclusions). -/
-  D_dim : d.D % 128 = 0 ∧ d.D ≤ 2 ^ 17
+  /-- `hidden_dim` is a model dimension: at most `2^17` (README, Exclusions). -/
+  D_dim : d.D ≤ 2 ^ 17
   /-- `token_num`, the tokens of the batch, is a context length: at most `2^22` (README,
   Exclusions). -/
   T_ctx : d.T ≤ 2 ^ 22
@@ -291,7 +291,7 @@ theorem mk_ok {T K D sbits em ed : Nat} (hb : 2 ^ em * 2 ^ ed ≤ 2 ^ 20) (hT : 
     (hD : 0 < D) (hT' : T < 2 ^ 31) (hK' : K < 2 ^ 31) (hKle : K ≤ 2 ^ 20) (hD' : D < 2 ^ 31) (hKD : K * D < 2 ^ 31)
     (hg : (D + 2 ^ ed - 1) / 2 ^ ed < 2 ^ 16)
     (hgs : (T + 2 ^ em - 1) / 2 ^ em * ((D + 2 ^ ed - 1) / 2 ^ ed) < 2 ^ 31) (hs : sbits < 2 ^ 64) (hsz : T * K * D * 2 ≤ 2 ^ 35)
-    (hDd : D % 128 = 0 ∧ D ≤ 2 ^ 17) (hTc : T ≤ 2 ^ 22) :
+    (hDd : D ≤ 2 ^ 17) (hTc : T ≤ 2 ^ 22) :
     (mk T K D sbits em ed).ok where
   bm_pow2 := ⟨em, rfl⟩
   bd_pow2 := ⟨ed, rfl⟩
@@ -372,6 +372,18 @@ theorem setup_32_8_2048_ok : setup_32_8_2048.ok := mk_ok (by norm_num) (by norm_
   (by norm_num) (by norm_num) (by norm_num)
 def setup_33_6_5120 : Inst := mk 33 6 5120 4607182418800017408 0 11
 theorem setup_33_6_5120_ok : setup_33_6_5120.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num)
+def setup_17_8_2880 : Inst := mk 17 8 2880 4607182418800017408 0 11
+theorem setup_17_8_2880_ok : setup_17_8_2880.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num)
+def setup_1_1_1 : Inst := mk 1 1 1 4607182418800017408 0 11
+theorem setup_1_1_1_ok : setup_1_1_1.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num)
+def setup_300_3_100 : Inst := mk 300 3 100 4612811918334230528 0 11
+theorem setup_300_3_100_ok : setup_300_3_100.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num)
 def setup_1024_9_4096 : Inst := mk 1024 9 4096 4599075939470750515 0 11
