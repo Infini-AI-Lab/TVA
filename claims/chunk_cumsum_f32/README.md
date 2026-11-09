@@ -5,6 +5,72 @@ lines 80–120 with the helper `unflatten_program_id` 70–77; entry point `chun
 209–247 through `chunk_local_cumsum_scalar` 162–206). `Claim.lean`, namespace `Claims.ChunkCumsum`;
 the claim to prove is `Statement`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.ChunkCumsum.main : Statement` (`Statement`:
+`Claim.lean` line 312). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 160), and every initial memory `init` that `Pre` accepts (line 205), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 292).
+
+**What `Post` asks** (line 292), two parts:
+1. for every sequence `n < nSeq d` (line 227), position `p` with `lo d n ≤ p < hi d n` (lines
+   230–231) and head `h < H`: element `p·H + h` of `o` reads in `fin` as a `float32` `v`, for every
+   such element. Only when `InRange d n p h` holds (line 268: the summed terms finite,
+   `absSum ≤ 2^126`, and with a scale the double and `sigma32` finite and `|σ₃₂|·absSum ≤ 2^126`)
+   is more asked: `v` is finite and
+   `|v.toRat − sig d * refSum d n p h| ≤ tol d n p h`. `refSum` (line 246) is the exact sum, in the
+   rationals, of `sAt d q h` (line 243, from `sv`) over `rng d n p` (line 238: from `chunkStart`
+   (line 234) to `p` forward; from `p` to `min (chunkStart + BT) (hi n)` reverse); `sig` (line 256)
+   is the host's double scale, or `1`. `tol` is defined at line 278 (`Tree.errBound` at `depth`,
+   line 252, plus the product and scale terms with a scale). Outside `InRange` only "holds a
+   `float32` value" is asked;
+2. the frame: every byte outside `o.elems (written d)` (line 286) is unchanged.
+
+**What you are given** (`Assumptions`, line 303): one field, `faithful` (`Compiler.Faithful`): the
+device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
+`debug = false`, and the model's launch is well behaved from `init`. No numeric fact: `tl.cumsum`
+(no product feeds it) and `*` are IEEE operations.
+
+**The kernel, as the model runs it** (`chunk_local_cumsum_scalar_kernel` line 48, `model` line 214,
+`launch` line 222): a 1-D grid of `gridSize d` (line 156) programs, block `[BT]`. Program `pid`
+splits `pid` in `int64` into `i_t = pid / (B·H)`, `i_b`, `i_h` (`tl.idiv`, `tl.irem`). On variable
+length it reads row `i_t` of `chunk_indices` (sequence `i_n`, chunk `i_t`) and `cu_seqlens[i_n]`,
+`cu_seqlens[i_n + 1]` (`tl.load1`, `tl.convert`); on fixed length `bos = i_b·T`. It loads the
+masked column `bos + i_t·BT + [0, BT)` (lanes `< T`) of head `i_h` of `s` with `other = +0` (a
+strided `tl.load`), runs `tl.cumsum` along the block (`reverse` the flag), multiplies by `sigma32`
+if `hasScale`, and stores the same masked lanes of `o`. No loop, no atomics; programs write
+disjoint elements: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1` with `grid_lt`; the block
+  from `bt_pow2`, `bt_le`);
+- each program is `Safe`: the divisors `B·H` and `H` are nonzero (`B_pos`, `H_pos`, `BH_lt`); the
+  table reads are in bounds (`ci_len`, `cu_len`, `N_lt`, `TablesOk`'s `seqAt d r < N`); the `int64`
+  offsets do not wrap and every enabled lane is in bounds of `s` and `o` (`s_len`, `o_len`, `T_lt`,
+  and on variable length `cuAt` nondecreasing and `≤ T`); the masked load and store use distinct
+  lanes (`safe_load`, `safe_store`); `safe_cumsum`, then `safe_mul` with a scale;
+- the programs' write footprints are disjoint: on fixed length from the split of `pid`; on
+  variable length from `TablesOk` (distinct rows); and no program writes what any program reads
+  (`o_s`, `o_cu`, `o_ci`);
+- every element of `written d` is written by some program: on variable length every chunk with
+  `c·BT < len n` has a row (`TablesOk`); on fixed length `gridSize` covers `cdiv(T, BT)` chunks;
+- the value part of part 1: lane `p − chunkStart` holds a tree over its `ScanLeaves` (with
+  `ScanLeaves.perm`), the lanes outside the sequence add `+0`, and `sum_err_list` (with `u32_eq`,
+  `eta32_eq`) bounds the scan by `Tree.errBound`; with a scale, `FloatV.mul_err` and the difference
+  `σ − σ₃₂` give the rest of `tol` (README `## Tolerances`);
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `u32_eq`, `eta32_eq` (lines 263–264) and `bytes_disj` (line 344) can be
+reused.
+
 ## Specification
 
 Sequences (`nSeq`, `lo`, `hi`) are the rows `[b·T, b·T + T)` of a fixed-length batch, or

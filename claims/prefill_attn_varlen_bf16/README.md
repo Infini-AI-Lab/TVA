@@ -10,6 +10,93 @@ The covered paths are `SETUP.md`'s: `IS_CAUSAL = True` and `IS_CAUSAL = False` (
 `bfloat16` `q`, `k`, `v`, `o`, `int32` `b_start_loc`, `b_seq_len`, on an H200
 (`BLOCK_M = BLOCK_N = 128`).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.PrefillAttnVarlen.main : Statement` (`Statement`:
+`Claim.lean` line 518). Unfolded (`Spec`, line 490, is `Claim.Meets Inst.ok Pre Post K`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 270), and every initial memory `init` that `Pre` accepts (line 413), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 482).
+
+**What `Post` asks** (line 482), two parts:
+1. for every `b < batch`, `p < lenOf d init b` (line 356), `h < H`, `e < Lk`: element
+   `oIdx d (startOf d init b + p) h e` (lines 257, 354) of `o` reads in `fin` (`rdB`, line 335) as
+   a `bfloat16` `c` that is finite, with
+   `|c.toReal − attnRef| ≤ tolRel d.BD (trips (lastKey d init b p)) (Xrow d init b h p) · attnAbs + tolAbs (vSum)`
+   (all at `d init b h p e`). `attnRef` (line 422) is the exact softmax-weighted mean of `v`, in the
+   reals, over the keys `j ≤ lastKey` (line 382: `p` when `causal`, `lenOf − 1` when not), with the
+   exact scores `score` (line 370) from `init`; `attnAbs` (line 428) is the same mean of `|v|`,
+   `vSum` (line 434) the plain sum of `|v|`. `trips` is line 439, `Xrow` (line 386) the largest
+   `scoreMag` (line 376) over the attended keys. The tolerance is `tolRel` (line 467, built from
+   `dlt`, `rho`, `gam`, `errE`, lines 448–461) and `tolAbs` (line 470). Every element of every
+   sequence is asked; there is no further guard;
+2. the frame: every byte outside `d.o.elems (outElems d init)` (line 473) is unchanged.
+
+**What you are given** (`Assumptions`, line 494), eight fields:
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and is well behaved from `init`;
+- `dot` (`Num.DotBF16`): `tl.dot` of `bfloat16` into `float32` is within `relDot16 K = (K+2)·2^-22`
+  of `|acc| + Σ liftMag a·liftMag b`, plus `(K+2)·2^-126` (source lines 132, 171);
+- `dot_total` (`Num.DotTotal P cfgBF16`): that `tl.dot` has a result for all operands;
+- `exp_acc` (`Num.ExpF32`): `tl.exp` on `[-X, X]` is within `(2^-22 + 2^-23·X)·e^x + 2^-140`
+  (source lines 149, 153, 154);
+- `exp_ninf` (`Num.ExpF32NegInf`): `tl.exp(−∞) = +0` (masked lanes; the first trip's `alpha`);
+- `exp_total` (`Num.MathTotal P .exp .binary32`): `tl.exp` has a result for every input;
+- `div_full` (`Num.DivFull`): `float32` `/` is within `2^-22·|x/y| + 2^-148` for
+  `|x/y| ≤ 2^126` (source lines 158, 161);
+- `div_total` (`Num.DivTotal P .binary32`): `/` has a result for every pair of inputs.
+
+**The kernel, as the model runs it** (`fwd_kernel` line 58, `model` line 316, `launch` line 329):
+a 3-D grid `(batch, H, nBlocks d)` (`nBlocks`, line 267: `cdiv(maxLen, 128)`). Program
+`(b, h, m)` loads `b_seq_len[b]` and `b_start_loc[b]` (`tl.load1`), takes the key/value head
+`h / kvg d` (`tl.idiv`; `kvh`, line 264), and loads the `[128, BD]` tile of `q` at rows
+`128·m + [0, 128)` of sequence `b`, masked to rows below `len_b` and columns below `Lk`. The loop
+(`tl.forRange`, line 126) runs `0 … block_mask·end_n` in steps of 128: no trip when
+`128·m ≥ len_b`, else `m + 1` trips when causal and `cdiv(len_b, 128)` when not; for every row
+`p < len_b` of the block that is `trips (lastKey d init b p)`. Each trip loads a `[BD, 128]` tile of
+`k` and a `[128, BD]` tile of `v` (masked keys below `len_b`, columns below `Lk`), computes the
+scores (`tl.dot_add`, line 141, then `tl.mul_add` by `sm_scale` with the `0`/`−∞` mask), the row
+maximum (`tl.max1`), `p = tl.exp(qk − m_ij)`, `tl.sum1`, the online-softmax update of `m_i`, `l_i`
+(`tl.maximum`, `tl.exp`, `tl.addc`, `tl.div`, `tl.mul`), rescales `acc`, rounds `p` to `bfloat16`
+(`tl.cvt`) and adds `tl.dot_add p v` (line 190). After the loop it rounds `acc` to `bfloat16` and
+stores it (line 201) to the same rows of `o`, head `h`. Programs read only the five inputs, write
+disjoint parts of `o`, and use no atomics: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
+The loop rule is `safe_forRange` with an invariant on `(m_i, l_i, acc)`; the body writes nothing
+(per-trip footprint `∅`, `iterW_empty`).
+
+**What the proof must establish.**
+- each launch has `debug = false` (the default in `launch`) and is `Launch.Valid`: `batch_lt`,
+  `H_lt`, `nBlocks d < 2^16` (from `maxLen_le`), `grid_lt`, the default `numCtas` and `pdl`, and the
+  block shapes `TritonOk` (`bd_pow2`, `bd_le`). `Launch.valid_grid1` is for 1-D grids only; prove
+  the seven parts directly;
+- each program is `Safe`: the scalar loads in bounds (`bsl_len`, `bsq_len`, `Valid` from `Pre`;
+  `safe_load1_buf`) with `SeqOk` (line 392) giving `0 ≤ start`, `len ≤ maxLen`,
+  `start + len ≤ total`; the `tl.idiv` divisor `kvg d ≥ 1` (`kv_pos`, `kv_dvd`), and `kvh d h < HKV`;
+  every enabled lane's `int32` offset is the exact element index, below `2^31` and within its
+  buffer (`strides_lt`, `q_i32` … `o_i32`, `q_len` … `o_len`); the store writes distinct elements
+  (`o_layout`); `tl.exp`, `/`, `tl.dot` have results (`exp_total`, `div_total`, `dot_total`);
+- footprints: each program writes only its rows of `o` at head `h`; those are disjoint across
+  programs by `o_layout` and `SeqOk`'s packing (no two non-empty sequences share a token), and no
+  program reads `o` (`disj`), which gives both `hdisj` and `hRW`;
+- the value part of `Post`: a per-row loop invariant for the online softmax (README `## Tolerances`,
+  steps 3–5), from `ValsOk` (line 403: finite inputs, `|v| ≤ 2^120`, `scoreMag ≤ 2^12` on every pair
+  of the sequence, masked or not), `dot` (one step: `DotLift.dotAdd_step`), `exp_acc`
+  (`MathAcc.mono`), `exp_ninf`, `div_full`, `sum_err_covers`, `FloatV.mul_err`, `FloatV.cvt_err`,
+  `FloatV.AddRel.err`; then the store's rounding and the assembly into `tolRel·attnAbs + tolAbs`
+  (steps 6–7);
+- the frame: the union of the write footprints is `d.o.elems (outElems d init)`, and the bytes no
+  program writes keep their `init` value.
+
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 522), `satisfiable` (line
+1020), `canon_ok` (line 578), `fusedQKV_ok` (line 823) and the `setup_*_ok` theorems;
+`bytes_disj` (line 560) can be reused.
+
 ## Specification
 
 Sequence `b` is the tokens `start_b … start_b + len_b − 1` (`b_start_loc[b]`, `b_seq_len[b]`, read
@@ -136,10 +223,16 @@ only in the set of attended keys, `j ≤ L`, which the steps below sum over.
 
 1. **Scores.** `qk₁ = tl.dot_add(q, k, 0)`: `DotBF16` (`relDot16 D = (D+2)·2^-22` of
    `L = Σ liftMag q·liftMag k = scoreMag/σ`, plus `(D+2)·2^-126`; room since `L ≤ 2^76`), or the
-   dot followed by `tl.addc` with `+0` (`AddRel`: `2u` more). `σ32 = hostF32(σ)`: `u`.
-   `tl.mul_add(qk₁, σ32, mask)` (either mode's mask): at an attended lane `fl(qk₁·σ32) + 0` or
-   `fma(qk₁, σ32, 0)`, one rounding `u`; at a masked lane `−∞` exactly (the product is finite: `scoreMag ≤ 2^12` on every
-   pair). So every attended `qk_j = score_j + ε_j`, `|ε_j| ≤ ((D+3)·2^-22)·X + 2^-52 ≤ δ`.
+   dot followed by `tl.addc` with `+0` (`AddRel.err`: `3u` of the operands' magnitudes, plus `4η`,
+   more; either form within `DotLoop.stepRel relDot16 D = (D+2)·2^-22 + 3u·(1 + (D+2)·2^-22)`
+   of `L`, `DotLift.dotAdd_step`). `σ32 = hostF32(σ)`: `u`. `tl.mul_add(qk₁, σ32, mask)` (either
+   mode's mask): at an attended lane `fl(qk₁·σ32) + 0` or `fma(qk₁, σ32, 0)`, within `3u` of
+   `|qk₁·σ32|` plus `4η` (`FusedErr.mulAdd_err`; in fact one rounding); at a masked lane `−∞`
+   exactly (the product is finite: `scoreMag ≤ 2^12` on every pair). In units of `2^-22`
+   (`u = 0.25`): `D + 2 + 0.75 + 0.25 + 0.75 = D + 3.75`, and the products of these small factors
+   add less than `0.01`. So every attended `qk_j = score_j + ε_j`, `|ε_j| ≤ ((D+4)·2^-22)·X +
+   2^-52 ≤ δ` (`δ`'s factor is `D+8`; the absolute part is the dot's `(D+2)·2^-126` times `σ32 ≤
+   2^64`, below `2^-53`).
 2. **Effect of the scores.** With `ŵ_j ∝ e^{score_j}` and `ŵ'_j ∝ e^{qk_j}` (normalised over
    `j ≤ L`), `ŵ'_j/ŵ_j ∈ [e^{-2δ}, e^{2δ}]`, so `|Σŵ'v − attnRef| ≤ (e^{2δ}−1)·attnAbs` and
    `A' = Σŵ'|v| ≤ e^{2δ}·attnAbs`.
@@ -169,7 +262,8 @@ only in the set of attended keys, `j ≤ L`, which the steps below sum over.
    `A_c = Σ c_j|v_j| ≤ (1+ρ)/(1−ρ)·A'`.
 5. **The second `tl.dot`** (`acc₂ = tl.dot_add(p₂, v, acc₁)`): `DotBF16` with `K = N = 128`:
    `relDot16 128 = 130·2^-22` of `|acc₁| + Σ liftMag p₂·liftMag v` (room: everything is below
-   `3·2^120`), or the dot then `tl.addc` with `acc₁` (a product: fused or not, `2u` more). Carried
+   `3·2^120`), or the dot then `tl.addc` with `acc₁` (`AddRel.err`: `3u` more, `130.75·2^-22` in all,
+   `DotLoop.stepRel relDot16 128`). Carried
    to the end by the later `acc_scale`s, trip `t`'s error is at most `132·2^-22` of
    `B + (earlier errors)`, `B ≈ A_c` the final-scaled `Σ c_j|v_j|`; by induction the total is at
    most `(e^{T·132·2^-22} − 1)·B ≤ γ·B` (`136` for the margin and the `acc·acc_scale` roundings).
@@ -184,8 +278,8 @@ only in the set of attended keys, `j ≤ L`, which the steps below sum over.
    for `T ≤ 1024` (`T ≤ cdiv(2^17, 128)` in either mode).
 
 The bound is provable from `DotBF16`, `ExpF32`, `ExpF32NegInf`, `DivFull` and the library's IEEE
-rounding lemmas (`FloatV.mul_err`, `add_err`, `sub_err`, `cvt_err`, `AddRel.err`,
-`sum_err_covers`); `ρ < 1/2` on every covered row (`T ≤ 1024`, `X ≤ 2^12`: `ρ ≤ 0.04`).
+rounding lemmas (`FloatV.mul_err`, `add_err`, `sub_err`, `cvt_err`, `AddRel.err`, `mulAdd_err`,
+`sum_err_covers`, `DotLift.dotAdd_step`); `ρ < 1/2` on every covered row (`T ≤ 1024`, `X ≤ 2^12`: `ρ ≤ 0.04`).
 Meaningful: `tolRel ≈ 0.85·10^-2` of the weighted mean of `|v|` at the host's sizes, about
 `1.16×` the kernel's worst error on an adversarial input; it grows with `T` because the library's
 `tl.dot` fact charges `130·2^-22` of the accumulator per key block.

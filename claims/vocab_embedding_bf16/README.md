@@ -12,6 +12,73 @@ in neither range. The model writes the addresses in the source's order,
 `(weight_ptr + local_id * stride) + cols` and `(out_ptr + row * hidden_dim) + cols`, with `valid`
 an `int1` tensor.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.VocabEmbedding.main : Statement` (`Statement`:
+`Claim.lean` line 243). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 133), and every initial memory `init` that `Pre` accepts (line 183), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 210).
+
+**What `Post` asks** (line 210), two parts:
+1. for every `r < n_tokens` and `col < hidden_dim`: element `r` of `input_` reads in `init` as an id
+   `v` (`tokAt`, line 126: the signed value `ivOf`, line 119), element `r * hidden_dim + col` of
+   `output` reads in `fin` as some `c`, and `outVal d init v col c` holds (line 196):
+   - if `org_vocab_start_index ≤ v < org_vocab_end_index`: `init` reads the weight's element
+     `(v - org_vocab_start_index) * weight_stride0 + col` as `c`;
+   - else, if `added_vocab_start_index ≤ v < added_vocab_end_index`: `init` reads the weight's
+     element `(v - addedOffset d) * weight_stride0 + col` as `c` (`addedOffset`, line 113);
+   - else `c` is the `bfloat16` `+0` (`FloatV.ofPat 0`).
+
+   It is bit-exact: a copy, no tolerance, no NaN equivalence;
+2. the frame: every byte outside the output's first `n_tokens * hidden_dim` elements
+   (`outElems`, line 190) is unchanged.
+
+**What you are given** (`Assumptions`, line 234): one field, `faithful` (`Compiler.Faithful`): the
+device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
+`debug = false`, and the model's launch is well behaved from `init` (no out-of-bounds access, no race).
+No numeric fact: the kernel only moves values (the one conversion is the `float32` `+0` to
+`bfloat16`, exact).
+
+**The kernel, as the model runs it** (`vocab_parallel_embedding_kernel`, line 31; `model` line 221,
+`launch` line 229): a 2-D grid `(n_tokens, nColBlocks d, 1)` (`nColBlocks`, line 130), block shape
+`[BLOCK_H]`. Program `(row, col_block)` loads one id (`tl.load1` of `input_` element `row`), converts
+it to `int64`, forms the two range masks and `local_id` (`int64` subtractions, `tl.where`), then does
+one masked `tl.load` of the weight at `local_id * weight_stride0 + cols` (mask
+`col_mask & valid`, `other` the converted `+0`) and one masked `tl.store` of output row `row`,
+columns `cols = col_block * BLOCK_H + [0, BLOCK_H)` below `hidden_dim`. No loop. Programs write
+disjoint column blocks of the output and use no atomics; several may read the same weight row,
+which is only read. The route is `TVA.meets_independent` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`launch` sets no `debug`). The grid is 2-D, so
+  `Launch.Valid` is proved directly: `x < 2^31` from `tokens_lt`, `y < 2^16` from `cols_lt`, the
+  program count from `grid_lt`, the shape `[BLOCK_H]` from `block` (`Shape.TritonOk`);
+- each program is `Safe`: the id load is in bounds (`input_len`, `safe_load1`); `int32` columns
+  do not wrap (`hidden_lt`), and `ltS` against `hidden_dim` is the integer comparison; the
+  `int64` subtractions and `local_id * weight_stride0 + col` do not wrap (`org_start` … `offset`,
+  `stride_lt`, and `TokOk`'s `< 2^63`, through `Pre`'s last conjunct); the enabled weight lanes
+  are in bounds (`TokOk`'s `≤ weight.len`; the added range also needs `0 ≤ v - addedOffset d`);
+  the store is in bounds (`out_len`), with distinct lanes (`safe_load`, `safe_store`,
+  `safe_convert`, `safe_cvt`);
+- footprints: program `(row, col_block)` writes output elements `row * hidden_dim + col` for its
+  columns; these are disjoint across programs, and disjoint from every read (`out_input`,
+  `out_weight`);
+- the stored lanes give part 1: an enabled lane holds the weight's element as `init` reads it; a
+  lane disabled by `valid` holds `other`, the `bfloat16` `+0`. The `tl.where` order matches
+  `outVal`'s: the original range wins;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `bytes_disjoint_of_le` (line 252) and `zeroMem_read` (line 275) can be
+reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`. `Post d init fin`, for the id `v` at element `r` of

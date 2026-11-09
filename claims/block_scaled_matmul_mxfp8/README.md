@@ -16,6 +16,75 @@ into `float32` over `K / 128` steps, the tile rounded to `float16` and stored th
 descriptor; `BLOCK_M = 128`, `BLOCK_N = 256`, `BLOCK_K = 128`, `b`'s block `[256, 128]` or
 `[256, 64]`, a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.BlockScaledMxfp8.main : Statement` (`Statement`:
+`Claim.lean` line 481). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 245), and every initial memory `init` that `Pre` accepts (line 422), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 445).
+
+**What `Post` asks** (line 445), two parts:
+1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 433): element `i·N + j` of `c` reads
+   in `fin` as a `float16` `c`, and there is a finite `float32` `v` with
+   `|v.toRat − ref d init i j| ≤ tolOut d init i j` and `FloatV.NaNEq (FloatV.cvt v) c`; and when
+   `|ref| + tolOut ≤ binary16.maxVal`, `c` is finite and
+   `|c.toRat − ref| ≤ tolOut + (|ref| + tolOut)·binary16.u + binary16.eta`. `ref` (line 403) is the
+   exact sum, in the rationals, of the `K` scaled products `prods` (line 399: `xa`, `bVal`, the
+   scale bytes `sa`, `sb` at `sIdx` (line 321), all read from `init`); `tolOut` (line 406) is the
+   recursion `tol` (line 354) over the `K / 128` steps, with `rho`, `alpha` (lines 345, 348). This
+   holds for every element: `Pre`'s `ValsOk` (line 412) puts every input in the domain;
+2. the frame: every byte outside `cEl d` (line 240, the first `M·N` elements of `c`) is unchanged.
+
+**What you are given** (`Assumptions`, line 452), five fields:
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotScaledE4m3`, a `DotScaledAcc`): the `tl.dot_scaled` of model line 146
+  (`cfgMx`, `mxfp8`) is within `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K` of `acc + Σ a·b` when
+  the scaled values are in `scaledDomBF16`, the scale bits in `e8m0Dom`, the accumulator finite,
+  with room in `float32`;
+- `dot_mixed` (`Rules.Num.DotScaledE4m3E2m1`): the same for model line 140 (`cfgMixed`, `mixed`);
+- `dot_total`, `dot_total_mixed` (`Rules.Num.DotScaledTotal` at `cfgMx`, `cfgMixed`): those
+  `tl.dot_scaled` always have a result. The `cfgFp4` branch (line 143) is never reached.
+
+**The kernel, as the model runs it** (`block_scaled_matmul_kernel` line 72, `model` line 282,
+`launch` line 295): a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs. Program `pid` takes
+`pid_m = pid % num_pid_m`, `pid_n = pid / num_pid_m` (`tl.irem`, `tl.idiv`), then runs
+`tl.forRange 0 (K/128) 1`: each trip loads (`tl.desc_load`, host descriptors `aDesc`, `bDesc`,
+`aScaleDesc`, `bScaleDesc`, lines 209–227) the `a` tile `[128, 128]`, the `b` tile
+`[256, 128 / epbB]` and the two 5-D scale blocks, reshapes and permutes the scales (pure), and
+accumulates with `tl.dot_scaled`. After the loop it rounds the accumulator to `float16` (`tl.cvt`)
+and stores the `[128, 256]` tile through `cDesc` (`tl.desc_store`, lanes outside `c` not stored).
+Programs write disjoint tiles and use no atomics: the route is `TVA.meets_independent`; the loop is
+`safe_forRange` with an invariant (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1` with `grid_lt`; the block
+  shapes are fixed sizes);
+- each program is `Safe`: `num_pid_m > 0` (`M_ok`); the `int32` offsets `offs_am`, `offs_bn`,
+  `offs_k_a`, `offs_k_b`, `offs_scale_*` do not wrap (`M_ok`, `N_ok`, `K_ok`); each descriptor
+  access is allowed (`safe_desc_load`, `safe_desc_store`: alignment from `base_al`) and in bounds
+  (`a_len`, `b_len`, `as_len`, `bs_len`, `c_len`); `safe_dot_scaled` (shape and types of `cfgMx` or
+  `cfgMixed`, with `dot_total` or `dot_total_mixed`), `safe_cvt`; the loop body writes nothing;
+- the programs' write tiles of `c` are disjoint (distinct `(pid_m, pid_n)`), and no program writes
+  what any program reads (`c_in`);
+- the value part of part 1: an invariant over trips `t`, `|acc_t − partSum p t| ≤ tol p t` with
+  `acc_t` finite; each step from `dot` or `dot_mixed` (domain from `ValsOk.a_dom`, `b_dom`; the
+  permuted scale byte is `sIdx K r k`; for `mixed`, `rhsBits` reads nibble `k % 2` of byte `k / 2`,
+  which is `xbBits`; room from `ValsOk.room`); the padded lanes of a half tile hold `+0` and are not
+  stored; then `FloatV.cvt_err` for the store (README `## Tolerances`);
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `satInst_ok`,
+`hostInst_ok` and the `setup_*_ok` theorems; `bytes_disjoint` (line 513), `elems_lt_sub` (line 522),
+`bDT_bytes` (line 527) and `div_epbB_le` (line 536) can be reused.
+
 ## Specification
 
 Element `(i, k)` of `a` is element `i·K + k` of its storage (`xa`). Element `(j, k)` of `b`

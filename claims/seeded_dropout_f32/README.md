@@ -4,6 +4,74 @@ Triton tutorial 04's `_seeded_dropout` (`source/04-low-memory-dropout.py`, kerne
 the imports of lines 38–39; host `seeded_dropout` 134–140). `Claim.lean`, namespace
 `Claims.SeededDropout`; the claim to prove is `Statement`. The launches to cover are in `SETUP.md`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.SeededDropout.main : Statement` (`Statement`:
+`Claim.lean` line 228). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 104), and every initial memory `init` that `Pre` accepts (line 158), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 200).
+
+**What `Post` asks** (line 200). For every `j < n`, element `j` of `x` reads in `init` as `a` and
+element `j` of `output` reads in `fin` as `c`, and:
+1. if `keep d j = false` (line 189), `c` is `+0` exactly: `c = FloatV.ofPat 0`. `keep d j` is
+   `FloatV.lt (p32 d) (uRef d.seed j)`: the kernel's `p` (`p32`, line 98, the double rounded to
+   `float32`) is below the element's random number `uRef` (line 185). `uRef` is built from the
+   host's `seed` and the index `j`, not from the kernel's offsets: `rbits` (line 174, the first word
+   of `Philox.impl 10` on the counter `(j, 0, 0, 0)` and the key `key0`, `key1`, lines 167–170),
+   made non-negative by `rint` (line 179), rounded to `float32` and multiplied by `Philox.scale32`
+   (one IEEE product). The decision is exact, bit for bit;
+2. if `keep d j = true`, `a` is finite and `|a.toRat / (dRef d).toRat| ≤ 2^126`, then `c` is finite
+   and
+   `|c.toRat - a.toRat / (dRef d).toRat| ≤ 2^(-22) * |a.toRat / (dRef d).toRat| + 2^(-148)`.
+   The reference is the exact quotient in `ℚ`; `dRef` (line 193) is the IEEE `float32` difference
+   `FloatV.sub one32 (p32 d)` (`one32`, line 40). The tolerance is `Num.DivFull`'s, written out in
+   `Post`. A kept element outside this guard (NaN or infinite `a`, or a larger quotient) is only
+   required to be readable;
+3. the frame: every byte outside the first `n` elements of `output` is unchanged.
+
+**What you are given** (`Assumptions`, line 215):
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `div_total` (`Num.DivTotal P .binary32`): `/` on `float32` has a result for every pair of inputs
+  (source line 130);
+- `div_full` (`Num.DivFull`): `/` on `float32` is within relative `2^-22` and absolute `2^-148` of
+  the exact quotient, for finite operands with a quotient up to `2^126` (source line 130).
+
+**The kernel, as the model runs it** (`seeded_dropout`, line 48; `model`, line 144, picks the seed's
+type, `int32`, `int64` or `uint64`, from its value; `launch`, line 153): a 1-D grid of
+`cdiv(n, BLOCK_SIZE)` programs. Program `p` loads the masked tile `p·BLOCK_SIZE + [0, BLOCK_SIZE)` of
+`x`, computes `tl.rand(seed, offsets)` on every lane, compares it with `p`, computes the scalar
+`1 - p` (`tl.sub`) and `x / (1 - p)` (`tl.div`) on every lane, selects with `tl.where`, and stores
+the tile of `output`. No loop. Programs write disjoint tiles and share nothing: the route is
+`TVA.meets_independent` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: `block_pow2`, `block_le`, and
+  fewer than `2^31` programs from `n_lt`);
+- each program is `Safe`, for each of the three seed types of `model`: its load and store are in
+  bounds (`x_len`, `output_len`; `int32` offsets do not wrap: `Block.fits_of_grid_pow2` from
+  `n_lt`), and it writes only its tile; `tl.rand` by `safe_rand`, `tl.sub` by `safe_sub`, `tl.div`
+  by `safe_div` with a result from `div_total` on every lane;
+- the programs' write tiles are disjoint, and no program reads what another writes (`output_x`);
+- the keep decision (part 1): `safe_rand` gives `tl.ItofRel` of `Philox.randint4x` and the product
+  with `Philox.scale32`; show that the first word is `rbits d.seed j` for the lane's offset `j` (the
+  seed's value modulo `2^w` gives `key0`, `key1`), and that the conversion is `FloatV.ofRat (rint …)`
+  (`tl.itofRel_binary32`, for `|z| < 2^53`), so the lane's random number is `uRef d.seed j`;
+- the kept values (part 2): the subtraction is `dRef d` (not NaN, as `p32` is finite, `p_fin`); a
+  kept lane has `p32 < uRef ≤ 1 − 2^-24` and `0 ≤ p32` (`p_ge`), so `dRef` is finite and nonzero;
+  `div_full` then gives the bound (README, Tolerances);
+- the bytes no program writes give the frame (part 3).
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `half_facts`, `mk_ok`
+and the `setup_*_ok` theorems; `elems_disjoint_of_lt` (line 261) can be reused.
+
 ## Specification
 
 The reference is computed from the host's inputs (`seed`, `p`, `x[j]`) and the element's index `j`

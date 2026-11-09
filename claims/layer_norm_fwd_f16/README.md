@@ -10,6 +10,87 @@ Launches: [`SETUP.md`](SETUP.md). GPU check: [`check_gpu.py`](check_gpu.py). The
 two backward kernels (unused here) and their headers are classed in [`claim.json`](claim.json) and
 the model map.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.LayerNormFwdF16.main : Statement` (`Statement`:
+`Claim.lean` line 399). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 173), and every initial memory `init` that `Pre` accepts (line 348), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 369).
+
+**What `Post` asks** (line 369): for every row `t < M`, `RowDone d init fin t` (line 359), and the
+frame. The reference is the exact real LayerNorm of row `t` of `x`, read from `init` as reals
+(`meanRef` line 266, `varRef` 274, `rstdRef` 281, `zRef` 285, `yRef` 289, with `weight[j]` and
+`bias[j]`); element `(t, j)` of `x` and `y` is `idx d t j = t·N + j` (line 153). `RowDone` has three
+parts:
+1. `mean[t]` reads in `fin` as a finite `float32` `c` with
+   `|c.toReal - meanRef d init t| ≤ meanTol d init t` (`meanTol`, line 297);
+2. `rstd[t]` reads as a finite `float32` `c` with `|c.toReal - rstdRef d init t| ≤ rstdTol d init t`
+   (`rstdTol`, line 317, built from `cond` 302, `gam` 306, `mTerm` 312): relative when
+   `cond ≤ 1/2`, and `(1 + gam)/sqrt(eps) + 2^-140` otherwise;
+3. for every `j < N`: `y[idx t j]` reads as a finite `float16` `c` with
+   `|c.toReal - yRef d init t j| ≤ yTol d init t j` (`yTol`, line 333, built from `zTol` 323, which
+   has the same two cases).
+
+These hold on every row; the two cases are inside the tolerances, not guards on what is asked.
+`depth` (line 294) is `Nat.clog 2 BLOCK`. The frame: every byte outside `outBytes d` (line 169:
+the `M·N` elements of `y`, the `M` elements of `mean` and `rstd`) is unchanged.
+
+**What you are given** (`Assumptions`, line 376):
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `sqrt_total` (`Num.MathTotal P .sqrt .binary32`): `tl.sqrt` (source line 81, `Claim.lean`
+  line 93) has a result;
+- `sqrt_acc` (`Num.SqrtF32`): on `0` and inputs `≥ 2^-126`, `tl.sqrt` is within `2^-22·√x + 2^-149`;
+- `div_total` (`Num.DivTotal P .binary32`): `/` (source lines 72, 80, 81; `Claim.lean` lines 69,
+  88, 92) has a result;
+- `div_full` (`Num.DivFull`): `/` is within `2^-22·|q| + 2^-148` of the quotient `q`, for
+  `|q| ≤ 2^126`;
+- `sum_depth` (`Num.SumDepth`): the trees of the two `tl.sum`s (source lines 72, 80; `Claim.lean`
+  lines 69, 88) over their `BLOCK_SIZE` positions have depth at most `Nat.clog 2 BLOCK`
+  (`SumDepth.depth_le`).
+
+**The kernel, as the model runs it** (`layer_norm_fwd_fused` line 42, `model` line 221, `launch`
+line 228): a 1-D grid of `M` programs, one per row. Program `row` advances `X` and `Y` by the `int32`
+product `row * stride` (`stride = N`), then runs three `tl.forRange` loops over `[0, N)` with step
+`BLOCK_SIZE`; since `N ≤ BLOCK_SIZE` each makes one trip (`off = 0`, `cols = [0, BLOCK_SIZE)`, mask
+`cols < N`). Loop 1 loads `x` (`other = 0`) and adds it to a zero block; `tl.sum`, then `/` by
+`tl.itof N`, gives `mean`. Loop 2 loads `x` again, forms `tl.subc x mean` (zero outside the mask),
+and `tl.mul_add x x _var`; `tl.sum`, `/` by `N`, `tl.addc` with `eps`, `tl.sqrt` and `1 / ·` give
+`rstd`. `tl.store1` writes `mean[row]` and `rstd[row]`. Loop 3 loads `w`, `b` (no `other`) and `x`,
+forms `tl.subc`, `tl.mul` by `rstd`, `tl.mul_add` with `w`, `b`, converts to `float16` and stores
+the row of `y` under the mask. Programs write disjoint rows, all read the same `weight` and `bias`,
+and use no atomics: the route is `TVA.meets_independent`. Each loop takes `safe_forRange` with an
+invariant on the carried block; loops 1 and 2 write nothing (`fun _ => ∅`, `iterW_empty`), loop 3's
+one trip writes row `row` of `y` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: `M < 2^31` from `rows_lt` and
+  `n_ge`; the block shape `[BLOCK]` from `block_pow2`, `block_lt`, `n_le`);
+- each program is `Safe`: `row * stride` does not wrap (`rows_lt`), nor do `cols` (`BLOCK ≤ 32768`);
+  the loop runs one trip (`n_le_block`); every enabled lane of `x` and `y` is below `M·N` (`x_len`,
+  `y_len`), of `w`, `b` below `N` (`w_len`, `b_len`), and `mean[row]`, `rstd[row]` are in bounds
+  (`mean_len`, `rstd_len`); every float step has a result (`sqrt_total`, `div_total`);
+- the write footprints of distinct programs (row `row` of `y`, `mean[row]`, `rstd[row]`) are
+  disjoint, and no program's reads meet any program's writes (`out_in`, `y_mean`, `y_rstd`,
+  `mean_rstd`); this also gives `hRW`;
+- parts 1–3: the rounding of each step, the sums by `sum_err_depth` with `SumDepth.depth_le`, `N`
+  exact through `tl.ItofRel` (`safe_itof`), `safe_mul_add`, `div_full`, `sqrt_acc` (its input is at
+  least `2^-126` from `eps_ge`), the conversion of the host's `eps` (`FloatV.hostF32`), and `Pre`'s
+  `YRoom` (line 341), which keeps `y`'s `float32` value below `2^15·(1 + 3·2^-24)` so the `float16`
+  conversion does not overflow; README `## Tolerances` gives the derivation, steps 1–5;
+- the frame: the bytes no program writes are `init`'s.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mkInst_ok`,
+`eps1e5_facts`, `setup_test_ok` and `setup_bench_ok`; `bytes_disj` (line 441) and `elems_disj`
+(line 449) can be reused.
+
 ## Specification
 
 For each row `t < M`, with `x j = x[t, j]` (the `float16` input as a real, exactly), the reference

@@ -10,6 +10,79 @@ The covered path is `SETUP.md`'s: `bfloat16` `q`, `k`, `do`, `dv`, an optional `
 variable-length batch (`IS_VARLEN` either way, `int32` or `int64` tables), on an H200
 (`BK`, `BV` the host's `min(max(next_power_of_2(·), 16), 128)`).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.ChunkBwdDvLocal.main : Statement` (`Statement`:
+`Claim.lean` line 524). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 228), and every initial memory `init` that `Pre` accepts (line 476), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 494).
+
+**What `Post` asks** (line 494), two parts:
+1. for every sequence `n < nSeq d` (line 342), token `p` with `lo d n ≤ p < hi d n` (lines
+   345–346), value head `hv < HV` and column `e < V`: element `oIdx d p hv e` (line 332) of `dv`
+   reads in `fin` as a `bfloat16` `c`, `c` is finite, and
+   `|c.toReal − ref d init n p hv e| ≤ tol d init n p hv e`. This holds for every such element (no
+   guard: `Pre`'s `ValsOk`, line 460, covers the values). `ref` (line 403) is exact, in the reals:
+   `Σ_{j ∈ [p, chunkEnd)} Aex·dov`, with `Aex` (line 392) `= sig·kq·wt` (lines 369, 372, 388) from
+   `q`, `k`, `g`, `do` in `init`, and `chunkEnd` (line 351) from `cu_seqlens` or the rows. `tol` is
+   defined at line 441 (with `eA`, `wErr`, `wUp`, `epsA`, lines 417–432);
+2. the frame: every byte outside `dv.elems (written d)` (line 487) is unchanged.
+
+**What you are given** (`Assumptions`, line 504), six fields:
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): each `tl.dot` (model lines 130, 156) is within
+  `relDot16 K` times the lifted magnitude plus `absDot16 K` of the exact sum, with room;
+- `dot_total` (`Rules.Num.DotTotal` at `cfgBF16`, line 47): every `tl.dot` has a result;
+- `exp2` (`Rules.Num.Exp2F32`, `2^-22` relative, `2^-126` absolute): the gate, model line 137;
+- `exp2_ninf` (`Rules.Num.Exp2F32NegInf`): `exp2(−∞) = +0`, for a gate difference that overflows;
+- `exp2_total` (`Rules.Num.MathTotal`): `exp2` has a result.
+
+**The kernel, as the model runs it** (`chunk_bwd_kernel_dv_local` line 62, `model` line 285,
+`launch` line 296): a 2-D grid `(nChunks d, nRows d, 1)` (lines 222, 225). Program `(i_t, i_bh)`
+splits `i_bh` into `i_b`, `i_h` (`int64` `tl.idiv`, `tl.irem` by `HV`). On variable length it reads
+row `i_t` of `chunk_indices` and `cu_seqlens[i_n]`, `cu_seqlens[i_n + 1]` (`tl.load1`); on fixed
+length `bos = i_b·T`. Tokens `o_t = i_t·BT + [0, BT)` are masked by `o_t < T`. With a gate it loads
+`b_g`. A first `tl.forRange` over `cdiv(K, BK)` trips loads masked `[BT, BK]` and `[BK, BT]` tiles
+of `k`, `q` and accumulates `b_A` by `tl.dot` then `tl.mul_add` with `scale`; it writes nothing.
+Then the gate (`tl.sub`, `tl.exp2`, `tl.mul`), the causal mask `m_A` (`tl.where`, `+0`) and the
+rounding to `bfloat16` (`tl.cvt`). A second `tl.forRange` over `cdiv(V, BV)` trips loads a masked
+`[BT, BV]` tile of `do`, computes `tl.dot(b_A, b_do)`, rounds it and stores the masked tile of
+`dv`. Programs write disjoint tiles and use no atomics: the route is `TVA.meets_independent`;
+both loops are `safe_forRange` with an invariant, the second with per-trip write footprints (the
+column tiles), disjoint across trips (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (the `Launch` default; `Launch.Valid` from
+  `grid0_lt`, `grid1_lt`, `grid_lt`, and the block shapes from `bt_ok`, `bk_*`, `bv_*`);
+- each program is `Safe`: the divisors `HV` and `HV / H` are nonzero (`HV_pos`, `hv_dvd`); the
+  table reads are in bounds (`ci_len`, `cu_len`, `N_lt`, `TablesOk`); the `int64` offsets and the
+  `int32` `o_k`, `o_v` do not wrap (`T_lt`, `K_le`, `V_le`, `hvv_lt`); every enabled lane of every
+  load and store is in bounds (`q_len`, `k_len`, `dO_len`, `dv_len`, `g_len`, and on variable
+  length `TablesOk`'s `cu_seqlens` nondecreasing and `≤ T`); `safe_dot` (with `dot_total`),
+  `safe_mul_add`, `safe_sub`, `safe_math` (with `exp2_total`), `safe_mul`, `safe_cvt`,
+  `safe_convert`, `safe_load`, `safe_store`;
+- the programs' write tiles are disjoint: on fixed length from `(i_t, i_bh)`; on variable length
+  from `TablesOk` (distinct rows); no program writes what any program reads (`dv_q`, `dv_k`,
+  `dv_dO`, `dv_g`, `dv_cu`, `dv_ci`); and every element of `written d` is written (every chunk has
+  a row, `TablesOk`; `nChunks` covers `T` on fixed length);
+- the value part of part 1, steps 1–6 of README `## Tolerances`: the `K` loop's dots and
+  multiply-adds (`dot`, `FloatV.fma_err` or `FloatV.mul_err` and `FloatV.add_err`), the gate
+  (`FloatV.sub_err`, `exp2`, `exp2_ninf`), the entry within `eA`, the two `bfloat16` roundings
+  (`FloatV.cvt_err`), the second dot (`dot`), with room from `ValsOk`;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `satInst_ok`,
+`canon_ok`, `setup_var3_tables`, the `s*_ok` facts and the `setup_*_ok` theorems; `bytes_disj`
+(line 570) can be reused.
+
 ## Specification
 
 Sequences (`nSeq`, `lo`, `hi`) are the rows `[b·T, b·T + T)` of a fixed-length batch, or

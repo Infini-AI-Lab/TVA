@@ -16,6 +16,80 @@ lines 57–58, which are kernel lines and are mapped (as imports that add no ste
 module-level lines are host lines: `import math`, `import torch` (53–55), the host `bmm_chunk_fwd`,
 `make_inputs`, `reference` and the test (193–351).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.SsdBmm.main : Statement` (`Statement`: `Claim.lean`
+line 496). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 290), and every initial memory `init` that `Pre` accepts (line 374: the four
+buffers valid, every `seq_idx` entry a non-negative `int32`), every outcome of the launch is a
+normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 467).
+
+**What `Post` asks** (line 467), two parts:
+1. for every `c < nch d`, `g < G`, `m < C`, `n < C`: `OutElem d init fin c g m n` (line 452).
+   Element `oIdx d c g m n` (line 286) of `out` reads in `fin` as some `float32` `v`, and:
+   - if `sameReq d init c m n` (line 443: tokens `c·C + m` and `c·C + n` are both below `T` and
+     have equal `seq_idx` in `init`): for all `va vb : Nat → BF16` such that, for every `k < K`,
+     `init` reads `a`'s element `aIdx d (c·C + m) g k` as a finite `va k` and `b`'s element
+     `bIdx d (c·C + n) g k` as a finite `vb k`, and `dotMag va vb d.K ≤ 2^120` (line 397): `v` is
+     finite and `|v.toRat - dotSum va vb d.K| ≤ tol va vb d.K`. With a non-finite input or no
+     room, only "holds a value" is asked;
+   - otherwise, on every input: `FloatV.NaNEq (FloatV.ofPat 0) v`, the `float32` `+0`.
+
+   The reference `dotSum` (line 392) is the exact `Σ_{k<K} va k · vb k` in the rationals. `tol`
+   (line 425) is `errAt (prodV va vb K) (liftV va vb K) (steps K)`: the recursion `errAt`
+   (line 419), `E (t+1) = (1 + rho)·E t + rho·(|partSum p t| + stepMag q t) + alpha`, over
+   `steps K = cdiv(K, 32)` (line 381), with `prodV`, `liftV`, `partSum`, `stepMag` (lines
+   402–412) and `rho`, `alpha` (lines 386, 389: `DotLoop.stepRel`, `stepAbs` of `relDot16 32`,
+   `absDot16 32`);
+2. the frame: every byte outside `out`'s first `oB d` elements (line 268) is unchanged.
+
+**What you are given** (`Assumptions`, line 475):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
+  valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot` of source line 161 is within
+  `relDot16 K · (|acc| + Σ liftMag a · liftMag b) + absDot16 K` of `acc + Σ a·b`, with room
+  below the `float32` range;
+- `dot_total` (`Rules.Num.DotTotal P cfgBF16`, `cfgBF16` line 36): that `tl.dot` has a result.
+
+**The kernel, as the model runs it** (`bmm_chunk_fwd_kernel`, line 82; `model` line 348, `launch`
+line 361): a 3-D grid `(gx d, 1, gz d)` (lines 275, 278). Program `(pid, ·, pid_ch)` owns one
+`64 × 128` tile (`pid_m`, `pid_n` from `pid`) of chunk `pid_c = pid_ch / G`, group
+`pid_h = pid_ch − pid_c·G`. It runs `tl.forRange 0 (cdiv(K, 32)) 1` of two masked loads (rows and
+columns below `chunk_size_limit`, `k` below `K`; `other` the `bfloat16` `+0`) and `tl.dot_add`
+into a zero accumulator. After the loop it loads the tile's `seq_idx` rows (`other = -1`) and
+columns (`other = -2`), zeroes the pairs that differ (`tl.where`), and stores the tile (masked to
+`m, n < C`). The batch strides enter through `batchOff` (line 61), `int32` or `int64` by value
+(`intArg`, line 55). Programs write disjoint tiles and use no atomics: the route is
+`TVA.meets_independent` (PROVER_GUIDE §4); the loop writes nothing (`safe_forRange` with an
+invariant and `fun _ => ∅`).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false`: the grid is 3-D, so `Launch.Valid` is proved
+  directly (`x = gx d` is small since `C·C < 2^31` by `oC_lt`; `z` from `gz_lt`, the count `gx d · gz d` from `grid_lt`;
+  the six listed block shapes);
+- each program is `Safe`: no `int32` or `int64` offset wraps (`T_lt`, `aB_lt` … `oC_lt`, `a_fit`,
+  `b_fit`, `aK_step`, `bK_step`, `gz_lt`); every enabled load is in bounds (`a_len`, `b_len`,
+  `seq_len`); the store is in bounds (`out_len`) on distinct lanes; `safe_idiv`, `safe_irem`,
+  `safe_convert`, `safe_dot_add` (`dot_total`) for the steps;
+- footprints: the programs' tiles of `out` are disjoint, and `out` is disjoint from every read
+  (`out_a`, `out_b`, `out_s`; `a` and `b` may overlap, both only read);
+- the value part of `Post`: the `tl.where` gives `+0` exactly when `sameReq` fails (`Pre`'s
+  non-negative `seq_idx`, so `-1`, `-2` never match a token); on `sameReq` the loop is within
+  `errAt` of `dotSum`, step by step (`DotLift.dotAdd_step` with `dot`, by induction on the
+  recursion; room from `dotMag ≤ 2^120`; README `## Tolerances`);
+- the frame: the bytes no program writes.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `tol_rel_lt`
+(line 429), `mk_ok` and the `setup_*_ok` theorems; `row_lt` (line 533), `bytes_disjoint`
+(line 539), `zero_i32` (line 648) and `valid_zero` (line 655) can be reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance, from every memory `Pre`
@@ -80,6 +154,7 @@ fresh contiguous `[1, nchunks, ngroups, C, C]` (strides `oB, oC, oH, C, 1`), `ba
 | `C_pow2`, `C_ge` | `chunk_size` a power of two, `≥ 2` | the code base asserts a power of two (`ssd_combined.py:77`); `1` is outside real use (Exclusions) |
 | `K_le` | `dstate ≤ 2^10` | keeps the tolerance below `2.7·10^-4` of the products' magnitudes (`tol_rel_lt`), which also bounds the accumulator for the `float32` room condition (Tolerances); every Mamba-2 model's `dstate` is at most `256` |
 | `gz_lt` | `nchunks·ngroups < 2^16` | CUDA's grid `z` limit (`Launch.Valid`); a kernel limit (Exclusions) |
+| `grid_lt` | `gx·gz = cdiv(C, 64)·cdiv(C, 128)·nchunks·ngroups < 2^31` | fewer than `2^31` programs (`Launch.Valid`); a kernel limit (Exclusions) |
 | `T_lt`, `aS_lt` … `aK_lt`, `bS_lt` … `bK_lt`, `oC_lt` | `seqlen`, the strides of `a` and `b` other than `stride(0)`, and `out.stride(1) = ngroups·C²` below `2^31` | each is an `int32` argument in the model (`seq_idx.stride(0) = seqlen`; `oC` bounds `out`'s later strides, `C²` and the store offsets `m·C + n`) |
 | `aB_lt`, `bB_lt` | `a.stride(0)`, `b.stride(0)` below `2^63` | an `int32` argument below `2^31`, an `int64` one from `2^31` (`intArg`); the kernel only multiplies each by `pid_b` (`batchOff`). `out.stride(0) = nchunks·oC` is below `2^47` by `gz_lt` and `oC_lt`, of either class too |
 | `a_fit`, `b_fit` | `(C − 1)·aS + 31·aK < 2^31`, `31·bK + (C − 1)·bS < 2^31` | the `int32` lane offsets of lines 143–144 on the lanes the loads enable (rows below `C`, `k`-lanes below 32) do not wrap; disabled lanes may wrap and are not accessed |
@@ -223,6 +298,13 @@ What `SETUP.md` allows and the claim leaves out:
   launch that hits it with SGLang's sizes: `ngroups = 8`, chunks of 256, `seqlen = 2,096,897`
   tokens (8192 chunks); with one group, chunks of 256, `16,776,961` tokens. Real use (prefills of
   thousands to tens of thousands of tokens) does not reach it.
+- **`cdiv(C, 64)·cdiv(C, 128)·nchunks·ngroups ≥ 2^31`** (`grid_lt`): a kernel limit. A launch of
+  `2^31` or more programs is not a valid CUDA launch (Triton's launcher skips it without running a
+  program). The host's grid reaches it only with a very large `chunk_size`: the first such launch is
+  `chunk_size = 2^15`, `ngroups = 1`, `seqlen = 2^29` (`2^17 × 2^14` programs), whose `out` holds
+  `2^14·2^30` `float32` values (64 TiB); since `gx ≈ C²/2^13`, every such launch has an `out` of at
+  least about `2^44` elements. Real use (chunks of 8 to 256, so `gx ≤ 8` and fewer than `2^19`
+  programs) does not reach it.
 - **Strides other than `stride(0)` from `2^31` on** (`aS_lt` … `bK_lt`, `oC_lt`; `T_lt`):
   outside real use. Real use has `a.stride(1) = b.stride(1) = conv_dim` (about 10^4),
   `stride(2) = dstate`, `stride(3) = 1` and `out.stride(1) = ngroups·C² ≤ 2^19`; Triton would

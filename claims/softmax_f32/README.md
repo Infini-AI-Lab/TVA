@@ -4,6 +4,84 @@ Triton tutorial 02's `softmax_kernel` (`source/02-fused-softmax.py`, kernel line
 imports of lines 26–27; host `softmax` 124–175). `Claim.lean`, namespace `Claims.Softmax`; the claim
 to prove is `Statement`. The launches to cover are in `SETUP.md`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.Softmax.main : Statement` (`Statement`: `Claim.lean`
+line 257). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 112), and every initial memory `init` that `Pre` accepts (line 164), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 218).
+
+**What `Post` asks** (line 218). For every row `r < n_rows` there are values `xs` with:
+1. for every `k < n_cols`, input element `x[r, k]` (`inIdx d r k`, line 100) reads in `init` as
+   `xs k`;
+2. for every `j < n_cols`, output element `y[r, j]` (`outIdx d r j`, line 103) reads in `fin` as some
+   `float32` value. This holds for every row, whatever its inputs;
+3. only when `RowOk xs n_cols` holds (line 171: every input finite or `-∞`, and at least one finite
+   when the row is not empty): there is one real factor `sc` for the whole row with
+   `|sc - 1| ≤ sumTol BLOCK_SIZE`, and for every `j < n_cols` the output `c` of `y[r, j]` is finite
+   and
+
+   $$|c - sc\cdot\sigma_j| \le (\mathtt{elemTol} + \mathtt{gapTol}\cdot\mathtt{softmaxGap}_j)\cdot\sigma_j + \mathtt{floorTol}\cdot\mathtt{softmaxMax},$$
+
+   with `σ_j = softmaxRef xs n_cols j` (line 180): the exact softmax in the reals,
+   `expIn (xs j) / Σ_{k<n_cols} expIn (xs k)` (`expIn`, line 176, `e^a` with `e^(-∞) = 0`).
+   `softmaxMax` (line 185) is the row's largest `σ`, `softmaxGap` (line 190) is
+   `log(softmaxMax / σ_j)`. The tolerances: `sumTol` (line 197, `(⌈log₂ B⌉ + 56)·2^-24`),
+   `elemTol` (line 201), `gapTol` (line 205), `floorTol` (line 209). Outside `RowOk` only part 2 is
+   asked;
+4. the frame: every byte outside the output elements `outSet d` (line 109) is unchanged.
+
+**What you are given** (`Assumptions`, line 234):
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `exp_total` (`Num.MathTotal P .exp .binary32`): `tl.exp` has a result on every input (source
+  line 103);
+- `exp_acc` (`Num.ExpF32`): for finite `x` in `[-X, X]`, `tl.exp` is finite and within
+  `(2^-22 + 2^-23·X)·e^x + 2^-140` of `e^x` (source line 103);
+- `exp_ninf` (`Num.ExpF32NegInf`): `tl.exp(-∞) = +0` (source line 103);
+- `div_total` (`Num.DivTotal P .binary32`): `/` on `float32` has a result for every pair of
+  inputs (source line 105);
+- `div_full` (`Num.DivFull`): `/` on `float32` within relative `2^-22`, absolute `2^-148`, for
+  quotients up to `2^126` (source line 105);
+- `sum_depth` (`Num.SumDepth`): the tree of the float `tl.sum` (source line 104) over `BLOCK_SIZE`
+  positions has depth at most `⌈log₂ BLOCK_SIZE⌉`.
+
+**The kernel, as the model runs it** (`softmax_kernel`, line 44; `model`, line 149; `launch`,
+line 158): a 1-D grid of `num_programs` programs. Program `p` runs the `int32` loop
+`tl.forRange p n_rows num_programs` over rows `p, p + num_programs, …` below `n_rows`. Each trip loads
+row `row_idx` (one block of `BLOCK_SIZE` lanes, masked by `n_cols`, other lanes `-∞`), takes the max
+(`tl.maxAll`), subtracts it (`tl.sub`), applies `tl.exp`, sums (`tl.sum`), divides every lane by the
+sum (`tl.div`), and stores the row of `y`. Each row is handled by exactly one program; programs write
+disjoint rows and share nothing: the route is `TVA.meets_independent`, with `safe_forRange` and an
+invariant over the trips (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1` from `grid_lt`);
+- each program is `Safe`: the loop is `tl.RangeOk` and does not overflow (`rows_grid`); each trip's
+  loads and store are in bounds (`x_len`, `y_len`, `cols_le`), with `int32` row offsets that do not
+  wrap (`in_stride_lt`, `out_stride_lt`, `in_off`, `out_off`); the trips' write footprints (the
+  rows' output elements) are disjoint (`out_rows`); the rules are `safe_load`, `safe_maxAll`,
+  `safe_sub`, `safe_math` (with `exp_total`), `safe_sum`, `safe_div` (with `div_total`),
+  `safe_store`;
+- the programs' write footprints are disjoint (different rows, `out_rows`), and no program reads
+  what another writes (`y_x`);
+- parts 1 and 2 from the loads and stores of each row's trip (`grid_pos`: every row has a program);
+- part 3 on a `RowOk` row: the max is a finite input; `exp_acc` and `exp_ninf` bound each lane;
+  `sum_depth` with `SumDepth.depth_le` and `sum_err_depth` bound the sum and give `sc`; `div_full`
+  bounds each quotient (README, Tolerances, gives the derivation, including lanes where `x − max`
+  overflows);
+- the bytes no program writes give the frame (part 4).
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `idx_lt` (line 281) can be reused.
+
 ## Specification
 
 Element `j` of row `r` is `inIdx d r j = r·input_row_stride + j` of `x` and

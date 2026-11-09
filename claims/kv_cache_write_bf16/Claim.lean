@@ -290,6 +290,13 @@ structure Inst.ok (d : Inst) : Prop where
   /-- The strides are `int64` values. -/
   strides_lt : d.key_stride < 2 ^ 63 ∧ d.value_stride < 2 ^ 63 ∧ d.block_stride < 2 ^ 63 ∧
     d.page_stride < 2 ^ 63 ∧ d.head_stride < 2 ^ 63
+  /-- `key`, `value` and the caches have fewer than `2^63` elements, so the `int64` offsets of an
+  enabled lane (`token_idx * key_stride`, line 115; `block_idx * block_stride + block_offset *
+  page_stride + cur_head * head_stride + cur_dim`, lines 152-157), sums of non-negative terms at
+  most the element's index (`key_len`, `value_len`, `kv_len`), do not wrap (README
+  "Exclusions"). -/
+  lens_lt : d.key.len < 2 ^ 63 ∧ d.value.len < 2 ^ 63 ∧ d.key_cache.len < 2 ^ 63 ∧
+    d.value_cache.len < 2 ^ 63
   /-- The caches' storage shares no byte with the inputs' (the kernel only reads `key`, `value`
   and `slot_mapping`, which vLLM keeps apart from the cache). -/
   disj_kc_key : Disjoint d.key_cache.bytes d.key.bytes
@@ -539,7 +546,7 @@ theorem mk_ok (m : Mode) (L : Layout) (T nh hs bs nb TILE : Nat) (ht : ∃ e, TI
   have hvo : vOff L bs (nh * hs) hs ≤ bs * (nh * hs) + hs := by
     cases L <;> simp only [vOff] <;> omega
   refine ⟨ht, htl, h1, h2, h3, h4, h6, ?_, le_refl _, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    ?_⟩
+    ?_, ?_⟩
   · -- block_size_lt
     show bs < 2 ^ 63
     omega
@@ -606,6 +613,11 @@ theorem mk_ok (m : Mode) (L : Layout) (T nh hs bs nb TILE : Nat) (ht : ∃ e, TI
     cases L <;> exact ⟨show 3 * (nh * hs) < 2 ^ 63 by omega, show 3 * (nh * hs) < 2 ^ 63 by omega,
       show 2 * bs * (nh * hs) < 2 ^ 63 by omega, by simp only [mk]; omega,
       by simp only [mk]; omega⟩
+  · -- lens_lt: inside the `2^37`-element regions
+    have hX2 : nb * (2 * bs * (nh * hs)) ≤ (nb + 1) * (2 * bs * (nh * hs)) :=
+      Nat.mul_le_mul_right _ (Nat.le_succ nb)
+    simp only [mk]
+    omega
   -- the caches lie after the inputs: ordered regions
   · refine bytes_disjoint_of_ge ?_; cases m <;> simp only [mk, DType.bytes] <;> omega
   · refine bytes_disjoint_of_ge ?_; cases m <;> simp only [mk, DType.bytes] <;> omega

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """The one tool of a claim task (make_claim_task.py), in the claim base image at /usr/local/bin/tva-claim.
 
-  tva-claim check [--json OUT]   is the claim's Statement proved? (the verifier's own check; exit 0 when it is)
+  tva-claim check /app/claim [--json OUT]   is the claim's Statement proved? (the verifier's own check; exit 0
+                                 when it is). It checks the whole workspace /app/claim: Claim.lean, Proof.lean, Proof/
   tva-claim verify               the verifier: check, then /logs/verifier/reward.json (1 or 0) and details.json
   tva-claim prepare              at image build: Claim.lean read-only, `lake build Claim`
-  tva-claim grade                the grader's procedure, here: the proof's build outputs deleted, a fresh build of
+  tva-claim grade /app/claim     the grader's procedure, here: the proof's build outputs deleted, a fresh build of
                                  Proof.lean and Proof/ only, the check within the grader's limit; prints the reward
   tva-claim time                 the agent's time: elapsed, left, and the deadline
   tva-claim hook session-start|pre-tool|post-tool|stop   the prover's Claude Code hooks (/.claude/settings.json)
@@ -145,7 +146,7 @@ def grade():
     print(f"grade: the proof's build outputs deleted; the check runs within {limit // 60} min, as the grader's", flush=True)
     t0 = time.time()
     try:
-        r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "check"], timeout=limit)
+        r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "check", WS], timeout=limit)
         ok = r.returncode == 0
         print(f"grade: {int(time.time() - t0)} s", flush=True)
     except subprocess.TimeoutExpired:
@@ -255,7 +256,7 @@ def hook_pre_tool(inp):
 def hook_session_start(inp):
     c = clock(start=True)
     out({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": time_line(c) + " Grading "
-         "is all or nothing, and an unfinished proof scores 0: plan for the time you have. `tva-claim time` shows "
+         "is all or nothing, and an unfinished proof scores 0: plan for the time you have. `/usr/local/bin/tva-claim time` shows "
          "what is left."}})
 
 
@@ -272,7 +273,7 @@ def hook_post_tool(inp):
     c["told"] += due
     json.dump(c, open(CLOCK, "w"))
     out({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": time_line(c) + " When the "
-         "time is up the session ends, and only a proof that passes `tva-claim check` scores."}})
+         "time is up the session ends, and only a proof that passes `/usr/local/bin/tva-claim check /app/claim` scores."}})
 
 
 def files_key():
@@ -292,7 +293,7 @@ def hook_stop(inp):
         pass
     if st.get("key") == key and st.get("passed"):
         sys.exit(0)
-    r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "check"], capture_output=True, text=True,
+    r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "check", WS], capture_output=True, text=True,
                        timeout=3300)
     if r.returncode == 0:
         json.dump({"key": key, "passed": True}, open(STATE, "w"))
@@ -302,21 +303,37 @@ def hook_stop(inp):
     if n > 8:
         sys.exit(0)  # eight blocked stops in a row with the proof unchanged: let it stop
     fails = [l for l in r.stdout.splitlines() if l.startswith("[FAIL]")]
-    out({"decision": "block", "reason": "Do not stop: the task succeeds only when `tva-claim check` passes, and it "
+    out({"decision": "block", "reason": "Do not stop: the task succeeds only when `/usr/local/bin/tva-claim check /app/claim` passes, and it "
          "fails:\n" + "\n".join(fails[:6]) + "\nKeep proving: the claim is fixed, so the way forward is a proof of "
          "Statement exactly as stated (split it into lemmas, delegate lemmas to subagents, build often). The task is "
          "in /instruction.md." + (" " + time_line(clock()) if clock() else "")})
 
 
+TARGET_HELP = (f"it checks the whole workspace {WS}: the fixed Claim.lean and your proof, Proof.lean and Proof/ "
+               f"(every file in it), never one file. Run exactly:\n  /usr/local/bin/tva-claim check {WS}\n"
+               f"  /usr/local/bin/tva-claim grade {WS}")
+
+
+def target(a, extra=()):
+    """The command's one argument, the workspace: anything else is refused, with what the command checks."""
+    rest = [x for x in a[1:] if x not in extra]
+    if len(rest) != 1 or os.path.normpath(rest[0]) != WS:
+        sys.exit(f"tva-claim {a[0]}: give the workspace {WS} as its one argument ({' '.join(a[1:]) or 'none'} "
+                 f"given); " + TARGET_HELP)
+
+
 def main():
     a = sys.argv[1:]
     if a[:1] == ["check"]:
-        sys.exit(0 if check(a[a.index("--json") + 1] if "--json" in a else None) else 1)
+        js = a[a.index("--json") + 1] if "--json" in a and a.index("--json") + 1 < len(a) else None
+        target(a, extra=("--json", js) if js else ())
+        sys.exit(0 if check(js) else 1)
     if a[:1] == ["verify"]:
         verify()
     elif a[:1] == ["prepare"]:
         prepare()
     elif a[:1] == ["grade"]:
+        target(a)
         grade()
     elif a[:1] == ["time"]:
         show_time()

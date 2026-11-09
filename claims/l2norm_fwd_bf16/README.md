@@ -6,6 +6,75 @@ The claim is `Claims.L2NormFwd.Statement` in `Claim.lean`: `∀ K P, Assumptions
 file proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok`; it does not prove
 `Statement`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.L2NormFwd.main : Statement` (`Statement`: `Claim.lean`
+line 321). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 178), and every initial memory `init` that `Pre` accepts (line 242), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 288).
+
+**What `Post` asks** (line 288), for every row `t < T`, with `a j` the row's `bfloat16` inputs
+`x[xIdx d t j]` read in `init` (`xIdx d t j = t·D + j`, line 142) and
+`rstdRef a D eps = 1 / √(rowSum a D + eps)` (line 253; `rowSum`, line 237, is `Σ_{j<D} a_j²`), exact
+in the reals with the host's double `eps`:
+1. element `t` of `rstd` reads in `fin` as a finite `float32` `rc` with
+   `|rc - rstdRef| ≤ rstdTol·rstdRef`, `rstdTol = 2^-12` (line 256);
+2. for every `j < D`, `YOk d fin (xIdx d t j) (a_j·rstdRef) (|a_j|·rstdRef)` (line 275): element
+   `t·D + j` of `y` reads in `fin` as a finite value of `y`'s dtype within
+   `yTol·|a_j|·rstdRef + yFloor` of `a_j·rstdRef` for a `bfloat16` `y` (`yTol = 2^-7`, line 260;
+   `yFloor = 2^-132`, line 263), within `yTol32·|a_j|·rstdRef + yFloor32` for a `float32` `y`
+   (`yTol32 = 2^-11`, line 267; `yFloor32 = 2^-149`, line 270);
+3. the frame: every byte outside `yElems d (rowSet d)` (the first `T·D` elements of `y`, lines 151,
+   145) and `rstd.elems (rSet d)` (the first `T` elements of `rstd`, line 148) is unchanged.
+
+**What you are given** (`Assumptions`, line 302):
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `sqrt_total` (`Num.MathTotal P .sqrt .binary32`): `tl.sqrt` has a result on every input
+  (source line 56);
+- `sqrt_acc` (`Num.SqrtF32`): on `sqrtDom` (`0` or at least `2^-126`), `tl.sqrt` is within
+  `2^-22·√x + 2^-149` (source line 56);
+- `div_total` (`Num.DivTotal .binary32`): `/` has a result on every pair (source line 56);
+- `div_full` (`Num.DivFull`): `/` is within `2^-22` relative and `2^-148`, for `|x/y| ≤ 2^126`
+  (source line 56).
+
+**The kernel, as the model runs it** (`l2norm_fwd_kernel` line 43, `model` line 221, `launch`
+line 232): a 1-D grid of `cdiv(T, BT)` programs. Program `p` takes rows `p·BT + [0, BT)` (`int64`
+offsets, mask `< T`) and columns `[0, BD)` (mask `< D`); it loads the `[BT, BD]` tile of `x` with
+`other = +0` and widens it to `float32`, squares it (`tl.mul`), sums each row (`tl.sum1c`, the
+fusable sum, any tree), adds `eps` (`tl.addc`, `FloatV.hostF32 eps`), takes `tl.sqrt`, and computes
+`1 / sqrt` (`tl.div`). It stores `x·rstd` to `y` (rounded to `bfloat16` for `Sum.inl`, as it is for
+`Sum.inr`) under the tile mask, and `rstd` under the row mask. No loop. `model` passes `T` as an
+`int32` below `2^31` and an `int64` from `2^31` (two cases). Programs write disjoint row blocks
+and use no atomics: the route is `TVA.meets_independent` (PROVER_GUIDE §4). The tile offsets are
+2-D: use `safe_load` and `safe_store`.
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: `grid_lt`, and the five block
+  shapes Triton accepts from `bd_pow2`, `bt_pow2`, `block_le`);
+- each program is `Safe`: the `int64` offsets do not wrap (`T < 2^51` from `grid_lt`), the enabled
+  lanes lie in the buffers (`x_len`, `y_len`, `r_len`, `d_bd`), and `tl.sqrt` and `/` have results
+  on every lane, the rows `≥ T` of the last program included (`sqrt_total`, `div_total`);
+- the programs' write footprints are disjoint (distinct row blocks), and no program reads what any
+  program writes (`y_x`, `r_x`, `r_y`);
+- the value of `rstd` gives part 1: the products (`FloatV.mul_err`), the row sum over the `BD ≤ 512`
+  lanes (masked lanes `+0`, `sumc_err_covers` with `errBound`), the `+ eps` (`addRel_node`), the
+  sum in `sqrtDom` (from `eps_lo`), `sqrt_acc`, `div_full`, with the room from `Pre`'s
+  `rowSum + eps ≤ 2^126` and `eps_hi`; README, Tolerances gives the derivation;
+- the values of `y` give part 2 in both dtypes (the product `mul_err`, then for `bfloat16` the
+  rounding `FloatV.cvt_err`);
+- the bytes no program writes give part 3.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `bytes_disjoint` (line 354) can be reused.
+
 ## Specification
 
 For every covered instance and initial memory, every launch ends normally, and for each row `t < T`,

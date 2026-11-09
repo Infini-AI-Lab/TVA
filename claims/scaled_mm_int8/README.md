@@ -19,6 +19,90 @@ bound by the imports of lines 43–44, which are kernel lines and are mapped. Ev
 line is a host line: `import torch` (41), `is_weak_contiguous` (47–52), `triton_scaled_mm`
 (211–302), `reference` (305–313) and the test (316–356).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.ScaledMmInt8.main : Statement` (`Statement`:
+`Claim.lean` line 556). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 327), and every initial memory `init` that `Pre` accepts (line 427), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 530).
+
+**What `Post` asks** (line 530), two parts:
+1. for every `i < M` and `j < N`, `OutSpec d init fin i j` (line 507). Unconditionally: element
+   `i * stride_cm + j * stride_cn` of `c` reads in `fin` as some `c` of dtype `od`. Then, for all
+   `va vb : Nat → I8`, `sa sb : F32` and `β : ℚ` such that row `i` of `A` reads in `init` as `va k`
+   and column `j` of `B` as `vb k` (`k < K`, by the strides), `sa` is element `saIdx d i` (line 301)
+   of `sa` and finite, `sb` is element `sbIdx d j` (line 304) of `sb` and finite, `BiasIs d init j β`
+   (line 492: the finite value of element `j * stride_bias` of `bias`, or `β = 0` without a bias),
+   and `Room32` (line 464) holds: with `S = dotSum va vb K` (line 434, the exact integer
+   `Σ_{k<K} va k · vb k`), `R = sa·sb·S + β` and `E = tol hasBias sa sb S β` (line 458),
+   - there is a finite `v : F32` with `|v.toRat − R| ≤ E` and `OutIs od v c` (line 485: `c` is
+     `FloatV.cvt v` up to NaN payload, `FloatV.NaNEq`);
+   - if `|R| + E ≤ outMax od` (line 479), then `c` is finite with value `q` and
+     `|q − R| ≤ E + (|R| + E)·outU od + outEta od` (lines 469, 474).
+
+   `R` is exact, in the rationals, from `init`. `E` is built from `e1`, `e2`, `e3` (lines 446–453)
+   with `u32`, `eta32` (lines 437, 440). Without finite scales and bias, or without `Room32`, only
+   "holds a value" is asked;
+2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 321) is unchanged.
+
+**What you are given** (`Assumptions`, line 538):
+- `faithful` (`Rules.Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's
+  launch, when the launch is valid, has `debug = false`, and the model's launch is well behaved
+  from `init`;
+- `dot` (`Rules.Num.DotI8`): the `int8 × int8 → int32` `tl.dot` (model line 135, source line 167)
+  is exact, `acc + Σ a·b`, when `|acc| + Σ|a·b| ≤ 2^31 − 1` (a `DotAcc` with `rel = abs = 0`);
+- `dot_total` (`Rules.Num.DotTotal`): that `tl.dot` always has a result.
+
+No other fact: `tl.itof`, the `float32` products, the contractible addition and `tl.convert` are
+exact or IEEE in the library.
+
+**The kernel, as the model runs it** (line numbers are `Claim.lean`'s; `scaled_mm_kernel` line 40,
+`model` line 407, `launch` line 418): a 1-D grid of `cdiv(M, BM)·cdiv(N, BN)` programs. Program
+`pid` takes the tile `pid_m = pid / cdiv(N, BN)`, `pid_n = pid % cdiv(N, BN)`; it runs the
+`tl.forRange` loop (line 114) for `cdiv(K, BK) = K / BK` trips, each loading a masked `BM × BK`
+block of `A` and `BK × BN` block of `B` and adding their `tl.dot` into the `int32` accumulator.
+Then it loads `BSA d` scales of `scale_a` and `BSB d` of `scale_b` (lines 294, 297; one value when
+per tensor), broadcasts them (`Tensor.broadcastTo`, under `Shape.bcastOk`), converts the
+accumulator (`tl.itof`, line 164), multiplies by the scales (`tl.mul`, lines 165, 179), with a bias
+loads it, converts it to `float32` and adds it (`tl.addc`, line 200), converts to `od` (line 205)
+and stores the masked tile of `C` (line 222). Programs write disjoint tiles of `C`, read only `A`,
+`B`, the scales and the bias, and use no atomics: the route is `TVA.meets_independent`. The loop
+writes nothing: `safe_forRange` with `Wt := fun _ => ∅` (`iterW_empty`) and an invariant on the
+accumulator (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: `grid_lt`; every block shape
+  is `Shape.TritonOk`, from `tile_ok`: powers of two, `BSA d`, `BSB d` are `BM`, `BN` or `1`);
+- each program is `Safe`: `Pre` gives each buffer it accesses `Valid`; the `int32` scalars
+  (`N + BN − 1`, `pid_m·BM`, `pid_n·BN`, the loop bound `K + BK − 1`, `BK·stride_ak`,
+  `BK·stride_bk`) and the `int64` offsets do not wrap (`M_le`, `N_le`, `K_lt`, `strides`, `steps`;
+  `TVA.Lemmas.Int`); `tl.RangeOk` holds for the loop; `Shape.bcastOk` holds at lines 159, 174;
+  every enabled load lane is in its buffer (`a_len`, `b_len`, `sa_len`, `sb_len`, `bias_len`,
+  `scales_contig`; `safe_load_buf`); the branch of line 186 is taken with a bias (`bias_nz`); the
+  store's lanes are in `c` and distinct (`c_len`, `c_inj`; `safe_store_buf`); the dot has a result
+  (`dot_total`, `safe_dot`); `safe_itof`, `safe_mul`, `safe_addc`, `safe_convert` for the other
+  lines;
+- footprints: each program's write tile is disjoint from every other's (`c_inj`, distinct tiles)
+  and from all reads (`c_a`, `c_b`, `c_sa`, `c_sb`, `c_bias`), which also gives `hRW`;
+- the value part of `Post`: the loop invariant gives, for `i < M`, `j < N`, after `t` trips the
+  exact partial sum over `k < t·BK` (`dot` at each trip, its room from `K_lt`: `K·2^14 < 2^31 − 1`;
+  `K_div` makes every `k` lane of every trip enabled; `TVA.DotLoop.sum_chunks` joins the chunks);
+  then `S`'s error chain: `tl.ItofRel` with `FloatV.ofRat_err` / `FloatV.cvt_err`, `FloatV.mul_err`
+  twice, `FloatV.AddRel.err` for the bias, `FloatV.cvt_err` for the output, with `Room32` for the
+  ranges (README, Tolerances);
+- the frame: no program writes outside its tile of the matrix `C`.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok` and the
+`setup_*_ok` theorems. The helpers `row_lt` (line 619), `rm_inj` (line 625) and `bytes_disjoint`
+(line 640) serve coverage; the main proof gets its facts from `Inst.ok`.
+
 ## Specification
 
 `Post d init fin` (`Claim.lean`, `OutSpec`, `Post`) says two things.

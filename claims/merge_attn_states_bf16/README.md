@@ -9,6 +9,82 @@ The covered paths are the ones `SETUP.md` asks for: `OUTPUT_LSE` either value (`
 the host's `return_lse`, an `output_lse` tensor or `None`) and `USE_FP8 = False` (a `bfloat16`
 output, no `output_scale`).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.MergeAttnStates.main : Statement` (`Statement`:
+`Claim.lean` line 447). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 237), and every initial memory `init` that `Pre` accepts (line 331), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 413).
+
+**What `Post` asks** (line 413), three parts:
+1. for every merged `(t, h)`, `t < ptwc`, `h < H`: `MergeOk d init fin t h` (line 385). With `p`,
+   `s` the initial `prefix_lse`, `suffix_lse` elements (`rdF`, `plIdx`, `slIdx`) and `corr`
+   (line 321) mapping `+∞` to `-∞`:
+   - when `d.outLse`, element `olIdx d t h` of `output_lse` reads as some `cl`; if
+     `bothEmpty p s` (line 325) then `cl = negInfC`; otherwise `cl` is finite and
+     `|cl.toReal - refLse (corr p) (corr s)| ≤ lseTol * (1 + |refLse (corr p) (corr s)|)`;
+   - for every `j < head_size`, element `oIdx d t h j` of `output` reads as some `w`; if
+     `bothEmpty p s` then `w = zeroB` (`+0`, line 377); otherwise, with `pv`, `sv` the initial
+     `prefix_output`, `suffix_output` elements (`poIdx`, `soIdx`), `w` is finite and
+     `|w.toReal - refOut …| ≤ bf16Round * |refOut …| + outTol * (|pv.toReal| + |sv.toReal|) + absTol`;
+   - `refMax`, `side`, `refSum`, `refLse`, `refOut` (lines 346–361) are exact, in the reals, from
+     `init`; the constants `lseTol`, `bf16Round`, `outTol`, `absTol` are lines 365–374;
+2. for every copied `(t, h)`, `ptwc ≤ t < T`, `h < H`: `CopyOk d init fin t h` (line 405): when
+   `d.outLse` the `output_lse` element is the initial `suffix_lse` element, and every output
+   element `j < head_size` is the initial `suffix_output` element, bit for bit. No condition on
+   the values;
+3. the frame: every byte outside `writeSet d` (line 233: `output.elems (outSet d)`, and
+   `output_lse.elems (outLseSet d)` when `d.outLse`) is unchanged.
+
+**What you are given** (`Assumptions`, line 422):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
+  `debug = false` that is well behaved from `init`;
+- `exp_total`, `log_total` (`Rules.Num.MathTotal`): `tl.exp` (source lines 163–164) and `tl.log`
+  (source line 168) on `float32` have a result for every input, NaN included;
+- `exp_acc` (`Rules.Num.ExpF32`): on `[-X, X]`, within `(2^-22 + 2^-23·X)·e^x + 2^-140`;
+- `exp_ninf` (`Rules.Num.ExpF32NegInf`, a `MathAt`): `tl.exp(-∞) = +0`;
+- `log_acc` (`Rules.Num.LogF32`): within `2^-22·|ln x| + 2^-149`;
+- `div_total`, `div_full` (`Rules.Num.DivTotal`, `Rules.Num.DivFull`): `/` (source lines 197–198) has a
+  result, within `2^-22` relative and `2^-148` absolute.
+
+**The kernel, as the model runs it** (`merge_attn_states_kernel` line 51, `model` line 300,
+`launch` line 310): a 2-D grid of `T × H` programs, one per `(t, h)`. The `int32` test
+`t < ptwc` picks the branch. Copy branch: load `suffix_lse[h, t]`, store it to `output_lse` when
+passed, load the masked `[PADDED_HEAD_SIZE]` suffix row and store it to `output`. Merge branch:
+two scalar loads, `corr`, `tl.maximum`, two `tl.sub`, two `tl.exp`, `tl.add`; when `output_lse` is
+passed, `tl.log`, `tl.add`, a `where` and a scalar store; then two masked row loads, two `/`, the
+widening, two products, `tl.addc`, a `where` to `+0`, the rounding to `bfloat16` and the masked row
+store. No loop, no reduction, no dot, no atomic. Programs write disjoint elements and only read
+the four inputs: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false`: `Launch.Valid` directly (2-D grid): `T_lt`,
+  `H_lt`, `grid_lt`, and the block `[padded]` from `padded_pow2`, `padded_le`;
+- each program is `Safe`: the `int32` products do not wrap (`out_i32`, `in_i32`, `lse_i32`,
+  `strides_lt`); the kernel's offsets `t·H·phs + h·phs + j` and `t·H·ohs + h·ohs + j` are the
+  reference's `poIdx`, `soIdx`, `oIdx` (`pots_eq`, `sots_eq`, `shs_eq`, `ots_eq`); every access is
+  inside its buffer (the six `*_len` fields; the prefix's only for `t < ptwc`); `safe_load1`,
+  `safe_store1`, `safe_load`, `safe_store`, `safe_maximum`, `safe_sub`, `safe_math`, `safe_add`,
+  `safe_div`, `safe_cvt`, `safe_mul`, `safe_addc` line by line;
+- the write footprints are disjoint across programs (`ohs_ge` with `ots_eq` for `output`,
+  `olse_layout` for `output_lse`), and no program reads what another writes (`output_disj`,
+  `output_lse_in_disj`, `output_lse_disj`);
+- the value part of part 1: in the both-empty case the `where`s select the constants; otherwise
+  `exp_acc`, `exp_ninf`, `log_acc`, `div_full`, `FloatV.sub_err`, `add_err`, `mul_err`,
+  `cvt_err`, and `AddRel` for `tl.addc`, under the finiteness `Pre` gives. `## Tolerances` gives
+  the derivation. Part 2 is exact;
+- the bytes no program writes give part 3.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`
+(line 507) and the `setup_*_ok` theorems; `bytes_disj` (line 495) can be reused.
+
 ## Specification
 
 One program per `(t, h)` of the grid `(num_tokens, num_heads)`. `Post` states:

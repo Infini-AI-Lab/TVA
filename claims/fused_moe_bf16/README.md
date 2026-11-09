@@ -19,6 +19,100 @@ def Statement : Prop := ∀ K P, Assumptions K P → Spec K
 The model map is `model-map.json` (59 entries, every
 code line of the kernel lines `[85, 86], [89, 106], [109, 420]`).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.FusedMoe.main : Statement` (`Statement`: `Claim.lean`
+line 760). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 423), and every initial memory `init` that `Pre` accepts (line 554, which is `PreC`,
+line 510), every outcome of the launch is a normal end (no fault, no hang) whose final memory `fin`
+satisfies `Post` (line 701).
+
+**What `Post` asks** (line 701). Write `ntp = ntpOf d init` (line 376), `entryOf d init pos` (line
+386) for the flat index at position `pos`, `eOf d init pid_m` (line 396) for the expert of block
+`pid_m`, `nv d = M·top_k` (line 363), and `stride_cm d = N` (line 367). For every flat index
+`f < nv d` and column `c < N`, the element `f·N + c` of `C`:
+1. **not routed**: if no position `pos < ntp` has `entryOf d init pos = f`, the element is unchanged:
+   both of its bytes (`fin z = init z` for every `z ∈ d.c.elems {f·N + c}`, `Buf.elems`, the bytes of
+   that one element);
+2. **routed**: for every position `pos < ntp` with `entryOf d init pos = f`, `outElem d init fin pos f c`
+   holds (line 679): the element reads in `fin` as some `bfloat16` `cv`, and
+   - if the block's expert `eOf d init (pos / BM)` is `-1`: `cv` is `+0.0` up to NaN payload
+     (`FloatV.NaNEq (FloatV.ofPat 0) cv`; exact);
+   - otherwise the expert is some `e < E`, and for all `va vb : Nat → BF16` such that row `f / top_k`
+     of `A` (elements `f / top_k · K + k`) reads as finite `va k` and column `(e, c)` of `B` (elements
+     `e·stride_be + c·stride_bn + k`) reads as finite `vb k` for every `k < K`, and
+     `dotMag va vb K ≤ 2^120` (line 566, the sum of `Rules.Num.liftMag .bf16` products): there is a
+     finite `float32` `u` with `|u.toRat − dotSum va vb K| ≤ tol BK K va vb` and `outFin d init f cv u S E`
+     (line 654), where `S = dotSum va vb K` (line 637) is the exact dot product in the rationals and
+     `E = tol BK K va vb` (line 634; the recursion `accErr`, `tripErr`, `chainE`, `chunkStep`, lines
+     597–626). `outFin` says:
+     - without `rw`: `cv` is `FloatV.cvt u` up to NaN payload, and if `|S| + E ≤ bfloat16.maxVal`,
+       `cv` is finite with `|cv − S| ≤ E + (|S| + E)·2^-8 + 2^-134` (`bfloat16.u`, `bfloat16.eta`);
+     - with `rw`: the weight `wv` at element `f` of `w` reads as finite, some `r` is
+       `FloatV.mul u wv` up to NaN payload, `cv` is `FloatV.cvt r` up to NaN payload, and if
+       `(|S| + E)·|wv| ≤ 2^126`, `r` is finite with `|r − S·wv| ≤ tolW wv S E` (line 645), and if moreover
+       `|S·wv| + tolW ≤ bfloat16.maxVal`, `cv` is finite with
+       `|cv − S·wv| ≤ tolW + (|S·wv| + tolW)·2^-8 + 2^-134`.
+
+   With a non-finite input along the row or column, or `dotMag > 2^120`, only "holds a `bfloat16`" is
+   asked;
+3. the frame: every byte outside `d.c.elems (cIdx d)` (line 370, the matrix `C`) is unchanged.
+
+**What you are given** (`Assumptions`, line 738):
+- `faithful` (line 744, `Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's
+  launch, when the launch is valid, has `debug = false`, and the model's launch is well behaved from
+  `init`;
+- `dot` (line 751, `Rules.Num.DotBF16Chunk`, a `Dot16BitChunk`): the `tl.dot` of source line 373
+  (line 238), chunk by chunk of 64 `k`: chunk `j` within
+  `min (2^-13·Mj) (2·A_j + 2^-22·Mj) + 2^-20·|s j + c_j| + 2^-143` of `s j + c_j`, with room;
+- `dot_total` (line 753, `Rules.Num.DotTotal`): that `tl.dot` always has a result.
+
+**The kernel, as the model runs it** (`fused_moe_kernel`, line 92; `model` line 721; `launch` line
+733): a 1-D grid of `cdiv(EM, BM)·cdiv(N, BN)` programs. Program `pid` maps to a block `pid_m` and a
+column tile `pid_n` by the grouped ordering (lines 101–125). It loads `ntp` (line 129) and
+returns if `pid_m·BM ≥ ntp` (line 132). Otherwise it builds `offs_token` (line 137: loaded from
+`sorted_token_ids`, or with `naive` built from `pid_m`), masks lanes with `offs_token < nv`, and loads
+the block's expert (line 158). Expert `-1`: `write_zeros_to_output` (line 45) stores `bfloat16` zeros
+(line 165). Otherwise: a `tl.forRange` of `cdiv(K, BK)` trips (line 214), each loading a masked
+`[BM, BK]` tile of `A` (rows `offs_token / top_k`, line 225) and a `[BK, BN]` tile of `B` (columns
+`offs_bn = (pid_n·BN + lane) % N`, line 230), with `other = 0`, then `tl.dot_add` into the `float32`
+accumulator (line 238); then, with `rw`, a masked load of the weights and a `tl.mul` (lines 258–260);
+`tl.cvt` to `bfloat16` and a masked store (lines 263–285). Programs write disjoint sets of `C`'s
+elements and use no atomics: the route is `TVA.meets_independent`; the loop is `safe_forRange` with
+`fun _ => ∅` as the trip footprints (`iterW_empty`) (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: fewer than `2^31` programs from
+  `grid_lt`; the block shapes from `cfg`);
+- each program is `Safe`: the scalar loads (`safe_load1`; `ntp_len`, `elen`, `PreC.ntpEx`), the
+  `sorted_token_ids` load without `naive` (`s_len`, `ntpEM`), the `A`, `B` and weight loads and the store of `C`
+  (`safe_load`, `safe_store`; `a_len`, `b_len`, `w_len`, `c_len`, `PreC.s1`, `erange`, the masks),
+  no division by zero (`safe_idiv`, `safe_irem`; `cfg`, `topk_pos`, `N_pos`), `int32` arithmetic
+  that does not wrap (`K_le`, `N_le`, `EM_le`, `N_group`, `nv_le`, `be`, `bn`, `cm`) and `int64`
+  sums of `b_ptrs` that do not wrap (`b_off`), and the loop's `tl.RangeOk`;
+- footprints disjoint: two programs write different elements of `C`, from the grouped ordering being
+  injective, the column tiles of `pid_n`, `PreC.s2` (each valid flat index once) and `ntpBM` (every
+  lane of a running block is below `ntp`); no program reads `C`'s matrix (`c_a`, `c_b`, `c_w`, `c_s`,
+  `c_e`, `c_n`), which also gives `hRW`;
+- the value part: every block below `ntp` and every column tile is run by some program (the ordering
+  covers the grid); the loop invariant bounds the accumulator by `accErr` after each trip
+  (`safe_dot_add` gives either combined form: the chunk steps from `dot`, `Dot16Chunk.DotChunk16Loss.errB`
+  and `Dot8Chunk.chain_err`, or the separate product with `AccAdd`, `FloatV.AddRel.err`); the
+  weight's product (`safe_mul`, `FloatV.mul_err`) and the conversion (`safe_cvt`, `FloatV.cvt_err`)
+  give `outFin`; the room from `dotMag ≤ 2^120` (README, `## Tolerances`);
+- the frame: no program writes outside `cIdx d`, and unrouted elements are written by no program.
+
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 764), `satisfiable` (line 1297),
+`hostInst_ok` and the `setup_*_ok` theorems; `row_lt` (line 868), `succ_mul_le` (line 874) and
+`bytes_disjoint` (line 879) can be reused.
+
 ## Specification
 
 `Post d init fin` (`Claim.lean`, `Post`, `outElem`, `outFin`) says, for every flat index
@@ -91,7 +185,7 @@ assignment), `B`'s strides `stride_be`, `stride_bn`, the flags `MUL_ROUTED_WEIGH
 | `grid_lt` | `cdiv(EM, BM)·cdiv(N, BN) < 2^31` | `Launch.Valid` |
 | `nv_le` | `M·top_k < 2^31` | `num_valid_tokens` is an `int32` argument |
 | `be`, `bn`, `cm` | `stride_be`, `stride_bn`, `N < 2^31` | `int32` arguments (the model's integer class) |
-| `b_off` | `e·stride_be + c·stride_bn + k < 2^63` (`k < K + 64`) | the `int64` sums of `b_ptrs` (lines 285–289) |
+| `b_off` | `e·stride_be + c·stride_bn + k < 2^63` (`k < K + BK`) | the `int64` sums of `b_ptrs` (lines 285–289) |
 | `w_contig` | `topk_weights.stride(0) = topk_weights.size(1)` (`w_stride0 = w_cols`) | the kernel reads the weight of flat index `f` at storage element `f` (line 404): `topk_weights[t, j]` only for a contiguous `[M_tok, top_k_ids]` (the host asserts only `stride(1) = 1`) |
 | `a_len` … `ntp_len` | the buffers hold the matrices (`s`: `EM` entries, without `naive`) | the kernel reads them |
 | `c_a` … `c_n` | the matrix `C` shares no byte with the other six buffers | the host's `C` is fresh |

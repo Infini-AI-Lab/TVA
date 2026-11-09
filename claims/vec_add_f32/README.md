@@ -4,6 +4,48 @@ Triton tutorial 01's `add_kernel` (`source/01-vector-add.py`, kernel lines 29–
 lines 23–24; host `add` 62–78). `Claim.lean`, namespace `Claims.VecAdd`; the claim to prove is
 `Statement`. The launches to cover are in `SETUP.md`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.VecAdd.main : Statement` (`Statement`: `Claim.lean`
+line 134). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 69), and every initial memory `init` that `Pre` accepts (line 105), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 113).
+
+**What `Post` asks** (line 113), two parts:
+1. for every `j < n`: elements `j` of `x` and `y` read in `init` as `a`, `b`, element `j` of
+   `output` reads in `fin` as `c`, and `c` is the IEEE `float32` sum `FloatV.add a b` up to NaN
+   payload (`FloatV.NaNEq`). It is exact: no tolerance;
+2. the frame: every byte outside the first `n` elements of `output` is unchanged.
+
+**What you are given** (`Assumptions`, line 125): one field, `faithful` (`Compiler.Faithful`): the
+device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
+`debug = false`, and the model's launch is well behaved from `init` (no out-of-bounds access, no race).
+No numeric fact: the sum is the IEEE operation.
+
+**The kernel, as the model runs it** (`add_kernel`, `model` line 93, `launch` line 100): a 1-D grid
+of `cdiv(n, BLOCK_SIZE)` programs; program `p` loads the masked tile
+`p·BLOCK_SIZE + [0, BLOCK_SIZE)` of `x` and `y`, adds, and stores the tile of `output`. Programs
+write disjoint tiles and share nothing: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: `block_pow2`, `block_le`, and
+  fewer than `2^31` programs from `n_lt`);
+- each program is `Safe`: its loads and its store are in bounds (`x_len`, `y_len`, `output_len`;
+  `int32` offsets do not wrap: `Block.fits_of_grid_pow2` from `n_lt`), and it writes only its tile;
+- the programs' write tiles are disjoint, and no program reads what another writes (`output_x`,
+  `output_y`);
+- the stored values give part 1 (`safe_add`), and the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `elems_disjoint_of_lt` (line 152) can be reused.
+
 ## Specification
 
 `Post d init fin`:

@@ -19,7 +19,7 @@ variable-length batch (`cu_seqlens`), with `BT = 64`, `BV = 32` (`SETUP.md`).
   last of them, and each `Y (t + 1)` within `errStep t` of one exact step `Step t` of the recurrence
   from `Y t` (the new values from `h[t]`, which the kernel's `w` dots read); each new value against
   `vrefS` from `h[t]` within `tolV`; with the value conditions `Vals` on the inputs and `StOk` on
-  the stored state.
+  the stored states of the chunk and of every earlier chunk.
 * The assumptions: `Assumptions`.
 * The checks: `consistent`, `satisfiable`, and covered instances of the setup (`setup_*`).
 
@@ -980,7 +980,9 @@ end Tol
 and each chunk scales them (line 252) and adds a `k` dot whose `k` rows are `0`, which the dot's
 facts allow an absolute error `absDot16 64` (and with `STATE_V_FIRST` the fusable `+`'s rounding).
 They are never stored, but feed the `w` dot (their `w` columns are `0`), whose fact needs them
-finite. -/
+finite. The kernel's padded rows entering chunk `t` are within `padB t` when every chunk before
+`t` has its stored state in range (`StOk`, which keeps that chunk's gated values finite, so the
+`k` dot's fact applies to the padded rows). -/
 noncomputable def padB (m : Mem) (d : Inst) (n hv : Nat) : Nat → ℝ
   | 0 => 0
   | t + 1 => (1 + rD + 3 * u32) * (eB m d n hv t * (1 + u32) * padB m d n hv t + e32 + aD) + 4 * e32
@@ -1006,8 +1008,8 @@ def Vals (m : Mem) (d : Inst) : Prop :=
     glast m d n hv t ≤ 8 ∧ ∀ i, i < cl d n t → dgv m d n hv t i ≤ 8) ∧
   (∀ n hv t, n < d.N → hv < d.HV → t ≤ nch d n → padB m d n hv t ≤ 2 ^ 100)
 
-/-- **The stored state `h[t]` is in range** (column `j`; a hypothesis of chunk `t`'s step): every
-element is a finite `bfloat16` value and `‖h[t]‖ ≤ 2^40`. -/
+/-- **The stored state `h[t]` is in range** (column `j`; chunk `t`'s clauses assume it for `t` and
+every earlier chunk): every element is a finite `bfloat16` value and `‖h[t]‖ ≤ 2^40`. -/
 def StOk (fin : Mem) (d : Inst) (n hv j t : Nat) : Prop :=
   (∀ c, c < d.K → ∃ x, rdB fin d.h (hIdx d (cbase d n + t) hv c j) = some x ∧
     x.isFinite = true) ∧
@@ -1015,16 +1017,17 @@ def StOk (fin : Mem) (d : Inst) (n hv j t : Nat) : Prop :=
 
 /-- What the launch leaves, for every sequence `n`, value head `hv` and value column `j`:
 * `v_new[token s of n, hv, j]` (`s < len n`, chunk `t = s / 64`, token `i = s % 64`): a `bfloat16`
-  value; when `Vals` and `h[t]` is in range (`StOk t`), finite and within `tolV t i` of
-  `vrefS t i`;
+  value; when `Vals` and `h[0]`, …, `h[t]` are in range (`StOk t'` for every `t' ≤ t`), finite
+  and within `tolV t i` of `vrefS t i`;
 * every element of `h[cbase n + t, hv, :, j]` (`t < nch n`) holds a `bfloat16` value;
 * **the states**: there are `float32` states `Y 0, Y 1, …, Y (nch n)` (rows `c < K`; the kernel's
   `b_h`) such that
   - when `Vals`: `Y 0` is the initial state (`0` without one), finite;
   - **each stored state is the rounding of its state**: for `t < nch n`, a finite `Y t c` gives
     `h[t][c] = bf16(Y t c)` exactly (`FloatV.cvt`, nearest even);
-  - **each state is one step from the previous one**: for `t < nch n`, when `Vals` and `StOk t`,
-    `Y t` and `Y (t + 1)` are finite and `‖Y (t + 1) − Step t (Y t)‖ ≤ errStep t`;
+  - **each state is one step from the previous one**: for `t < nch n`, when `Vals` and `StOk t'`
+    for every `t' ≤ t`, `Y t` and `Y (t + 1)` are finite and
+    `‖Y (t + 1) − Step t (Y t)‖ ≤ errStep t`;
   - with `STORE_FINAL_STATE`: `ht[n, hv, :, j]` is `Y (nch n)` exactly;
 * every byte outside `h`'s, `v_new`'s and (with `STORE_FINAL_STATE`) `ht`'s elements is
   unchanged. -/
@@ -1032,7 +1035,7 @@ def Post (d : Inst) (init fin : Mem) : Prop :=
   (∀ n hv j, n < d.N → hv < d.HV → j < d.V →
     (∀ s, s < lenOf d n →
       ∃ x, rdB fin d.vn (uIdx d (rowOf d n) (startOf d n + s) hv j) = some x ∧
-        (Vals init d → StOk fin d n hv j (s / BT) → x.isFinite = true ∧
+        (Vals init d → (∀ t', t' ≤ s / BT → StOk fin d n hv j t') → x.isFinite = true ∧
           |x.toReal - vrefS init fin d n hv j (s / BT) (s % BT)| ≤
             tolV init fin d n hv j (s / BT) (s % BT))) ∧
     (∀ t, t < nch d n → ∀ c, c < d.K → ∃ x, rdB fin d.h (hIdx d (cbase d n + t) hv c j) = some x) ∧
@@ -1040,7 +1043,7 @@ def Post (d : Inst) (init fin : Mem) : Prop :=
       (Vals init d → ∀ c, c < d.K → (Y 0 c).isFinite = true ∧ (Y 0 c).toReal = h0v init d n hv j c) ∧
       (∀ t, t < nch d n → ∀ c, c < d.K → (Y t c).isFinite = true →
         rdB fin d.h (hIdx d (cbase d n + t) hv c j) = some (FloatV.cvt (Y t c))) ∧
-      (∀ t, t < nch d n → Vals init d → StOk fin d n hv j t →
+      (∀ t, t < nch d n → Vals init d → (∀ t', t' ≤ t → StOk fin d n hv j t') →
         (∀ c, c < d.K → (Y t c).isFinite = true ∧ (Y (t + 1) c).isFinite = true) ∧
         colNorm d.K (fun c => (Y (t + 1) c).toReal -
           Step init fin d n hv j t (fun c' => (Y t c').toReal) c) ≤ errStep init fin d n hv j t) ∧

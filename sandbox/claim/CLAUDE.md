@@ -14,17 +14,18 @@ read [/process_safety.md](/process_safety.md): a broad `kill`/`pkill` can end yo
 | `/tmp/` | your scratch files |
 
 `PROVER_GUIDE.md` also describes TVA's review workflow (`tvr`, `tva-kit`, gates, reviewers, `kernels/`): none of
-it is here. The only tool is `tva-claim`.
+it is here. The only tool is `/usr/local/bin/tva-claim`.
 
 ## Building and checking
 
 - Run Lean from `/app/lean`: `lake build Proof` (everything `Proof.lean` imports), `lake build Proof.Lanes` (one
   module, for `/app/claim/Proof/Lanes.lean`), `lake env lean /tmp/T.lean` (a scratch file; `import TVA` or
   `import Claim`). `Claim` is built already.
-- `tva-claim check` runs the grader's five steps and prints each as PASS or FAIL, reusing your build. It
+- `/usr/local/bin/tva-claim check /app/claim` runs the grader's five steps on the whole workspace
+  (`Claim.lean`, `Proof.lean`, every file under `Proof/`; it never checks one file alone) and prints each as PASS or FAIL, reusing your build. It
   re-checks everything with `leanchecker`, so it takes minutes: run it when you think the proof is done, not
   after every edit.
-- `tva-claim grade` is the grader's procedure exactly: your proof's build outputs deleted, a fresh build of
+- `/usr/local/bin/tva-claim grade /app/claim` is the grader's procedure exactly: your proof's build outputs deleted, a fresh build of
   `Proof.lean` and `Proof/` only, the five steps within the grader's time limit, then `reward 1` or `reward 0`.
   Run it last, with `run_in_background`, when no subagent is building.
 - Put `timeout N` in front of every build (`timeout 1200 lake build Proof`). The Bash tool stops a command
@@ -43,13 +44,13 @@ build errors. Never wait with `sleep` or a polling loop: end your turn when only
 
 ## Time
 
-The session has a time limit ([/instruction.md](/instruction.md) gives it); `tva-claim time` shows the time used
+The session has a time limit ([/instruction.md](/instruction.md) gives it); `/usr/local/bin/tva-claim time` shows the time used
 and left. The harness reminds you as the end nears. Use the time on the proof's structure first: a `main` that
 builds from stated lemmas tells you early what is left to prove.
 
 ## Stopping
 
-The harness does not let you end the session while `tva-claim check` fails: it runs the check when you try, and
+The harness does not let you end the session while `/usr/local/bin/tva-claim check /app/claim` fails: it runs the check when you try, and
 shows you what fails. It lets you stop while a subagent is still running (its report starts a new turn), and
 after eight tries in a row with the proof files unchanged (the task then fails). When the check passes, you are
 done.

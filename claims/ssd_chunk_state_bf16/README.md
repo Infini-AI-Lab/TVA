@@ -6,6 +6,81 @@ a packed prefill batch: `bfloat16` `x` and `B`, `float32` `dt`, `dA_cumsum` and 
 `Statement : ∀ K P, Assumptions K P → Spec K`. Model map: [`model-map.json`](model-map.json). GPU
 check: [`check_gpu.py`](check_gpu.py).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.SsdChunkState.main : Statement` (`Statement`:
+`Claim.lean` line 637). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 337), and every initial memory `init` that `Pre` accepts (line 449: the six
+buffers valid, `seq_idx` the host's, `MetaOk` line 443), every outcome of the launch is a normal end
+(no fault, no hang) whose final memory `fin` satisfies `Post` (line 603).
+
+**What `Post` asks** (line 603), two parts:
+1. for every `c < nc d`, `h < nheads`, `p < headdim`, `n < dstate`: element `stIdx d c h p n`
+   (line 324) of `states` holds some `float32` `v` (on every input); and when `Vals init d` holds
+   (line 584), `v` is finite and `|v.toReal - sRef init d c h p n| ≤ tol init d c h p n`. Without
+   `Vals`, only "holds a value" is asked. The reference `sRef` (line 494) is exact, in the reals:
+   `Σ_{t ∈ toks d c} xV t h p · bV t h n · wRef c h t`, over the chunk's tokens of the request at
+   its end (`toks`, line 465; `endTok`, `eReq`, lines 458, 461, from `qsl`), with
+   `wRef = exp(dRef) · dtV` (lines 488, 484, 479) and `bV` read at group `grp d h` (lines 475, 469).
+   `tol` (line 575) is `Σ_{t ∈ toks d c} |xV t h p| · errB c h t n + dotTol (steps d c)
+   (dotMag c h p n)`: the per-token operand error `errB` (line 542, built from `dErr`, `expRel`,
+   `errE`, `eHat`, `errS`, `sHat`, `errP`, `pHat`, lines 506–537) and the accumulation's
+   `dotTol` (line 570, with `rhod`, `alphad`, lines 564–566; `dotMag`, line 555; `steps`, line
+   560);
+2. the frame: every byte outside `states`' first `sSb d` elements (line 304) is unchanged.
+
+**What you are given** (`Assumptions`, line 616):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
+  valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `exp_acc` (`Rules.Num.ExpF32`): for every `X ≥ 0`, `tl.exp` on `float32` (source line 200) on
+  `[−X, X]` is within relative `2^-22 + 2^-23·X`, absolute `2^-140`;
+- `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): that `tl.exp` has a result;
+- `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot` of source line 204 is within
+  `relDot16 K · (|acc| + Σ liftMag a · liftMag b) + absDot16 K` of `acc + Σ a·b`, with room;
+- `dot_total` (`Rules.Num.DotTotal P dotCfg`, `dotCfg` line 614): that `tl.dot` has a result.
+
+**The kernel, as the model runs it** (`ssd_chunk_state_kernel`, line 50; `model` line 407,
+`launch` line 425): a 3-D grid `(gx d, nc d, nheads)` (`gx`, `nc`, lines 293, 290). Program
+`(pid, pid_c, pid_h)` owns one `64 × 128` tile (`pid_m`, `pid_n` from `pid`) of chunk `pid_c`'s
+state for head `pid_h`. It loads `dA_cumsum` at the chunk's end and `seq_idx` at the chunk's last
+token, then runs `tl.forRange 0 chunk_size_limit 64` (`int64` bounds, `steps d c` trips): five
+masked loads (`x`, `B`, `dA_cumsum`, `seq_idx`, `dt`), `tl.sub`, `tl.exp`, `tl.mul`, `tl.where`
+(scale `+0` for tokens of another request), `tl.mul` by `B`, `tl.cvt` to `bfloat16`, and
+`tl.dot_add` into the accumulator. After the loop, one masked store of the tile. Programs write
+disjoint tiles and use no atomics: the route is `TVA.meets_independent` (PROVER_GUIDE §4); the
+loop writes nothing (`safe_forRange` with an invariant and `fun _ => ∅`).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false`: the grid is 3-D, so `Launch.Valid` is proved
+  directly (`grid_y`, `grid_z`, `grid_lt`, with `gx d < 2^31` from `grid_lt`; the six listed block
+  shapes);
+- each program is `Safe`: no `int32` or `int64` offset wraps (`headdim_lt`, `dstate_lt`,
+  `tok_lt`, `sX_lt`, `sB_lt`, `batch_lt`, `xhead_lt`, `bhead_lt`, `xtile_lt`, `btile_lt`, `dt_lt`,
+  `st_lt`, `sttile_lt`); every enabled load is in bounds (`x_len`, `b_len`, `dt_len`, `dA_len`,
+  `seq_len`, with `qsl_*` for the chunk's last token); the store is in bounds (`states_len`) on
+  distinct lanes; `safe_idiv`, `safe_irem`, `safe_convert`, `safe_sub`, `safe_math` (`exp_total`),
+  `safe_mul`, `safe_cvt`, `safe_dot_add` (`dot_total`) for the steps;
+- footprints: the programs' tiles are disjoint, and `states` is disjoint from every read (`disj`);
+- the kernel's `scale` is nonzero exactly on `toks d c`: `seq_idx_k` equals `seq_idx_last` on the
+  chunk's tokens of request `eReq d c` (`MetaOk`, `reqOf`), and the masked lanes load `-1`;
+- the value part of `Post`: each token's operand `b` is within `errB` of `B·wRef` (`FloatV.sub_err`,
+  `exp_acc` at `X = |dRef| + dErr`, `FloatV.mul_err`, `FloatV.cvt_err`, room from `Vals`); the
+  loop is within `dotTol` of the computed products' sum (`DotLift.dotAdd_step` with `dot`, then
+  `DotLoop.accum`; each step's room from `dotMag ≤ 2^120` in `Vals` and `steps d c ≤ 1024` from
+  `chunk_le`, via `DotLoop.bound_le`); README `## Tolerances` gives the composition;
+- the frame: the bytes no program writes.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable` and the `setup_*_ok`
+theorems; `bytes_disj` (line 676), `zero_i32` (line 804) and `valid_zero` (line 811) can be
+reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance, from every memory `Pre`
@@ -63,7 +138,7 @@ nheads)`, the source's block shapes, `enable_fp_fusion` at its default.
 
 `Inst.ok`:
 * positive sizes, `ngroups ∣ nheads` (asserted by the host), `chunk_size` a power of two (asserted
-  by the code base);
+  by the code base) and at most `2^16` (`chunk_le`, Exclusions);
 * the grid: `nchunks < 2^16` (CUDA's `y`), `nheads < 2^16` (`z`), fewer than `2^31` programs;
 * the packed batch: `num_requests ≥ 1`, `qsl 0 = 0`, every request at least one token,
   `qsl num_requests = seqlen`; `nchunks = cdiv(seqlen, chunk_size)` (`nc`);
@@ -160,8 +235,15 @@ For one token `t ∈ toks c` and one output element, from the library's facts (`
    `Num.DotBF16`, `relDot16 64 = 66·2^-22`, `absDot16 64 = 66·2^-126`, whichever form the combine
    pass gives) bounds a step by `ρ·(|acc| + A_j) + α` with `A_j` the step's lifted magnitudes, and
    `DotLoop.accum` gives `|acc − Σ x·b̃| ≤ DotLoop.bound ρ α T (Σ A_j) ≤ dotTol T dotMag` after the
-   `T = steps c` steps (room: `dotMag ≤ 2^120`). The store (line 224) writes the `float32`
-   accumulator unchanged.
+   `T = steps c` steps. The room of each step: `chunk_size ≤ 2^16` (`chunk_le`) gives `T ≤
+   2^16/64 = 1024`, and `ρ = 66·2^-22 + 3·2^-24·(1 + 66·2^-22) < 1.6·10^-5`, so `T·ρ < 0.017 ≤ 1/2`
+   and `DotLoop.bound_le` gives `DotLoop.bound ρ α t A ≤ 2t·(ρ·A + α) ≤ 0.034·A + 2^-100` for every
+   `t ≤ T`. With `A = dotMag ≤ 2^120` (`Vals`; `Σ A_j ≤ dotMag`, the zero lanes adding nothing), the
+   accumulator before a step has `|acc| ≤ A + 0.034·A + 2^-100`, so `2·((1 + relDot16 64)·(|acc| +
+   A_j) + absDot16 64 + 2η) ≤ 2·1.0001·2.04·2^120 + 2^-90 < 2^123 ≤ maxVal`: the condition of
+   `DotLift.dotAdd_step` holds at every step, and each step's result is finite. (Without a bound on
+   `T`, `(1 + ρ)^T` grows without limit and `dotMag ≤ 2^120` no longer gives this room.) The store
+   (line 224) writes the `float32` accumulator unchanged.
 
 Together: `|states − sRef| ≤ Σ |x|·errB + dotTol = tol`.
 
@@ -195,6 +277,14 @@ What `SETUP.md` allows and the claim leaves out:
   `x` (`x.stride(1) = 1`, `x.stride(3) = seqlen`, which the caller accepts) with `(nheads −
   1)·headdim·seqlen ≥ 2^31`, e.g. 128 heads × 64 at 264,209 tokens, which `xhead_lt` excludes. Not
   part of real use.
+* **`chunk_size > 2^16`**: outside real use. The loop runs up to `chunk_size / 64` `tl.dot`
+  steps, and the error bound of the `float32` accumulation, `(1 + ρ)^T − 1` of the products' magnitudes,
+  needs a bound on `T` to keep the accumulator inside `float32`'s range (Tolerances, step 7); with
+  `chunk_size` up to `2^30` (allowed by `nchunks·chunk_size < 2^31` alone; up to `2^24` steps) an
+  accumulator that takes the largest error `tl.dot` allows at every step can overflow `float32`
+  although `dotMag ≤ 2^120`. `Inst.ok` keeps `chunk_size ≤
+  2^16` (`chunk_le`); the code base's model configs use `chunk_size` 256 and SGLang's tests 8 to
+  256 (`SETUP.md`).
 * **`nchunks ≥ 2^16`** (CUDA's grid `y`; the launch fails) and **`nheads ≥ 2^16`**, `headdim + 63`,
   `dstate + 127`, `nchunks·chunk_size` or `nheads·headdim·dstate` at `2^31`: outside real use
   (16.8 million tokens at `chunk_size` 256).

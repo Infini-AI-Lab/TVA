@@ -701,7 +701,7 @@ outside the matrix). -/
 def Post (d : Inst) (init fin : Mem) : Prop :=
   (∀ f c, f < nv d → c < d.N →
     ((∀ pos, pos < ntpOf d init → entryOf d init pos ≠ (f : Int)) →
-      fin (d.c.ptr ↑(f * stride_cm d + c)).addr = init (d.c.ptr ↑(f * stride_cm d + c)).addr) ∧
+      ∀ z ∈ d.c.elems {f * stride_cm d + c}, fin z = init z) ∧
     ∀ pos, pos < ntpOf d init → entryOf d init pos = (f : Int) → outElem d init fin pos f c) ∧
     ∀ z, z ∉ d.c.elems (cIdx d) → fin z = init z
 

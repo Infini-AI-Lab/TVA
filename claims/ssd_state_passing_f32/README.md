@@ -6,6 +6,87 @@ passing across the physical chunks of a packed prefill batch, `float32` states).
 `Statement : ∀ K P, Assumptions K P → Spec K`. Model map: [`model-map.json`](model-map.json). GPU
 check: [`check_gpu.py`](check_gpu.py).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.SsdStatePassing.main : Statement` (`Statement`:
+`Claim.lean` line 669). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 395), and every initial memory `init` that `Pre` accepts (line 505: the seven
+buffers valid, the metadata the host's, `MetaOk` line 498), every outcome of the launch is a normal
+end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 638).
+
+**What `Post` asks** (line 638), for every head `h < nheads` and element `m < dim`:
+1. `out[0, 0, h, m]` (element `stIdx d 0 h m`, line 357) holds a value `v`, on every input: with
+   `hasInit`, `init` reads `initst`'s element `inIdx d 0 h m` as some `a` and `FloatV.NaNEq a v`
+   (a copy up to NaN payload); without, `v = FloatV.ofPat 0` (the `float32` `+0`);
+2. for every `1 ≤ c < nchunks`, `out[0, c, h, m]` holds some `v` with `OutO init d h m c v`
+   (line 628): when `Vals init d` holds (line 614), `v` is finite and
+   `|v.toReal - sRef init d h m c| ≤ tol init d h m c`. Without `Vals`, only "holds a value" is
+   asked. `sRef` (line 554) is the exact recurrence in the reals from the host's inputs:
+   `sRef (c+1) = exp(dRef c) · xRef c + newV c`, with `dRef`, `xRef`, `startV`, `newV` (lines 541,
+   562, 546, 535) and the request structure `eReq`, `isReset`, `offR`, `hasSub` (lines 517–528)
+   computed from `qsl`, not from the metadata. `tol` (line 597) is a recursion: `tol 0 = 0`,
+   `tol (c+1) = eHat c · tc + errE c · |xRef c| + rho · (eHat c · (|xRef c| + tc) + |newV c|) +
+   3·2^-150`, `tc = 0` on a reset chunk (`tolIn`, line 606), with `dErr`, `expRel`, `errE`,
+   `eHat`, `rho` (lines 573–591);
+3. `final_states[0, h, m]` (element `finIdx d h m`, line 366) holds some `v` with
+   `OutO init d h m nchunks v`;
+4. the frame: every byte outside `out`'s first `nchunks·nheads·dim` elements and `finalst`'s first
+   `nheads·dim` elements is unchanged.
+
+**What you are given** (`Assumptions`, line 656):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
+  valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `exp_acc` (`Rules.Num.ExpF32`): for every `X ≥ 0`, `tl.exp` on `float32` (source line 223) on
+  `[−X, X]` is within relative `2^-22 + 2^-23·X`, absolute `2^-140` (a `MathAcc`);
+- `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): that `tl.exp` has a result.
+
+**The kernel, as the model runs it** (`model` line 454: `ssd_state_passing_kernel`, line 46, when
+`hasInit`, else `ssd_state_passing_kernel_noinit`, line 206; `launch` line 480): a 3-D grid
+`(gx d, 1, nheads)` (`gx`, line 334), block shape `[1024]`. Program `(pid_m, ·, pid_h)` owns lanes
+`pid_m·1024 + [0, 1024)` below `dim` of head `pid_h`. It stores the start state (the loaded
+`initst` row `0`, or zeros) to `out[0, 0]`, then runs `tl.forRange 0 nchunks 1` with seven (or
+five) carried values. Each trip loads `states[0, c]` and the scalar `dA_cs`, loads `seq_idx` at the
+chunk's last token, and either (with `hasInit`, request changed) reloads the initial state of that
+request, reads `chunk_offsets[logical_chunk_idx]` (masked) and, when `c_off > 0`, subtracts a masked
+boundary `dA` entry (`tl.sub`); or (without) sets `scale_mask` from the request comparison. Then
+`tl.exp`, `tl.where`, `tl.mul_add`, and one masked store to `out[0, c+1]` (`c < nchunks − 1`) or to
+`final_states`. Programs write disjoint lanes and use no atomics: the route is
+`TVA.meets_independent` (PROVER_GUIDE §4); the loop rule is `safe_forRange`, with trip `c`'s write
+footprint the lanes of `out[0, c+1]` or of `final_states`, disjoint across trips.
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false`: the grid is 3-D, so `Launch.Valid` is proved
+  directly (`x < 2^31` from `dim_lt`, `z < 2^16` from `heads_lt`, the count from `grid_lt`, the
+  shape `[1024]`);
+- each program is `Safe`: no `int32` offset wraps (`dim_lt`, `tok_lt`, `dA_lt`, `st_lt`,
+  `init_lt`, `nmeta_lt`); every enabled load is in bounds (`states_len`, `dA_len`, `init_len`,
+  `seq_len`, `offs_len`, using `MetaOk` for the `seq_idx` and `chunk_offsets` values, and
+  `qsl_*`, `nchunks_eq`, `nmeta_eq` for their range); the stores are in bounds (`out_len`,
+  `fin_len`) on distinct lanes;
+- the kernel's metadata path decides the reference's structure: `seq_idx` changes at the end of
+  chunk `c` exactly when `isReset d c`, the loaded `seq_idx_chunk_end` is `eReq d c`, and
+  the masked `chunk_offsets[logical_chunk_idx]` is `offR d c` when `hasSub d c`, and not positive
+  on a reset chunk without it. This needs `reqOf`, `hostN`, `hostOff` (lines 376–392);
+- footprints: different programs' lanes are disjoint, and the outputs are disjoint from every
+  read (`disj`);
+- the values: part 1 is a copy (`safe_load`, `safe_store`); parts 2–3 follow by induction on `c`,
+  with the step bound of README `## Tolerances`: `FloatV.sub_err` (source line 215), `exp_acc` at
+  `X = |dRef| + dErr` (`MathAcc.mono` if needed), `FloatV.mul_err`, `add_err`, `fma_err`
+  (`safe_mul_add`), room from `Vals`' last conjunct; without `hasInit` a reset chunk gives `n`
+  exactly;
+- the frame: the bytes no program writes.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `bytes_disj` (line 700), `disj_far` (line 709), `zero_i32` (line 822) and
+`valid_zero` (line 829) can be reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance, from every memory `Pre`

@@ -23,6 +23,84 @@ configs and `benchmark` (400–437) and its run (440). The functions `get_cuda_a
 (`source.unused`): nothing calls the first three, and the kernel's only call of `leaky_relu`
 (line 307) is under `ACTIVATION == "leaky_relu"`, which no launch takes.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.MatmulE5m2.main : Statement` (`Statement`:
+`Claim.lean` line 540). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 179), and every initial memory `init` that `Pre` accepts (line 261), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 494).
+
+**What `Post` asks** (line 494), two parts:
+1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 477). Element
+   `i·stride_cm + j·stride_cn` of `c` reads in `fin` as some `float16` `c`. This holds for every
+   element. Only when row `i` of `a` and column `j` of `b` read in `init` as finite `float8e5`
+   values `va k`, `vb k` (`k < K`) it also asks for a finite `float32` `v` with
+   - `|v.toRat - dotSum va vb d.K| ≤ tol va vb d.K` and `FloatV.NaNEq (FloatV.cvt v) c`;
+   - if `|dotSum va vb d.K| + tol va vb d.K ≤ Format.binary16.maxVal`: `c` is finite and
+     `|c.toRat - dotSum …| ≤ tol … + (|dotSum …| + tol …) * Format.binary16.u + Format.binary16.eta`.
+
+   `dotSum` (line 461) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 319) is
+   `errAt (prodV …) (liftV …) (2 * steps K)`: the recursion `errAt` (line 305) over the
+   `2·cdiv(K, 64)` chunks of 32 products (`steps`, line 269), with each step the smaller of the two
+   arms of `Rules.Num.DotE5m2ChunkLoss`, the exact partial sums `partSum` (line 283), each chunk's
+   largest lifted product `chunkMax` (line 286) of `liftV` (line 279) and its exact magnitude
+   `chunkAbs` (line 291);
+2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 174) is unchanged.
+
+**What you are given** (`Assumptions`, line 502):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
+  `debug = false` that is well behaved from `init`;
+- `dot` (`Rules.Num.DotE5m2ChunkLoss`, a `DotChunkLoss`): the `tl.dot` of source line 300 on finite
+  inputs, with room in `float32`, gives a finite result reached through one partial value per chunk
+  of 32, each within `min(2^-7·M, 2·A + 2^-12·M) + 2^-12·|s + c| + 2^-126` of `s + c`;
+- `dot_total` (`Rules.Num.DotTotal`): that `tl.dot` always has a result;
+- `cvt` (`Rules.Num.CvtF32E5m2`, a `CvtRn`): `float32` to `float8e5` rounds to nearest even in
+  range, so `other=0.0` (source lines 297–298) is `+0`;
+- `cvt_total` (`Rules.Num.CvtTotal`): that conversion always has a result.
+
+**The kernel, as the model runs it** (`matmul_kernel` line 38, `model` line 245, `launch`
+line 254): a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs. Program `pid` computes the grouped
+tile `(pid_m, pid_n)` (`GROUP_SIZE_M = 8`, `tl.idiv`, `tl.irem`, `tl.iminimum`), checks eight
+`tl.assume`s, and forms `a_ptrs` and `b_ptrs` with rows and columns taken `% M` and `% N`. A
+`tl.forRange` loop of `steps K` trips loads the `[128, 64]` tile of `a` and the `[64, 256]` tile of
+`b` masked on `k < K - 64·t` (`other` converted to `float8e5` by `tl.convert`), does
+`acc ← tl.dot(a, b, acc)`, and advances both pointers. After the loop it rounds to `float16` and
+stores the `[128, 256]` tile of `c` masked by `M` and `N`. No reduction, no atomic. Programs write
+disjoint tiles of `c` and only read `a` and `b`: the route is `TVA.meets_independent`; the loop is
+`safe_forRange` with an invariant on the pointers and the accumulator (each element within
+`errAt … (2t)` of `partSum … (2t)`) and `Wt := fun _ => ∅` (`iterW_empty`) (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: fewer than `2^31` programs
+  from `grid_lt`; the ten block shapes are powers of two);
+- each program is `Safe`: the grouped `pid_m < cdiv(M, 128)`, `pid_n < cdiv(N, 256)` and the
+  `tl.assume`s hold (`safe_assume`; the strides from `am` … `cn`); `safe_idiv`, `safe_irem` have no
+  bad lane; `safe_convert` for `other` (`cvt_total`, `cvt`); the `int32` values do not wrap
+  (`M_le`, `N_le`, `K_le`, `a_fit`, `b_fit`, `cm_fit`, `cn_fit`); every enabled load lane is inside
+  `a`, `b` (`a_len`, `b_len`) and every enabled store lane inside `c` (`c_len`), with distinct
+  lanes (`c_inj`);
+- the map `pid ↦ (pid_m, pid_n)` is one-to-one on the grid, so the programs' write tiles are
+  disjoint (`c_inj`), and no program reads what another writes (`c_a`, `c_b`);
+- the value part of part 1: per trip, `safe_dot` with `dot` (and `dot_total`) and
+  `Dot8Chunk.DotF8ChunkLoss.err` move the invariant over the trip's two chunks, from
+  `errAt … (2t)` to `errAt … (2t + 2)`; `K_le` keeps the room condition; the final rounding is
+  `FloatV.cvt_err`. `## Tolerances` gives the derivation;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok`
+(line 604) and the `setup_*_ok` theorems; reusable: `errAt_succ` (line 344), `errAt_nonneg`
+(line 354), `errAt_succ_le_acc` (line 370), `errAt_succ_le_loss` (line 382), `partSum_succ`
+(line 392), `le_chunkMax`, `chunkMax_le` (lines 398, 401), `errAt_le_bound` (line 407),
+`tolA_rel_lt`, `tolA_le` (lines 431, 440), the constants `rho_eq` … `rhoL_eq`, `q_eq`
+(lines 330–341), `row_lt` (line 573), `rm_inj` (line 579), `bytes_disjoint` (line 594).
+
 ## Specification
 
 `Post d init fin` says two things.

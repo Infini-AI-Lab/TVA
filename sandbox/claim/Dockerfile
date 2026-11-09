@@ -15,16 +15,17 @@ RUN cd /home/tva/fpv/tva \
     && cp -a lean/TVA lean/TVA.lean lean/lake-manifest.json lean/lean-toolchain lean/.lake /stage/lean/ \
     && rm -rf /stage/lean/.lake/build/lib/lean/VecAdd* \
     && mkdir -p /stage/docs && cp -a docs/SEMANTICS.md docs/PROVER_GUIDE.md docs/LIBRARY.md docs/TRANSCRIPTION.md \
-       docs/rules /stage/docs/
+       docs/rules /stage/docs/ \
+    && chown -R root:root /stage && chmod -R a+rX,go-w /stage /opt/elan
 
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 ELAN_HOME=/opt/elan \
     PATH=/opt/elan/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates curl git python3 procps tini \
     && rm -rf /var/lib/apt/lists/* && git config --system --add safe.directory '*'
-COPY --from=tva /opt/elan /opt/elan
+COPY --from=tva --chown=root:root /opt/elan /opt/elan
 COPY --from=tva /stage /app
-COPY --from=tva /home/tva/fpv/tva/tools/tvr.py /usr/local/lib/tva-claim/tvr.py
+COPY --from=tva --chown=root:root /home/tva/fpv/tva/tools/tvr.py /usr/local/lib/tva-claim/tvr.py
 COPY tva-claim /usr/local/bin/tva-claim
 COPY lake /tmp/tva-lake
 COPY settings.json /.claude/settings.json
@@ -39,8 +40,17 @@ WORKDIR /app/lean
 # the library is built (no rebuild after the move), and the example's proof passes the check; then its
 # build is removed, so a task's claim (the same module names) starts clean
 RUN timeout 900 lake build TVA \
-    && cp -a /app/examples/vec_add_f32 /app/claim && tva-claim prepare && tva-claim check \
+    && cp -a /app/examples/vec_add_f32 /app/claim && tva-claim prepare && tva-claim check /app/claim \
     && rm -rf /app/claim /app/lean/.lake/build/lib/lean/Claim.* /app/lean/.lake/build/lib/lean/Proof.* \
        /app/lean/.lake/build/lib/lean/Proof /app/lean/.lake/build/ir/Claim.* /app/lean/.lake/build/ir/Proof.* \
        /app/lean/.lake/build/ir/Proof /tmp/.tva-claim-stop.json
+# The prover runs as `prover` (task.toml's [agent] user). Everything here is root's and read-only to it, except
+# where its builds and its proof go: /tmp, and the build folders of /app/lean (sticky, so a build adds the claim's
+# and the proof's outputs but never replaces or removes root's). Each task's image opens /app/claim the same way.
+RUN useradd -m -u 2000 -s /bin/bash prover \
+    && chmod -R go-w /.claude /CLAUDE.md /process_safety.md /usr/local/lib/tva-claim /app/examples \
+    && chmod 1777 /app/lean/.lake \
+    && find /app/lean/.lake/build -type d -exec chmod 1777 {} + \
+    && test -z "$(find /app /opt/elan /.claude /CLAUDE.md /process_safety.md /usr/local/bin/tva-claim \
+       /usr/local/lib/tva-claim -not -user root -print -quit)"
 WORKDIR /app

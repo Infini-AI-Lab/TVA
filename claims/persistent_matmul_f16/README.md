@@ -24,6 +24,82 @@ statement is a host line (`claim.json`'s `source.host`): the other imports, the 
 the config lists, the file's other kernels and their hosts, `matmul_persistent`, the test, the
 benchmark and `__main__`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.PersistentMatmul.main : Statement` (`Statement`:
+`Claim.lean` line 409). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 209), and every initial memory `init` that `Pre` accepts (line 293), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 379).
+
+**What `Post` asks** (line 379), two parts:
+1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 362). Element
+   `i·stride_cm + j·stride_cn` of `c` reads in `fin` as some `float16` `c`. This holds for every
+   element. Only when row `i` of `a` and column `j` of `b` read in `init` as finite values `va k`,
+   `vb k` (`k < K`) it also asks for a finite `float32` `v` with
+   - `|v.toRat - dotSum va vb d.K| ≤ tol va vb d.K` and `FloatV.NaNEq (FloatV.cvt v) c`;
+   - if `|dotSum va vb d.K| + tol va vb d.K ≤ Format.binary16.maxVal`: `c` is finite and
+     `|c.toRat - dotSum …| ≤ tol … + (|dotSum …| + tol …) * Format.binary16.u + Format.binary16.eta`.
+
+   `dotSum` (line 321) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 354) is
+   `errAt (prodV …) (liftV …) (steps K)`: the recursion `errAt` (line 347) over the
+   `steps K = cdiv(K, 64)` inner steps (line 299), with `rho = relDot16 64`, `alpha = absDot16 64`
+   (lines 303, 306), the exact partial sums `partSum` (line 335) and the steps' lifted magnitudes
+   `stepMag` of `liftV` (lines 338, 331);
+2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 202) is unchanged.
+
+**What you are given** (`Assumptions`, line 387):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
+  `debug = false` that is well behaved from `init`;
+- `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 345, on a finite row, column and
+  accumulator, gives a finite element within `relDot16 K·L + absDot16 K` of `acc + Σ a·b`,
+  `L = |acc| + Σ liftMag a·liftMag b`, when that leaves room in `float32`;
+- `dot_total` (`Rules.Num.DotTotal`): that `tl.dot` always has a result.
+
+**The kernel, as the model runs it** (`matmul_kernel_persistent` line 57, `compute_pid` line 31,
+`model` line 275, `launch` line 286): a 1-D grid of `min(NUM_SMS, tiles d)` programs (`tiles`,
+line 191). Program `start_pid` runs an outer `tl.forRange` over the tiles
+`tile_id = start_pid, start_pid + NUM_SMS, … < num_tiles`. Each trip maps `tile_id` to
+`(pid_m, pid_n)` by `compute_pid`, forms `offs_am`, `offs_bn` (a `where` to `0` outside `M`, `N`),
+checks the hint pair `tl.max_contiguous_multiple_of`, and runs an inner `tl.forRange` of
+`steps K` trips: masked loads of the `[128, 64]` tile of `a` and the `[64, 256]` tile of `b`
+(`other` `+0`), then `acc ← tl.dot(a, b, acc)`. It then advances `tile_id_c` by `NUM_SMS`, maps it
+again by `compute_pid`, rounds to `float16` and stores the `[128, 256]` tile of `c` masked by `M`,
+`N`. Each program writes several tiles, one per outer trip; no atomic. Programs write disjoint sets
+of tiles and only read `a` and `b`: the route is `TVA.meets_independent`. The outer loop is
+`safe_forRange` with per-trip footprints `Wt t` (the `c` tile of `start_pid + t·NUM_SMS`),
+disjoint across trips; the inner loop is `safe_forRange` with an invariant on the accumulator
+(each element within `errAt … t` of the partial sum) and `Wt := fun _ => ∅` (`iterW_empty`)
+(PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: fewer than `2^31` programs
+  from `sms`; the ten block shapes are powers of two);
+- each program is `Safe`: the outer loop's bounds are valid (`tl.RangeOk`, from `sms`,
+  `tiles_le`); `safe_idiv`, `safe_irem` have no bad lane; `compute_pid` on `tile_id_c` gives the
+  same tile as on `tile_id`, with `pid_m < cdiv(M, 128)`, `pid_n < cdiv(N, 256)`; the hints hold
+  (`safe_max_contiguous_multiple_of`, from `M_tile`, `N_tile`); the `int32` values do not wrap
+  (`M_le`, `N_le`, `K_le`, `tiles_le`, `am` … `cn`, `a_fit`, `b_fit`, `cm_fit`, `cn_fit`); every
+  enabled load lane is inside `a`, `b` (`a_len`, `b_len`) and every enabled store lane inside `c`
+  (`c_len`), with distinct lanes (`c_inj`);
+- the tiles of different trips and of different programs are distinct (the residues of
+  `tile_id` modulo `NUM_SMS`, and the tile map one-to-one), so the write footprints are disjoint
+  (`c_inj`), and no program reads what another writes (`c_a`, `c_b`);
+- the value part of part 1: per inner trip, `safe_dot` with `dot` (and `dot_total`) moves the
+  invariant from `errAt … t` to `errAt … (t + 1)`; `K_le` keeps the room condition; the final
+  rounding is `FloatV.cvt_err`. `## Tolerances` gives the derivation;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok`
+(line 473) and the `setup_*_ok` theorems; reusable: `tol_rel_lt` (line 311), `row_lt` (line 442),
+`rm_inj` (line 448), `bytes_disjoint` (line 463).
+
 ## Specification
 
 `Post d init fin` says two things.

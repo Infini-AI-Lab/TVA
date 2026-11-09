@@ -6,6 +6,83 @@ Kernel: `source/paged_attention.py`, `paged_attention_kernel` (lines 30–72; th
 `Statement := ∀ K P, Assumptions K P → Spec K`. Model map: [`model-map.json`](model-map.json). GPU
 check: [`check_gpu.py`](check_gpu.py). The launches to cover: [`SETUP.md`](SETUP.md).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.PagedAttention.main : Statement` (`Statement`:
+`Claim.lean` line 474). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 182), and every initial memory `init` that `Pre` accepts (line 259, with `SeqOk`,
+line 249), every outcome of the launch is a normal end (no fault, no hang) whose final memory `fin`
+satisfies `Post` (line 435).
+
+**What `Post` asks** (line 435), two parts:
+1. for every `s < num_seqs`, `h < num_heads`, `e < HEAD_DIM`: element `outIdx d s h e` of `out`
+   reads in `fin` as some `float16` `c`. This holds for every element. Only when
+   `SeqVals d init s h` (line 312: at least one token, `q`'s row and the sequence's keys and values
+   finite, `|v| ≤ 2^15`, `sigma d * scoreAbs ≤ 2^10`) it also asks that `c` is finite and, for
+   every rational `X ≤ 2^10` with `sigma d * scoreAbs d init s h t ≤ X` on every token
+   `t < seqLen d init s`,
+   `|c.toReal - attnRef d init s h e| ≤ tolO D P T X * attnAbs d init s h e + tolR D P T X * |attnRef d init s h e| + tolF D P T X`
+   with `D = HEAD_DIM`, `P = PAGE_SIZE`, `T = nblocks d init s` (line 285). `attnRef` (line 326)
+   is exact attention in the reals over the tokens `t < seq_lens[s]`, read through `block_tables`
+   in `init` (`tokElem`, `pageOf`); `attnAbs` (line 331) the same weighted mean of `|v|`; `tolO`,
+   `tolR`, `tolF` are lines 414, 418, 422, built from the definitions of lines 346–411;
+2. the frame: every byte outside `d.out.elems (outElems d)` (line 426) is unchanged.
+
+**What you are given** (`Assumptions`, line 450):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
+  `debug = false` that is well behaved from `init`;
+- `exp_acc` (`Rules.Num.ExpF32`): on `[-X, X]`, `tl.exp` (source lines 64, 65) is within
+  `(2^-22 + 2^-23·X)·e^x + 2^-140`;
+- `exp_ninf` (`Rules.Num.ExpF32NegInf`): `tl.exp(-∞) = +0` (`alpha` on the first page, `p` on
+  masked lanes);
+- `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): `tl.exp` has a result for every input;
+- `div_full`, `div_total` (`Rules.Num.DivFull`, `Rules.Num.DivTotal`): `/` (source line 71) has a result,
+  within `2^-22` relative and `2^-148` absolute;
+- `sum_depth` (`Rules.Num.SumDepth`): the reductions of source lines 61, 66, 68 are trees of depth at most
+  `⌈log₂ n⌉`.
+
+**The kernel, as the model runs it** (`paged_attention_kernel` line 37, `model` line 230, `launch`
+line 240): a 2-D grid of `num_seqs × num_heads` programs. Program `(s, h)` computes
+`kv_head = h // qpk`, loads `seq_lens[s]` and the unmasked `q` row (converted to `float32`), and
+runs a `tl.forRange` loop over `j ∈ [0, cdiv(seq_len, PAGE_SIZE))` (the trip count is
+`nblocks`, from the loaded length). Each trip loads one block-table entry, the masked
+`[PAGE_SIZE, HEAD_DIM]` key and value tiles of that page, and does the online softmax: the scores
+(`tl.mul`, `tl.sum1c`, `· scale`), a `where` to `-∞` on masked rows, `tl.maxAll`, `tl.maximum`,
+`alpha` and `p` by `tl.sub` and `tl.exp`, `l_i` by `tl.mul_add` with `tl.sum`, `acc` by
+`tl.sum0c` with `tl.mul_add` (or `tl.addc` when `PAGE_SIZE = 1`). After the loop it divides,
+rounds to `float16` and stores the unmasked `out` row. No dot, no atomic. Programs write disjoint
+`out` rows and only read inputs: the route is `TVA.meets_independent`; the loop is
+`safe_forRange` with an invariant on `(acc, l_i, m_i)` and `Wt := fun _ => ∅` (the body writes
+nothing; `iterW_empty`) (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch has `debug = false` and is `Launch.Valid` directly (2-D grid): axis 0 below `2^31`
+  from `seqs_lt`, the program count from `grid_lt`, axis 1 below `2^16`
+  from `heads_lt`, the five block shapes from `head_dim`, `page_size`;
+- each program is `Safe`: `safe_idiv` (`kv_pos`), the `int32` products do not wrap (`strides_lt`,
+  `prods_lt`), the loop bound and the mask `j·PAGE_SIZE + r < seq_len` do not wrap (`SeqOk`:
+  `seq_len ≤ max_pages·PAGE_SIZE`, `max_pages_le`); every load and store is in bounds (`q_len`,
+  `out_len`, `sl_len`, `bt_len` for `j < max_pages`, `kv_len` with the page from `SeqOk` and
+  `h // qpk < num_kv_heads` from `kv_dvd`); the store's lanes are distinct (`out_inj`);
+- the write footprints (the program's `HEAD_DIM` elements of `out`) are disjoint across programs
+  (`out_inj`), and no program reads what another writes (`disj`);
+- the value part of part 1, under `SeqVals`: `sumc_err_depth`, `sum_err_depth` with
+  `SumDepth.depth_le`, `FloatV.mul_err`, `FloatV.mulAdd_err`, `AddRel.err`, `exp_acc` (weakened by
+  `MathAcc.mono`), `exp_ninf`, `div_full`, `FloatV.cvt_err`, carried through the loop invariant.
+  `## Tolerances` gives the derivation;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`
+(line 546) and the `setup_*_ok` theorems; reusable: `mix_lt` (line 516), `mix_inj` (line 522),
+`bytes_disj` (line 534).
+
 ## Specification
 
 `Post d init fin`:
@@ -62,7 +139,7 @@ read as contiguous (the kernel reads element `s` of its storage; the test's `tor
 | Field | Condition | Why |
 |---|---|---|
 | `kv_pos`, `kv_dvd` | `num_kv_heads ≥ 1` divides `num_heads` | line 80 asserts it |
-| `heads_lt`, `grid_lt` | `num_heads < 2^16`, `num_seqs·num_heads < 2^31` | CUDA's grid limits (`Launch.Valid`) |
+| `heads_lt`, `grid_lt`, `seqs_lt` | `num_heads < 2^16`, `num_seqs·num_heads < 2^31`, `num_seqs < 2^31` | CUDA's grid limits (`Launch.Valid`); `seqs_lt` bounds axis 0 also when `num_heads = 0` |
 | `head_dim`, `page_size` | powers of two, at most `256` | `tl.arange` |
 | `max_pages_le` | `max_pages ≤ 2^16` | `2^24` tokens per sequence; see Exclusions |
 | `strides_lt`, `prods_lt` | every stride `< 2^31`; the `int32` products of lines 49, 57, 59, 72 below `2^31` | `int32` arguments and products (a kernel limit); the page offset `page·stride_kp` is `int64` |
@@ -70,7 +147,7 @@ read as contiguous (the kernel reads element `s` of its storage; the test's `tor
 | `out_inj`, `disj` | `out`'s elements distinct; `out` shares no byte with the inputs | a fresh `torch.empty_like(q)` |
 | `scale` | finite, in `[2^-64, 2^64]` | the host passes `head_dim**-0.5` |
 
-Empty grids (`num_seqs = 0` or `num_heads = 0`) are covered: no program runs and nothing changes.
+Empty grids (`num_seqs = 0`, or `num_heads = 0` with `num_seqs < 2^31`) are covered: no program runs and nothing changes.
 
 `Pre`: the six buffers valid, and for every sequence `s` (`SeqOk`) `seq_lens[s] ∈ [0,
 max_pages·PAGE_SIZE]` and each block-table entry the kernel reads (`j·PAGE_SIZE < seq_lens[s]`) a
@@ -178,6 +255,10 @@ tokens, and at 64K an all-zero output meets `Post`. With values of mean `0.3` it
 * **Values outside `SeqVals`** (an empty sequence, which gives `0/0`; non-finite inputs; `|v| >
   2^15`; `scale·scoreAbs > 2^10`): covered with a weaker `Post` (a `float16` value is stored,
   nothing else changes); outside real use.
+* **`num_seqs ≥ 2^31`** (with `num_heads ≥ 1` already outside `grid_lt`, so only with
+  `num_heads = 0`): outside real use (a model has heads; the host's `num_seqs` is a decode batch).
+  The grid `(num_seqs, 0, 1)` runs no program, but its axis 0 is beyond CUDA's `2^31 − 1` limit, so
+  it is not a launch the claim covers.
 * **A non-contiguous `seq_lens`**: the kernel reads element `s` of its storage; outside real use.
 * **`out` overlapping an input**: the wrapper allocates a fresh `out`.
 

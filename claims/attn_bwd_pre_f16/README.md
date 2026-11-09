@@ -5,6 +5,66 @@ are 20–21 and 248–262, the host lines as [`claim.json`](claim.json) gives th
 `Statement := ∀ K P, Assumptions K P → Spec K`. Model map: [`model-map.json`](model-map.json). GPU
 check: [`check_gpu.py`](check_gpu.py). The launches to cover: [`SETUP.md`](SETUP.md).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.AttnBwdPre.main : Statement` (`Statement`:
+`Claim.lean` line 279). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 109), and every initial memory `init` that `Pre` accepts (line 171), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 213).
+
+**What `Post` asks** (line 213), two parts:
+1. for every `bh < Z·H` and `m < N_CTX`, `OutSpec d init fin (bh·N_CTX + m)` (line 200): element
+   `r = bh·N_CTX + m` of `Delta` reads in `fin` as a `float32` `c`, for every such `r`. Only when
+   row `r` of `O` and of `DO` (elements `r·HEAD_DIM + k`, `k < HEAD_DIM`) read in `init` as finite
+   `float16` values `vo k`, `vdo k` is more asked: `c` is finite and
+   `|c.toRat − dotSum vo vdo HEAD_DIM| ≤ tol HEAD_DIM (dotAbs vo vdo HEAD_DIM)`. `dotSum` and
+   `dotAbs` (lines 177, 180) are the exact sums, in the rationals, of `vo k · vdo k` and of their
+   magnitudes; `tol` is defined at line 191. With a non-finite input in the row only "holds a
+   `float32` value" is asked;
+2. the frame: every byte outside `Delta.elems (outSet d)` (line 100) is unchanged.
+
+**What you are given** (`Assumptions`, line 221), two fields:
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `sum_depth` (`Rules.Num.SumDepth P`): every `tl.sum` tree over `n` positions has depth at most
+  `⌈log₂ n⌉`; it is used for the `tl.sum1c` of line 70 (source line 260), with
+  `SumDepth.depth_le` and `clog_two_pow`.
+
+**The kernel, as the model runs it** (`_attn_bwd_preprocess` line 42, `model` line 150, `launch`
+line 161): a 2-D grid `(N_CTX / BLOCK_M, Z·H, 1)`. Program `(pm, bh)` loads, with no mask, the
+`[BLOCK_M, HEAD_DIM]` blocks of `O` and `DO` at rows `bh·N_CTX + pm·BLOCK_M + [0, BLOCK_M)`
+(`int32` offsets), widens `do` with `tl.cvt` and `o` with `tl.convert .f16 .f32`, multiplies
+(`tl.mul`), sums each row with `tl.sum1c`, and stores the `BLOCK_M` sums to `Delta` at
+`bh·N_CTX + pm·BLOCK_M + [0, BLOCK_M)`. No loop, no atomics; programs write disjoint rows: the route
+is `TVA.meets_independent` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`launch` sets `debug := false`; `Launch.Valid`
+  from `bh_lt`, `grid_lt`, `ctx_lt`, and the block shapes from `block_pow2`, `head_pow2`,
+  `block_le`);
+- each program is `Safe`: its loads and its store are in bounds (`O_len`, `DO_len`, `Delta_len`,
+  `ctx_dvd`), and the `int32` products `off_hz·HEAD_DIM·N_CTX`, `off_m·HEAD_DIM`, `off_hz·N_CTX`
+  do not wrap (`row_fit`, `head_fit`; `TVA.Lemmas.Int`); `safe_load`, `safe_cvt`, `safe_convert`,
+  `safe_mul`, `safe_sum1c`, `safe_store`;
+- the programs' write rows are disjoint (from the grid coordinates and `ctx_dvd`), and no program
+  writes what any program reads (`Delta_O`, `Delta_DO`);
+- every `r < Z·H·N_CTX` is written by one program (`ctx_dvd`: the grid covers every position);
+- the value part of part 1: the widenings are exact (`FloatV.toRat_cvt_of_wider`), the products are
+  one `float32` rounding each, and the fused sum is bounded by `sumc_err_depth` at depth
+  `⌈log₂ HEAD_DIM⌉`, composed as in `sum_bcast_mul_tree_err` (README `## Tolerances`);
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok` and the
+`setup_*_ok` theorems; `tol_le_bcast` (line 236), `tol_mono` (line 251), `tol_le` (line 267) and
+`elems_disjoint_of_lt` (line 288) can be reused.
+
 ## Specification
 
 For every `(batch, head)` pair `bh < Z·H` and position `m < N_CTX`, with `r = bh·N_CTX + m`

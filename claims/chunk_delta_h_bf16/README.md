@@ -6,6 +6,92 @@ state). Claim: [`Claim.lean`](Claim.lean), namespace `Claims.ChunkDeltaH`; the s
 is `Statement : ∀ K P, Assumptions K P → Spec K`. Model map: [`model-map.json`](model-map.json).
 GPU check: [`check_gpu.py`](check_gpu.py). Setup: [`SETUP.md`](SETUP.md).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.ChunkDeltaH.main : Statement` (`Statement`:
+`Claim.lean` line 1078). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 669), and every initial memory `init` that `Pre` accepts (line 748), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 1034).
+
+**What `Post` asks** (line 1034). For every sequence `n < N`, value head `hv < HV` and column
+`j < V`:
+1. `v_new`: for every token `s < lenOf d n` (line 638), element
+   `uIdx d (rowOf d n) (startOf d n + s) hv j` of `vn` reads in `fin` as a `bfloat16` `x`; only
+   under `Vals init d` (line 996) and `StOk fin d n hv j t'` for every `t' ≤ s / 64` (line 1013;
+   the stored states of the token's chunk and of every earlier chunk) is more asked: `x` is
+   finite and `|x.toReal − vrefS …| ≤ tolV …` (`vrefS` line 825, exact in the reals from `init` and
+   the stored `h[t]` in `fin`; `tolV` line 906);
+2. `h`: for every chunk `t < nch d n` (line 641) and row `c < K`, element
+   `hIdx d (cbase d n + t) hv c j` (lines 645, 663) of `h` holds a `bfloat16` value;
+3. the states: there is `Y : Nat → Nat → F32` with
+   - under `Vals`, `Y 0 c` finite and equal to `h0v init d n hv j c` (line 818; `0` without `h0`);
+   - for `t < nch d n` and `c < K`, a finite `Y t c` gives `h[t][c] = FloatV.cvt (Y t c)` exactly;
+   - for `t < nch d n`, under `Vals` and `StOk … t'` for every `t' ≤ t`, `Y t`, `Y (t + 1)`
+     finite and `colNorm K (Y (t + 1) − Step … (Y t)) ≤ errStep …` (`Step` line 833, exact;
+     `colNorm` line 840; `errStep` line 972);
+   - with `storeHt`, `ht[sIdx d n hv c j]` (line 665) reads as `Y (nch d n) c` exactly;
+4. the frame: every byte outside the first `B·NTt·HV·K·V` elements of `h`, the first
+   `B·T·HV·V` of `vn` and (with `storeHt`) the first `N·HV·K·V` of `ht` is unchanged.
+
+Outside `Vals` and these `StOk` guards only the presence clauses, the rounding link and
+`ht = Y (nch n)` are asked.
+
+**What you are given** (`Assumptions`, line 1060), five fields:
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`, `relDot16 64`, `absDot16 64`): every `tl.dot` of
+  `chunk_step` (line 61) and `chunk_step_vf` (line 275), the `w` dots and the `k` dots;
+- `dot_total` (`Rules.Num.DotTotal` at `cfgBF16`, line 41): they have a result;
+- `exp2_acc` (`Rules.Num.Exp2F32`, `2^-22` relative, `2^-126` absolute): the gate's two `tl.exp2`
+  (model lines 141, 144, and their `vf` twins); `exp2_total` (`Rules.Num.MathTotal`): a result.
+
+**The kernel, as the model runs it** (`fwd_kernel_h` line 528, `model` line 729, `launch` line
+740): a 1-D grid of `gridN d` (line 653) programs. Program `pid` splits it in `int64` into the
+column tile `i_v` (32 columns), the sequence `i_n` and the head `i_h` (`tl.irem`, `tl.idiv`). On
+variable length it reads `cu_seqlens[i_n]`, `cu_seqlens[i_n + 1]` and `chunk_offsets[i_n]`
+(`tl.load1`); on fixed length `bos = i_n·T`, `boh = i_n·cdiv(T, 64)`. `body_rest` (line 185, or
+`body_rest_vf` line 409) zeroes up to four `[64, 32]` state blocks, adds `h0` if `useH0`, runs the
+chunk loop (`loopVar` line 491 over `int64`, `loopFix` line 505 over `int32`, each a
+`tl.forRange 0 NT 1`) whose trip `chunk_step` stores the rounded state blocks to `h`, computes the
+`w` dots, `u − w·h` (`tl.subc`), stores `v_new`, applies the gate (with `useG`), and adds the `k`
+dots into the state; after the loop it stores the state to `ht` if `storeHt`. Programs write
+disjoint tiles and use no atomics: the route is `TVA.meets_independent`; the chunk loop is
+`safe_forRange` with an invariant and per-trip write footprints (chunk `t`'s `h` tile and `v_new`
+rows), disjoint across trips (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (the `Launch` default; `Launch.Valid` from
+  `grid_lt`; the block shapes are fixed sizes);
+- each program is `Safe`: the divisors `cdiv(V, 32)`, `HV`, `HV / H`, `64` are nonzero (`V_pos`,
+  `HV_pos`, `H_dvd`); the table reads are in bounds (`cu_len`, `co_len`) and give `cbase`
+  (`Pre`); the `int32` values (`T + 63`, `last_idx·HV`, `o_k*`) and the `int64` offsets do not
+  wrap (`T_lt`, `THV_lt`, `HVV_lt`, `K_le`); every enabled lane of every load and store is in
+  bounds (`k_len` … `co_len`, `var_*`); `safe_dot` (with `dot_total`), `safe_math` (with
+  `exp2_total`), `safe_subc`, `safe_sub`, `safe_mul`, `safe_add`, `safe_cvt`, `safe_convert`,
+  `safe_load`, `safe_store`;
+- the programs' write tiles are disjoint (distinct `(i_n, i_h, i_v)`; on variable length the
+  sequences' chunk ranges `[cbase n, cbase n + nch n)` are disjoint), and no program writes what any
+  program reads (`disj_h`, `disj_vn`, `disj_ht`);
+- the loop invariant: the state blocks after `t` trips are `Y t`, the values the trip stored to
+  `h[t]` are their rounding, and, under `Vals` and while `StOk t'` holds for every `t' < t`, the
+  padded rows `K ≤ c < 64·cdiv(K, 64)` stay within `padB t` (line 986; `StOk t'` keeps chunk
+  `t'`'s gated values finite, so the `k` dot's fact bounds what it adds to the padded rows); then
+  the value parts under `Vals` and `StOk`: `tolV` and `errStep` from `dot` chained
+  over the `K` blocks (`DotLoop.bound`), `exp2_acc`, `FloatV.mul_err`, `FloatV.sub_err`,
+  `FloatV.AddRel.err` and `FloatV.cvt_err` (README `## Tolerances`);
+- the bytes no program writes give part 4.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `ok_of` and the
+`setup_*_ok` theorems; `bytes_disj` (line 1154), `disj_far` (line 1163) and `valid_zero`
+(line 1434) can be reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance, from every memory `Pre`
@@ -14,17 +100,17 @@ allows, every launch ends normally and leaves `Post`. `Post` is **step-wise** in
 `h[t]` the column `h[cbase n + t, hv, :, j]` (`t < nch n = cdiv(len n, 64)`):
 
 * for each token `s < len n` (chunk `t = s / 64`, token `i = s % 64`), `v_new[token s, hv, j]` holds
-  a `bfloat16` value; when `Vals` and `StOk t` (`h[t]` finite with `‖h[t]‖ ≤ 2^40`), finite and
-  `|v_new − vrefS t i| ≤ tolV t i`;
+  a `bfloat16` value; when `Vals` and `StOk t'` for every `t' ≤ t` (`h[t']` finite with
+  `‖h[t']‖ ≤ 2^40`), finite and `|v_new − vrefS t i| ≤ tolV t i`;
 * every element of every `h[t]` holds a `bfloat16` value;
 * **there are `float32` states** `Y 0, Y 1, …, Y (nch n)` (the column's `K` rows; the kernel's
   `b_h` entering each chunk, and after the last) such that:
   - when `Vals`, `Y 0` is the initial state `h0[n, hv, :, j]` (`0` without one), finite;
   - **each stored state is the rounding of its state**: for `t < nch n` and each row, a finite
     `Y t c` gives `h[t][c] = bf16(Y t c)` exactly (`FloatV.cvt`, nearest even);
-  - **each state is one step from the previous one**: for `t < nch n`, when `Vals` and `StOk t`,
-    `Y t` and `Y (t + 1)` are finite and `‖Y (t + 1) − Step t (Y t)‖ ≤ errStep t` (Euclidean norm
-    over the `K` rows);
+  - **each state is one step from the previous one**: for `t < nch n`, when `Vals` and `StOk t'`
+    for every `t' ≤ t`, `Y t` and `Y (t + 1)` are finite and
+    `‖Y (t + 1) − Step t (Y t)‖ ≤ errStep t` (Euclidean norm over the `K` rows);
   - with `STORE_FINAL_STATE`, `ht[n, hv, :, j]` is `Y (nch n)` exactly;
 * every byte outside `h`'s, `v_new`'s and (with `STORE_FINAL_STATE`) `ht`'s elements is
   unchanged.
@@ -105,13 +191,16 @@ below; a bound from the inputs alone). Real inputs are inside: `k` is L2-normali
 sum of `log2` decays (`g ≤ 0`, nonincreasing within a chunk, so `g_last − g_i ≤ 0` up to the
 cumulative sum's rounding), and `padB` stays below `2^-79` for up to `2^20` chunks without decay.
 
-`StOk t` (a hypothesis of chunk `t`'s clauses, on the observed stored state): every element of
-`h[t]` is a finite `bfloat16` value and `‖h[t]‖ ≤ 2^40`. The kernel's `Y t` is then finite (the
-rounding of a NaN or an infinity is not finite) and `h[t] = bf16(Y t)`. With `Vals` it keeps every
-intermediate of the step far from the `float32` and `bfloat16` overflow (`|Y t| ≤ 2^41`, `|v| ≤ 2^61`, the gated
-values below `2^70`, the dots' lifted magnitudes below `2^93`), so the library's rounding facts
-apply. `h[0]` meets it whenever `Vals` holds (`|h0| ≤ 2^16`); real states are of order `1` to
-`10^3`.
+`StOk t` (on the observed stored state; chunk `t`'s clauses assume `StOk t'` for every `t' ≤ t`):
+every element of `h[t]` is a finite `bfloat16` value and `‖h[t]‖ ≤ 2^40`. The kernel's `Y t` is
+then finite (the rounding of a NaN or an infinity is not finite) and `h[t] = bf16(Y t)`. With
+`Vals` it keeps every intermediate of the step far from the `float32` and `bfloat16` overflow
+(`|Y t| ≤ 2^41`, `|v| ≤ 2^61`, the gated values below `2^70`, the dots' lifted magnitudes below
+`2^93`), so the library's rounding facts apply. The earlier chunks are needed because, when
+`64 ∤ K`, the padded state rows carry hidden state from chunk to chunk: they stay within `padB`
+only while every earlier chunk's gated values are finite (the `k` dot's fact says nothing about an
+output whose operand column is not finite), and chunk `t`'s `w` dot reads them. `h[0]` meets
+`StOk` whenever `Vals` holds (`|h0| ≤ 2^16`); real states are of order `1` to `10^3`.
 
 The launches are within part (A) of `Compiler.Faithful`'s scope: the kernel is the `@triton.jit`
 function of the source without its autotuner and heuristics (`SETUP.md`); the launch gives
@@ -179,7 +268,10 @@ inputs and of `H`. The padded rows `c ≥ K` of a block
 (when `64 ∤ K`) are masked out of every load and store, and their `w` and `k` are `0`
 (`liftMag 0 = 0`), so they add nothing to the real rows; but they are not exactly `0`: each chunk
 scales them by `ẽ ≈ 2^g_last` and adds a `k` dot whose facts allow an absolute error `aD` on its
-true `0` (with `STATE_V_FIRST` the `+`'s rounding too), so `|pad| ≤ padB t`,
+true `0` (with `STATE_V_FIRST` the `+`'s rounding too). They start at `0` (the zero blocks and
+the masked `h0` load), and while `StOk t'` holds for every `t' < t` (with `Vals` it keeps chunk
+`t'`'s gated values `vgb` finite and its operands in range, which the `k` dot's fact needs for the
+padded rows' outputs too), induction gives `|pad| ≤ padB t`,
 `padB (t+1) = (1 + rD + 3·2^-24)·(eB·(1 + 2^-24)·padB t + 2^-150 + aD) + 4·2^-150`, a bound from
 the inputs alone. The `w` dot's fact needs them finite and in range: `Vals` keeps
 `padB ≤ 2^100`. Without that bound the statement would be false: `K = 60`, `g ≡ 8` over 33 chunks
@@ -313,8 +405,11 @@ What `SETUP.md` allows and the claim leaves out:
   `g_last ≤ 0`, `padB t ≈ t·66·2^-126·(1 + rD)^t`: about `2^-103` at `2^16` chunks and `2^-80` at
   `2^20` chunks, the most `T·HV < 2^31` allows at 32 value heads with the gate); a limit of the kernel's
   `float32`/`bfloat16` arithmetic toward overflow, far outside real use.
-* **A stored state out of range** (`StOk t`, a hypothesis of chunk `t`'s clauses): a non-finite
-  `h[t]` or `‖h[t]‖ > 2^40`; the step after it is not claimed. Real states are of order `1` to
+* **A stored state out of range** (`StOk t`): a non-finite `h[t]` or `‖h[t]‖ > 2^40`; the clauses
+  of chunk `t` and of every later chunk are not claimed (when `64 ∤ K` the padded rows, never
+  stored, carry state across chunks, and a chunk out of range leaves them unconstrained: at
+  `K = 60`, once an input drives the state out of range, the dot facts allow a later `h[t]` in
+  range while the padded rows its `w` dot reads are not finite). Real states are of order `1` to
   `10^3`.
 * **The drift over many chunks**: `Post` bounds each step of the state, not the distance of `h[t]`
   from the exact recurrence started at `h0`; the steps' errors are not composed (Tolerances, "What

@@ -9,6 +9,81 @@ One program per (token, block of 8 heads): it loads `A_log`, `a`, `b`, `dt_bias`
 `g = -exp(A_log) · softplus(a + dt_bias)` (softplus with `beta = 1`, `threshold = 20`) and
 `beta_output = sigmoid(b)` (rounded to `bfloat16`, stored as `float32`).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.GdnGating.main : Statement` (`Statement`: `Claim.lean`
+line 297). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 139), and every initial memory `init` that `Pre` accepts (line 214), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 249).
+
+**What `Post` asks** (line 249), three parts, for every token `i < batch` and head `h < H`, with
+`A = A_log[h]`, `av = a[i·stride_a + h]`, `bv = dt_bias[h]`, `bb = b[i·stride_b + h]` read in `init`,
+and `x = av.toReal + bv.toReal` (the exact sum):
+1. element `i·H + h` of `g` reads in `fin` as `c`, and either `c` is finite with
+   `|c.toReal - gRef A.toReal x| ≤ gTol A.toReal x`, or `c = FloatV.negInf` and
+   `maxVal ≤ |gRef A.toReal x| + gTol A.toReal x` (the exact value is at the edge of `float32`'s
+   range). `gRef A x = -(e^A · spRef x)` (line 224) is the exact decay in the reals, with
+   `spRef x = log(1 + e^x)` for `x ≤ 20` and `x` above (line 221); `gTol` (line 234) is relative
+   `2^-19 + 2^-23·(|A| + 2·min(max(-x, 0), 20))` of `|gRef|`, plus `2^-23·e^A`, `2^-139·spRef x`
+   and `2^-148`;
+2. element `i·H + h` of `beta_output` reads in `fin` as a finite `c` with
+   `|c.toReal - sigRef bb.toReal| ≤ bTol bb.toReal`: `sigRef b = 1 / (1 + e^(-b))` (line 227),
+   exact in the reals; `bTol b = 2^-7·|sigRef b| + 2^-133` (line 240);
+3. the frame: every byte outside the first `batch·H` elements of `g` and of `beta_output` is
+   unchanged.
+
+**What you are given** (`Assumptions`, line 272):
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `exp_total` (`Num.MathTotal P .exp .binary32`): `tl.exp` has a result on every input (source
+  lines 79, 81, 83; masked lanes included);
+- `exp_acc` (`Num.ExpF32`): for `X ≥ 0` and finite `x ∈ [-X, X]` with room, `tl.exp` is within
+  `(2^-22 + 2^-23·X)·e^x + 2^-140` (source lines 79, 81, 83);
+- `exp_ninf` (`Num.ExpF32NegInf`): `tl.exp(-∞) = +0` (source line 79, when `a + dt_bias` rounds to `-∞`);
+- `log_total` (`Num.MathTotal P .log .binary32`) and `log_acc` (`Num.LogF32`, `2^-22·|ln x| +
+  2^-149`): `tl.log` of source line 79;
+- `div_total` (`Num.DivTotal .binary32`) and `div_full` (`Num.DivFull`, `2^-22` relative,
+  `2^-148`): the `/` of source line 83 (`tl.sigmoid`).
+
+**The kernel, as the model runs it** (`fused_gdn_gating_kernel` line 47, `model` line 176,
+`launch` line 184): a 3-D grid `(batch, 1, Bn d)`, `Bn d = (H + 7) / 8` (line 133). Program
+`(i, 0, k)` takes the heads `8k + [0, 8)` masked by `< H`: it loads (masked, `tl.load`) `A_log`,
+`a` and `b` at row `i`, and `dt_bias`; widens `a`, `dt_bias` to `float32` and adds; computes the
+softplus as `tl.where (1·x ≤ 20) (1·log(1 + exp(1·x))) x`; stores `g = (-exp(A_log))·softplus`
+at `i·H + 8k + [0, 8)`; then computes `1 / (1 + exp(-b))`, rounds it to `bfloat16`, widens it back
+and stores it to `beta_output` at the same offsets. No loop, no reduction. Programs write disjoint
+pieces of the outputs and use no atomics: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
+The offsets are not the 1-D block pattern: use `safe_load` and `safe_store`.
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.Valid` unfolded: `batch_lt`, `grid_z`, the
+  program count `batch·Bn d < 2^31` from `batch_lt` and `flat_le`, the block `[8]`);
+- each program is `Safe`: the enabled lanes' `int32` offsets do not wrap (`flat_le`, `arow_le`,
+  `brow_le`, `stride_a_lt`, `stride_b_lt`) and lie in the buffers (`A_len`, `bias_len`, `a_len`,
+  `b_len`, `g_len`, `bout_len`); `tl.exp`, `tl.log` and `/` have results on every lane
+  (`exp_total`, `log_total`, `div_total`);
+- the write footprints of different programs are disjoint (distinct `(i, k)` give distinct
+  elements), and no program reads what any program writes (`g_disj`, `bout_disj`);
+- the value of `g` gives part 1: the IEEE steps by `FloatV.add_err`, `mul_err`, `cvt_err` (the
+  products by `1.0` and the negation are exact), `exp_acc` at `X = |x_f|` and at `X = |A|` (room
+  from `ExpRoom`, line 190, and `InOk`, line 200), `exp_ninf` when the sum is `-∞`, `log_acc`,
+  with the two branches `x_f ≤ 20` and `x_f > 20`; README, Tolerances gives the derivation and the
+  overflow case;
+- the value of `beta_output` gives part 2: `exp_acc` at `X = |b|` (room from `InOk`), the `1 +`
+  rounding, `div_full`, then the `bfloat16` rounding (`cvt_err`) and the exact widening;
+- the bytes no program writes give part 3.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `bytes_disj` (line 327), `rows_fit` (line 335) and `maxVal_ge` (line 392)
+can be reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`. `Post d init fin`: for every token `i < batch` and head

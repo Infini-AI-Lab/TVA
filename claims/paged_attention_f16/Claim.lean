@@ -183,9 +183,11 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `num_heads % num_kv_heads == 0` (line 80), `num_kv_heads ≥ 1`. -/
   kv_pos : 0 < d.num_kv_heads
   kv_dvd : d.num_kv_heads ∣ d.num_heads
-  /-- The grid `(num_seqs, num_heads, 1)` within CUDA's limits, fewer than `2^31` programs. -/
+  /-- The grid `(num_seqs, num_heads, 1)` within CUDA's limits (axis 0 below `2^31` also when
+  `num_heads = 0`), fewer than `2^31` programs. -/
   heads_lt : d.num_heads < 2 ^ 16
   grid_lt : d.num_seqs * d.num_heads < 2 ^ 31
+  seqs_lt : d.num_seqs < 2 ^ 31
   /-- `HEAD_DIM` and `PAGE_SIZE` are powers of two (`tl.arange` rejects anything else on the host),
   at most `256`. -/
   head_dim : ∃ a, a ≤ 8 ∧ d.HEAD_DIM = 2 ^ a
@@ -543,6 +545,7 @@ contiguous tensors of fewer than `2^38` elements each (the cache may hold more t
 `scale` in `[2^-64, 2^64]`. The numeric hypotheses are checked by `norm_num` on each launch. -/
 theorem canon_ok (S H KV D P NP MP : Nat) (sc : F64)
     (hkv : 0 < KV) (hdvd : KV ∣ H) (hH : H < 2 ^ 16) (hgrid : S * H < 2 ^ 31)
+    (hS : S < 2 ^ 31)
     (hD : ∃ a, a ≤ 8 ∧ D = 2 ^ a) (hP : ∃ b, b ≤ 8 ∧ P = 2 ^ b) (hMP : MP ≤ 2 ^ 16)
     (hstr : H * D < 2 ^ 31 ∧ D < 2 ^ 31 ∧ P * KV * D < 2 ^ 31 ∧ KV * D < 2 ^ 31 ∧ D < 2 ^ 31 ∧
       MP < 2 ^ 31 ∧ H * D < 2 ^ 31 ∧ D < 2 ^ 31)
@@ -562,6 +565,7 @@ theorem canon_ok (S H KV D P NP MP : Nat) (sc : F64)
       kv_dvd := hdvd
       heads_lt := hH
       grid_lt := hgrid
+      seqs_lt := hS
       head_dim := hD
       page_size := hP
       max_pages_le := hMP
@@ -618,6 +622,7 @@ theorem sc64_ok : sc64.isFinite = true ∧ 1 / 2 ^ 64 ≤ sc64.toRat ∧ sc64.to
 def setup_t1 : Inst := canon 7 32 8 128 16 395 256 sc128
 theorem setup_t1_ok : setup_t1.ok :=
   canon_ok 7 32 8 128 16 395 256 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨4, by norm_num, by norm_num⟩ (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) sc128_ok
 
@@ -626,6 +631,7 @@ theorem setup_t1_ok : setup_t1.ok :=
 def setup_t2 : Inst := canon 3 8 8 64 16 184 129 sc64
 theorem setup_t2_ok : setup_t2.ok :=
   canon_ok 3 8 8 64 16 184 129 sc64 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num)
     ⟨6, by norm_num, by norm_num⟩ ⟨4, by norm_num, by norm_num⟩ (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) sc64_ok
 
@@ -634,6 +640,7 @@ theorem setup_t2_ok : setup_t2.ok :=
 def setup_t3 : Inst := canon 4 16 2 128 32 310 256 sc128
 theorem setup_t3_ok : setup_t3.ok :=
   canon_ok 4 16 2 128 32 310 256 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨5, by norm_num, by norm_num⟩ (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) sc128_ok
 
@@ -642,6 +649,7 @@ page offsets, at the first configuration's heads. -/
 def setup_bigcache : Inst := canon 7 32 8 128 16 (2 ^ 17 + 64) 256 sc128
 theorem setup_bigcache_ok : setup_bigcache.ok :=
   canon_ok 7 32 8 128 16 (2 ^ 17 + 64) 256 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨4, by norm_num, by norm_num⟩ (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) sc128_ok
 
@@ -650,6 +658,7 @@ heads, head dim 128 (`5100` pages plus `50`, `max_pages = 4097`). -/
 def setup_page1 : Inst := canon 4 8 2 128 1 5150 4097 sc128
 theorem setup_page1_ok : setup_page1.ok :=
   canon_ok 4 8 2 128 1 5150 4097 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨0, by norm_num, by norm_num⟩ (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) sc128_ok
 
@@ -663,6 +672,7 @@ def testInst : Inst := canon 1 1 1 128 16 1 1 sc128
 
 theorem testInst_ok : testInst.ok :=
   canon_ok 1 1 1 128 16 1 1 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨4, by norm_num, by norm_num⟩ (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) sc128_ok
 

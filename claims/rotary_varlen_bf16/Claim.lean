@@ -417,9 +417,9 @@ structure SeqOk (d : Inst) (init : Mem) : Prop where
   ci_once : ∀ i i', i < d.NT → i' < d.NT → chSeq d init i = chSeq d init i' →
     chChunk d init i = chChunk d init i' → i = i'
 
-/-- An activation the claim covers: finite, `|v| ≤ 2^126` (so that a rotated value stays inside
-`bfloat16`'s range). -/
-def XOk (v : BF16) : Prop := v.isFinite = true ∧ |v.toRat| ≤ 2 ^ 126
+/-- An activation the claim covers: finite, `|v| ≤ 2^125` (so that the two `float32` products of a
+rotation sum to at most `2^126`, and a rotated value stays inside `bfloat16`'s range). -/
+def XOk (v : BF16) : Prop := v.isFinite = true ∧ |v.toRat| ≤ 2 ^ 125
 
 /-- A table entry the claim covers: a finite cosine or sine, `|v| ≤ 1`. -/
 def TabOk (v : BF16) : Prop := v.isFinite = true ∧ |v.toRat| ≤ 1

@@ -9,6 +9,92 @@ row `t` uses the weight and bias of group `t % G`; `LayerNorm` is `G = 1`), `bfl
 `num_warps = 4`, grid `(cdiv(T, 32),)`. `Claim.lean` holds the model, the conditions, the
 specification and the assumptions; `Statement` is the claim to prove.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.LayerNormFwd.main : Statement` (`Statement`:
+`Claim.lean` line 490). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 218), and every initial memory `init` that `Pre` accepts (line 323), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 460).
+
+**What `Post` asks** (line 460): for every row `t < T`, `RowDone d init fin t` (line 448), and the
+frame. Row `t`'s values are `s j = sv d init t j` (line 356: with a residual the IEEE `float32` sum
+`FloatV.add` of the two `bfloat16` inputs converted to `float32`, without one `x[t, j]` converted), and the
+reference is the exact real LayerNorm of `s` (`meanRef` line 364, `varRef` 372, `rstdRef` 379,
+`zRef` 383, `yRef` 387; `w`, `b` of group `t % G`, `gidx` line 190, read from `init`). Element
+`(t, j)` of a `[T, D]` tensor is `idx d t j = t·D + j` (line 187). `RowDone` has four parts:
+1. with a residual (`d.hasRes = true`), for every `j < D`: `res_out[idx t j]` reads in `fin` as
+   `FloatV.cvt (sv d init t j)`, bit for bit (no tolerance); without one, nothing is asked;
+2. `mean[t]` reads as a finite `float32` `c` with `|c.toReal - meanRef d init t| ≤ meanTol d init t`
+   (`meanTol`, line 395);
+3. `rstd[t]` reads as a finite `float32` `c` with `|c.toReal - rstdRef d init t| ≤ rstdTol d init t`
+   (`rstdTol`, line 424, built from `gam` 413, `rUp` 418, `cond` 409);
+4. for every `j < D`: `y[idx t j]` reads as a finite `bfloat16` `c` with
+   `|c.toReal - yRef d init t j| ≤ yTol d init t j` (`yTol`, line 436, built from `zTol` 430 and
+   `eTol` 404).
+
+These hold on every row; there is no guard on the data's spread. `depth` (line 392) is
+`Nat.clog 2 BD`. The frame: every byte outside `outBytes d` (line 210: the `T·D` elements of `y`,
+those of `res_out` only with a residual, the `T` elements of `mean` and `rstd`) is unchanged.
+
+**What you are given** (`Assumptions`, line 467):
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `sqrt_total` (`Num.MathTotal P .sqrt .binary32`): `tl.sqrt` (source line 99, `Claim.lean`
+  line 117) has a result;
+- `sqrt_acc` (`Num.SqrtF32`): on `0` and inputs `≥ 2^-126`, `tl.sqrt` is within `2^-22·√x + 2^-149`;
+- `div_total` (`Num.DivTotal P .binary32`): `/` (source lines 91, 95, 99; `Claim.lean` lines 97, 109,
+  116) has a result;
+- `div_full` (`Num.DivFull`): `/` is within `2^-22·|q| + 2^-148` of the quotient `q`, for
+  `|q| ≤ 2^126`;
+- `sum_depth` (`Num.SumDepth`): the trees of `tl.sum1` (source line 91, `Claim.lean` line 97)
+  and `tl.sum1c` (source line 95, `Claim.lean` line 109) over their `BD` positions have depth at
+  most `Nat.clog 2 BD` (`SumDepth.depth_le`).
+
+**The kernel, as the model runs it** (`layer_norm_fwd_kernel` line 50, `model` line 280, `launch`
+line 291): a 1-D grid of `cdiv(T, 32)` programs. Program `p` handles the rows
+`o_t = 32p + [0, 32)` (`int64`), the row groups `o_g = o_t % G` (`tl.irem`), the columns
+`o_d = [0, BD)`, the masks `m_t` (`o_t < T`), `m_d` (`o_d < D`), `m_x` (both). It loads the `[32, BD]`
+block of `x` (and of `residual`, adding it, when `hasRes`) with `other = 0`; stores `res_out` when
+`hasRes`; reduces each row with `tl.sum1` and divides by `D` (the mean), stores `mean` under `m_t`;
+forms the deviations with `tl.subc` (zero outside `m_d`), squares them, reduces with `tl.sum1c`,
+divides by `D`, adds `eps` (`tl.addc`), takes `tl.sqrt` and `1 / ·`, stores `rstd` under `m_t`; loads
+`w` and `b` at row group `o_g` under `m_d` only (no `other`), forms `tl.subc`, `tl.mul` by `rstd`,
+`tl.mul` by `w`, `tl.addc` with `b`, converts to `bfloat16` and stores `y` under `m_x`. There is no
+loop. Programs write disjoint row blocks, all read the same `weight` and `bias`, and use no atomics:
+the route is `TVA.meets_independent` (PROVER_GUIDE §4). The loads and stores go through computed
+pointer blocks: `safe_load`, `safe_store` (distinct lanes), not the 1-D block rules.
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: fewer than `2^31` programs from
+  `t_lt`; the block shapes `[32]`, `[BD]`, `[32, 1]`, `[1, BD]`, `[32, BD]` from `bd_pow2`, `d_le`,
+  `d_le_bd`);
+- each program is `Safe`: the `int64` offsets `o_t·D + o_d` do not wrap (`t_lt`, `d_le`); every
+  enabled lane of `x`, `residual`, `y`, `res_out` is below `T·D` (`x_len`, `res_len`, `y_len`,
+  `res_out_len`), of `mean`, `rstd` below `T` (`mean_len`, `rstd_len`); the loads of `w` and `b` are
+  enabled on rows `t ≥ T` too, and stay in bounds because `o_g < G` (`g_pos`, `w_len`, `b_len`;
+  `safe_irem` with a nonzero divisor); every float step has a result (`sqrt_total`, `div_total`);
+- the write footprints of distinct programs (their rows of `y`, `res_out`, `mean`, `rstd`) are
+  disjoint, and no program's reads meet any program's writes (`out_in`, `y_res_out`, `y_mean`,
+  `y_rstd`, `res_out_mean`, `res_out_rstd`, `mean_rstd`); this also gives `hRW`;
+- part 1: `safe_add` and `safe_cvt` on the finite inputs (`Pre`, `InOk`), exact;
+- parts 2–4: the rounding of each step, the sums by `sum_err_depth` (`tl.sum1`) and `sumc_err_depth`
+  (`tl.sum1c`) with `SumDepth.depth_le`, `div_full`, `sqrt_acc` (its input is at least `2^-126`
+  from `eps_ge`), the conversion of the host's `eps` (`FloatV.hostF32`), and the magnitude bounds
+  `InOk` (`2^56`), `InOkW` (`2^16`) that keep every value finite; README `## Tolerances` gives the
+  derivation, steps 1–7;
+- the frame: the bytes no program writes are `init`'s.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mkInst_ok`,
+`mkInst_pre`, `eps1e5_facts`, `eps64e5_facts` and the `setup_*_ok` theorems; `bytes_disj` (line 547)
+and `elems_disj` (line 555) can be reused.
+
 ## Specification
 
 For each row `t < T`, with `s j` the `float32` sum `float32(x[t, j]) + float32(residual[t, j])`

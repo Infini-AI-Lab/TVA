@@ -16,6 +16,89 @@ output, `int64` `kv_indices`, `mask_indptr`, `window_kv_offsets`, `int32` `kv_in
 `custom_mask`; head dims `D = Lq = Lv` up to 256, on an H200 (`BLOCK_M = 128` for `D ≤ 128`, else
 `64`; `BLOCK_N = BLOCK_N_PREFIX = 64`).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.ExtendAttn.main : Statement` (`Statement`:
+`Claim.lean` line 982). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 605), and every initial memory `init` that `Pre` accepts (line 865), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 944).
+
+**What `Post` asks** (line 944), two parts:
+1. for every request `b < batch`, new token `i < extOf d init b`, head `h < H` and component
+   `e < D`: element `oIdx d (qsOf d init b + i) h e` of `o` (line 588) reads in `fin` as a finite
+   `bfloat16` `c` (`rdB`, line 702), and
+   `|c.toReal - attnRef d init b h i e| ≤ tolRel d.BD (tripsPre d init b) (tripsExt d init b i)
+   (Xrow d init b h i) * attnAbs d init b h i e + tolAbs (vSum d init b h i e)`.
+   The reference `attnRef` (line 875) is the exact softmax in the reals over `keys` (line 807: the
+   positions `attends`, line 801, allows), from the initial `q`, `keyK`, `keyV` (lines 772–781; the
+   prefix through `kv_indices`, the new tokens from `k`, `v`) and `score` (line 787). `attnAbs` (line
+   880) is the same mean of `|v|`, `vSum` (line 885) the sum of `|v|`, `Xrow` (line 812) the row's
+   largest `scoreMag` (line 793), `tripsPre`, `tripsExt` (lines 889, 893) the row's trip counts. The
+   tolerance is `tolRel` (line 928), built from `dlt`, `rho`, `gam`, `errE` (lines 904–921), and
+   `tolAbs` (line 932). Every element in part 1 must be finite and within the bound; there is no
+   guard beyond the ranges of `b`, `i`, `h`, `e`;
+2. the frame: every byte outside `d.o.elems (outElems d init)` (line 936) is unchanged.
+
+**What you are given** (`Assumptions`, line 957):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
+  `debug = false` that is well behaved from `init`;
+- `dot` (`Num.DotBF16`): each `bfloat16` `tl.dot` into `float32` is within `relDot16 K` of
+  `|acc| + Σ liftMag a·liftMag b` plus `absDot16 K` (source lines 344, 437, 520, 593);
+- `dot_total` (`Num.DotTotal P cfgBF16`): each `tl.dot` has a result;
+- `exp_acc` (`Num.ExpF32`): `tl.exp` on `[-X, X]` within `(2^-22 + 2^-23·X)·e^x + 2^-140`
+  (source lines 405, 406, 571, 572);
+- `exp_ninf` (`Num.ExpF32NegInf`): `tl.exp(-∞) = +0` (masked lanes, the first trip's `re_scale`);
+- `exp_total` (`Num.MathTotal P .exp .binary32`): `tl.exp` has a result;
+- `div_full` (`Num.DivFull`): `/` on `float32` within `2^-22` relative, `2^-148` absolute (source line 636);
+- `div_total` (`Num.DivTotal P .binary32`): `/` has a result.
+
+**The kernel, as the model runs it** (`fwd_kernel` line 130, `model` line 679, `launch` line 696):
+a grid `(batch, H, nBlocks d)`; program `(b, h, blk)` reads `qo_indptr`, `kv_indptr` (and, with
+the custom mask, `mask_indptr`, `window_kv_offsets`) by scalar loads, and returns at once when
+`ext_b ≤ blk·BM`. Otherwise it loads its `[BM, BD]` block of `q` (rows `blk·BM + [0, BM)` of
+request `b`, masked by `mask_m`, `mask_d`), runs two `tl.forRange` loops with the online softmax
+(`acc`, `deno`, `e_max`): the prefix loop (`int32`, `0` to `pre_b` by `64`) loads `kv_indices`,
+then `k_buffer`, `v_buffer` at those slots; the new-token loop (`qo_indptr`'s type, `extend_start`
+to `min(ext_b, (blk+1)·BM)` by `64`) loads `k`, `v` (and the custom mask's block). Each trip is a
+runtime `if` on `SKIP_TILE`, two `tl.dot`s (the second as `tl.dot_add` in the new-token loop),
+`tl.max1`, `tl.maximum`, `tl.exp`, `tl.sum1`, `tl.mul_add`, `tl.addc`. Then it divides `acc` by
+`deno`, converts to `bfloat16` and stores its rows of `o`. The loops write nothing; programs
+write disjoint parts of `o` and share only read-only inputs: the route is `TVA.meets_independent`,
+with `safe_forRange` (body footprint `fun _ => ∅`, `iterW_empty`) and an invariant per loop
+(PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.Valid`: `batch_lt`, `H_lt`, `nb_lt`,
+  `grid_lt`; the block shapes from `bd_pow2`, `bd_le`, `bm`; `launch` keeps `debug` at `false`);
+- each program is `Safe`: every enabled lane of every load is in bounds (`q_len`, `k_len`, `v_len`,
+  `kb_len`, `vb_len`, `qo_len`, `kvp_len`, `kvi_len`, `cmask_len`, `mip_len`, `wko_len`, with
+  `ReqOk`'s ranges and slots and `MaskOk`'s block bound); the `int32` products and offsets do not
+  wrap (`strides_lt`, `heads_i32`, `cm_i32`, `maxExt_le`, `cm_maxExt`, `sw_le`; `TVA.Lemmas.Int`);
+  `tl.idiv` by `kv_group_num` is defined (`kv_pos`, `kv_dvd`); each loop's `tl.RangeOk`; the
+  store's lanes are distinct (`o_layout`) and it writes only the program's rows;
+- the programs' write footprints are disjoint (requests' new tokens are consecutive ranges of `o`
+  by `ReqOk`, heads and components distinct by `o_layout`), and no program reads `o`'s written
+  bytes (`disj`);
+- the value part of `Post` through the loop invariants: each score within `dlt` (`dot`, the
+  products by `sm_scale`), the coefficients and `deno` within `rho` (`exp_acc`, `exp_ninf`,
+  `sum_err_covers`, `safe_mul_add`), the second `tl.dot` and the accumulator within `gam` (`dot`,
+  `DotLift.dotAdd_step`, `FloatV.AddRel.err`), the division (`div_full`) and the store's rounding
+  (`FloatV.cvt_err`); the trips the program runs are at most `tripsPre`, `tripsExt`, and the bound
+  grows with them; the values stay finite (`ValsOk`'s `2^100` and `2^12` bounds). The derivation is
+  README's `## Tolerances`;
+- the frame: programs that return early and the masked lanes write nothing, so every byte outside
+  `outElems` keeps its initial value.
+
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 986), `satisfiable` (line
+1408), `canon_ok` (line 1064) and the `setup_*_ok` theorems; `bytes_disj` (line 1042) can be reused.
+
 ## Specification
 
 Request `b` has the new tokens `qs_b … qs_b + ext_b − 1` (`qs_b = qo_indptr[b]`,
@@ -246,14 +329,15 @@ fewer trips only lower it.
      `deno`.
    * `p.to(bfloat16)` (`acc` only): `2^-8` relative, `2^-134` absolute.
    * `tl.sum1` of `p` (64 nonnegative lanes, any tree; `sum_err_covers`): `63u`; `tl.mul_add`
-     (`deno·re + Σp`, nonnegative): `2u` per trip.
+     (`deno·re + Σp`, nonnegative; `FusedErr.mulAdd_err`: `3u` of `|deno·re| + |Σp|`, plus `4η`):
+     `3u` per trip.
    * The final `DivFull` (`acc/deno`, a quotient `≤ 2^101`, since `deno ≥ 1/2`: the position that
      attains `M` has `p = exp(+0)` and every later `re = exp(+0)`): `2^-22` and `2^-148`.
 
-   Summed: per trip at most `10u` (the `re`'s `tl.exp`, `4u` in each of `κ` and `λ`, and `deno`'s
-   `tl.mul_add`, `2u`; the product `acc·re` is charged in step 5), otherwise `2^-8 + 75u` (`p`'s
+   Summed: per trip at most `11u` (the `re`'s `tl.exp`, `4u` in each of `κ` and `λ`, and `deno`'s
+   `tl.mul_add`, `3u`; the product `acc·re` is charged in step 5), otherwise `2^-8 + 75u` (`p`'s
    `tl.exp`, `4u` in each, `tl.sum1`'s `63u`, the division's `4u`), and `6·2^-22·(X+δ)` from the
-   growing `tl.exp` error, so `K + Λ ≤ ρ` (`K = max|κ_j|`, `Λ = max|λ_j|`), with margins of `1.6` on
+   growing `tl.exp` error, so `K + Λ ≤ ρ` (`K = max|κ_j|`, `Λ = max|λ_j|`), with margins of `1.45` on
    the per-trip term (`2^-20 = 16u`), `1.7` on the fixed term (`8·2^-20 = 128u`) and 5 on the `X` term
    (`2^-17 ≥ 5·6·2^-22`); `|Π(1±r) − 1| ≤ e^{Σr} − 1`. Then
    `|c_j/deno / ŵ'_j − 1| ≤ (K+Λ)/(1−Λ) ≤ ρ/(1−ρ)`, and `Σ (c_j/deno)|v_j| ≤ (1+ρ)/(1−ρ)·A'`.
@@ -279,16 +363,18 @@ fewer trips only lower it.
 7. **Absolute terms.** Before the division (by `deno ≥ 1/2`): the second dot's `absDot16 64 =
    66·2^-126` per trip; the lifts of subnormal `p̃` and `v` (`2^-126` each, times `relDot16 64`);
    `p̃`'s `2^-134·|v_j|` and `tl.exp`'s `2^-140·|v_j|` per position; the `re`'s `2^-140` times
-   `|acc| ≤ deno·max|v|` per trip; the IEEE products' `2^-150` per trip. In all, after the division
-   and the store, `abs ≤ 2^-106 + 2^-109·vSum ≤ 2^-80·(1 + vSum)` for `T ≤ 2^12 + 2`.
+   `|acc| ≤ deno·max|v|` per trip; the IEEE products' `2^-150` and `deno`'s
+   `tl.mul_add`'s `4η = 2^-147` per trip. In all, after the division and the store, `abs ≤
+   2^-106 + 2^-109·vSum ≤ 2^-80·(1 + vSum)` for `T ≤ 2^12 + 2`.
 
 The bound is provable from `DotBF16`, `ExpF32`, `ExpF32NegInf`, `DivFull` and the library's IEEE
-rounding lemmas (`FloatV.mul_err`, `add_err`, `sub_err`, `cvt_err`, `AddRel.err`, `sum_err_covers`);
+rounding lemmas (`FloatV.mul_err`, `add_err`, `sub_err`, `cvt_err`, `AddRel.err`, `mulAdd_err`,
+`sum_err_covers`);
 `ρ < 1/2` on every covered row (`T ≤ 2^12 + 2`, `X ≤ 2^12`: `ρ ≤ 0.044`). Meaningful: `tolRel ≈
 0.85·10^-2` of the weighted mean of `|v|` at short lengths, `1.02×` the kernel's worst error on the
 adversarial inputs (analytic ceiling: a margin of about `1.013`) (which reaches the sum of the two `bfloat16` roundings, `2^-7`), `1.4×` on random
 inputs. It grows with the trips: by `2^-20` per trip in `ρ` (the derivation's count of the per-trip
-`float32` roundings, with margin `1.6`), by `2·2^-22` per prefix trip and, through the library's
+`float32` roundings, with margin `1.45`), by `2·2^-22` per prefix trip and, through the library's
 `tl.dot` fact (`66·2^-22` of the accumulator per `tl.dot` that accumulates), by `72·2^-22` per
 new-token trip in `γ`: `tolRel ≈ 0.014` at a 128K context with an 8K chunk, `0.016` at `2^18`, but
 `0.047` for 128K new tokens with no prefix (`0.087` for `2^18`): that growth is `DotBF16` charging

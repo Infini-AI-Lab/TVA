@@ -7,6 +7,92 @@ or keys, padded or packed (`cu_seqlens` `int32` or `int64`), interleaved (GPT-J)
 integer offset or a tensor of one offset per sequence (`int32` or `int64`, negative under left padding). The file
 proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok`; it does not prove `Statement`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.RotaryVarlen.main : Statement` (`Statement`:
+`Claim.lean` line 521). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 281), and every initial memory `init` that `Pre` accepts (line 428), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 500).
+
+**What `Post` asks** (line 500). For every sequence `n < nSeq d` (line 274), token `l < lenAt d init n`
+(line 398), head `h < H` and rotated channel `c < 2 * R`, with flat token `t = bosAt d init n + l`
+(line 401) and position `p = (l : Int) + offAt d init n` (line 394; all read from `init`):
+1. if `0 ≤ p`: `CellOk d init fin t h c p.toNat` (line 479). It asks for `bfloat16` values `a`
+   (`x` at `tokIdx d t h c`, line 452), `b` (`x` at `tokIdx d t h (partner d c)`, line 459), `cs`, `sn`
+   (`cos`, `sin` at `p·R + pairOf d c`, line 455), all in `init`, and `v` (`y` at `tokIdx d t h c`) in
+   `fin`, with `v` finite and
+   `|v.toRat − rotRef (isFirst d c) …| ≤ tol (isFirst d c) …` on `a.toRat b.toRat cs.toRat sn.toRat`.
+   `rotRef` (line 470) is the exact rotation in `ℚ`: `a·cs − b·sn` for the first channel of a pair,
+   `a·cs + b·sn` for the second (`isFirst`, line 465). `tol` (line 474) is
+   $2^{-8}|ref| + 2^{-22}(|a\,cs| + |b\,sn|) + 2^{-132}$;
+2. if `p < 0` (a left-padding token under a tensor of offsets): every byte of element
+   `tokIdx d t h c` of `y` is unchanged (`fin z = init z`);
+3. the frame: every byte outside `d.y.elems (outSet d)` (line 491: the rotated channels of every token
+   and head of `y`) is unchanged.
+
+**What you are given** (`Assumptions`, line 512): one field, `faithful` (`Compiler.Faithful`): the
+device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
+`debug = false`, and the model's launch is well behaved from `init`. No numeric fact: `tl.mul`,
+`tl.addc`, `tl.subc`, `tl.cvt` and `tl.convert` are exact up to NaN payload in the library.
+
+**The kernel, as the model runs it** (`rotary_embedding_kernel`, line 49; `model` line 350; `launch`
+line 365): a 3-D grid `(g0 d, B, H)` (`g0`, line 277: `NT` packed, `cdiv(T, BT)` padded), no loop.
+Program `(i_t0, i_b, i_h)`, packed, loads `chunk_indices[2·i_t0]`, `[2·i_t0 + 1]` (its sequence `i_n`
+and chunk `i_t`) and `cu_seqlens[i_n]`, `[i_n + 1]` (`bos`, `eos`); padded, `i_t = i_t0` and
+`bos = i_b·T`. It returns if `T_n ≤ i_t·BT` (line 95). Its tokens are `o_t = i_t·BT + [0, BT)`, their
+positions `o_cs = o_t +` the `int` offset or the loaded `offs[i_n]` (`offs[i_b]` padded) (line 100),
+and the mask `m_t` keeps `0 ≤ o_t < T_n`, `0 ≤ o_cs < TR` (line 113). Not interleaved (line 116): a
+`[BT, BD/2]` tile, lanes `o_r < R`, loads `cos`, `sin`, `x` at `o_r` and `o_r + R`, widens to `float32`,
+computes `x0·cos − x1·sin` (`tl.subc`) and `x0·sin + x1·cos` (`tl.addc`), and stores both, rounded to
+`bfloat16`, at channels `o_r` (line 159) and `o_r + R` (line 162). Interleaved (line 163): a `[BT, BD]`
+tile, lanes with `o_d // 2 < R`, `x` at `o_d` and `o_d ± 1`, the tables at `o_d // 2`, the products
+`x0·cos`, `x1·sin`, then `tl.where` on parity (line 208: `tl.subc` even, `tl.addc` odd), one store
+(line 215). Programs read shared metadata but write disjoint elements of `y`, with no atomics: the
+route is `TVA.meets_independent`; no loop rule is needed (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch has `debug = false` (the `Launch` default) and is `Launch.Valid`: `grid_t`, `grid_b`,
+  `grid_h`, `grid_size`, and `Shape.TritonOk` for each of `blockShapes` (line 358) from `bt_pow2`,
+  `bd_pow2`, `block_le` (`BD/2` a power of two by `r_pos`, `r_bd`). `Launch.valid_grid1` does not apply
+  (3-D grid);
+- each program is `Safe`: scalar loads by `safe_load1` (present and in bounds by `SeqOk`'s `cu_some`,
+  `ci_some`, `ci_ok`, `Pre.offs_vals`, with `cu_len`, `ci_len`, `offs_len`); tile loads and the
+  stores by `safe_load_buf`, `safe_store_buf`, in bounds by `x_len`, `y_len`, `cos_len`, `sin_len`
+  (`p < TR` from `off_tr` or `offs_vals`); the two stores of the non-interleaved path
+  hit distinct channels; float steps by `safe_mul`, `safe_subc`, `safe_addc`, `safe_cvt`,
+  `safe_convert`; `safe_irem`, `safe_idiv`; the early return by `safe_ret`. Integer offsets do not
+  wrap: `int32` parts below `2^24` (`grid_h`, `d_le`), `int64` sums below `2^62` (`size_lt`,
+  `tr_lt`, `t_lt`, `off_lt`, `offs_vals`' `−2^31`, `n_lt`), via `IntV.toInt_add`, `IntV.toInt_mul`,
+  `IntV.toInt_cast`, `IntV.lt_eq`, `IntV.le_eq`;
+- footprints: `W i` is the rotated channels of head `i_h` of the program's tokens with `0 ≤ p`, `R i`
+  the `x` elements, table rows and metadata it reads. Distinct programs write disjoint `W`
+  (different head, batch entry or chunk; packed: `SeqOk.ci_once`, and `cu_mono` keeps sequences'
+  tokens apart), and `W` misses every `R` by `y_x`, `y_cos`, `y_sin`, `y_cu`, `y_ci`, `y_offs`;
+- coverage: every `(n, l, h)` with `0 ≤ p` is in some program's mask (padded: program
+  `(l / BT, n, h)`; packed: the `i` with `chSeq = n`, `chChunk = l / BT` from `SeqOk.ci_all`);
+- part 1: inputs finite and bounded by `x_vals`, `cos_vals`, `sin_vals` (`XOk`: `|x| ≤ 2^125`,
+  `TabOk`: `|·| ≤ 1`); the widening is exact (`FloatV.toRat_cvt_of_wider`,
+  `Format.wider_bfloat16_binary32`), then `FloatV.mul_err`, the addition (`FloatV.toRat_neg` for
+  `tl.subc`) and `FloatV.cvt_err`. README `## Tolerances` gives the derivation. By `FloatV.mul_err`
+  the two `float32` products `p`, `q` have `|p| + |q| ≤ (1 + 2^-24)·2^126 + 2^-149 ≤ maxVal/2 − 2η`
+  (`maxVal/2 = 2^127 − 2^103`), the room `FloatV.AddRel.err` asks for: it gives finiteness. Its
+  error bound `3u·(|p| + |q|) + 4η` is too coarse for `tol` (composed with `FloatV.mul_err` and the
+  `bfloat16` rounding it gives `(1 + 2^-8)(2^-22 + 3·2^-48)·S`, above `2^-22·S`); Tolerances step 2's bound follows from `FloatV.AddRel.wide` (the IEEE sum, or the
+  rounding of `p' + q'` with `RoundsTo` operands), `RoundsTo.err`, `FloatV.add_err` and
+  `ofPat_roundRat_err`, as in the proof of `FloatV.AddRel.err` (`TVA/Lemmas/FusedErr.lean`);
+- parts 2 and 3: bytes no program writes are unchanged; the tokens with `p < 0` and everything
+  outside `outSet` are in no `W`.
+
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 525), `satisfiable` (line 2740)
+and the 35 `setup_*_ok` theorems; `bytes_disj` (line 530) can be reused.
+
 ## Specification
 
 `Post d init fin`: for every sequence `n` (`nSeq`: the batch entries `b < B` when padded, `n < N` when
@@ -50,7 +136,7 @@ The integer arguments: `T` is in `do_not_specialize`, so a runtime `int32` even 
 compile-time constant, whose only use gives the same `int64` value (`model`'s docstring).
 
 `Pre`: `x`, `y`, `cos`, `sin` valid; only what the kernel reads is constrained: every rotated channel
-(`c < 2 R`) of every token and head of `x` finite with `|x| ≤ 2^126` (channels from `2 R` on may hold
+(`c < 2 R`) of every token and head of `x` finite with `|x| ≤ 2^125` (channels from `2 R` on may hold
 anything, NaN included), and every entry of the table rows the launch reads, the positions `l + offAt n ≥ 0` of
 the tokens `l` of every sequence `n`, of `cos` and `sin` finite with `|·| ≤ 1` (they are cosine and sine tables, `cos_sin_cache`; other rows may hold
 anything); a tensor of offsets: `offs_vals`, valid, every sequence's offset `v` with `len + v ≤ TR` (the
@@ -124,8 +210,10 @@ dtypes, negative offsets, partial rotary, and `T` from 1 to 32768 are covered. E
    2^-149`. Then `|r − ref| ≤ (2^-23 + 2^-24)·S·(1 + 2^-22) + 2^-146 =: e32` in both cases.
 3. The store: `|v − r| ≤ 2^-8·|r| + 2^-134 ≤ 2^-8·|ref| + 2^-8·e32 + 2^-134`.
 So `|v − ref| ≤ 2^-8·|ref| + (1 + 2^-8)·e32 + 2^-134 ≤ 2^-8·|ref| + 1.51·2^-23·S + 2^-133`, inside `tol`
-(`2^-22 = 2·2^-23`). No overflow: `|a| ≤ 2^126`, `|cs|, |sn| ≤ 1` give `S ≤ 2^127`, `|r| ≤ 2^127·(1 + 2^-22)`,
-below both formats' largest finite value (`≈ 2^128`), so every step is finite. The tolerance is meaningful under cancellation
+(`2^-22 = 2·2^-23`). No overflow: `|a| ≤ 2^125`, `|cs|, |sn| ≤ 1` give `S ≤ 2^126`; the `float32` products then have
+`|p| + |q| ≤ (1 + 2^-24)·S + 2^-149 ≤ maxVal/2 − 2η` (`float32`: `maxVal/2 = 2^127 − 2^103`), the room of
+`FloatV.AddRel.err`, and `|r| ≤ 2^126·(1 + 2^-22)`, below
+both formats' largest finite value (`≈ 2^128`), so every step is finite. The tolerance is meaningful under cancellation
 (`|ref| ≪ S`): there `S` enters only through `2^-22·S`.
 The interleaved path computes the same two products and one fusable addition per channel (selected by
 `tl.where`), and a tensor of offsets only changes the table row read, so the same derivation applies. At a
@@ -155,15 +243,16 @@ Launches SETUP.md allows that `Inst.ok` / `Pre` leave out:
   tables of ≥ 2^31 rows); the kernel's `int64` indexing would still be right below `2^63`.
 - A tensor offset below `−2^31` (an `int64` entry): outside real use (an offset is `−pad` at its lowest, with
   fewer than `2^31` padding tokens).
-- Inputs: non-finite values in a rotated channel of `x` or in a table row the launch reads, `|x| > 2^126`
-  there, or such a table entry above 1 in magnitude (what the kernel does not read is unconstrained). Real
-  tables are cosines and sines, and activations are finite and far below `2^126`. Beyond these bounds a rotated
-  value can exceed `bfloat16`'s range (`x0 = x1 = 2^127`, a 45° angle), where no tolerance holds; the bounds are
-  a sufficient no-overflow condition, not the exact frontier.
+- Inputs: non-finite values in a rotated channel of `x` or in a table row the launch reads, `|x| > 2^125`
+  there, or such a table entry above 1 in magnitude (what the kernel does not read is unconstrained): outside
+  real use. Real tables are cosines and sines, and activations are finite and far below `2^125`. Far enough
+  beyond these bounds a rotated value exceeds `bfloat16`'s range (`x0 = x1 = 2^127`, a 45° angle), where no
+  tolerance holds; the bounds are a sufficient no-overflow condition (the `float32` products sum to about
+  `2^126` at most, below the addition's room `maxVal/2 − 2η`), not the exact frontier.
 - Not SETUP's launches: `conjugate = True` (the backward), the in-place path, a negative `int` offset.
 
 No condition is there only to ease a proof: both values of `isVarlen` and `interleaved`, both metadata dtypes
-and inputs up to `2^126` are covered.
+and inputs up to `2^125` are covered.
 
 ## Checks
 
@@ -176,7 +265,7 @@ and inputs up to `2^126` are covered.
   other setup configurations, 28 edges: with a tensor of offsets, `BT = 128` with padding across chunks and a
   whole row padded, offsets `−2^31` (`int32` and `int64`) and `TR − len`, packed with empty sequences, 132
   one-token sequences; NaN in `x`'s channels from `2R` on and in the unread table rows, `B = 65535`, `R = 1` (`BD = 2`), `R = 3` (`BD = 8 > 2R`), offset `2^20`
-  with `BT = 128`, packed with empty sequences, 132 one-token sequences (`BT = 1`), `|x| = 2^126` with unit
+  with `BT = 128`, packed with empty sequences, 132 one-token sequences (`BT = 1`), `|x| = 2^125` with unit
   tables, subnormal inputs, exact cancellation; each in both layouts). All pass: worst `|y − ref|/tol = 0.9960`
   (margin 0.0040, the structural one above); every rotated value at a non-negative position finite; the frame holds (inputs unchanged,
   `y`'s channels from `2R` on equal `x`'s, the left-padding tokens' rotated channels and the guard bytes around

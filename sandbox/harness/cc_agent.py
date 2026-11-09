@@ -62,7 +62,7 @@ class ClaudeCodeClaim(ClaudeCodeTva):
     """
 
     CONTINUE = ("The run stopped on an error (see above). Continue the task where you left off: run "
-                "`tva-claim check` first.")
+                "`/usr/local/bin/tva-claim check /app/claim` first.")
 
     @staticmethod
     def name() -> str:

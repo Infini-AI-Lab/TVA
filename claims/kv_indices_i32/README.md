@@ -12,6 +12,68 @@ for: `ENTRY_PAGE_SIZE = 1`, `TOKEN_BLOCK_PARALLEL = False`, `token_mapping = Non
 `kv_start_idx` `None` or a tensor (FlashInfer's sliding windows), with `int64` or `int32`
 `req_pool_indices`, `seq_lens` and `kv_start_idx` (independently).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.KvIndices.main : Statement` (`Statement`: `Claim.lean`
+line 265). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 177), and every initial memory `init` that `Pre` accepts (line 223), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 244).
+
+**What `Post` asks** (line 244), two parts. The initial values `rpi d init b` (line 153),
+`slen d init b` (line 156), `ind d init b` (line 159) and `sidx d init b` (line 162) are
+`req_pool_indices[b]`, `seq_lens[b]`, `kv_indptr[b]` and the start `kv_start_idx[b]` (`0` when
+`hasStart = false`), read through `valOf` (line 147) as integers.
+1. for every request `b < bs` and every `j` with `j < slen d init b`: element
+   `rpi·max_context_len + sidx + j` of `req_to_token` reads in `init` as some `v : I32`, and element
+   `ind + j` of `kv_indices` reads `v` in `fin`. It is exact: an `int32` copy, no tolerance;
+2. the frame: every byte outside `kv_indices.elems (kvOut d init)` is unchanged; `kvOut`
+   (line 235) is the set of output elements `ind d init b + p` with `b < bs`, `p < slen d init b`.
+
+**What you are given** (`Assumptions`, line 256): one field, `faithful` (`Compiler.Faithful`): the
+device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
+`debug = false`, and the model's launch is well behaved from `init` (no out-of-bounds access, no race).
+No numeric fact: the kernel moves integers.
+
+**The kernel, as the model runs it** (`create_flashinfer_kv_indices_triton` line 41, `model`
+line 207, `launch` line 216): a 1-D grid of `bs` programs. Program `b` loads four scalars
+(`tl.load1`): `req_pool_indices[b]` (converted to `int64`), `kv_indptr[b]`, `seq_lens[b]` (converted
+to `int32`) and, when `kv_start_idx` is `some p` and `p.addr ≠ 0`, `kv_start_idx[b]` (converted to
+`int32`). It computes `num_loop = (kv_end - kv_start + 511) / 512` (`tl.idiv`, `int32`) and runs
+`tl.forRange 0 num_loop 1`: trip `i` loads the masked block of 512 table entries
+`rpi·stride + kv_start + 512·i + [0, 512)` (mask `offset < kv_end - kv_start`, in `int64`) and stores
+it to `kv_indices` at `ind + 512·i + [0, 512)` under the same mask. Programs write disjoint ranges of
+`kv_indices` (from `kv_indptr`'s running sums) and use no atomics: the route is
+`TVA.meets_independent`, with `safe_forRange` and a per-trip write footprint `Wt i` for the loop
+(PROVER_GUIDE §4). The footprints depend on `init` (the rows and offsets are loaded values).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: fewer than `2^31` programs
+  from `grid_lt`, and the block `[512]` Triton accepts);
+- each program is `Safe`: the scalar loads are in bounds (`plen`, `rplen`, `llen`, `stlen`; the
+  buffers valid from `Pre`), and the branch on `kv_start_idx` takes the load (`start_nz`); the
+  conversions are exact and the `int32` arithmetic gives `kv_end - kv_start = slen` and
+  `num_loop = ceil(slen / 512)` without a bad lane (`ReqOk`, line 170: `0 ≤ slen`,
+  `slen + 511 < 2^31`, `0 ≤ sidx < 2^31`; `kv_end = sidx + slen` may wrap, the difference does
+  not), `tl.RangeOk` holds, and `i·512` does not wrap;
+- in each trip, the enabled lanes' table addresses lie in `req_to_token` (`ReqOk`'s last part)
+  and their output addresses in `kv_indices` (`Pre`: `0 ≤ ind b` and `ind (b + 1) ≤ kv_indices.len`,
+  with `ind (b + 1) = ind b + slen b`); the trips' write footprints are disjoint;
+- the programs' write footprints are disjoint (the ranges `[ind b, ind b + slen b)` from the running
+  sums), and no program reads what any program writes (`disj`: the output shares no byte with an
+  input);
+- the stored values give part 1 (the loaded entry, stored unchanged), and the bytes no program
+  writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `bytes_disjoint_of_le` (line 274) can be reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`. `Post d init fin`, with `rpi[b]`, `len[b]`, `ind[b]`,

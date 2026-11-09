@@ -16,6 +16,73 @@ the source's order (`(ptr + start_idx) + pos`, `(ptr + req_idx * (max_spec_len +
 `int1` load, and `.to(tl.int32)` as `tl.convert .i64 .i32` (`docs/SEMANTICS.md`'s meaning of
 `x.to`).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.RejectionGreedy.main : Statement` (`Statement`:
+`Claim.lean` line 291). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 209), and every initial memory `init` that `Pre` accepts (line 255), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 269).
+
+**What `Post` asks** (line 269), two parts:
+1. for every request `r < B` and column `j < S + 1`, output element `oidx d r j = r * (S + 1) + j`
+   (line 190) is decided by `expect d init r j` (line 196):
+   - `some v`: the element reads in `fin` as an `int32` `w` with `w.toInt = v`;
+   - `none`: the element reads in `fin` as it reads in `init` (unchanged).
+
+   `expect` is `none` for every column of a request that is not greedy (`greedyAt`, line 161:
+   always greedy with `is_greedy = None`, else the mask's byte `r`). For a greedy request, with
+   `n = nOf d init r` (line 172, `cu[r] - startOf d init r`, `startOf` line 168) and
+   `k = matchLen d init r` (line 187, the number of leading drafts equal to the truncated target,
+   via `firstDiff`, line 176): `some (rdt64 d.target init (start + j))` when `j < min (k + 1) n`
+   (`rdt64`, line 154: the `int64` target truncated to `int32` by `Int.bmod · 2^32`);
+   `some (rd32 d.bonus init r)` when `j = n` and `k = n` (`rd32`, line 149); `none` otherwise.
+   Exact: integers only, no tolerance. The reference reads the host's inputs in `init`;
+2. the frame: every byte outside the output's first `B * (S + 1)` elements is unchanged.
+
+**What you are given** (`Assumptions`, line 282): one field, `faithful` (`Compiler.Faithful`): the
+device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
+`debug = false`, and the model's launch is well behaved from `init`. No numeric fact: the kernel
+uses integers only.
+
+**The kernel, as the model runs it** (`rejection_greedy_sample_kernel`, line 43; `model`, line 238;
+`launch`, line 246): a 1-D grid of `B` programs, no block shape (every access is a scalar
+`tl.load1` / `tl.store1`). Program `r` loads its mask byte (with a mask) and returns at once if it is
+not greedy. Otherwise it loads `start_idx` (`0` for `r = 0`, else `cu[r-1]`, through the pointer
+minus `1`) and `end_idx = cu[r]`, and runs the `int32` loop `tl.forRange 0 num_draft_tokens 1`
+carrying `rejected`: while not rejected, a trip loads the draft and the `int64` target at
+`start_idx + pos`, converts the target with `tl.convert .i64 .i32`, stores it at column `pos` of row
+`r`, and sets `rejected` when they differ. After the loop, if not rejected, it loads `bonus[r]` and
+stores it at column `num_draft_tokens`. Programs write disjoint rows and share nothing: the route is
+`TVA.meets_independent`, with `safe_forRange` and an invariant over the trips (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1` from `hgrid`);
+- each program is `Safe`: its scalar loads are in bounds (`hcu`, `hbonus`, `hgreedy`; the draft and
+  target positions from `Pre`: `cu` nonnegative, nondecreasing, its last entry at most
+  `draft.len` and `target.len`; `cu[r-1]` through `Ptr.sub_int_of_signed`); `num_draft_tokens`
+  is `nOf d init r`, at most `S` (`Pre`), and the loop is `tl.RangeOk`; the `int32` row offsets
+  `req_idx * (max_spec_len + 1) + pos` do not wrap (`hmul`) and stay inside the output (`hout_len`);
+  each trip writes at most column `pos` (`Wt t`, disjoint across trips) and the bonus store column
+  `n_r`, disjoint from them; the rules are `safe_load1`, `safe_convert`, `safe_store1`;
+- the programs' write footprints (their rows, `oidx d r j` for `j ≤ S`) are disjoint, and no
+  program reads what another writes (`hout_cu`, `hout_draft`, `hout_target`, `hout_bonus`,
+  `hout_greedy`);
+- part 1: the loop invariant ties `rejected` and the columns stored so far to `firstDiff` /
+  `matchLen`; the converted target is `rdt64` (`tl.convert` wraps); the columns never stored keep
+  their initial value;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok`,
+`edge_offsets_ok` and the `setup_*_ok` theorems; `bytes_disjoint_of_le` (line 300),
+`bytes_disjoint_of_ge` (line 307) can be reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance and every initial memory

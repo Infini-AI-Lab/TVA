@@ -301,6 +301,8 @@ structure Inst.ok (d : Inst) : Prop where
   /-- The grid's `z = nchunks · ngroups` is within CUDA's limit `2^16 − 1` (a kernel limit:
   README, Exclusions); with it `ngroups < 2^31`. -/
   gz_lt : gz d < 2 ^ 16
+  /-- The number of programs `gx · gz` is below `2^31` (a kernel limit: README, Exclusions). -/
+  grid_lt : gx d * gz d < 2 ^ 31
   /-- The `int32` arguments: `seqlen` (and `seq_idx.stride(0) = seqlen`); the strides of `a` and
   `b` other than `stride(0)`; `out.stride(1) = ngroups·C²` (the largest of `out`'s strides after
   `stride(0)`, and it bounds `chunk_size`, `C·C` and the store offsets `m·C + n < C²`). The batch
@@ -550,9 +552,10 @@ theorem mk_ok {T G K C cd j : Nat} (hC : C = 2 ^ j)
       G * (C * C) < 2 ^ 31 ∧
       (C - 1) * cd + 31 < 2 ^ 31 ∧ G * K ≤ cd ∧
       T * cd * 2 ≤ 68719476736 ∧ T * 4 ≤ 68719476736 ∧
-      (T + C - 1) / C * (G * (C * C)) * 4 ≤ 68719476736) :
+      (T + C - 1) / C * (G * (C * C)) * 4 ≤ 68719476736 ∧
+      (C + 64 - 1) / 64 * ((C + 128 - 1) / 128) * ((T + C - 1) / C * G) < 2 ^ 31) :
     (mk T G K C cd).ok := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, hA, hS, hO⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, hA, hS, hO, h14⟩ := h
   have hlen : ∀ t g k, t < T → g < G → k < K → t * cd + g * K + k * 1 < T * cd := by
     intro t g k ht hg hk
     have h1' : g * K + k < G * K := row_lt hg hk
@@ -560,7 +563,7 @@ theorem mk_ok {T G K C cd j : Nat} (hC : C = 2 ^ j)
     omega
   refine
     { T_pos := h1, G_pos := h2, K_pos := h3, C_pow2 := ⟨j, hC⟩, C_ge := h4, K_le := h5,
-      gz_lt := h6, T_lt := h7, aB_lt := h8, aS_lt := h9, aH_lt := h10, aK_lt := by simp only [mk]; norm_num,
+      gz_lt := h6, grid_lt := h14, T_lt := h7, aB_lt := h8, aS_lt := h9, aH_lt := h10, aK_lt := by simp only [mk]; norm_num,
       bB_lt := h8, bS_lt := h9, bH_lt := h10, bK_lt := by simp only [mk]; norm_num, oC_lt := h11,
       a_fit := by simp only [mk, BK]; omega, b_fit := by simp only [mk, BK]; omega,
       aK_step := by simp only [mk, BK]; norm_num, bK_step := by simp only [mk, BK]; norm_num,

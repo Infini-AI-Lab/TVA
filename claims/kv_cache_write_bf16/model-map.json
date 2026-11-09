@@ -147,7 +147,7 @@
     "let src_key_idx : I64 :=",
     "(← tl.convert .i32 .i64 (Tensor.scalar token_idx)).item * key_stride"
    ],
-   "note": "`int32` times the `int64` stride: `token_idx` promoted (sign extension), the `int64` product"
+   "note": "`int32` times the `int64` stride: `token_idx` promoted (sign extension), the wrapping `int64` product (below `2^63` on every launch with an enabled lane, `Inst.ok.key_len`, `lens_lt`)"
   },
   {
    "src": [
@@ -215,7 +215,7 @@
     "let tgt_idx_k : Tensor [TILE_SIZE] I64 :=",
     "block_idx * block_stride + block_offset * page_stride + head64 * head_stride + dim64"
    ],
-   "note": "left to right: the `int64` scalar `block_idx * block_stride + block_offset * page_stride`, plus the `int32` block `cur_head` promoted to `int64` times the `int64` stride (the scalar broadcast), plus `cur_dim` promoted; wrapping `int64`, which `Inst.ok` keeps below `2^63`"
+   "note": "left to right: the `int64` scalar `block_idx * block_stride + block_offset * page_stride`, plus the `int32` block `cur_head` promoted to `int64` times the `int64` stride (the scalar broadcast), plus `cur_dim` promoted; wrapping `int64`, which on every enabled lane `Inst.ok` keeps below `2^63` (`kv_len`, `lens_lt`)"
   },
   {
    "src": [

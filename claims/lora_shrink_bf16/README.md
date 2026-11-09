@@ -8,6 +8,95 @@ which also proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok
 `Statement`. The model map is [`model-map.json`](model-map.json); the GPU check is
 [`check_gpu.py`](check_gpu.py).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.LoraShrink.main : Statement` (`Statement`:
+`Claim.lean` line 688). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 336), and every initial memory `init` that `Pre` accepts (line 467), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 653).
+
+**What `Post` asks** (line 653), two parts:
+1. for every slice `s < S`, token `t < M`, rank column `j < R`: `OutSpec d init fin s t j`
+   (line 638). Element `outAt d s t j` (line 327) of `out` reads in `fin` as some `float32` `v`, and
+   - if `d.adapter t < 0` (no adapter): `v = FloatV.ofPat 0`, the `+0.0` the output starts with;
+   - if `0 ≤ d.adapter t`: for all `va`, `vb` such that row `t` of `inputs` and row `j` of adapter
+     `d.adapter t`'s weights of slice `s` read in `init` as finite `bfloat16` values, and only when
+     `dotMag d va vb ≤ 2^120` (line 594) and `vMag d va vb + atomTol d va vb ≤ binary32.maxVal`
+     (lines 614, 620), `v` is finite and
+     `|v.toRat - d.scaling.toRat * dotSum d va vb| ≤ tol d va vb`. Outside these conditions
+     nothing more than the read is asked.
+
+   `dotSum` (line 589) is the exact `Σ_k va k·vb k` in the rationals; `d.scaling` is the host's
+   double. `tol` (line 628) adds `|scaling32 d|·accTol` (the `SPLIT_K` accumulators, each
+   `errPart = min(errChunk, errStep)`, lines 576–599), `mulTol` (line 608, the products by
+   `scaling32 d`, line 304), `atomTol` (line 620, the `SPLIT_K` atomic additions in any order) and
+   `|scaling32 d − scaling|·|dotSum|`;
+2. the frame: every byte outside `d.out.elems (outIdx d)` (line 330) is unchanged.
+
+**What you are given** (`Assumptions`, line 661):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
+  `debug = false` that is well behaved from `init`;
+- `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): each `tl.dot` (source lines 152, 166, 177) is within
+  `relDot16 K·L + absDot16 K` of `acc + Σ a·b`;
+- `dotChunk` (`Rules.Num.DotBF16Chunk`): the same `tl.dot`s chunk by chunk (64 consecutive `k`, or
+  all when fewer), each chunk within `min(2^-13·Mj, 2·A_j + 2^-22·Mj) + 2^-20·|s j + c_j| + 2^-143`;
+- `dot_total` (`Rules.Num.DotTotal`): the model's `tl.dot` always has a result;
+- `atomic` (`Rules.Num.AtomicAddF32`, an `AtomicAddAcc`): the `float32` `tl.atomic_add` of
+  source line 305 is within `2^-23·|o + v| + 2^-124` of the exact sum when in range;
+- `atomic_total` (`Rules.Num.AtomicAddTotal`): that atomic always has a result.
+
+**The kernel, as the model runs it** (`loraShrink` line 69, `model` line 447, `launch` line 457):
+a 3-D grid `(grid0 d, S, G)` (`grid0`, line 314). Program `(x, slice, g)` splits `x` into the part
+`pid_sk = x % SPLIT_K` and the grouped tile `(pid_m, pid_n)`. It loads `lora_ids[g]` and returns
+when it is `-1`; it loads the group's count and returns when the tile starts past it; otherwise it
+loads the group's start, gathers the tile's token indices `ram` (rows taken `% cta_m_len`), picks
+the slice's weights (`lora_ptr`, or a `uint64` table entry and `tl.intToPtr` when `S > 1`), checks
+the hint pair on `offset_n % N`, and runs a `tl.forRange` loop of `cdiv(K, BLOCK_K·SPLIT_K)`
+trips: loads of the `[32, BLOCK_K]` input tile and the `[BLOCK_K, 16]` weight tile (unmasked when
+`EVEN_K` or the block is whole, skipped past `K`, masked on the partial block) and
+`tl.dot_add`. It then multiplies by `scaling` and, since `SPLIT_K > 1` on every covered launch
+(`sk d` is `64` or `8`), adds the tile into `out` with `tl.atomic_add_unused` (relaxed; its order
+is `acq_rel` by `MemSem.unused_gpu`), masked by `cta_m_len` and `N`. The `SPLIT_K` programs of a
+tile add into the same cells: the route is `TVA.meets_of_faithful` with `TVA.shared`
+(`TVA/Lemmas/Shared.lean`), each program proved with `SafeA` (private parts lifted by
+`SafeA.of_safe`, the atomic by `SafeA.env` then `SafeA.atomic`), the cells `C` the output's
+elements, no private writes. The loop is `safe_forRange` with an invariant on the accumulator and
+the pointers and `Wt := fun _ => ∅` (`iterW_empty`) (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch has `debug = false` and is `Launch.Valid` directly (3-D grid): `grid0_lt`, `S_lt`,
+  `G_lt`, `grid_size`, and the block shapes (powers of two);
+- each program is `SafeA`: `safe_idiv`, `safe_irem` have no bad lane (`cta_m_len > 0` after the
+  second `return`); the metadata loads are in bounds and give `Pre`'s values (`id_len`, `cnt_len`,
+  `start_len`, `tid_len`, `tab_len`); the gathered rows are tokens of group `g` (`tid_range`); the
+  hint holds (`R_blk`); the `int32` products do not wrap (`out_wrap`, `lora_wrap`, `slice_wrap`,
+  `RK_lt`, `K_top`); every enabled load lane is inside `inputs` and the slice's weights (`inp_len`,
+  `lora_len`, `ad_range`, `G_le`); every enabled atomic lane is an aligned output cell
+  (`out_len`), distinct within the program;
+- the `shared` hypotheses: the postcondition pairs the log with the program's scaled values
+  (`Paired`, `Paired.lanes`, `PermInv` by `Paired.perm`); the cells are equal or disjoint and
+  present (`out.Valid` from `Pre`); the cells and the read footprints are disjoint (`out_inp`,
+  `out_lora`, `out_tab`, `out_tid`, `out_cnt`, `out_start`, `out_id`); each cell of a token with
+  an adapter gets exactly the `SPLIT_K` additions of its tile (`grp_cover`, `tid_cover`,
+  `tid_inj`, `cnt_def`, `start_succ`, `n_le_G`), and a cell of a token without one gets none;
+- the value part of part 1: each part's accumulator within `errChunk` (`dotChunk`, through
+  `safe_dot_add`'s two forms, `Dot16Chunk.DotChunk16Loss.errB`, `FloatV.AddRel.err`) and within `errStep`
+  (`dot`, `DotLift.dotAdd_step`, `DotLoop.accum_step`); `FloatV.mul_err` for `scaling`;
+  `replay_err_shared` with `accStep_atomicAdd` (`atomic`) for the additions into `+0.0`, under the
+  room conditions of `OutSpec`. `## Tolerances` gives the derivation;
+- the bytes outside the cells, which no program writes, give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `oneInst_ok`
+(line 857), `twoInst_ok` (line 935) and the `setup_*_ok` theorems; reusable: `idx_mul_add_lt`
+(line 820), `lora_idx_lt` (line 825), `out_idx_lt` (line 832).
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance, from every memory satisfying

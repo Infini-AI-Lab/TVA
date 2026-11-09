@@ -84,7 +84,7 @@ the 13 other setup configurations (decoding at offset 4095, head dim 64 with 32 
 partial rotary 64 of `D = 256`, one packed sequence; with a tensor of offsets, the left-padded
 prefill and decoding step in both layouts, `int64` offsets padded and packed) and 28 edges
 (`B = 65535`, `R = 1`, `R = 3`, offset `2^20`, empty sequences, 132 one-token sequences,
-`|x| = 2^126`, subnormal inputs, exact cancellation, NaN where the kernel does not read; tensor
+`|x| = 2^125`, subnormal inputs, exact cancellation, NaN where the kernel does not read; tensor
 offsets with `BT = 128` and a whole row padded, offsets `-2^31` in `int32` and `int64`, 132
 one-token sequences; each in both layouts). The worst `|y − ref| / tol` is `0.9960`; every rotated
 value at a non-negative position is finite, the tokens at a negative position keep their bytes

@@ -4,6 +4,71 @@ SGLang's `_moe_sum_reduce_kernel` (`source/moe_sum_reduce.py`, kernel
 lines 50–104, host `moe_sum_reduce` 107–146). `Claim.lean`, namespace `Claims.MoeSumReduce`; the
 claim to prove is `Statement`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.MoeSumReduce.main : Statement` (`Statement`:
+`Claim.lean` line 264). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 133), and every initial memory `init` that `Pre` accepts (line 168), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 243).
+
+**What `Post` asks** (line 243), two parts:
+1. for every `t < T` and `j < D`: element `t·D + j` of `output` reads in `fin` as some `bfloat16`
+   `c`. This holds for every element. Only when `InRange d t j` (line 217: the `K` inputs
+   `xv d t k j` (line 206) finite, `sigma d` and `sigma32 d` (lines 126, 130) finite,
+   `absSum d t j ≤ 2^126` and `|σ₃₂|·absSum d t j ≤ 2^126`) it also asks that `c` is finite and
+   `|c.toRat - (sigma d).toRat * refSum d t j| ≤ tol d.K (refSum d t j) (absSum d t j) (sigma d).toRat (sigma32 d).toRat`.
+   `refSum` (line 209) is the exact sum `Σ_k input[t, k, j]` in the rationals from `init`'s values,
+   `absSum` (line 212) the sum of magnitudes, `σ` the host's double; `tol` is line 234 (with
+   `accErr`, line 224, and the constants `u32`, `eta32`, `ubf`, `etabf`, lines 194–198);
+2. the frame: every byte outside `d.output.elems {e | e < d.T * d.D}` is unchanged.
+
+**What you are given** (`Assumptions`, line 255): one field, `faithful` (`Compiler.Faithful`): the
+device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
+`debug = false`, and the model's launch is well behaved from `init`. No numeric fact: the float
+operations are IEEE `+`, `*` and conversions.
+
+**The kernel, as the model runs it** (`moe_sum_reduce_kernel` line 47, `model` line 173, `launch`
+line 183): a 2-D grid of `cdiv(T, BLOCK_M) × cdiv(D, BLOCK_DIM)` programs. Program
+`(pid0, pid1)` takes the token tile `pid0·BLOCK_M + [0, BLOCK_M)` and the column tile
+`pid1·BLOCK_DIM + [0, BLOCK_DIM)`, masked by `T` and `D`. A `tl.forRange` loop over
+`i ∈ [0, K)` (trip count `K`) loads the masked `[BLOCK_M, BLOCK_DIM]` tile of row `i` of `input`
+(int64 offsets `t·(K·D) + i·D + j`), converts it to `float32` and adds it to a `float32`
+accumulator that starts at `+0`. After the loop it multiplies by `sigma32 d`, rounds to
+`bfloat16` and stores the masked tile of `output` (offsets `t·D + j`). No reduction, no dot, no
+atomic. Programs write disjoint output tiles and only read `input`: the route is
+`TVA.meets_independent`; the loop is `safe_forRange` with an invariant on the accumulator and
+`Wt := fun _ => ∅` (the body writes nothing; `iterW_empty`) (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch has `debug = false` and is `Launch.Valid`: the grid is 2-D, so `Launch.valid_grid1`
+  does not apply; axis 0 below `2^31` from `T_lt`, axis 1 below `2^16` from `grid1_lt`, the total
+  number of programs below `2^31` from `grid_size_lt`, and the five block shapes accepted (`bm_pow2`, `bd_pow2`,
+  `block_le`);
+- each program is `Safe`: the `int32` tile offsets do not wrap (`Block.fits_of_grid_pow2` per axis,
+  from `T_lt`, `D_lt`), the strides `IntV.ofNat (K·D)`, `IntV.ofNat D` are their values (`stride_lt`,
+  `D_lt`), the `int64` load offsets do not wrap; every enabled load lane is inside `input`
+  (`input_len`) and every enabled store lane inside `output` (`output_len`), with distinct lanes
+  (`safe_load_buf`, `safe_store_buf` or `safe_load`, `safe_store`); `safe_convert`, `safe_cvt`,
+  `safe_add`, `safe_mul` for the other lines;
+- the write footprints (the program's output elements `t·D + j`) are disjoint across programs, and
+  no program reads what another writes (`disj`: `output` shares no byte with `input`);
+- the value part of part 1: the bound comes from `FloatV.add_err` per loop step (a chain of `K`
+  additions, `Tree.errBound`, `K_le` keeps `(1+u)^K < 2`), `FloatV.mul_err` for the scale and
+  `FloatV.cvt_err` into `bfloat16`, under `InRange`; the input conversion is exact
+  (`FloatV.toRat_cvt_of_wider`). `## Tolerances` gives the derivation;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `u32_eq`, `eta32_eq`, `ubf_eq`, `etabf_eq` (lines 200–203) tie the
+constants to `Format.binary32` and `Format.bfloat16`.
+
 ## Specification
 
 `Post d init fin`, for every output element `(t, j)`, `t < token_num`, `j < hidden_dim`:
@@ -23,7 +88,8 @@ elements (and their value still exists).
 `inVal`), `output`. The model passes the host's contiguous strides `(K·D, D, 1)`, `(D, 1)`.
 
 `Inst.ok`: `BLOCK_M`, `BLOCK_DIM` powers of two with `BLOCK_M·BLOCK_DIM ≤ 2^20` (any, not only
-`1 × 2048`); `1 ≤ T, K, D < 2^31`; `K ≤ 2^20`; `K·D < 2^31`; `cdiv(D, BLOCK_DIM) < 2^16`; buffer lengths;
+`1 × 2048`); `1 ≤ T, K, D < 2^31`; `K ≤ 2^20`; `K·D < 2^31`; `cdiv(D, BLOCK_DIM) < 2^16`;
+`cdiv(T, BLOCK_M)·cdiv(D, BLOCK_DIM) < 2^31` (the number of programs); buffer lengths;
 `output` shares no byte with `input`. No bound on the scale.
 
 `Pre`: buffers valid, `input` holds `inVal`. Every `bfloat16` input value is covered.
@@ -65,6 +131,10 @@ truncating store (error up to `2^-7` relative) violates it.
 
 - **`cdiv(hidden_dim, BLOCK_DIM) ≥ 2^16`** — a limit of the launch (CUDA's grid-y limit): the launch
   is rejected. First launch: `hidden_dim = 2^16·2048 + 1`. Real use (hidden ≤ 7168) does not reach it.
+- **`cdiv(token_num, BLOCK_M)·cdiv(hidden_dim, BLOCK_DIM) ≥ 2^31`** — a kernel limit: a launch of
+  `2^31` or more programs is not a valid CUDA launch. With the host's blocks the first one is
+  `token_num = 2^30`, `hidden_dim = 2049` (`2^30 × 2` programs), an input of `2^30·2049·topk_num`
+  `bfloat16` values (at least 4.4 TB): no device holds it, and real use (`2^16` tokens) is far below.
 - **Elements not `InRange`** — a limit of the kernel's formats, stated per element: a non-finite
   input or scale, or `Σ|x|`, `|σ₃₂|·Σ|x|` above `2^126` (the `float32` sum or the `bfloat16` result
   can overflow near `2^128`; e.g. two inputs of `2^127.9`). A scale beyond `float32`'s range

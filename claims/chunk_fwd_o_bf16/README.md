@@ -11,6 +11,78 @@ or `float32` per-head decays `g_gamma`, or neither; `state_v_first` either way, 
 configurations `BK = BV = 32`, `64` and `128` of the source's list (the host's argument `BK`), fixed-length or
 packed variable-length batches.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.ChunkFwdO.main : Statement` (`Statement`:
+`Claim.lean` line 581). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 324), and every initial memory `init` that `Pre` accepts (line 396), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 553).
+
+**What `Post` asks** (line 553), two parts:
+1. for every chunk `r < nRows d` (line 317), token `t` with `rowLo d r ≤ t < rowHi d r` (lines
+   426–431), value head `j < HV` and column `e < V`: element `oIdx d t j e` (line 449) of `o` reads
+   in `fin` as a `bfloat16` `c`, for every such element. Only when `InRange d r t j e` holds (line
+   532: the values the element reads finite, the gates bounded, the magnitudes below `2^100`) is
+   more asked: `c` is finite and `|c.toReal − ref d r t j e| ≤ tol d r t j e`. `ref` (line 488) is
+   exact, in the reals, from `Inst`'s contents (`qv`, `kv`, `vv`, `hv`, `gv`, `ggv`, tied to memory
+   by `Pre`'s `Buf.Holds`): `sig·(gate·QS + Σ_{s ∈ upTo} Aqk·wgt·v)` (`QS`, `Aqk`, `gate`, `wgt`,
+   `upTo`, lines 455, 461, 473, 476, 484). `tol` is defined at line 520 (with `Mabs`, `Mag`, `Flo`,
+   `gamErr`, lines 494–512). Outside `InRange` only "holds a `bfloat16` value" is asked;
+2. the frame: every byte outside `o.elems (written d)` (line 546) is unchanged.
+
+**What you are given** (`Assumptions`, line 563), five fields:
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`, `relDot16 K`, `absDot16 K` relative to the lifted
+  magnitude): the four `tl.dot`s (model lines 175 or 185, 187, 233);
+- `dot_total` (`Rules.Num.DotTotal` at `cfgBF16`, line 57): they have a result;
+- `exp2_acc` (`Rules.Num.Exp2F32`, `2^-22` relative, `2^-126` absolute): the gates' `tl.exp2`
+  (model lines 198, 200, 212, 215); `exp2_total` (`Rules.Num.MathTotal`): a result.
+
+**The kernel, as the model runs it** (`chunk_fwd_kernel_o` line 74, `model` line 405, `launch`
+line 416): a 2-D grid `(grid0 d, B·HV, 1)` (line 320). Program `(pid, i_bh)` splits `pid` into the
+column tile `i_v` and the chunk `i_t`, and `i_bh` into `i_b`, `i_h` (`int64` `tl.irem`,
+`tl.idiv`). On variable length it reads row `i_t` of `chunk_indices` and `cu_seqlens[i_n]`,
+`cu_seqlens[i_n + 1]` (`tl.load1`); on fixed length `i_tg = i_b·NT + i_t`, `bos = i_b·T`. A
+`tl.forRange` over `cdiv(K, BK)` trips loads masked tiles of `q`, `k` and the state `h[i_tg]` and
+accumulates `b_o = q·h` and `b_A = q·k` (`tl.dot` with accumulator); it writes nothing. Then the
+gates (with `g`: `tl.exp2`, `tl.sub`, `tl.mul`; with `g_gamma`: `tl.load1`, `tl.convert`,
+`tl.subc`), the causal mask (`tl.where`, `+0`), the value tile, the output
+`tl.addc (b_o·scale) (tl.dot(b_A.to(bf16), v)·scale)`, the rounding (`tl.cvt`) and the masked
+store of the `[64, BV]` tile of `o`. Programs write disjoint tiles and use no atomics: the route is
+`TVA.meets_independent`; the loop is `safe_forRange` with an invariant and `fun _ => ∅` as its
+write footprints (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (the `Launch` default; `Launch.Valid` from
+  `grid0_lt`, `grid1_lt`, `size_lt`, and the block shapes from `bk_ok`);
+- each program is `Safe`: the divisors `cdiv(V, BV)`, `HV`, `HV / H`, `64` are nonzero (`V_pos`,
+  `HV_pos`, `hv_dvd`); the table reads are in bounds (`ci_len`, `cu_len`, `N_lt`, `TablesOk`); the
+  `int32` values (`T + 63` with `T_wrap`, `o_k`, `o_k·V`) and the `int64` offsets do not wrap
+  (`T_lt`, `K_le`, `V_le`); every enabled lane of every load and store is in bounds (`q_len` …
+  `gg_len`; on variable length `cu_seqlens` nondecreasing and `≤ T`); `safe_dot` (with
+  `dot_total`), `safe_math` (with `exp2_total`), `safe_mul`, `safe_sub`, `safe_subc`, `safe_addc`,
+  `safe_convert`, `safe_cvt`, `safe_load`, `safe_load1`, `safe_store`;
+- the programs' write tiles are disjoint (fixed length: distinct `(i_t, i_b, i_h, i_v)`; variable
+  length: distinct rows, `TablesOk`), no program writes what any program reads (`o_q`, `o_k`,
+  `o_v`, `o_h`, `o_g`, `o_gg`, `o_cu`, `o_ci`), and every element of `written d` is written (every
+  chunk has a row on variable length);
+- the value part of part 1 under `InRange`, steps 1–7 of README `## Tolerances`: the `K` loop's
+  dots (`dot`), the gates (`exp2_acc`, `FloatV.sub_err`, `FloatV.mul_err`, `FloatV.AddRel.err`),
+  the scores' rounding (`FloatV.cvt_err`), the last dot, the scale and `tl.addc`, the store;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok`,
+`satInst_ok`, the `sc*_ok` facts and the `setup_*_ok` theorems; `bytes_disj` (line 637),
+`zero_valid` (line 729) and `zero_holds_bf16` (line 733) can be reused.
+
 ## Specification
 
 Tokens are numbered on the flat axis `b·T + t` of `[B, T]`. The chunks of the batch are its rows

@@ -152,6 +152,9 @@ structure Inst.ok (d : Inst) : Prop where
   /-- The grid's axis 1, `cdiv(hidden_dim, BLOCK_DIM)`, is below CUDA's `2^16` (a launch limit:
   README, Exclusions). -/
   grid1_lt : (d.D + d.BLOCK_DIM - 1) / d.BLOCK_DIM < 2 ^ 16
+  /-- The number of programs, `cdiv(token_num, BLOCK_M) · cdiv(hidden_dim, BLOCK_DIM)`, is below
+  `2^31` (a launch limit: README, Exclusions). -/
+  grid_size_lt : (d.T + d.BLOCK_M - 1) / d.BLOCK_M * ((d.D + d.BLOCK_DIM - 1) / d.BLOCK_DIM) < 2 ^ 31
   /-- The double's pattern is 64 bits. -/
   sbits_lt : d.sbits < 2 ^ 64
   /-- The buffers hold the tensors. -/
@@ -281,7 +284,8 @@ def mk (T K D sbits em ed : Nat) : Inst where
 
 theorem mk_ok {T K D sbits em ed : Nat} (hb : 2 ^ em * 2 ^ ed ≤ 2 ^ 20) (hT : 0 < T) (hK : 0 < K)
     (hD : 0 < D) (hT' : T < 2 ^ 31) (hK' : K < 2 ^ 31) (hKle : K ≤ 2 ^ 20) (hD' : D < 2 ^ 31) (hKD : K * D < 2 ^ 31)
-    (hg : (D + 2 ^ ed - 1) / 2 ^ ed < 2 ^ 16) (hs : sbits < 2 ^ 64) (hsz : T * K * D * 2 ≤ 2 ^ 35) :
+    (hg : (D + 2 ^ ed - 1) / 2 ^ ed < 2 ^ 16)
+    (hgs : (T + 2 ^ em - 1) / 2 ^ em * ((D + 2 ^ ed - 1) / 2 ^ ed) < 2 ^ 31) (hs : sbits < 2 ^ 64) (hsz : T * K * D * 2 ≤ 2 ^ 35) :
     (mk T K D sbits em ed).ok where
   bm_pow2 := ⟨em, rfl⟩
   bd_pow2 := ⟨ed, rfl⟩
@@ -295,6 +299,7 @@ theorem mk_ok {T K D sbits em ed : Nat} (hb : 2 ^ em * 2 ^ ed ≤ 2 ^ 20) (hT : 
   D_lt := hD'
   stride_lt := hKD
   grid1_lt := hg
+  grid_size_lt := hgs
   sbits_lt := hs
   input_len := le_refl _
   output_len := le_refl _
@@ -312,7 +317,8 @@ def zeroMem : Mem := fun _ => some 0
 theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
   refine ⟨mk 1 1 1 4607182418800017408 0 11, zeroMem,
     mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num), ?_⟩
+      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+      (by norm_num), ?_⟩
   have hb2 : (DType.bf16.bytes : Int) = 2 := rfl
   refine ⟨⟨?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_⟩, ?_⟩
   · simp [mk]
@@ -340,32 +346,42 @@ runners). The contents are not part of `Inst.ok`. -/
 def setup_1_8_7168 : Inst := mk 1 8 7168 4612811918334230528 0 11
 theorem setup_1_8_7168_ok : setup_1_8_7168.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_7_9_4096 : Inst := mk 7 9 4096 4599075939470750515 0 11
 theorem setup_7_9_4096_ok : setup_7_9_4096.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_32_8_2048 : Inst := mk 32 8 2048 4607182418800017408 0 11
 theorem setup_32_8_2048_ok : setup_32_8_2048.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_33_6_5120 : Inst := mk 33 6 5120 4607182418800017408 0 11
 theorem setup_33_6_5120_ok : setup_33_6_5120.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_17_8_2880 : Inst := mk 17 8 2880 4607182418800017408 0 11
 theorem setup_17_8_2880_ok : setup_17_8_2880.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_1_1_1 : Inst := mk 1 1 1 4607182418800017408 0 11
 theorem setup_1_1_1_ok : setup_1_1_1.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_300_3_100 : Inst := mk 300 3 100 4612811918334230528 0 11
 theorem setup_300_3_100_ok : setup_300_3_100.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_1024_9_4096 : Inst := mk 1024 9 4096 4599075939470750515 0 11
 theorem setup_1024_9_4096_ok : setup_1024_9_4096.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_8192_8_7168 : Inst := mk 8192 8 7168 4612811918334230528 0 11
 theorem setup_8192_8_7168_ok : setup_8192_8_7168.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 def setup_65536_9_7168 : Inst := mk 65536 9 7168 4612811918334230528 0 11
 theorem setup_65536_9_7168_ok : setup_65536_9_7168.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num)
 
 end Claims.MoeSumReduce

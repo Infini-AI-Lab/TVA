@@ -6,6 +6,91 @@ scan over a packed prefill batch, with or without initial states, `bfloat16` act
 `Statement : ∀ K P, Assumptions K P → Spec K`. Model map: [`model-map.json`](model-map.json). GPU
 check: [`check_gpu.py`](check_gpu.py).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.SsdChunkScan.main : Statement` (`Statement`:
+`Claim.lean` line 1237). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 738), and every initial memory `init` that `Pre` accepts (line 927: the twelve
+buffers valid, the metadata the host's, `MetaOk` line 906, and without initial states `cb` zero
+across requests, `CbZero` line 917), every outcome of the launch is a normal end (no fault, no
+hang) whose final memory `fin` satisfies `Post` (line 1210).
+
+**What `Post` asks** (line 1210), two parts:
+1. for every token `t < T`, head `h < H`, channel `p < P`: element `outIdx d t h p` (line 681) of
+   `out` reads in `fin` as some `bfloat16` `v` (`rdB`, line 887), on every input; and when
+   `Vals init d` holds (line 1183), `v` is finite and
+   `|v.toReal - yRef init d t h p| ≤ tol init d t h p`. Without `Vals`, only "holds a value" is
+   asked. The reference `yRef` (line 1029) is exact, in the reals, from the host's inputs:
+   `exp(dSt t h) · sig t h p + Σ_{s ∈ toks d t} wTS t h s · xv s h p + Dv h · xv t h p`, with the
+   entering state `Sv` (line 979: the request's initial state, or `0` without, when `fromInit`;
+   else `states[0, chk t]`), `sig` (line 1020), `wTS` (line 1024, `cb · exp(dS) · dt`), `dSt`,
+   `dS` (lines 995, 1000), and the logical chunk `toks d t = [lTok t, t]` (lines 1012, 942)
+   computed from `qsl`, not from the metadata. `tol` (line 1166) is
+   `(1 + uB) · errPre + uB · |yRef| + etaB`: the error before the store, `errPre` (line 1161,
+   the sum of `errSig`, `errW`, `errDot`, `errMA`, lines 1104–1157), and the store's `bfloat16`
+   rounding;
+2. the frame: every byte outside `out`'s first `T · (H · P)` elements is unchanged.
+
+**What you are given** (`Assumptions`, line 1220):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
+  valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot`s of source lines 361 and 420 are within
+  `relDot16 K · (|acc| + Σ liftMag a · liftMag b) + absDot16 K` of `acc + Σ a·b`, with room;
+- `dot_total` (`Rules.Num.DotTotal P cfgBF16`, `cfgBF16` line 44): those `tl.dot`s have a result;
+- `exp_acc` (`Rules.Num.ExpF32`): for every `X ≥ 0`, `tl.exp` on `float32` (source lines 344, 408) on
+  `[−X, X]` is within relative `2^-22 + 2^-23·X`, absolute `2^-140`;
+- `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): that `tl.exp` has a result.
+
+**The kernel, as the model runs it** (`model` line 827: `chunk_scan_kernel`, line 72, when
+`hasInit`, else `chunk_scan_kernel_noinit`, line 384; `launch` line 869): a 3-D grid
+`(gx d, nmeta, H)` (`gx`, line 669). With initial states, `pid_c` names a logical chunk: the
+program reads `chunk_indices[pid_c]`, `chunk_offsets[pid_c]` (and those of `pid_c + 1`) and owns
+rows `pid_m·64 + c_off + [0, 64)` of physical chunk `c_idx`, below `chunk_size_limit`, and 64
+channels (`pid_n`). Without, `pid_c` is the physical chunk and `c_off = 0`. One program:
+choose the entering state (`states[0, c_idx]` or, with `hasInit`, the request's initial state,
+source lines 245–259), load `dA_cs_m` and the boundary entry, `scale_m = tl.exp(dA_cs_m −
+boundary)` (without `hasInit`: `tl.where` on `seq_idx`, source line 340, zeroing gated rows,
+`gated` line 986), load `C` and the state, `tl.cvt` it to `bfloat16`, `tl.dot` then `tl.mul` by `scale_m`; then
+`tl.forRange 0 K_MAX 32` of masked loads of `cb`, `dA_cs_k`, `dt_k`, `x`, `tl.sub`, `tl.exp`, two
+`tl.mul`, the causal `tl.where`, `tl.cvt` to `bfloat16`, `tl.dot_add`; then `D`, the residual
+`x`, `tl.mul_add`, `tl.cvt` to `bfloat16` and one masked store. Programs write disjoint row
+blocks of `out` and use no atomics: the route is `TVA.meets_independent` (PROVER_GUIDE §4); the
+loop writes nothing (`safe_forRange` with an invariant and `fun _ => ∅`).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false`: the grid is 3-D, so `Launch.Valid` is proved
+  directly (`nmeta_lt`, `H_lt`, `grid_lt`; the fourteen listed block shapes are powers of two,
+  `bsd_pow2`, `bsd_le`);
+- each program is `Safe`: no `int32` or `int64` offset wraps (`x_arg`, `c_arg`, `out_arg`,
+  `x_off`, the field `c_off` of `Inst.ok`, `out_off`, `cb_i32`, `dt_i32`, `st_i32`, `init_i32`,
+  `cs_le`); every enabled
+  load is in bounds (`cb_len` … `offs_len`, with `MetaOk` for the metadata values; the unmasked
+  `seq_idx_m` and `D` loads too); the store is in bounds (`out_len`) on distinct lanes;
+  `safe_idiv`, `safe_irem`, `safe_sub`, `safe_math` (`exp_total`), `safe_mul`, `safe_cvt`,
+  `safe_dot` and `safe_dot_add` (`dot_total`), `safe_mul_add` for the steps;
+- footprints: with `hasInit`, the host's `chunk_indices`, `chunk_offsets` (`hostIdx`, `hostOff`,
+  `hostN`, lines 709–735) split each physical chunk's rows into disjoint logical chunks, so the
+  stored rows of different programs are disjoint and cover every token; `out` is disjoint from
+  every read (`disj`);
+- the kernel's choices match the reference: the entering state is `Sv` (or `SvL` with the
+  `tl.where` gate), the boundary entry gives `dSt`, the loop's tokens are `kToks d t` (line 1016),
+  and without `hasInit` the extra tokens add nothing (`CbZero`);
+- the value part of `Post`: the step bounds of README `## Tolerances` (`FloatV.sub_err`,
+  `exp_acc`, `FloatV.mul_err`, `FloatV.cvt_err`, `DotLift.dotAdd_step` with `dot`, `FloatV.add_err`,
+  `fma_err`), with room from `Vals`;
+- the frame: the bytes no program writes.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `bytes_disj` (line 1278), `disj_far` (line 1287), `zero_i32` (line 1456)
+and `valid_zero` (line 1463) can be reused.
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance, from every memory `Pre`

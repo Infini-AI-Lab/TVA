@@ -6,6 +6,82 @@ experts by `tl.argmax`, and their softmax weights). Claim: [`Claim.lean`](Claim.
 `Claims.MoeRouter`; the statement to prove is `Statement : ∀ K P, Assumptions K P → Spec K`. Model
 map: [`model-map.json`](model-map.json). GPU check: [`check_gpu.py`](check_gpu.py).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.MoeRouter.main : Statement` (`Statement`:
+`Claim.lean` line 302). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 135), and every initial memory `init` that `Pre` accepts (line 240), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 274).
+
+**What `Post` asks** (line 274), two parts:
+1. for every token `t < bs`, `TokenPost d init fin t` (line 257): there are reals `C e` and indices
+   `i0`, `i1` with
+   - for every expert `e < 8`, `|C e - capRef (mu init d t e)| ≤ capTol d (mu init d t e) (absS init d t e)`.
+     `mu` (line 187) is the exact logit `Σ_h x[t,h]·W[e,h]` in the reals from `init`, `absS`
+     (line 191) its magnitude sum, `capRef` (line 196) the exact `30·tanh(l/30)`; `capTol` is
+     line 217, built on `tolL` (line 208);
+   - `i0 < 8` is the first index of the largest `C` (`C e ≤ C i0` for all `e`, `C e < C i0` for
+     `e < i0`), and `i1 < 8`, `i1 ≠ i0`, is the first index of the largest `C` among the others;
+   - `topk_ids` elements `2t` and `2t+1` read in `fin` as `IntV.ofNat i0` and `IntV.ofNat i1`;
+   - `topk_weights` elements `2t` and `2t+1` read in `fin` as finite `a0`, `a1` with
+     `|a0.toReal - softRef C i0 i0| ≤ wRel0 * softRef C i0 i0 + wFloor` and the same for `a1`
+     at `i1` with `wRel1`. `softRef` (line 232) is the exact softmax of `C` over the 8 experts;
+     `wRel0`, `wRel1`, `wFloor` are lines 221, 225, 228. Every token is asked all of this: `Pre`
+     makes every input finite and in range;
+2. the frame: every byte outside `d.outw.elems {j | j < 2 * d.bs} ∪ d.outi.elems {j | j < 2 * d.bs}`
+   is unchanged.
+
+**What you are given** (`Assumptions`, line 282):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
+  `debug = false` that is well behaved from `init`;
+- `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): `tl.exp` has a result (source lines 90, 109, 127);
+- `exp_acc` (`Rules.Num.ExpF32`): on `[-X, X]`, `tl.exp` is within `(2^-22 + 2^-23·X)·e^x + 2^-140`;
+- `div_total` (`Rules.Num.DivTotal P .binary32`): `/` has a result (source lines 89, 93, 109);
+- `div_full` (`Rules.Num.DivFull`): `/` is within `2^-22` relative and `2^-148` absolute;
+- `sum_depth` (`Rules.Num.SumDepth`): each float `tl.sum` (source lines 83, 109, 124) is a tree of depth
+  at most `⌈log₂ n⌉`.
+
+**The kernel, as the model runs it** (`moe_router_kernel` line 42, `model` line 161, `launch`
+line 168): a 1-D grid of `bs` programs, one token each. Program `t` loads the masked
+`[8, BLOCK]` tile of `router_weight` and the masked `BLOCK` row `t` of `x`, widens `x` to `float32`,
+multiplies, and row-sums (`tl.sum1c`) to 8 logits. It soft-caps them (`/ 30`, `2·`, `tl.exp`,
+`− 1`, `+ 1`, `/`, `· 30`), takes `tl.argmaxAll` (stores `topk_ids[2t]`) and `tl.maxAll`, then
+`tl.subc`, `tl.exp`, `tl.sum` and `1 /` (stores `topk_weights[2t]`). It masks out `top1` with
+`tl.where`, takes a second `tl.argmaxAll` (stores `topk_ids[2t+1]`), a one-hot `tl.sumc`, `tl.sub`,
+`tl.exp` and a product (stores `topk_weights[2t+1]`). Four scalar stores, no loop, no dot, no
+atomic. Programs write disjoint elements and only read `x` and `router_weight`: the route is
+`TVA.meets_independent` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: fewer than `2^31`
+  programs from `out_off`, the block shapes `[8, BLOCK]`, `[BLOCK]`, `[8]` from `block_pow2`,
+  `block_le`);
+- each program is `Safe`: the `int32` values `pid·hidden` (`x_off`), `e·hidden + h` (`block_le`,
+  `hidden_le`) and `pid·2 + 1` (`out_off`) do not wrap; every enabled lane reads inside `x`
+  (`x_len`) and `router_weight` (`w_len`); the four `safe_store1`s hit distinct elements inside
+  `topk_weights` (`outw_len`) and `topk_ids` (`outi_len`); `exp_total` and `div_total` give
+  `safe_math` and `safe_div` a result; `safe_sum1c`, `safe_sum`, `safe_sumc`, `safe_maxAll`,
+  `safe_argmaxAll` (`tl.ArgRes`), `safe_subc` for the other lines;
+- the write footprints (elements `2t`, `2t+1` of each output) are disjoint across programs, and no
+  program reads what another writes (`outw_x`, `outw_w`, `outi_x`, `outi_w`, `outw_outi`);
+- the value part of part 1, with `C e` the computed capped logits: the logit bound `tolL` from
+  `FloatV.mul_err`, `sumc_err_depth` and `SumDepth.depth_le`; `capTol` from `div_full`, `exp_acc`
+  (`MathAcc`, weakened by `MathAcc.mono`), `FloatV.sub_err`, `add_err`, `mul_err`, with the range
+  from `Pre` (`absS ≤ 2^120`, `mu + capTol ≤ 1320`); the ids from `tl.ArgRes`; the weights from
+  `exp_acc`, `sum_err_depth`, `div_full`. `## Tolerances` gives the derivation;
+- the bytes no program writes give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; reusable: `growth_le` (line 379, `(1+3u)^n ≤ 3` for `n ≤ 8192`),
+`tolL_nonneg` (line 411), `xVal_eq` (line 483), `disj_far` (line 321).
+
 ## Specification
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`. For each token `t < bs` (`TokenPost`), with

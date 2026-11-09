@@ -11,6 +11,91 @@ The kernel lines are 20–21, 47–110, 168–173 and 176–245; the host lines,
 [`model-map.json`](model-map.json). Launches: [`SETUP.md`](SETUP.md). GPU check:
 [`check_gpu.py`](check_gpu.py).
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.AttnFwd.main : Statement` (`Statement`:
+`Claim.lean` line 569). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 253), and every initial memory `init` that `Pre` accepts (line 315), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 518).
+
+**What `Post` asks** (line 518), three parts:
+1. `o`: for every `bh < Z·H`, `n < N_CTX`, `e < HEAD_DIM`, element `idx d bh n e` (line 247) of `o`
+   reads in `fin` as a `float16` `c`, for every such element. Only when `HeadOk d init bh` holds
+   (line 364: the head's `q`, `k`, `v` finite, `|v| ≤ 2^15`, `sigma d * scoreMag ≤ 2^10`) is more
+   asked: `c` is finite and, for every `X ≤ 2^10` with `sigma d * scoreMag d init bh n j ≤ X` for
+   every `j ∈ keys d n` (line 334),
+   `|c.toReal − attnRef| ≤ tolO D N X · attnAbs + tolS D N X · vAbsSum + tolF D N X`
+   (`D = HEAD_DIM`, `N = N_CTX`). `attnRef` (line 375) is the exact attention in the reals, with
+   weights `weight` (line 371) `= exp(σ·score)` from the values in `init` (`score` line 338, `val16`
+   line 321); `attnAbs` (line 380) and `vAbsSum` (line 385) are the scales. `tolO`, `tolS`, `tolF`
+   are defined at lines 487, 493, 498;
+2. `M`: for every `bh < Z·H`, `n < N_CTX`, element `bh·N_CTX + n` of `M` reads in `fin` as a
+   `float32` `c`. Under `HeadOk d init bh` only: `c` is finite and, for every such `X`,
+   `|c.toReal − lseRef| ≤ tolM D N X + u32·|lseRef|`, `lseRef` (line 389) `= log₂ Σ_j weight`,
+   `tolM` at line 504, `u32` at line 400;
+3. the frame: every byte outside `outBytes d` (line 508: the first `rows d · HEAD_DIM` elements of
+   `o` and the first `rows d` of `M`) is unchanged.
+
+Outside `HeadOk` only "holds a value" is asked, in parts 1 and 2.
+
+**What you are given** (`Assumptions`, line 538), ten fields:
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotF16`): each `tl.dot` (model lines 93, 129) is within `relDot16 K` times
+  the lifted magnitude `|acc| + Σ liftMag a·liftMag b`, plus `absDot16 K` (a `DotLiftAcc`);
+- `dot_total` (`Rules.Num.DotTotal` at `cfg16`, line 50): both `tl.dot`s have a result;
+- `exp2` (`Rules.Num.Exp2F32`, a `MathAcc`, `2^-22` relative, `2^-126` absolute): model lines
+  117, 119;
+- `exp2_ninf` (`Rules.Num.Exp2F32NegInf`, a `MathAt`): `exp2(−∞) = +0`, model line 119 at the first
+  block (`m_i = −∞`);
+- `exp2_total`, `log2_total` (`Rules.Num.MathTotal`): `exp2`, `log2` have a result;
+- `log2` (`Rules.Num.Log2F32`, `2^-22` relative, `2^-149` absolute): model line 200;
+- `div_full` (`Rules.Num.DivFull`, `2^-22` relative, `2^-148` absolute, for `|x/y| ≤ 2^126`):
+  model line 202; `div_total` (`Rules.Num.DivTotal`): `/` has a result.
+
+**The kernel, as the model runs it** (`attn_fwd` line 149, `attn_fwd_inner` line 61, `model`
+line 299, `launch` line 308): a 2-D grid `((N_CTX + 127)/128, Z·H, 1)`, `BLOCK_M = 128`,
+`BLOCK_N = 64`, `STAGE = 3` when causal and `1` otherwise. The descriptors are host descriptors
+(`hostDesc`, line 291). Program `(start_m, off_hz)` splits `off_hz` by `H` (`tl.idiv`, `tl.irem`),
+loads its `[128, HEAD_DIM]` query tile at row `qo_offset_y = off_hz·N_CTX + start_m·128`
+(`tl.desc_load`), and runs `attn_fwd_inner`, a `tl.forRange lo hi 64` loop: non-causal one call over
+`[0, N_CTX)`; causal two calls, over `[0, start_m·128)` (STAGE 1) and then the diagonal block
+`[start_m·128, (start_m + 1)·128)` (STAGE 2, with the mask and `tl.multiple_of1`). Each trip loads
+a key and a value tile (`tl.desc_load`), computes `qk` (`tl.dot`), the running max (`tl.max1`,
+`tl.maximum`), `p = exp2(·)`, `alpha`, the row sum (`tl.sum1`), rescales `acc`, adds
+`tl.dot(p.to(f16), v, acc)` and updates `l_i` (`tl.mul_add`). After the loops it computes
+`m_i + log₂ l_i`, `acc / l_i`, stores `M` (`tl.store`, `[128]` lanes) and the `float16` output tile
+(`tl.desc_store`). Programs write disjoint tiles and use no atomics: the route is
+`TVA.meets_independent`; each loop is `safe_forRange` with an invariant (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (the `Launch` default; `Launch.Valid` from
+  `zh_lt`, `rows_lt`, `n_mul`, `n_le`, and the block shapes from `head_dim`);
+- each program is `Safe`: the divisor `H` is nonzero (`zh_pos`); the `int32` offsets
+  (`y_dim`, `offset_y`, `qo_offset_y`, the loop bounds and `offsetk_y`, `offsetv_y`, the `M`
+  pointer) do not wrap (`rows_lt`); every descriptor access is allowed (`safe_desc_load`,
+  `safe_desc_store`: `D.Access` from `align`, `lens`) and in bounds of its buffer; the hint of
+  line 75 holds; `safe_dot` (with `dot_total`), `safe_math` (with `exp2_total`, `log2_total`),
+  `safe_div` (with `div_total`), `safe_max1`, `safe_maximum`, `safe_sum1`, `safe_mul_add`,
+  `safe_subc`, `safe_cvt`, `safe_store`; the loop bodies write nothing;
+- the programs' write tiles of `o` and `M` are disjoint (distinct `(start_m, off_hz)`; `n_mul`),
+  and no program writes what any program reads (`disj`);
+- the value parts of parts 1 and 2 under `HeadOk`: loop invariants on `m_i`, `l_i`, `acc` (README
+  `## Tolerances`, steps 1–5: the exponents, the weights from `exp2` and `exp2_ninf`, the row sums
+  with `sum_err_covers`, the accumulator from `dot` with `DotLiftAcc.mono`, the end from `div_full`
+  and `log2`), then the change from `2^(qk_scale·s)` to `exp(σ·s)`;
+- the bytes no program writes give part 3.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`,
+`smTest_ok`, `smBench_ok` and the `setup_*_ok` theorems; `disj_of_le` (line 580) can be reused.
+
 ## Specification
 
 Write `D = HEAD_DIM`, `N = N_CTX`, `σ = sm_scale` (the double, as a rational: `sigma`). Element

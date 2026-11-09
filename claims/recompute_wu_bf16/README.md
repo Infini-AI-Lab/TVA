@@ -10,6 +10,106 @@ The covered path is `SETUP.md`'s: `USE_G = True` (`g` given), `bfloat16` `k`, `v
 `beta` `float32` or `bfloat16`, `float32` `g`, chunk size `BT = 64` with `BK = BV = 64`, padded or packed (`IS_VARLEN`, with
 `int32` or `int64` `cu_seqlens`), on an H200.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.RecomputeWU.main : Statement` (`Statement`:
+`Claim.lean` line 751). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 407), and every initial memory `init` that `Pre` accepts (line 591), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 721).
+
+**What `Post` asks** (line 721), three parts:
+1. padded (`isVarlen = false`): for every `b < B`, `t < T`, `h < HV`,
+   `TokOk d init fin (b * T) T t h`: the sequence starts at flat token `b·T` and has length `T`;
+2. packed (`isVarlen = true`): for every `n < N`, `t < seqLen d init n`, `h < HV`,
+   `TokOk d init fin (cuN d init n) (seqLen d init n) t h`: the sequence starts at `cu_seqlens[n]`
+   (`cuN`, line 530) and has length `cu_seqlens[n+1] − cu_seqlens[n]` (`seqLen`, line 533), both
+   read from `init`;
+3. the frame: every byte outside `u.elems (uSet d)` and `w.elems (wSet d)` (lines 713, 716: the first
+   `nTok·HV·V` elements of `u`, the first `nTok·HV·K` of `w`) is unchanged.
+
+`TokOk d init fin s0 len t h` (line 709) asks, for token `t` of the sequence at `s0`, head `h`:
+- `CellU` (line 652) for every `c < V`: element `vIdx (s0 + t) h c` of `u` reads in `fin` as a
+  finite `bfloat16` `o` with `|o.toRat − uRef| ≤ tolU uRef uMag`. `uRef` (line 634) is, in `ℚ`,
+  `Σ_{j<64, inSeq len t j} (aV (s0+t) h j).toRat · (vbV (colTok s0 t j) h c).toRat`: `aV` (line 624)
+  is `A`'s column `j`, `colTok` (line 621) the column's flat token, `inSeq` (line 618) whether it is
+  inside the sequence; `vbV` (line 628) is source line 115's operand, an exact IEEE function of `init`
+  (`bf16(fl32(v·beta))` for a `float32` `beta`, the `bfloat16` product for a `bfloat16` one).
+  `uMag` (line 640) is the same sum of `liftMag .bf16 A_j · liftMag .bf16 vb_j`;
+  `tolU ref L = 2^-8·|ref| + (1 + 2^-8)·(relDot16 64·L + absDot16 64) + 2^-134` (line 647);
+- `CellW` (line 703) for every `c < K`: element `wIdx (s0 + t) h c` of `w` reads in `fin` as a
+  finite `bfloat16` `o` with `|o.toReal − wRef| ≤ tolW (cW d) wRef wMag wFloor`. `wRef` (line 672)
+  is exact, in `ℝ`: `Σ_{j<64, inSeq} A_j · kbX · gE`, with `kbX` (line 664) `k[f, kHead h, c] · beta[f, h]`
+  (`kHead`, line 657: `h / (HV / H)`; `betaR`, line 660) and `gE` (line 668) `2^(g[f, h])`;
+  `wMag` (line 678) and `wFloor` (line 685) the sums of `liftMag A_j · |kbX| · gE` and
+  `liftMag A_j · (|kbX| + 1)`; `tolW c ref M F = 2^-8·|ref| + c·M + 2^-124·F + 2^-119` (line 699),
+  `cW d` (line 694) `2^-8 + 2^-14` (`float32` `beta`) or `2^-7 + 2^-13` (`bfloat16` `beta`).
+
+Every element of every sequence's rows is constrained (no guard). Columns `j` outside the sequence
+add nothing to the sums.
+
+**What you are given** (`Assumptions`, line 732):
+- `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
+  when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotBF16`): every `bfloat16` `tl.dot` into `float32`, at any input precision, is a
+  `DotLiftAcc` with `relDot16`, `absDot16`: within `relDot16 K·L + absDot16 K` of the exact
+  `acc + Σ a·b`, `L = |acc| + Σ liftMag a · liftMag b`, given room (source lines 116 and 132);
+- `dot_total_u`, `dot_total_w` (`Rules.Num.DotTotal P cfgU`, `cfgW`; lines 44, 49): source line 116's and
+  source line 132's `tl.dot` have a result for all operands;
+- `exp2` (`Rules.Num.Exp2F32`): `tl.math.exp2` on `float32` is within `2^-22·2^x + 2^-126` of `2^x`,
+  given room (source line 121);
+- `exp2_total` (`Rules.Num.MathTotal P .exp2 .binary32`): it has a result for every input.
+
+**The kernel, as the model runs it** (`model` line 486 picks `recompute_w_u_fwd_kernel_b16`, line 212,
+when `bbf`, else `recompute_w_u_fwd_kernel_b32`, line 62; `launch` line 504): the grid
+`(g0 d, B·HV, 1)` (`g0`, line 403: `NT` packed, `cdiv(T, 64)` padded). Program `(i_t, i_bh)` takes
+`i_b = i_bh / HV`, `i_h = i_bh % HV` (source line 92). Packed, it loads `chunk_indices[2·i_t]` (its
+sequence `i_n`) and `[2·i_t + 1]` (its chunk), then `cu_seqlens[i_n]`, `[i_n + 1]` (`bos`, `eos`);
+padded, `bos = i_b·T` and the length is `T` (source lines 94–98). Its rows are `i_t·64 + [0, 64)`, masked by
+the sequence's length. It loads its rows of `beta` (source line 104) and all 64 columns of `A` (source line 107).
+Loop 1 (source line 109, `cdiv(V, 64)` trips): load a `v` tile (source line 114), form `b_vb` (source line 115), dot with `cfgU`
+(source line 116), round to `bfloat16`, store the `u` tile (source line 117). Then it loads `g` and takes `exp2` (source line 121).
+Loop 2 (source line 123, `cdiv(K, 64)` trips): load a `k` tile of key head `i_h / (HV/H)` (source line 128), the
+products with `beta` and `exp2(g)` (source lines 129, 131), round, dot with `cfgW` (source line 132), store the `w` tile (source line 133).
+Programs write disjoint tiles of `u` and `w`, use no atomics, and share nothing: the route is
+`TVA.meets_independent`. Each loop is `safe_forRange` with an invariant and per-trip write
+footprints (the trip's 64 columns of `u` or `w`), disjoint across trips (PROVER_GUIDE §4). Packed,
+a program's footprints depend on `init` (its sequence and chunk come from `chunk_indices`).
+
+**What the proof must establish.**
+- each launch has `debug = false` and is `Launch.Valid`: axis 0 below `2^31` (`grid_t`), axis 1 below
+  `2^16` (`grid_bh`), fewer than `2^31` programs (`grid_size`), and `blockShapes` (line 499) accepted;
+- each program is `Safe`: `i_b`, `i_h` (`safe_idiv`, `safe_irem`; `hv_pos`, `h_pos`, `hv_div`);
+  packed, the four scalar loads (`safe_load1`) in bounds (`ci_len`, `cu_len`, `SeqOk.ci_ok`) with
+  non-negative values (`ci_some`, `cu_some`) that the conversions keep (`safe_convert`; `n_lt`), and
+  `bos + len ≤ T` (`cu_mono`, `cu_last`); every tile load and store in bounds
+  (`safe_load_buf`, `safe_store_buf`; `k_len`, `v_len`, `beta_len` / `betab_len`, `A_len`, `g_len`,
+  `w_len`, `u_len`; `Pre`'s `*v` fields), the `int32` `o_v`, `o_k` and comparisons not wrapping
+  (`V_lt`, `K_lt`, `t_lt`), the `int64` offsets not wrapping (`size_lt`; `TVA.Lemmas.Int`); the
+  operations by `safe_cvt`, `safe_mul`, `safe_math` (`exp2_total`), `safe_dot` (`dot_total_u`,
+  `dot_total_w`);
+- the programs' write footprints are disjoint (padded: distinct `(i_t, i_bh)`; packed: `ci_once`,
+  `cu_mono`, rows masked inside the sequence), and no program reads what any program writes
+  (`w_k` … `w_u`, `u_k` … `u_ci`; `Buf.elems_disjoint`, `Buf.elems_disjoint_of`);
+- every `(sequence, t, h)` is written by one program: padded `(t/64, b·HV + h)`, packed the `i` that
+  `SeqOk.ci_all` gives for chunk `t/64` of sequence `n`;
+- the values: for `u`, the row's `A_j` and the column `vbV` (`+0` outside the sequence), `dot` at
+  `.ieee` with a `+0` accumulator, then `FloatV.cvt_err` (source line 117); for `w`, `FloatV.mul_err`
+  (source lines 129, 131), `exp2` (`g ≤ 8` gives room), `cvt_err` (source line 132), `dot` at `.tf32`, `cvt_err`
+  (source line 133); room and finiteness from `Pre`'s magnitudes (`KVOk`, `AOk`, `BetaOk`, `BetaOkB`, `GOk`).
+  The derivation is in `## Tolerances`;
+- the frame: every written element lies in `uSet d` or `wSet d`, and bytes no program writes are
+  unchanged.
+
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 755), `satisfiable` (line 1125)
+and the 34 `setup_*_ok` theorems; `bytes_disj` (line 762) can be reused.
+
 ## Specification
 
 A sequence is its first flat token `s0` and its length `len`: padded, `(b·T, T)` for `b < B`; packed,

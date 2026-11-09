@@ -83,6 +83,18 @@ for TVA (`streamk_matmul_f16`, `paged_attention_f16`), each with the launches it
 5. **Independent review** of the model, the conditions against the setup, and the specification (its reference
    computed from the host's inputs, never from what the kernel reads; each tolerance meaningful at the covered
    sizes).
+6. **Every covered launch is valid.** `faithful` says nothing about a launch that is not `Launch.Valid` or has
+   `debug = true`, so for each claim `∀ d, d.ok → (launch d).Valid ∧ (launch d).debug = false` is proved in Lean
+   (a scratch copy of the claim with the theorem appended; the theorem is not part of the claim).
+7. **A provability audit** (best effort, by reading, not a proof): for every instance and memory the claim covers,
+   the model's launch is well behaved (addresses in bounds, no `int32`/`int64` wrap that leaves a buffer, no race,
+   no excluded atomic, no undefined operation, loops that end), and each step of the README's Tolerances meets the
+   preconditions of the library fact or lemma it cites. A claim is narrowed (or its tolerance or guard weakened)
+   where an obstacle is found, keeping the real launches covered.
+
+Each claim's README opens with **What you prove**: the goal unfolded, each part of `Post`, the assumptions, the
+kernel as the model runs it, and the obligations a proof must discharge, with `Claim.lean` line numbers ("line N";
+a line of the kernel's source is "source line N").
 
 ## Library requests
 

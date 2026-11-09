@@ -219,10 +219,10 @@ def main():
         cu32 = torch.tensor([0] + list(range(1, 133)), device=DEV, dtype=torch.int32)
         cos, sin = tables(140, 128)
         results.append(check(f"edge 132 one-token sequences (BT=1), offset 7 int32 {tag}", rnd(1, 132, 4, 128), cos, sin, 7, cu32, il))
-        # magnitudes at the bounds of Pre: |x| = 2^126, |cos| = |sin| = 1 (S up to 2^127)
-        x = (torch.randint(0, 2, (2, 64, 2, 64), device=DEV) * 2 - 1).to(torch.float32) * 2.0 ** 126
+        # magnitudes at the bounds of Pre: |x| = 2^125, |cos| = |sin| = 1 (S up to 2^126)
+        x = (torch.randint(0, 2, (2, 64, 2, 64), device=DEV) * 2 - 1).to(torch.float32) * 2.0 ** 125
         tab = (torch.randint(0, 2, (64, 32), device=DEV) * 2 - 1).to(torch.bfloat16)
-        results.append(check(f"edge |x| = 2^126, |cos| = |sin| = 1 {tag}", x.to(torch.bfloat16), tab, tab.flip(0).contiguous(), 0, None, il))
+        results.append(check(f"edge |x| = 2^125, |cos| = |sin| = 1 {tag}", x.to(torch.bfloat16), tab, tab.flip(0).contiguous(), 0, None, il))
         # subnormal and tiny magnitudes (the absolute floor)
         x = (torch.randn((2, 64, 2, 64), device=DEV) * 2.0 ** -128).to(torch.bfloat16)
         cos, sin = tables(64, 64)

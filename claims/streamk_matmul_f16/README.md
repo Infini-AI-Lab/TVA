@@ -4,6 +4,90 @@ The Stream-K GEMM `streamk_matmul_kernel` (`source/streamk_matmul.py`, kernel li
 imports of lines 22–23; host `streamk_matmul` 70–93). `Claim.lean`, namespace
 `Claims.StreamKMatmul`; the claim to prove is `Statement`. The launches to cover are in `SETUP.md`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.StreamKMatmul.main : Statement` (`Statement`:
+`Claim.lean` line 399). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 191), and every initial memory `init` that `Pre` accepts (line 285: the buffers
+valid, every element of the matrix `c` a finite zero), every outcome of the launch is a normal end
+(no fault, no hang) whose final memory `fin` satisfies `Post` (line 366).
+
+**What `Post` asks** (line 366), two parts:
+1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 355): element
+   `i * stride_cm + j * stride_cn` of `c` reads in `fin` as some `float32` `c` (on every input);
+   and for all `va vb : Nat → F16` such that, for every `k < K`, `init` reads `a`'s element
+   `i * stride_am + k * stride_ak` as a finite `va k` and `b`'s element
+   `k * stride_bk + j * stride_bn` as a finite `vb k`: `c` is finite and
+   `|c.toRat - dotSum va vb d.K| ≤ tol va vb d.K`.
+   The reference `dotSum` (line 305) is the exact sum `Σ_{k<K} va k · vb k` in the rationals.
+   `tol` (line 347) is `tolDot` (line 339) plus `DotLoop.bound 2^-23 2^-124 (steps K)
+   (C + tolDot)`, with `C = Σ_{t < steps K} |chunkSum t|`. `tolDot` sums, over the chunks
+   `t < steps K` (`steps`, line 168; `chunk`, line 314: `k ∈ [64t, min(64t + 64, K))`),
+   `(1 + rho)^(steps K − 1 − t) · (rho · (dev t + chunkMag t) + alpha)`. The helpers are `rho`,
+   `alpha` (lines 299, 302: `relDot16 64`, `absDot16 64`), `chunkSum`, `chunkMag`, `mag16`, `pre`
+   and `dev` (lines 317, 322, 311, 326, 332). The bound holds whatever order the atomic additions
+   ran in. With a non-finite input, only "holds a value" is asked;
+2. the frame: every byte outside the matrix `c` (`c.elems (cIdx d)`, `cIdx` line 185) is
+   unchanged: `a`, `b`, and the elements of `c`'s storage outside the matrix.
+
+**What you are given** (`Assumptions`, line 374):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
+  valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 57 is within
+  `relDot16 K · (|acc| + Σ liftMag a · liftMag b) + absDot16 K` of `acc + Σ a·b`, with room below
+  the `float32` range;
+- `dot_total` (`Rules.Num.DotTotal` for the model's configuration): that `tl.dot` has a result;
+- `atomic` (`Rules.Num.AtomicAddF32`): the `float32` `tl.atomic_add` of source line 63 is within
+  `2^-23·|o + v| + 2^-124` of `o + v` when `o`, `v` are finite and the sum is in range;
+- `atomic_total` (`Rules.Num.AtomicAddTotal P Format.binary32`): that atomic has a result.
+
+**The kernel, as the model runs it** (`streamk_matmul_kernel`, line 49; `model` line 267, `launch`
+line 277): a 1-D grid of `num_programs` programs with `BLOCK_M = BLOCK_N = 128`, `BLOCK_K = 64`.
+Program `pid` owns the iterations `[pid · iters_per_program, end)`, `end = min(…, total_iters)`, and
+runs a `while it < end` loop. Each trip takes one tile (`tile = it / iters_per_tile`), runs a
+`for kk in [k_first, k_last)` loop of two masked loads and one `tl.dot` per step into a zero
+accumulator, then either stores the whole tile (`k_first = 0` and `k_last = iters_per_tile`: the
+program owns the tile) or `tl.atomic_add`s its partial sum into it (masked by `c_mask`); then
+`it += k_last − k_first`. Programs share the cells of split tiles through atomics, so the route is
+`TVA.meets_of_faithful` with `TVA.shared` (`TVA/Lemmas/Shared.lean`). The programs' footprints are:
+private writes `W i` = the tiles program `i` owns entirely; shared cells `C` = the elements of the
+split tiles; reads `R i` = the matrices `a` and `b`. Each program is proved with `SafeA`: the inner
+`for` loop writes nothing and is a `Safe` segment (`safe_forRange` with an invariant and
+`fun _ => ∅`), lifted by `SafeA.of_safe`; the store goes through the `SafeA.store` constructor, the
+atomic through `SafeA.env`, then `SafeA.atomic`. No `SafeA` rule exists for `while`: unfold it
+with the `SafeA.loop` constructor, by induction on `end − it`, which each trip lowers by
+`k_last − k_first ≥ 1`.
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: `num_programs < 2^31` from
+  `progs_lt`, with `iters_per_program ≥ 1` from `cover`, `total` and `M_pos`, `N_pos`, `K_pos`;
+  the nine listed block shapes are powers of two);
+- each program is `SafeA`: no `int32` value wraps (`M_le`, `N_le`, `K_le`, `progs_lt`; the
+  products by `am_fit` … `cm_fit`, `c_rows`); the enabled lanes of the loads are in bounds
+  (`a_len`, `b_len`) and the store's and atomic's lanes are in `c` (`c_len`), distinct
+  (`cn`, `c_rows`); `safe_idiv`, `safe_irem`, `safe_convert`, `safe_dot` (`dot_total`) for the
+  steps; the `while` loop ends;
+- the footprints: the owned tiles of different programs are disjoint, a split tile is owned by no
+  program, the cells of `C` are equal or disjoint and present, and `c`'s matrix is disjoint from
+  the reads (`c_a`, `c_b`); the postcondition `Q i log m` is `PermInv`, pairing the log with the
+  program's partial sums (`Paired`, `Paired.lanes`);
+- the value part of `Post`: one program's part of a tile is within the `dev`-based recursion of
+  `tolDot` (`dot`, one step by `DotLift.dotAdd_step`; its own induction, README `## Tolerances`);
+  the parts of a tile are disjoint chunk ranges covering `0 … steps K − 1` (`cover`, `total`); a
+  split element's atomic additions are bounded by `replay_err_shared` with `accStep_atomicAdd`
+  (`atomic`) and `accStep_other`, under its room hypothesis;
+- the frame: the bytes outside `W i` and `C` keep their initial value (`shared`'s last part).
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `idx_lt` (line 430) and `cdiv_cover` (line 435) can be reused.
+
 ## Specification
 
 Element `(i, k)` of the matrix `a` is element `i·stride_am + k·stride_ak` of its buffer, likewise

@@ -16,8 +16,8 @@ float64 from the host's inputs:
   tolerance `errStep` (the `bfloat16` / `float32` rounding terms, `Num.Exp2F32`, `Num.DotBF16` at
   K = 64 chained over the K blocks, the spectral norm `sKn` of `k^T`; `dotHvf` with
   `STATE_V_FIRST`); `v_new` within `tolV` of `vrefS t = u - w h[t]` element by element; `ht` equal
-  to the last `Y` bit for bit; each chunk's clauses under `StOk t` (`h[t]` finite,
-  `||h[t]|| <= 2^40`, which is checked and holds on every launch); every output element finite;
+  to the last `Y` bit for bit; each chunk's clauses under `StOk t'` for every `t' <= t` (`h[t']`
+  finite, `||h[t']|| <= 2^40`, which is checked and holds on every launch); every output element finite;
   `Vals` (the inputs' finiteness and caps, the gate bounds `g_last <= 8`, `g_last - g <= 8`,
   `padB t <= 2^100`) is checked too;
 * the frame: one direct launch with the host's arguments writes `h`, `v_new`, `ht` placed between
@@ -225,9 +225,11 @@ def check_post(x, h, vn, ht, use_h0, store_ht, vf=False, use_g=True, Y=None):
             worst["store"] = inf
         Yc = Yn[0].to(D) if Yn is not None else (H0 if Y == "greedy" else None)
         blo, bhi = H0, H0  # Y 0 is the initial state
+        upto = torch.ones(HV, V, dtype=torch.bool, device=DEV)  # StOk t' for every t' <= t
         for t in range(nchn):
             stok = torch.isfinite(Hc).all(dim=1) & (Hc.norm(dim=1) <= 2.0 ** 40)  # StOk t, [HV, V]
             ok &= bool(stok.all())
+            upto &= stok
             Hc = torch.where(stok[:, None, :], Hc, torch.zeros_like(Hc))
             if Yc is not None and Yn is not None and t > 0 and bits_ne(Yc, Hb):
                 worst["store"] = inf
@@ -249,7 +251,7 @@ def check_post(x, h, vn, ht, use_h0, store_ht, vf=False, use_g=True, Y=None):
             tolV = dW + sB + UBF * vnB + EBF
             vo = vn[b, a:a + c].to(D).permute(1, 0, 2)
             ok &= bool(torch.isfinite(vo).all())
-            worst["v_new"] = max(worst["v_new"], ratio(((vo - vrefS).abs() * stok[:, None, :]), tolV))
+            worst["v_new"] = max(worst["v_new"], ratio(((vo - vrefS).abs() * upto[:, None, :]), tolV))
             if TOLS is not None:
                 TOLS[("v_new", n, t)] = tolV.clone()
             if use_g:
@@ -302,7 +304,7 @@ def check_post(x, h, vn, ht, use_h0, store_ht, vf=False, use_g=True, Y=None):
             if not last or store_ht:
                 g_ = gam[:, None, None]
                 dist = torch.clamp(torch.maximum(beta - (nhi - g_ * blo), (nlo - g_ * bhi) - beta), min=0)
-                worst["box"] = max(worst["box"], ratio(dist.norm(dim=1) * stok, errStep))
+                worst["box"] = max(worst["box"], ratio(dist.norm(dim=1) * upto, errStep))
             # the witness
             if Yc is not None:
                 tgt = gam[:, None, None] * Yc + beta
@@ -316,7 +318,7 @@ def check_post(x, h, vn, ht, use_h0, store_ht, vf=False, use_g=True, Y=None):
                     Yx = tgt.float().to(D)
                 fin = torch.isfinite(Yc).all(dim=1) & torch.isfinite(Yx).all(dim=1)
                 err = (Yx - tgt).norm(dim=1)
-                err = torch.where(fin, err, torch.full_like(err, inf)) * stok
+                err = torch.where(fin, err, torch.full_like(err, inf)) * upto
                 worst["step"] = max(worst["step"], ratio(err, errStep))
                 if REL is not None and not last:
                     hnn = Hn.norm(dim=1).clamp_min(1e-300)

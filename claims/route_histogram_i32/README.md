@@ -6,6 +6,72 @@ lines 109–144 with the helpers `route_bucket_ids` 62–89 and `_add_counts` 92
 pair) and the `tl.histogram` path (`BINS > 0`). `Claim.lean`, namespace
 `Claims.RouteHistogram`; the claim to prove is `Statement`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.RouteHistogram.main : Statement` (`Statement`:
+`Claim.lean` line 252). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 157), and every initial memory `init` that `Pre` accepts (line 194), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 234).
+`Pre` also says that the buffers hold the instance's entries `tsVal`, `giVal`, `cntVal`
+(`Buf.Holds`), so the reference is stated on `Inst`'s fields.
+
+**What `Post` asks** (line 234), two parts:
+1. for every bucket `b < NUM_BUCKETS`, element `b` of `counts` reads in `fin` as
+   `d.cntVal b + IntV.ofNat (pairsIn d b)`: the initial value plus the number of pairs in bucket
+   `b`, as a wrapping `int32` sum. `pairsIn d b` (line 228) counts the pairs `p < n` with
+   `bucketOf d p = b`; `bucketOf` (line 220) is the host-level definition: slot
+   `tsVal (p / width)`, group `giVal p`, bucket `slot * gps + group` (with groups and `gps ≠ 1`)
+   or `slot`, when the slot is in `[0, maxLoras)` and the group is valid, else
+   `numBuckets - 1`. Exact: integers only, no tolerance. This holds on both paths (`bins = 0` and
+   `bins > 0`);
+2. the frame: every byte outside the first `NUM_BUCKETS` elements of `counts` is unchanged.
+
+**What you are given** (`Assumptions`, line 243): one field, `faithful` (`Compiler.Faithful`): the
+device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
+`debug = false`, and the model's launch is well behaved from `init`. No numeric fact.
+
+**The kernel, as the model runs it** (`route_histogram_kernel`, line 107, with the inlined
+`route_bucket_ids`, line 41, and `add_counts`, line 80; `model`, line 200; `launch`, line 209): a
+1-D grid of `cdiv(max(n, 1), BLOCK)` programs. Program `i` takes the pairs
+`i·BLOCK + [0, BLOCK)`, masked by `< n`; divides each by `WIDTH` (`tl.idiv`), loads the token's slot
+and (with groups) the pair's group, both masked with `other = -1`, and computes each lane's bucket
+(`-1` when not live, then `NUM_BUCKETS - 1`). Then, with `bins = 0`, one masked `tl.atomic_add` of
+`1` per enabled lane at its bucket (source line 102); with `bins > 0`, a `tl.histogram` over `BINS`
+bins (masked-off lanes go to bin `BINS - 1`) and one masked `tl.atomic_add` of each bin's count for
+the bins below `NUM_BUCKETS` with a nonzero count (source line 106). No loop. Programs only read the inputs
+and share the `counts` cells through atomics: the route is `TVA.shared` (`TVA/Lemmas/Shared.lean`)
+with `TVA.meets_of_faithful`, each program proved with `SafeA` (PROVER_GUIDE §4).
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: `block_pow2`, `block_le`,
+  `bins_ok` for the `[BINS]` shape, fewer than `2^31` programs from `n_lt`);
+- each program is `SafeA`: the private part (`SafeA.of_safe`) has its loads in bounds
+  (`tokenSlots_len`, `groupIds_len`; `int32` pair ids do not wrap, `Block.fits_of_grid_pow2` from
+  `n_lt`), `//` by a positive `WIDTH` (`safe_idiv`, `width_pos`), and on the histogram path every
+  enabled value in `[0, BINS)` (`safe_histogram`, `bins_ok`); the `int32` bucket
+  `slot * gps + group` does not wrap and is below `NUM_BUCKETS` (`buckets_eq`, `buckets_lt`,
+  `gps_lt`), so each atomic lane is a cell of `counts` (`counts_len`); the atomic by `SafeA.atomic`;
+- the cell conditions of `TVA.shared`: the cells (the first `NUM_BUCKETS` elements of `counts`) are
+  distinct, present (`Pre`: `counts` valid), and disjoint from every program's reads and writes
+  (`counts_ts`, `counts_gi`); the programs' private footprints are disjoint (they write nothing
+  outside the cells);
+- each program's postcondition says what its log adds to each cell (its own pairs in that
+  bucket: on the histogram path, `safe_histogram`'s bin counts), and it is `PermInv`;
+- part 1: `replay_add` and `sum_proj` (or `replay_add_any`, `sum_proj_any`) turn the logs into the
+  final value of each cell, and the programs' counts sum to `pairsIn d b` (the programs' pair
+  ranges partition `[0, n)`; the lane-level bucket equals `bucketOf`);
+- the bytes outside the cells, which no program writes, give part 2.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `bytes_disj` (line 281) can be reused.
+
 ## Specification
 
 `Post d init fin`:

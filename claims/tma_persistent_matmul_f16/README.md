@@ -26,6 +26,84 @@ statement is a host line (`claim.json`'s `source.host`): the other imports, the 
 names), the config lists, the pre-hook `matmul_tma_set_block_size_hook`, the file's other kernels
 and their hosts, `matmul_tma_persistent`, the test, the benchmark and `__main__`.
 
+## What you prove
+
+**The goal.** In `Proof.lean`, `theorem Claims.TmaPersistentMatmul.main : Statement` (`Statement`:
+`Claim.lean` line 391). Unfolded (`Claim.Meets`), it says:
+
+```lean
+∀ K P, Assumptions K P →
+  ∀ d, d.ok → ∀ init, Pre d init → ∀ o, K d init o → ∃ fin, o = .ok fin ∧ Post d init fin
+```
+
+for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
+(`Inst.ok`, line 199), and every initial memory `init` that `Pre` accepts (line 275: the three
+buffers valid, any values), every outcome of the launch is a normal end (no fault, no hang) whose
+final memory `fin` satisfies `Post` (line 361).
+
+**What `Post` asks** (line 361), two parts:
+1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 344): element `i * ldc + j` of `c`
+   reads in `fin` as some `float16` `c` (on every input); and for all `va vb : Nat → F16` such that,
+   for every `k < K`, `init` reads `a`'s element `i * lda + k` as a finite `va k` and `b`'s element
+   `j * ldb + k` as a finite `vb k`, there is a finite `float32` `v` with
+   - `|v.toRat - dotSum va vb d.K| ≤ tol va vb d.K`, and
+   - `FloatV.NaNEq (FloatV.cvt v) c`: `c` is `v` rounded to `float16`, up to NaN payload;
+   - and, when `|dotSum| + tol ≤ binary16.maxVal`: `c` is finite and
+     `|c.toRat - dotSum| ≤ tol + (|dotSum| + tol) · binary16.u + binary16.eta`.
+
+   The reference `dotSum` (line 303) is the exact `Σ_{k<K} va k · vb k` in the rationals. The
+   tolerance `tol` (line 336) is `errAt (prodV va vb K) (liftV va vb K) (steps K)`: the recursion
+   `errAt` (line 329) runs `E (t+1) = (1 + rho)·E t + rho·(|partSum p t| + stepMag q t) + alpha`
+   over `steps K` (line 281) steps; the helpers are `prodV` (line 307), `liftV` (line 313),
+   `partSum` (line 317), `stepMag` (line 320), and `rho`, `alpha` (lines 285, 288: `relDot16 64`,
+   `absDot16 64`). With a non-finite input, only "holds a value" is asked;
+2. the frame: every byte outside the matrix `c` (`c.elems (cIdx d)`, `cIdx` line 193) is unchanged.
+
+**What you are given** (`Assumptions`, line 369):
+- `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
+  valid, has `debug = false`, and the model's launch is well behaved from `init`;
+- `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 442 is within
+  `relDot16 K · (|acc| + Σ liftMag a · liftMag b) + absDot16 K` of `acc + Σ a·b` when the
+  operands and `acc` are finite, with room below the `float32` range;
+- `dot_total` (`Rules.Num.DotTotal` for the model's configuration): that `tl.dot` has a result.
+
+**The kernel, as the model runs it** (`matmul_kernel_tma_persistent`, line 71, with `compute_pid`,
+line 34; `model` line 259, `launch` line 268): a 1-D grid of `min NUM_SMS (tiles d)` programs
+(`tiles`, line 184). Program `start_pid` runs `tl.forRange start_pid num_tiles NUM_SMS` over tile
+ids. For each tile id it computes `(pid_m, pid_n)` by the grouped order (`GROUP_SIZE_M = 8`),
+runs an inner `tl.forRange 0 k_tiles 1` of two `tl.desc_load`s (`aDesc`, `bDesc`, lines 239, 242;
+padding `+0`) and one `tl.dot(a, b.trans, acc)` into a zero `128 × 256` accumulator, then
+recomputes the pid from the carried `tile_id_c` (equal to the tile id on each trip), reshapes,
+permutes and splits the accumulator into two `128 × 128` halves, converts each to `float16`
+(`tl.cvt`) and stores them with two `tl.desc_store`s (`cDesc`, line 246) at columns `pid_n·256`
+and `pid_n·256 + 128`. Each tile is written by one program, once; programs read only `a` and `b`
+and use no atomics. The route is `TVA.meets_independent` (PROVER_GUIDE §4), with
+`safe_forRange` for both loops: the outer one with per-trip write footprints (the trip's tile,
+disjoint across trips), the inner one with `fun _ => ∅`.
+
+**What the proof must establish.**
+- each launch is valid and has `debug = false` (`Launch.valid_grid1`: `min NUM_SMS (tiles d) <
+  2^31` from `sms`; the seven listed block shapes are powers of two);
+- each program is `Safe`: no `int32` value wraps and the tile loop's bounds meet `tl.RangeOk`
+  (`M_le`, `N_le`, `sms`, `tiles_le`); each descriptor is `TensorDesc.Valid` over its buffer
+  (`pos`, `ld8`, `base_al`, `a_len`, `b_len`, `c_len`) for `safe_desc_load`, `safe_desc_store`;
+  the stored lanes are distinct elements (`N_ldc`); `safe_idiv`, `safe_irem`, `safe_dot`
+  (`dot_total`), `safe_cvt` for the steps;
+- footprints: the grouped order maps the tile ids `[0, tiles d)` one to one onto the tiles, so
+  the tiles of different programs (ids `≡ start_pid` mod `NUM_SMS`) and of different trips are
+  disjoint; the two halves of a tile are disjoint columns; `c`'s matrix is disjoint from the
+  reads (`c_a`, `c_b`);
+- the value part of `Post`: the inner loop leaves a finite `float32` within `errAt … (steps K)` of
+  `dotSum` (`dot`, step by step, by induction on the recursion; README `## Tolerances`); the
+  reshape, permute and split move each element unchanged to its column (`Tensor.get_reshape`,
+  `Tensor.get_permute`, `Tensor.join_split` with `Tensor.get_join_snoc`); one
+  rounding gives the last clause (`FloatV.cvt_err`, `u = 2^-11`, `eta = 2^-25`);
+- the frame: the bytes no program writes.
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `tol_rel_lt`
+(line 293), `hostInst_ok` and the `setup_*_ok` theorems; `row_lt` (line 421) and
+`bytes_disjoint` (line 427) can be reused.
+
 ## Specification
 
 `Post d init fin` says two things.

@@ -344,6 +344,8 @@ structure Inst.ok (d : Inst) : Prop where
   groups_dvd : d.ngroups ∣ d.nheads
   /-- `chunk_size` is a power of two (the code base asserts it, `ssd_combined.py:77`). -/
   chunk_pow2 : ∃ k, d.chunk = 2 ^ k
+  /-- `chunk_size ≤ 2^16`, so the loop runs at most `1024` `tl.dot` steps (README, Exclusions). -/
+  chunk_le : d.chunk ≤ 2 ^ 16
   /-- The grid `(gx, nchunks, nheads)` is within CUDA's limits (`y, z < 2^16`) and has fewer than
   `2^31` programs. -/
   grid_y : nc d < 2 ^ 16
