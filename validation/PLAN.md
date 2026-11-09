@@ -34,6 +34,7 @@ run. Validation is refinement checking: is what the device did one of the model'
 1. **An executor with an oracle.** `exec : Prog α → Mem → Oracle → Option (Out α × Mem)`: the
    oracle answers each `pick` and `env`, and `exec` decides the predicate on the concrete instance.
    Prove `exec_sound`: if `exec` succeeds, `Step` reaches its result. A lemma, not a new construct.
+   Where the oracle's answers come from (below): nothing in Triton is instrumented.
 2. **Operation-level tests of `Ops.lean`.** Reuse the float-layer harness. Swap the Python
    references of the existing evidence for the compiled Lean definitions. Add reductions and scans
    (tree shape, NaN, ±0, ties), `sort`, `histogram`, `join`/`split`/`interleave`/`reshape`,
@@ -55,6 +56,56 @@ In every phase:
 - **Tightness:** a relation that holds of everything passes every test. For operations meant to be
   exact, also check that the relation admits only the device's value.
 - **Mutation checks:** seed bugs into copies of the definitions and confirm the tests catch them.
+
+## The oracle
+
+The `pick` and `env` sites of `lean/TVA/Lang` (about 70) are of three kinds.
+
+1. **Guards and partial functions: no oracle needed.** `pick (fun _ : Unit => cond)` (block
+   pointers, descriptors, conversions, `assume`) means "`cond` holds, or undefined behaviour".
+   Compiler hints (`Ops.lean`, `multiple_of`, `max_contiguous`, …) are
+   `pick (fun y => y = x ∧ …)`: the witness is `x`. Integer `//`, `%` and shifts are
+   `div? … = some r`: a partial function. `exec` computes the only possible witness and decides the
+   condition; a false condition is a prediction of undefined behaviour or a violated hint.
+2. **Freedom that does not depend on the platform: `exec` picks a witness.** NaN payloads
+   (`NaNEq`), padding values, junk in an atomic's disabled lanes, non-finite values out of fp8, the
+   tree of `tl.sum` (`∃ t : Tree, t.Covers n ∧ …`), the order of an atomic's lanes
+   (`order.Perm enabled`), `reshape(can_reorder=True)`. Within a kernel the device's choice is
+   hidden, so either compare up to the freedom (as float-layer canonicalises NaNs) or choose inputs
+   where every witness gives the same result (floats with small integer values make sums exact in
+   any tree; no NaNs). The oracle supplies witnesses of existentials (a tree, a permutation) and
+   `exec` checks them, so every predicate stays decidable.
+3. **Platform relations: the device.** `env fun e => pick (… e.P.math …)`: `P.math`, `P.div`,
+   `P.dot`, `P.cvt` into fp8, `AddRel` (fusion), `ItofRel`, `dotScaled`, float `atomic_add`. `P` is
+   a parameter of the library (a claim quantifies over every platform satisfying the `Rules.Num`
+   facts), so a test fixes one: a **platform calibrated on the device**, for example
+   `P_dev.math .exp f x r :↔ r = table x`, the table filled by a separate kernel of one operation
+   (load, `tl.exp`, store) on the operands that occur. In two passes: `exec` with an oracle that
+   records its queries, then the queries evaluated on the GPU in a batch, then `exec` again with
+   the answers. Operations with a small domain (fp16 unary operations, fp8 conversions) are
+   tabulated whole once. Often simpler: options and inputs that make the relation exact
+   (`enable_fp_fusion=False`, which `Env` records, makes `AddRel` exact; `float16` operands with
+   small integer values make `tl.dot` exact).
+
+**By phase.** At operation level (phase 2) the operation's result is the output buffer and is
+read directly; for kind 3 the relation itself says nothing (`P` is abstract), so the check is
+against the accuracy fact, as `evidence/num-*` does. At kernel level (phase 4) intermediate
+values are hidden: kind 1 needs nothing, kind 2 is handled by the inputs, kind 3 by `P_dev`; only
+the inputs and the final memory are observed.
+
+**Instrumentation.** Stores of intermediate values added to a kernel change what Triton compiles
+(fusion, scheduling, layouts), so the instrumented kernel is not the one a claim is about: use
+them only to localise a mismatch already found. `TRITON_INTERPRET=1` exposes intermediate values
+but runs numpy on the CPU, so it is no oracle for the device; it may help for front-end facts.
+
+**Consequences for `exec_sound`.**
+- It is stated for a fixed `P`: if `exec P oracle` succeeds, `Step` under `env P` reaches the
+  result. A `P_dev` given by a finite table is decidable, so `exec` can check it.
+- A device run outside the model's outcomes is a finding. A mismatch after `exec` chose a kind-2
+  witness may be another legitimate choice, so the inputs must make the choice irrelevant.
+- `P_dev` assumes the device computes an operation inside the kernel as it does alone. If, for
+  example, a fused multiply changes `tl.exp`'s result inside the kernel, the test fails without a
+  bug in the model (the per-element relation allows it): a mismatch to localise.
 
 ## Possible gaps, for discussion with zhuominc
 
