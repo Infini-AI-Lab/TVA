@@ -1,0 +1,20 @@
+part2 convert a=1 path=mma.sync kWidth=['4']: device results [0.0]; model (observed partition) 0.0; exact 32.9858 u; device error 32.9858 u; step 0 allows s1 in [-15.0064 u, 48.9937 u]; step 1 needs s1 near -15.9922 u; partial values exist (DotF16Chunk holds here): False
+part2 convert a=0 path=mma.sync kWidth=['2']: device results [5.660112947225571e-07]; model (observed partition) 0.0; exact 32.9858 u; device error 13.9937 u; step 0 allows s1 in [-15.0064 u, 48.9937 u]; step 1 needs s1 near 3.0000 u; partial values exist (DotF16Chunk holds here): True
+part1 f16 convert a=1 b=0 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 48
+part1 f16 convert a=1 b=0 M=32 N=32 K=128 warps=2 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 40
+part1 f16 convert a=1 b=0 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2']: 96 elements; equal to the model with the observed partition 46, with 16 consecutive k 96
+part1 f16 convert a=0 b=1 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 49
+part1 f16 convert a=0 b=1 M=32 N=32 K=128 warps=2 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 39
+part1 f16 convert a=0 b=1 M=64 N=64 K=64 warps=4 path=wgmma kWidth=[]: 96 elements; equal to the model with the observed partition 49, with 16 consecutive k 96
+part1 f16 convert a=1 b=1 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 43
+part1 f16 convert a=1 b=1 M=32 N=32 K=128 warps=2 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 29
+part1 f16 convert a=1 b=1 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2']: 96 elements; equal to the model with the observed partition 56, with 16 consecutive k 96
+part1 bf16 convert a=1 b=0 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 52
+part1 bf16 convert a=1 b=0 M=32 N=32 K=128 warps=2 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 34
+part1 bf16 convert a=1 b=0 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2']: 96 elements; equal to the model with the observed partition 50, with 16 consecutive k 96
+part1 bf16 convert a=0 b=1 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 49
+part1 bf16 convert a=0 b=1 M=32 N=32 K=128 warps=2 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 40
+part1 bf16 convert a=0 b=1 M=64 N=64 K=64 warps=4 path=wgmma kWidth=[]: 96 elements; equal to the model with the observed partition 45, with 16 consecutive k 96
+part1 bf16 convert a=1 b=1 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 46
+part1 bf16 convert a=1 b=1 M=32 N=32 K=128 warps=2 path=mma.sync kWidth=['4']: 96 elements; equal to the model with the observed partition 96, with 16 consecutive k 39
+part1 bf16 convert a=1 b=1 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2']: 96 elements; equal to the model with the observed partition 54, with 16 consecutive k 96

@@ -1,0 +1,134 @@
+{
+  "source": {
+    "file": "source/04-low-memory-dropout.py",
+    "sha256": "43ea69769349d20654fe7bb983e60ad9c38591d195891caf3a56053d9b0ab788",
+    "ranges": [
+      [
+        38,
+        39
+      ],
+      [
+        110,
+        131
+      ]
+    ],
+    "host": [
+      [
+        35,
+        36
+      ],
+      [
+        41,
+        41
+      ],
+      [
+        134,
+        140
+      ],
+      [
+        143,
+        155
+      ]
+    ],
+    "unused": []
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.SeededDropout",
+  "entries": [
+    {
+      "src": [
+        38
+      ],
+      "drop": "import",
+      "note": "binds `triton`, Triton's own module, which the decorator `@triton.jit` of line 110 names (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); it adds no step to the program"
+    },
+    {
+      "src": [
+        39
+      ],
+      "drop": "import",
+      "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 117 and 120-131 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+    },
+    {
+      "src": [
+        110
+      ],
+      "drop": "decl",
+      "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); no other statement of the module binds `_seeded_dropout`; the model is the `Kernel` `seeded_dropout`"
+    },
+    {
+      "src": [
+        "111-118"
+      ],
+      "model": "def seeded_dropout {sg : Bool} {w : Nat} (x_ptr output_ptr : Ptr .f32) (n_elements : I32)\n    (p : F32) (seed : IntV sg w) (BLOCK_SIZE : Nat) : Kernel where",
+      "note": "the two pointers are `*fp32` (the host passes `float32` tensors); `n_elements` is an `int32`: an integer argument in `[-2^31, 2^31)` other than `1` is a runtime `int32` (SEMANTICS.md, Scalar arguments; `Inst.ok.n_lt`), and at `n = 1` it is the constant `1`, which line 124 makes an `int32` tensor before comparing, so the model is the same (`model`'s docstring); `p` is a Python `float`, the runtime `float32` `FloatV.hostF32` of the double (`p32`); `seed` is a Python `int`, a runtime `int32`, `int64` or `uint64` by its value (the implicit `sg`, `w`; `model` picks the type), and at `seed = 1` the constant `1`, which `tl.rand` makes an `int32` tensor (`tl.to_tensor`) before any use, so the model is the `int32` one; the constexpr `BLOCK_SIZE` is a Lean parameter; no parameter has a default"
+    },
+    {
+      "src": [
+        120
+      ],
+      "model": "let pid := tl.program_id ctx 0",
+      "note": "axis 0 of the 1-D grid, an `int32`"
+    },
+    {
+      "src": [
+        121
+      ],
+      "model": "let block_start := pid * (IntV.ofNat BLOCK_SIZE : I32)",
+      "note": "the constexpr `BLOCK_SIZE`, an operand of `*` with the `int32` tensor `pid`, is built in `int32`, modulo `2^32` (SEMANTICS.md, Constants); the product is the wrapping `int32` product, which does not wrap on covered instances (`Block.Fits`)"
+    },
+    {
+      "src": [
+        122
+      ],
+      "model": "let offsets := block_start + tl.arange 0 BLOCK_SIZE",
+      "note": "the `int32` scalar `block_start` added to every lane of the `int32` `tl.arange` (the library's scalar-tensor `+`); wrapping, which does not happen on covered instances"
+    },
+    {
+      "src": [
+        124
+      ],
+      "model": "let mask := offsets.ltS n_elements",
+      "note": "`int32` tensor against the `int32` scalar `n_elements`, broadcast to every lane: the signed `int32` comparison; at `n = 1` the constant `1` first becomes an `int32` tensor (SEMANTICS.md, Constants: everywhere else), the same comparison"
+    },
+    {
+      "src": [
+        125
+      ],
+      "model": "let x ← tl.load (x_ptr + offsets) (some mask)",
+      "note": "`x_ptr + offsets` advances the `*fp32` pointer by each lane's `int32` offset, in elements; mask as in the source, no `other` (disabled lanes are unspecified), no performance-only argument"
+    },
+    {
+      "src": [
+        127
+      ],
+      "model": "let random ← tl.rand seed offsets",
+      "note": "`tl.rand(seed, offsets)` with the default 10 rounds (`TVA.Lang.Random`; SEMANTICS.md, Random numbers): `randint4x` on the `int32` offsets (the counter `(offsets.to(uint32), 0, 0, 0)`, since the offsets are 32 bits wide) and the key from `seed.to(uint64)`, then `uint_to_uniform_float`, an `itof` and an IEEE product with `Philox.scale32`; the helpers are Triton's library functions (`triton.language.random`), whose meaning is the library's; computed on every lane, the disabled ones included"
+    },
+    {
+      "src": [
+        128
+      ],
+      "model": "let x_keep := Tensor.flt (bc p) random",
+      "note": "`random > p`: the `float32` block against the runtime `float32` scalar `p` (no promotion, both `float32`), Triton's ordered `>` (`arith.cmpf ogt`), written as the ordered `p < random` (`FloatV.lt`; both false on NaN); the product inside `tl.rand` reaches only this comparison, never an addition, so nothing can fuse with it (SEMANTICS.md, Float `+` and `-`)"
+    },
+    {
+      "src": [
+        130
+      ],
+      "model": [
+        "let one_minus_p ← tl.sub (Tensor.scalar one32) (Tensor.scalar p)",
+        "let q ← tl.div x (bc one_minus_p.item)",
+        "let output := tl.where x_keep q (bc (FloatV.litF32 (FloatV.ofPat 0)))"
+      ],
+      "note": "`1 - p`: the Python `1`, an operand of `-` with the `float32` scalar `p`, built in `float32` (`one32`, `FloatV.litF32` of the double `1.0`; SEMANTICS.md, Constants), and the IEEE `float32` subtraction `tl.sub` (no product feeds it); `x / (1 - p)`: the block divided by the broadcast scalar, the platform's `float32` division `tl.div` (`div.full.f32`, `Rules.Num.DivFull`), on every lane; `tl.where(x_keep, …, 0.0)`: the `int1` condition `x_keep`, and the Python `0.0`, a value of `tl.where`, built in `float32` as `+0` (`FloatV.litF32 (FloatV.ofPat 0)`)"
+    },
+    {
+      "src": [
+        131
+      ],
+      "model": "tl.store (output_ptr + offsets) output (some mask)",
+      "note": "`output` is already `float32`, the pointer's dtype, so no conversion; mask as in the source"
+    }
+  ]
+}

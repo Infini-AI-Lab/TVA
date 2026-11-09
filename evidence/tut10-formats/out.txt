@@ -1,0 +1,7 @@
+torch 2.11.0+cu130 device NVIDIA H200 NVL capability (9, 0)
+triton 3.8.0
+mxfp4 1024x1024x1024: rejected on the host: OutOfResources: out of resource: shared memory, Required: 287864, Hardware limit: 232448. Reducing block sizes or `num_stages` may help.
+nvfp4 1024x1024x1024: rejected on the host: OutOfResources: out of resource: shared memory, Required: 297080, Hardware limit: 232448. Reducing block sizes or `num_stages` may help.
+mxfp8 1024x1024x1024: ran, BLOCK_M/N/K = 128/256/128; max |ref - out| = 0.0625; the tutorial's assert_close (1e-3, 1e-3) passes; output finite: True
+mixed 1024x1024x1024: ran, BLOCK_M/N/K = 128/256/128; max |ref - out| = 0.0625; the tutorial's assert_close (1e-3, 1e-3) passes; output finite: True
+mixed 8192x8192x8192: ran, BLOCK_M/N/K = 128/256/128; max |ref - out| = 0.249512; the tutorial's assert_close (1e-3, 1e-3) passes; output finite: True

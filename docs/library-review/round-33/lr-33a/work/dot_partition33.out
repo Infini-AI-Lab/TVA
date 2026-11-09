@@ -1,0 +1,520 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+ptr f16 a=fmt b=fmt 16x16 nw1 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 16x16 nw1 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 16x64 nw2 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 16x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 32x64 nw4 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 32x64 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 16x128 nw4 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 16x128 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 64x64 nw2 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 64x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 64x64 nw4 K32: wgmma kW[] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 128x64 nw8 K32: wgmma kW[] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=fmt 128x64 nw8 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=e5 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=e4 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=u8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=bool b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 16x16 nw1 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 16x16 nw1 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 16x64 nw2 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 32x64 nw4 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 16x128 nw4 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 16x128 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 64x64 nw2 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=joinperm-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 16x16 nw1 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 16x64 nw2 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 32x64 nw4 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 16x128 nw4 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 16x128 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 64x64 nw2 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join2-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=trans-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=mask-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 16x16 nw1 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=join-e5 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 16x64 nw2 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 32x64 nw4 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 16x128 nw4 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 16x128 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 64x64 nw2 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=f32join b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 16x16 nw1 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 16x64 nw2 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 32x64 nw4 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 16x128 nw4 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 64x64 nw2 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 64x64 nw4 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 128x64 nw8 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=e5 128x64 nw8 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 16x16 nw1 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 16x16 nw1 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 16x64 nw2 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 16x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 32x64 nw4 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 32x64 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 16x128 nw4 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 16x128 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 64x64 nw2 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 64x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 64x64 nw4 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 128x64 nw8 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=trans 128x64 nw8 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 16x16 nw1 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 16x64 nw2 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 32x64 nw4 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 16x128 nw4 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 16x128 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 64x64 nw2 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 64x64 nw4 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 128x64 nw8 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr f16 a=fmt b=join-i8 128x64 nw8 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc f16 a=i8 b=fmt 16x64 nw1 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+desc f16 a=i8 b=fmt 16x64 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+desc f16 a=i8 b=fmt 16x64 nw2 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+desc f16 a=i8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+desc f16 a=i8 b=fmt 64x64 nw4 K64: wgmma kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc f16 a=i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc f16 a=bool b=fmt 16x64 nw1 K64: not run (RuntimeError: PassManager::run failed)
+desc f16 a=bool b=fmt 16x64 nw1 K128: not run (RuntimeError: PassManager::run failed)
+desc f16 a=bool b=fmt 16x64 nw2 K64: not run (RuntimeError: PassManager::run failed)
+desc f16 a=bool b=fmt 16x64 nw2 K128: not run (RuntimeError: PassManager::run failed)
+desc f16 a=bool b=fmt 64x64 nw4 K64: not run (RuntimeError: PassManager::run failed)
+desc f16 a=bool b=fmt 64x64 nw4 K128: not run (RuntimeError: PassManager::run failed)
+desc f16 a=fmt b=fmt 16x64 nw1 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc f16 a=fmt b=fmt 16x64 nw1 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc f16 a=fmt b=fmt 16x64 nw2 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc f16 a=fmt b=fmt 16x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc f16 a=fmt b=fmt 64x64 nw4 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc f16 a=fmt b=fmt 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 16x32 nw1 K64 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 16x32 nw1 K32 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 16x32 nw1 K64 KT192: mma.sync kW[4] instrs 12 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 16x32 nw1 K128 KT160: mma.sync kW[4] instrs 10 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 32x64 nw2 K64 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 32x64 nw2 K32 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 32x64 nw2 K64 KT192: mma.sync kW[4] instrs 12 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 32x64 nw2 K128 KT160: mma.sync kW[4] instrs 10 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 64x64 nw4 K64 KT96: wgmma kW[2] instrs 6 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 64x64 nw4 K32 KT96: wgmma kW[2] instrs 6 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 64x64 nw4 K64 KT192: wgmma kW[2] instrs 12 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop f16 a=i8 b=fmt 64x64 nw4 K128 KT160: wgmma kW[2] instrs 10 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 16x32 nw1 K64 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 16x32 nw1 K32 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 16x32 nw1 K64 KT192: mma.sync kW[4] instrs 12 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 16x32 nw1 K128 KT160: mma.sync kW[4] instrs 10 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 32x64 nw2 K64 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 32x64 nw2 K32 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 32x64 nw2 K64 KT192: mma.sync kW[4] instrs 12 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 32x64 nw2 K128 KT160: mma.sync kW[4] instrs 10 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 64x64 nw4 K64 KT96: wgmma kW[2] instrs 6 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 64x64 nw4 K32 KT96: wgmma kW[2] instrs 6 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 64x64 nw4 K64 KT192: wgmma kW[2] instrs 12 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop f16 a=e5 b=fmt 64x64 nw4 K128 KT160: wgmma kW[2] instrs 10 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 16x16 nw1 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 16x16 nw1 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 16x64 nw2 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 16x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 32x64 nw4 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 32x64 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 16x128 nw4 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 16x128 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 64x64 nw2 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 64x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 64x64 nw4 K32: wgmma kW[] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 128x64 nw8 K32: wgmma kW[] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=fmt 128x64 nw8 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=e5 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=u8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=bool b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 16x16 nw1 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 16x16 nw1 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 16x64 nw2 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 32x64 nw4 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 16x128 nw4 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 16x128 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 64x64 nw2 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=joinperm-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 16x16 nw1 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 16x64 nw2 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 32x64 nw4 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 16x128 nw4 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 16x128 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 64x64 nw2 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join2-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=trans-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=mask-i8 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 16x16 nw1 K32: mma.sync kW[8] instrs 2 sizes [16] widest-span 28 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 16x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 32x64 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 16x128 nw4 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 64x64 nw2 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=join-e5 b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 16x16 nw1 K32: mma.sync kW[4] instrs 2 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 16x64 nw2 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 32x64 nw4 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 16x128 nw4 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 16x128 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 64x64 nw2 K32: mma.sync kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 64x64 nw4 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 128x64 nw8 K32: wgmma kW[2] instrs 2 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=f32join b=fmt 128x64 nw8 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 16x16 nw1 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 16x16 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 16x64 nw2 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 32x64 nw4 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 32x64 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 16x128 nw4 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 16x128 nw4 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 64x64 nw2 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 64x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 64x64 nw4 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 128x64 nw8 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=e5 128x64 nw8 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 16x16 nw1 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 16x16 nw1 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 16x64 nw2 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 16x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 32x64 nw4 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 32x64 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 16x128 nw4 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 16x128 nw4 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 64x64 nw2 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 64x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 64x64 nw4 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 128x64 nw8 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=trans 128x64 nw8 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 16x16 nw1 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 16x16 nw1 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 16x64 nw2 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 16x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 32x64 nw4 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 32x64 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 16x128 nw4 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 16x128 nw4 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 64x64 nw2 K64: mma.sync kW[8] instrs 4 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 64x64 nw2 K128: mma.sync kW[8] instrs 8 sizes [16] widest-span 58 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 64x64 nw4 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 128x64 nw8 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+ptr bf16 a=fmt b=join-i8 128x64 nw8 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc bf16 a=i8 b=fmt 16x64 nw1 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+desc bf16 a=i8 b=fmt 16x64 nw1 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+desc bf16 a=i8 b=fmt 16x64 nw2 K64: mma.sync kW[4] instrs 4 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+desc bf16 a=i8 b=fmt 16x64 nw2 K128: mma.sync kW[4] instrs 8 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+desc bf16 a=i8 b=fmt 64x64 nw4 K64: wgmma kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc bf16 a=i8 b=fmt 64x64 nw4 K128: wgmma kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc bf16 a=bool b=fmt 16x64 nw1 K64: not run (RuntimeError: PassManager::run failed)
+desc bf16 a=bool b=fmt 16x64 nw1 K128: not run (RuntimeError: PassManager::run failed)
+desc bf16 a=bool b=fmt 16x64 nw2 K64: not run (RuntimeError: PassManager::run failed)
+desc bf16 a=bool b=fmt 16x64 nw2 K128: not run (RuntimeError: PassManager::run failed)
+desc bf16 a=bool b=fmt 64x64 nw4 K64: not run (RuntimeError: PassManager::run failed)
+desc bf16 a=bool b=fmt 64x64 nw4 K128: not run (RuntimeError: PassManager::run failed)
+desc bf16 a=fmt b=fmt 16x64 nw1 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc bf16 a=fmt b=fmt 16x64 nw1 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc bf16 a=fmt b=fmt 16x64 nw2 K64: mma.sync kW[2] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc bf16 a=fmt b=fmt 16x64 nw2 K128: mma.sync kW[2] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc bf16 a=fmt b=fmt 64x64 nw4 K64: wgmma kW[] instrs 4 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+desc bf16 a=fmt b=fmt 64x64 nw4 K128: wgmma kW[] instrs 8 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 16x32 nw1 K64 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 16x32 nw1 K32 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 16x32 nw1 K64 KT192: mma.sync kW[4] instrs 12 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 16x32 nw1 K128 KT160: mma.sync kW[4] instrs 10 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 32x64 nw2 K64 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 32x64 nw2 K32 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 32x64 nw2 K64 KT192: mma.sync kW[4] instrs 12 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 32x64 nw2 K128 KT160: mma.sync kW[4] instrs 10 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 64x64 nw4 K64 KT96: wgmma kW[2] instrs 6 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 64x64 nw4 K32 KT96: wgmma kW[2] instrs 6 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 64x64 nw4 K64 KT192: wgmma kW[2] instrs 12 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop bf16 a=i8 b=fmt 64x64 nw4 K128 KT160: wgmma kW[2] instrs 10 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 16x32 nw1 K64 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 16x32 nw1 K32 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 16x32 nw1 K64 KT192: mma.sync kW[4] instrs 12 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 16x32 nw1 K128 KT160: mma.sync kW[4] instrs 10 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 32x64 nw2 K64 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 32x64 nw2 K32 KT96: mma.sync kW[4] instrs 6 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 32x64 nw2 K64 KT192: mma.sync kW[4] instrs 12 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 32x64 nw2 K128 KT160: mma.sync kW[4] instrs 10 sizes [16] widest-span 30 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 64x64 nw4 K64 KT96: wgmma kW[2] instrs 6 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 64x64 nw4 K32 KT96: wgmma kW[2] instrs 6 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 64x64 nw4 K64 KT192: wgmma kW[2] instrs 12 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+loop bf16 a=e5 b=fmt 64x64 nw4 K128 KT160: wgmma kW[2] instrs 10 sizes [16] widest-span 16 in-aligned-64-and-ordered True
+SUMMARY: 506 configurations probed, 0 with an instruction outside one aligned block of 64 or out of order

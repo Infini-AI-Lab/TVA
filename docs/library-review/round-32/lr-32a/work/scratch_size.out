@@ -1,0 +1,11 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+host descriptors, pipelined, WS=False    global_scratch_size=0 profile_scratch_size=0
+pointer loads + dot, pipelined, WS=False global_scratch_size=0 profile_scratch_size=0
+host descriptors, pipelined, WS=True     global_scratch_size=0 profile_scratch_size=0
+pointer loads, WS=True: RuntimeError: PassManager::run failed
+block pointers, pipelined                global_scratch_size=0 profile_scratch_size=0
+host descriptor gather/scatter: PTXASError: PTXAS error: Internal Triton PTX codegen error
+gather, sort, cumsum, histogram, atomics, asm global_scratch_size=0 profile_scratch_size=0
+tl.dot_scaled e4m3                       global_scratch_size=0 profile_scratch_size=0
+3-D tl.dot                               global_scratch_size=0 profile_scratch_size=0
+CONTROL tl.make_tensor_descriptor with the null allocator: RuntimeError: Kernel requires a runtime memory allocation, but no allocator was set. Use triton.set_allocator to specify an allocator.

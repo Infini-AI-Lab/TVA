@@ -1,0 +1,115 @@
+{
+  "kernel": "block_scaled_matmul_mxfp8",
+  "title": "Block-scaled matmul, Triton tutorial 10 (`block_scaled_matmul_kernel`, mxfp8 and mixed: e4m3 by e4m3 or by e2m1 with e8m0 scales, float16 output)",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/10-block-scaled-matmul.py",
+    "sha256": "22ca9616acab1ee6a017746cffc7bae5a34109510cc49f4a64e6d40cfc331885",
+    "ranges": [
+      [
+        123,
+        124
+      ],
+      [
+        174,
+        240
+      ]
+    ],
+    "host": [
+      [
+        120,
+        120
+      ],
+      [
+        122,
+        122
+      ],
+      [
+        125,
+        127
+      ],
+      [
+        130,
+        131
+      ],
+      [
+        134,
+        136
+      ],
+      [
+        139,
+        140
+      ],
+      [
+        143,
+        144
+      ],
+      [
+        147,
+        152
+      ],
+      [
+        155,
+        171
+      ],
+      [
+        243,
+        281
+      ],
+      [
+        284,
+        327
+      ],
+      [
+        330,
+        449
+      ],
+      [
+        452,
+        469
+      ],
+      [
+        472,
+        502
+      ],
+      [
+        505,
+        512
+      ],
+      [
+        515,
+        521
+      ],
+      [
+        596,
+        608
+      ],
+      [
+        611,
+        645
+      ],
+      [
+        648,
+        680
+      ],
+      [
+        683,
+        708
+      ],
+      [
+        711,
+        727
+      ],
+      [
+        730,
+        765
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.BlockScaledMxfp8",
+  "statement": "Claims.BlockScaledMxfp8.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

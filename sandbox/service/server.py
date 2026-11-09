@@ -435,8 +435,9 @@ def preflight():
     """Check, before the prover starts, that the reviewers' agent runs with the key and the model given: a
     bad key would otherwise surface only when the first round fails."""
     u = USERS[REVIEWERS[0]]
+    # 15 minutes: a slow serverless model can take minutes for its first request (GLM 5.3 Flash, 2026-11-07)
     rc, out = as_user(u, ["claude", "-p", "Reply with the single word: ready", "--output-format", "json",
-                          "--model", MODEL], pwd.getpwnam(u).pw_dir, 300, agent_env())
+                          "--model", MODEL], pwd.getpwnam(u).pw_dir, 900, agent_env())
     res = cli_result(out)
     if rc != 0 or not res or res.get("is_error"):
         sys.exit(f"the reviewer agents cannot run (model {MODEL}): {res.get('result') or tail(out, 5)}")

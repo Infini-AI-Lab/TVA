@@ -1,0 +1,5 @@
+ | // end inline asm | bar.sync 	0; | and.b32 	%r45, %r16, 126; | shl.b32 	%r46, %r45, 2;
+ld.shared.b64 	%rd5, [%r51]; | ld.shared.b64 	%rd6, [%r51+512]; | bar.sync 	0; | shl.b32 	%r52, %r21, 2; | add.s32 	%r5, %r43, %r52;
+ | // end inline asm | bar.sync 	0; | shl.b32 	%r54, %r45, 1; | and.b32 	%r55, %r48, 576;
+ld.shared.b32 	%r12, [%r57]; | ld.shared.b32 	%r14, [%r57+256]; | bar.sync 	0; | shl.b32 	%r58, %r16, 2; | and.b32 	%r59, %r58, 124;
+ | // end inline asm | bar.sync 	0; | shl.b32 	%r67, %r16, 1; | and.b32 	%r68, %r67, 124;

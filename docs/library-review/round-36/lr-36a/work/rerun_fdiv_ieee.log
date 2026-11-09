@@ -1,0 +1,120 @@
+Triton 3.8.0, torch 2.11.0+cu130, numpy 2.3.5, NVIDIA H200 NVL
+
+## A. PTX division instructions
+- tl.fdiv(ieee_rounding=True), float32 operands: div.rn.f32; result 1 `tt.precise_divf`
+- tl.div_rn, float32 operands: div.rn.f32; result 1 `tt.precise_divf`
+- tl.fdiv, float32 operands: div.full.f32; result 0 `tt.precise_divf`
+loc("v"("docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py":44:13)): error: intrinsic call returns half but "llvm.nvvm.div.rn.f" actually returns float
+loc("v"("docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py":44:13)): error: LLVM Translation failed for operation: llvm.call_intrinsic
+- tl.fdiv(ieee_rounding=True), float16 operands: rejected (RuntimeError: failed to translate module to LLVM IR)
+- tl.div_rn, float16 operands: rejected (CompilationError: at 8:12:)
+LLVM ERROR: Unsupported bitwidth
+#blocked = #ttg.blocked<{sizePerThread = [8], threadsPerWarp = [32], warpsPerCTA = [4], order = [0]}>
+#blocked1 = #ttg.blocked<{sizePerThread = [4], threadsPerWarp = [32], warpsPerCTA = [4], order = [0]}>
+module attributes {"ttg.num-ctas" = 1 : i32, "ttg.num-warps" = 4 : i32, ttg.target = "cuda:90", "ttg.threads-per-warp" = 32 : i32} {
+  tt.func public @k_div(%arg0: !tt.ptr<f16> {tt.divisibility = 16 : i32}, %arg1: !tt.ptr<f16> {tt.divisibility = 16 : i32}, %arg2: !tt.ptr<f32> {tt.divisibility = 16 : i32}) attributes {noinline = false} {
+    %c1024_i32 = arith.constant 1024 : i32
+    %0 = tt.get_program_id x : i32
+    %1 = arith.muli %0, %c1024_i32 : i32
+    %2 = tt.make_range {end = 1024 : i32, start = 0 : i32} : tensor<1024xi32, #blocked>
+    %3 = tt.make_range {end = 1024 : i32, start = 0 : i32} : tensor<1024xi32, #blocked1>
+    %4 = tt.splat %1 : i32 -> tensor<1024xi32, #blocked>
+    %5 = tt.splat %1 : i32 -> tensor<1024xi32, #blocked1>
+    %6 = arith.addi %4, %2 : tensor<1024xi32, #blocked>
+    %7 = arith.addi %5, %3 : tensor<1024xi32, #blocked1>
+    %8 = tt.splat %arg0 : !tt.ptr<f16> -> tensor<1024x!tt.ptr<f16>, #blocked>
+    %9 = tt.addptr %8, %6 : tensor<1024x!tt.ptr<f16>, #blocked>, tensor<1024xi32, #blocked>
+    %10 = tt.load %9 : tensor<1024x!tt.ptr<f16>, #blocked>
+    %11 = tt.splat %arg1 : !tt.ptr<f16> -> tensor<1024x!tt.ptr<f16>, #blocked>
+    %12 = tt.addptr %11, %6 : tensor<1024x!tt.ptr<f16>, #blocked>, tensor<1024xi32, #blocked>
+    %13 = tt.load %12 : tensor<1024x!tt.ptr<f16>, #blocked>
+    %14 = arith.divf %10, %13 : tensor<1024xf16, #blocked>
+    %15 = tt.splat %arg2 : !tt.ptr<f32> -> tensor<1024x!tt.ptr<f32>, #blocked1>
+    %16 = tt.addptr %15, %7 : tensor<1024x!tt.ptr<f32>, #blocked1>, tensor<1024xi32, #blocked1>
+    %17 = ttg.convert_layout %14 : tensor<1024xf16, #blocked> -> tensor<1024xf16, #blocked1>
+    %18 = arith.extf %17 : tensor<1024xf16, #blocked1> to tensor<1024xf32, #blocked1>
+    tt.store %16, %18 : tensor<1024x!tt.ptr<f32>, #blocked1>
+    tt.return
+  }
+}
+
+{-#
+  external_resources: {
+    mlir_reproducer: {
+      pipeline: "builtin.module(tritongpu-combine-tensor-select-and-if, tritongpu-allocate-warp-groups{instrumented=false}, convert-scf-to-cf{allow-pattern-rollback=true}, gluon-inline, allocate-shared-memory-nv{compute-capability=90 ptx-version=88}, triton-tensor-memory-allocation, triton-nvidia-check-matmul-two-cta, triton-nvidia-gpu-proxy-fence-insertion{compute-capability=90}, triton-nvidia-gpu-tmem-barrier-insertion, convert-triton-gpu-to-llvm{compute-capability=90 enable-concurrency-sanitizer=false ptx-version=88}, initialize-ws-cluster-barriers{compute-capability=90 ptx-version=88}, llvm.func(canonicalize-llvm-ir), cse, convert-warp-specialize-to-llvm, convert-nv-gpu-to-llvm, canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true}, cse, symbol-dce, convert-nvvm-to-llvm, enable-line-info)",
+      disable_threading: true,
+      verify_each: true
+    }
+  }
+#-}
+docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py:39:1: error: Failures have been detected while processing an MLIR pass pipeline
+def k_div(x, y, o, r, N: tl.constexpr, MODE: tl.constexpr):
+^
+docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py:39:1: note: Pipeline failed while executing [`ConvertTritonGPUToLLVM` on 'builtin.module' operation]: reproducer generated at `std::errs, please share the reproducer above with Triton project.`
+- tl.fdiv, float16 operands: rejected (RuntimeError: PassManager::run failed)
+loc("v"("docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py":44:13)): error: intrinsic call returns bfloat but "llvm.nvvm.div.rn.f" actually returns float
+loc("v"("docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py":44:13)): error: LLVM Translation failed for operation: llvm.call_intrinsic
+- tl.fdiv(ieee_rounding=True), bfloat16 operands: rejected (RuntimeError: failed to translate module to LLVM IR)
+- tl.div_rn, bfloat16 operands: rejected (CompilationError: at 8:12:)
+LLVM ERROR: Unsupported bitwidth
+#blocked = #ttg.blocked<{sizePerThread = [8], threadsPerWarp = [32], warpsPerCTA = [4], order = [0]}>
+#blocked1 = #ttg.blocked<{sizePerThread = [4], threadsPerWarp = [32], warpsPerCTA = [4], order = [0]}>
+module attributes {"ttg.num-ctas" = 1 : i32, "ttg.num-warps" = 4 : i32, ttg.target = "cuda:90", "ttg.threads-per-warp" = 32 : i32} {
+  tt.func public @k_div(%arg0: !tt.ptr<bf16> {tt.divisibility = 16 : i32}, %arg1: !tt.ptr<bf16> {tt.divisibility = 16 : i32}, %arg2: !tt.ptr<f32> {tt.divisibility = 16 : i32}) attributes {noinline = false} {
+    %c1024_i32 = arith.constant 1024 : i32
+    %0 = tt.get_program_id x : i32
+    %1 = arith.muli %0, %c1024_i32 : i32
+    %2 = tt.make_range {end = 1024 : i32, start = 0 : i32} : tensor<1024xi32, #blocked>
+    %3 = tt.make_range {end = 1024 : i32, start = 0 : i32} : tensor<1024xi32, #blocked1>
+    %4 = tt.splat %1 : i32 -> tensor<1024xi32, #blocked>
+    %5 = tt.splat %1 : i32 -> tensor<1024xi32, #blocked1>
+    %6 = arith.addi %4, %2 : tensor<1024xi32, #blocked>
+    %7 = arith.addi %5, %3 : tensor<1024xi32, #blocked1>
+    %8 = tt.splat %arg0 : !tt.ptr<bf16> -> tensor<1024x!tt.ptr<bf16>, #blocked>
+    %9 = tt.addptr %8, %6 : tensor<1024x!tt.ptr<bf16>, #blocked>, tensor<1024xi32, #blocked>
+    %10 = tt.load %9 : tensor<1024x!tt.ptr<bf16>, #blocked>
+    %11 = tt.splat %arg1 : !tt.ptr<bf16> -> tensor<1024x!tt.ptr<bf16>, #blocked>
+    %12 = tt.addptr %11, %6 : tensor<1024x!tt.ptr<bf16>, #blocked>, tensor<1024xi32, #blocked>
+    %13 = tt.load %12 : tensor<1024x!tt.ptr<bf16>, #blocked>
+    %14 = arith.divf %10, %13 : tensor<1024xbf16, #blocked>
+    %15 = tt.splat %arg2 : !tt.ptr<f32> -> tensor<1024x!tt.ptr<f32>, #blocked1>
+    %16 = tt.addptr %15, %7 : tensor<1024x!tt.ptr<f32>, #blocked1>, tensor<1024xi32, #blocked1>
+    %17 = ttg.convert_layout %14 : tensor<1024xbf16, #blocked> -> tensor<1024xbf16, #blocked1>
+    %18 = arith.extf %17 : tensor<1024xbf16, #blocked1> to tensor<1024xf32, #blocked1>
+    tt.store %16, %18 : tensor<1024x!tt.ptr<f32>, #blocked1>
+    tt.return
+  }
+}
+
+{-#
+  external_resources: {
+    mlir_reproducer: {
+      pipeline: "builtin.module(tritongpu-combine-tensor-select-and-if, tritongpu-allocate-warp-groups{instrumented=false}, convert-scf-to-cf{allow-pattern-rollback=true}, gluon-inline, allocate-shared-memory-nv{compute-capability=90 ptx-version=88}, triton-tensor-memory-allocation, triton-nvidia-check-matmul-two-cta, triton-nvidia-gpu-proxy-fence-insertion{compute-capability=90}, triton-nvidia-gpu-tmem-barrier-insertion, convert-triton-gpu-to-llvm{compute-capability=90 enable-concurrency-sanitizer=false ptx-version=88}, initialize-ws-cluster-barriers{compute-capability=90 ptx-version=88}, llvm.func(canonicalize-llvm-ir), cse, convert-warp-specialize-to-llvm, convert-nv-gpu-to-llvm, canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true}, cse, symbol-dce, convert-nvvm-to-llvm, enable-line-info)",
+      disable_threading: true,
+      verify_each: true
+    }
+  }
+#-}
+docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py:39:1: error: Failures have been detected while processing an MLIR pass pipeline
+def k_div(x, y, o, r, N: tl.constexpr, MODE: tl.constexpr):
+^
+docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py:39:1: note: Pipeline failed while executing [`ConvertTritonGPUToLLVM` on 'builtin.module' operation]: reproducer generated at `std::errs, please share the reproducer above with Triton project.`
+- tl.fdiv, bfloat16 operands: rejected (RuntimeError: PassManager::run failed)
+loc("v"("docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py":44:13)): error: intrinsic call returns double but "llvm.nvvm.div.rn.f" actually returns float
+loc("v"("docs/library-review/round-36/lr-36a/work/rerun_fdiv_ieee.py":44:13)): error: LLVM Translation failed for operation: llvm.call_intrinsic
+- tl.fdiv(ieee_rounding=True), float64 operands: rejected (RuntimeError: failed to translate module to LLVM IR)
+- tl.div_rn, float64 operands: rejected (CompilationError: at 8:12:)
+- tl.fdiv, float64 operands: div.rn.f64; result 0 `tt.precise_divf`
+- tl.softmax(ieee_rounding=False), float32: div.full.f32
+- tl.softmax(ieee_rounding=True), float32: div.rn.f32
+
+## B. float32 quotients, bit for bit
+- all pairs of 256 patterns (65536): ieee_rounding=True vs tl.div_rn differ in 0; vs the IEEE quotient in 0; the default tl.fdiv vs the IEEE quotient in 13677
+- 2^24 random pairs (16777216): ieee_rounding=True vs tl.div_rn differ in 0; vs the IEEE quotient in 0; the default tl.fdiv vs the IEEE quotient in 3718265
+
+## C. a following addition, enable_fp_fusion on (the default)
+- tl.fdiv(x, y, ieee_rounding=True) + c: 1048576 results, 0 differ from the IEEE sum of the IEEE quotient (an unrounded quotient would differ on 1048575); SASS {'FFMA': 49, 'FADD': 8, 'MUFU.RCP': 9, 'CALL.REL.NOINC': 8}
+- c - tl.fdiv(x, y, ieee_rounding=True): 1048576 results, 0 differ from the IEEE sum of the IEEE quotient (an unrounded quotient would differ on 1048575); SASS {'FFMA': 49, 'FADD': 8, 'MUFU.RCP': 9, 'CALL.REL.NOINC': 8}
+
+## D. tl.softmax(ieee_rounding=True), rows of 16
+- 65536 results, 0 differ from `num / den` with the IEEE division

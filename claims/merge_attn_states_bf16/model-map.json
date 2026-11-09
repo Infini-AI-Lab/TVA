@@ -1,0 +1,411 @@
+{
+ "source": {
+  "file": "source/merge_attn_states.py",
+  "sha256": "124cca1c9bf654709d3171428beccf72d61bfb1a20cf402852155e1f02bd8c81",
+  "ranges": [
+   [
+    61,
+    62
+   ],
+   [
+    65,
+    92
+   ],
+   [
+    94,
+    94
+   ],
+   [
+    96,
+    97
+   ],
+   [
+    101,
+    113
+   ],
+   [
+    115,
+    121
+   ],
+   [
+    123,
+    126
+   ],
+   [
+    128,
+    136
+   ],
+   [
+    140,
+    149
+   ],
+   [
+    156,
+    157
+   ],
+   [
+    159,
+    161
+   ],
+   [
+    163,
+    165
+   ],
+   [
+    167,
+    168
+   ],
+   [
+    171,
+    177
+   ],
+   [
+    179,
+    192
+   ],
+   [
+    197,
+    199
+   ],
+   [
+    202,
+    202
+   ],
+   [
+    204,
+    207
+   ],
+   [
+    209,
+    216
+   ]
+  ],
+  "host": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.MergeAttnStates",
+ "entries": [
+  {
+   "src": [
+    61
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module (SEMANTICS.md, the supported subset, Names); it adds no step to the program"
+  },
+  {
+   "src": [
+    62
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (SEMANTICS.md, the supported subset, Names); it adds no step to the program"
+  },
+  {
+   "src": [
+    65
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: `debug` unset (`Launch.debug = false`); the model is the `Kernel` it decorates"
+  },
+  {
+   "src": [
+    "66-89"
+   ],
+   "drop": "decl",
+   "note": "the signature: the five tensor pointers other than `output_lse`, the eight strides and `prefill_tokens_with_context` are the model's `Ptr`/`I32` parameters (an argument equal to `1` is the compile-time constant `1`, which each use builds in `int32`: the same model); `output_lse` is an `Option (Ptr .f32)`, `none` for the host's `None` (`return_lse=False`); the host passes `OUTPUT_LSE = output_lse is not None` (line 294), so the model reads `OUTPUT_LSE` off `output_lse` and has no parameter for it; `output_scale` is `None` and `USE_FP8 = False` on the covered path (SETUP.md), so `output_scale`, `USE_FP8`, `FP8_MIN`, `FP8_MAX` have no parameter; `HEAD_SIZE`, `PADDED_HEAD_SIZE` are `Nat` parameters"
+  },
+  {
+   "src": [
+    90
+   ],
+   "model": "let token_idx := tl.program_id ctx 0",
+   "note": "axis 0 of the grid `(num_tokens, num_heads)`, an `int32` scalar"
+  },
+  {
+   "src": [
+    91
+   ],
+   "model": "let head_idx := tl.program_id ctx 1",
+   "note": "axis 1"
+  },
+  {
+   "src": [
+    92
+   ],
+   "model": "let num_heads := tl.num_programs ctx 1",
+   "note": "the grid's size along axis 1 (`num_heads`, the host's grid)"
+  },
+  {
+   "src": [
+    94
+   ],
+   "model": "let prefix_mask := ((bc token_idx).ltS prefill_tokens_with_context).item",
+   "note": "two `int32` scalars compared signed; an `int1` scalar"
+  },
+  {
+   "src": [
+    96
+   ],
+   "model": "let head_arange := tl.arange 0 PADDED_HEAD_SIZE",
+   "note": "the `int32` block `0 … PADDED_HEAD_SIZE − 1` (a power of two at most `2^20`: `Inst.ok`)"
+  },
+  {
+   "src": [
+    97
+   ],
+   "model": "let head_mask := head_arange.ltS (IntV.ofNat HEAD_SIZE : I32)",
+   "note": "the constexpr `HEAD_SIZE` built in `int32`, signed comparison"
+  },
+  {
+   "src": [
+    101
+   ],
+   "model": "if !prefix_mask then",
+   "note": "a runtime `if` on the `int1` scalar (`not` of it); its branch ends with line 136's `return`, so the rest of the body is the `else` (SEMANTICS.md, a runtime `if`, `return`)"
+  },
+  {
+   "src": [
+    "102-106"
+   ],
+   "model": "let s_lse ← tl.load1 (suffix_lse + head_idx * suffix_lse_head_stride\n        + token_idx * suffix_lse_token_stride)",
+   "note": "one `float32` element `suffix_lse[h, t]`; the two `int32` products are separate pointer offsets"
+  },
+  {
+   "src": [
+    107
+   ],
+   "model": "match output_lse with\n      | none => pure ()\n      | some output_lse =>",
+   "note": "`if OUTPUT_LSE:`, a compile-time `if` on the constexpr `output_lse is not None`: with `None` (`return_lse=False`) the branch is not visited; with a tensor it is taken"
+  },
+  {
+   "src": [
+    "108-113"
+   ],
+   "model": "tl.store1 (output_lse + head_idx * output_lse_head_stride\n          + token_idx * output_lse_token_stride) s_lse",
+   "note": "the element stored to `output_lse[h, t]`, already the pointer's dtype"
+  },
+  {
+   "src": [
+    "115-121"
+   ],
+   "model": "let s_out : Tensor [PADDED_HEAD_SIZE] BF16 ←\n        tl.load (suffix_output + token_idx * num_heads * prefix_head_stride\n          + head_idx * prefix_head_stride + head_arange) (some head_mask)",
+   "note": "the masked block load; no `other=`: the masked lanes are unspecified"
+  },
+  {
+   "src": [
+    123
+   ],
+   "drop": "config",
+   "note": "`USE_FP8` is a `tl.constexpr`, `False` on the covered path (no `output_scale`): the branch is not visited"
+  },
+  {
+   "src": [
+    124
+   ],
+   "drop": "config",
+   "note": "inside the `USE_FP8` branch, not visited on the covered path (line 123)"
+  },
+  {
+   "src": [
+    125
+   ],
+   "drop": "config",
+   "note": "inside the `USE_FP8` branch, not visited on the covered path (line 123)"
+  },
+  {
+   "src": [
+    126
+   ],
+   "drop": "config",
+   "note": "inside the `USE_FP8` branch, not visited on the covered path (line 123)"
+  },
+  {
+   "src": [
+    "128-135"
+   ],
+   "model": "tl.store (output + token_idx * num_heads * output_head_stride\n        + head_idx * output_head_stride + head_arange) s_out (some head_mask)",
+   "note": "the masked block store; `s_out` is already `bfloat16`, the pointer's dtype"
+  },
+  {
+   "src": [
+    136
+   ],
+   "drop": "decl",
+   "note": "the branch's `return`: the end of the `then` branch of the model's runtime `if` (SEMANTICS.md, `return`)"
+  },
+  {
+   "src": [
+    "140-144"
+   ],
+   "model": "let p_lse ← tl.load1 (prefix_lse + head_idx * prefix_lse_head_stride\n        + token_idx * prefix_lse_token_stride)",
+   "note": "one `float32` element `prefix_lse[h, t]`"
+  },
+  {
+   "src": [
+    "145-149"
+   ],
+   "model": "let s_lse ← tl.load1 (suffix_lse + head_idx * suffix_lse_head_stride\n        + token_idx * suffix_lse_token_stride)",
+   "note": "one `float32` element `suffix_lse[h, t]`"
+  },
+  {
+   "src": [
+    156
+   ],
+   "model": "let p_lse := if ((bc p_lse).feq (bc posInfC)).item then negInfC else p_lse",
+   "note": "a conditional expression on a runtime condition: a runtime `if` whose value is a `float32` scalar (SEMANTICS.md, \"Order\"); `float(\"inf\")` in the comparison is a `float32` tensor of `+∞` (`posInfC`), `float(\"-inf\")` the scalar tensor of its own type, `float32` `−∞` (`negInfC`)"
+  },
+  {
+   "src": [
+    157
+   ],
+   "model": "let s_lse := if ((bc s_lse).feq (bc posInfC)).item then negInfC else s_lse",
+   "note": "the same for the suffix"
+  },
+  {
+   "src": [
+    159
+   ],
+   "model": "let max_lse := (← tl.maximum (bc p_lse) (bc s_lse)).item",
+   "note": "`tl.maximum` of two `float32` scalars (`MaxRel`)"
+  },
+  {
+   "src": [
+    160
+   ],
+   "model": "let p_lse := (← tl.sub (bc p_lse) (bc max_lse)).item",
+   "note": "the IEEE `−` (no product feeds it)"
+  },
+  {
+   "src": [
+    161
+   ],
+   "model": "let s_lse := (← tl.sub (bc s_lse) (bc max_lse)).item",
+   "note": "the IEEE `−`"
+  },
+  {
+   "src": [
+    163
+   ],
+   "model": "let p_se := (← tl.exp (bc p_lse)).item",
+   "note": "the platform's `tl.exp` on `float32` (`Num.ExpF32`, `Num.ExpF32NegInf`)"
+  },
+  {
+   "src": [
+    164
+   ],
+   "model": "let s_se := (← tl.exp (bc s_lse)).item",
+   "note": "the platform's `tl.exp`"
+  },
+  {
+   "src": [
+    165
+   ],
+   "model": "let out_se := (← tl.add (bc p_se) (bc s_se)).item",
+   "note": "the operands are `tl.exp` results, not products: the IEEE `+`"
+  },
+  {
+   "src": [
+    167
+   ],
+   "model": "match output_lse with\n      | none => pure ()\n      | some output_lse =>",
+   "note": "`if OUTPUT_LSE:`, a compile-time `if`: with `None` lines 168–177 are not visited; with a tensor they are"
+  },
+  {
+   "src": [
+    168
+   ],
+   "model": "let out_lse := (← tl.log (bc out_se)).item\n        let out_lse := (← tl.add (bc out_lse) (bc max_lse)).item",
+   "note": "the platform's `tl.log` on `float32` (`Num.LogF32`), then the IEEE `+` (no product feeds it)"
+  },
+  {
+   "src": [
+    171
+   ],
+   "model": "let out_lse := (Tensor.where_ ((bc max_lse).feq (bc negInfC)) (bc negInfC)\n          (bc out_lse) : Tensor [] F32).item",
+   "note": "`tl.where` of `float32` scalars: the condition compares with the `float32` `−∞`, and the Python `float(\"-inf\")` beside the `float32` `out_lse` is the `float32` `−∞`"
+  },
+  {
+   "src": [
+    "172-177"
+   ],
+   "model": "tl.store1 (output_lse + head_idx * output_lse_head_stride\n          + token_idx * output_lse_token_stride) out_lse",
+   "note": "the merged lse stored to `output_lse[h, t]`"
+  },
+  {
+   "src": [
+    "179-185"
+   ],
+   "model": "let p_out : Tensor [PADDED_HEAD_SIZE] BF16 ←\n        tl.load (prefix_output + token_idx * num_heads * prefix_head_stride\n          + head_idx * prefix_head_stride + head_arange) (some head_mask)",
+   "note": "the masked block load of `prefix_output`; masked lanes unspecified"
+  },
+  {
+   "src": [
+    "186-192"
+   ],
+   "model": "let s_out : Tensor [PADDED_HEAD_SIZE] BF16 ←\n        tl.load (suffix_output + token_idx * num_heads * prefix_head_stride\n          + head_idx * prefix_head_stride + head_arange) (some head_mask)",
+   "note": "the masked block load of `suffix_output` (with `prefix_head_stride`, as the source)"
+  },
+  {
+   "src": [
+    197
+   ],
+   "model": "let p_scale := (← tl.div (bc p_se) (bc out_se)).item",
+   "note": "`float32 / float32`: the platform's division (`Num.DivFull`)"
+  },
+  {
+   "src": [
+    198
+   ],
+   "model": "let s_scale := (← tl.div (bc s_se) (bc out_se)).item",
+   "note": "the platform's division"
+  },
+  {
+   "src": [
+    199
+   ],
+   "model": "let p32 : Tensor [PADDED_HEAD_SIZE] F32 ← tl.cvt p_out\n      let s32 : Tensor [PADDED_HEAD_SIZE] F32 ← tl.cvt s_out\n      let prod_p ← tl.mul p32 (bc p_scale)\n      let prod_s ← tl.mul s32 (bc s_scale)\n      let out32 ← tl.addc prod_p prod_s",
+   "note": "`bfloat16 * float32` promotes the block to `float32` (exact), the IEEE products; the `+` has a product on each side: the fusable `tl.addc` (either product may contract)"
+  },
+  {
+   "src": [
+    202
+   ],
+   "model": "let out32 := Tensor.where_ (bc ((bc max_lse).feq (bc negInfC)).item) (bc zeroC) out32",
+   "note": "`tl.where` in `float32`: the scalar condition broadcast to the block, the `0.0` beside the `float32` block built in `float32` (`zeroC`, `+0`)"
+  },
+  {
+   "src": [
+    204
+   ],
+   "drop": "config",
+   "note": "`USE_FP8` is `False` (compile time): the branch is not visited"
+  },
+  {
+   "src": [
+    205
+   ],
+   "drop": "config",
+   "note": "inside the `USE_FP8` branch, not visited on the covered path (line 204)"
+  },
+  {
+   "src": [
+    206
+   ],
+   "drop": "config",
+   "note": "inside the `USE_FP8` branch, not visited on the covered path (line 204)"
+  },
+  {
+   "src": [
+    207
+   ],
+   "drop": "config",
+   "note": "inside the `USE_FP8` branch, not visited on the covered path (line 204)"
+  },
+  {
+   "src": [
+    "209-216"
+   ],
+   "model": "let out16 : Tensor [PADDED_HEAD_SIZE] BF16 ← tl.cvt out32\n      tl.store (output + token_idx * num_heads * output_head_stride\n        + head_idx * output_head_stride + head_arange) out16 (some head_mask)",
+   "note": "the store's implicit conversion to the pointer's `bfloat16` (nearest even), written explicitly; the masked block store"
+  }
+ ]
+}

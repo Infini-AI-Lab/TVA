@@ -78,6 +78,30 @@ def ExpF32NegInf : Prop := MathAt P .exp .binary32 negInfF32 zeroF32
 needs it when the running maximum starts at `-inf`. Evidence: `evidence/num-math-f32`. -/
 def Exp2F32NegInf : Prop := MathAt P .exp2 .binary32 negInfF32 zeroF32
 
+/-- `+∞` in `float32` (pattern `0x7f800000`). -/
+def posInfF32 : F32 := FloatV.ofPat 0x7f800000
+
+/-- **`tl.exp` overflows to `+∞` on `float32`**: every input from `88.72283935546875` (pattern
+`0x42b17218`, `1453635/16384`) up, and `+∞`, gives `+∞`. Triton computes `x · log2 e` with
+`mul.f32`, then `ex2.approx.f32` (`triton-3.8.0-nvidia-ElementwiseOpToLLVM.cpp:634-658`), which is
+`+∞` once the product reaches `128`; the largest input with a finite result is `0x42b17217`
+(`88.72283172607422`, result `0x7f7fff4f`). `ExpF32` says nothing there (its room fails).
+Evidence: `evidence/num-special-f32` E1 (every `float32` pattern from `+64` to `+∞`; library
+issue L154). -/
+def ExpF32Overflow : Prop :=
+  ∀ x : F32, ((x.isFinite = true ∧ (1453635 / 16384 : ℚ) ≤ x.toRat) ∨ x = posInfF32) →
+    ∀ r, P.math .exp .binary32 x r → r = posInfF32
+
+/-! ## Division by an infinite divisor on `float32` -/
+
+/-- **`x / ±∞ = ±0`** on `float32` (`div.full.f32`): for every finite `x` and infinite `y`, the
+result is the zero whose sign is `sign x xor sign y` (`1 / ∞ = +0`), as IEEE division gives it
+(`Format.div`). `DivFull` says nothing at an infinite divisor. Evidence: `evidence/num-special-f32`
+D1 (every finite `float32` `x`, by `+∞` and by `-∞`; library issue L154). -/
+def DivF32InfDivisor : Prop :=
+  ∀ x y : F32, x.isFinite = true → y.isInf = true → ∀ r, P.div .binary32 x y r →
+    r = FloatV.ofPat (Format.binary32.zeroPat (x.sign != y.sign))
+
 /-! ## Conversions into fp8 -/
 
 /-- **`float32 → float8e4nv`** (`x.to(tl.float8e4nv)`, `cvt.rn.satfinite.e4m3x2.f32`): a finite
@@ -180,6 +204,20 @@ def DotF32Ieee : Prop :=
   DotAcc P ⟨.f32, .f32, .f32, .ieee, 0⟩ (fun _ => True)
     (fun K => (K + 1) * 2 ^ (-23 : ℤ)) (fun K => (K + 1) * 2 ^ (-149 : ℤ))
 
+/-- **`tl.dot` of `int8` operands into `int32`** (library issue L141, round 31), with or without an
+accumulator, any `input_precision` (Triton ignores it for these operands) and
+`max_num_imprecise_acc = 0` (the default for operands that are not fp8, `semantic.py:1516-1520`):
+exact. Triton 3.8.0's only integer `tl.dot` is this one (`semantic.py:1483-1486`: both operands
+`int8`, an `int32` result whatever `out_dtype` says). Triton chains `mma.sync …satfinite.s32.s8.s8.s32`
+(`m16n8k32`) or `wgmma …s32.s8.s8` (`k32`) instructions along `K`, which sum in integers: the first
+saturates an `int32` partial sum, the second wraps it. When `|acc| + Σ|a·b|` is at most `2^31 - 1`,
+no partial sum in any order leaves the `int32` range, so the result is `acc + Σ a·b` exactly. Beyond
+that the two paths differ, and the fact says nothing. Evidence: `evidence/num-dot-int8` (random and
+extreme operands on both paths and every precision, the room at its edge, and the paths' behaviour
+beyond it). -/
+def DotI8 : Prop :=
+  ∀ p : InputPrecision, DotAcc P ⟨.i8, .i8, .i32, p, 0⟩ (fun _ => True) (fun _ => 0) (fun _ => 0)
+
 /-! ## `tl.dot_scaled` on sm_90 -/
 
 /-- The scaled values the sm_90 emulation multiplies exactly in `bfloat16`: `0`, or a magnitude
@@ -220,5 +258,30 @@ nearest with subnormal inputs and results flushed to zero, as `atom.add.f32` doe
 `2^-24·|o + v| + 2^-125`; the fact keeps a factor `2` on both. Evidence:
 `evidence/num-atomic-add`. -/
 def AtomicAddF32 : Prop := AtomicAddAcc P .binary32 (2 ^ (-23 : ℤ)) (2 ^ (-124 : ℤ))
+
+end TVA.Rules.Num
+
+/-! ## The depth of a float reduction's tree (library issue L149) -/
+
+namespace TVA.Rules.Num
+
+/-- **The trees of a float `tl.sum` on sm_90 are balanced**: `P.sumDepth n ≤ ⌈log₂ n⌉`, so a float
+reduction (`tl.sum`, `tl.sumc` and their axis forms) over the `n` positions of its axis combines
+them along a tree of depth at most `⌈log₂ n⌉` (`SumDepth.depth_le`): `log₂ n` for the power of two
+`n` of a Triton axis. Triton 3.8.0 lowers a reduction (`ReduceOpToLLVM.cpp`) as a balanced binary
+tree over the axis's elements held by one thread (`treeReduce`, arity 2 on NVIDIA), then a
+butterfly of `shfl.sync.bfly` over the lanes along the axis, then, through shared memory, the same
+butterfly over the warps along the axis: each stage halves the positions left, whatever the layout.
+Evidence: `evidence/reduce-tree`. It is not stated for a reduction that the compiler rewrites across
+loop iterations (`OptimizeThreadLocality.cpp`, `docs/exclusions.md`). -/
+def SumDepth (P : Platform) : Prop := ∀ n, P.sumDepth n ≤ Nat.clog 2 n
+
+/-- With `SumDepth`, a reduction's tree (`t.depth ≤ tl.sumBound P n`) has depth at most `⌈log₂ n⌉`. -/
+theorem SumDepth.depth_le {P : Platform} (h : SumDepth P) {n : Nat} {t : Tree}
+    (ht : t.depth ≤ tl.sumBound P n) : t.depth ≤ Nat.clog 2 n :=
+  ht.trans (max_le (h n) le_rfl)
+
+/-- `⌈log₂ (2^k)⌉ = k`: the depth bound for an axis of `2^k` positions. -/
+theorem clog_two_pow (k : Nat) : Nat.clog 2 (2 ^ k) = k := Nat.clog_pow 2 k (by norm_num)
 
 end TVA.Rules.Num

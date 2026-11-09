@@ -1,0 +1,173 @@
+{
+ "source": {
+  "file": "source/vocab_parallel_embedding.py",
+  "sha256": "9106316fb3e4dda0a57116d60a494d09ce7e77c8f4f35612883961397ec36c32",
+  "ranges": [
+   [
+    50,
+    99
+   ]
+  ],
+  "host": [
+   [
+    48,
+    48
+   ],
+   [
+    102,
+    227
+   ]
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.VocabEmbedding",
+ "entries": [
+  {
+   "src": [
+    50
+   ],
+   "drop": "import",
+   "note": "binds `triton`, which the decorator of line 54 names; no other statement binds it; no step"
+  },
+  {
+   "src": [
+    51
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language`: every `tl.*` of lines 73-99 is Triton's (`TVA.tl.*`); no step"
+  },
+  {
+   "src": [
+    54
+   ],
+   "drop": "decl",
+   "note": "`@triton.jit` with no option: `debug` unset (`Launch.debug = false`), no `do_not_specialize`, no `launch_metadata`"
+  },
+  {
+   "src": [
+    "55-72"
+   ],
+   "model": [
+    "def vocab_parallel_embedding_kernel {dI : DType} (input_ptr : Ptr dI) (weight_ptr : Ptr .bf16)",
+    "(out_ptr : Ptr .bf16) (hidden_dim weight_stride0 : Nat)",
+    "(org_vocab_start_index org_vocab_end_index num_org_vocab_padding",
+    "added_vocab_start_index added_vocab_end_index : Int) (BLOCK_H : Nat) : Kernel where"
+   ],
+   "note": "`input_ptr` is `*int64` or `*int32` (`Inst.dI`, the host asserts one of the two), `weight_ptr`, `out_ptr` `*bf16`; the eight annotated `tl.constexpr` parameters are Lean parameters, each a Python `int`; the comment lines 59-63 are no code"
+  },
+  {
+   "src": [
+    73
+   ],
+   "model": "let row := (← tl.convert .i32 .i64 (Tensor.scalar (tl.program_id ctx 0))).item",
+   "note": "`tl.program_id(0)` (`int32`) `.to(tl.int64)`: `tl.convert`, sign-extending"
+  },
+  {
+   "src": [
+    74
+   ],
+   "model": "let col_block := tl.program_id ctx 1",
+   "note": "axis 1, an `int32`"
+  },
+  {
+   "src": [
+    75
+   ],
+   "model": "let cols := col_block * (IntV.ofNat BLOCK_H : I32) + tl.arange 0 BLOCK_H",
+   "note": "the constexpr `BLOCK_H` is built in `int32`, the product's dtype; wrapping `int32` arithmetic, which `Inst.ok.hidden_lt` keeps from wrapping"
+  },
+  {
+   "src": [
+    76
+   ],
+   "model": "let col_mask := cols.ltS (IntV.ofNat hidden_dim : I32)",
+   "note": "the constexpr `hidden_dim` (`< 2^31`) becomes an `int32` tensor; the signed comparison"
+  },
+  {
+   "src": [
+    78
+   ],
+   "model": [
+    "let t0 ← tl.load1 (input_ptr + row)",
+    "let token := (← tl.convert dI .i64 (Tensor.scalar t0)).item"
+   ],
+   "note": "a scalar load of `input_ptr + row` (the `int64` row), then `.to(tl.int64)`: the identity on `int64` ids, sign extension of `int32` ids"
+  },
+  {
+   "src": [
+    79
+   ],
+   "model": [
+    "let org_vocab_mask :=",
+    "Tensor.and ((Tensor.scalar (IntV.ofInt org_vocab_start_index : I64)).le (Tensor.scalar token))",
+    "((Tensor.scalar token).lt (Tensor.scalar (IntV.ofInt org_vocab_end_index : I64)))"
+   ],
+   "note": "each constexpr becomes a scalar tensor of its own type (`int32` or `int64`; `Inst.ok` keeps it in `[0, 2^63)`), promoted to `int64` with `token` (exact); signed comparisons; `&` of two `int1`"
+  },
+  {
+   "src": [
+    "80-82"
+   ],
+   "model": [
+    "let added_vocab_mask :=",
+    "Tensor.and ((Tensor.scalar (IntV.ofInt added_vocab_start_index : I64)).le (Tensor.scalar token))",
+    "((Tensor.scalar token).lt (Tensor.scalar (IntV.ofInt added_vocab_end_index : I64)))"
+   ],
+   "note": "as line 79, for the added range"
+  },
+  {
+   "src": [
+    83
+   ],
+   "model": "let valid := org_vocab_mask.or added_vocab_mask",
+   "note": "`|` of two `int1` scalars"
+  },
+  {
+   "src": [
+    "85-89"
+   ],
+   "model": [
+    "let added_offset : Int :=",
+    "added_vocab_start_index - (org_vocab_end_index - org_vocab_start_index) -",
+    "num_org_vocab_padding"
+   ],
+   "note": "every operand is a `tl.constexpr`, so Python's integer arithmetic; the name then holds a scalar tensor of the number's own type (SEMANTICS.md, A name assigned a Python number holds a tensor), promoted to `int64` where it is used (line 91); `Inst.ok.offset` keeps it in `[-2^63, 2^63)`, so the `int64` constant of line 91 is exact"
+  },
+  {
+   "src": [
+    "90-92"
+   ],
+   "model": [
+    "let local_id :=",
+    "tl.where org_vocab_mask (Tensor.scalar (token - (IntV.ofInt org_vocab_start_index : I64)))",
+    "(Tensor.scalar (token - (IntV.ofInt added_offset : I64)))"
+   ],
+   "note": "`token - org_vocab_start_index` and `token - added_offset`: `int64` subtractions with the constants promoted (wrapping); `tl.where` on an `int1` condition"
+  },
+  {
+   "src": [
+    93
+   ],
+   "model": "let local_id := tl.where valid local_id (Tensor.scalar (IntV.ofInt 0 : I64))",
+   "note": "the Python `0` as a value of `tl.where` is built in `int64`, the other value's dtype (SEMANTICS.md, Constants; `whereTyping?`)"
+  },
+  {
+   "src": [
+    "94-98"
+   ],
+   "model": [
+    "let other ← tl.convert .f32 .bf16 (tl.full [BLOCK_H] (FloatV.litF32 (FloatV.ofPat 0)))",
+    "let vals ← tl.load (weight_ptr + local_id.item * (IntV.ofNat weight_stride0 : I64) + cols)",
+    "(some (Tensor.and col_mask (bc valid.item))) (some other)"
+   ],
+   "note": "`(weight_ptr + local_id * weight_stride0) + cols` left to right: the constexpr stride built in `int64` (`< 2^63`, `Inst.ok.stride_lt`), the scalar pointer advanced by the `int64` product, then by each `int32` lane of `cols`; mask `col_mask & valid` (the scalar broadcast); `other=0.0` is the `float32` `+0` (a zero is `+0.0`), converted to `bfloat16` (SEMANTICS.md, `tl.load`: `other` converted as `tl.convert`)"
+  },
+  {
+   "src": [
+    99
+   ],
+   "model": "tl.store (out_ptr + row * (IntV.ofNat hidden_dim : I64) + cols) vals (some col_mask)",
+   "note": "`(out_ptr + row * hidden_dim) + cols`: the constexpr built in `int64`, the `int64` product, then the `int32` lanes; `vals` is already `bfloat16`, no conversion"
+  }
+ ]
+}

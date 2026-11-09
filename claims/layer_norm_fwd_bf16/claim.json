@@ -1,0 +1,46 @@
+{
+  "kernel": "layer_norm_fwd_bf16",
+  "title": "LayerNorm and GroupNorm forward, with or without a residual (`layer_norm_fwd_kernel`, bfloat16), fla",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/layernorm.py",
+    "sha256": "39e34f0182e3883377ec1a886ba57960abbf0ffba84aa69245fcb61935e135b9",
+    "ranges": [
+      [
+        46,
+        47
+      ],
+      [
+        50,
+        73
+      ],
+      [
+        75,
+        80
+      ],
+      [
+        82,
+        99
+      ],
+      [
+        101,
+        102
+      ],
+      [
+        104,
+        111
+      ],
+      [
+        113,
+        114
+      ]
+    ],
+    "host": []
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.LayerNormFwd",
+  "statement": "Claims.LayerNormFwd.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

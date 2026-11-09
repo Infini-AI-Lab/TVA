@@ -1,0 +1,51 @@
+{
+  "kernel": "vec_add_f32",
+  "title": "Vector addition, Triton tutorial 01 (`add_kernel`, float32)",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/01-vector-add.py",
+    "sha256": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3",
+    "ranges": [
+      [
+        23,
+        24
+      ],
+      [
+        29,
+        54
+      ]
+    ],
+    "host": [
+      [
+        21,
+        21
+      ],
+      [
+        26,
+        26
+      ],
+      [
+        62,
+        78
+      ],
+      [
+        84,
+        93
+      ],
+      [
+        107,
+        129
+      ],
+      [
+        135,
+        135
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.VecAdd",
+  "statement": "Claims.VecAdd.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

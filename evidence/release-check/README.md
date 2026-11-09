@@ -5,6 +5,9 @@ Library evidence (not a kernel's), for library issues L36 and L7 (rounds 6 and 7
 (bubblewrap 0.6.3) and Python 3.12 from the system, 2026-10-28; no GPU and no Triton run. Script:
 [run.py](run.py); output: [out.txt](out.txt).
 
+**Since round 35** (library issue L160) the release check gates no kernel: the rows below for the
+gate of `kernels/vec_add_f32` (R1 (d), R3) record a step that no longer runs.
+
 **Question.** TVA will be released on its own (user, 2026-10-28), so its checks must pass with
 nothing outside it. Does `tvr release` pass on what TVA ships, and fail on a dependency on anything
 outside what TVA ships, Mathlib's pinned source, the Lean toolchain and the system, also one that the

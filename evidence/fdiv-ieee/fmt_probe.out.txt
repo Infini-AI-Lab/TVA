@@ -1,0 +1,19 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+## tl.sigmoid
+torch.float16: rejected (CompilationError:         ^)
+torch.bfloat16: rejected (CompilationError:         ^)
+torch.float32: result width 32 bits; ['div.full.f32']
+  sigmoid(x) + c (float32 c): fusion on vs off differ on 0 of 1024
+torch.float64: result width 64 bits; ['div.rn.f64']
+  sigmoid(x) + c (float32 c): fusion on vs off differ on 0 of 1024
+torch.float8_e5m2: rejected (CompilationError:         ^)
+torch.float8_e4m3fn: rejected (CompilationError:         ^)
+## tl.softmax
+torch.float8_e5m2 ieee_rounding=False: result width 32 bits; ['div.full.f32']
+torch.float8_e5m2 ieee_rounding=True: result width 32 bits; ['div.rn.f32']
+torch.float8_e4m3fn ieee_rounding=False: result width 32 bits; ['div.full.f32']
+torch.float8_e4m3fn ieee_rounding=True: result width 32 bits; ['div.rn.f32']
+torch.int32 ieee_rounding=False: rejected (CompilationError:         ^)
+torch.int32 ieee_rounding=True: rejected (CompilationError:         ^)
+torch.int16 ieee_rounding=False: rejected (CompilationError:         ^)
+torch.int16 ieee_rounding=True: rejected (CompilationError:         ^)

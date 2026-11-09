@@ -137,13 +137,20 @@ the size at which it compacts (at most the model's window).
 
 ## Running with a public model
 
-The prover is Harbor's `claude-code` agent pointed at the provider's Anthropic-compatible endpoint:
+The prover is Claude Code, through this folder's Harbor agent (`cc_agent.py`: Harbor's `claude-code` agent,
+plus a resume after an error exit), pointed at the provider's Anthropic-compatible endpoint:
 
 ```bash
 export ANTHROPIC_BASE_URL=https://...      # the provider's Anthropic-compatible endpoint
 export ANTHROPIC_API_KEY=...               # or ANTHROPIC_AUTH_TOKEN, as the provider asks
-harbor run -p tasks/tva-prove-<kernel> -a claude-code -m anthropic/<model-id> -e docker
+PYTHONPATH=$TVA/sandbox/harness harbor run -p tasks/tva-prove-<kernel> -a cc_agent:ClaudeCodeTva \
+    -m anthropic/<model-id> -e docker
 ```
+
+When Claude Code's run ends on an error (a request that failed after its retries) rather than with the
+prover's own last turn, `cc_agent.py` resumes the session (`claude --resume`), at most 3 times, and logs each
+run's exit in `/logs/agent/cc-runs.txt`; the transcript stays `claude-code.txt`. Harbor's plain `-a claude-code`
+still works, without the resume.
 
 The `anthropic/` prefix tells Harbor that the model speaks Anthropic's Messages API. With a base URL set,
 Harbor points every model Claude Code uses (main, subagents, side requests) at `<model-id>`. Extra
@@ -213,9 +220,9 @@ of `hook.py`. What differs, and how the harness makes up for it:
 | the manual | `/CLAUDE.md`, given by the `SessionStart` hook | `$DSH_HOME/AGENTS.md` (dsh's instructions file, restored after a compaction), the same text with dsh's subagents (`dsh_manual` in `make_task.py`) |
 | hooks | Claude Code's | dsh's Claude Code hook bridge (`@deepseek-ai/dsh-hooks-claude-code`) with `dsh/hooks.json`; `dsh_hook.py` renames dsh's tools (`bash`, `write`, `edit`, `grep`, `glob`, `subagent`) to Claude Code's for `hook.py` |
 | who is acting | each event names the subagent | each event carries its session's id: the first session seen is the prover's, any other a subagent's (`agent_id`); a subagent's end is not the prover's `Stop` |
-| subagents | foreground, typed (`.claude/agents/`) | background (each report comes as a message), typed by the prompt's first line `Role: NAME`: a call without a known role is refused, and the role's agent file reaches the child at its start |
+| subagents | background (each report starts a new turn), typed (`.claude/agents/`); the Stop hook lets the prover end a turn while one runs (`background_tasks`), and Claude Code waits for it | background (each report comes as a message), typed by the prompt's first line `Role: NAME`: a call without a known role is refused, and the role's agent file reaches the child at its start |
 | the start | the `SessionStart` hook starts the clock | `dsh_agent.py` runs `hook.py session-start` before dsh (dsh's own runs detached) and puts the brief in the task |
-| stopping | the `Stop` hook | the same hook through the bridge; after an error exit (a request that failed after dsh's retries) `dsh_agent.py` resumes the session, at most 3 times |
+| stopping | the `Stop` hook; after an error exit `cc_agent.py` resumes the session, at most 3 times | the same hook through the bridge; after an error exit (a request that failed after dsh's retries) `dsh_agent.py` resumes the session, at most 3 times |
 | transcript | `claude-code.txt` | `/logs/agent/dsh/sessions/**/session.v*.jsonl` (plain JSONL) and the event stream `dsh-N.jsonl` |
 
 The profile patch (`dsh/prover.yml`) routes the model through pi-ai's Anthropic Messages adapter: dsh's own
@@ -368,3 +375,19 @@ best of N under dsh.
 
 These tests show that the harness is wired correctly. They do not measure how much it helps a given
 model. That takes real runs.
+
+- dsh's ways, brought to the Claude Code prover (2026-11-07): background subagents, `tva-review` refused to
+  subagents, and the resume after an error exit (`cc_agent.py`). Claude Code 2.1.316 in `--print` mode, against
+  a scripted API: a background subagent's report started a new turn after the prover had ended its own (Claude
+  Code waited 20 s for it), and the `Stop` hook's input lists the running subagents (`background_tasks`). In
+  the prover's image, with a stand-in review service: an `Agent` call was run in the background (also when it
+  asked for the foreground), the prover worked on, ended its turn while the `lean-fixer` ran and was let stop,
+  got the report 15 s later as a new turn, and was then refused a stop (no submission) until the eighth try;
+  the subagent's `tva-review status` was refused, its `tva-kit` and the prover's `tva-review` were not. The
+  resume: a run that ended on a 400 from the API was resumed in the same session and finished
+  (`cc-runs.txt`: run 1 exit 1, run 2 exit 0). A reviewer's subagents stay in the foreground.
+  In the GLM 5.3 Flash sweep, four provers that ended their turn to wait for subagents lost them: in `--print`
+  mode Claude Code waits only 10 minutes after the last turn, then stops the background tasks and ends the run
+  normally ("Background tasks still running 10m after the last turn …; stopping them"), which the mock's 20 s
+  subagent never reached. `settings.json` now sets `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` (wait for them):
+  with a 5 s ceiling the mock's subagents were stopped after 5 s, with 0 both reports came back after 20 s.

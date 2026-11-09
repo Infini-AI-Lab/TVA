@@ -1,0 +1,31 @@
+{
+  "kernel": "rejection_greedy_i32",
+  "title": "Greedy rejection sampling for speculative decoding, all-greedy or mixed batches (`rejection_greedy_sample_kernel`, int32), vLLM",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/rejection_greedy.py",
+    "sha256": "9fed7f969a2a6e3941100df373adc8955446668158e8c63f8dd2ef8991354efc",
+    "ranges": [
+      [
+        62,
+        122
+      ]
+    ],
+    "host": [
+      [
+        60,
+        60
+      ],
+      [
+        125,
+        266
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.RejectionGreedy",
+  "statement": "Claims.RejectionGreedy.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

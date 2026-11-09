@@ -1,0 +1,304 @@
+# Prepared claim: `tma_persistent_matmul_f16`
+
+The kernel: `source/09-persistent-matmul.py`, Triton 3.8.0's tutorial 09, the TMA kernel
+`matmul_kernel_tma_persistent` (lines 407–463) with its helper `_compute_pid` (lines 291–298), on
+`float16` matrices with the config of `SETUP.md` (`BLOCK_SIZE_M = 128`, `BLOCK_SIZE_N = 256`,
+`BLOCK_SIZE_K = 64`, `GROUP_SIZE_M = 8`, `EPILOGUE_SUBTILE = True`, `num_stages = 4`,
+`num_warps = 8`, and `NUM_SMS`, `132` on the H200), launched by the host
+`matmul_tma_persistent(a, b, False)` (lines 466–503) with three host `TensorDescriptor`s, on a grid
+of `min(NUM_SMS, tiles)` programs, each looping over the tiles `start_pid, start_pid + NUM_SMS, …`
+of `c = a · bᵀ` and storing each tile as two `128 × 128` halves. The claim is
+`Claims.TmaPersistentMatmul.Statement` in `Claim.lean`:
+
+```lean
+def Statement : Prop := ∀ K P, Assumptions K P → Spec K
+```
+
+`Claim.lean` proves `consistent`, `satisfiable`, `tol_rel_lt` and the coverage facts `setup_*_ok`;
+it does not prove `Statement`. The model map is `model-map.json` (every code line of the kernel
+lines `[44, 45], [291, 298], [407, 463]`).
+
+The kernel reads three module-level names: `triton` (its decorators) and `tl`, bound by the imports
+of lines 44–45, which are kernel lines and are mapped (as `import` lines that add no step), and the
+`@triton.jit` helper `_compute_pid`, bound only by its `def` (line 292). Every other module-level
+statement is a host line (`claim.json`'s `source.host`): the other imports, the device helpers,
+`_matmul_launch_metadata` (lines 89–100, the host function the decorator's `launch_metadata=`
+names), the config lists, the pre-hook `matmul_tma_set_block_size_hook`, the file's other kernels
+and their hosts, `matmul_tma_persistent`, the test, the benchmark and `__main__`.
+
+## Specification
+
+`Post d init fin` says two things.
+
+- **The outputs.** For every `i < M` and `j < N`, element `(i, j)` of `c` (element `i·ldc + j` of
+  `c`'s storage) can be read in the final memory, with some value `c` (`OutSpec`). When, moreover,
+  row `i` of `a` and row `j` of `b` hold finite `float16` values `va k` and `vb k` (`k < K`) in the
+  initial memory:
+  - `c` is the `float16` rounding (to nearest even, `FloatV.cvt`, up to NaN payload) of a finite
+    `float32` value `v` with `|v − S| ≤ E`, where `S = Σ_k va k · vb k` is the exact dot product
+    and `E = tol va vb K` the tolerance of Tolerances below, computed from the inputs;
+  - when `|S| + E ≤ 65504` (the largest `float16`), `c` is finite and
+    `|c − S| ≤ E + (|S| + E)·2^-11 + 2^-25` (one more `float16` rounding:
+    `Format.binary16.u = 2^-11`, `Format.binary16.eta = 2^-25`).
+
+  With a NaN or an infinity in row `i` of `a` or row `j` of `b`, the claim says only that element
+  `(i, j)` holds some `float16` value.
+- **Nothing else changes.** Every byte outside the elements of the matrix `c` is the same in `fin`
+  as in `init`: `a`, `b`, and the elements of `c`'s storage that are not in the matrix (the padding
+  of a row, when `ldc > N`).
+
+The reference `S` is the exact product of the host's matrices, row `i` of `a` by row `j` of `b`
+(`c = a · bᵀ`, as `matmul_tma_persistent(a, b)` means it, `b` being the `N × K` transpose); it does
+not depend on which program computes which tile, on the tile order of `_compute_pid`, on how the
+epilogue splits a tile, nor on `NUM_SMS`.
+
+`Spec K := Claim.Meets Inst.ok Pre Post K`: on every covered instance and input, every launch
+that runs ends normally, without fault or hang, with a final memory satisfying `Post`.
+
+## Conditions
+
+An instance `Inst` is the host's choice: `M`, `N`, `K`, `NUM_SMS`, the row strides `lda`, `ldb`,
+`ldc` (in elements; the last stride is `1`, as `TensorDescriptor` requires), and three `float16`
+buffers `a`, `b`, `c` (`Buf .f16`: a base address and a length in elements); element `(i, k)` of the
+matrix `a` is element `i·lda + k` of the buffer `a`, element `(j, k)` of `b` element `j·ldb + k`,
+element `(i, j)` of `c` element `i·ldc + j` (`aIdx`, `bIdx`, `cIdx`). The model's descriptors are
+the host's: `aDesc` (shape `[M, K]`, strides `[lda, 1]`, block `[128, 64]`), `bDesc` (`[N, K]`,
+`[ldb, 1]`, `[256, 64]`), `cDesc` (`[M, N]`, `[ldc, 1]`, `[128, 128]`), each with the padding
+`"zero"`. `tiles d = cdiv(M, 128)·cdiv(N, 256)`.
+
+`Inst.ok d` (a structure, one field per condition):
+
+| Field | Condition | Why |
+|---|---|---|
+| `pos` | `M, N, K ≥ 1` | the host's `TensorDescriptor` rejects a zero shape entry (no launch), and an access through a descriptor needs positive ones (`TensorDesc.Valid`) |
+| `M_le`, `N_le` | `M + 128 ≤ 2^31`, `N + 256 ≤ 2^31` | `M` and `N` are `int32` arguments, and `tl.cdiv` computes `M + 127` and `N + 255` in `int32` (lines 421–422); the tile offsets `pid_m·128`, `pid_n·256` and `offs_bn_c + 128` (line 460) then stay below `2^31`, and the descriptors' shape entries are below `2^31` |
+| `sms` | `0 < NUM_SMS < 2^31` | the tile loop's step (line 432) is positive (`tl.RangeOk`), and the constexpr is built as an `int32` (lines 426, 432, 444) |
+| `tiles_le` | `tiles + NUM_SMS ≤ 2^31` | the `int32` `num_tiles` (line 424) does not wrap, and `num_tiles + NUM_SMS − 1`, the tile loop's bound (`tl.RangeOk`), is an `int32` |
+| `K_le` | `K ≤ 2^13` | keeps the tolerance meaningful (Tolerances); the setup's largest `K` is `1024` |
+| `ld8` | `lda`, `ldb`, `ldc` multiples of `8` | a descriptor's leading stride is a multiple of 16 bytes (`TensorDesc.Valid`; `TensorDescriptor` asserts it) |
+| `N_ldc` | `N ≤ ldc` | the rows of `c` do not overlap, so no two lanes or programs store to one element |
+| `base_al` | the three bases are 16-byte aligned | `TensorDesc.Valid` (`TensorDescriptor` asserts it; PyTorch's allocations are) |
+| `a_len`, `b_len`, `c_len` | every element of each matrix is inside its buffer | the descriptors' accesses reach them |
+| `c_a`, `c_b` | the matrix `c` shares no byte with the matrix `a`, nor with the matrix `b` | a program that reads bytes another program writes races; `matmul_tma_persistent` always allocates a fresh `c` |
+
+The descriptors' accesses compute each lane's element as `i·ld + k` in exact integers (`TensorDesc`,
+no `int32` offsets), so the claim has no bound on the size of a matrix beyond `M_le`, `N_le` and
+`K_le`. `M`, `N`, `K` are the kernel's runtime arguments (or, at the value `1`, compile-time
+constants, which give the same model: `model`'s docstring). Their values are part of the instance,
+and the conditions above constrain them; `Compiler.Faithful`'s point 11 assumes that the launch runs
+the code Triton compiles for these values. The conditions allow partial tiles in every dimension
+(any `M`, `N`, `K` from `1`: the loads pad with zeros past the tensors' edges and the stores drop
+the lanes outside `c`), any row strides that are multiples of `8` (padded rows of `a`, `b`, `c`),
+any `NUM_SMS` within the bounds, and any addresses meeting the alignment; `a` and `b` may overlap
+each other in any way (both are only read).
+
+`Pre d init`: the three buffers are valid in the initial memory (`Buf.Valid`: base address
+non-negative and aligned to 2 bytes, the buffer inside `[0, 2^64)`, every byte present). Every
+`float16` value is allowed in the inputs, NaN and infinities included.
+
+**The kernel and its launches are within part (A) of `Compiler.Faithful`'s scope**
+([rule page](../../docs/rules/compiler-faithful.md), "Scope" (A) and the checklist of "How a
+bundle cites it"). Every launch of `SETUP.md` is a direct launch of the `@triton.jit` function, the
+JIT launch `matmul_kernel_tma_persistent[grid](…)` of `matmul_tma_persistent` (lines 496–502),
+called by `run_test` from `validate` (line 735) and, in the benchmark, by `bench_fn` (line 694).
+Point by point:
+
+- **4 (options).** The launch gives the constexprs `FP8_OUTPUT`, `NUM_SMS`, `WARP_SPECIALIZE`,
+  `BLOCK_SIZE_M`, `BLOCK_SIZE_N`, `BLOCK_SIZE_K`, `GROUP_SIZE_M`, `EPILOGUE_SUBTILE` and two
+  options, `num_stages=4` and `num_warps=8`, two of the four that do not change the meaning; no
+  `enable_fp_fusion`, `debug`, `num_ctas`, `launch_pdl` or any other option. Nothing calls
+  `matmul_kernel_tma_persistent.warmup(…)` or `triton.compile`; the kernel has no
+  `@triton.autotune` (so no `triton.Config`) and no `@triton.heuristics`, and its decorator
+  `@triton.jit(launch_metadata=_matmul_launch_metadata)` sets no `debug` (`launch_metadata=` only
+  names a host function for a launch-enter hook). So `launch` keeps every default:
+  `enable_fp_fusion = true`, `debug = false`, `num_ctas = 1`, `launch_pdl = False`.
+- **5 (descriptor scratch).** The kernel builds no tensor descriptor (no
+  `tl.make_tensor_descriptor`), so no allocator is involved.
+- **6 (precompiled kernel).** No `CompiledKernel` is launched: every launch is the JIT launch above.
+- **8 (host descriptors).** The launch is given three host `TensorDescriptor`s, built by
+  `TensorDescriptor.from_tensor(x, [1, 1])` (lines 481–483) with the default
+  `round_f32_to_tf32=False`, their block shapes then set by the pre-hook (line 495), as SEMANTICS.md
+  ("One launch") allows; their shapes, strides, block shapes and padding are `aDesc`, `bDesc`,
+  `cDesc`.
+
+**Part (B) of the scope, the environment** (points 1, 2, 3, the environment's part of 4, 7, 10 and
+11), is an assumption of the rule: the claim relies on it, and TVA does not check it. Programmatic dependent launch
+is off: no launch passes `launch_pdl`, and the kernel calls no `gdc_*` function.
+
+**The supported subset** ([SEMANTICS.md](../../docs/SEMANTICS.md), "The supported subset"). The
+kernel is a top-level `def` under `@triton.jit(launch_metadata=…)`; its helper `_compute_pid` a
+top-level `def` under a bare `@triton.jit`, called by name from the kernel. The kernel's parameters
+are three host `TensorDescriptor`s, three unannotated integers (`int` arguments) and eight
+`tl.constexpr`s with `int` or `bool` arguments, none with a default; the helper's five parameters
+are unannotated, with no default, and both calls pass three `int32` scalars and the same two
+constexprs. The kernel's statements are assignments `name = e`, a conditional expression on a
+compile-time condition (line 419), three tuple assignments `a, b = e` (the helper's tuple result
+twice, `tl.split` once), one `name += e` (line 444), expression statements (the descriptors'
+`store`), a `for tile_id in tl.range(…)` with three positional arguments and the keywords `flatten`
+and `warp_specialize`, a nested `for ki in range(k_tiles)` with one positional argument, and an
+`if`/`else` on a compile-time condition; the helper's are assignments and one
+`return pid_m, pid_n`. The expressions are `tl.program_id(axis=0)`, `tl.cdiv`,
+`tl.zeros(…, dtype=tl.float32)`, the descriptor methods `load` and `store` with a list of offsets,
+`tl.dot(a, b.T, acc)` with the attribute `.T`, `tl.reshape`, `tl.permute`, `tl.split`,
+`x.to(dtype)`, Python's builtins `min` and `range`, the operators `+ - * // %`, the dtype names
+`tl.float8e4nv` and `tl.float16`, and tuples and lists of integers. After each loop no name is
+used: the tile loop carries `tile_id_c`, the inner loop `accumulator`, and neither loop's variable
+nor a name first defined in a body is read after it. The module-level names the kernel reads are
+`triton` and `tl`, Triton's modules, each bound only by its own `import` (lines 44 and 45), and
+`_compute_pid`, bound only by its `def`; no other statement of the module binds `triton`, `tl`,
+`_compute_pid` or `matmul_kernel_tma_persistent`.
+
+## Assumptions
+
+Three assumptions, all of kind `[rule]`, each cited as the library states it
+(`docs/PROVER_GUIDE.md` section 3, [num.md](../../docs/rules/num.md)):
+
+- `faithful : ∀ d, d.ok → Rules.Compiler.Faithful P (model d) (launch d) (K d)`;
+- `dot : Rules.Num.DotF16 P` — `tl.dot` of `float16` operands into `float32` (line 442), for every
+  `input_precision`, with `maxImpreciseAcc = 0` (`Rules.Num.DotLiftAcc`): each output element whose
+  row of `a`, column of `b` and accumulator are finite is finite and within
+  `relDot16 K·L + absDot16 K` of `acc + Σ a·b`, with `L = |acc| + Σ liftMag a·liftMag b` (a
+  subnormal operand counted at `2^-14`), when that leaves room below the `float32` range;
+- `dot_total : Rules.Num.DotTotal P {a := .f16, b := .f16, acc := .f32, precision := .tf32,
+  maxImpreciseAcc := 0}` — the `tl.dot` of line 442 always has a result.
+
+There is no `[kernel]` assumption. The `float32`-to-`float16` conversions of lines 457 and 459 are
+IEEE roundings the library defines (`tl.cvt`), the reshape, permute and split of lines 454–456 are
+exact (`Tensor.reshape`, `permute`, `split`), and the descriptors' loads and stores are the
+library's `tl.desc_load` and `tl.desc_store`; none needs a platform fact. The tile loop's
+`flatten=True` and the launch's `num_stages=4` are scheduling choices with no meaning for a
+well-behaved model, and `warp_specialize` is `False` (SEMANTICS.md, "Performance-only arguments",
+"Loops"): each program writes each of its tiles once (the two halves of a tile are disjoint
+columns) and reads only `a` and `b`, so no program accesses bytes it wrote.
+
+## Coverage
+
+Every launch of `SETUP.md` ("The launches"): `a` contiguous `[M, K]` (row stride `K`), `b`
+contiguous `[N, K]` (row stride `K`), the fresh `c` (row stride `N`), `NUM_SMS = 132`; `M = N = K = 32`,
+and `M = N = 8192` with `K = 128, 256, …, 1024`. `Inst.ok` covers them: the sizes are positive,
+`K` and `N` are multiples of `8` (so are the row strides), `tiles = 1` or `2048` and
+`tiles + 132 ≤ 2^31`, `N ≤ ldc = N`, and `K ≤ 1024 ≤ 2^13`.
+
+Proved instances (`hostInst M N K S`: the host's strides, `NUM_SMS = S`, the three buffers at fixed
+aligned addresses; `hostInst_ok`):
+
+| Instance | `M = N` | `K` | Source |
+|---|---|---|---|
+| `setup_v32_ok` | 32 | 32 | the test's `validate(32, 32, 32)` (line 770) |
+| `setup_k128_ok` | 8192 | 128 | the test `validate(8192, 8192, 128)` (line 771) with `--K_range 128 1024 --K_step 128` (line 35), and `bench(128)` (lines 674–698) |
+| `setup_k512_ok` | 8192 | 512 | the default `-K 512` (line 753): `validate(8192, 8192, 512)` and `bench(512)` |
+| `setup_k256_ok`, `setup_k384_ok`, `setup_k640_ok`, `setup_k768_ok`, `setup_k896_ok`, `setup_k1024_ok` | 8192 | 256, 384, 640, 768, 896, 1024 | `bench(K)` with `--K_range 128 1024 --K_step 128` |
+
+`satisfiable` uses the `K = 512` instance with the all-zero memory.
+
+## Tolerances
+
+`tol va vb K = errAt (prodV va vb K) (liftV va vb K) (steps K)` (`Claim.lean`), the error bound of
+the inner loop's `T = steps K = cdiv(K, 64)` steps against the exact partial sums. With
+`p e = va e · vb e` for `e < K` and `0` from `K` on (`prodV`: the lanes past the tensors' last
+column load the padding `+0`), `l e` its lifted magnitude `liftMag(va e)·liftMag(vb e)` (`liftV`;
+`liftMag q` is `|q|` for zero and normal values, `2^-14` for a nonzero subnormal one),
+`S_t = Σ_{e < 64t} p e` (`partSum`) and `L_t = Σ_{64t ≤ e < 64t+64} l e` (`stepMag`):
+
+`E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + L_t) + α`, `tol = E_T`,
+
+that is `E_T = Σ_{t<T} (1 + ρ)^(T−1−t)·(ρ·(|S_t| + L_t) + α)`, with the library's constants for one
+fp16 `tl.dot` of `K = 64`: `ρ = relDot16 64 = 66·2^-22`, `α = absDot16 64 = 66·2^-126`.
+
+**Derivation** (library facts only). For a tile, the inner loop (lines 438–442) starts from
+`accumulator = 0` (line 437) and its step `t` (`ki = t`) is `acc ← tl.dot(a, b.T, acc)`, a
+`float16` dot of `64` products with the accumulator as its own (no separate addition): row `i` of
+`a`'s columns `64t … 64t + 63` (`tl.desc_load` of `aDesc` at `[pid_m·128, 64t]`) and row `j` of
+`b`'s columns `64t … 64t + 63` (`bDesc` at `[pid_n·256, 64t]`, transposed), the lanes `≥ K` holding
+the padding `+0` (and the lanes of rows `≥ M` or `≥ N` too, which reach only outputs the stores
+drop). By `Rules.Num.DotF16` (`DotLiftAcc` with `K = 64`) each output element of it is within
+`relDot16 64·(|acc| + L_t) + absDot16 64` of `acc + c_t`, `c_t = S_{t+1} − S_t` the step's exact
+sum (the padded lanes add nothing to `c_t` or `L_t`). If `acc` is within `E_t` of `S_t` then
+`|acc| ≤ |S_t| + E_t`, so the new accumulator is within `E_t + ρ·(|S_t| + E_t + L_t) + α = E_{t+1}`
+of `S_{t+1}`; by induction the loop leaves a `float32` value within `E_T` of `S`. The fact's room
+condition holds at every step: finite `float16` products are below `2^32`, so with `K ≤ 2^13` every
+`|acc| + L_t` and its bound stay far inside the `float32` range. The epilogue's reshape, permute and
+split (lines 454–456) move element `(m, n)` of the accumulator to `acc0[m, n]` for `n < 128` and to
+`acc1[m, n − 128]` otherwise, unchanged, and the two stores (lines 458, 460) put them at columns
+`pid_n·256 + n`; each `.to(tl.float16)` (lines 457, 459) is one rounding (`FloatV.cvt_err`,
+`u = 2^-11`, `η = 2^-25`), which gives the second clause. The tile loop only chooses which program
+computes which tile (`tile_id_c` equals `tile_id` on each iteration, so the stores go to the tile
+the loads read), and each tile's computation is the same, so the bound holds for every element
+whatever `NUM_SMS`. Since `|S_t| + L_t ≤ A` (`A` the sum of all lifted magnitudes),
+`tol ≤ ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`, whose relative factor is below `0.21%` at every covered
+`K` (`tol_rel_lt`).
+
+**Meaningful.** The bound follows the exact partial sums, so on zero-mean data it is far below
+`Σ|a·b|`: on the setup's `torch.randn` inputs (`M = N = 8192`, the first 1024 rows) its median is
+`0.0014` at `K = 128` (at most `0.0025`) against a median `|S|` of `7.6` (tol/|S| median `1.8·10^-4`,
+90th percentile `9.5·10^-4`), and `0.014` at `K = 1024` (at most `0.035`) against `21.6` (tol/|S|
+median `6.4·10^-4`, 90th percentile `3.2·10^-3`); against `A` it is at most `2.4·10^-5` and
+`5.3·10^-5`. `check_gpu.py` measures the device's error at `0.73–0.92` of the tolerance on the
+setup's `8192` launches and `0.89` at `M = N = K = 32` (`0.977` with subnormal operands, where the
+output's rounding is the whole error), and it checks that four wrong results break `Post` at
+`K = 32, 128, 512, 1024` and on partial tiles: the exact result rounded to `bfloat16` (largest
+ratio `16` to `121`), a result missing the last `K` block's products (`2950` and more), two row
+blocks of 128 swapped (a wrong tile mapping), and the two `128`-column halves of each tile swapped
+(a wrong epilogue; both `13000` and more). All-positive (`torch.rand`) and constant inputs, whose
+roundings are coherent, stay below `0.97` of the tolerance.
+
+## Exclusions
+
+Launches `SETUP.md` names that the claim leaves out: none.
+
+Conditions that exclude launches outside `SETUP.md`'s launches:
+
+- `matmul_tma_persistent(a, b, True)` (outside real use): the file never runs it on the H200
+  (lines 693 and 733); the model has `warp_specialize = False`.
+- `M`, `N` or `K` equal to `0`, a row stride not a multiple of `8`, a base not 16-byte aligned
+  (`pos`, `ld8`, `base_al`; outside real use): the host's `TensorDescriptor` rejects them on the
+  host (assertions in its constructor), and no program runs.
+- `K > 2^13` (outside real use: the setup's largest `K` is `1024`): the tolerance grows with `K`
+  and the room argument of Tolerances is stated for `K ≤ 2^13`. The kernel is believed correct
+  there.
+- `NUM_SMS = 0` or `NUM_SMS ≥ 2^31` (`sms`; outside real use: the host passes the device's
+  multiprocessor count, `132`).
+- `float8e4nv` operands (`--prec fp8`): not part of the setup, a scope choice of this `float16`
+  claim (a different instantiation of the kernel).
+- Other block configurations and the file's other kernels: not part of the setup.
+
+Kernel limits (the kernel is wrong there under the library's semantics; real use does not reach
+them):
+
+- `int32` wrap of `tl.cdiv` (`M_le`, `N_le`): with `int32` arguments, `M + 127` (line 421) wraps
+  from `M = 2^31 − 127` on, and `N + 255` (line 422) from `N = 2^31 − 255` on; the first launch that
+  hits it is `matmul_tma_persistent` with `M = 2^31 − 127` rows (`N = K = 8`: a `32 GiB` `a` and
+  `c`). The setup's largest `M` and `N` are `8192`.
+- `tiles + NUM_SMS > 2^31` (`tiles_le`): `num_tiles` (line 424) or the tile loop's bound wraps;
+  with `M_le` and `N_le` this needs `cdiv(M, 128)·cdiv(N, 256)` near `2^31`, about `2^46` elements
+  of `c`. Not reached.
+- An output whose rows overlap in storage (`N_ldc`), or that overlaps `a` or `b` (`c_a`, `c_b`):
+  two stores to one element, or a read of what another program writes. Not reached:
+  `matmul_tma_persistent` allocates a fresh contiguous `c`.
+
+## Library requests
+
+None.
+
+## Checks
+
+1. **Builds**: `lake env lean ../claims/tma_persistent_matmul_f16/Claim.lean`: no errors or
+   warnings, no `sorry`, no `axiom`; `consistent`, `satisfiable`, `tol_rel_lt` and every
+   `setup_*_ok` depend only on `propext`, `Classical.choice`, `Quot.sound`.
+2. **Not vacuous**: `consistent` (`Platform.sm90ref`), `satisfiable` (the `K = 512` instance, the
+   all-zero memory).
+3. **Coverage**: 9 `setup_*_ok` (`M = N = K = 32`; `M = N = 8192`, `K = 128, 256, …, 1024`;
+   `NUM_SMS = 132`).
+4. **GPU** (`check_gpu.py`, H200 NVL, Triton 3.8.0, `NUM_SMS = 132`, under 2 GB of device memory):
+   `matmul_tma_persistent(a, b, False)` on the nine setup sizes with the file's draws and layout;
+   edges (`K = 8192`; `M = 1`, `N = K = 8`; partial tiles `M = N = K = 1000`; `N = 96`, each tile's
+   second half wholly past `N`; `M = 129`, `N = 136`, `K = 72`; inputs scaled by 8 and by `2^-12`,
+   the last with subnormal operands; NaN and infinities in `a` and `b`, the other elements checked);
+   four direct launches with `NUM_SMS = 1, 7, 132, 1000` (grids `1`, `7`, `132`, `40`), `a` and `c`
+   with padded rows, `c` in a guarded buffer. Both clauses of `OutSpec` checked (the first as: some
+   real `v` within `E` of `S` rounds to `c` in `float16`; the check does not snap `v` to the
+   `float32` grid, whose spacing is far below every `E` here): largest error / tolerance **0.977**
+   (margin 0.023, subnormal operands); `0.89` at `M = N = K = 32` and `0.92` down to `0.73` on the
+   setup's `8192` sizes. Negative tests at `K = 32, 128, 512, 1024` and on `M = N = K = 1000`: a
+   `bfloat16`-rounded result, a missing `K` block, two swapped row blocks and swapped tile halves
+   each break `Post` (Tolerances). Inputs unchanged; no byte outside the matrix `c` written. PASS.

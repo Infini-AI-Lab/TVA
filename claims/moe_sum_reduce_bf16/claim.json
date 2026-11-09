@@ -1,0 +1,62 @@
+{
+  "kernel": "moe_sum_reduce_bf16",
+  "title": "MoE sum-reduce, the top-k combine (`_moe_sum_reduce_kernel`, bfloat16), SGLang",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/moe_sum_reduce.py",
+    "sha256": "0bfe7343f7194d119523c53692e3fcdea141ad1c7a095275c9a76f550c65868b",
+    "ranges": [
+      [
+        44,
+        44
+      ],
+      [
+        46,
+        47
+      ],
+      [
+        50,
+        70
+      ],
+      [
+        72,
+        73
+      ],
+      [
+        75,
+        76
+      ],
+      [
+        78,
+        79
+      ],
+      [
+        81,
+        81
+      ],
+      [
+        83,
+        83
+      ],
+      [
+        85,
+        87
+      ],
+      [
+        89,
+        96
+      ],
+      [
+        98,
+        104
+      ]
+    ],
+    "host": []
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.MoeSumReduce",
+  "statement": "Claims.MoeSumReduce.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

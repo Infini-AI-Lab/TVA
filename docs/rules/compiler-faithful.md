@@ -17,24 +17,35 @@ Take the compiled kernel `K`, launched as `L` on an NVIDIA H200 (sm_90), driven 
 running CPython 3.13 (without `-O` or `-OO` and with `PYTHONOPTIMIZE` unset, in the default floating-point environment), from global memory `init`, without `debug`, with a valid launch (`Launch.Valid`: CUDA's grid limits, fewer than
 `2^31` programs, `num_ctas = 1`, no programmatic dependent launch, and block shapes Triton
 accepts), within the rule's scope (below; (A), the kernel and its launches, checked: only the
-options `Launch` records, wherever they are given, and no `@triton.heuristics`, the scratch of
-descriptors built in the kernel its own, a precompiled kernel compiled from the kernel's source and
-given arguments in its specialisation, no host descriptor that rounds to tf32, no CUDA graph
-capture; (B), the environment, assumed and not checked: nothing else writes the launch's bytes,
+options `Launch` records, wherever they are given, and no `@triton.heuristics`, no descriptor
+built in the kernel, a precompiled kernel compiled from the kernel's source and given arguments in
+its specialisation, no host descriptor that rounds to tf32; (B), the environment, assumed and not checked: nothing else writes the launch's bytes,
 Triton's knobs at their defaults, no hook, no `debug` attribute set from outside and no `preload`,
 the H200 and the host as the target, Triton and the kernel's module as installed and written, and
 the kernel new: the code Triton compiles for the launch's own argument values and settings). If
 the model `k`'s launch is well behaved from `init` (on no interleaving undefined behaviour, a race between programs, or a conflict within one program: two
 accesses of a program to the same bytes, at least one writing them, unless both are atomics on
-the same bytes, library issue L15), then, with the semantics performing a program's atomics in
-every order their dependences allow (`Step.defer`):
+the same bytes, library issue L15), then, with the semantics performing a program's atomic after
+later steps that do not depend on its result (`Step.defer`; scope 12 excludes the launches in
+which the device's per-thread order shows):
 
 - a normal end of the device run leaves a memory that some interleaving of the model also
   leaves;
 - the device run does not fault;
 - the device run hangs only if some interleaving of the model runs forever;
-- the device run writes no byte of global memory other than those `init` gives, except the scratch
-  of the descriptors the kernel builds (scope 5; "Memory", below).
+- the device run writes no byte of global memory other than those `init` gives ("Memory", below).
+
+**A launch is an execution of the kernel** (library issue L144; the user, 2026-11-08: "we verify
+the kernel itself"). The rule, and a claim's `K`, are about one execution of the kernel: its grid of
+programs, running on the device the code Triton compiles for the kernel with the launch's arguments,
+compile-time values and options (`L`), from the global memory `init` when it starts until its last
+program ends. How a caller makes the execution happen is no part of it, so no dispatch mechanism
+needs a condition of its own. A host call that only records the grid, for a run that a later call
+makes, is not an execution of it and has no outcome; that later run is the execution, with the arguments and the memory it runs
+on, and the rule is about it as about any other. A call that returns without an error and whose
+grid never runs is not such a call: Triton 3.8.0's launcher skips a grid of `2^31` to `2^32`
+programs, and that call ends `ok` with memory unchanged, which `Launch.Valid` excludes (fewer than
+`2^31` programs; library issue L9).
 
 A launch is *rejected* when Triton or the driver reports it to the host with an error before
 any program runs. A rejected launch has no outcome at all (`TVA.Claim.Behaviour`). So neither
@@ -47,10 +58,7 @@ gives. Triton 3.8.0's launcher returns without an error, and runs no program, wh
 (`primitives/triton-3.8.0-nvidia-driver.c:968-972`). `Launch.Valid` excludes such grids by
 asking for fewer than `2^31` programs, so a valid launch that returns without an error has run its
 whole grid ([evidence/launch-outcomes](../../evidence/launch-outcomes/README.md); library
-issue L9). A call made on a stream that is capturing into a CUDA graph also returns without an error
-and runs no program, and its programs run later, at each replay of the graph; a call made on another
-stream during the capture runs at once. Scope 9 excludes every call made while a capture is in
-progress, on any stream, and every replay (library issue L91).
+issue L9).
 
 ## Memory
 
@@ -60,17 +68,17 @@ ends. Bytes `init` does not give are no part of the outcome, so `Post` cannot sp
 model may not access them (library issue L49).
 
 The rule also states a frame (library issue L73): a valid launch within the scope, from an `init`
-from which it is well behaved, writes no byte of global memory other than those `init` gives, except
-the scratch of the descriptors the kernel builds (scope 5). The device writes what the model writes,
-and the launcher passes the kernel no other buffer of its own but that scratch and those of
-instrumentation (`instrumentation_mode`: a profile scratch, a sanitizer's state), which scopes 2 and
-4 exclude (`primitives/triton-3.8.0-nvidia-driver.py:280-333`). In
+from which it is well behaved, writes no byte of global memory other than those `init` gives. The
+device writes what the model writes, and the launcher passes the kernel no other buffer of its own
+but the scratch of descriptors built in the kernel, which scope 5 excludes (library issue L146), and
+those of instrumentation (`instrumentation_mode`: a profile scratch, a sanitizer's state), which
+scopes 2 and 4 exclude (`primitives/triton-3.8.0-nvidia-driver.py:280-333`). In
 [evidence/launch-frame](../../evidence/launch-frame/README.md), every buffer was carved out of one
 sentinel-filled pool with guards between them: a vector add with a masked last tile, a row softmax,
 a pipelined `tl.dot`, integer and float atomics, a sort, a scan and a histogram changed no byte
-outside their output buffers, and a copy through in-kernel descriptors none outside its output and
-its scratch; the global scratch size was `0` for every kernel but that one (128 bytes per
-descriptor), and the profile scratch size `0` for all. So a claim that cites
+outside their output buffers; the global scratch size was `0` for every kernel but a copy through
+in-kernel descriptors (128 bytes per descriptor), which scope 5 now excludes, and the profile
+scratch size `0` for all. So a claim that cites
 the rule implies that, on its covered instances, the launch leaves every other byte the host holds
 as it was ([`TVA.Claim`](../../lean/TVA/Claim.lean), "Other memory"). What anything else does to
 those bytes is outside the claim.
@@ -78,7 +86,8 @@ those bytes is outside the claim.
 ## Scope
 
 The rule covers a launch only under the conditions below, in two parts (library issues L5, L17, L18,
-L19, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104, L105, L107, L109, L110, L116, L117). They are
+L19, L47, L49, L72, L74, L76, L77, L78, L103, L104, L105, L107, L109, L110, L116, L117, L144, L146).
+They are
 about the host, which `Launch` does not describe, so the claim's text states them (the hashed
 docstring of `Rules.Compiler.Faithful`). The user's decisions, 2026-10-29, under L36: "To make the
 verifier easy, we do not verify triton cache.", "we assume the kernel is new." and "So basically, we
@@ -87,16 +96,16 @@ users."; on the autotuner ("Which launch"), "actually we do not neccessarily cov
 verification basically for the kernel." and "our principle is, we are verifying kernel itself.
 [...] actually not the prover picks a config, it is we pick a config. prover is not aware of the
 autotune." Each condition keeps its number of earlier rounds, so that a citation of "scope `n`" or
-"point `n`" still names it.
+"point `n`" still names it; point 9 was removed in round 32, when the rule became one about an
+execution of the kernel (library issue L144).
 
 ### (A) The kernel and its launches: checked
 
 What the claim's instances describe and the kernel reviewer checks against the source: the
 `@triton.jit` function, its helpers and its decorators as the kernel's source writes them
 (`triton.heuristics`, and `triton.autotune`, which is outside the supported subset: "Which
-launch"); the launch call, a direct launch of the `@triton.jit` function (the grid, the arguments,
-the compile-time values and the launch options the call passes); and what the kernel needs from its
-host to run at all (an allocator for descriptors, the host `TensorDescriptor`s the launch is given).
+launch"); the launch, an execution of the `@triton.jit` function (the grid, the arguments, the
+compile-time values and the launch options); and the host `TensorDescriptor`s the launch is given.
 The checklist ("How a bundle cites it") lists these.
 
 - **4.** **Only the launch options `Launch` records.** Every field of the NVIDIA backend's
@@ -127,18 +136,24 @@ The checklist ("How a bundle cites it") lists these.
    The decorator's `@triton.jit(debug=True)` sets the `JITFunction`'s attribute `debug`, which a
    launch that gives no `debug` takes (`kwargs.get("debug", self.debug)`,
    `primitives/triton-3.8.0-jit.py:727`): it gives `Launch.debug`.
-- **5.** **The scratch of descriptors built in the kernel is the launch's own.** A kernel that builds
-   tensor descriptors (`tl.make_tensor_descriptor`) needs an allocator (`triton.set_allocator`;
-   the default one raises, `primitives/triton-3.8.0-allocation.py:17-21`), and without one the launch
-   is rejected on the host with a `RuntimeError` before any program runs. The launcher asks the
-   allocator for `global_scratch_size` bytes per program (128 per descriptor) once per launch, on
-   the launch's stream (`primitives/triton-3.8.0-nvidia-driver.py:297-333`), and each program
-   writes its own descriptors there (`primitives/triton-3.8.0-TMALowering.cpp:166-184`), and nothing else
-   ([evidence/desc-scratch](../../evidence/desc-scratch/README.md) D2, D3). The model does not
-   access that buffer (`tl.make_tensor_descriptor` is pure). The rule covers such a launch only
-   when the buffer holds no byte `init` gives the launch and nothing else writes it until the
-   launch ends: an allocator that returned the start of an input buffer had 1024 of its elements
-   overwritten (D4).
+- **5.** **No descriptor built in the kernel** (library issue L146; the user's decision, 2026-11-08:
+   "let's exclude this case. we only cover descriptor outside of triton kernels";
+   [exclusions.md](../exclusions.md)). The front end visits no call of `tl.make_tensor_descriptor` on
+   the instance, in the kernel or a helper. A call in a compile-time branch the instance does not
+   take is not visited: tutorial 06's `_maybe_make_tensor_desc` returns a host `TensorDescriptor` it
+   is given (`isinstance` is a compile-time test) and builds one only from a pointer. Such a call is
+   what makes Triton 3.8.0 give a launch a global scratch buffer: it is lowered to a
+   `GlobalScratchAllocOp` (`primitives/triton-3.8.0-TMALowering.cpp:166-184`, and the pipeliner's
+   multi-buffered copies of it for a call in a loop, `primitives/triton-3.8.0-PipeliningUtility.cpp:596-612`),
+   whose only other users are instrumentation (scopes 2 and 4), so within the scope the global
+   scratch size is `0` and the launcher allocates no scratch and calls no allocator
+   (`primitives/triton-3.8.0-nvidia-driver.py:301-307`). The exclusion settles what such a launch
+   would need of its scratch: that the allocator's buffer holds none of the launch's bytes and has
+   the alignment asked for, and that a descriptor rebuilt in a loop is not rewritten while an
+   earlier access through it is in flight (library issues L120, L121;
+   [evidence/desc-scratch](../../evidence/desc-scratch/README.md): an allocator that returned the
+   start of an input buffer had 1024 of its elements overwritten). Host descriptors (point 8) stay
+   covered.
 - **6.** **A precompiled kernel gets arguments of its specialisation.** A launch through a
    `CompiledKernel` (`kernel.warmup(…)` or `triton.compile`, then `compiled[grid](…)`, as tutorial
    02 does) runs the code compiled for the warm-up's arguments (for `triton.compile`, its signature
@@ -168,24 +183,27 @@ The checklist ("How a bundle cites it") lists these.
    loads round `float32` to tf32: `1 + 2^-23` was loaded as `1.0` and `0x3dcccccd` as `0x3dccc000`
    ([evidence/desc-tf32](../../evidence/desc-tf32/README.md)), where `tl.desc_load` returns the stored
    values (library issue L76; no pinned tutorial sets the field).
-- **9.** **No CUDA graph capture.** The call that launches the kernel is not made while a CUDA stream
-   capture is in progress, on any stream (`torch.cuda.graph(…)`, `torch.cuda.CUDAGraph.capture_begin`,
-   `triton.testing.do_bench_cudagraph`, a `cudaStreamBeginCapture` by other code), and the launch is
-   not a replay of a captured graph (`graph.replay()`). A call on the capturing stream (the current
-   stream inside `torch.cuda.graph(…)`) is captured: it returns without an error, compiling the kernel
-   first if needed, and runs no program; the programs run at each replay, with the arguments the call
-   captured, on the memory at the replay (`docs/library-review/round-16/lr-16b/work/graph_capture.py`
-   G1-G3: the output kept its sentinel after the captured call, held `x + 1` after the first replay
-   and `11` after the host set `x = 10` and replayed, and a captured `n = 16` wrote 16 elements
-   whatever the host's `n` was later). A call on another stream while a capture is in progress is not
-   captured: it runs at once, as any launch, and a replay does not run it
-   ([evidence/host-round20](../../evidence/host-round20/README.md) G0–G3, in the capture modes
-   `global`, `thread_local` and `relaxed`). The rule covers no call made while a capture is in
-   progress, captured or not (the captured call's outcome, "ok, memory unchanged", is not the
-   model's), and no replay, which is not a call through Triton: an exclusion wider than the calls
-   capture changes (library issue L91; excluded by the user's decision, 2026-10-28,
-   [exclusions.md](../exclusions.md); no in-scope tutorial's host captures).
-
+- **12.** **No atomic's result is used on a shared cell** (library issue L161; the user's decision,
+   2026-11-08: "let's exclude with Fix B"). No program of the launch uses the result of a
+   `tl.atomic_*` call (in a store, an address, a branch, or any other operation that runs; "used" as
+   [SEMANTICS.md](../SEMANTICS.md), "Atomics", reads it) when a cell that call reaches is also
+   accessed by another program of the launch, or by another atomic operation of the same program
+   (another `tl.atomic_*` call, or the same call run again, in a loop). The lanes of one call are not
+   another operation: the semantics performs them in any order. A reviewer who cannot tell whether
+   another program or another atomic operation of the program reaches a cell the call reaches (an
+   address computed from data, a loop whose trip count is data) treats the cell as shared, so the
+   launch is outside the rule (library issue L165). Why: the semantics orders a
+   program's steps, and a tensor step that uses one lane of an atomic's result holds back every
+   later atomic of the program (`Step.defer`), while on the device each thread orders only its own
+   accesses ([evidence/atomic-result-order](../../evidence/atomic-result-order/README.md), from
+   library review lr-34a: in a two-program launch program 0 stored an old value of `Y[0]` that
+   program 1 had already changed after reading program 0's later atomic, and in a one-program
+   launch a lane of the first of two calls on one cell returned an old value only the second call's
+   updates give, in 200 of 200 runs each: the first with `acq_rel`, the second with `acq_rel` and
+   with `relaxed`; with `relaxed` the two-program launch races, its used atomics keeping `relaxed`,
+   so the rule says nothing of it, library issue L165). In the semantics neither outcome exists. `TVA.UsesSharedAtomicResult` (`lean/TVA/Sem/AtomicResult.lean`) reads the
+   first case on a model, and `TVA.AtomicResult.crosswarp_excluded` proves lr-34a's launch is under
+   it. No claim uses an atomic's result: stream-K, the histograms and the LoRA shrink discard theirs.
 ### (B) The environment: assumed, not verified
 
 TVA verifies the kernel, not the Triton installation or other code users write. These conditions
@@ -288,9 +306,11 @@ visibly breaks one (the source sets a knob, or rebinds a Triton name) is still a
      of a Triton module),
    - (c) other than through Triton's API as the in-scope tutorials use it: launches,
      `kernel.warmup(…)`, `triton.autotune` with its `triton.Config`s and hooks, the `JITFunction`'s
-     `debug` (point 4), `triton.set_allocator` (point 5; it sets Triton's `_allocator`,
-     `primitives/triton-3.8.0-allocation.py`), the knobs point 2 allows, and the fields of a host
-     `TensorDescriptor` the launch is given (a config's `pre_hook` may set its `block_shape`, as
+     `debug` (point 4), the knobs point 2 allows, `triton.set_allocator` (within point 5 the
+     launcher never calls the allocator it sets: a kernel that builds no descriptor has no global
+     scratch, `primitives/triton-3.8.0-nvidia-driver.py:301-321`;
+     [evidence/set-allocator](../../evidence/set-allocator/README.md); library issue L146), and the
+     fields of a host `TensorDescriptor` the launch is given (a config's `pre_hook` may set its `block_shape`, as
      tutorials 06 and 09 do, "Which launch"; point 8 still bars `round_f32_to_tf32=True`); every
      other point still holds of these (point 3 bars a hook an API call installs).
    - (d) No code binds a name of the kernel's module other than as the module's own statements bind
@@ -346,10 +366,10 @@ visibly breaks one (the source sets a knob, or rebinds a Triton name) is still a
 
 ## Which launch
 
-The rule is about one direct launch of the kernel's `@triton.jit` function (`kernel[grid](…)`, or
-the launch of a `CompiledKernel` within point 6), made through Triton outside CUDA graph capture
-(scope 9), with the grid, the arguments, the compile-time values and the options the launch call
-gives. Its `init` is the memory when it starts; what the caller's memory was before is the host's
+The rule is about one execution of the kernel's `@triton.jit` function ("What it says"), running
+the code Triton compiles for a direct launch of it (`kernel[grid](…)`, or the launch of a
+`CompiledKernel` within point 6), with that launch's grid, arguments, compile-time values and
+options. Its `init` is the memory when the execution starts; what the caller's memory was before is the host's
 part, outside the claim, and a claim about the caller's buffers before the call must be stated on
 the host (it is not a kernel claim).
 
@@ -409,9 +429,9 @@ judges that kernel, not the choice of config.
   scope (point 1).
 - **Anything outside the scope** (above). Part (A), checked: a compile option `Launch` does not
   record (at the launch, at `warmup`, in `triton.compile` or in a config) or `@triton.heuristics`, a
-  descriptor scratch that holds or shares the launch's bytes, a precompiled kernel given arguments
-  outside its specialisation or compiled from an IR file, a host descriptor with
-  `round_f32_to_tf32=True`, a call made during a CUDA graph capture or a replay of the graph. Part
+  descriptor built in the kernel, a precompiled kernel given arguments outside its specialisation or
+  compiled from an IR file, a host descriptor with `round_f32_to_tf32=True`, an atomic's result used
+  on a cell another program or another atomic operation of the program also accesses. Part
   (B), assumed not to happen and not checked: another writer of the launch's bytes during the
   launch, a knob not at its default, a hook, a `debug` attribute set from outside or a `preload`, a
   target other than the H200 or a host other than x86-64 with CPython 3.13 (or one run with `-O` or
@@ -421,8 +441,7 @@ judges that kernel, not the choice of config.
 - **The autotuner and the host code around the launch**: a call of a `@triton.autotune`d kernel,
   with its benchmark runs, key, pruning, `reset_to_zero` and `restore_value`, hooks, `do_bench` and
   choice, which TVA does not verify (above, "Which launch"), and what anything but the launch does
-  to the bytes `init` does not give (the launch itself writes none of them but the descriptor
-  scratch, "Memory").
+  to the bytes `init` does not give (the launch itself writes none of them, "Memory").
 - **Whether the kernel compiles.** A rejected launch has no outcome, so the rule covers only
   launches that run. The limits behind a rejection include (A1–A8 of
   [evidence/launch-outcomes](../../evidence/launch-outcomes/README.md) show several):
@@ -462,16 +481,13 @@ The reviewer checks five things:
   - 4. no option other than the eight listed, at the launch, at `warmup`, in `triton.compile`'s
     options or in a `triton.Config`, and no `@triton.heuristics`; the decorator's `debug` is
     `Launch.debug`;
-  - 5. when the kernel builds descriptors, an allocator whose buffer holds none of the claim's buffers
-    and that nothing else writes during the launch;
+  - 5. no call of `tl.make_tensor_descriptor` that the front end visits on a covered instance;
   - 6. for a `CompiledKernel`, the kernel's own source (an `ASTSource`, not an IR file) and arguments
     in its specialisation (the dtypes, each pointer's alignment, each integer's class, each host
     descriptor's dtype and block shape);
   - 8. no host descriptor with `round_f32_to_tf32=True`;
-  - 9. no CUDA graph capture: no call made while a CUDA stream capture is in progress, on the
-    capturing stream or any other, and no replay;
 
-  and that the launch is a direct launch of the `@triton.jit` function: a source that has
+  and that the launch is a launch of the `@triton.jit` function: a source that has
   `@triton.autotune` is outside the supported subset ("Which launch"). Part (B) (points 1, 2, 3, the
   environment's part of 4, 7, 10 and 11) is assumed: the reviewer does not read host code for it,
   and files a finding only when the claim's own launch or kernel source visibly breaks it;

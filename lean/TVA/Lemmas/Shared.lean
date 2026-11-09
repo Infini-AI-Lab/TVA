@@ -15,8 +15,11 @@ Many Triton kernels have programs that touch common memory only with atomics:
 Memory is split into each program's **private** footprint (`R i`, `W i`, disjoint across
 programs as for `independent`) and a **shared** region `A`, the bytes of a set of cells `C`
 (`cellBytes C`). Cells are equal or disjoint. Programs access `A` only with `acq_rel`
-read-modify-writes (Triton's default) at `gpu` or `sys` scope, each on a whole cell. Relaxed
-shared atomics race in the semantics, and kernels with them are not covered.
+read-modify-writes (Triton's default) at `gpu` or `sys` scope, each on a whole cell. An atomic
+whose result the source never uses is one of these whatever its `sem` (`tl.atomic_add_unused` and
+the others, whose order is `MemSem.unused sem sc`, `acq_rel` at `gpu`/`sys` by `MemSem.unused_gpu`;
+library issue L157). Relaxed shared atomics whose result is used race in the semantics, and
+kernels with them are not covered.
 
 Each program is proved alone with `SafeA`. It is `Safe` for private accesses. An atomic on `A`
 may find *any* old value there, because other programs change `A`. The program records each

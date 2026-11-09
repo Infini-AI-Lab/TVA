@@ -233,7 +233,8 @@ of `float32` operands) and its `maxImpreciseAcc` (how many fp8 products sm_90 ma
 tensor core's reduced-precision accumulator before adding them into `float32`). With an
 integer accumulator and `rel = abs = 0`, the rule says that an exact sum in range is the
 result; Triton 3.8.0's only integer `tl.dot` is `int8 × int8 → int32`
-(`semantic.py:1483-1486`). -/
+(`semantic.py:1483-1486`), and the library states this for it as `Rules.Num.DotI8` (library issue
+L141). -/
 def DotAcc (cfg : DotCfg) (dom : ℚ → Prop) (rel abs : ℕ → ℚ) : Prop :=
   ∀ ⦃M N K : Nat⦄ (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
     (acc r : Tensor [M, N] cfg.acc.Val), P.dot cfg a b acc r →

@@ -75,8 +75,10 @@ non-merged column-parallel layers), `SPLIT_K = 1`, and either value of `EVEN_K`:
 - shapes as variables, with the ranges vLLM's test uses (`tests/lora/test_punica_ops.py:320-421`):
   `M ≥ 1` (batches of 1 to 32 sequences of 128 tokens there; in serving, the step's tokens);
   `hidden` from 2 (`128 / 64`) to 128256, the hidden sizes of the LoRA models vLLM supports and their
-  shards for tensor-parallel degrees 1 to 64, and 2049; `rank` 1, 4, 8, 16, 32, 64, 128, 256
-  (multiples of `BLOCK_N = 16` or not); `max_loras` 1, 4, 8, 32, 128.
+  shards for tensor-parallel degrees 1 to 64, and 2049; `rank` 16, 32, 64, 128, 256
+  (multiples of `BLOCK_N = 16`); `max_loras` 1, 4, 8, 32, 128; and LoRA A weights of fewer than `2^31`
+  elements (`max_loras · rank · hidden < 2^31`). Ranks that are not a multiple of 16 and larger weight
+  tensors are not this task's.
 
 vLLM's launches with two or three slices (merged `qkv_proj`, `gate_up_proj`) take the `SLICE_NUM > 1`
 path, which loads each slice's weight address from a `uint64` tensor and converts it to a pointer;

@@ -3,7 +3,7 @@
 
   sandbox/make_task.py KERNEL [--out DIR] [--tva DIR] [--scripted] [--reviewers N] [--model M]
                [--agent-timeout S] [--max-reviewed N] [--max-rejected N] [--cpus N] [--memory-mb N]
-               [--context-window N]
+               [--context-window N] [--reviewer-timeout S]
 
 writes OUT/tva-prove-KERNEL/ (OUT/tva-prove-KERNEL-scripted/ with --scripted, whose reviewers are the
 scripted plumbing reviewer that accepts everything unread, and whose verifier allows it). OUT is
@@ -240,7 +240,7 @@ def harness_files(E, tva, k, man, cfg, setup, a):
 
 def dsh_manual(t):
     """The prover's manual for dsh (its instructions file, $DSH_HOME/AGENTS.md): Claude Code's, with dsh's
-    subagents (background, a role line instead of a type) and its shell (no blocked `sleep`). dsh gives this file to
+    subagents (a role line instead of a type). dsh gives this file to
     every agent, subagents too, and a subagent's role instructions (dsh_hook.py) reach it after its first step: so it
     opens with what a subagent does with it."""
     if not t.startswith("# Prover's operating manual"):
@@ -250,22 +250,11 @@ def dsh_manual(t):
          "not the prover. Read `/.claude/agents/NAME.md` first (your instructions; none for `general`), do only "
          "your task, never run `tva-review` (submitting and waiting are the prover's), and end with your report. "
          "This manual is background for you.\n" + rest)
-    t = sub(t, """  Subagents run in the foreground (their
-  report is the result of the call; several started in one message run at once).""",
+    t = sub(t, """  Subagents run in the background: the call returns at once,""",
             """  Start a subagent with the `subagent` tool. Its prompt's first line names its role, `Role: NAME`
   (`tva-scout`, `lean-fixer`, `claim-audit`, `proof-attempt`, or `general` for none), and the rest is the
-  whole task: it does not see your conversation. Subagents run in the background: the call returns at
-  once, several started in one message run at once, and each one's closing report comes to you as a
-  message when it ends. Work on something else meanwhile, or end your turn when only waiting is left:
-  the next report starts a new turn.""")
-    t = sub(t, """To continue a subagent's work, start a new one and
-  give it the earlier report: a resumed subagent (SendMessage) would run in the background, so the
-  harness refuses SendMessage.""", """To continue a subagent's work, start a new one and
-  give it the earlier report.""")
-    t = sub(t, """- Never wait in a loop: `sleep` is blocked, and a `read` loop keeps a core busy that the builds need.
-  There is nothing to wait for but the review (`tva-review wait`).""",
-            """- Never wait with `sleep` or in a loop: a subagent's report comes to you by itself, and the review is
-  waited for with `tva-review wait`.""")
+  whole task: it does not see your conversation. Subagents run in the background: the call returns at once,""")
+    t = sub(t, """give it the earlier report (the harness refuses SendMessage).""", """give it the earlier report.""")
     return t
 
 
@@ -402,6 +391,8 @@ def main():
     ap.add_argument("--model", default="claude-opus-5-5")
     ap.add_argument("--agent-timeout", type=int, default=8 * 3600)
     ap.add_argument("--max-reviewed", type=int, default=6)
+    ap.add_argument("--reviewer-timeout", type=int, default=5400,
+                    help="seconds for one reviewer's turn (a slow model needs more)")
     ap.add_argument("--max-rejected", type=int, default=40)
     ap.add_argument("--cpus", type=int, default=16)
     ap.add_argument("--memory-mb", type=int, default=65536)
@@ -437,7 +428,7 @@ def main():
            "source": src["file"], "source_sha256": src["sha256"], "reviewers": reviewers,
            "mode": "scripted" if a.scripted else "claude", "model": a.model,
            "max_reviewed": a.max_reviewed, "max_rejected": a.max_rejected, "gate_timeout_sec": GATE_TIMEOUT,
-           "reviewer_timeout_sec": 5400, "file_retries": 2, "refiles": 2, "tva_commit": rev,
+           "reviewer_timeout_sec": a.reviewer_timeout, "file_retries": 2, "refiles": 2, "tva_commit": rev,
            "allow_scripted": a.scripted}
     if sha(os.path.join(kd, src["file"])) != src["sha256"]:
         sys.exit(f"kernels/{k}/{src['file']} does not match kernel.json's sha256")

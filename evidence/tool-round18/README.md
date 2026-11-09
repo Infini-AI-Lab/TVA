@@ -11,6 +11,9 @@ prints both). The round's release check (run once, from TVA's root, after these 
 [release.out](release.out) and [release.json](release.json): 11 of 12 steps pass, and `records` fails on vec-add's
 four round-1 work files until the coordinator's `tvr freeze vec_add_f32` (round-18 author's notes).
 
+**Since round 35** (library issues L160, L170) the release check has no `pages` step (nor any
+kernel's gate): Question 5, Part P and Conclusion 5 record a step that no longer runs.
+
 **Questions.**
 1. (L94) Does the claim reader refuse an `Assumptions` with parameters other than `(K : Claim.Behaviour Inst)
    (P : Platform)`, lr-16a's `[Inhabited Unit] [Inhabited Bool] (K …) (P …)` included, whose shifted flags let a
@@ -73,4 +76,4 @@ out.txt's.
 4. A kernel's role folder and every file in it follow from that folder's own filing or response events, never a
    note's; the work files early lines left out are recorded once by `tvr freeze`, never by editing a line, and that
    leaves the certificate as the digests and findings make it (L81).
-5. The release check's pages are those the copy shipped (L96).
+5. The release check's pages were those the copy shipped (L96; the step was removed in round 35).

@@ -1,0 +1,177 @@
+{
+  "kernel": "fused_moe_bf16",
+  "title": "Fused MoE expert GEMMs (both GEMMs of `fused_experts`, tokens sorted by expert or the naive decode assignment, the H200's tuned tiles or `get_default_config`'s; `fused_moe_kernel`, bfloat16), vLLM",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/fused_moe.py",
+    "sha256": "f8f49d4d37a62a5c81af25e0d783caff41c9d85d3f3aed8235059845e65c2913",
+    "ranges": [
+      [
+        85,
+        86
+      ],
+      [
+        89,
+        106
+      ],
+      [
+        109,
+        420
+      ]
+    ],
+    "host": [
+      [
+        83,
+        83
+      ],
+      [
+        423,
+        482
+      ],
+      [
+        485,
+        520
+      ],
+      [
+        523,
+        529
+      ],
+      [
+        532,
+        539
+      ],
+      [
+        542,
+        557
+      ],
+      [
+        560,
+        570
+      ],
+      [
+        573,
+        606
+      ],
+      [
+        609,
+        690
+      ],
+      [
+        693,
+        701
+      ],
+      [
+        704,
+        766
+      ],
+      [
+        769,
+        833
+      ],
+      [
+        836,
+        851
+      ],
+      [
+        854,
+        912
+      ]
+    ],
+    "data": [
+      {
+        "file": "source/configs/E=128,N=1024,device_name=NVIDIA_H200.json",
+        "sha256": "da3f84f3c74d42086726e22b08bc149fb41f508ebab627a80ade932188ccbc74"
+      },
+      {
+        "file": "source/configs/E=128,N=192,device_name=NVIDIA_H200.json",
+        "sha256": "9ec344b83364b34b552df41f226ef1c45c047a9b537d07286bd7c9cb4352f314"
+      },
+      {
+        "file": "source/configs/E=128,N=384,device_name=NVIDIA_H200.json",
+        "sha256": "c6a865ef8f22b7c195d8a5d7d178b18ad13fcb09ec2a4b2a2bc0062fbb40813f"
+      },
+      {
+        "file": "source/configs/E=128,N=512,device_name=NVIDIA_H200.json",
+        "sha256": "4ba21c280372c03284ef84506b4fecbfda9fdbe514c3f3ae3f6ec77e04c25764"
+      },
+      {
+        "file": "source/configs/E=128,N=768,device_name=NVIDIA_H200.json",
+        "sha256": "26b68cf8dbdb83957f4c991297a50f15864dd731c7a086ebda901c92c7a7a136"
+      },
+      {
+        "file": "source/configs/E=128,N=96,device_name=NVIDIA_H200.json",
+        "sha256": "2a815f4e12a7de0bcb9b313834c2917bdfa0ed9035cc3309272df40012527f01"
+      },
+      {
+        "file": "source/configs/E=16,N=1024,device_name=NVIDIA_H200.json",
+        "sha256": "87adf31baf7c2a7cde0c72f6d0c7f127770a8913a705dec6559f9ae9681b702c"
+      },
+      {
+        "file": "source/configs/E=16,N=2048,device_name=NVIDIA_H200.json",
+        "sha256": "2dcf16aaea388665c6914abf1c2c64c56d5fcc39ef13a8c765211cdbcfa2ee50"
+      },
+      {
+        "file": "source/configs/E=512,N=128,device_name=NVIDIA_H200.json",
+        "sha256": "041dea3cc4446800b35879a1bdc1134072c36065fb1974caaf5139726dbdb82d"
+      },
+      {
+        "file": "source/configs/E=512,N=256,device_name=NVIDIA_H200.json",
+        "sha256": "85ef2b95e6134f8d24a6c8495b516c762c91d27454dfaec2ab2b52fbdf9464db"
+      },
+      {
+        "file": "source/configs/E=512,N=512,device_name=NVIDIA_H200.json",
+        "sha256": "c51fefe30cbcfda7bd7c6cae4e7856634776f4dc02f4284f2af7422b9fcf4b66"
+      },
+      {
+        "file": "source/configs/E=512,N=64,device_name=NVIDIA_H200.json",
+        "sha256": "2b51e422ca308126efc2d029a5964fb9d6082278bfc1aa12c4390045308442ca"
+      },
+      {
+        "file": "source/configs/E=64,N=1280,device_name=NVIDIA_H200.json",
+        "sha256": "c35f11dde1c1e285217db7025e31f20efa744620d2782adf33e5451128a6da14"
+      },
+      {
+        "file": "source/configs/E=64,N=2560,device_name=NVIDIA_H200.json",
+        "sha256": "097887946a5e6b97041a6162dbc25e737e2ec446484c5d9795d545709b5e657d"
+      },
+      {
+        "file": "source/configs/E=64,N=320,device_name=NVIDIA_H200.json",
+        "sha256": "6ccf60f97a62aec4e13b7436c7c0a14b1dcf3ed1ee1d15cbbd53274d6b7c8cb2"
+      },
+      {
+        "file": "source/configs/E=64,N=640,device_name=NVIDIA_H200.json",
+        "sha256": "279f6b9aa17c3505a4aa66b2fff6a1037b7723068f5cdbb901534b9d36837d80"
+      },
+      {
+        "file": "source/configs/E=8,N=14336,device_name=NVIDIA_H200.json",
+        "sha256": "082fe3b0c857ceb6277bb7883aba036b47c204a3677df89a556d9329de0ff9e9"
+      },
+      {
+        "file": "source/configs/E=8,N=1792,device_name=NVIDIA_H200.json",
+        "sha256": "f2aea89792500568fac957f314e9fb1b3e4c4974da5bd8dabcbeea4266153b08"
+      },
+      {
+        "file": "source/configs/E=8,N=2048,device_name=NVIDIA_H200.json",
+        "sha256": "4d748ea2abe2fb1f07d77c4faab07dab3d93de8a44180fb60f4bffe27e41106e"
+      },
+      {
+        "file": "source/configs/E=8,N=3584,device_name=NVIDIA_H200.json",
+        "sha256": "69dd599244b22c9c1119be0a7f6e2a839856fc33e6b74057aca47ce68022577e"
+      },
+      {
+        "file": "source/configs/E=8,N=4096,device_name=NVIDIA_H200.json",
+        "sha256": "253f9930b840aaacd292a8af396e404d3291972c9a15092a4039da3d2e03135d"
+      },
+      {
+        "file": "source/configs/E=8,N=7168,device_name=NVIDIA_H200.json",
+        "sha256": "1acb50a2c3cf1d49ff2360d5dde306b67df15cec3a925d616fc2f412f46c6c45"
+      }
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.FusedMoe",
+  "statement": "Claims.FusedMoe.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

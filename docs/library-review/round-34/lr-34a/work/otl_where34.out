@@ -1,0 +1,12 @@
+tl.where(c, tl.load(p, mask=c), 0.0); acc starts 0.0; cv=5 (c true): rewritten=False, stored [1.0]
+tl.where(c, tl.load(p, mask=c), 0.0); acc starts 0.0; cv=0 (c false): rewritten=False, stored [0.0], the source gives 0.0
+tl.where(c, tl.load(p, mask=c), 0.0); acc starts 1.0; cv=5 (c true): rewritten=False, stored [1.0]
+tl.where(c, tl.load(p, mask=c), 0.0); acc starts 1.0; cv=0 (c false): rewritten=False, stored [1.0], the source gives 1.0
+tl.where(c, tl.load(p, mask=c), 5.0); acc starts 0.0; cv=5 (c true): rewritten=False, stored [1.0]
+tl.where(c, tl.load(p, mask=c), 5.0); acc starts 0.0; cv=0 (c false): rewritten=False, stored [640.0], the source gives 640.0
+tl.where(c, tl.load(p, mask=c), 5.0); acc starts 1.0; cv=5 (c true): rewritten=False, stored [1.0]
+tl.where(c, tl.load(p, mask=c), 5.0); acc starts 1.0; cv=0 (c false): rewritten=False, stored [641.0], the source gives 641.0
+control: tl.load(p, mask=c, other=0.0); acc starts 0.0; cv=5 (c true): rewritten=True, stored [2.0]
+control: tl.load(p, mask=c, other=0.0); acc starts 0.0; cv=0 (c false): rewritten=True, stored [0.0], the source gives 0.0
+control: tl.load(p, mask=c, other=0.0); acc starts 1.0; cv=5 (c true): rewritten=True, stored [3.0]
+control: tl.load(p, mask=c, other=0.0); acc starts 1.0; cv=0 (c false): rewritten=True, stored [1.0], the source gives 1.0

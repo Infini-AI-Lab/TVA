@@ -7,7 +7,9 @@
 - subagent-start: a subagent gets the role's rules and the Lean advice (the manual reaches only the main agent).
 - pre-tool: the Write and Edit tools write only where the role writes (their path is exact); no command
   that records for the service or breaks the prebuilt toolchain; no search of the whole filesystem; no
-  waiting loop that spins a core; a subagent runs in the foreground, and none is resumed (SendMessage).
+  waiting loop that spins a core; none is resumed (SendMessage). The prover's subagents run in the background
+  (the prover works on, and each report starts a new turn), and never run `tva-review`; a reviewer's subagents
+  run in the foreground.
   A Bash command is not read for the files it writes: shell is too irregular to read reliably.
 - post-tool: after an edit of a JSON record, say whether it parses; after the prover's Bash command, say
   which fixed files it changed (compared with a snapshot taken at the session's start). An edit of the
@@ -15,7 +17,8 @@
   gate builds everything. A kernel module that Lake reports slow, in a Bash `lake build` (its output, or
   the file it went to), gets the advice to split it. Every hour, the prover's agents are told the time left.
 - stop: the prover does not stop while the service is reviewing or findings are open, or before a first
-  submission; a reviewer does not stop before its filing is regular.
+  submission, except to wait for its background subagents (Claude Code then waits for them, and each report
+  starts a new turn); a reviewer does not stop before its filing is regular.
 """
 import contextlib
 import hashlib
@@ -176,11 +179,14 @@ TOOLCHAIN = re.compile(r"\blake\s+(update|clean|new|init|upgrade)\b|\blake\s+exe
                        r"(update|toolchain|default|override|self)\b|rm\s+-\S*r\S*\s+[^;&|]*\.lake\b")
 # `read -t N < /dev/zero` returns at once and is retried: a wait that keeps a core busy (Claude Code blocks `sleep`)
 SPIN = re.compile(r"\bread\b[^;&|\n]*<\s*/dev/(zero|urandom|random)\b")
-# a subagent resumed with SendMessage runs in the background, and the agent that resumed it can only poll for it
-RESUME = ("The harness does not resume subagents (SendMessage): a resumed subagent runs in the background, and you "
-          "could only wait for it. To continue its work, start a new subagent with the Agent tool: it runs in the "
-          "foreground, and its report is the result of the call. Give it the earlier report (what builds, what is "
-          "left) and what to do next; the files are on disk.")
+# a resumed subagent keeps its whole earlier context; a new one with the report starts small
+RESUME = ("The harness does not resume subagents (SendMessage). To continue a subagent's work, start a new subagent "
+          "with the Agent tool and give it the earlier report (what builds, what is left) and what to do next; the "
+          "files are on disk.")
+# the prover's subagents run in the background (dsh's way): the prover works on, and each report starts a new turn
+BACKGROUND = ("Subagents run in the background here: this call returns at once, and the subagent's closing report "
+              "comes to you as a message when it ends. Work on something else meanwhile (not on its file), or end "
+              "your turn when only waiting is left: the next report starts a new turn.")
 
 
 def without_heredocs(cmd):
@@ -324,14 +330,24 @@ def pre_tool(inp):
                  "work files with `cd ~/fpv/tva/lean && lake env lean <file>`.")
         if SPIN.search(cmd):
             deny("`read` from /dev/zero returns at once, so this loop keeps a CPU core busy that the Lean builds need. "
-                 "Do not wait: subagents run in the foreground here (their report comes back when they finish)" +
-                 (", `tva-review wait` waits for the review service, and a long build is better split than waited on."
-                  if kit.ROLE != "reviewer" else "."))
+                 + ("Do not wait: a subagent's report comes to you by itself (end your turn if only waiting is left), "
+                    "`tva-review wait` waits for the review service, and a long build is better split than waited on."
+                    if kit.ROLE != "reviewer" else
+                    "Do not wait: subagents run in the foreground here (their report comes back when they finish)."))
+        if kit.ROLE != "reviewer" and inp.get("agent_id") and re.search(r"(^|[\s;&|(])tva-review\b", cmd):
+            deny("`tva-review` is the prover's (submitting, waiting, the service's status): a subagent does its task "
+                 "and ends with its report.")
     elif tool == "SendMessage":
         deny(RESUME)
+    elif tool in ("Agent", "Task") and kit.ROLE != "reviewer":
+        # the prover's subagents run in the background: it works on, and each report starts a new turn (the
+        # Stop hook lets it end a turn while one runs, and Claude Code waits for them); set the field always
+        out({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
+                                    "updatedInput": {**ti, "run_in_background": True},
+                                    "additionalContext": BACKGROUND}})
     elif tool in ("Agent", "Task") and ti.get("run_in_background") is not False:
-        # in the background, the agent that started it has nothing to do but poll for it; Claude Code may run
-        # a subagent there when the field is absent (its test is `run_in_background !== false`), so set it
+        # a reviewer waits for its subagents: in the background it would have nothing to do but poll; Claude Code
+        # may run a subagent there when the field is absent (its test is `run_in_background !== false`), so set it
         out({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
                                     "updatedInput": {**ti, "run_in_background": False},
                                     "additionalContext": "The harness runs subagents in the foreground: this one's "
@@ -563,6 +579,8 @@ def block(reason):
 
 
 def stop_prover(inp):
+    if any(t.get("type") == "subagent" and t.get("status") == "running" for t in inp.get("background_tasks") or []):
+        sys.exit(0)  # ending a turn to wait for subagents: Claude Code waits, and each report starts a new turn
     st = kit.service_status()
     if not st:
         sys.exit(0)  # the service is unreachable: do not keep the agent forever

@@ -1,0 +1,3 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+atomic_max f32: 256 lanes; returned value not the old bits: 0; new value outside fBound: 0; examples []; PTX ['@%p1 atom.global.gpu.acq', '@%p2 atom.global.gpu.acq', '@%p3 atom.global.gpu.acq', '@%p4 atom.global.gpu.acq']
+atomic_min f32: 256 lanes; returned value not the old bits: 0; new value outside fBound: 0; examples []; PTX ['@%p1 atom.global.gpu.acq', '@%p2 atom.global.gpu.acq', '@%p3 atom.global.gpu.acq', '@%p4 atom.global.gpu.acq']

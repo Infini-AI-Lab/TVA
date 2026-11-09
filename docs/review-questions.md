@@ -19,9 +19,11 @@ answer.
   "acq_rel" semantics", and "gpu" (default).
 
 - **S3. Float `atomic_max`/`atomic_min`** (formerly Q3). Library review, 2026-10-26: Triton
-  implements them as signed max or unsigned min on the bit pattern, chosen by the sign of `val`
-  (`semantic.py:1315-1335`). The stored value is always one of the two operands, so `fBound`
-  is sound. fp16/bf16 are rejected (`semantic.py:1272-1275`).
+  implements them on the bit pattern, `atomic_max` as signed max or unsigned min and `atomic_min`
+  as signed min or unsigned max, chosen by the sign bit of `val` (`semantic.py:1299-1374`; library
+  issue L174). The stored (new) value is always one of the two values, the old one and the operand,
+  so `fBound` is sound; the returned value is the old one (library issue L168). fp16/bf16 are
+  rejected (`semantic.py:1271-1275`).
 - **S4. Library review 2026-10-26: findings fixed.**
   - NaN payloads are free (`FloatV.NaNEq`).
   - `maximum`/`minimum` may return either zero (`MaxRel`).
@@ -202,10 +204,19 @@ answer.
   `* scalar`) so that `contig` becomes a computed fact?
   Tracked as library issue L2: until it is settled, the library's reading is `contig = 1`.
 - **Q10. Relaxed atomics** (now also descriptor reductions, which are relaxed TMA
-  reductions). Kernels with `sem="relaxed"` (or `acquire`/`release`) atomics on
-  shared cells are out of scope (they race). Pure accumulation with relaxed atomics is common
-  in hand-tuned kernels. A future rule could state that relaxed RMW-only cells whose returned
-  values are unused behave like `acq_rel` ones.
+  reductions). Settled for pointer atomics by library issue L157 (user decision 2026-11-08): a
+  `tl.atomic_*` of any `sem` whose returned value the source never uses, at `gpu` or `sys` scope,
+  is modelled as the `acq_rel` atomic (`MemSem.unused`, `tl.atomic_add_unused` and the others), so
+  two of them on the same bytes from different programs do not race; cells they share can be
+  reached by no plain load or store of the launch (that would race). The reasons (PTX ISA 9.5
+  §8.7, §8.10.3: relaxed `atom` operations at a common scope, on the same bytes, are morally strong
+  and atomic; the semantics has no synchronises-with, so an atomic's order is observable only
+  through a result the program uses) are in `MemSem.unused`'s docstring, and the device evidence in
+  `evidence/relaxed-atomics`. Its premise, that the semantics already orders a program's atomics
+  only by their dependences, is false across threads (library issue L161, Q17), and the launches
+  where that shows are excluded. Open: relaxed atomics whose result is used, on shared cells, and
+  descriptor reductions into elements other programs also reduce into (TMA reductions run in the
+  async proxy; their atomicity with each other is not established here).
 - **Q11. Proxy ordering for descriptors.** TMA copies use the async proxy. In PTX, a pointer
   (generic-proxy) access followed by a TMA access to the same global bytes needs
   `fence.proxy.async`. Since library issue L15 (round 3), two accesses of one program to the same
@@ -221,16 +232,29 @@ answer.
   lowerings (`HistogramOpToLLVM`, the TMA gather4/scatter4 path) to relax them if a kernel
   needs it.
 - **Q7. Granularity.** A tensor load or store is one step of the interleaving. This is claimed
-  harmless for launches without a race between programs or a conflict within a program (L15). A reviewer may ask for the argument in Lean (a
+  harmless for launches without a race between programs or a conflict within a program (L15),
+  except for the order of a program's atomics: a tensor step that uses one lane's result holds back
+  every later atomic of the program (Q17, library issues L161, L169: those launches are excluded). A reviewer may ask for the argument in Lean (a
   finer-interleaving refinement). The width of the device's atomics can also differ from the
-  model's events:
-  - two contiguous fp16 lanes may become one 32-bit `f16x2` atomic
-    (`triton-3.8.0-nvidia-LoadStoreOpToLLVM.cpp:736-740`);
-  - the pre-sm_90 bf16 atomic is a 32-bit CAS loop that touches the neighbouring half.
+  model's events. On sm_90, the target (library issue L172, round 38;
+  [evidence/half-atomics](../evidence/half-atomics/README.md), H200):
+  - a lane of a `float16` or `bfloat16` `atomic_add` is one `atom.add.noftz.f16` (`.bf16`), and a
+    lane of a 16-bit `atomic_cas` one `atom.cas.b16`; `ptxas` compiles each to a 32-bit
+    compare-and-swap loop (`ATOMG.E.CAS`) on the aligned word that holds the half, which writes the
+    neighbouring half back with the value it read;
+  - contiguous unmasked lanes that one thread holds become one vector atomic
+    (`atom.add.noftz.v8.f16`, `.v8.bf16`; `ATOMG.E.ADD.F16`, `.BF16`): Triton 3.8.0 vectorises a
+    `float16`, `bfloat16` or `float32` atomic add where the target supports vector atomics (sm_90),
+    and packs two `float16` lanes into one `f16x2` atomic only where it does not
+    (`triton-3.8.0-nvidia-LoadStoreOpToLLVM.cpp:636-646, 729-740`).
 
-  A packed atomic and another program's 16-bit atomic on one half are not morally strong in
-  PTX, but the model's 2-byte events are `Event.Strong`. This is part of the compiler trust for
-  now. Confirm it before relying on fp16/bf16 atomics shared at 2-byte granularity.
+  The model's events for these atomics are 2 bytes and `Event.Strong`; the device's accesses are
+  not those events (a 4-byte compare-and-swap, a 16-byte vector atomic). In
+  evidence/half-atomics no value was wrong: in each form, with its result used and unused, no
+  lane's new value differed from one IEEE addition (0 of 1024), and with 32 programs adding into the even halves of a
+  buffer while 32 others stored plain values into the odd halves, 0 of 40960 cells were wrong over
+  20 launches per format. That is a test, not a proof: this is part of the compiler trust for now.
+  Confirm it before relying on fp16/bf16 atomics shared at 2-byte granularity.
 - **Q15. Poison as undefined behaviour.** `x.to(int)` out of range and shifts by the width or
   more are LLVM poison, not immediate undefined behaviour, but the library reads them as
   undefined. That is sound but over-restrictive: `tl.load(p, mask=m).to(tl.int8)` without
@@ -240,3 +264,22 @@ answer.
 - **Q16. The 16-byte offset rule for descriptors.** The documentation states it for `load` and
   `store`. The library also requires it of `desc.atomic_*`, `gather` and `scatter`, which is a
   conservative reading. Pin the TMA lowering to relax it.
+- **Q17. A per-lane model of atomics whose result is used** (library issue L161, round 35). `Step.defer`
+  lets a pending atomic be passed only by a later step that is the same for every old value, and a
+  tensor `tl.load` or `tl.store` is one step, so a step that uses any lane's result holds back every
+  later atomic of the program; on the device each thread orders only its own accesses (library
+  review lr-34a; `evidence/atomic-result-order`: a two-program launch with `acq_rel` and a
+  one-program launch with `acq_rel` and with `relaxed` whose device outcomes the semantics lacks, in
+  200 of 200 runs each). By the user's decision (2026-11-08, "let's
+  exclude with Fix B") the model is kept and every launch in which a program uses an atomic's
+  result on a cell another program, or another atomic operation of the same program, also accesses
+  is excluded (`docs/exclusions.md`; `TVA.UsesSharedAtomicResult`; lr-34a's launch is under it,
+  `TVA.AtomicResult.crosswarp_excluded`). To do when a kernel needs atomic results across programs
+  or calls (work queues, tickets, locks, "the last program reduces"): per-lane load and store steps
+  that may be deferred while they depend on a pending atomic, with the thread mapping of each
+  operation's layout, or an argument that a given kernel's layouts give each lane one thread
+  throughout. A `tl.debug_barrier()` between the use of a result and the program's next atomic on
+  the cell gave only outcomes the semantics has (`evidence/atomic-result-order`, `variants.py`: 0 of
+  100 outside, against 100 of 100 without it; library issue L165), so such a model may give the
+  barrier the meaning of ordering a program's accesses; until then it has none ("No barrier
+  semantics" in SEMANTICS.md).

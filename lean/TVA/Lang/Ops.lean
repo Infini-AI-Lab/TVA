@@ -1,4 +1,5 @@
 import TVA.Lang.Prog
+import Mathlib.Data.Nat.Log
 
 /-!
 # The Triton operations (`tl.*`)
@@ -60,24 +61,53 @@ def RoundsTo {f : Format} (q : Rat) (x : FloatV f) : Prop :=
       f.toRat (f.roundRat .rn false false q) = x.toRat) ∨
     (f.isInf (f.roundRat .rn false false q) = true ∧ f.roundRat .rn false false q = x.pat)
 
-/-- The results an addition `x + y` may produce.
-
-Without fusion, the result is the IEEE sum (up to NaN payload). With `enable_fp_fusion` (the
-default), the compiler may compute `a * b + c` as `fma(a, b, c)`. Then an operand that is a
-rounded product enters the addition unrounded, as any exact value that rounds to it (finite or
-not). The model does not track which operands are products, so this allows:
-- the rounding of `p + q` for exact `p`, `q` rounding to the operands;
-- an infinite operand added to an exact other operand, which gives that infinity.
-
-This soundly over-approximates every fusion. Error bounds lose at most one rounding's bound
-(`u·|y| + η`) per operand, and an exact zero result may have either sign. -/
-def AddRel {f : Format} (fusion : Bool) (x y r : FloatV f) : Prop :=
+/-- The results an addition `x + y` may produce, before library issue L155 narrowed them
+(`AddRel` below): the IEEE sum, or, with fusion, the rounding of `p + q` for exact `p`, `q` that
+round to the operands, *both* replaced, or an infinite operand added to an exact other operand.
+`AddRel.wide` derives it from `AddRel`; a lemma may take an `AddRel` apart through it. -/
+def AddRelWide {f : Format} (fusion : Bool) (x y r : FloatV f) : Prop :=
   FloatV.NaNEq (FloatV.add x y) r ∨
     (fusion = true ∧
       ((∃ p q : Rat, RoundsTo p x ∧ RoundsTo q y ∧ ∃ z : Bool,
           FloatV.NaNEq (FloatV.ofPat (f.roundRat .rn false z (p + q))) r) ∨
         (∃ p : Rat, RoundsTo p x ∧ y.isInf = true ∧ r = y) ∨
         (∃ q : Rat, RoundsTo q y ∧ x.isInf = true ∧ r = x)))
+
+/-- The results an addition `x + y` may produce.
+
+Without fusion, the result is the IEEE sum (up to NaN payload). With `enable_fp_fusion` (the
+default), the compiler may compute `a * b + c` as `fma(a, b, c)`. Then an operand that is a
+rounded product enters the addition unrounded, as any exact value that rounds to it (finite or
+not), and the other operand enters as it is: an `fma` takes one product unrounded, and sm_90 has no
+instruction that adds two unrounded products in these formats (library issue L155;
+`evidence/fma-one-product`: `a*b + c*d` and its other spellings compile to one `fma` and one `mul`
+on `float32`, `float64`, `float16` and `bfloat16`, and the device never gave the rounding of the
+two exact products where it differs from every one-product value). The model does not track which
+operand is a product, so this allows:
+- the rounding of `p + q` for exact `p`, `q` rounding to the operands, one of them the operand's
+  own value (`p = x.toRat` or `q = y.toRat`);
+- an infinite operand added to an exact other operand, which gives that infinity.
+
+This soundly over-approximates every fusion. Error bounds lose at most one rounding's bound
+(`u·|x| + η`) for one operand, and an exact zero result may have either sign. Before L155 both
+operands could be replaced (`AddRelWide`, which `AddRel.wide` derives). -/
+def AddRel {f : Format} (fusion : Bool) (x y r : FloatV f) : Prop :=
+  FloatV.NaNEq (FloatV.add x y) r ∨
+    (fusion = true ∧
+      ((∃ p q : Rat, RoundsTo p x ∧ RoundsTo q y ∧ (p = x.toRat ∨ q = y.toRat) ∧ ∃ z : Bool,
+          FloatV.NaNEq (FloatV.ofPat (f.roundRat .rn false z (p + q))) r) ∨
+        (∃ p : Rat, RoundsTo p x ∧ y.isInf = true ∧ r = y) ∨
+        (∃ q : Rat, RoundsTo q y ∧ x.isInf = true ∧ r = x)))
+
+/-- **The narrow relation implies the wide one** (library issue L155): every result `AddRel`
+allows, `AddRelWide` allowed. -/
+theorem AddRel.wide {f : Format} {fusion : Bool} {x y r : FloatV f} (h : AddRel fusion x y r) :
+    AddRelWide fusion x y r := by
+  rcases h with h | ⟨hf, ⟨p, q, hp, hq, -, z, hr⟩ | h2 | h3⟩
+  · exact Or.inl h
+  · exact Or.inr ⟨hf, Or.inl ⟨p, q, hp, hq, z, hr⟩⟩
+  · exact Or.inr ⟨hf, Or.inr (Or.inl h2)⟩
+  · exact Or.inr ⟨hf, Or.inr (Or.inr h3)⟩
 
 theorem AddRel.ieee {f : Format} (fusion : Bool) (x y : FloatV f) : AddRel fusion x y (FloatV.add x y) :=
   Or.inl (FloatV.NaNEq.refl _)
@@ -224,7 +254,14 @@ def store1 {d : DType} (p : Ptr d) (v : d.Val) : Prog Unit :=
 /-! ## Atomics
 
 A tensor atomic is one atomic read-modify-write per enabled lane, in an order the program does
-not control, each returning the element's old value. Disabled lanes return unspecified values. -/
+not control, each returning the element's old value. Disabled lanes return unspecified values.
+
+The update relations below are given on every element type, but Triton 3.8.0 accepts fewer
+(`semantic.py:1257-1290`; docs/SEMANTICS.md, "Atomics", library issue L168): `atomic_add` on the
+32- and 64-bit integers and `float16`, `bfloat16`, `float32`, `float64`; `atomic_max`, `atomic_min`,
+`atomic_and`, `atomic_or`, `atomic_xor` and `atomic_xchg` on the 32- and 64-bit integers and
+`float32`, `float64`; `atomic_cas` on every 16-, 32- and 64-bit element. It rejects the others on the
+host, so their meanings here are never used. -/
 
 /-- The read-modify-writes of the lanes `order`, in that order, collecting old values. -/
 def rmwSeq {d : DType} (ptrs : Tensor s (Ptr d)) (upd : Idx s → d.Val → d.Val → Prop)
@@ -270,10 +307,12 @@ def atomic_cas {d : DType} (ptrs : Tensor s (Ptr d)) (cmp vals : Tensor s d.Val)
     (sem : MemSem := .acqRel) (scope : Scope := .gpu) : Prog (Tensor s d.Val) :=
   atomicWith ptrs (fun i o n => n = if o = cmp.get i then vals.get i else o) none sem scope
 
-/-- A float `atomic_max` (`isMax`) or `atomic_min` result: one of the two values and, when
-neither is NaN, not below (above) either. Which zero wins between `-0.0` and `+0.0`, and the
-result with a NaN operand, are left open (Triton implements float max/min with integer atomics
-on the bit pattern; the documentation does not say). -/
+/-- The new value `n` of a float `atomic_max` (`isMax`) or `atomic_min` (what the cell holds
+after it; the returned value is the old one `o`, as for every atomic): one of the two values, the
+old one `o` and the operand `v`, and, when neither is NaN, not below (above) either. Which zero
+wins between `-0.0` and `+0.0`, and which of the two values is the new one with a NaN operand, are
+left open (Triton implements float max/min with integer atomics on the bit pattern; the
+documentation does not say). -/
 def fBound {f : TVA.Math.Float.Format} (isMax : Bool) (o v n : FloatV f) : Prop :=
   (n = o ∨ n = v) ∧ (o.isNaN = false → v.isNaN = false →
     if isMax then o.le n = true ∧ v.le n = true else n.le o = true ∧ n.le v = true)
@@ -305,7 +344,10 @@ def atomic_min {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     Prog (Tensor s d.Val) :=
   atomicWith ptrs (fun i => maxUpd false d (vals.get i)) mask sem scope
 
-/-- The new value of a bitwise atomic on integers (`op` on the bit vectors). -/
+/-- The new value of a bitwise atomic on integers (`op` on the bit vectors). There is none on a
+float: Triton 3.8.0 accepts `atomic_and`/`or`/`xor` on `float32` and `float64` (the integer
+operation on the bit patterns), but the library leaves them out, so such an atomic is undefined
+behaviour here (docs/exclusions.md; library issue L168). -/
 def bitUpd (op : ∀ {sg : Bool} {w : Nat}, IntV sg w → IntV sg w → IntV sg w) :
     (d : DType) → d.Val → d.Val → d.Val → Prop
   | .i8, v, o, n => n = op o v | .i16, v, o, n => n = op o v | .i32, v, o, n => n = op o v
@@ -332,6 +374,85 @@ def atomic_xor {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     Prog (Tensor s d.Val) :=
   atomicWith ptrs (fun i => bitUpd IntV.xor d (vals.get i)) mask sem scope
 
+/-! ### Atomics whose result is unused (library issue L157)
+
+A `tl.atomic_*` call whose returned value the source never uses: a call that is an expression
+statement (`tl.atomic_add(c_ptr, acc, mask=m, sem="relaxed")`), or whose value is bound only to
+names that no operation that runs reads (code the front end drops does not read: an `if` on a
+compile-time false condition, an argument of `tl.static_assert` or `tl.static_print`). On Triton's
+IR the `tt.atomic_rmw` or `tt.atomic_cas` then has a result with no use. The two readings differ
+for a value read only by an operation whose own result is unused (`s = r + 1` with `s` never read,
+`tl.device_assert(r > 0)` without `debug`) and for a value returned from a helper whose call is a
+statement; either may be applied, and both are sound, since the model drops the value only when
+nothing that runs on the device reads it (library issue L162). Its model is the atomic
+with `sem.unused scope` (`MemSem.unused`: `acq_rel` at `gpu` or `sys` scope, the source's `sem` at
+`cta`), and it returns nothing, so the model cannot use the old values either. Each is the source's
+`tl.atomic_*`, with the same arguments and defaults, followed by dropping its result. -/
+
+/-- `tl.atomic_add(ptrs, vals, mask, sem, scope)`, its result unused (`MemSem.unused`). -/
+def atomic_add_unused {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
+    (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
+    Prog Unit := do
+  let _ ← atomic_add ptrs vals mask (sem.unused scope) scope
+  return ()
+
+/-- `tl.atomic_xchg`, its result unused (`MemSem.unused`). -/
+def atomic_xchg_unused {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
+    (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
+    Prog Unit := do
+  let _ ← atomic_xchg ptrs vals mask (sem.unused scope) scope
+  return ()
+
+/-- `tl.atomic_cas`, its result unused (`MemSem.unused`). -/
+def atomic_cas_unused {d : DType} (ptrs : Tensor s (Ptr d)) (cmp vals : Tensor s d.Val)
+    (sem : MemSem := .acqRel) (scope : Scope := .gpu) : Prog Unit := do
+  let _ ← atomic_cas ptrs cmp vals (sem.unused scope) scope
+  return ()
+
+/-- `tl.atomic_max`, its result unused (`MemSem.unused`). -/
+def atomic_max_unused {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
+    (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
+    Prog Unit := do
+  let _ ← atomic_max ptrs vals mask (sem.unused scope) scope
+  return ()
+
+/-- `tl.atomic_min`, its result unused (`MemSem.unused`). -/
+def atomic_min_unused {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
+    (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
+    Prog Unit := do
+  let _ ← atomic_min ptrs vals mask (sem.unused scope) scope
+  return ()
+
+/-- `tl.atomic_and`, its result unused (`MemSem.unused`). -/
+def atomic_and_unused {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
+    (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
+    Prog Unit := do
+  let _ ← atomic_and ptrs vals mask (sem.unused scope) scope
+  return ()
+
+/-- `tl.atomic_or`, its result unused (`MemSem.unused`). -/
+def atomic_or_unused {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
+    (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
+    Prog Unit := do
+  let _ ← atomic_or ptrs vals mask (sem.unused scope) scope
+  return ()
+
+/-- `tl.atomic_xor`, its result unused (`MemSem.unused`). -/
+def atomic_xor_unused {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
+    (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
+    Prog Unit := do
+  let _ ← atomic_xor ptrs vals mask (sem.unused scope) scope
+  return ()
+
+/-- At `gpu` scope an unused atomic's order is `acq_rel`, whatever the source's. -/
+@[simp] theorem _root_.TVA.MemSem.unused_gpu (sem : MemSem) : sem.unused .gpu = .acqRel := rfl
+
+/-- At `sys` scope an unused atomic's order is `acq_rel`, whatever the source's. -/
+@[simp] theorem _root_.TVA.MemSem.unused_sys (sem : MemSem) : sem.unused .sys = .acqRel := rfl
+
+/-- At `cta` scope an unused atomic keeps the source's order (it races across programs anyway). -/
+@[simp] theorem _root_.TVA.MemSem.unused_cta (sem : MemSem) : sem.unused .cta = sem := rfl
+
 /-! ## Floating-point arithmetic -/
 
 section Float
@@ -342,7 +463,8 @@ def upToNaN (v : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
   .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.NaNEq (v.get i) (r.get i)) .ret
 
 /-- `x + y` on floats, IEEE (round to nearest even). This is the meaning of a source `+` whose
-operands are not, in the compiled dataflow, results of a floating multiplication. An addition
+operands are not, in the compiled dataflow, results of a floating multiplication or of a
+`float32` division (`tl.div`, whose last step is a multiply: library issue L163). An addition
 that consumes a product may be fused (`enable_fp_fusion`), and the model must then write
 `tl.mul_add` or `tl.addc`. Whether every such addition is written so is part of the model's
 correspondence to the source, which the reviewer checks.
@@ -380,11 +502,16 @@ def fma (x y z : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := upToNaN (T
 /-- `x / y` on floats (`tl.fdiv` with `ieee_rounding=False`): the platform's division. Triton
 computes `/` of `float16` and `bfloat16` in `float32` (`semantic.py:93-102`): the model converts
 explicitly. Its accuracy is a rule: `Rules.Num.DivFull` for `float32` (`div.full.f32`, within
-`2^-22·|x/y| + 2^-148` for `|x/y| ≤ 2^126`), `Rules.Num.DivRn` for `float64` (IEEE). -/
+`2^-22·|x/y| + 2^-148` for `|x/y| ≤ 2^126`), `Rules.Num.DivRn` for `float64` (IEEE). A `float32`
+quotient is a product for a following addition (library issue L163, `evidence/div-fusion`):
+`div.full.f32` ends in a multiply that `ptxas` may fuse with the addition, so the addition is
+`tl.addc`/`tl.subc` on this quotient (`AddRel`). -/
 def div (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
   .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i, e.P.div f (x.get i) (y.get i) (r.get i)) .ret
 
-/-- `tl.div_rn(x, y)`: IEEE division. -/
+/-- `tl.div_rn(x, y)`: IEEE division. Also `tl.fdiv(x, y, ieee_rounding=True)`, which Triton
+3.8.0 compiles to the same `tt.precise_divf` (`div.rn.f32`; both accept `float32` operands only)
+and so to no product for a following addition (library issue L166, `evidence/fdiv-ieee`). -/
 def div_rn (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := upToNaN (Tensor.map2 FloatV.divRn x y)
 
 /-- `tl.sqrt_rn(x)`: IEEE square root. -/
@@ -495,21 +622,31 @@ A reduction combines its elements with rounding additions along a tree Triton ch
 `tl.add` and `tl.addc`, the model says whether a product may feed the additions. `tl.sum`
 (`sum1`, `sum0`) is for inputs that are not products: every node is an IEEE addition
 (`AddRel false`). `tl.sumc` (`sum1c`, `sum0c`) is for a sum of products (`tl.sum(a * b)`), where
-the compiler may fuse the first additions: `AddRel` with the launch's `enable_fp_fusion`. -/
+the compiler may fuse the first additions: `AddRel` with the launch's `enable_fp_fusion`.
+
+The tree covers the axis's `n` positions, in some order, and its depth is at most
+`tl.sumBound P n = max (P.sumDepth n) ⌈log₂ n⌉` on the launch's platform `P` (library issue
+L149). With `Platform.sumDepth`'s default `n - 1` that allows every tree over the positions;
+`Rules.Num.SumDepth` states sm_90's depth, `⌈log₂ n⌉`. -/
+
+/-- The largest depth a float reduction's tree over `n` positions may have on `P`. -/
+def sumBound (P : Platform) (n : Nat) : Nat := max (P.sumDepth n) (Nat.clog 2 n)
 
 /-- A whole rank-1 reduction along some tree, each node an `AddRel fusion` addition. -/
 def sumWith (fusion : Bool) {n : Nat} (x : Tensor [n] (FloatV f)) : Prog (FloatV f) :=
-  .pick (fun r => ∃ t : Tree, t.Covers n ∧
+  .env fun e => .pick (fun r => ∃ t : Tree, t.Covers n ∧ t.depth ≤ sumBound e.P n ∧
     t.Eval (AddRel fusion) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r) .ret
 
 /-- Row reductions of a rank-2 tensor (`axis=1`). -/
 def sum1With (fusion : Bool) {m n : Nat} (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [m] (FloatV f)) :=
-  .pick (fun r : Tensor [m] (FloatV f) => ∀ i, ∃ t : Tree, t.Covers n ∧
+  .env fun e => .pick (fun r : Tensor [m] (FloatV f) => ∀ i, ∃ t : Tree, t.Covers n ∧
+    t.depth ≤ sumBound e.P n ∧
     t.Eval (AddRel fusion) (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) .ret
 
 /-- Column reductions of a rank-2 tensor (`axis=0`). -/
 def sum0With (fusion : Bool) {m n : Nat} (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [n] (FloatV f)) :=
-  .pick (fun r : Tensor [n] (FloatV f) => ∀ j, ∃ t : Tree, t.Covers m ∧
+  .env fun e => .pick (fun r : Tensor [n] (FloatV f) => ∀ j, ∃ t : Tree, t.Covers m ∧
+    t.depth ≤ sumBound e.P m ∧
     t.Eval (AddRel fusion) (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) .ret
 
 /-- `tl.sum(x)` of a rank-1 tensor that is not a product: IEEE additions along a tree, in the

@@ -1,0 +1,79 @@
+{
+  "kernel": "chunk_bwd_dv_local_bf16",
+  "title": "Intra-chunk value gradient of chunked (gated) linear attention (`chunk_bwd_kernel_dv_local`, bfloat16), fla",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/chunk_o.py",
+    "sha256": "b1d8fe9891680494a00fc049b330372a55b6ae52c4ff49c6492d368e95f6b6ce",
+    "ranges": [
+      [
+        66,
+        67
+      ],
+      [
+        70,
+        71
+      ],
+      [
+        74,
+        106
+      ],
+      [
+        108,
+        111
+      ],
+      [
+        113,
+        125
+      ],
+      [
+        127,
+        132
+      ],
+      [
+        134,
+        140
+      ],
+      [
+        142,
+        149
+      ]
+    ],
+    "host": [
+      [
+        64,
+        64
+      ],
+      [
+        152,
+        153
+      ],
+      [
+        156,
+        177
+      ],
+      [
+        180,
+        188
+      ],
+      [
+        191,
+        241
+      ],
+      [
+        244,
+        267
+      ],
+      [
+        270,
+        318
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.ChunkBwdDvLocal",
+  "statement": "Claims.ChunkBwdDvLocal.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

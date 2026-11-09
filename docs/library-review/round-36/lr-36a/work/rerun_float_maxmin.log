@@ -1,0 +1,34 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+## float32 atomic_max, sem=relaxed, 2048 lanes (1927 enabled)
+PTX atoms: @%_ atom.global.gpu.relaxed.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.relaxed.min.u32 %_, [ %_ + 0 ], %_;
+enabled lanes whose new value is not the one atomic the sign bit picks: 0
+enabled lanes whose returned value is not the old value: 0
+enabled lanes whose new value is outside fBound: 0
+masked-off lanes whose cell changed: 0
+enabled lanes with a NaN operand: 151; of these, the NaN was written: 73
+
+## float32 atomic_min, sem=relaxed, 2048 lanes (1927 enabled)
+PTX atoms: @%_ atom.global.gpu.relaxed.max.u32 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.relaxed.min.s32 %_, [ %_ + 0 ], %_;
+enabled lanes whose new value is not the one atomic the sign bit picks: 0
+enabled lanes whose returned value is not the old value: 0
+enabled lanes whose new value is outside fBound: 0
+masked-off lanes whose cell changed: 0
+enabled lanes with a NaN operand: 151; of these, the NaN was written: 74
+
+## float64 atomic_max, sem=relaxed, 2048 lanes (1927 enabled)
+PTX atoms: @%_ atom.global.gpu.relaxed.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.relaxed.min.u64 %_, [ %_ + 0 ], %_;
+enabled lanes whose new value is not the one atomic the sign bit picks: 0
+enabled lanes whose returned value is not the old value: 0
+enabled lanes whose new value is outside fBound: 0
+masked-off lanes whose cell changed: 0
+enabled lanes with a NaN operand: 151; of these, the NaN was written: 73
+
+## float64 atomic_min, sem=relaxed, 2048 lanes (1927 enabled)
+PTX atoms: @%_ atom.global.gpu.relaxed.max.u64 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.relaxed.min.s64 %_, [ %_ + 0 ], %_;
+enabled lanes whose new value is not the one atomic the sign bit picks: 0
+enabled lanes whose returned value is not the old value: 0
+enabled lanes whose new value is outside fBound: 0
+masked-off lanes whose cell changed: 0
+enabled lanes with a NaN operand: 151; of these, the NaN was written: 74
+

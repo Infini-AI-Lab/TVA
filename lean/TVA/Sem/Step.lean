@@ -10,8 +10,12 @@ recording which bytes it read and wrote) or `ub` (undefined behaviour). A progra
 
 The steps follow the program's text, with one exception: an atomic need not be performed before
 the steps after it (`Step.defer`). The threads of a program issue its atomics with no barrier
-between them, so the device may perform them in any order the program's data and control
-dependences allow (library issue L15).
+between them, so the device may perform them in other orders than the text's (library issue L15).
+The semantics' order is the program's, not each thread's: a tensor step that uses any lane of an
+atomic's result is one step, and it holds back every later atomic of the program, while on the
+device another thread may perform a later atomic first. The launches where that shows, in which a
+program uses an atomic's result on a cell another program, or another atomic operation of the same
+program, also accesses, are excluded (library issue L161, `TVA.Sem.AtomicResult`).
 
 The same relation drives a program alone (`TVA.Safe`) and all programs of a launch
 interleaved over one memory (`TVA.Sem.Launch`). This file is the meaning of each `Prog`
@@ -115,8 +119,10 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
   /-- An atomic stays pending while the program takes a later step first. The later step must
   not depend on the atomic's result: whatever old value the atomic returns, the continuation can
   take that step, with the same memory and the same event. The atomic is performed afterwards,
-  so a program's atomics happen in any order their dependences allow, and their old values
-  reflect that order. -/
+  and its old value reflects that order. A step that depends on this lane's result waits for
+  this atomic; since a tensor step is one step, it then holds back every later atomic of the
+  program (library issues L161, L169: the excluded launches are those in which that order could be
+  seen). -/
   | defer {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope}
       {k k' : d.Val → Prog α} {m' : Mem} {e : Event} :
       (∀ v, Step E m (k v) (.next m' (k' v) e)) →

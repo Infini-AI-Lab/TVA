@@ -16,8 +16,14 @@ conflict within one program (`IntraRace`).
 
 A data race is a pair of conflicting accesses from different programs, unless both are
 `Event.Strong` atomics: `acq_rel` (Triton's default), at `gpu`/`sys` scope, on the same bytes.
-Relaxed, acquire-only and release-only atomics of different programs race: the interleaving
-would hide their reorderings.
+Relaxed, acquire-only and release-only atomics of different programs race when the program uses
+the value they return. When it does not (library issue L157, user decision 2026-11-08), their
+model is the `acq_rel` atomic (`MemSem.unused`, `tl.atomic_add_unused` and the others,
+`TVA.Lang.Ops`), so on the same bytes, at `gpu`/`sys` scope, they are `Event.Strong` and do not
+race: `MemSem.unused` says why. A plain load or store of those bytes in the launch still races with
+them (or conflicts within its program), so the cells such atomics share are reached by atomics
+only. The exemption is not stated on events because an event does not show whether its program
+uses the old value (a deferred atomic's continuation is re-chosen at each later step, `Step.defer`).
 
 A program is not sequential for global memory either (library issue L15, user decision
 2026-10-27). Its threads access memory with no barrier between its operations, so a load may
@@ -26,8 +32,11 @@ order. Two accesses of one program conflict when they touch the same bytes and a
 writes them (a store or an atomic), unless both are atomics on the same bytes (`IntraRace`); a
 model with such a conflict anywhere, across loop iterations included, is not well behaved, like a
 race between programs, and no claim covers it. Two atomics of one program on the same bytes do
-not conflict, but their order is unspecified: `Step.defer` lets the semantics perform a
-program's atomics in every order their dependences allow. `tl.debug_barrier()` keeps no meaning
+not conflict, but their order is unspecified: `Step.defer` lets the semantics perform an atomic
+after later steps that do not depend on its result. A tensor step that uses one lane's result is
+one step here, while on the device each thread orders only its own accesses, so a launch in which a
+program uses an atomic's result on a cell another program, or another atomic operation of the same
+program, also accesses is excluded (library issue L161, `TVA.Sem.AtomicResult`). `tl.debug_barrier()` keeps no meaning
 here, and no rule orders a program's accesses.
 
 There is no synchronises-with edge between programs. A program is many threads. A scalar
@@ -109,16 +118,15 @@ def ctx (L : Launch) (i : Nat) : Ctx :=
 def grid1 (n : Nat) (blocks : List Shape) (fusion : Bool := true) : Launch :=
   { grid := ![n, 1, 1], fusion, blocks }
 
-/-- The launch is one that runs its whole grid whenever it returns without an error, as far as
-the library can state it, for a call made outside CUDA graph capture (`Rules.Compiler.Faithful`'s
-scope 9 excludes every call made while a stream capture is in progress, and every replay of a
-captured graph: a call on the capturing stream returns without an error and runs no program, its
-programs running at each replay, and a call on another stream runs at once; library issue L91):
+/-- The launch is one whose execution runs its whole grid whenever it returns without an error, as
+far as the library can state it (an execution of the kernel, as `Rules.Compiler.Faithful` reads a
+launch; library issue L144):
 * the CUDA grid limits, `x < 2^31` and `y, z < 2^16`;
 * fewer than `2^31` programs. Triton 3.8.0's launcher computes `gridX * gridY * gridZ` in C `int`
   and skips the launch, with no error, when that product is not positive
   (`triton-3.8.0-nvidia-driver.c:968-972`). With `2^31` to `2^32` programs it returns at once and
-  no program runs (`evidence/launch-outcomes`; library issue L9);
+  no program runs (`evidence/launch-outcomes`; library issue L9): that call ends `ok` with memory
+  unchanged, an outcome the model of the grid does not give, so this bound keeps it out;
 * `num_ctas = 1`;
 * no programmatic dependent launch (`pdl = false`, `launch_pdl=False`): the kernel starts after
   the previous kernel on the stream has finished, so its programs read the memory that kernel
@@ -179,10 +187,16 @@ def HB : Nat → Nat → Prop := Relation.TransGen (PO tr)
 
 /-- Two atomics that cannot race with each other: both `acq_rel`, both at `gpu` or `sys`
 scope, on the same bytes. Atomics whose order is relaxed, or that only acquire or only release,
-can be reordered with respect to other locations, which a sequentially consistent interleaving
-does not show (store buffering). Atomics on partly overlapping bytes are not morally strong in
-PTX. So only this case is exempt from races; for such atomics the interleaving semantics is
-exact. -/
+and whose result the program uses, can be reordered with respect to other locations, which a
+sequentially consistent interleaving does not show (store buffering). Atomics on partly
+overlapping bytes are not morally strong in PTX. So only this case is exempt from races; for such
+atomics the interleaving semantics is exact up to the order of a program's own steps, which is
+coarser than each thread's: launches in which a program uses an atomic's result on a cell another
+program, or another atomic operation of the same program, also accesses are excluded (library issue
+L161, `TVA.Sem.AtomicResult`). An atomic of any order whose result the source never
+uses is modelled as `acq_rel` at `gpu`/`sys` scope (`MemSem.unused`, library issue L157), so its
+events are `acq_rel` here. The descriptor reductions (`tl.desc_atomic`, relaxed TMA reductions)
+are not: their model keeps `relaxed`, and two programs reducing into one element race. -/
 def Event.Strong (e f : Event) : Prop :=
   (∃ sc, e.atomic = some (.acqRel, sc) ∧ sc ≠ .cta) ∧ (∃ sc, f.atomic = some (.acqRel, sc) ∧ sc ≠ .cta) ∧
     e.reads = f.reads ∧ e.writes = f.writes

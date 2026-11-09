@@ -1,0 +1,16 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+U1 acc - sum           : stored [260.0], source -260.0, rewrite True
+U2 sum - acc           : stored [260.0], source 0.0, rewrite True
+U3 acc + max           : stored [-inf], source 8.0, rewrite True
+U4 maximum(acc, sum)   : stored [65.0], source 65.0, rewrite True
+U5 acc * sum (from 1)  : stored [0.0], source 17850625.0, rewrite True
+U6 acc + min           : stored [inf], source 4.0, rewrite True
+U7 acc + sum           : stored [260.0], source 260.0, rewrite True
+F1 .to(float32) of a float32 load  : stored [260.0], source 260.0, rewrite True
+F2 load * 1.0                      : stored [260.0], source 260.0, rewrite True
+F3 block pointer load              : stored [260.0], source 260.0, rewrite True
+F4 load in a helper                : stored [260.0], source 260.0, rewrite True
+F5 float16 tl.sum                  : stored [260.0], source 260.0, rewrite False
+F6 float16 tl.max                  : stored [8.0], source 8.0, rewrite False
+F7 host descriptor load            : stored [260.0], source 260.0, rewrite False
+F8 plain load (control)            : stored [260.0], source 260.0, rewrite True

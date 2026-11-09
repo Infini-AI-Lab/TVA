@@ -18,8 +18,9 @@ file gives the witness:
   nothing about `P`.
 * `Platform.ref rel abs sp`: the most accurate platform.
   - An approximate function on a finite input returns a finite float within
-    `rel · |ref x| + abs` of the real function whenever one exists. On other inputs it returns
-    the value the table `sp` gives, if any.
+    `rel · |ref x| + abs` of the real function whenever one exists. On other inputs, and on a
+    finite input where no float is that close (an overflow), it returns the value the table `sp`
+    gives, if any (library issue L154).
   - Division and float `atomic_add` are IEEE (up to NaN payload). A conversion to nearest
     saturates (`FloatV.cvtSat .rn`: `±maxVal` beyond the range, as sm_90's conversions into fp8
     do); toward zero it is `FloatV.cvtWith .rz`.
@@ -30,7 +31,8 @@ file gives the witness:
   - `MathAcc`: `mathAcc_of_eta` for `rel ≥ u`, `abs ≥ η`; `mathAcc_of_normal` for `rel ≥ u`,
     `abs ≥ 0` where the reference values are normal; `mathAcc` from any proof that near floats
     exist;
-  - `MathAt` at non-finite inputs (`mathAt`);
+  - `MathAt` at non-finite inputs (`mathAt`), and at finite inputs where no float is near
+    (`mathAt_far`);
   - `DivRn`, `DivFull`, `DivTotal`;
   - `CvtAcc`, `CvtSat` (`cvtSat`), `CvtTotal`;
   - `AtomicAddAcc` (`rel ≥ u`, `abs ≥ η`) and `AtomicAddTotal`;
@@ -377,18 +379,22 @@ theorem DType.val?_ofRat_sint {d : DType} (hd : d.isSInt = true) (z : ℤ) (hz :
 
 /-- The most accurate platform (see the module docstring): approximate functions as accurate as
 `rel fn f`, `abs fn f` ask wherever a float that accurate exists, special values from the table
-`sp`; IEEE division and float `atomic_add`; conversions to nearest that saturate (`FloatV.cvtSat`),
+`sp` at the other inputs (non-finite ones, and finite ones where no float is that accurate); IEEE division and float `atomic_add`; conversions to nearest that saturate (`FloatV.cvtSat`),
 toward zero as `FloatV.cvtWith .rz`; `tl.dot` and `tl.dot_scaled` rounded once from the exact
-result (with `K = 0`, the accumulator itself). -/
+result (with `K = 0`, the accumulator itself); float reductions along trees of depth at most
+`⌈log₂ n⌉` (`Platform.sumDepth`, the depth of a balanced tree). -/
 noncomputable def Platform.ref (rel abs : MathFn → TVA.Math.Float.Format → ℝ)
     (sp : (fn : MathFn) → (f : TVA.Math.Float.Format) → FloatV f → Option (FloatV f) :=
       fun _ _ _ => none) : Platform where
   math fn f x r :=
     if x.isFinite = true then
-      ∀ ref, fn.ref = some ref →
+      (∀ ref, fn.ref = some ref →
         (∃ r' : FloatV f, r'.isFinite = true ∧
           |r'.toReal - ref x.toReal| ≤ rel fn f * |ref x.toReal| + abs fn f) →
-        r.isFinite = true ∧ |r.toReal - ref x.toReal| ≤ rel fn f * |ref x.toReal| + abs fn f
+        r.isFinite = true ∧ |r.toReal - ref x.toReal| ≤ rel fn f * |ref x.toReal| + abs fn f) ∧
+      ((¬ ∃ ref, fn.ref = some ref ∧ ∃ r' : FloatV f, r'.isFinite = true ∧
+          |r'.toReal - ref x.toReal| ≤ rel fn f * |ref x.toReal| + abs fn f) →
+        ∀ y, sp fn f x = some y → r = y)
     else ∀ y, sp fn f x = some y → r = y
   div _ x y r := FloatV.NaNEq (FloatV.divRn x y) r
   dot := fun cfg {_ _ K} a b acc r => ∀ i n,
@@ -398,6 +404,7 @@ noncomputable def Platform.ref (rel abs : MathFn → TVA.Math.Float.Format → �
   atomicAdd _ o v n := FloatV.NaNEq (FloatV.add o v) n
   dotScaled := fun cfg {_ _ K} a sa b sb acc r => ∀ i n,
     r.get2 i n = if K = 0 then acc.get2 i n else FloatV.ofRat (cfg.exact a sa b sb acc i n)
+  sumDepth n := Nat.clog 2 n
 
 namespace Platform.ref
 
@@ -414,7 +421,7 @@ theorem mathAcc {fn : MathFn} {f : TVA.Math.Float.Format} {g : ℝ → ℝ} (hg 
     Rules.Num.MathAcc (Platform.ref rel abs sp) fn f dom (rel fn f) (abs fn f) := by
   refine ⟨g, hg, fun x r hr hx hd hn hroom => ?_⟩
   simp only [Platform.ref, hx, if_true] at hr
-  exact hr g hg (hnear x hx hd hn hroom)
+  exact hr.1 g hg (hnear x hx hd hn hroom)
 
 /-- `MathAcc` on any domain for `rel ≥ u` and `abs ≥ η`. -/
 theorem mathAcc_of_eta {fn : MathFn} {f : TVA.Math.Float.Format} {g : ℝ → ℝ} (hg : fn.ref = some g)
@@ -439,6 +446,16 @@ theorem mathAt {fn : MathFn} {f : TVA.Math.Float.Format} {x y : FloatV f} (hx : 
   simp only [Platform.ref, hx, Bool.false_eq_true] at hr
   exact hr y h
 
+/-- `MathAt` at a finite input where no float is within `rel fn f · |ref x| + abs fn f` of the
+real function (an overflow): the table's value. -/
+theorem mathAt_far {fn : MathFn} {f : TVA.Math.Float.Format} {x y : FloatV f} (hx : x.isFinite = true)
+    (hfar : ¬ ∃ ref, fn.ref = some ref ∧ ∃ r' : FloatV f, r'.isFinite = true ∧
+      |r'.toReal - ref x.toReal| ≤ rel fn f * |ref x.toReal| + abs fn f)
+    (h : sp fn f x = some y) : Rules.Num.MathAt (Platform.ref rel abs sp) fn f x y := by
+  intro r hr
+  simp only [Platform.ref, hx, if_true] at hr
+  exact hr.2 hfar y h
+
 theorem mathTotal {fn : MathFn} {f : TVA.Math.Float.Format} :
     Rules.Num.MathTotal (Platform.ref rel abs sp) fn f := by
   intro x
@@ -447,11 +464,13 @@ theorem mathTotal {fn : MathFn} {f : TVA.Math.Float.Format} :
     by_cases hpre : ∃ g, fn.ref = some g ∧ ∃ r' : FloatV f, r'.isFinite = true ∧
         |r'.toReal - g x.toReal| ≤ rel fn f * |g x.toReal| + abs fn f
     · obtain ⟨g, hg, r', hr'⟩ := hpre
-      refine ⟨r', fun g' hg' _ => ?_⟩
+      refine ⟨r', fun g' hg' _ => ?_, fun hno => absurd ⟨g, hg, r', hr'⟩ hno⟩
       rw [hg] at hg'
       cases hg'
       exact hr'
-    · exact ⟨x, fun g hg hex => absurd ⟨g, hg, hex⟩ hpre⟩
+    · cases h : sp fn f x with
+      | some y => exact ⟨y, fun g hg hex => absurd ⟨g, hg, hex⟩ hpre, fun _ y' hy' => Option.some.inj hy'⟩
+      | none => exact ⟨x, fun g hg hex => absurd ⟨g, hg, hex⟩ hpre, fun _ y' hy' => by cases hy'⟩
   · simp only [Platform.ref, hx]
     cases h : sp fn f x with
     | some y => exact ⟨y, fun y' hy' => Option.some.inj hy'⟩

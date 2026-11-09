@@ -1,0 +1,199 @@
+{
+ "source": {
+  "file": "source/count_expert_tokens.py",
+  "sha256": "bcd9f62e24f0335fffe43e1d38b905165c2c013dbf15e1d8d86ed6795bd73265",
+  "ranges": [
+   [
+    1,
+    1
+   ],
+   [
+    39,
+    39
+   ],
+   [
+    41,
+    42
+   ],
+   [
+    45,
+    55
+   ],
+   [
+    57,
+    58
+   ],
+   [
+    60,
+    67
+   ],
+   [
+    69,
+    71
+   ],
+   [
+    73,
+    74
+   ]
+  ],
+  "host": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.CountExpertTokens",
+ "entries": [
+  {
+   "src": [
+    1
+   ],
+   "drop": "docstring",
+   "note": "the module docstring: a string constant evaluated at import, binding nothing; it adds no step to the program"
+  },
+  {
+   "src": [
+    39
+   ],
+   "drop": "import",
+   "note": "binds `torch`, which the launch never reads on the device or at compile time (the wrapper's body is host code, mapped by nobody); it adds no step to the program"
+  },
+  {
+   "src": [
+    41
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which line 93's `triton.next_power_of_2` (host) names and the kernel's decorator `@triton.jit` of line 45 requires (SEMANTICS.md, the supported subset: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); it adds no step to the program"
+  },
+  {
+   "src": [
+    42
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 55–74 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    45
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); no `@triton.autotune` or `@triton.heuristics`, and the kernel calls no helper; no other statement of the module binds `_count_expert_num_tokens`; the model is the `Kernel` `count_kernel`"
+  },
+  {
+   "src": [
+    "46-54"
+   ],
+   "model": "def count_kernel (d : DType) (hasMap : Bool) (BLOCK_SIZE : Nat) (topk_ids_ptr : Ptr d) (expert_map : Ptr .i32) (expert_num_tokens_ptr : Ptr .i32) (num_experts topk_numel : I32) : Kernel where",
+   "note": "`topk_ids_ptr` points at `topk_ids`, whose dtype the host's assert (line 86) requires signed: the covered launches pass `int32` or `int64`, and the model is one function of that dtype (`Inst.ok.dtype_ok`); `expert_map` and `expert_num_tokens_ptr` are `*i32` (the host passes `int32` tensors); `num_experts` (the host passes `num_local_experts ≤ 2^31 - 1`, `Inst.ok.numLocal_lt`) and `topk_numel` (`topk_ids.numel < 2^31`, `Inst.ok.numel_b`) take the `int32` runtime-argument class (SEMANTICS.md, Scalar arguments): on every covered instance where an argument's value is not `1` that is what it is; when the value is `1` (`numel = 1` is vLLM's own test, source line 155; `numLocal = 1` is the witness of `satisfiable`, and `Inst.ok` fixes no class), the argument is instead a compile-time `tl.constexpr` with Python's unbounded arithmetic — and every value the model computes is unchanged: line 61's `tl.cdiv` then computes at compile time in Python, and the constexpr `1` becomes an `int32` tensor before each remaining use (line 62's mask subtraction, line 73's comparison, all in `int32` on values the covered `int32` ranges also hold), so the same `int32` results come out (README, Modelling decisions); the constexprs `HAS_EXPERT_MAP` and `BLOCK_SIZE` are Lean parameters; no parameter has a default"
+  },
+  {
+   "src": [
+    55
+   ],
+   "model": "let curr_expert := tl.program_id ctx 0",
+   "note": "axis 0 of the 1-D grid of `num_local_experts` programs (`launch`: `Launch.grid1 d.numLocal [[d.B]]`), an `int32`"
+  },
+  {
+   "src": [
+    57
+   ],
+   "model": "tl.arange 0 BLOCK_SIZE",
+   "note": "`offsets = tl.arange(0, BLOCK_SIZE)`: the constexpr `BLOCK_SIZE` is `tl.arange`'s `stop`, a power of two at most `2^20` (`Inst.ok.b_pow2`, `b_le`; the wrapper's `next_power_of_2(min(numel, 1024))` is far smaller); the model's `tl.arange 0 BLOCK_SIZE` is where line 57 lands: inside line 58's pointer block (`topk_ids_ptr + tl.arange 0 BLOCK_SIZE`) and inside line 62's mask (`(tl.arange 0 BLOCK_SIZE).ltS …`)"
+  },
+  {
+   "src": [
+    58
+   ],
+   "model": "let topk_ids_ptrs := topk_ids_ptr + tl.arange 0 BLOCK_SIZE",
+   "note": "`topk_ids_ptr + offsets` advances the ids pointer by each lane's `int32` offset, in elements (the library's pointer–tensor `+`); the offsets are `0 … BLOCK_SIZE - 1`, below `2^31`, so the arithmetic does not wrap"
+  },
+  {
+   "src": [
+    60
+   ],
+   "model": "let acc := tl.zeros [BLOCK_SIZE] .i32",
+   "note": "the constexpr `dtype=tl.int32` is the `int32` `tl.zeros`, so `acc` is the `int32` zero block; the shape `(BLOCK_SIZE,)` is the 1-D block of `BLOCK_SIZE` lanes"
+  },
+  {
+   "src": [
+    61
+   ],
+   "model": "let (acc, _) ← tl.forRange 0 trips.item 1 (acc, topk_ids_ptrs) (loopBody d hasMap BLOCK_SIZE expert_map topk_numel curr_expert)",
+   "note": "`range` with one argument evaluates its argument twice (SEMANTICS.md, the supported subset: `range`; the bound is the second value), so the model writes the `tl.cdiv` twice — the first as a discarded `int32` step, the second as the loop's bound; `tl.cdiv(a, b)` is the `int32` expression `(a + (b - 1)) // b` (SEMANTICS.md, `tl.cdiv`): the wrapping `int32` addition — it does not wrap on covered instances (`Inst.ok.numel_b`: `numel + BLOCK_SIZE ≤ 2^31`) — then the truncating `//` of non-negative `int32`s, giving `trips = (numel + (BLOCK_SIZE - 1)) // BLOCK_SIZE` ≥ 0; `for x in range(trips)` is the up-loop with step 1 (`tl.forRange 0 trips.item 1`), whose induction variable takes the `int32` values `0, 1, …` — the model carries the loop state `(acc, topk_ids_ptrs)` and the body is the kernel's helper `loopBody`"
+  },
+  {
+   "src": [
+    62
+   ],
+   "model": "let mask := (tl.arange 0 BLOCK_SIZE).ltS (topk_numel - x * (IntV.ofNat BLOCK_SIZE : I32))",
+   "note": "the constexpr `BLOCK_SIZE`, an operand of `*` with the `int32` induction variable `x`, is built in `int32` (SEMANTICS.md, Constants), and the product is the wrapping `int32` product (it does not wrap: `x < trips` gives `x·BLOCK_SIZE < numel < 2^31`); `topk_numel - x * BLOCK_SIZE` is the wrapping `int32` subtraction (its true value lies in `(-BLOCK_SIZE, 2^31)`, in range); `offsets < bound` is the signed `int32` comparison of the block against the broadcast scalar (`Tensor.ltS`); the bound is positive on every executed trip (`x < trips` gives `x·BLOCK_SIZE < numel`, the Lean's `trip_base_lt`), so the lanes at or above it are exactly the entries past `numel`; at `x = trips` the bound would be ≤ 0 and every lane masked off, and that trip never runs"
+  },
+  {
+   "src": [
+    63
+   ],
+   "model": "let expert_ids ← tl.load topk_ids_ptrs (some mask) (some (Tensor.full (m1 d)))",
+   "note": "`topk_ids_ptrs` is the loop's pointer block, one pointer per lane, advanced by `BLOCK_SIZE` each trip (line 71); the mask as in the source; `other=-1` is the Python number `-1` converted to the ids' dtype (`semantic.cast` to the load's dtype: the same two's-complement value in `int32` and `int64`), the model's `m1 d`"
+  },
+  {
+   "src": [
+    64
+   ],
+   "model": "match hasMap with",
+   "note": "`HAS_EXPERT_MAP` is a `tl.constexpr` known at compile time, so the source's `if` is the compile-time branch (SEMANTICS.md, the supported subset: a branch the configuration does not take is never visited); the model is the Lean `match` on the `Bool` parameter `hasMap`"
+  },
+  {
+   "src": [
+    65
+   ],
+   "model": "tl.load (mapPtrs d expert_map expert_ids)",
+   "note": "`expert_map + expert_ids` advances the `*i32` map pointer by each lane's loaded id, in elements — the ids' value as the offset (the library's pointer–tensor `+`); a negative id gives a negative offset, whose pointer is never accessed (line 66's mask disables the lane)"
+  },
+  {
+   "src": [
+    66
+   ],
+   "model": "geZero d expert_ids",
+   "note": "`expert_ids >= 0`: the Python number `0` is first a tensor of its own type (`int32`), then promoted to the ids' dtype for the comparison (`BinOp.typing? .ge`: the operands' common dtype, `intPromote`); `>=` is the negation of the signed `<` (`Tensor.not (ids.ltS 0)` in `int32`, `Tensor.not (ids.lt 0)` in `int64`)"
+  },
+  {
+   "src": [
+    67
+   ],
+   "model": "tl.load (mapPtrs d expert_map expert_ids) (some (geZero d expert_ids))",
+   "note": "the gather from the map; the mask as in the source; `other=-1` converts to the map's dtype `int32` (`m1 .i32`); `Inst.ok.emap_len` and `Pre`'s entry bound keep every enabled lane's element inside the map"
+  },
+  {
+   "src": [
+    69
+   ],
+   "model": "tailOf acc topk_ids_ptrs (expert_ids.eq (bc curr_expert))",
+   "note": "`tl.where(expert_ids == curr_expert, 1, 0)`: the comparison is the signed `int32`/`int64` `==` in the promoted dtype (the ids' own; the `int32` program id widened to `int64` when the ids are `int64`, `intPromote`); the constants `1` and `0` are Python numbers, which `tl.where` computes in `int32` (`whereTyping?` on two Python numbers), so the model's `1 : I32` and `0 : I32`"
+  },
+  {
+   "src": [
+    70
+   ],
+   "model": "acc + tl.where eq (Tensor.full (1 : I32)) (Tensor.full (0 : I32))",
+   "note": "the wrapping `int32` addition; the summand is `0` or `1`, so the sum stays the exact count of hits — at most `topk_numel < 2^31` (`Inst.ok.numel_b`), so it never wraps on covered instances"
+  },
+  {
+   "src": [
+    71
+   ],
+   "model": "ptrs + (Tensor.full (IntV.ofNat B : I32) : Tensor [B] I32)",
+   "note": "`topk_ids_ptrs += BLOCK_SIZE`: the constexpr `BLOCK_SIZE` is built in `int32` (`Inst.ok.b_le` keeps it below `2^31`) and added to every lane's pointer, in elements (the library's pointer-tensor `+`); the offsets stay below `numel + BLOCK_SIZE ≤ 2^31` (`Inst.ok.numel_b`), so the `int32` arithmetic does not wrap"
+  },
+  {
+   "src": [
+    73
+   ],
+   "model": "if curr_expert.lt num_experts then",
+   "note": "a runtime `if` on the `int32` comparison `curr_expert < num_experts` (the model is the Lean `if` on the condition's value); on covered instances the grid is exactly `num_local_experts` programs, so the condition holds for every program of the launch and the `else` branch never runs"
+  },
+  {
+   "src": [
+    74
+   ],
+   "model": "tl.store1 (expert_num_tokens_ptr + curr_expert) (Tensor.foldAll (· + ·) (0 : I32) acc)",
+   "note": "`tl.sum(acc)` of the `int32` block is the exact wrapping `int32` sum of the lanes, `0 + ((acc lane 0) + (…))` (`Tensor.foldAll`); the total is the count of hits, at most `topk_numel < 2^31`, so no wrap; `expert_num_tokens_ptr + curr_expert` advances the `*i32` output pointer by the program's expert id, in elements, and the single-element store is the library's `tl.store1`"
+  }
+ ]
+}

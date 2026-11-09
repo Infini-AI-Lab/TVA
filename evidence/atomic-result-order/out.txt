@@ -1,0 +1,9 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+BLOCK = 512, num_warps = 4, a chain of N = 400 loads for element 0, M = 60 for program 1; 200 launches per row
+
+| launch | sem | launches | outside the semantics | detail |
+|---|---|---|---|---|
+| A, two programs | acq_rel | 200 | 200 | Q = 1 in 200; Q = 1 and OUT[0] = 1 in 200 |
+| A, two programs | relaxed | 200 | 200 | Q = 1 in 200; Q = 1 and OUT[0] = 1 in 200 |
+| B, one program | acq_rel | 200 | 200 | in the last such launch: max r = 895, min s = 384, r[0] = 768 (the semantics: max r < 512 <= min s) |
+| B, one program | relaxed | 200 | 200 | in the last such launch: max r = 895, min s = 384, r[0] = 768 (the semantics: max r < 512 <= min s) |

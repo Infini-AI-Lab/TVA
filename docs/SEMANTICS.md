@@ -65,6 +65,48 @@ them.
   arguments").
 - **Pointers.** A pointer's element type is its buffer's (`Ptr d`). A pointer built from a loaded
   integer (`.to(tl.pointer_type(…))`) is `tl.intToPtr`. Pointers to pointers are excluded.
+  - `p + k` advances by `k` elements, `k` taken at its value: sign-extended for a signed type,
+    zero-extended for an unsigned one (`Ptr.offset`, the `HAdd` instances of `TVA.Lang.Mem`).
+  - `p - k` (library issue L151; `semantic.py:261-267, 478-485`;
+    [evidence/front-end-round32](../evidence/front-end-round32/README.md) S1–S3) is `p + (−k)`, the
+    negation computed in `k`'s own integer type, wrapping, then added as `+` adds (`HSub`,
+    `Ptr.sub_int`): for a signed `k` other than its type's minimum it is `k` elements back
+    (`Ptr.sub_int_of_signed`), the `int32` `−2^31` is its own negation, and an unsigned `k ≠ 0` is
+    `2^w − k` elements forward. A Python number `k` is first a tensor of its own type ("Constants"),
+    so `p + i - 1` is `(p + i) + (−1)`. Lane by lane for a block of offsets or of pointers. An integer
+    minus a pointer, a pointer minus a pointer and a pointer minus a float are rejected on the host.
+- **A tensor's `.type`** (library issue L142; `core.py:667-705, 707-756, 884-890`;
+  [evidence/front-end-round31](../evidence/front-end-round31/README.md) P1, P2) is a compile-time
+  value, its type: for a scalar (a pointer argument, a runtime scalar argument, a loaded scalar) its
+  `.dtype`, and for a block the block's type, whose `.element_ty` is the block's `.dtype`. So for a
+  pointer argument `p`, `p.type` is `p.dtype` and `p.type.element_ty` is `p.dtype.element_ty`, the
+  dtype of `p`'s buffer (`c.to(c_ptr.type.element_ty)` converts to the output's dtype); for a block of
+  pointers `ptrs`, `ptrs.type.element_ty` is the pointer type `ptrs.dtype`, not its buffer's dtype;
+  and `.element_ty` of a scalar of a dtype that is not a pointer type (an `int32` argument's
+  `.type.element_ty`) is rejected on the host.
+  A block's `.type` is not a dtype (library issue L148; evidence/front-end-round32 Y1): where this
+  page admits a dtype, write a dtype, a scalar's `.type` (its dtype) or a block type's `.element_ty`.
+  A block's `.type` as `tl.zeros`'s or `tl.full`'s dtype, and as the target of a scalar's `.to` when
+  the dtypes differ, is rejected on the host; as the target of a block's `.to` (`x.to(y.type)`) it
+  means its element dtype, whatever its shape (`semantic.cast` keeps the input's shape), so the model
+  writes the conversion to `y`'s dtype.
+- **A dtype's predicates** (library issue L152; `core.py:449-524`; evidence/front-end-round32 T1, T2).
+  `d.is_fp8()`, `d.is_fp8e4nv()`, `d.is_fp8e5()`, `d.is_fp16()`, `d.is_bf16()`, `d.is_fp32()`,
+  `d.is_fp64()`, `d.is_floating()`, `d.is_standard_floating()`, `d.is_int()`, `d.is_int_signed()`,
+  `d.is_int_unsigned()`, `d.is_bool()`, `d.is_int1()`, `d.is_int8()`, `d.is_int16()`, `d.is_int32()`,
+  `d.is_int64()`, `d.is_uint8()`, `d.is_uint16()`, `d.is_uint32()`, `d.is_uint64()` and `d.is_ptr()`, of a
+  dtype `d` (a tensor's `.dtype`, a dtype `tl.constexpr`), are compile-time `bool`s that test `d`'s name:
+  `is_fp8()` is `'fp8' in name`, true of `float8e4nv` and `float8e5` (and of the excluded fp8 formats);
+  `is_floating()` is true of the fp8 formats, `float16`, `bfloat16`, `float32` and `float64`, and
+  `is_standard_floating()` of the last four; `is_int_signed()` of `int8` … `int64`, and
+  `is_int_unsigned()` of `int1` (a `bool` tensor's dtype is among Triton's unsigned types),
+  `uint8` … `uint64`; `is_int()` of both; `is_ptr()` of a pointer type only; each other predicate of
+  the one dtype it names. They decide a compile-time `if` and a conditional expression (only the side
+  they pick is visited, "Order"), and are allowed in `tl.static_assert`. vLLM's
+  `key_load if key_load.dtype.is_fp8() else key_load / tl.load(k_scale)` is thus the load on an fp8
+  cache and the division otherwise; a value stored to an fp8 pointer is converted by `tl.cvt8 x .rn`,
+  the saturating rounding to nearest even ("`tl.store`"; the `CvtSat…` facts of
+  [rules/num.md](rules/num.md); T2: `10^6` stored as `448` in `float8e4nv`).
 - **Float operations are `Prog`s** (`let y ← tl.neg x`), because a NaN result may be any NaN
   (below, "Float results are exact up to NaN payload").
 
@@ -106,13 +148,21 @@ bytes, and a model that has them is not well behaved:
   still atomic ([evidence/intra-program](../evidence/intra-program/README.md)). An `rmw` may
   stay pending while the continuation takes a step that does not depend on its old value (for
   every old value, the same step, the same memory and the same event); it is performed later. So
-  the semantics performs a program's atomics in every order their data and control dependences
+  the semantics performs a program's atomics in every order that the dependences of its own steps
   allow, and the old values they return, and what `xchg` and `cas` leave, reflect that order.
+  Those dependences are coarser than the device's: a tensor step waits for the atomic of each lane
+  whose result it uses (only those: a store masked to lane 0 waits only for lane 0's), and since it
+  is one step, every later step of the program, every later atomic included, waits for it, while
+  each thread of the device orders only its own accesses (library issue L169). So
+  the semantics lacks orders the device gives where a program uses an atomic's result on a cell
+  that another program, or another atomic operation of the same program, also accesses, and such
+  launches are excluded ("Atomics", library issues L161, L167).
 
 The steps are otherwise those of the source, in order: a well-behaved model never depends on the
 order of two accesses to the same bytes. A program's other accesses (loads, stores, atomics on
 different bytes) may also reach memory in another order on the device; in a well-behaved launch
-no program can observe that, except through atomics, whose every order the semantics allows.
+no program can observe that, except through atomics, whose every order the semantics allows
+outside the exclusion of an atomic's result used on a shared cell ("Atomics", library issue L167).
 
 ## The supported subset
 
@@ -141,8 +191,25 @@ names some only to say so. Each item points to the section that gives its meanin
 - A kernel parameter is a pointer (a `torch.Tensor` argument, `Ptr d`), a scalar ("Scalar
   arguments": an `int`, `float`, `bool` or `None` argument, or a parameter annotated with a type
   listed there), a host `TensorDescriptor` ("Tensor descriptors"), or a parameter annotated
-  `tl.constexpr` whose argument is a Python `int`, `float`, `bool`, `str` or `None` (a Lean
-  parameter of the model). It has no default value. That a launch runs the code Triton compiles for
+  `tl.constexpr` whose argument is a Python `int`, `float`, `bool`, `str` or `None`, or a dtype of
+  `tl` (a Lean parameter of the model; "A dtype as a `tl.constexpr` argument", below). It has no
+  default value.
+- A `torch.bool` tensor argument (library issue L158) is a pointer to `int1` (`Ptr .i1`; Triton's
+  signature `*u1`, `triton/_utils.py`'s `type_canonicalisation_dict`, and `!tt.ptr<i1>` in the IR;
+  `p.dtype.element_ty` is `tl.int1`), one byte per element (`DType.bytes .i1 = 1`), at the
+  tensor's `data_ptr()` like any other. Its accesses go through that byte as an `int8`
+  (`semantic.py:1036-1040, 1061-1062, 1236-1240`; [evidence/bool-args](../evidence/bool-args/README.md),
+  H200, `ld.global.b8`):
+  - `tl.load` of an `int1` element reads the byte and gives `true` exactly when it is not `0`
+    (`DType.ofBits .i1`): the bytes `0, 1, 2, 127, 128, 255` loaded as `false, true, true, true,
+    true, true`. A masked-off lane holds `other` converted to `int8` and then tested `≠ 0`
+    (`other=5` gives `true`).
+  - `tl.store` to an `int1` pointer converts the value to `int8` (`semantic.cast`), not to
+    `int1`, and stores that byte: an `int1` value stores `0` or `1` (`DType.toBits .i1`), but an
+    `int32` value is truncated to its low byte, so `2` stores the byte `2` (which loads back as
+    `true`) and `256` stores `0` (`false`). A model writes that conversion: a store of an `int1`
+    tensor is `tl.store` on `Ptr .i1`; a store of another dtype is its conversion to `int8` and a
+    store through the same bytes as `Ptr .i8`. That a launch runs the code Triton compiles for
   its own argument values, compile-time values included, and not other code from Triton's caches,
   `Compiler.Faithful`'s scope 11 assumes (the kernel is new; "Compile-time values Triton keys
   apart").
@@ -210,8 +277,9 @@ names some only to say so. Each item points to the section that gives its meanin
 - Literals: an `int`, `float`, `bool`, `str` or `None`; a tuple `(…)` or a list `[…]` of these
   expressions (both are tuples of the front end, as for shapes, offsets and block shapes); an
   f-string of compile-time values.
-- Attributes: a tensor's `.dtype` and `.shape`, `.T` of a rank-2 tensor, a dtype's `.element_ty`,
-  the methods below, and the functions, dtypes and classes of `tl` (`tl.float32`,
+- Attributes: a tensor's `.dtype`, `.type` and `.shape`, `.T` of a rank-2 tensor, `.element_ty` of
+  a pointer type or of a block's type ("Values", Pointers), a dtype's predicates (`.is_fp8()`, …,
+  "Values"), the methods below, and the functions, dtypes and classes of `tl` (`tl.float32`,
   `tl.pointer_type(d)`, `tl.math.exp2`, `tl.tensor_descriptor` in `isinstance`).
 - Subscripts: `None` and `:` in each position of a tensor's subscript, which add and keep axes
   (`x[:, None]`, `x[None, :]`; "Values"); a compile-time integer subscript of a shape or a tuple
@@ -313,6 +381,22 @@ become steps of the program (library issues L6, L10, L14, L25, L59, L75, L80, L8
     compiled for other values (K1–K4; [evidence/host-round21](../evidence/host-round21/README.md)
     K1–K4). TVA does not verify Triton's caches: `Compiler.Faithful`'s scope 11 assumes the kernel is
     new, compiled for the launch's own values, and nobody checks it ("Launches").
+- **A dtype as a `tl.constexpr` argument** (library issue L139;
+  [evidence/front-end-round31](../evidence/front-end-round31/README.md) D1–D5). A `tl.constexpr`
+  parameter whose argument is a dtype of `tl` (`tl.int32`, `tl.bfloat16`, …, by position or by
+  keyword) holds that dtype, a compile-time value, and means at each use what the dtype written in
+  its place means: for seven dtypes, the front end compiled the same TTIR, and the launch stored the
+  same values, with the parameter as with the literal dtype in `.to(D)`, `tl.cast(x, D)`,
+  `tl.zeros(…, dtype=D)`, `tl.full(…, D)`, `tl.dot(…, out_dtype=D)` with a `tl.zeros(…, dtype=D)`
+  accumulator, `D == tl.float32` as a compile-time `if` condition, `tl.static_assert(y.dtype == D)`,
+  and `d = D` followed by `.to(d)` (D1–D3; a name assigned a dtype holds it, below). So the parameter
+  may be used wherever this page admits a dtype of `tl`, and the model writes that dtype (a `DType`
+  parameter of the model, or the dtype the instance fixes). Each dtype has a name of its own in
+  Triton's keys, so launches with different dtypes do not share code (D4: in one process, `x.to(D)` of
+  `1.5` stored `1` with `tl.int32` and `1.5` with `tl.float32`, then `1` again). A dtype passed to a
+  parameter without annotation is rejected on the host (`failed to specialize argument of type:
+  dtype`), and a `torch` dtype is not a dtype of `tl`: given to a `tl.constexpr` parameter and used as
+  a dtype, it is rejected on the host (D5). The subset admits neither.
 - **A name assigned a Python number holds a tensor** (library issue L59). When a statement assigns
   a value to a name (`=`, `+=` and the other augmented assignments, and each target of a tuple
   assignment), a Python `int`, `float` or `bool` (a literal, the value of a `tl.constexpr`,
@@ -402,7 +486,9 @@ become steps of the program (library issues L6, L10, L14, L25, L59, L75, L80, L8
   which ones are evaluated:
   in a well-behaved model two accesses of a program to the same bytes with a write among them are
   a conflict unless both are atomics, and the semantics already performs a program's atomics in
-  every order ("Programs", `Step.defer`). Where a compile-time value decides:
+  every order ("Programs", `Step.defer`), outside the exclusion of an atomic's result used on a
+  shared cell, which leaves out the launches where it does not ("Atomics", library issue L167).
+  Where a compile-time value decides:
   - `a and b and …`: an operand whose value is a compile-time value that is false ends it, and no
     operand after it is evaluated. A compile-time value that is true, or a tensor, does not end
     it; with tensor operands both sides are evaluated;
@@ -439,7 +525,13 @@ become steps of the program (library issues L6, L10, L14, L25, L59, L75, L80, L8
 - **A runtime `if`** (its condition a tensor, a runtime scalar; library issue L28,
   [evidence/runtime-if](../evidence/runtime-if/README.md)). The front end evaluates the condition
   (by the order above), converts it to `int1` as `c != 0` (for a float, unordered: NaN is true and
-  `-0.0` false), and emits both branches into one runtime branch (`scf.if`). Each program runs the
+  `-0.0` false; for a pointer, its address as a 64-bit integer, `p.addr ≠ 0`, `semantic.py:900-906`),
+  and emits both branches into one runtime branch (`scf.if`). So `if p:` on a pointer argument `p`
+  is a runtime `if` (library issue L142; evidence/front-end-round31 P3): it is taken for a tensor
+  with a non-zero address, and not for one whose `data_ptr()` is `0` (an empty tensor, which the
+  launcher passes as the null pointer, `nvidia-driver.c:1055-1078`); a pointer parameter given `None`
+  holds the compile-time `None` ("Scalar arguments"), so there `if p:` is a compile-time `if` whose
+  branch is not visited. Each program runs the
   operations of the branch its condition takes, and only those: an atomic, or a store far out of
   bounds, in the other branch does not run (R1–R3). An `elif` is an `if` in the `else` branch, so
   its condition runs only in the programs that reach it (R9). After the `if`, the names it merges
@@ -574,8 +666,8 @@ become steps of the program (library issues L6, L10, L14, L25, L59, L75, L80, L8
   so a part of the source built only from them adds no step to the program and cannot make it
   undefined:
   - names of values, literals, `tl.constexpr` values and dtypes (`tl.float32`, …);
-  - the attributes `.dtype`, `.shape` and `.numel`, the attributes of a dtype (such as
-    `.element_ty`), and subscripts of shapes and tuples;
+  - the attributes `.dtype`, `.type`, `.shape` and `.numel`, the attributes of a dtype (such as
+    `.element_ty`) and its predicates (`.is_fp8()`, …, "Values"), and subscripts of shapes and tuples;
   - subscripts that only add axes (`x[:, None]`, `x[None, :]`);
   - string literals, and f-strings of the above;
   - calls of Python's `float`, `int`, `isinstance`, `len`, `list`, `getattr` and `hasattr`
@@ -682,7 +774,9 @@ Each definition's docstring states its reading of the documentation. The non-obv
     is folded and keeps its sign), not built as an fp8 constant
     ([evidence/fp8-constants](../evidence/fp8-constants/README.md) F4).
 - **`tl.store(ptrs, vals, mask)`.** The value is converted to the pointer's dtype (an explicit
-  `tl.cvt`, `tl.itof`, … in the model, "Float conversions" below). Its `cache_modifier` and
+  `tl.cvt`, `tl.itof`, … in the model, "Float conversions" below), with `semantic.cast`'s default
+  rounding (`semantic.py:1205-1243`): to an fp8 pointer that is `tl.cvt8 x .rn`, the saturating
+  rounding to nearest even (library issue L152; evidence/front-end-round32 T2). Its `cache_modifier` and
   `eviction_policy` are performance-only (below).
 - **Performance-only arguments** (library issue L44; user, 2026-10-28: "we do not need to provide
   models for performance-only primitives"). These change how fast a kernel runs, not what it
@@ -697,21 +791,123 @@ Each definition's docstring states its reading of the documentation. The non-obv
   `tl.dot` (`DotCfg`), which change results; `num_stages` (of a launch, a `triton.Config` or
   `tl.range`) and `warp_specialize`, which change the order of a program's accesses, harmless only
   because a well-behaved model has no conflict within a program ("Programs", "Loops").
-- **Atomics.** A tensor atomic is one `rmw` per enabled lane, in an order the program does not
-  control. Each lane returns its element's old value; disabled lanes return unspecified values.
-  Lanes of different atomics of the program may also be performed in any order their
-  dependences allow (`Step.defer`, above).
+- **Atomics.** A tensor atomic is one atomic read-modify-write per enabled lane (library issue
+  L164), in an order the program does not control. Each lane returns its element's old value;
+  disabled lanes return unspecified values. An atomic may also be performed after later steps of
+  the program that do not depend on its result (`Step.defer`, above). A tensor step that uses one
+  lane's result waits for that lane's atomic, and, being one step, holds back every later atomic of
+  the program, while on the device each thread orders only its own accesses (library issues L161,
+  L169), hence the exclusion below.
+  - **Excluded: an atomic's result used on a shared cell** (library issue L161, user decision
+    2026-11-08: "let's exclude with Fix B"). Out of scope is a launch in which a program uses the
+    result of a `tl.atomic_*` call (`add`, `xchg`, `cas`, `max`, `min`, `and`, `or`, `xor`) — in a
+    store, an address, a mask, a branch or loop condition, or any other operation that runs, of any
+    lane — when a cell that call reaches is also accessed (read, written or updated by an atomic) by
+    another program of the launch, or by another atomic operation of the same program: another
+    `tl.atomic_*` call, or the same call run again (in a loop). The lanes of one call are not
+    another operation (the semantics performs them in any order). "Uses" reads as for an unused
+    result below: either reading of "unused" that item gives may be applied (library issue L162).
+    A reviewer who cannot tell whether another program or another atomic operation of the program
+    reaches a cell the call reaches (an address computed from data, a loop whose trip count is
+    data) treats the cell as shared, and the launch as excluded (library issue L165).
+    It is checked on the source, as `MemSem.unused` is; `UsesSharedAtomicResult`
+    (`TVA.Sem.AtomicResult`) is its first case read on a model, and `TVA.AtomicResult.crosswarp_excluded`
+    proves library review lr-34a's launch is under it. [evidence/atomic-result-order](../evidence/atomic-result-order/README.md)
+    (H200, 200 of 200 runs each): in lr-34a's two-program launch with `acq_rel` (with `relaxed` it
+    races, since its used atomics keep `relaxed`, so it is no counterexample: library issue L165), program 1
+    read program 0's later atomic on `C[511]` and then updated `Y[0]`, and program 0 still stored the
+    updated `Y[0]`; in a one-program launch of two calls of 512 lanes on one cell, with each result
+    stored, with `acq_rel` or `relaxed`, the first call returned old values up to 895 and the second
+    down to 384, where the semantics gives every first-call value below 512 and every second-call
+    value at least 512; the same with the call run twice in a loop, with the first result used only
+    in an address, and with the second result unused (`variants.py`, 100 of 100 each). A
+    kernel that needs such atomics (work queues, tickets, locks) waits for a per-lane model
+    ([review-questions.md](review-questions.md) Q17). No current claim uses an atomic's result.
+  - **Element types** (library issue L168; `semantic.py:1257-1290`;
+    [evidence/atomic-dtypes](../evidence/atomic-dtypes/README.md): each op on each type, H200).
+    Triton 3.8.0 accepts `atomic_add` on `int32`, `uint32`, `int64`, `uint64`, `float16`,
+    `bfloat16`, `float32` and `float64`; `atomic_max`, `atomic_min`, `atomic_and`, `atomic_or`,
+    `atomic_xor` and `atomic_xchg` on `int32`, `uint32`, `int64`, `uint64`, `float32` and
+    `float64`; `atomic_cas` on every 16-, 32- and 64-bit element (`int16`, `uint16`, `float16` and
+    `bfloat16` included). It rejects every other element type on the host (`bool`, `int8`, `uint8`,
+    the `float8` formats; `int16` and `uint16` except in `atomic_cas`; `float16` and `bfloat16`
+    except in `atomic_add` and `atomic_cas`), so such a launch has no outcome ("Launches"), and the
+    library's meanings on those types are never used.
+  - **The operand** (library issue L173). The operand of `atomic_add`, `atomic_max`, `atomic_min`,
+    `atomic_and`, `atomic_or`, `atomic_xor` and `atomic_xchg` is converted to the pointer's element
+    type, as `tl.store`'s value is (an explicit `tl.cvt`, `tl.ftoi`, … in the model, "Float
+    conversions" below), with `semantic.cast`'s default rounding (`semantic.py:1280`, after a Python
+    number has become a tensor, `core.py:2757-2829`): a `float32` operand added into a `float16`
+    cell is rounded to nearest even (`65520` becomes `+∞`), into an `int32` cell truncated.
+    `atomic_cas` converts nothing (`semantic.py:1257-1263`, `core.py:2746-2751`): its `cmp` and
+    `val` must have the cell's element type, and other operands (Python `int`s or `int32` values on
+    `int64` cells, `int64` values on `int32` cells, Python floats on `float16` cells) are rejected
+    on the host, so such a launch has no outcome ([evidence/atomic-dtypes](../evidence/atomic-dtypes/README.md)
+    part V, `adv.py`: the converted operands matched torch's conversion on 64 of 64 lanes per
+    format, and four mismatched `atomic_cas` calls were rejected).
   - Integer `atomic_add` wraps. Float `atomic_add` is `P.atomicAdd`.
-  - `atomic_max`/`atomic_min` compare integers by signedness. For floats, the result is one of
-    the two values and, if neither is NaN, not below (above) either.
-  - `atomic_and/or/xor` are integer-only. `atomic_cas` compares bit patterns.
+  - `atomic_max`/`atomic_min` compare integers by signedness. For floats (`float32`, `float64`),
+    the new value (what the cell holds after the atomic) is one of the two values, the old one and
+    the operand, and, if neither is NaN, not below (above) either (`fBound`); the returned value is
+    the old one, as for every atomic.
+  - `atomic_and/or/xor` have a meaning on integers only. Triton 3.8.0 also accepts them on
+    `float32` and `float64`, as the integer operation on the bit patterns (`and.b32`, …,
+    `xor.b64`; evidence/atomic-dtypes), but the library gives no new value there (`bitUpd`), so the
+    model's atomic is undefined behaviour: excluded ([exclusions.md](exclusions.md)). `atomic_cas`
+    compares bit patterns.
   - The defaults are `sem = acq_rel` and `scope = gpu`.
+  - **An atomic whose result is unused** (library issue L157, user decision 2026-11-08): a
+    `tl.atomic_*` call (`add`, `xchg`, `cas`, `max`, `min`, `and`, `or`, `xor`) whose returned value
+    no operation that runs reads: an expression statement, or a value bound only to names nothing
+    that runs reads (code the front end drops, under a compile-time false `if` or in
+    `tl.static_assert`, does not read). On the IR its `tt.atomic_rmw` or `tt.atomic_cas` has a
+    result with no use. The two readings differ for a value read only by an operation whose own
+    result is unused (`s = r + 1` with `s` never read; `tl.device_assert(r > 0)`, which without
+    `debug` the front end drops) and for a value returned from a helper whose call is an expression
+    statement: on the source the value is read, on the IR the dead operation is removed and the
+    result has no use. Either reading may be applied, and both are sound: the model may drop the
+    value whenever nothing that runs on the device reads it, which each reading ensures (library
+    issue L162). A reviewer who cannot tell treats the result as used (the stricter case: the
+    launch then races, or falls under the exclusion above). Its meaning is the atomic with order `MemSem.unused sem scope`: `acq_rel` at
+    `gpu` or `sys` scope, whatever `sem` the source gives (`relaxed`, `acquire`, `release`), and the
+    source's `sem` at `cta` scope (`tl.atomic_add_unused` and the others, which return nothing). So
+    two such atomics, or one and an `acq_rel` atomic, on the same bytes from different programs do
+    not race ("Race"). A plain load or store of those bytes still races with them, so the cells they
+    share are reached by atomics only. Why it is sound (`MemSem.unused`'s docstring): the semantics
+    has no synchronises-with; it performs a program's atomics after any later step that does not
+    depend on their result (`Step.defer`), and the order a program's own steps impose, coarser than
+    each thread's, is seen only in the launches the exclusion above leaves out (library issue L161:
+    the premise before it, that the semantics already gave every order the device's dependences
+    allow, was false across threads); what a relaxed atomic adds on the device is that it may
+    also be performed before its thread's earlier accesses, which no other program can observe in a
+    well-behaved launch when nothing uses its result: its own bytes are reached by atomics only,
+    which PTX performs with single-copy atomicity (PTX ISA 9.5 §8.4: a `.relaxed` `atom` is strong;
+    §8.7: strong operations at a scope including each other's threads, through the same proxy,
+    overlapping completely, are morally strong; §8.10.3: morally strong conflicting operations are
+    atomic), and other bytes it accessed would race. Triton 3.8.0 emits atomic read-modify-writes
+    (`atom`) with the source's order and scope for every one of them, with no barrier (`atom.global.gpu.relaxed.add.f32`,
+    `.v4.f32` for four contiguous lanes, `…add.noftz.f16`, `…exch.b32`, `atom.global.relaxed.gpu.cas.b32`, …;
+    a float `atomic_max` or `atomic_min` is two integer atomics, predicated on the operand's sign
+    bit, so exactly one runs per enabled lane, NaN operands included: `max.s32` when the sign bit is
+    clear and `min.u32` when it is set for `atomic_max`, `min.s32` and `max.u32` for `atomic_min`,
+    `.s64`/`.u64` for `float64` (`semantic.py:1292-1373`;
+    [evidence/relaxed-atomics](../evidence/relaxed-atomics/README.md), `float_maxmin.py`: on every
+    pair of 40 bit patterns, NaNs of both signs included, the new value is the one the picked atomic
+    gives, inside `fBound`; library issue L164), except a scalar `atomic_add` of a constant `0` with `relaxed` or `acquire` order, which becomes
+    a strong load (`ld.global.gpu.relaxed.b32`; `rules/num.md`, "Float `atomic_add`"; memory keeps
+    its value, as `P.atomicAdd` allows). [evidence/relaxed-atomics](../evidence/relaxed-atomics/README.md)
+    (H200): the instructions for each op, dtype, `sem` and scope; every update kept under contention
+    (16384 updates per cell from 4096 programs, each op and `sem`, 50 launches each: no cell wrong);
+    plain stores beside the atomics intact; vLLM's split-K LoRA shrink pattern exact on integer data.
+    Descriptor reductions keep `relaxed` (`tl.desc_atomic`): two programs reducing into one element
+    still race.
 - **Float `+` and `-`: IEEE or fusable.** With `enable_fp_fusion` (Triton's default: `true`, the
   launch's `fusion`), the backend may contract a product and an addition into one `fma`. An
   addition, subtraction, reduction or scan that a *product* may feed may therefore be computed
-  with fusion. A product is an operand computed by `*`, `tl.dot` or `tl.rand`, through any
-  dataflow, inlined helpers and library functions included. Such an operation is the library's
-  fusable form; an operation no product feeds is the IEEE form:
+  with fusion. A product is an operand computed by `*`, `tl.dot`, `tl.rand` or a float `/` whose
+  quotient is `float32` (below), through any dataflow, inlined helpers and library functions
+  included. Such an operation is the library's fusable form; an operation no product feeds is the
+  IEEE form:
 
   | IEEE form | fusable form |
   |---|---|
@@ -724,20 +920,132 @@ Each definition's docstring states its reading of the documentation. The non-obv
   - `tl.add` is IEEE.
   - `tl.mul_add a b c` is either `a*b + c` (two roundings) or `fma`.
   - `tl.addc` is any result `AddRel` allows: the IEEE sum, or, with fusion, the rounding of
-    `p + q` for some exact `p`, `q` rounding to the operands. The fusable forms allow every result
-    the IEEE forms allow.
+    `p + q` for some exact `p`, `q` rounding to the operands, one of them the operand's own value
+    (library issue L155: an `fma` takes one product unrounded and its other operand as it is, and
+    sm_90 has no instruction that adds two unrounded products in these formats;
+    [evidence/fma-one-product](../evidence/fma-one-product/README.md): `a*b + c*d`, `a*b - c*d`, a
+    `tl.sum` of two products, an accumulation and a three-product sum compile to `fma` and `mul`
+    (`FFMA`, `DFMA`, `HFMA2`, `HFMA2.BF16_V2`) on `float32`, `float64`, `float16` and `bfloat16`,
+    and of 163840 results none lay outside this relation, where on 156264 inputs the rounding of
+    both exact products differed from every value it allows). `AddRelWide`, the relation before
+    L155 with both operands replaced, follows from it (`AddRel.wide`). The fusable forms allow
+    every result the IEEE forms allow.
+  - **A float `/` is a product** (library issue L163) when its quotient is `float32`: `/` and
+    `tl.fdiv` (`ieee_rounding=False`) on `float32` operands, and `/` of `float16`, `bfloat16` or
+    integer operands, which Triton divides in `float32` ("Division" below); so also `tl.sigmoid`
+    of a `float32` tensor, and `tl.softmax` of a `float8e5`, `float8e4nv`, `float16`, `bfloat16`
+    or `float32` tensor with `ieee_rounding=False` (the default), which end in such a division (`standard.py:54-64`:
+    `tl.softmax` ends in `fdiv(num, den, ieee_rounding)`, and divides in `float32` on those formats,
+    "`/` on floats" below). `div.full.f32` is a reciprocal and a multiply
+    by the (scaled) dividend, and with `enable_fp_fusion` `ptxas` fuses that multiply with a
+    following addition into one `FFMA`. The addition takes the exact product, a value that rounds
+    to the quotient the division alone gives (the quotient's own `DivFull` value), and the other
+    operand as it is: so it is `tl.addc`/`tl.subc` (`AddRel E.fusion`) on the quotient that
+    `tl.div` picks, and a reduction or scan of quotients is `tl.sumc`/`tl.cumsumc`. Not products:
+    `tl.div_rn` and `tl.fdiv(x, y, ieee_rounding=True)` (the same IEEE `div.rn.f32`, library issue
+    L166), so `tl.softmax(…, ieee_rounding=True)` (of a `float8e5`, `float8e4nv`, `float16`,
+    `bfloat16` or `float32` tensor; of a `float64` one it fails to compile), `float64` `/`, so also `tl.sigmoid` and the
+    default `tl.softmax` of a `float64` tensor (IEEE, all not fused), integer `//`
+    and `%`, `tl.cdiv`. Writing an IEEE division's following addition as the fusable one is sound
+    but loose (the fusable forms contain the IEEE ones).
+    [evidence/div-fusion](../evidence/div-fusion/README.md) (H200): `x / y + c`, `c + x / y`,
+    `x / y - c`, `c - x / y`, `-(x / y) + c`, `(x / y).to(tl.float32) + c`, `tl.fdiv(x, y) + c`,
+    `x / 3.0 + c`, `1.0 / y + c`, `tl.sigmoid(x) + c`, `x / y + z / w`, a `tl.sum` of two
+    quotients, `r += x / y` in a loop and `float16`/`bfloat16` operands compile to `FFMA`; no result
+    of 430080 lies outside `AddRel` at the quotient the division alone stores, while 162200 differ from
+    the IEEE sum; `tl.where(m, x / y, 0.0) + c` and a `.to` that converts (`float64`, `float16`) are
+    not fused; with `enable_fp_fusion=False` every result is the IEEE sum.
   - Contraction is the only float rewrite the backend may apply: no reassociation, no
     reciprocal division, no flushing of subnormals ([review-questions.md](review-questions.md)
-    S5). The combine pass's rewrites are below (`dot_add`, `sum_bcast_mul`); they apply whatever
+    S5), except one rewrite, a miscompile, whose loops are excluded more broadly than the rewrite
+    (library issue L149; [exclusions.md](exclusions.md)).
+    - **The exclusion**, on the source. Out of scope is a launch whose kernel has a float reduction (`tl.sum`,
+      `tl.max`, `tl.min`, or any `tl.reduce` with a float operand) along the last axis of a tile of
+      rank 2 or more,
+      - at least one of whose operands equals, element for element up to NaN payload, the tile of one
+        `tl.load` (of a pointer tensor or of a block pointer, with or without a mask, `other` or a
+        cache modifier, in the kernel or in a helper; a descriptor's `load` is not one), on the launch's values of its compile-time constants and of the integer
+        arguments Triton specialises (those equal to `1`), whatever operations stand between them
+        and whether or not Triton folds them;
+      - anywhere in the body of a `for` loop over `range` or `tl.range` (with any options,
+        `loop_unroll_factor` included): directly, in a helper the body calls, under an `if` (on a
+        runtime or a compile-time condition), or in a `tl.static_range` loop inside it;
+      - whose result is used, through any chain of operations on values (not through memory), in a
+        value that loop carries (a variable the body assigns that has a value before the loop),
+
+      whatever the loop-carried value's initial value, the operation that updates it, the other uses
+      of the reduction's result or of the updated value, the width of the float dtype and the layout.
+      A `while` loop is not such a loop.
+    - **The rewrite** (informative; it is why the exclusion is there). Triton's
+      `OptimizeThreadLocality` pass (on for NVIDIA, `primitives/triton-3.8.0-nvidia-compiler.py:276`)
+      runs on the TritonGPU IR, after the front end has inlined the helpers, resolved compile-time
+      `if`s, unrolled `tl.static_range` loops and specialised integer arguments equal to `1`, and after
+      canonicalisation, dead-code removal and `loop_unroll_factor`'s unrolling
+      (`triton-3.8.0-nvidia-compiler.py:244-276`). It matches
+      (`primitives/triton-3.8.0-OptimizeThreadLocality.cpp:252-372`) a `tt.reduce` directly in the body
+      of an `scf.for`, whose combine region is one float `addf`, `mulf`, `maximumf`, `maxnumf`,
+      `minimumf` or `minnumf`, whose operand, of rank 2 or more in a blocked layout, is defined by a
+      `tt.load` and reduced along its last axis with more than one element per thread there, whose
+      result has one use, an operation `U` whose result has one use, the loop's `scf.yield`, and whose
+      loop-carried value starts from an `arith.constant`. The device then computes `U(c, R(v))`: `c`
+      the initial constant, `v` each thread's partial reductions of the trips folded by `U` from the
+      combine's neutral element (`0` for `+`, `1` for `*`, `−∞` for a maximum, `+∞` for a minimum), `R`
+      the reduction across the threads after the loop (`OptimizeThreadLocality.cpp:393-520`). With `U`
+      the combine this reassociates the trips' elements; with any other `U` it is no association of
+      the source at all ([evidence/thread-locality](../evidence/thread-locality/README.md), every
+      value exact: `acc - tl.sum(x, 1)` stored `+260` where the source gives `−260`,
+      `acc + tl.max(x, 1)` stored `−∞` for `8`, `acc * tl.sum(x, 1)` stored `0` for `17850625`; with
+      `U` the combine, `2.0` for `1.0`, and `3.0` for `1.0` from a runtime initial value `1`). Which
+      source forms reach that IR depends on folding, inlining, specialisation and the layout, which a
+      reviewer should not have to follow: the evidence found it rewritten with identities between the
+      reduction and `U` or after `U` (`.to` to its own dtype, `* 1.0`, `-(-s)`), with dead second uses,
+      under a compile-time `if`, in a `tl.static_range(1)`, in helpers, with a runtime integer argument
+      equal to `1` as the initial value or as a factor of the load, with `.to(tl.float64).to(tl.float32)`,
+      and on `float16` tiles and accumulators. That is why the exclusion is stated on the source and is
+      broader: it does not ask how the loop-carried value starts, what `U` is, whether the result has
+      other uses or how many elements a thread holds.
+    - **Not rewritten** in the evidence (these are outside the pass; those that also meet the
+      exclusion's three points above are excluded all the same): a load through a host descriptor; an
+      operand that changes some value of the load (`+ 0.0`, `* 2.0`, a `tl.where` on a runtime mask, a
+      product with another load, a `.to` that converts), and `+ (-0.0)`, which changes no value but
+      which Triton does not fold (so it is in the exclusion); a reduction or update under a runtime `if`; a
+      `float16` sum added into a `float32` accumulator (the sum is converted before `U`); an initial
+      value computed at runtime that Triton does not specialise; a result used twice; an axis other
+      than the last; a 1-D tile; a tile with one element per thread along the axis; a `tl.static_range`
+      or `while` loop on its own; `tl.range` with `loop_unroll_factor=2` and a compile-time trip count.
+      With a runtime trip count and `loop_unroll_factor=2`, and with a two-operand `tl.reduce` of two
+      loads, the pass fails and the compile ends with an error on the host (no outcome).
+    The combine pass's rewrites are below (`dot_add`, `sum_bcast_mul`); they apply whatever
     `enable_fp_fusion` says.
-- **`/` on floats** is `P.div` (the default `tl.fdiv` is not IEEE). `tl.div_rn` is IEEE. Its
-  accuracy is a rule: `Rules.Num.DivFull` for fp32 (`div.full.f32`: within
+- **`/` on floats** is `P.div` (the default `tl.fdiv` is not IEEE). `tl.div_rn` is IEEE.
+  `tl.fdiv(x, y, ieee_rounding=True)` on `float32` operands is `tl.div_rn` (library issue L166):
+  Triton 3.8.0 gives both the op `tt.precise_divf` (`semantic.py:331-341`, `math.py:203-210`),
+  lowered to `div.rn.f32` (`nvidia-ElementwiseOpToLLVM.cpp:886-887`), and on other operands
+  (`float16`, `bfloat16`, `float64`, or two formats) it fails to compile, as `tl.div_rn` does
+  ([evidence/fdiv-ieee](../evidence/fdiv-ieee/README.md): bit for
+  bit `tl.div_rn` and the IEEE quotient on `2^24` random pairs and every pair of 256 special and
+  random patterns, and its following addition is the IEEE sum, not fused). `tl.softmax(x, …)`
+  for each format of `x` (library issue L168; evidence/fdiv-ieee part E, `softmax_fmt.py`, and
+  part F, `fmt_probe.py`):
+  - `float8e5`, `float8e4nv`, `float16`, `bfloat16`, `float32`: it computes and returns `float32`,
+    since `tl.max` widens floats narrower than 32 bits ("The promotions of reductions" below), so
+    `x - tl.max(x)`, its `tl.exp`, their `tl.sum` and the quotient are `float32`. With
+    `ieee_rounding=True` it ends in `tl.div_rn` (`div.rn.f32`; 0 of 1024 off the IEEE quotient on
+    each 16- and 32-bit format), with `ieee_rounding=False` (the default) in the default `float32`
+    `/` (`div.full.f32`);
+  - `float64`: it returns `float64` and, with the default, ends in the IEEE `float64` `/`
+    (`div.rn.f64`); with `ieee_rounding=True` it fails to compile (no outcome);
+  - an integer format: it fails to compile (no outcome), since `x - tl.max(x)` is an integer and
+    `tl.exp` takes only `float32` and `float64` (`math.py:94-98`).
+
+  A default `float32` quotient is a product for a following addition ("Float `+` and `-`" above, library
+  issue L163). Its accuracy is a rule: `Rules.Num.DivFull` for fp32 (`div.full.f32`: within
   `2^-22·|x/y| + 2^-148` of `x/y` for `|x/y| ≤ 2^126`) and `Rules.Num.DivRn` for fp64 (IEEE)
   ([rules/num.md](rules/num.md)).
 - **`tl.exp`, `exp2`, `log`, `log2`, `sin`, `cos`, `sqrt`, `rsqrt`, `erf`** are
   `P.math fn`. `tl.sqrt_rn` is IEEE. Their accuracy is `Rules.Num.MathAcc` (finite inputs in
   the function's natural domain, with room in the format) and their special values
-  `Rules.Num.MathAt` (`exp(-∞) = +0`).
+  `Rules.Num.MathAt` (`exp(-∞) = +0`), and `tl.exp` past its overflow `Rules.Num.ExpF32Overflow` (`+∞`).
 - **`tl.maximum`, `tl.minimum`** follow `FloatV.MaxRel`: the reference `max`/`min` up to NaN
   payload, or either operand when both are zeros (LLVM `maxnum`). Triton converts bf16
   operands to fp32 first, and the model writes that conversion.
@@ -751,6 +1059,32 @@ Each definition's docstring states its reading of the documentation. The non-obv
     finite numbers. There is no fp8 → fp64 conversion.
   - `fp_downcast_rounding="rtz"` into fp8 compiles only from fp32 to `float8e5`.
   - Any other pair is undefined behaviour in the model.
+- **`x.to(d)`, `tl.cast(x, d)` and `x.cast(d)`** (library issue L143; `core.py:1130-1135, 2322-2345`,
+  `semantic.py:793-916`; [evidence/front-end-round31](../evidence/front-end-round31/README.md) C1–C4).
+  `x.to(d, fp_downcast_rounding=r, bitcast=b)` is `tl.cast(x, d, r, b)`, and `x.cast(…)` is its method
+  form: the front end compiled the same TTIR for the three on 24 conversions (C1). Their `dtype`,
+  `fp_downcast_rounding` and `bitcast` are compile-time values (a dtype `tl.constexpr` included, above).
+  `tl.cast` first makes its input a tensor: a Python number (a literal, a `tl.constexpr`, a scalar
+  argument specialised to the constant `1`) becomes a scalar tensor of its own type, as an argument of
+  a `tl.*` function does ("Constants", everywhere else), and is then converted (C2:
+  `tl.cast(2**40 + 5, tl.int32)` is the `int64` `2^40 + 5` wrapped to `5`; `tl.cast(1.75, tl.int32)` is
+  `1`; `tl.cast(s, dtype=tl.int64)` is `1` for the argument `s = 1`, as for any other `int32` `s`).
+  - Without `bitcast`: `semantic.cast(x, d, r)`. To `x`'s own dtype it is `x` itself, whatever `r`
+    (C3). Otherwise it is the conversion of this page: `tl.convert` (`TVA.Lang.Promote`), or its parts
+    as above (`tl.cvt`, `tl.itof`, `tl.ftoi`, `tl.cvt8`, `tl.cvtFrom8`), with `r` as "Float
+    conversions" states: `"rtne"` is the default rounding, and `"rtz"` rounds toward zero. A
+    `fp_downcast_rounding`, either value, on a conversion that is not from a float to a float of fewer
+    bits (`float16` to `float32`, `bfloat16` to `float16` and `float16` to `bfloat16`, of the same
+    width, `int32` to `float32`, `float32` to `int32`) is rejected on the host, and so is any value but
+    `"rtne"` and `"rtz"` (C3; library issue L147, `semantic.py:824-832`;
+    [evidence/front-end-round32](../evidence/front-end-round32/README.md) R1).
+  - With `bitcast=True`: `tl.bitcast d d' x` (`TVA.Lang.Promote`), each element's bit pattern read as
+    a value of the target dtype, exact (C4: every pattern of seven 8-bit and six 16-bit pairs, and
+    `2^24` random and edge patterns of seven 32- and 64-bit pairs, NaN payloads included, stored bit
+    for bit), and `fp_downcast_rounding` is ignored. Both dtypes must have the same width
+    (`DType.bitwidth`), or the kernel is rejected on the host (C4). To `x`'s own dtype it is `x`
+    (`tl.bitcast_self`). A conversion whose operand or target is a pointer is the conversion without
+    `bitcast` (`semantic.py:801-802`), of which this page states only `tl.intToPtr` ("Values").
 - **Operators and promotion** (`TVA.Lang.Promote`; library issue L45,
   [evidence/promotion](../evidence/promotion/README.md)). For an operator with a tensor operand,
   the library's definitions give what Triton's front end does: the dtype both operands are
@@ -833,6 +1167,14 @@ Each definition's docstring states its reading of the documentation. The non-obv
   [evidence/itof-rtz](../evidence/itof-rtz/README.md)).
   `tl.itof` and `x.to(int)` exist only for the standard float formats.
 - **`tl.sum`, `tl.max`, `tl.min` (reductions)** combine along a `Tree` Triton chooses.
+  - A float `tl.sum` and its forms (`sum1`, `sum0`, `sumc`, `sum1c`, `sum0c`) combine along a tree
+    that covers the axis's `n` positions and has depth at most `tl.sumBound P n =
+    max (P.sumDepth n) ⌈log₂ n⌉` (library issue L149). With `Platform.sumDepth`'s default that is any
+    tree; the device fact `Rules.Num.SumDepth` states sm_90's depth, `⌈log₂ n⌉`: Triton 3.8.0 reduces
+    each thread's elements of the axis along a balanced binary tree, then along a butterfly over the
+    lanes and, through shared memory, over the warps, a perfect tree of depth `log₂ n` whatever the
+    layout ([rules/num.md](rules/num.md); [evidence/reduce-tree](../evidence/reduce-tree/README.md)).
+    A scan's depth depends on the layout, and no fact states it.
   - `tl.sum` (`sum1`, `sum0`) is for inputs that are not products, and every node is an IEEE
     addition.
   - `tl.sumc` (`sum1c`, `sum0c`) is for a sum of products, and its nodes are `AddRel` with the
@@ -864,6 +1206,21 @@ Each definition's docstring states its reading of the documentation. The non-obv
     defaults ("Launches");
   - `maxImpreciseAcc`: the source's `max_num_imprecise_acc`; when it is omitted, `2^30` for an
     fp8 × fp8 dot on sm_90 and `0` otherwise.
+
+  Its accuracy is a fact of [rules/num.md](rules/num.md). The only integer `tl.dot` is
+  `int8 × int8` (both operands `int8`; another integer operand is rejected on the host), into an
+  `int32` result whatever `out_dtype` says (`tl.dot(a, b, out_dtype=tl.float16)` is `int32`), with
+  `K ≥ 32` (`semantic.py:1429-1520`, `nvidia-compiler.py:19-31`). An accumulator is `int32` or
+  `uint32`, and `out_dtype`, when given with it, the accumulator's dtype; any other accumulator dtype,
+  and `out_dtype=tl.int32` with a `uint32` accumulator, is rejected on the host (the IR's integers are
+  signless, so a `uint32` accumulator has the `int32` result's IR type). Its `cfg` is
+  `⟨.i8, .i8, .i32, precision, 0⟩` without `max_num_imprecise_acc`, and its fact `Rules.Num.DotI8`:
+  exact while `|acc| + Σ|a·b|` is at most `2^31 - 1` (library issue L141;
+  [evidence/num-dot-int8](../evidence/num-dot-int8/README.md)). With a `uint32` accumulator the dot
+  computes as with the accumulator's bits read as `int32`: the model writes
+  `tl.dot (tl.bitcast .u32 .i32 acc h) …` with that `cfg`, an `int32` result, and `DotI8`'s room is on
+  that reading (`3000000000 + 9` gives the `int32` `−1294967287`, which is `< 0` in the kernel;
+  library issue L141, round 32; [evidence/num-dot-int8-round32](../evidence/num-dot-int8-round32/README.md)).
 - **The combine pass's rewrites** ([review-questions.md](review-questions.md) S7). Triton rewrites
   these shapes whatever `enable_fp_fusion` says, and the library's operation for each allows both
   the rewritten and the unrewritten result:
@@ -896,14 +1253,19 @@ Each definition's docstring states its reading of the documentation. The non-obv
     reorder its elements (below, "Shape changes").
 - **Tensor descriptors (TMA)** (`TVA.Lang.Desc`): `TensorDesc` holds the base, shape
   (`int32`), strides, the block shape fixed when it is made, and padding (`"zero"` or `"nan"`): for
-  a descriptor the host builds (`TensorDescriptor`), the host's values; for one built in the
-  kernel, `tl.make_tensor_descriptor base shape strides block padding`, its arguments' values
-  (shape entries `int32`, strides `int64`), with no memory access in the model. On the device each
-  program writes such a descriptor (128 bytes) into the launch's scratch, a buffer the allocator
-  set by `triton.set_allocator` returns; without an allocator the launch is rejected on the host.
-  The scratch is not part of the claim's memory: `Compiler.Faithful` requires that it holds none of
-  the bytes the launch is given and that nothing else writes it during the launch ("Launches";
-  library issue L5, [evidence/desc-scratch](../evidence/desc-scratch/README.md)).
+  a descriptor the host builds (`TensorDescriptor`), the host's values. **A descriptor built in the
+  kernel is excluded** (library issue L146; the user's decision, 2026-11-08: "let's exclude this
+  case. we only cover descriptor outside of triton kernels"; [exclusions.md](exclusions.md)):
+  `Compiler.Faithful` covers no launch on which the front end visits a call of
+  `tl.make_tensor_descriptor`, in the kernel or a helper (its scope 5). On the device each program
+  would write such a descriptor (128 bytes) into a scratch buffer that the allocator set by
+  `triton.set_allocator` returns, outside the claim's memory
+  ([evidence/desc-scratch](../evidence/desc-scratch/README.md)). A call in a compile-time branch
+  the instance does not take is not visited: tutorial 06's `_maybe_make_tensor_desc` given a host
+  `TensorDescriptor` returns it ("How the front end evaluates the source", `isinstance`), and such
+  a launch is covered. The library's `tl.make_tensor_descriptor` (its arguments' values, shape
+  entries `int32`, strides `int64`, no memory access) is the call's meaning in the language, which
+  no covered launch reaches.
   Every access has that block. Lane `i` of a block at `offsets` is element `offsets + i`. A
   descriptor that an access goes through has positive shape entries (`TensorDesc.Valid`): on the
   H200 a load, store or reduction through an in-kernel descriptor with a zero shape entry faults,
@@ -923,7 +1285,9 @@ Each definition's docstring states its reading of the documentation. The non-obv
     Z14–Z16).
   - Undefined behaviour unless Triton's requirements hold (`TensorDesc.Access`): rank 1–5; positive
     shape entries below `2^31` (above); a 16-byte-aligned base; leading strides that are multiples of 16 bytes and a last stride of
-    1; an innermost offset that is a multiple of 16 bytes (documented for load and store,
+    1 (a leading stride of `0`, or one shorter than the row, is admitted: on the H200 loads and
+    reductions through such a host descriptor reach the elements the formula names,
+    [evidence/desc-strides](../evidence/desc-strides/README.md), library issue L154); an innermost offset that is a multiple of 16 bytes (documented for load and store,
     required of every access here, a conservative reading); dtypes Triton allows for
     reductions (`RedOp.Allowed`).
 
@@ -970,6 +1334,20 @@ Each definition's docstring states its reading of the documentation. The non-obv
   allows it to reorder (S7). An index reduction (`tl.argmax`) of such a reshape then pairs
   reordered values with unreordered indices, as on the device: no index is paired with such a
   reshape as if the order were kept.
+- **`tl.broadcast_to(x, shape)`** (and the methods `x.broadcast_to(shape)` and
+  `x.broadcast_to(*shape)`; library issue L140; `core.py:2049-2066`, `semantic.py:629-634, 711-725`;
+  [evidence/front-end-round31](../evidence/front-end-round31/README.md) B1–B3) is exact. Of a block
+  `x` of shape `s`, it is `x.broadcastTo shape` (`TVA.Lang.Tensor`): the block of the target shape
+  whose element at each index is `x`'s at the same coordinates, except that each dimension where `s`
+  has size `1` is read at `0` (`Tensor.get_broadcastTo`; `x.broadcast_to((m, n))` of a `[m, 1]` block
+  is `x.bcastCols n`, of a `[1, n]` block `x.bcastRows m`: `broadcastTo_cols`, `broadcastTo_rows`). The
+  target's entries are compile-time integers, each a power of two (with at most `2^20` elements:
+  `validate_block_shape`, `_utils.py:63-74`), and Triton accepts only a target of `s`'s rank whose
+  every dimension equals `s`'s or is one where `s` has `1` (`Shape.bcastOk`); every other target is
+  rejected on the host, a rank change included (B3). Of a scalar (a runtime scalar argument, a loaded
+  scalar), it is the scalar at every index (`splat`: `Tensor.full`, `bc`; B2). A Python number has no
+  shape: `tl.broadcast_to(1.0, (4,))` is rejected on the host (B3). The front end gives the same values
+  as torch's `expand` on ten pairs of shapes of ranks 2 and 3, in the three forms (B1).
 - **Scans** (`TVA.Lang.Scan`): `tl.associative_scan x axis op reverse` gives position `j`
   as `op` evaluated along a tree whose leaves are `0, …, j` in order (`reverse`: `n-1, …, j`
   in that order, as Triton lowers it as `flip(scan(flip(x)))`; S8). So with `reverse=True` the left
@@ -1021,7 +1399,8 @@ Each definition's docstring states its reading of the documentation. The non-obv
   [evidence/sigmoid-round29](../evidence/sigmoid-round29/README.md)): the float negation `-x`,
   `tl.exp`, the addition of the Python number `1`, and the default float division `/` of the Python
   number `1` by the sum, each in `x`'s dtype, with the accuracy those operations have here
-  (`tl.exp`'s `Rules.Num.MathAcc`, `/`'s `Rules.Num.DivFull` for fp32). It is the same bits as that
+  (`tl.exp`'s `Rules.Num.MathAcc`, `/`'s `Rules.Num.DivFull` for fp32); for fp32 its result is a
+  product for a following addition, as the division's is (library issue L163). It is the same bits as that
   expression on every `fp32` input, in the method form, on `fp64` and on compile-time values (S1-S3,
   S5). `tl.exp` admits only `fp32` and `fp64`, so the front end rejects `tl.sigmoid` of a `bfloat16`,
   `float16` or integer tensor on the host (S4): a kernel converts first
@@ -1189,17 +1568,23 @@ Each definition's docstring states its reading of the documentation. The non-obv
     map), the buffers of the claim's `Pre`. The outcome `ok fin` gives the same bytes, with their
     contents when the launch ends; other bytes are not part of the outcome, and `Post` cannot speak
     of them (library issue L49). The model accesses no other byte, and `Compiler.Faithful` states
-    that a valid, well-behaved launch within its scope writes none of them, except the scratch of
-    the descriptors the kernel builds ("Tensor descriptors"; library issue L73,
+    that a valid, well-behaved launch within its scope writes none of them (library issue L73,
     [evidence/launch-frame](../evidence/launch-frame/README.md): kernels with masked tiles,
     reductions, a pipelined `tl.dot`, atomics, sorts and scans changed no byte outside their output
-    buffers, and a descriptor-building one none outside its output and its scratch). So a claim
+    buffers; the only other buffer the launcher gives a kernel, the scratch of descriptors built in
+    the kernel, is outside the scope, "Tensor descriptors", library issue L146). So a claim
     that cites the rule implies that the launch leaves the host's other memory as it was
     (`TVA.Claim`, "Other memory").
-  - **One launch** (library issues L21, L116, [evidence/autotune-launch](../evidence/autotune-launch/README.md)).
-    A claim is about one direct launch of the kernel's `@triton.jit` function (`kernel[grid](…)`, or
-    through a `CompiledKernel`, below), from the memory when it starts, its `init`; what the caller's
-    memory was before is the host's part, outside the claim. TVA verifies the kernel itself, not the
+  - **One launch: an execution of the kernel** (library issues L21, L116, L144,
+    [evidence/autotune-launch](../evidence/autotune-launch/README.md)). A claim is about one
+    execution of the kernel's `@triton.jit` function: its grid of programs, running the code Triton
+    compiles for a direct launch of it (`kernel[grid](…)`, or through a `CompiledKernel`, below)
+    with that launch's grid, arguments, compile-time values and options, from the memory when the
+    execution starts, its `init`; what the caller's memory was before is the host's part, outside
+    the claim. How a caller makes the execution happen is no part of the claim (the user, 2026-11-08:
+    "we verify the kernel itself"): a host call that only records the grid, for a run that a later
+    call makes, is not an execution of it and has no outcome, and that later run is an execution
+    like any other. TVA verifies the kernel itself, not the
     autotuner (the user's decisions, 2026-10-29: "actually we do not neccessarily cover autotune. we
     do verification basically for the kernel." and "our principle is, we are verifying kernel
     itself."): `@triton.autotune` is outside the subset, and no claim covers a call of an autotuned
@@ -1215,22 +1600,15 @@ Each definition's docstring states its reading of the documentation. The non-obv
     what the hook does before the launch (tutorials 06 and 09 set a host `TensorDescriptor`'s
     `block_shape`; [rules/compiler-faithful.md](rules/compiler-faithful.md), "Which launch"). A kernel
     under `@triton.heuristics` is outside the subset: a heuristic sets launch keywords, compile
-    options included, and replaces the launch's own (library issue L78; below). A call made while a
-    CUDA stream capture is in progress (`torch.cuda.graph`, `triton.testing.do_bench_cudagraph`), on
-    any stream, is not a launch a claim covers, and neither is a replay of the captured graph (library
-    issue L91; below). A call on the capturing stream returns without an error, compiling the kernel
-    first if needed, and runs no program, and its programs run at each `graph.replay()`, with the
-    arguments the call captured, on the memory at the replay; a call on another stream during the
-    capture runs at once, as any launch, and no replay runs it
-    ([evidence/host-round20](../evidence/host-round20/README.md) G0–G3).
+    options included, and replaces the launch's own (library issue L78; below).
   - `Compiler.Faithful` covers a launch only within its scope
     ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"; library issues L17–L19, L72,
-    L74, L76–L78, L91, L103–L105, L107, L109, L110, L116, L117):
+    L74, L76–L78, L103–L105, L107, L109, L110, L116, L117, L144, L146):
     in two parts (the user's decisions, 2026-10-29: "To make the verifier easy, we do not verify
     triton cache.", "we assume the kernel is new." and "So basically, we want to verify the kernel
     itself, rather than triton installation or other code programmed by users."):
     - **(A) the kernel and its launches, checked** by the kernel reviewer against the kernel's
-      source and its launch call (scopes 4, 5, 6, 8 and 9):
+      source and its launch (scopes 4, 5, 6 and 8):
       - **only the launch options `Launch` records**, and `num_warps`, `num_stages`, `maxnreg` and
         `launch_cooperative_grid`, which do not change the meaning: no other compile option
         (`ir_override`, `allowed_dot_input_precisions`, `enable_reflect_ftz`, `extern_libs`, …) given
@@ -1240,9 +1618,8 @@ Each definition's docstring states its reading of the documentation. The non-obv
         given at `warmup` reached a launch that gave no keyword), and no `@triton.heuristics`, which
         sets launch keywords, options included, before the JIT reads them (`autotuner.py:473-483`;
         library issue L78);
-      - **descriptor scratch**: when the kernel builds descriptors (`tl.make_tensor_descriptor`), the
-        allocator's buffer holds none of the bytes `init` gives the launch, and nothing else writes
-        it during the launch ("Tensor descriptors");
+      - **no descriptor built in the kernel**: the front end visits no call of
+        `tl.make_tensor_descriptor` on the instance ("Tensor descriptors"; library issue L146);
       - **a precompiled kernel's specialisation** (library issue L47,
         [evidence/compiled-launch](../evidence/compiled-launch/README.md)): a launch through a
         `CompiledKernel` (`kernel.warmup(…)` or `triton.compile`, then `compiled[grid](…)`, as
@@ -1266,18 +1643,6 @@ Each definition's docstring states its reading of the documentation. The non-obv
         round `float32` to tf32 (`nvidia-driver.py:231-232`; library issue L76,
         [evidence/desc-tf32](../evidence/desc-tf32/README.md): `1 + 2^-23` loaded as `1.0`), which
         `tl.desc_load` does not model;
-      - **no CUDA graph capture**: the call is not made while a CUDA stream capture is in progress, on
-        any stream (`torch.cuda.graph(…)`, `torch.cuda.CUDAGraph.capture_begin`,
-        `triton.testing.do_bench_cudagraph`, a `cudaStreamBeginCapture`), and the launch is not a replay
-        of a captured graph. A call on the capturing stream returns without an error and runs no
-        program, and each replay runs the programs with the captured arguments on the memory at the
-        replay (`docs/library-review/round-16/lr-16b/work/graph_capture.py` G1-G3: the output kept its
-        sentinel after the captured call, held `x + 1` after the first replay and `11` after the host
-        set `x = 10` and replayed, and a captured `n = 16` wrote 16 elements whatever the host's `n` was
-        later); a call on another stream during the capture runs at once, and a replay does not run it
-        ([evidence/host-round20](../evidence/host-round20/README.md) G0–G3). The library states none of
-        these, and excludes all of them ([exclusions.md](exclusions.md); library issue L91; user,
-        2026-10-28).
     - **(B) the environment, assumed, not verified**: TVA verifies the kernel, not the Triton
       installation or other code users write, and the gate, the prover and the kernel reviewer do
       not check these (scopes 1, 2, 3, the environment's part of 4, 7, 10 and 11); a claim's own
@@ -1325,8 +1690,8 @@ Each definition's docstring states its reading of the documentation. The non-obv
         made to change it (`tl.exp = tl.log`, a `JITFunction`'s `fn`, `src` or `noinline`, its
         `_unsafe_update_src`, `triton.runtime.driver.set_active`, `importlib.reload`), other than through
         Triton's API as the in-scope tutorials use it (launches, `kernel.warmup(…)`, `triton.autotune`
-        with its `triton.Config`s and hooks, the `JITFunction`'s `debug`, above, `triton.set_allocator`,
-        the knobs the scope allows, and the fields of a host `TensorDescriptor` the launch is given, such
+        with its `triton.Config`s and hooks, the `JITFunction`'s `debug`, above, the knobs the scope
+        allows, and the fields of a host `TensorDescriptor` the launch is given, such
         as the `block_shape` a config's `pre_hook` sets, "One launch"); and no code binds a name of the
         kernel's module other than as the module's own statements do (another module's
         `kmod.double = kmod.triple`, an assignment into `kernel.fn.__globals__`): the front end compiles
@@ -1380,9 +1745,11 @@ Each definition's docstring states its reading of the documentation. The non-obv
   - A launch reported to the host with an error before any program runs (shared memory,
     registers, threads, `tl.dot` sizes, dtypes, grid limits) has no outcome
     (`TVA.Claim.Behaviour`). A launch that returns without an error has one, even if no program
-    ran: with a zero grid dimension it is `ok` with memory unchanged. (A call on a stream that is
-    capturing into a CUDA graph also returns without an error and runs no program, but every call
-    made during a capture is outside the scope above.)
+    ran: with a zero grid dimension it is `ok` with memory unchanged. A host call that only
+    records the grid, for a run that a later call makes, is not an execution
+    of it and has no outcome; that later run is the execution ("One launch"). The launcher's skip
+    of a grid of `2^31` to `2^32` programs is not such a call: it ends `ok` with memory unchanged,
+    and `Launch.Valid` excludes it.
 
   - **Scalar arguments** (library issue L29, [evidence/scalar-args](../evidence/scalar-args/README.md);
     `specialize.cc:264-306, 377-388`, `jit.py:396-458`, the launcher's extractors
@@ -1419,8 +1786,9 @@ Each definition's docstring states its reading of the documentation. The non-obv
 - **Race.** Two events of different programs, one writing a byte the other accesses. The only
   exception is a pair of `Event.Strong` atomics: both `acq_rel` (Triton's default), at
   `gpu`/`sys` scope, on the same bytes.
-  - Relaxed, acquire-only and release-only atomics race, since an SC interleaving would hide
-    their reorderings (store buffering).
+  - Relaxed, acquire-only and release-only atomics whose result the program uses race, since an
+    SC interleaving would hide their reorderings (store buffering). Those whose result the source
+    never uses are `acq_rel` at `gpu`/`sys` scope ("Atomics", library issue L157), so they do not.
   - Atomics on partly overlapping bytes race too.
   - There is no synchronises-with between programs. A scalar atomic is issued by one thread
     of the program with no barrier before it, so its release does not cover the other threads'
@@ -1445,7 +1813,14 @@ no-op in the model, and the reviewer sees it in the correspondence.
 It keeps no meaning after L15 either. A barrier would order a program's accesses, but in a
 well-behaved model the only accesses of a program to the same bytes whose order matters are two
 atomics (their old values, `xchg`, `cas`), and the semantics already performs them in every order
-(`Step.defer`), so a barrier could only remove behaviours the model has. A model that writes and
+(`Step.defer`), so a barrier could only remove behaviours the model has. That holds outside the
+exclusion of "Atomics" (library issues L161, L165): where a program uses an atomic's result on a cell
+another atomic operation of the program also reaches, the device performs them in orders the
+semantics lacks, and a `tl.debug_barrier()` between the use and the second operation gave only
+outcomes the semantics has ([evidence/atomic-result-order](../evidence/atomic-result-order/README.md),
+`variants.py`: 0 of 100 outside, against 100 of 100 without it). The barrier still has no meaning
+here, so such a launch stays excluded; a per-lane model may use it
+([review-questions.md](review-questions.md) Q17). A model that writes and
 then reads back its own data has a conflict within the program (see "Programs") whether or not the
 source has a barrier, and no claim covers it. `num_stages` stays dropped for the same reason: the reuse
 of a program's own data that pipelining could reorder is excluded. A model of phases separated by
@@ -1454,7 +1829,11 @@ barriers (L15's option 2) may be added later without breaking claims made under 
 ## Granularity
 
 A tensor load or store is one step of the interleaving. Finer interleavings, such as per lane or
-per thread, differ only in launches with a race between programs or a conflict within a program,
-and those launches have no meaning (`WellBehaved` fails). The rule then makes no claim about
-them. Atomics are per lane already, and `Step.defer` gives them every order a program's
-dependences allow.
+per thread, differ for plain accesses only in launches with a race between programs or a conflict
+within a program, and those launches have no meaning (`WellBehaved` fails). The rule then makes no
+claim about them. Atomics are per lane already, and `Step.defer` performs an atomic after later
+steps that do not depend on its result; but a tensor step that uses one lane's result holds back
+every later atomic of the program, while each thread of the device orders only its own accesses.
+That difference shows only when a program uses an atomic's result on a cell another program, or
+another atomic operation of the same program, also accesses, and those launches are excluded
+("Atomics", library issue L161).

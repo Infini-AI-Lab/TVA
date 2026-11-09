@@ -1,0 +1,34 @@
+{
+  "kernel": "route_histogram_i32",
+  "title": "LoRA route histogram, pairs per adapter and group (`_route_histogram_kernel`, `tl.histogram` and atomics, int32), SGLang",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/route_histogram.py",
+    "sha256": "8031a5291735d871e233770e10b668dfbb8c9686b336f316b26d5fad302ed44a",
+    "ranges": [
+      [
+        58,
+        59
+      ],
+      [
+        62,
+        89
+      ],
+      [
+        92,
+        106
+      ],
+      [
+        109,
+        144
+      ]
+    ],
+    "host": []
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.RouteHistogram",
+  "statement": "Claims.RouteHistogram.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

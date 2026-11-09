@@ -1,0 +1,778 @@
+{
+ "source": {
+  "file": "source/lora_shrink.py",
+  "sha256": "508518b45f2af5ca88a1994723870696fbb171fe5d6f27d964d3ac895c237779",
+  "ranges": [
+   [
+    79,
+    423
+   ]
+  ],
+  "host": [
+   [
+    77,
+    77
+   ],
+   [
+    426,
+    665
+   ]
+  ],
+  "unused": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.LoraShrink",
+ "entries": [
+  {
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module (SEMANTICS.md, the supported subset, Names); no other statement of the module binds it; it adds no step to the program",
+   "src": [
+    79
+   ]
+  },
+  {
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (SEMANTICS.md, the supported subset, Names); no other statement of the module binds it; it adds no step to the program",
+   "src": [
+    80
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: `mm_k` is a helper, not a kernel; `do_shrink_kernel` calls it at lines 255-271 and the front end inlines it there (SEMANTICS.md, Functions: helpers are inlined), so it has no launch and its `debug` is unset; the model has no separate function: its body is the model of lines 128-182, in the inlined place of the call (entry 255-271).",
+   "src": [
+    83
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "the header of the helper `mm_k` (its `def` line and parameters): Python evaluates the `def` when it imports the module, which binds `mm_k`, but the header adds no step to the program; the front end binds each parameter to the call's argument where it inlines the body (lines 255-271): `a_ptr`/`b_ptr` the call's block pointers, `ak_stride` = `input_d1_stride` (line 258), `bk_stride` = `lora_d2_stride` (line 259), `offset_k` (line 260), `K`, `BLOCK_M`, `BLOCK_N`, `BLOCK_K`, `EVEN_K`, `SPLIT_K`, `CAST_TYPE` = False (line 267), `b_dtype` (line 268, never read: `CAST_TYPE` is False), `USE_GDC` = False (line 269) and `base_k` = `pid_sk * BLOCK_K` (line 270). `mm_k` is not a `Kernel`; the model is its inlined body.",
+   "src": [
+    "84-100"
+   ]
+  },
+  {
+   "src": [
+    "101-127"
+   ],
+   "drop": "comment",
+   "note": "a docstring: an expression statement whose value, a string literal, is discarded (SEMANTICS.md, Statements); it adds no step."
+  },
+  {
+   "model": "        let accumulator := tl.zeros [BLOCK_M, BLOCK_N] .f32",
+   "note": "`tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)`: `float32` `+0.0` in every element of the `[BLOCK_M, BLOCK_N]` tile; the accumulator of `mm_k` is `float32` whatever the operands are.",
+   "src": [
+    128
+   ]
+  },
+  {
+   "model": "        let STEP_K : I32 := IntV.ofNat (BLOCK_K * SPLIT_K)",
+   "note": "`STEP_K = BLOCK_K * SPLIT_K` is a Python integer built at compile time (both operands are constexprs, the host's (`BLOCK_K = 256`, `SPLIT_K = 64` below 128 tokens; `BLOCK_K = 32`, `SPLIT_K = 8` from 128: `bk`, `sk`): `16384` or `256`). A Python number used with `int32` values is built in `int32`, so the model's `IntV.ofNat (BLOCK_K * SPLIT_K)` is the `int32` of that value (a scalar tensor).",
+   "src": [
+    131
+   ]
+  },
+  {
+   "model": "        let num_iters := (\u2190 tl.idiv (Tensor.scalar (K + (STEP_K - 1))) (Tensor.scalar STEP_K)).item",
+   "note": "`tl.cdiv(K, STEP_K)` is `(K + (STEP_K - 1)) // STEP_K` (SEMANTICS.md, `tl.cdiv`): the `int32` difference and sum (wrapping; no wrap on covered instances, `Inst.ok.K_top`: `K <= 2^17`), then the truncating `//` (`tl.idiv`, undefined on a zero divisor; `STEP_K > 0`). The bound is evaluated once, before the loop. `K` is the runtime `int32`: the `tl.constexpr` annotation on `mm_k`'s parameter changes nothing, since line 261 passes the kernel's `int32` `K` (SEMANTICS.md, Helpers are inlined).",
+   "src": [
+    134
+   ]
+  },
+  {
+   "model": "        let (accumulator, _a_ptr, _b_ptr) \u2190 tl.forRange (IntV.ofInt 0 : I32) num_iters\n            (IntV.ofInt 1 : I32) (accumulator, a_ptr, b_ptr)\n            fun k (accumulator, a_ptr, b_ptr) => do",
+   "note": "`for k in range(num_iters)` with the `int32` `0` and step `1`: `tl.forRange` from `IntV.ofInt 0` to `num_iters`, whose state is the names its body assigns - `accumulator` (lines 152/166/177) and the block pointers `a_ptr`, `b_ptr` (lines 179-180) - and whose body is the lambda over the `int32` `k`. The body ends by returning the carried tuple (`return (accumulator, a_ptr, b_ptr)` in the model), so the loop yields line 182's accumulator.",
+   "src": [
+    136
+   ]
+  },
+  {
+   "model": "          let iter_k := k * STEP_K + pid_sk * (IntV.ofNat BLOCK_K : I32)",
+   "note": "`iter_k = k * STEP_K + base_k`: `k` is `int32`, `STEP_K` the `int32` of the value `BLOCK_K * SPLIT_K` (line 131), and `base_k` the call's keyword argument `pid_sk * BLOCK_K` (line 270), the program's part of `K`; the wrapping `int32` product and sum (no wrap on covered instances: `iter_k < K + STEP_K <= 2^17 + 2^14`, `Inst.ok.K_top`).",
+   "src": [
+    138
+   ]
+  },
+  {
+   "model": "          let block_end := iter_k + (IntV.ofNat BLOCK_K : I32)",
+   "note": "`block_end = iter_k + BLOCK_K`: the constexpr `BLOCK_K` built in `int32` (an operand of `+` with the `int32` `iter_k`), the wrapping `int32` sum.",
+   "src": [
+    141
+   ]
+  },
+  {
+   "model": "          let accumulator \u2190 if EVEN_K then do",
+   "note": "`if EVEN_K:` is a branch on a constexpr: the model keeps it as a Lean `if` on the `Bool` parameter `EVEN_K` (the launch's `K % (BLOCK_K * SPLIT_K) == 0`, `evenK`), so it writes the arm the value selects. Lines 144-145 are comments (no entry).",
+   "src": [
+    143
+   ]
+  },
+  {
+   "model": "              let tiled_b : Tensor [BLOCK_K, BLOCK_N] BF16 \u2190 tl.load b_ptr",
+   "note": "`tl.load(b_ptr)`, no mask and no `other`: the whole `[BLOCK_K, BLOCK_N]` `bfloat16` tile of the LoRA weight block. Every lane's address is valid on covered instances (`Inst.ok.lora_len`; `rbn` of line 237 is in `[0, N)` with `N = R > 0`, `Inst.ok.R_pos`); the model's `b_ptr` is the `[BLOCK_K, BLOCK_N]` pointer of line 247.",
+   "src": [
+    146
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if USE_GDC:` is a compile-time `if` on a constexpr that is `False` on every covered launch (line 269 passes `False`, and the host's `use_gdc = False`, SETUP.md), so the front end evaluates the condition to `False` and does not visit line 148; the model has no `USE_GDC` parameter and no gdc step.",
+   "src": [
+    147
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`tl.extra.cuda.gdc_wait()` inside `if USE_GDC:` (line 147): not visited, `USE_GDC = False` on every covered launch. A gdc wait only orders a dependent launch; the host starts nothing with `launch_pdl=True` and the memory model has no such step (SEMANTICS.md, Launches), so the model has none.",
+   "src": [
+    148
+   ]
+  },
+  {
+   "model": "              let tiled_a : Tensor [BLOCK_M, BLOCK_K] BF16 \u2190 tl.load a_ptr",
+   "note": "`tl.load(a_ptr)`, no mask: the whole `[BLOCK_M, BLOCK_K]` `bfloat16` tile of the input rows. Every lane is valid on covered instances (`Inst.ok.inp_len`); the model's `a_ptr` is line 241's block pointer.",
+   "src": [
+    149
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if CAST_TYPE:` is a compile-time `if` on the constexpr `False` the call passes at line 267 (`mm_k(a_ptr, b_ptr, ..., SPLIT_K, False, cur_lora_ptr.dtype.element_ty, False, ...)`), so the front end does not visit line 151; `tiled_a` keeps the `bfloat16` of line 149's load. The model has no `b_dtype` parameter (line 268's element type is never read).",
+   "src": [
+    150
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the body of `if CAST_TYPE:` (line 150): not visited, `CAST_TYPE = False` (line 267), so no cast is made and `tiled_a` stays the `bfloat16` tile of line 149's load; the model's `tiled_a` is that load (`Tensor [BLOCK_M, BLOCK_K] BF16`).",
+   "src": [
+    151
+   ]
+  },
+  {
+   "model": "              tl.dot_add dotCfg tiled_a tiled_b accumulator",
+   "note": "`accumulator += tl.dot(tiled_a, tiled_b)`: `tl.dot` of `bfloat16` operands into the `float32` accumulator, with no `input_precision` (Triton's default `tf32`, which it ignores for 16-bit operands) and no `max_num_imprecise_acc` (`0`), plus the accumulator `tl.dot` adds by default - here `accumulator` itself - so the model is `tl.dot_add dotCfg` with `dotCfg = { a := .bf16, b := .bf16, acc := .f32, ... }`.",
+   "src": [
+    152
+   ]
+  },
+  {
+   "model": "else if IntV.le K iter_k then",
+   "note": "`else:` of line 143's `if EVEN_K`: the model writes the arm as `else if` with line 155's test. The arm is not taken when `EVEN_K` is true (the launch's `K % (BLOCK_K * SPLIT_K) == 0`); the model keeps both arms behind the `Bool` parameter and transcribes this one.",
+   "src": [
+    153
+   ]
+  },
+  {
+   "model": "if IntV.le K iter_k then",
+   "note": "`iter_k >= K`, the block entirely out of range: the same signed `int32` comparison with the operands swapped, `K <= iter_k` (`IntV.le`); lines 156-157 are `pass`, so this arm's value is the accumulator itself.",
+   "src": [
+    155
+   ]
+  },
+  {
+   "model": "              pure accumulator",
+   "note": "`pass`: nothing runs and the accumulator is unchanged; the model's branch value is `pure accumulator` (no step in that arm).",
+   "src": [
+    157
+   ]
+  },
+  {
+   "model": "            else if IntV.le block_end K then do",
+   "note": "`elif block_end <= K`: the signed `int32` comparison `block_end <= K` (`IntV.le`), the second test of the chain (visited only when line 155's is false); the whole tile is in range, so lines 160-166 load it unmasked.",
+   "src": [
+    158
+   ]
+  },
+  {
+   "model": "              let tiled_b : Tensor [BLOCK_K, BLOCK_N] BF16 \u2190 tl.load b_ptr",
+   "note": "as line 146: the whole `[BLOCK_K, BLOCK_N]` `bfloat16` tile of `b_ptr`, no mask (every lane valid, `Inst.ok.lora_len`).",
+   "src": [
+    160
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if USE_GDC:` (the second test, in the `block_end <= K` arm): compile-time `False` (`USE_GDC = False`, line 269 and the host), so line 162 is not visited; the model has no gdc step.",
+   "src": [
+    161
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`tl.extra.cuda.gdc_wait()` inside `if USE_GDC:` (line 161): not visited, `USE_GDC = False` on every covered launch, and a gdc wait adds no step to the memory model (SEMANTICS.md, Launches); the model has none.",
+   "src": [
+    162
+   ]
+  },
+  {
+   "model": "              let tiled_a : Tensor [BLOCK_M, BLOCK_K] BF16 \u2190 tl.load a_ptr",
+   "note": "as line 149: the whole `[BLOCK_M, BLOCK_K]` `bfloat16` tile of `a_ptr`, no mask (`Inst.ok.inp_len`).",
+   "src": [
+    163
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if CAST_TYPE:` (in the `block_end <= K` arm): compile-time `False` (line 267), so line 165 is not visited and no cast is made; the model has no `b_dtype`.",
+   "src": [
+    164
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the body of `if CAST_TYPE:` (line 164): not visited (`CAST_TYPE = False`, line 267); `tiled_a` stays the `bfloat16` tile of line 163's load, which is the model's `tiled_a`.",
+   "src": [
+    165
+   ]
+  },
+  {
+   "model": "              tl.dot_add dotCfg tiled_a tiled_b accumulator",
+   "note": "as line 152: `tl.dot` of the two `bfloat16` tiles into the `float32` accumulator, `tl.dot_add dotCfg`.",
+   "src": [
+    166
+   ]
+  },
+  {
+   "model": "            else do",
+   "note": "`else:` of the last test (line 158) - the partial block of the K loop: the model's `else do` block holds lines 169-177 (the masked loads and the dot).",
+   "src": [
+    167
+   ]
+  },
+  {
+   "model": "              let k_offsets : Tensor [BLOCK_K] I32 := tl.arange 0 BLOCK_K",
+   "note": "`tl.arange(0, BLOCK_K)`: the `int32` `0, ..., BLOCK_K - 1`, the lane offsets along K (`k_offsets`).",
+   "src": [
+    169
+   ]
+  },
+  {
+   "model": "              let mask : Tensor [BLOCK_K] Bool := (iter_k + k_offsets).ltS K",
+   "note": "`mask = iter_k + k_offsets < K`: the wrapping `int32` sum broadcast over the lanes, then the signed `<` (`ltS`); a `[BLOCK_K]` `int1` tensor. `K` is the runtime `int32`.",
+   "src": [
+    170
+   ]
+  },
+  {
+   "model": "              let tiled_b : Tensor [BLOCK_K, BLOCK_N] BF16 \u2190 tl.load b_ptr (some (mask.col BLOCK_N))\n                (some (\u2190 tl.convert .f32 .bf16\n                  (tl.full [BLOCK_K, BLOCK_N] (FloatV.litF32 (FloatV.ofPat 0)))))",
+   "note": "`tl.load(b_ptr, mask=mask[:, None], other=0.0)`: `mask[:, None]` broadcasts the `int1` mask to `[BLOCK_K, BLOCK_N]` (`col`); `other=0.0` is a Python `float` whose value Triton builds in the pointer's dtype, but the model builds the `float32` tensor `+0.0` (`FloatV.litF32 (FloatV.ofPat 0)`, SEMANTICS.md, Constants) and converts it to `bfloat16` (`tl.convert .f32 .bf16`). Disabled lanes read nothing, so no address matters for them.",
+   "src": [
+    171
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if USE_GDC:` (in the masked arm): compile-time `False` (`USE_GDC = False`), so line 173 is not visited; the model has no gdc step.",
+   "src": [
+    172
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`tl.extra.cuda.gdc_wait()` inside `if USE_GDC:` (line 172): not visited (`USE_GDC = False`) and a gdc wait adds no step to the memory model (SEMANTICS.md, Launches); the model has none.",
+   "src": [
+    173
+   ]
+  },
+  {
+   "model": "              let tiled_a : Tensor [BLOCK_M, BLOCK_K] BF16 \u2190 tl.load a_ptr (some (mask.row BLOCK_M))\n                (some (\u2190 tl.convert .f32 .bf16\n                  (tl.full [BLOCK_M, BLOCK_K] (FloatV.litF32 (FloatV.ofPat 0)))))",
+   "note": "as line 171 with `mask[None, :]` (`row`) on the `[BLOCK_M, BLOCK_K]` `a_ptr` tile: the same `float32` `+0.0` built and converted to `bfloat16` for the disabled lanes.",
+   "src": [
+    174
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if CAST_TYPE:` (in the masked arm): compile-time `False` (line 267), so line 176 is not visited and the masked `tiled_a` keeps its `bfloat16`; the model has no `b_dtype`.",
+   "src": [
+    175
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the body of `if CAST_TYPE:` (line 175): not visited (`CAST_TYPE = False`, line 267); the model's `tiled_a` is the `bfloat16` tile of line 174's masked load.",
+   "src": [
+    176
+   ]
+  },
+  {
+   "model": "              tl.dot_add dotCfg tiled_a tiled_b accumulator",
+   "note": "as line 152: `tl.dot` of the masked `bfloat16` tiles into the `float32` accumulator, `tl.dot_add dotCfg`.",
+   "src": [
+    177
+   ]
+  },
+  {
+   "model": "          let a_ptr := a_ptr +\n            (bc (STEP_K * input_d1_stride) : Tensor [BLOCK_M, BLOCK_K] I32)",
+   "note": "`a_ptr += STEP_K * ak_stride` is `a_ptr = a_ptr + STEP_K * ak_stride`: `ak_stride` is the call's `input_d1_stride` (line 258) and `STEP_K` the `int32` of the value `BLOCK_K * SPLIT_K`; the wrapping `int32` product (`STEP_K * 1`, no wrap), broadcast (`bc`) and added to every pointer of the `[BLOCK_M, BLOCK_K]` tile, in elements.",
+   "src": [
+    179
+   ]
+  },
+  {
+   "model": "          let b_ptr := b_ptr +\n            (bc (STEP_K * lora_d2_stride) : Tensor [BLOCK_K, BLOCK_N] I32)",
+   "note": "as line 179 with `bk_stride` = `lora_d2_stride` (line 259) on the `[BLOCK_K, BLOCK_N]` tile of `b_ptr`.",
+   "src": [
+    180
+   ]
+  },
+  {
+   "model": "        let (accumulator, _a_ptr, _b_ptr) \u2190 tl.forRange (IntV.ofInt 0 : I32) num_iters",
+   "note": "`return accumulator`: `mm_k` returns its `float32` accumulator, the value the inlined call's name receives. In the model that is the loop's first carried component, which the `tl.forRange` of line 136 yields and this pattern binds as `accumulator` (the other two components are the pointers lines 179-180 update).",
+   "src": [
+    182
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: `do_shrink_kernel` is a helper, not a kernel; `_lora_shrink_kernel` calls it at lines 390-423 and the front end inlines it there (SEMANTICS.md, Functions: helpers are inlined), so it has no launch and its `debug` is unset; the model has no separate function: its body is the model of lines 226-305, in the inlined place of the call (entry 390-423).",
+   "src": [
+    185
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "the header of the helper `do_shrink_kernel` (its `def` line and parameters): it adds no step to the program; the front end binds each parameter to the call's argument where it inlines the body (lines 390-423): `pid_n`, `pid_sk`, `slice_id` (the program ids), `lora_index` = `lora_id` (line 366), `input_ptr`, `lora_ptr`, `out_ptr`, `N`, `K`, `M_LEN` = `cta_m_len` (line 379), `ram` (line 388), the eight strides, `scaling`, and the constexprs `BLOCK_M`, `BLOCK_N`, `BLOCK_K`, `EVEN_K`, `SPLIT_K`, `SLICE_NUM`, `USE_GDC` = False, `STORE_PARTIALS` = False. `do_shrink_kernel` is not a `Kernel`; the model is its inlined body.",
+   "src": [
+    "186-219"
+   ]
+  },
+  {
+   "src": [
+    "220-224"
+   ],
+   "drop": "comment",
+   "note": "a docstring: an expression statement whose value, a string literal, is discarded (SEMANTICS.md, Statements); it adds no step."
+  },
+  {
+   "note": "`if SLICE_NUM == 1:` compares the constexpr `SLICE_NUM` with the Python `1`: a compile-time branch, which the model keeps as a Lean `if` on the `Nat` parameter `SLICE_NUM` (the host's `len(lora_a_weights)`, `Inst.S`), binding `cur_lora_ptr` to the arm's value. The `then` arm (line 228) is `pure lora_ptr`, the weight tensor the host passes with one slice.",
+   "src": [
+    226
+   ],
+   "model": "        let cur_lora_ptr : Ptr .bf16 \u2190 if SLICE_NUM = 1 then pure lora_ptr else do"
+  },
+  {
+   "note": "`cur_lora_ptr = lora_ptr`: the `then` arm of line 226's `if`, the `*bf16` weight tensor (the model's parameter `lora_ptr`, which `model` gives as the first slice's weights); an alias adds no step.",
+   "src": [
+    228
+   ],
+   "model": "        let cur_lora_ptr : Ptr .bf16 \u2190 if SLICE_NUM = 1 then pure lora_ptr else do"
+  },
+  {
+   "note": "the `else` of line 226's compile-time branch: the arm taken with several slices, the model's `else do` block (lines 231-233).",
+   "src": [
+    229
+   ],
+   "model": "        let cur_lora_ptr : Ptr .bf16 \u2190 if SLICE_NUM = 1 then pure lora_ptr else do"
+  },
+  {
+   "note": "`cur_lora_ptr = tl.load(lora_ptr + slice_id).to(tl.pointer_type(input_ptr.dtype.element_ty))`: with several slices the kernel's `lora_ptr` is the host's `*uint64` table of the slices' weight addresses (`_get_lora_a_ptr`, the model's parameter `lora_tab`); `lora_ptr + slice_id` advances it by the `int32` slice id, `tl.load` of that scalar pointer is the model's `tl.load1` (a `uint64`), and `.to(tl.pointer_type(...))` of an integer scalar is `tl.intToPtr` (SEMANTICS.md, \"Pointers\"). `input_ptr.dtype.element_ty` is the compile-time `bfloat16` of the input pointer's buffer (SEMANTICS.md, \"Values\": `p.dtype.element_ty` of a pointer argument), so the pointer is a `*bf16` (`tl.intToPtr .bf16`). `Pre` gives the table's entry `s` as slice `s`'s weight address.",
+   "src": [
+    "231-233"
+   ],
+   "model": [
+    "            let addr \u2190 tl.load1 (lora_tab + slice_id)",
+    "            pure (tl.intToPtr .bf16 addr)"
+   ]
+  },
+  {
+   "model": "        let offset_n : Tensor [BLOCK_N] I32 :=\n          tl.arange 0 BLOCK_N + pid_n * (IntV.ofNat BLOCK_N : I32)",
+   "note": "`offset_n = tl.arange(0, BLOCK_N) + pid_n * BLOCK_N`: the `int32` `tl.arange`, the constexpr built in `int32` (an operand of `*` with the `int32` `pid_n`), the wrapping product, added lane-wise.",
+   "src": [
+    236
+   ]
+  },
+  {
+   "model": "        let rbn \u2190 tl.max_contiguous_multiple_of\n          (\u2190 tl.irem offset_n (bc N) : Tensor [BLOCK_N] I32) BLOCK_N BLOCK_N",
+   "note": "`rbn = tl.max_contiguous(tl.multiple_of(offset_n % N, BLOCK_N), BLOCK_N)`: `offset_n % N` is the truncating `int32` `%` (`tl.irem`) by the scalar `N`, broadcast (`bc`); both hints apply to that value - `tl.multiple_of` (BLOCK_N divides the first value of each group) and `tl.max_contiguous` (the group is BLOCK_N consecutive values) - which the library writes as one `tl.max_contiguous_multiple_of`. The value is unchanged; both promises hold because `Inst.ok.R_blk` makes `R` a multiple of `BLOCK_N = 16`, so a tile's columns do not wrap around `N`. When `R` is not a multiple of 16 the last tile's columns wrap and the promise is false: undefined behaviour (SEMANTICS.md, Compiler hints), so those ranks are a limit of the kernel (README, Exclusions).",
+   "src": [
+    237
+   ]
+  },
+  {
+   "model": "        let offset_k : Tensor [BLOCK_K] I32 :=\n          pid_sk * (IntV.ofNat BLOCK_K : I32) + tl.arange 0 BLOCK_K",
+   "note": "`offset_k = pid_sk * BLOCK_K + tl.arange(0, BLOCK_K)`: the `int32` product `pid_sk * BLOCK_K` (the constexpr built in `int32`), then the `int32` `tl.arange` added lane-wise.",
+   "src": [
+    240
+   ]
+  },
+  {
+   "model": [
+    "        let ram64 : Tensor [BLOCK_M] I64 \u2190 tl.convert .i32 .i64 ram",
+    "        let d0_64 : I64 := (\u2190 tl.convert .i32 .i64 (Tensor.scalar input_d0_stride)).item",
+    "        let a_ptr := (input_ptr + ram64.col BLOCK_K * d0_64) +\n          (offset_k * input_d1_stride).row BLOCK_M"
+   ],
+   "note": "`a_ptr = input_ptr + ram[:, None].to(tl.int64) * input_d0_stride + offset_k[None, :] * input_d1_stride`, left to right, as Python groups it: first `input_ptr + ram[:, None].to(tl.int64) * input_d0_stride`, the `int32` row index converted to `int64` (the source's comment: the row offset must not overflow) times the `int32` `input_d0_stride` promoted to `int64` by the product (`tl.convert`), added to the `*bf16` pointer; then `+ offset_k[None, :] * input_d1_stride`, an `int32` product (`input_d1_stride = 1`, `offset_k < SPLIT_K * BLOCK_K <= 16384`: no wrap) added to those pointers (a pointer plus an integer tensor advances by the signed value, `Tensor.ptrAddT`). The broadcast to `[BLOCK_M, BLOCK_K]` is written first (`col`/`row`), which gives the same elements.",
+   "src": [
+    "241-246"
+   ]
+  },
+  {
+   "model": "        let b_ptr := ((cur_lora_ptr + lora_d0_stride * lora_id) +\n          rbn.row BLOCK_K * lora_d1_stride) + offset_k.col BLOCK_N * lora_d2_stride",
+   "note": "`b_ptr = cur_lora_ptr + lora_d0_stride * lora_index + rbn[None, :] * lora_d1_stride + offset_k[:, None] * lora_d2_stride`, left to right as Python groups it: `cur_lora_ptr` is lines 226-233's pointer (the weights of the program's slice) and `lora_index` is the call's `lora_id` (line 394); `lora_d0_stride * lora_index` is the `int32` product of two scalars (wrapping: `Inst.ok.lora_wrap` keeps it below `2^31` for every token's adapter, a limit of the kernel), added to the scalar pointer; then each of the two `int32` products `rbn * lora_d1_stride` (`j\u00b7K < R\u00b7K < 2^31`, `Inst.ok.RK_lt`) and `offset_k * lora_d2_stride` (`< BLOCK_K`) is added to the pointers on its own, broadcast to `[BLOCK_K, BLOCK_N]` (`row`/`col`).",
+   "src": [
+    "247-252"
+   ]
+  },
+  {
+   "model": "        let accumulator := tl.zeros [BLOCK_M, BLOCK_N] .f32",
+   "note": "the call of `mm_k` is inlined here (SEMANTICS.md, Functions: helpers are inlined; the model's docstring of `loraShrink` says so), so there is no separate Lean term for the call: the model text is the first statement of the inlined body. The arguments bind the helper's parameters - `a_ptr`, `b_ptr`, `ak_stride` = `input_d1_stride`, `bk_stride` = `lora_d2_stride`, `offset_k`, `K`, `BLOCK_M`, `BLOCK_N`, `BLOCK_K`, `EVEN_K`, `SPLIT_K`, `CAST_TYPE` = False, `b_dtype` = the weight pointer's element type `bfloat16` (never read, since `CAST_TYPE` is False), `USE_GDC` = False, `base_k` = `pid_sk * BLOCK_K` - and the result is the `float32` accumulator the inlined body's loop yields, the name `accumulator` the call receives. The body's statements follow at their source lines (entries 128-182).",
+   "src": [
+    "255-271"
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if USE_GDC:` is a compile-time `if` on a constexpr that is `False` on every covered launch (`USE_GDC = False`, the call at lines 390-423 and the host's `use_gdc = False`), so the front end does not visit line 274; the model has no gdc step.",
+   "src": [
+    273
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`tl.extra.cuda.gdc_launch_dependents()` inside `if USE_GDC:` (line 273): not visited (`USE_GDC = False`), and it is a launch hint with no effect on memory (SEMANTICS.md, Launches: it tells the runtime a dependent launch may start); the model has none.",
+   "src": [
+    274
+   ]
+  },
+  {
+   "model": "        let offset_cn : Tensor [BLOCK_N] I32 :=\n          tl.arange 0 BLOCK_N + pid_n * (IntV.ofNat BLOCK_N : I32)",
+   "note": "as line 236 with `offset_cn`: the `int32` `tl.arange` plus the wrapping `int32` product `pid_n * BLOCK_N`.",
+   "src": [
+    276
+   ]
+  },
+  {
+   "model": "        let offset_cm : Tensor [BLOCK_M] I32 := tl.arange 0 BLOCK_M",
+   "note": "`tl.arange(0, BLOCK_M)`: the `int32` `0, ..., BLOCK_M - 1`, the output tile's row lanes (`offset_cm`).",
+   "src": [
+    277
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if STORE_PARTIALS:` is a compile-time `if` on the constexpr `False` of every covered launch (SETUP.md: the batch-invariant path is off, its defaults `STORE_PARTIALS = False`), so the front end does not visit lines 279-283 and visits lines 285-287; the model keeps no branch.",
+   "src": [
+    278
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the body of `if STORE_PARTIALS:` (line 278): not visited (`STORE_PARTIALS = False`). It would build the `int64` output pointer of the split-K partial stage (`slice_id.to(tl.int64) * output_d0_stride + pid_sk.to(tl.int64) * output_split_stride`), which the model does not have.",
+   "src": [
+    "279-283"
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the `else` of line 278's compile-time `False`: the arm that is taken; its body is lines 285-287 (the model's `cur_out_ptr`).",
+   "src": [
+    284
+   ]
+  },
+  {
+   "model": "        let cur_out_ptr : Ptr .f32 :=\n          if SLICE_NUM = 1 then out_ptr else out_ptr + slice_id * output_d0_stride",
+   "note": "`cur_out_ptr = (out_ptr if SLICE_NUM == 1 else out_ptr + slice_id * output_d0_stride)`: a conditional expression on the compile-time `SLICE_NUM == 1`, so only the side it selects is evaluated; the model writes it as a Lean `if` on `SLICE_NUM`. With several slices, `slice_id * output_d0_stride` is the `int32` product of the slice id and the host's `M\u00b7R` (an `int32` argument there: `Inst.ok.slice_wrap`, `(S - 1)\u00b7M\u00b7R < 2^31`, a limit of the kernel), added to the `*fp32` pointer.",
+   "src": [
+    "285-287"
+   ]
+  },
+  {
+   "model": "        let c_ptr := (cur_out_ptr + ram.col BLOCK_N * output_d1_stride) +\n          offset_cn.row BLOCK_M * output_d2_stride",
+   "note": "`c_ptr = cur_out_ptr + ram[:, None] * output_d1_stride + offset_cn[None, :] * output_d2_stride`, left to right: `cur_out_ptr` is lines 285-287's pointer; `ram * output_d1_stride` is the `int32` product of a token index and `R` (wrapping: `Inst.ok.out_wrap`, `(M - 1)\u00b7R < 2^31`, a limit of the kernel), added to the `*fp32` pointer; then `offset_cn * output_d2_stride` (`< R`) added to those pointers; broadcast to `[BLOCK_M, BLOCK_N]` first.",
+   "src": [
+    "288-292"
+   ]
+  },
+  {
+   "model": "        let c_mask := ((offset_cm.col BLOCK_N).ltS cta_m_len).and ((offset_cn.row BLOCK_M).ltS N)",
+   "note": "`(offset_cm[:, None] < M_LEN) & (offset_cn[None, :] < N)`: two signed `int32` comparisons (`ltS`) with the scalars `M_LEN` = `cta_m_len` (line 379) and `N`, broadcast to `[BLOCK_M, BLOCK_N]`, then `&` on `int1`; a lane is stored iff its row is one of the group's rows and its column inside the rank.",
+   "src": [
+    293
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if STORE_PARTIALS:` (the second one): compile-time `False` (`STORE_PARTIALS = False`), so lines 296-298 are not visited and lines 300-305 are; the model keeps no branch.",
+   "src": [
+    295
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the body of `if STORE_PARTIALS:` (line 295): not visited (`STORE_PARTIALS = False`). It would store the unscaled `float32` partial of the batch-invariant split-K stage; the model's writes are lines 303 and 305.",
+   "src": [
+    298
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the `else` of line 295's compile-time `False`: the arm that is taken. The model writes its statements directly, without a branch: the scale by `scaling` (line 300, entry 300) and the branch on `SPLIT_K` (lines 302-305); the `else` line itself adds nothing.",
+   "src": [
+    299
+   ]
+  },
+  {
+   "model": "        let accumulator \u2190 tl.mul accumulator (bc scaling)",
+   "note": "`accumulator *= scaling` is `accumulator = accumulator * scaling`: `scaling` is the `float32` scalar argument, broadcast (`bc`), and the product is the IEEE `float32` product with one rounding (`tl.mul`; no product feeds it on the operand side).",
+   "src": [
+    300
+   ]
+  },
+  {
+   "note": "`if SPLIT_K == 1:` compares the constexpr `SPLIT_K` with the Python `1`: a compile-time branch, which the model keeps as a Lean `if` on the `Nat` parameter `SPLIT_K`. The host's `SPLIT_K` is `64` or `8` (`BLOCK_K = 256`, `SPLIT_K = 64` below 128 tokens; `BLOCK_K = 32`, `SPLIT_K = 8` from 128: `bk`, `sk`), so covered launches take the `else` arm (line 305).",
+   "src": [
+    302
+   ],
+   "model": "        if SPLIT_K = 1 then"
+  },
+  {
+   "model": "        tl.store c_ptr accumulator (some c_mask)",
+   "note": "`tl.store(c_ptr, accumulator, mask=c_mask)`, the `then` arm of line 302 (not taken on covered launches): `accumulator` is already `float32`, the pointer's dtype, so no conversion; the mask is the `int1` tensor of line 293.",
+   "src": [
+    303
+   ]
+  },
+  {
+   "note": "the `else` of line 302's compile-time branch: the arm covered launches take (`SPLIT_K = 64` or `8`), the model's `else do` block.",
+   "src": [
+    304
+   ],
+   "model": "        else do"
+  },
+  {
+   "note": "`tl.atomic_add(c_ptr, accumulator, mask=c_mask, sem=\"relaxed\")` as an expression statement: its returned value is never used, so it is `tl.atomic_add_unused` with the source's `sem = .relaxed` and the default `scope = .gpu` (SEMANTICS.md, \"Atomics\": an atomic whose result is unused has the order `MemSem.unused`, `acq_rel` at `gpu` scope; TRANSCRIPTION.md's row for this form). One atomic read-modify-write per enabled lane of the `float32` tile, adding the scaled accumulator into the output (float `atomic_add` is `P.atomicAdd`). The `SPLIT_K` programs of a tile add into the same elements, in any order; during the launch the output's elements are reached by these atomics only (`Inst.ok`: the output shares no byte with a buffer the kernel loads). The values are already `float32`, the pointer's dtype.",
+   "src": [
+    305
+   ],
+   "model": [
+    "tl.atomic_add_unused c_ptr accumulator (some c_mask) .relaxed"
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: the launched kernel (the host launches it directly, SETUP.md), so its `debug` is unset (`Launch.debug = false`); no other statement of the module binds `_lora_shrink_kernel`; the model is the `Kernel` `loraShrink`, whose `body` is lines 309-423's model.",
+   "src": [
+    308
+   ]
+  },
+  {
+   "model": [
+    "def loraShrink (input_ptr lora_ptr : Ptr .bf16) (lora_tab : Ptr .u64) (out_ptr : Ptr .f32)",
+    "    (M N K : I32)",
+    "    (token_indices_sorted_by_lora_ids num_tokens_per_lora lora_token_start_loc lora_ids : Ptr .i32)",
+    "    (scaling : F32)",
+    "    (input_d0_stride input_d1_stride lora_d0_stride lora_d1_stride lora_d2_stride\n      output_d0_stride output_d1_stride output_d2_stride : I32)",
+    "    (BLOCK_M BLOCK_N BLOCK_K SPLIT_K GROUP_SIZE_M SLICE_NUM : Nat) (EVEN_K : Bool) : Kernel where"
+   ],
+   "note": "the launched kernel's signature: `input_ptr` and `out_ptr` are `*bf16` and `*fp32` (the host passes `bfloat16` inputs and a `float32` output); `lora_ptr` is the `*bf16` weight tensor with one slice and the `*uint64` address table with several (`_get_lora_a_ptr`), which the model takes as two parameters, `lora_ptr` and `lora_tab`, of which line 226's branch reads the one the launch passes (the model's docstring). `M`, `N`, `K`, the four metadata pointers, `scaling` and the eight strides are the runtime arguments (`scaling` is `F32`, the kernel's `float32` argument; `output_d0_stride = M\u00b7R` is read only with several slices, where `Inst.ok.slice_wrap` makes it an `int32`); the constexprs are the launch's (SETUP.md): `BLOCK_M = 32`, `BLOCK_N = 16`, `BLOCK_K` and `SPLIT_K` (`BLOCK_K = 256`, `SPLIT_K = 64` below 128 tokens; `BLOCK_K = 32`, `SPLIT_K = 8` from 128: `bk`, `sk`), `GROUP_SIZE_M = 8`, `SLICE_NUM = len(lora_a_weights)`, `EVEN_K` the host's `K % (BLOCK_K * SPLIT_K) == 0`, so the model takes them as `Nat`/`Bool` parameters. `USE_GDC = False`, `STORE_PARTIALS = False`, `launch_pdl = False` and `PARTIAL_N = PARTIAL_K = 0` are never read (they appear only in the not-visited arms), and `output_split_stride` (line 339) is read only in the not-visited `STORE_PARTIALS` arm, so the model has no such parameters. The source's `N` is the model's `N` (the rank). An integer argument equal to `1` is a compile-time constant: `input_d1_stride`, `lora_d2_stride`, `output_d2_stride` always, `M` at one token, `K` and `input_d0_stride` at hidden 1; each use is an operand of `*`, `+`, `-` or a comparison with an `int32` tensor, or of `tl.cdiv` with a constexpr, so the model's `int32` `1` gives the same values (the model's docstring).",
+   "src": [
+    "309-342"
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "`if STORE_PARTIALS:` is a compile-time `if` on the constexpr `False` of every covered launch (SETUP.md), so lines 344-346 are not visited and `N`, `K` keep the values the host passes (the model's parameters `N`, `K`); the model keeps no branch.",
+   "src": [
+    343
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the body of line 343 (`STORE_PARTIALS = False`): not visited; `N` keeps the host's value, the model's parameter `N` (the source's `N` is the model's `d.R`).",
+   "src": [
+    345
+   ]
+  },
+  {
+   "drop": "config",
+   "note": "the body of line 343 (`STORE_PARTIALS = False`): not visited; `K` keeps the host's value, the model's parameter `K`.",
+   "src": [
+    346
+   ]
+  },
+  {
+   "model": "    let cta_n_num := (\u2190 tl.idiv (Tensor.scalar (N + (IntV.ofNat (BLOCK_N - 1) : I32)))\n      (Tensor.scalar (IntV.ofNat BLOCK_N : I32))).item",
+   "note": "`cta_n_num = tl.cdiv(N, BLOCK_N)` is `(N + (BLOCK_N - 1)) // BLOCK_N` (SEMANTICS.md, `tl.cdiv`): the constexpr `BLOCK_N - 1` computed by Python and built in `int32` (an operand of `+` with the `int32` `N`), the wrapping `int32` `+` (no wrap on covered instances, `Inst.ok.RK_lt`: `R\u00b7K < 2^31`), then the truncating `//` (`tl.idiv`; `BLOCK_N > 0`).",
+   "src": [
+    347
+   ]
+  },
+  {
+   "model": "    let cta_m_num := (\u2190 tl.idiv (Tensor.scalar (M + (IntV.ofNat (BLOCK_M - 1) : I32)))\n      (Tensor.scalar (IntV.ofNat BLOCK_M : I32))).item",
+   "note": "as line 347 with `M` and `BLOCK_M` (no wrap: `Inst.ok.out_wrap` and `R_blk` give `M - 1 < 2^27`).",
+   "src": [
+    348
+   ]
+  },
+  {
+   "model": "    let pid_sk_m_n := tl.program_id ctx 0",
+   "note": "`tl.program_id(axis=0)`: the `int32` program id of the grid's axis 0, one program per `BLOCK_M x BLOCK_N` tile and part of `K` (`SPLIT_K` parts per tile; `Launch.grid`'s first component).",
+   "src": [
+    350
+   ]
+  },
+  {
+   "model": "    let pid_sk := (\u2190 tl.irem (Tensor.scalar pid_sk_m_n)\n      (Tensor.scalar (IntV.ofNat SPLIT_K : I32))).item",
+   "note": "`pid_sk = pid_sk_m_n % SPLIT_K`: the constexpr `SPLIT_K` built as an `int32` tensor (an operand of `%` with the `int32` `pid_sk_m_n`), the truncating `%` (`tl.irem`; divisor `SPLIT_K > 0`): the program's part of `K`.",
+   "src": [
+    351
+   ]
+  },
+  {
+   "model": "    let pid_m_n := (\u2190 tl.idiv (Tensor.scalar pid_sk_m_n)\n      (Tensor.scalar (IntV.ofNat SPLIT_K : I32))).item",
+   "note": "`pid_m_n = pid_sk_m_n // SPLIT_K`: the truncating `int32` `//` (`tl.idiv`; divisor `SPLIT_K > 0`), the program's tile.",
+   "src": [
+    353
+   ]
+  },
+  {
+   "model": "    let num_pid_in_group := (IntV.ofNat GROUP_SIZE_M : I32) * cta_n_num",
+   "note": "`num_pid_in_group = GROUP_SIZE_M * cta_n_num`: the constexpr built in `int32` (an operand of `*` with the `int32` `cta_n_num`), the wrapping `int32` product.",
+   "src": [
+    354
+   ]
+  },
+  {
+   "model": "    let group_id := (\u2190 tl.idiv (Tensor.scalar pid_m_n) (Tensor.scalar num_pid_in_group)).item",
+   "note": "`group_id = pid_m_n // num_pid_in_group`: the truncating `int32` `//` (`tl.idiv`; undefined on a zero divisor, and `num_pid_in_group > 0` on covered instances: `cta_n_num \u2265 1` since `R \u2265 1`).",
+   "src": [
+    355
+   ]
+  },
+  {
+   "model": "    let first_pid_m := group_id * (IntV.ofNat GROUP_SIZE_M : I32)",
+   "note": "`first_pid_m = group_id * GROUP_SIZE_M`: as line 354, the constexpr built in `int32` and the wrapping `int32` product.",
+   "src": [
+    356
+   ]
+  },
+  {
+   "model": "    let group_size_m := (tl.iminimum (Tensor.scalar (cta_m_num - first_pid_m))\n      (Tensor.scalar (IntV.ofNat GROUP_SIZE_M : I32))).item",
+   "note": "`group_size_m = min(cta_m_num - first_pid_m, GROUP_SIZE_M)`: Python's `min` with a tensor argument is `tl.minimum` (SEMANTICS.md, Python's builtins), which builds the constexpr `GROUP_SIZE_M` as an `int32` tensor of its own type; on `int32` it is the exact `tl.iminimum`. The difference is the wrapping `int32` `-`.",
+   "src": [
+    357
+   ]
+  },
+  {
+   "model": "    let pid_m := first_pid_m + (\u2190 tl.irem (Tensor.scalar (\u2190 tl.irem (Tensor.scalar pid_m_n)\n      (Tensor.scalar num_pid_in_group)).item) (Tensor.scalar group_size_m)).item",
+   "note": "`pid_m = first_pid_m + ((pid_m_n % num_pid_in_group) % group_size_m)`: two `int32` `%` (`tl.irem`, truncating, undefined on a zero divisor; `num_pid_in_group > 0` and `group_size_m > 0` on covered instances: `cta_n_num \u2265 1`, and `group_size_m \u2265 1` for every program of the grid), the inner one first, then the wrapping `int32` `+`.",
+   "src": [
+    360
+   ]
+  },
+  {
+   "model": "    let pid_n := (\u2190 tl.idiv (Tensor.scalar (\u2190 tl.irem (Tensor.scalar pid_m_n)\n      (Tensor.scalar num_pid_in_group)).item) (Tensor.scalar group_size_m)).item",
+   "note": "`pid_n = (pid_m_n % num_pid_in_group) // group_size_m`: `pid_m_n % num_pid_in_group` is computed again (the source writes it again), then the truncating `int32` `//` (`tl.idiv`).",
+   "src": [
+    361
+   ]
+  },
+  {
+   "model": "    let slice_id := tl.program_id ctx 1",
+   "note": "`tl.program_id(axis=1)`: the `int32` program id of the grid's axis 1, the slice (`Launch.grid`'s second component, `S`). It is read at lines 231 (the address table, several slices) and 286 (the output's slice); lines 279-283's use is in the not-visited `STORE_PARTIALS` arm.",
+   "src": [
+    363
+   ]
+  },
+  {
+   "model": "    let lora_idx := tl.program_id ctx 2",
+   "note": "`tl.program_id(axis=2)`: the `int32` program id of the grid's axis 2, the adapter group; `Inst.ok.n_le_G` and `G_le` say the grid covers every distinct adapter id.",
+   "src": [
+    364
+   ]
+  },
+  {
+   "model": "    let lora_id \u2190 tl.load1 (lora_ids + lora_idx)",
+   "note": "`tl.load(lora_ids + lora_idx)`: a scalar `int32` load from the metadata buffer (the model's `tl.load1`), no mask; `Inst.ok.id_len` keeps the address inside the buffer, and `Pre` says it holds `idAt d lora_idx` (the distinct ids in increasing order, then `-1`).",
+   "src": [
+    366
+   ]
+  },
+  {
+   "model": "    if IntV.eq lora_id (IntV.ofInt (-1) : I32) then return () else do",
+   "note": "`if lora_id == -1:`: the signed `int32` equality (`IntV.eq`) with the Python `-1` built as an `int32` of its own type (an operand of the comparison); lines 368-369's early exit is the model's `then return ()`, and the rest of the body is the `else do` block.",
+   "src": [
+    367
+   ]
+  },
+  {
+   "model": "return ()",
+   "note": "`return`: ends the program before any store. The model's `return ()` (line 367's model) leaves every byte as `Pre` has it - the output unchanged - which is `Post`'s second conjunct.",
+   "src": [
+    369
+   ]
+  },
+  {
+   "model": "      let lora_m_size \u2190 tl.load1 (num_tokens_per_lora + lora_idx)",
+   "note": "`tl.load(num_tokens_per_lora + lora_idx)`: a scalar `int32` load (the model's `tl.load1`), no mask; `Inst.ok.cnt_len` keeps the address inside the buffer, and `Pre` says it holds `cntAt d lora_idx` (the group's token count, `0` past the distinct ids).",
+   "src": [
+    371
+   ]
+  },
+  {
+   "model": "      let cta_m_offset := pid_m * (IntV.ofNat BLOCK_M : I32)",
+   "note": "`cta_m_offset = pid_m * BLOCK_M`: the constexpr built in `int32` (an operand of `*` with the `int32` `pid_m`), the wrapping `int32` product.",
+   "src": [
+    373
+   ]
+  },
+  {
+   "model": "      if IntV.le lora_m_size cta_m_offset then return () else do",
+   "note": "`cta_m_offset >= lora_m_size`, the tile starts past the group's tokens: the same signed `int32` comparison with its operands swapped, `lora_m_size <= cta_m_offset` (`IntV.le`); lines 375-376 return.",
+   "src": [
+    374
+   ]
+  },
+  {
+   "model": "return ()",
+   "note": "`return`: ends the program before any store (the early exit of line 374's arm). The model's `return ()`, so the output keeps the bytes `Pre` gives it.",
+   "src": [
+    376
+   ]
+  },
+  {
+   "model": "        let cta_m_len := (tl.iminimum (Tensor.scalar (IntV.ofNat BLOCK_M : I32))\n          (Tensor.scalar (lora_m_size - cta_m_offset))).item",
+   "note": "`cta_m_len = min(BLOCK_M, lora_m_size - cta_m_offset)`: Python's `min` with a tensor argument is `tl.minimum`, which builds the constexpr `BLOCK_M` as an `int32` tensor of its own type; on `int32` the exact `tl.iminimum`. The difference is the wrapping `int32` `-`. Line 374's early exit makes the value positive (`1 <= cta_m_len <= BLOCK_M`).",
+   "src": [
+    379
+   ]
+  },
+  {
+   "model": "        let lora_m_indices_start \u2190 tl.load1 (lora_token_start_loc + lora_idx)",
+   "note": "`tl.load(lora_token_start_loc + lora_idx)`: a scalar `int32` load (the model's `tl.load1`), no mask; `Inst.ok.start_len` keeps the address inside the buffer, and `Pre` says it holds `startAt d lora_idx` (the group's first position in the sorted indices).",
+   "src": [
+    382
+   ]
+  },
+  {
+   "model": "        let cta_lora_seq_indices :=\n          token_indices_sorted_by_lora_ids + lora_m_indices_start + cta_m_offset",
+   "note": "`cta_lora_seq_indices = token_indices_sorted_by_lora_ids + lora_m_indices_start + cta_m_offset`: two `int32` offsets added to the `*int32` pointer, left to right, in elements; `Inst.ok` keeps them inside the buffer (`tid_len`, `M`), and `Pre` says it holds `tIdx` (`token_indices_sorted_by_lora_ids`' entries).",
+   "src": [
+    "383-385"
+   ]
+  },
+  {
+   "model": "        let offset_m : Tensor [BLOCK_M] I32 \u2190 tl.irem (tl.arange 0 BLOCK_M) (bc cta_m_len)",
+   "note": "`offset_m = tl.arange(0, BLOCK_M) % cta_m_len`: the `int32` `tl.arange` modulo the `int32` scalar `cta_m_len`, broadcast (`bc`), the truncating `%` (`tl.irem`; `cta_m_len > 0`). The tile's rows therefore wrap within the group's rows, as the source intends.",
+   "src": [
+    387
+   ]
+  },
+  {
+   "model": "        let ram : Tensor [BLOCK_M] I32 \u2190 tl.load (cta_lora_seq_indices + offset_m)",
+   "note": "`tl.load(cta_lora_seq_indices + offset_m)`: one `int32` load per lane, no mask; `Pre` gives `tIdx` at each position and `Inst.ok` keeps every address inside the buffer. `ram` is the tile of token indices the shrink reads.",
+   "src": [
+    388
+   ]
+  },
+  {
+   "model": "        let cur_lora_ptr : Ptr .bf16 \u2190 if SLICE_NUM = 1 then pure lora_ptr else do",
+   "note": "the call of `do_shrink_kernel` is inlined here (SEMANTICS.md, Functions: helpers are inlined; the model's docstring of `loraShrink` says so), so there is no separate Lean term for the call: the model text is the first statement of the inlined body. The arguments bind the helper's parameters - `pid_n`, `pid_sk`, `slice_id` (lines 360, 351, 363), `lora_index` = `lora_id` (line 366), `input_ptr`, `lora_ptr`, `out_ptr`, `N`, `K`, `M_LEN` = `cta_m_len` (line 379), `ram` (line 388), the eight strides, `scaling`, and the constexprs `BLOCK_M`, `BLOCK_N`, `BLOCK_K`, `EVEN_K`, `SPLIT_K`, `SLICE_NUM`, `USE_GDC` = False, `STORE_PARTIALS` = False. The body's statements follow at their source lines (entries 226-305); the first is lines 226-233's `cur_lora_ptr` above.",
+   "src": [
+    "390-423"
+   ]
+  }
+ ]
+}

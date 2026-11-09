@@ -1,0 +1,140 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+N = 4096 elements per regime (special: every combination of 14 values for x, y and c)
+
+| form | regime | elements | outside `AddRel` | not the IEEE sum (fused) | example outside (x, y, c, q, r) |
+|---|---|---|---|---|---|
+| `x / y + c` | cancel | 4096 | 0 | 4096 |  |
+| `x / y + c` | random | 4096 | 0 | 425 |  |
+| `x / y + c` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `x / y + c` | subnormal divisor | 4096 | 0 | 3886 |  |
+| `x / y + c` | subnormal quotient | 4096 | 0 | 300 |  |
+| `x / y + c` | special | 4096 | 0 | 20 |  |
+| `c + x / y` | cancel | 4096 | 0 | 4096 |  |
+| `c + x / y` | random | 4096 | 0 | 419 |  |
+| `c + x / y` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `c + x / y` | subnormal divisor | 4096 | 0 | 3889 |  |
+| `c + x / y` | subnormal quotient | 4096 | 0 | 308 |  |
+| `c + x / y` | special | 4096 | 0 | 20 |  |
+| `x / y - c` | cancel | 4096 | 0 | 4096 |  |
+| `x / y - c` | random | 4096 | 0 | 391 |  |
+| `x / y - c` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `x / y - c` | subnormal divisor | 4096 | 0 | 3881 |  |
+| `x / y - c` | subnormal quotient | 4096 | 0 | 326 |  |
+| `x / y - c` | special | 4096 | 0 | 36 |  |
+| `c - x / y` | cancel | 4096 | 0 | 4096 |  |
+| `c - x / y` | random | 4096 | 0 | 396 |  |
+| `c - x / y` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `c - x / y` | subnormal divisor | 4096 | 0 | 3856 |  |
+| `c - x / y` | subnormal quotient | 4096 | 0 | 348 |  |
+| `c - x / y` | special | 4096 | 0 | 41 |  |
+| `tl.where(m, x / y, 0.0) + c` | cancel | 4096 | 0 | 0 |  |
+| `tl.where(m, x / y, 0.0) + c` | random | 4096 | 0 | 0 |  |
+| `tl.where(m, x / y, 0.0) + c` | divisor > 2^126 | 4096 | 0 | 0 |  |
+| `tl.where(m, x / y, 0.0) + c` | subnormal divisor | 4096 | 0 | 0 |  |
+| `tl.where(m, x / y, 0.0) + c` | subnormal quotient | 4096 | 0 | 0 |  |
+| `tl.where(m, x / y, 0.0) + c` | special | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float32) + c` | cancel | 4096 | 0 | 4096 |  |
+| `(x / y).to(tl.float32) + c` | random | 4096 | 0 | 408 |  |
+| `(x / y).to(tl.float32) + c` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `(x / y).to(tl.float32) + c` | subnormal divisor | 4096 | 0 | 3845 |  |
+| `(x / y).to(tl.float32) + c` | subnormal quotient | 4096 | 0 | 318 |  |
+| `(x / y).to(tl.float32) + c` | special | 4096 | 0 | 20 |  |
+| `tl.fdiv(x, y) + c` | cancel | 4096 | 0 | 4096 |  |
+| `tl.fdiv(x, y) + c` | random | 4096 | 0 | 391 |  |
+| `tl.fdiv(x, y) + c` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `tl.fdiv(x, y) + c` | subnormal divisor | 4096 | 0 | 3886 |  |
+| `tl.fdiv(x, y) + c` | subnormal quotient | 4096 | 0 | 322 |  |
+| `tl.fdiv(x, y) + c` | special | 4096 | 0 | 20 |  |
+| `tl.sigmoid(x) + c` | cancel | 4096 | 0 | 0 |  |
+| `tl.sigmoid(x) + c` | random | 4096 | 0 | 3 |  |
+| `tl.sigmoid(x) + c` | special | 4096 | 0 | 0 |  |
+| `x / 3.0 + c` | cancel | 4096 | 0 | 4096 |  |
+| `x / 3.0 + c` | random | 4096 | 0 | 477 |  |
+| `x / 3.0 + c` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `x / 3.0 + c` | subnormal divisor | 4096 | 0 | 2036 |  |
+| `x / 3.0 + c` | subnormal quotient | 4096 | 0 | 212 |  |
+| `x / 3.0 + c` | special | 4096 | 0 | 14 |  |
+| `1.0 / y + c` | cancel | 4096 | 0 | 0 |  |
+| `1.0 / y + c` | random | 4096 | 0 | 3 |  |
+| `1.0 / y + c` | divisor > 2^126 | 4096 | 0 | 1087 |  |
+| `1.0 / y + c` | subnormal divisor | 4096 | 0 | 0 |  |
+| `1.0 / y + c` | subnormal quotient | 4096 | 0 | 0 |  |
+| `1.0 / y + c` | special | 4096 | 0 | 42 |  |
+| `x / y + z / w` | cancel | 4096 | 0 | 4096 |  |
+| `x / y + z / w` | random | 4096 | 0 | 3791 |  |
+| `x / y + z / w` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `x / y + z / w` | subnormal divisor | 4096 | 0 | 3841 |  |
+| `x / y + z / w` | subnormal quotient | 4096 | 0 | 713 |  |
+| `x / y + z / w` | special | 4096 | 0 | 28 |  |
+| `tl.sum(tl.join(x / y, z / w), axis=1)` | cancel | 4096 | 0 | 4096 |  |
+| `tl.sum(tl.join(x / y, z / w), axis=1)` | random | 4096 | 0 | 3815 |  |
+| `tl.sum(tl.join(x / y, z / w), axis=1)` | divisor > 2^126 | 4096 | 0 | 4095 |  |
+| `tl.sum(tl.join(x / y, z / w), axis=1)` | subnormal divisor | 4096 | 0 | 3847 |  |
+| `tl.sum(tl.join(x / y, z / w), axis=1)` | subnormal quotient | 4096 | 0 | 718 |  |
+| `tl.sum(tl.join(x / y, z / w), axis=1)` | special | 4096 | 0 | 28 |  |
+| `r = c; loop: r += x / y` | cancel | 4096 | 0 | 4096 |  |
+| `r = c; loop: r += x / y` | random | 4096 | 0 | 375 |  |
+| `r = c; loop: r += x / y` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `r = c; loop: r += x / y` | subnormal divisor | 4096 | 0 | 3883 |  |
+| `r = c; loop: r += x / y` | subnormal quotient | 4096 | 0 | 292 |  |
+| `r = c; loop: r += x / y` | special | 4096 | 0 | 20 |  |
+| `-(x / y) + c` | cancel | 4096 | 0 | 4096 |  |
+| `-(x / y) + c` | random | 4096 | 0 | 395 |  |
+| `-(x / y) + c` | divisor > 2^126 | 4096 | 0 | 4096 |  |
+| `-(x / y) + c` | subnormal divisor | 4096 | 0 | 3884 |  |
+| `-(x / y) + c` | subnormal quotient | 4096 | 0 | 363 |  |
+| `-(x / y) + c` | special | 4096 | 0 | 41 |  |
+| `(x / y).to(tl.float64) + c (float64 c)` | cancel | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float64) + c (float64 c)` | random | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float64) + c (float64 c)` | divisor > 2^126 | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float64) + c (float64 c)` | subnormal divisor | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float64) + c (float64 c)` | subnormal quotient | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float64) + c (float64 c)` | special | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float16) + c (float16 c)` | cancel | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float16) + c (float16 c)` | random | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float16) + c (float16 c)` | divisor > 2^126 | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float16) + c (float16 c)` | subnormal divisor | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float16) + c (float16 c)` | subnormal quotient | 4096 | 0 | 0 |  |
+| `(x / y).to(tl.float16) + c (float16 c)` | special | 4096 | 0 | 0 |  |
+| `x / y + c, all float16 (quotient float32)` | cancel | 4096 | 0 | 4075 |  |
+| `x / y + c, all float16 (quotient float32)` | random | 4096 | 0 | 3 |  |
+| `x / y + c, all float16 (quotient float32)` | divisor > 2^126 | 4096 | 0 | 0 |  |
+| `x / y + c, all float16 (quotient float32)` | subnormal divisor | 4096 | 0 | 0 |  |
+| `x / y + c, all float16 (quotient float32)` | subnormal quotient | 4096 | 0 | 0 |  |
+| `x / y + c, all float16 (quotient float32)` | special | 4096 | 0 | 2 |  |
+| `x / y + c, all bfloat16 (quotient float32)` | cancel | 4096 | 0 | 3894 |  |
+| `x / y + c, all bfloat16 (quotient float32)` | random | 4096 | 0 | 199 |  |
+| `x / y + c, all bfloat16 (quotient float32)` | divisor > 2^126 | 4096 | 0 | 3907 |  |
+| `x / y + c, all bfloat16 (quotient float32)` | subnormal divisor | 4096 | 0 | 2337 |  |
+| `x / y + c, all bfloat16 (quotient float32)` | subnormal quotient | 4096 | 0 | 7 |  |
+| `x / y + c, all bfloat16 (quotient float32)` | special | 4096 | 0 | 5 |  |
+| `x / y + c`, `enable_fp_fusion=False` | cancel | 4096 | 0 | 0 |  |
+| `x / y + c`, `enable_fp_fusion=False` | random | 4096 | 0 | 0 |  |
+| `x / y + c`, `enable_fp_fusion=False` | divisor > 2^126 | 4096 | 0 | 0 |  |
+| `x / y + c`, `enable_fp_fusion=False` | subnormal divisor | 4096 | 0 | 0 |  |
+| `x / y + c`, `enable_fp_fusion=False` | subnormal quotient | 4096 | 0 | 0 |  |
+| `x / y + c`, `enable_fp_fusion=False` | special | 4096 | 0 | 0 |  |
+
+results outside AddRel, all cases: 0
+
+| form | PTX | SASS |
+|---|---|---|
+| `x / y + c` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `c + x / y` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `x / y - c` | `div.full.f32`, `sub.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `c - x / y` | `div.full.f32`, `sub.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `tl.where(m, x / y, 0.0) + c` | `add.f32`, `div.full.f32` | `FADD`, `FMUL`, `MUFU.RCP` |
+| `(x / y).to(tl.float32) + c` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `tl.fdiv(x, y) + c` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `tl.sigmoid(x) + c` | `add.f32`, `div.full.f32`, `mul.f32` | `FADD`, `FFMA`, `FMUL`, `HFMA2.MMA`, `MUFU.EX2`, `MUFU.RCP` |
+| `x / 3.0 + c` | `add.f32`, `div.full.f32` | `FFMA` |
+| `1.0 / y + c` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `HFMA2.MMA`, `MUFU.RCP` |
+| `x / y + z / w` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `tl.sum(tl.join(x / y, z / w), axis=1)` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `r = c; loop: r += x / y` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `-(x / y) + c` | `div.full.f32`, `sub.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `(x / y).to(tl.float64) + c (float64 c)` | `add.f64`, `div.full.f32` | `DADD`, `FMUL`, `MUFU.RCP` |
+| `(x / y).to(tl.float16) + c (float16 c)` | `add.f16x2`, `div.full.f32` | `FMUL`, `HADD2`, `HFMA2.MMA`, `MUFU.RCP` |
+| `x / y + c, all float16 (quotient float32)` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `HADD2.F32`, `MUFU.RCP` |
+| `x / y + c, all bfloat16 (quotient float32)` | `add.f32`, `div.full.f32` | `FFMA`, `FMUL`, `MUFU.RCP` |
+| `x / y + c, enable_fp_fusion=False` | `add.rn.f32`, `div.full.f32` | `FADD`, `FMUL`, `MUFU.RCP` |

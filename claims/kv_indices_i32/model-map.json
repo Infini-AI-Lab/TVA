@@ -1,0 +1,298 @@
+{
+ "source": {
+  "file": "source/kv_indices.py",
+  "sha256": "44e7ae1ddfeec75d44cfd1661dac63bb87cc4ed8688075456ce43033754f0e6a",
+  "ranges": [
+   [
+    65,
+    150
+   ]
+  ],
+  "host": [
+   [
+    63,
+    63
+   ],
+   [
+    153,
+    236
+   ]
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.KvIndices",
+ "entries": [
+  {
+   "src": [
+    65
+   ],
+   "drop": "import",
+   "note": "binds `triton`, which the decorator of line 69 names; no step"
+  },
+  {
+   "src": [
+    66
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language`: every `tl.*` of lines 102-150 is Triton's; no step"
+  },
+  {
+   "src": [
+    69
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit`: `debug` unset (`Launch.debug = false`), no `do_not_specialize`"
+  },
+  {
+   "src": [
+    "70-85"
+   ],
+   "model": [
+    "def create_flashinfer_kv_indices_triton (req_to_token_ptr : Ptr .i32) {dp dl ds : DType}",
+    "(req_pool_indices_ptr : Ptr dp) (page_kernel_lens_ptr : Ptr dl)",
+    "(kv_indptr : Ptr .i32) (kv_start_idx : Option (Ptr ds)) (kv_indices_ptr : Ptr .i32)",
+    "(req_to_token_ptr_stride : I32) : Kernel where"
+   ],
+   "note": "the table, `kv_indptr` and `kv_indices` are `*i32`; `req_pool_indices_ptr`, `page_kernel_lens_ptr` are `*dp`, `*dl`, `int64` or `int32` (`Inst.ok.dP_ok`, `dL_ok`); `kv_start_idx` is `none` for the compile-time `None` and `some p` for a `*ds` tensor (`int64` or `int32`, `Inst.ok.dS_ok`; `model`); `token_mapping` is the compile-time `None`, `ENTRY_PAGE_SIZE = 1`, `TOKEN_BLOCK_PARALLEL = False` (the host passes them, no default), fixed in the model; `req_to_token_ptr_stride` is a runtime `int32` (`Inst.ok.mcl`; at `1` a constant, see `model`); lines 72 and 78-80 are comments"
+  },
+  {
+   "src": [
+    "86-101"
+   ],
+   "drop": "comment",
+   "note": "the docstring: a string-literal expression statement, which has no effect (SEMANTICS.md, Statements)"
+  },
+  {
+   "src": [
+    102
+   ],
+   "model": "(IntV.ofNat 512 : I32)",
+   "note": "`BLOCK_SIZE: tl.constexpr = 512` on a name not defined before: a compile-time `512` (SEMANTICS.md, Annotated names), written literally in the model (`i * 512`, `+ 511`, `// 512`, `tl.arange 0 512`) and in the launch's block shape `[512]`"
+  },
+  {
+   "src": [
+    103
+   ],
+   "model": "let pid := tl.program_id ctx 0",
+   "note": "axis 0 of the grid `(bs,)`, an `int32`"
+  },
+  {
+   "src": [
+    104
+   ],
+   "drop": "config",
+   "note": "`if TOKEN_BLOCK_PARALLEL:` on the constexpr `False`: only the `else` (lines 107-109) is visited"
+  },
+  {
+   "src": [
+    105,
+    106
+   ],
+   "drop": "config",
+   "note": "the branch not taken (`TOKEN_BLOCK_PARALLEL = False`)"
+  },
+  {
+   "src": [
+    107
+   ],
+   "drop": "config",
+   "note": "the `else:` of line 104, taken; its statements are lines 108-109"
+  },
+  {
+   "src": [
+    108
+   ],
+   "model": "let blk : I32 := IntV.ofInt 0",
+   "note": "a name assigned the Python `0` holds an `int32` scalar tensor (SEMANTICS.md, A name assigned a Python number holds a tensor)"
+  },
+  {
+   "src": [
+    109
+   ],
+   "model": "let num_blk : I32 := IntV.ofInt 1",
+   "note": "as line 108: an `int32` scalar tensor `1`"
+  },
+  {
+   "src": [
+    112
+   ],
+   "model": [
+    "let req_pool_index := (\u2190 tl.convert dp .i64",
+    "(Tensor.scalar (\u2190 tl.load1 (req_pool_indices_ptr + pid)))).item"
+   ],
+   "note": "a scalar load, `.to(tl.int64)` (`tl.convert`: the identity on `int64`, sign extension of `int32`)"
+  },
+  {
+   "src": [
+    113
+   ],
+   "model": "let kv_indices_offset \u2190 tl.load1 (kv_indptr + pid)",
+   "note": "the `int32` scalar `kv_indptr[pid]`"
+  },
+  {
+   "src": [
+    115
+   ],
+   "model": "let kv_start : I32 := IntV.ofInt 0",
+   "note": "an `int32` scalar tensor `0` (a name assigned a Python number)"
+  },
+  {
+   "src": [
+    116
+   ],
+   "model": "let kv_end : I32 := IntV.ofInt 0",
+   "note": "as line 115"
+  },
+  {
+   "src": [
+    117
+   ],
+   "model": [
+    "let (kv_start, kv_end) \u2190 (match kv_start_idx with",
+    "| none => pure (kv_start, kv_end)",
+    "| some kv_start_idx =>",
+    "if kv_start_idx.addr \u2260 0 then do",
+    "else pure (kv_start, kv_end))"
+   ],
+   "note": "`if kv_start_idx:` (SEMANTICS.md, A runtime `if`): with `None` (`kv_start_idx = none`, `hasStart = false`) a compile-time `if` whose branch is not visited; with a tensor (`some p`) a runtime `if` on the pointer converted to `int1`, `p.addr \u2260 0` (`Inst.ok.start_nz`: taken). The branch assigns `kv_start` and `kv_end`, defined before the `if` as `int32` scalars and assigned `int32` scalars in it, so after the `if` both have the taken branch's value"
+  },
+  {
+   "src": [
+    118
+   ],
+   "model": [
+    "let kv_start := (\u2190 tl.convert ds .i32",
+    "(Tensor.scalar (\u2190 tl.load1 (kv_start_idx + pid)))).item"
+   ],
+   "note": "a scalar load of `kv_start_idx[pid]` (`int64` or `int32`), `.to(tl.int32)` (`tl.convert`: wrapping; exact under `ReqOk`, a start in `[0, 2^31)`)"
+  },
+  {
+   "src": [
+    119
+   ],
+   "model": [
+    "let kv_end := kv_start",
+    "pure (kv_start, kv_end)"
+   ],
+   "note": "`kv_end = kv_start`: the same `int32` scalar; the branch's two names returned to the merge"
+  },
+  {
+   "src": [
+    120
+   ],
+   "model": [
+    "let kv_end := kv_end + (\u2190 tl.convert dl .i32",
+    "(Tensor.scalar (\u2190 tl.load1 (page_kernel_lens_ptr + pid)))).item"
+   ],
+   "note": "`kv_end += x`: the `int32` `+` of `kv_end` (`0`, or the start) and the loaded length `.to(tl.int32)` (`tl.convert`, wrapping; exact under `ReqOk`)"
+  },
+  {
+   "src": [
+    122
+   ],
+   "model": [
+    "let num_loop := (\u2190 tl.idiv (Tensor.scalar",
+    "((kv_end - kv_start) + (IntV.ofNat 511 : I32)))",
+    "(Tensor.scalar (IntV.ofNat 512 : I32))).item"
+   ],
+   "note": "`tl.cdiv(x, BLOCK_SIZE)` with an `int32` tensor `x` and a constexpr divisor is `(x + 511) // 512`: the wrapping `int32` `+` of Python's `512 - 1`, then the truncating `//` (SEMANTICS.md, `tl.cdiv`); `ReqOk` keeps `len + 511 < 2^31`"
+  },
+  {
+   "src": [
+    123
+   ],
+   "drop": "config",
+   "note": "`if TOKEN_BLOCK_PARALLEL:` on the constexpr `False`: not visited"
+  },
+  {
+   "src": [
+    125,
+    126
+   ],
+   "drop": "config",
+   "note": "the branch not taken; the `return` in it is never compiled"
+  },
+  {
+   "src": [
+    127
+   ],
+   "model": "let _ \u2190 tl.forRange blk num_loop num_blk () fun i _ => do",
+   "note": "`range(blk, num_loop, num_blk)` with three `int32` scalar tensors: `tl.forRange` (step `1`, so `RangeOk` holds when `num_loop < 2^31`); the loop carries nothing (the body assigns no name defined before it); `i` is not used after the loop"
+  },
+  {
+   "src": [
+    129
+   ],
+   "model": [
+    "let iB := i * (IntV.ofNat 512 : I32)",
+    "let i64 := (\u2190 tl.convert .i32 .i64 (Tensor.scalar iB)).item",
+    "let a64 \u2190 tl.convert .i32 .i64 (tl.arange 0 512)",
+    "let offset : Tensor [512] I64 := a64 + i64"
+   ],
+   "note": "`tl.arange(0, 512).to(tl.int64) + i * 512`: the `int32` product (wrapping; below `2^31` under `ReqOk`), promoted to `int64` with the `int64` block (`BinOp.typing?`: sign extension), the `int64` sum"
+  },
+  {
+   "src": [
+    130
+   ],
+   "model": [
+    "let lim : I64 := (\u2190 tl.convert .i32 .i64 (Tensor.scalar (kv_end - kv_start))).item",
+    "let mask := offset.ltS lim"
+   ],
+   "note": "`offset < kv_end - kv_start`: the `int32` difference promoted to `int64`, the signed comparison"
+  },
+  {
+   "src": [
+    131
+   ],
+   "drop": "config",
+   "note": "`if ENTRY_PAGE_SIZE == 1:` on the constexpr `1`: the compile-time `True`, lines 132-138 visited"
+  },
+  {
+   "src": [
+    "132-138"
+   ],
+   "model": [
+    "let rsp : I64 := (\u2190 tl.convert .i32 .i64 (Tensor.scalar req_to_token_ptr_stride)).item",
+    "let data : Tensor [512] I32 \u2190 tl.load",
+    "(req_to_token_ptr + req_pool_index * rsp + kv_start + offset) (some mask)"
+   ],
+   "note": "`((req_to_token_ptr + req_pool_index * req_to_token_ptr_stride) + kv_start) + offset`, left to right: the `int64` product with the `int32` stride promoted, the scalar pointer advanced by it and by the `int32` `kv_start`, then by each `int64` lane of `offset`; a masked load without `other` (disabled lanes unspecified)"
+  },
+  {
+   "src": [
+    139
+   ],
+   "drop": "config",
+   "note": "the `else:` of line 131, not taken"
+  },
+  {
+   "src": [
+    "140-147"
+   ],
+   "drop": "config",
+   "note": "the page-granular path, never visited (`ENTRY_PAGE_SIZE = 1`)"
+  },
+  {
+   "src": [
+    148
+   ],
+   "drop": "config",
+   "note": "`if token_mapping is not None:`: `is not` gives the compile-time `False` (`token_mapping = None`)"
+  },
+  {
+   "src": [
+    149
+   ],
+   "drop": "config",
+   "note": "the branch not taken"
+  },
+  {
+   "src": [
+    150
+   ],
+   "model": "tl.store (kv_indices_ptr + kv_indices_offset + offset) data (some mask)",
+   "note": "`(kv_indices_ptr + kv_indices_offset) + offset`: the `int32` scalar offset, then the `int64` lanes; `data` is `int32`, the pointer's dtype; the same `mask`"
+  }
+ ]
+}

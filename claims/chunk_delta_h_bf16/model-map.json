@@ -1,0 +1,1092 @@
+{
+ "source": {
+  "file": "source/chunk_delta_h.py",
+  "sha256": "ab1b4d3f7c7a28ed83c1cbb193ac899087712f36debfa9bd9fb4051264389398",
+  "ranges": [
+   [
+    43,
+    44
+   ],
+   [
+    47,
+    48
+   ],
+   [
+    58,
+    349
+   ]
+  ],
+  "host": [
+   [
+    1,
+    42
+   ],
+   [
+    352,
+    353
+   ],
+   [
+    356,
+    377
+   ],
+   [
+    380,
+    388
+   ],
+   [
+    391,
+    395
+   ],
+   [
+    398,
+    467
+   ],
+   [
+    470,
+    470
+   ],
+   [
+    473,
+    524
+   ],
+   [
+    527,
+    559
+   ],
+   [
+    562,
+    589
+   ]
+  ],
+  "unused": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.ChunkDeltaH",
+ "entries": [
+  {
+   "src": [
+    "43-44"
+   ],
+   "drop": "import",
+   "note": "binds `triton` and `triton.language` as `tl` (SEMANTICS.md, the supported subset: Triton's modules as the source imports them), so every `tl.*` name of the kernel and of its helper is Triton's, whose meaning is the library's `TVA.tl.*`; no other statement of the module binds them; they add no step to the program"
+  },
+  {
+   "src": [
+    "47-48"
+   ],
+   "model": [
+    "let e_g ← tl.exp2 (← tl.sub (bc b_g_last) b_g)",
+    "let b_g_last := (← tl.exp2 (Tensor.scalar b_g_last)).item"
+   ],
+   "note": "the helper `exp2` (a bare `@triton.jit`, defined in the kernel's file), inlined at its two calls (lines 250, 251): `tl.math.exp2(x.to(tl.float32))`; both arguments are `float32`, so `.to(tl.float32)` is no conversion, and `tl.math.exp2` is `tl.exp2` (`P.math .exp2`, `Num.Exp2F32`)"
+  },
+  {
+   "src": [
+    "58-85"
+   ],
+   "drop": "decl",
+   "note": "the decorator `@triton.jit(do_not_specialize=['T'])` and the signature: covered by `fwd_kernel_h`'s definition (`T` a runtime `int32`, never the compile-time `1`; the `tl.constexpr` parameters Lean parameters; `gk` is `None` and never read; `SAVE_NEW_VALUE` `True`, `USE_GK` `False`, fixed by the host, lines 457-463; `USE_G` (`g is not None`, line 457; `Inst.useG`; `g` is `None` and never read when it is `False`) and `STATE_V_FIRST` Lean parameters)"
+  },
+  {
+   "src": [
+    86
+   ],
+   "model": [
+    "let pid := (← tl.convert .i32 .i64 (Tensor.scalar (tl.program_id ctx 0))).item"
+   ],
+   "note": "axis 0 of the 1-D grid (an `int32`), sign-extended to `int64`"
+  },
+  {
+   "src": [
+    87
+   ],
+   "model": [
+    "let NV : Nat := (V + (bv - 1)) / bv"
+   ],
+   "note": "`tl.cdiv` of two compile-time values: Python's `(V + (BV - 1)) // BV`, a compile-time value (SEMANTICS.md, `tl.cdiv`)"
+  },
+  {
+   "src": [
+    88
+   ],
+   "model": [
+    "let i_v := (← tl.irem (Tensor.scalar pid) (Tensor.scalar (IntV.ofNat NV : I64))).item",
+    "let i_nh := (← tl.idiv (Tensor.scalar pid) (Tensor.scalar (IntV.ofNat NV : I64))).item"
+   ],
+   "note": "`int64` `%` and `//` (truncating; `pid ≥ 0`, `NV ≥ 1`) with the compile-time `NV` built in `int64`, left to right; `.to(tl.int64)` of an `int64` is no conversion"
+  },
+  {
+   "src": [
+    89
+   ],
+   "model": [
+    "let i_n := (← tl.idiv (Tensor.scalar i_nh) (Tensor.scalar (IntV.ofNat HV : I64))).item",
+    "let i_h := (← tl.irem (Tensor.scalar i_nh) (Tensor.scalar (IntV.ofNat HV : I64))).item"
+   ],
+   "note": "`int64` `//` and `%` by the constexpr `HV` (`HV ≥ 1`: `Inst.ok.H_pos`, `H_dvd`)"
+  },
+  {
+   "src": [
+    90
+   ],
+   "model": [
+    "if IS_VARLEN then do"
+   ],
+   "note": "the compile-time `if IS_VARLEN:` (`cu_seqlens is not None`, the host's flag), a Lean `if` on the parameter; each branch gives the rest of the kernel (`body_rest`) its `bos`, `boh`, `T` and its loop"
+  },
+  {
+   "src": [
+    91
+   ],
+   "model": [
+    "let bos := (← tl.convert cuD .i64 (Tensor.scalar (← tl.load1 (cu_seqlens + i_n)))).item",
+    "(Tensor.scalar (← tl.load1 (cu_seqlens + i_n + (IntV.ofInt 1 : I32))))).item"
+   ],
+   "note": "two scalar loads of the `cuD` table (`int32` or `int64`, `Inst.ok.var_cuD`), in order; `.to(tl.int64)` sign-extends an `int32` (`tl.convert`, the identity for `int64`); `cu_seqlens + i_n + 1` adds the Python `1` as an `int32` to the pointer"
+  },
+  {
+   "src": [
+    92
+   ],
+   "model": [
+    "let T := eos - bos"
+   ],
+   "note": "the wrapping `int64` subtraction (the parameter `T` is rebound to an `int64`)"
+  },
+  {
+   "src": [
+    93
+   ],
+   "model": [
+    "let NT := (← tl.idiv (Tensor.scalar (T + (IntV.ofNat (bt - 1) : I64)))"
+   ],
+   "note": "`tl.cdiv(T, BT)` with a tensor `T` (SEMANTICS.md, `tl.cdiv`): `BT - 1` Python's, the `int64` `+`, then the truncating `//`"
+  },
+  {
+   "src": [
+    94
+   ],
+   "model": [
+    "let boh ← tl.load1 (chunk_offsets + i_n)"
+   ],
+   "note": "a scalar `int64` load (`chunk_offsets` is `int64`: the host's `cumsum`); `.to(tl.int64)` is no conversion"
+  },
+  {
+   "src": [
+    95
+   ],
+   "model": [
+    "else do"
+   ],
+   "note": "the `else` of line 90 (fixed length)"
+  },
+  {
+   "src": [
+    96
+   ],
+   "model": [
+    "let T64 := (← tl.convert .i32 .i64 (Tensor.scalar T)).item",
+    "let bos := i_n * T64"
+   ],
+   "note": "`i_n * T`: the `int32` `T` sign-extended to `int64` (promotion), then the `int64` product; `eos = i_n * T + T` is not used on this path (a value with no effect, `dead`); the model passes `T64` as the `int64` `T` that line 178 compares with (the same promotion)"
+  },
+  {
+   "src": [
+    97
+   ],
+   "model": [
+    "let NT := (← tl.idiv (Tensor.scalar (T + (IntV.ofNat (bt - 1) : I32)))"
+   ],
+   "note": "`tl.cdiv(T, BT)` in `int32` (`Inst.ok.T_lt`: `T + 63 < 2^31`)"
+  },
+  {
+   "src": [
+    98
+   ],
+   "model": [
+    "let boh := i_n * (← tl.convert .i32 .i64 (Tensor.scalar NT)).item"
+   ],
+   "note": "`int64` times the `int32` `NT` (promoted)"
+  },
+  {
+   "src": [
+    "100-107"
+   ],
+   "model": [
+    "if STATE_V_FIRST then",
+    "let b_h1 := tl.zeros [bv, 64] .f32",
+    "let b_h4 := tl.zeros [bv, 64] .f32"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): `tl.zeros([BV, 64], float32)` for each block whose compile-time `if K > …` holds (as lines 108-115)"
+  },
+  {
+   "src": [
+    "108-115"
+   ],
+   "model": [
+    "let b_h1 := tl.zeros [64, bv] .f32",
+    "let b_h2 := tl.zeros [64, bv] .f32",
+    "let b_h3 := tl.zeros [64, bv] .f32",
+    "let b_h4 := tl.zeros [64, bv] .f32"
+   ],
+   "note": "the `else` of line 100: `tl.zeros([64, BV], float32)` for each block whose compile-time `if K > …` holds; a block whose `if` does not hold is not a name of the source, and the model's zero block in its place is never read (every use of `b_h2`, `b_h3`, `b_h4` is under the same compile-time condition)"
+  },
+  {
+   "src": [
+    117
+   ],
+   "drop": "comment",
+   "note": "a comment"
+  },
+  {
+   "src": [
+    118
+   ],
+   "model": [
+    "let h := h + (boh * (IntV.ofNat HV : I64) + i_h) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64)"
+   ],
+   "note": "`int64` products and sum (`.to(tl.int64)` no conversion; `x * K*V` is `(x * K) * V`), then the pointer `+`"
+  },
+  {
+   "src": [
+    119
+   ],
+   "model": [
+    "let v := v + (bos * (IntV.ofNat HV : I64) + i_h) * (IntV.ofNat V : I64)"
+   ],
+   "note": "as line 118; `v` is the host's `u`"
+  },
+  {
+   "src": [
+    120
+   ],
+   "model": [
+    "let k := k + (bos * (IntV.ofNat H : I64) +",
+    "(← tl.idiv (Tensor.scalar i_h) (Tensor.scalar (IntV.ofNat (HV / H) : I64))).item) *"
+   ],
+   "note": "`i_h // (HV // H)`: `HV // H` Python's, a compile-time value (`H` divides `HV`), built in `int64`; the truncating `//` of the nonnegative `i_h`"
+  },
+  {
+   "src": [
+    121
+   ],
+   "model": [
+    "let w := w + (bos * (IntV.ofNat HV : I64) + i_h) * (IntV.ofNat K : I64)"
+   ],
+   "note": "as line 118"
+  },
+  {
+   "src": [
+    "122-123"
+   ],
+   "model": [
+    "let v_new := v_new + (bos * (IntV.ofNat HV : I64) + i_h) * (IntV.ofNat V : I64)"
+   ],
+   "note": "the compile-time `if SAVE_NEW_VALUE:` holds on every covered launch (`save_new_value=True`, line 407)"
+  },
+  {
+   "src": [
+    "125-128"
+   ],
+   "model": [
+    "let h0 := h0 + i_nh * (IntV.ofNat K : I64) * (IntV.ofNat V : I64)",
+    "let ht := ht + i_nh * (IntV.ofNat K : I64) * (IntV.ofNat V : I64)"
+   ],
+   "note": "pointer arithmetic only; the model computes both pointers unconditionally, which has no effect when a flag is `False` (nothing then reads `h0` or `ht`: every use is under the same flag)"
+  },
+  {
+   "src": [
+    130
+   ],
+   "drop": "comment",
+   "note": "a comment"
+  },
+  {
+   "src": [
+    131
+   ],
+   "model": [
+    "let o_v : Tensor [bv] I64 := i_v * (IntV.ofNat bv : I64) + (← tl.convert .i32 .i64 (tl.arange 0 bv))"
+   ],
+   "note": "the `int64` scalar `i_v * BV` plus `tl.arange(0, BV)` (`int32`, promoted)"
+  },
+  {
+   "src": [
+    132
+   ],
+   "model": [
+    "let m_v := o_v.ltS (IntV.ofNat V : I64)"
+   ],
+   "note": "signed `int64` comparison with the constexpr `V` built in `int64`"
+  },
+  {
+   "src": [
+    "133-140"
+   ],
+   "model": [
+    "let o_k1 : Tensor [64] I32 := tl.arange 0 64",
+    "let m_k1 := o_k1.ltS (IntV.ofNat K : I32)",
+    "let o_k2 : Tensor [64] I32 := (IntV.ofNat 64 : I32) + o_k1",
+    "let m_k4 := o_k4.ltS (IntV.ofNat K : I32)"
+   ],
+   "note": "`int32` ranges and comparisons with the constexpr `K` built in `int32`"
+  },
+  {
+   "src": [
+    141
+   ],
+   "model": [
+    "let (b_h1, b_h2, b_h3, b_h4) ← if USE_INITIAL_STATE then do"
+   ],
+   "note": "the compile-time `if USE_INITIAL_STATE:` (`initial_state is not None`), a Lean `if` on the parameter"
+  },
+  {
+   "src": [
+    "142-144"
+   ],
+   "model": [
+    "let p_h0_1 : Tensor [bv, 64] (Ptr .f32) := h0 + o_v.col 64 * bc (IntV.ofNat K : I64) + o_k1.row bv",
+    "let m_h0_1 := (m_v.col 64).and (m_k1.row bv)"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): the `int64` `o_v[:, None] * K` and the `int32` `o_k1[None, :]` broadcast to `[BV, 64]` (the `[V, K]` layout of `h0`)"
+  },
+  {
+   "src": [
+    "145-148"
+   ],
+   "model": [
+    "let p_h0_1 : Tensor [64, bv] (Ptr .f32) := h0 + o_k1.col bv * bc (IntV.ofNat V : I32) + o_v.row 64",
+    "let m_h0_1 := (m_k1.col bv).and (m_v.row 64)",
+    "let b_h1 ← tl.add b_h1 (← tl.load p_h0_1 (some m_h0_1) (some (bc zf32)))"
+   ],
+   "note": "the `else` of line 142: the `int32` `o_k1[:, None] * V` and the `int64` `o_v[None, :]`, broadcast to `[64, BV]` (the same addresses); `other=0.0` the `float32` `+0` (the pointer's dtype); `.to(tl.float32)` no conversion; `+=` the IEEE `+` (no product feeds it)"
+  },
+  {
+   "src": [
+    149
+   ],
+   "model": [
+    "let b_h2 ← if 64 < K then do"
+   ],
+   "note": "the compile-time `if K > 64:`, a Lean `if` on the parameter `K`"
+  },
+  {
+   "src": [
+    "150-152"
+   ],
+   "model": [
+    "let p_h0_2 : Tensor [bv, 64] (Ptr .f32) := h0 + o_v.col 64 * bc (IntV.ofNat K : I64) + o_k2.row bv"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 142-144, the mask written in place"
+  },
+  {
+   "src": [
+    "153-156"
+   ],
+   "model": [
+    "let p_h0_2 : Tensor [64, bv] (Ptr .f32) := h0 + o_k2.col bv * bc (IntV.ofNat V : I32) + o_v.row 64",
+    "tl.add b_h2 (← tl.load p_h0_2 (some ((m_k2.col bv).and (m_v.row 64))) (some (bc zf32)))"
+   ],
+   "note": "as lines 146-148"
+  },
+  {
+   "src": [
+    157
+   ],
+   "model": [
+    "let b_h3 ← if 128 < K then do"
+   ],
+   "note": "the compile-time `if K > 128:`, a Lean `if` on the parameter `K`"
+  },
+  {
+   "src": [
+    "158-160"
+   ],
+   "model": [
+    "let p_h0_3 : Tensor [bv, 64] (Ptr .f32) := h0 + o_v.col 64 * bc (IntV.ofNat K : I64) + o_k3.row bv"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 142-144, the mask written in place"
+  },
+  {
+   "src": [
+    "161-164"
+   ],
+   "model": [
+    "let p_h0_3 : Tensor [64, bv] (Ptr .f32) := h0 + o_k3.col bv * bc (IntV.ofNat V : I32) + o_v.row 64",
+    "tl.add b_h3 (← tl.load p_h0_3 (some ((m_k3.col bv).and (m_v.row 64))) (some (bc zf32)))"
+   ],
+   "note": "as lines 146-148"
+  },
+  {
+   "src": [
+    165
+   ],
+   "model": [
+    "let b_h4 ← if 192 < K then do"
+   ],
+   "note": "the compile-time `if K > 192:`, a Lean `if` on the parameter `K`"
+  },
+  {
+   "src": [
+    "166-168"
+   ],
+   "model": [
+    "let p_h0_4 : Tensor [bv, 64] (Ptr .f32) := h0 + o_v.col 64 * bc (IntV.ofNat K : I64) + o_k4.row bv"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 142-144, the mask written in place"
+  },
+  {
+   "src": [
+    "169-172"
+   ],
+   "model": [
+    "let p_h0_4 : Tensor [64, bv] (Ptr .f32) := h0 + o_k4.col bv * bc (IntV.ofNat V : I32) + o_v.row 64",
+    "tl.add b_h4 (← tl.load p_h0_4 (some ((m_k4.col bv).and (m_v.row 64))) (some (bc zf32)))"
+   ],
+   "note": "as lines 146-148"
+  },
+  {
+   "src": [
+    174
+   ],
+   "drop": "comment",
+   "note": "a comment"
+  },
+  {
+   "src": [
+    175
+   ],
+   "model": [
+    "tl.forRange (IntV.ofInt 0 : I64) NT (IntV.ofInt 1 : I64) st0 fun i_t st => do",
+    "tl.forRange (IntV.ofInt 0 : I32) NT (IntV.ofInt 1 : I32) st0 fun i_t st => do",
+    "let (b_h1, b_h2, b_h3, b_h4) ← runLoop"
+   ],
+   "note": "`range(NT)` with one argument: `NT` a plain name, nothing to evaluate twice; the variable's type is `NT`'s: `int64` (variable length) or `int32` (fixed length); the loop carries `b_h1 … b_h4` (the names the body assigns that were defined before it; `o_k1 …` are reassigned only in the `USE_GK` branch, never visited); one trip is `chunk_step`"
+  },
+  {
+   "src": [
+    176
+   ],
+   "model": [
+    "let i_t_int64 := i_t",
+    "let i_t_int64 := (← tl.convert .i32 .i64 (Tensor.scalar i_t)).item"
+   ],
+   "note": "`.to(tl.int64)`: the identity on the `int64` variable, a sign extension of the `int32` one"
+  },
+  {
+   "src": [
+    177
+   ],
+   "model": [
+    "let o_t : Tensor [bt] I64 :=",
+    "i_t_int64 * (IntV.ofNat bt : I64) + (← tl.convert .i32 .i64 (tl.arange 0 bt))"
+   ],
+   "note": "the `int64` scalar `i_t_int64 * BT` plus `tl.arange(0, BT)` (promoted)"
+  },
+  {
+   "src": [
+    178
+   ],
+   "model": [
+    "let m_t := o_t.ltS T"
+   ],
+   "note": "signed `int64` comparison; `T` is the `int64` sequence length (line 92) or the `int32` argument promoted (line 96's `T64`)"
+  },
+  {
+   "src": [
+    "179-181"
+   ],
+   "model": [
+    "let p_h1 : Tensor [bv, 64] (Ptr .bf16) := h + i_t_int64 * (IntV.ofNat HV : I64) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64) +",
+    "let m_h1 := (m_v.col 64).and (m_k1.row bv)"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): the scalar `int64` offset, the `int64` `o_v[:, None] * K`, the `int32` `o_k1[None, :]`, broadcast to `[BV, 64]`"
+  },
+  {
+   "src": [
+    "182-185"
+   ],
+   "model": [
+    "let p_h1 : Tensor [64, bv] (Ptr .bf16) := h + i_t_int64 * (IntV.ofNat HV : I64) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64) +",
+    "let m_h1 := (m_k1.col bv).and (m_v.row 64)",
+    "tl.store p_h1 (← tl.cvt b_h1) (some m_h1)"
+   ],
+   "note": "the scalar `int64` offset `i_t_int64 * HV*K*V` (left to right), then the `int32` `o_k1[:, None] * V` and the `int64` `o_v[None, :]` broadcast to `[64, BV]`; `.to(p_h1.dtype.element_ty)` is the conversion to `bfloat16` (nearest even), `tl.cvt`"
+  },
+  {
+   "src": [
+    186
+   ],
+   "model": [
+    "if 64 < K then do"
+   ],
+   "note": "the compile-time `if K > 64:`"
+  },
+  {
+   "src": [
+    "187-189"
+   ],
+   "model": [
+    "let p_h2 : Tensor [bv, 64] (Ptr .bf16) := h + i_t_int64 * (IntV.ofNat HV : I64) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64) +"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 179-181"
+  },
+  {
+   "src": [
+    "190-193"
+   ],
+   "model": [
+    "let p_h2 : Tensor [64, bv] (Ptr .bf16) := h + i_t_int64 * (IntV.ofNat HV : I64) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64) +",
+    "tl.store p_h2 (← tl.cvt b_h2) (some ((m_k2.col bv).and (m_v.row 64)))"
+   ],
+   "note": "as lines 183-185 (the mask written in place of `m_h2`)"
+  },
+  {
+   "src": [
+    194
+   ],
+   "model": [
+    "if 128 < K then do"
+   ],
+   "note": "the compile-time `if K > 128:`"
+  },
+  {
+   "src": [
+    "195-197"
+   ],
+   "model": [
+    "let p_h3 : Tensor [bv, 64] (Ptr .bf16) := h + i_t_int64 * (IntV.ofNat HV : I64) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64) +"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 179-181"
+  },
+  {
+   "src": [
+    "198-201"
+   ],
+   "model": [
+    "let p_h3 : Tensor [64, bv] (Ptr .bf16) := h + i_t_int64 * (IntV.ofNat HV : I64) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64) +",
+    "tl.store p_h3 (← tl.cvt b_h3) (some ((m_k3.col bv).and (m_v.row 64)))"
+   ],
+   "note": "as lines 183-185 (the mask written in place of `m_h3`)"
+  },
+  {
+   "src": [
+    202
+   ],
+   "model": [
+    "if 192 < K then do"
+   ],
+   "note": "the compile-time `if K > 192:`"
+  },
+  {
+   "src": [
+    "203-205"
+   ],
+   "model": [
+    "let p_h4 : Tensor [bv, 64] (Ptr .bf16) := h + i_t_int64 * (IntV.ofNat HV : I64) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64) +"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 179-181"
+  },
+  {
+   "src": [
+    "206-209"
+   ],
+   "model": [
+    "let p_h4 : Tensor [64, bv] (Ptr .bf16) := h + i_t_int64 * (IntV.ofNat HV : I64) * (IntV.ofNat K : I64) * (IntV.ofNat V : I64) +",
+    "tl.store p_h4 (← tl.cvt b_h4) (some ((m_k4.col bv).and (m_v.row 64)))"
+   ],
+   "note": "as lines 183-185 (the mask written in place of `m_h4`)"
+  },
+  {
+   "src": [
+    "211-212"
+   ],
+   "model": [
+    "let p_w : Tensor [bt, 64] (Ptr .bf16) := w + o_t.col 64 * bc (IntV.ofNat (HV * K) : I64) + o_k1.row bt",
+    "let b_w : Tensor [bt, 64] BF16 ← tl.load p_w (some ((m_t.col 64).and (m_k1.row bt)))"
+   ],
+   "note": "`o_t[:, None] * (HV*K)`: the compile-time product built in `int64`; `o_k1[None, :]` (`int32`, promoted); `other=0.0` the `float32` `+0` converted to `bfloat16`"
+  },
+  {
+   "src": [
+    "213-214"
+   ],
+   "model": [
+    "let b_v : Tensor [bt, bv] F32 ← tl.dot cfgBF16 b_w (← tl.cvt b_h1.trans) (tl.zeros [bt, bv] .f32)"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): `tl.trans(b_h1).to(b_w.dtype)` (the transpose, then the conversion to `bfloat16`: the same values either order), the default accumulator"
+  },
+  {
+   "src": [
+    "215-216"
+   ],
+   "model": [
+    "let b_v : Tensor [bt, bv] F32 ← tl.dot cfgBF16 b_w (← tl.cvt b_h1) (tl.zeros [bt, bv] .f32)"
+   ],
+   "note": "`tl.dot` with the default accumulator (`+0`, `float32`), `bfloat16` operands: `b_h1.to(b_w.dtype)` the conversion to `bfloat16`; the result is not added to anything (line 239 subtracts it, which the combine pass does not rewrite: `Combine.cpp` matches only `addf`), so `tl.dot`, not `tl.dot_add`"
+  },
+  {
+   "src": [
+    217
+   ],
+   "model": [
+    "let b_v ← if 64 < K then do"
+   ],
+   "note": "the compile-time `if K > 64:`"
+  },
+  {
+   "src": [
+    "218-219"
+   ],
+   "model": [
+    "let p_w : Tensor [bt, 64] (Ptr .bf16) := w + o_t.col 64 * bc (IntV.ofNat (HV * K) : I64) + o_k2.row bt",
+    "let b_w : Tensor [bt, 64] BF16 ← tl.load p_w (some ((m_t.col 64).and (m_k2.row bt)))"
+   ],
+   "note": "as lines 211-212"
+  },
+  {
+   "src": [
+    "220-221"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_w (← tl.cvt b_h2.trans) b_v"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): the transposed block, accumulator `b_v`"
+  },
+  {
+   "src": [
+    "222-223"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_w (← tl.cvt b_h2) b_v"
+   ],
+   "note": "`tl.dot` with `b_v` as its accumulator"
+  },
+  {
+   "src": [
+    224
+   ],
+   "model": [
+    "let b_v ← if 128 < K then do"
+   ],
+   "note": "the compile-time `if K > 128:`"
+  },
+  {
+   "src": [
+    "225-226"
+   ],
+   "model": [
+    "let p_w : Tensor [bt, 64] (Ptr .bf16) := w + o_t.col 64 * bc (IntV.ofNat (HV * K) : I64) + o_k3.row bt",
+    "let b_w : Tensor [bt, 64] BF16 ← tl.load p_w (some ((m_t.col 64).and (m_k3.row bt)))"
+   ],
+   "note": "as lines 211-212"
+  },
+  {
+   "src": [
+    "227-228"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_w (← tl.cvt b_h3.trans) b_v"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): the transposed block, accumulator `b_v`"
+  },
+  {
+   "src": [
+    "229-230"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_w (← tl.cvt b_h3) b_v"
+   ],
+   "note": "`tl.dot` with `b_v` as its accumulator"
+  },
+  {
+   "src": [
+    231
+   ],
+   "model": [
+    "let b_v ← if 192 < K then do"
+   ],
+   "note": "the compile-time `if K > 192:`"
+  },
+  {
+   "src": [
+    "232-233"
+   ],
+   "model": [
+    "let p_w : Tensor [bt, 64] (Ptr .bf16) := w + o_t.col 64 * bc (IntV.ofNat (HV * K) : I64) + o_k4.row bt",
+    "let b_w : Tensor [bt, 64] BF16 ← tl.load p_w (some ((m_t.col 64).and (m_k4.row bt)))"
+   ],
+   "note": "as lines 211-212"
+  },
+  {
+   "src": [
+    "234-235"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_w (← tl.cvt b_h4.trans) b_v"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): the transposed block, accumulator `b_v`"
+  },
+  {
+   "src": [
+    "236-237"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_w (← tl.cvt b_h4) b_v"
+   ],
+   "note": "`tl.dot` with `b_v` as its accumulator"
+  },
+  {
+   "src": [
+    "238-239"
+   ],
+   "model": [
+    "let p_v : Tensor [bt, bv] (Ptr .bf16) := v + o_t.col bv * bc (IntV.ofNat (HV * V) : I64) + o_v.row bt",
+    "let b_u : Tensor [bt, bv] BF16 ← tl.load p_v (some ((m_t.col bv).and (m_v.row bt)))",
+    "let b_v ← tl.subc (← tl.convert .bf16 .f32 b_u) b_v"
+   ],
+   "note": "the `bfloat16` load (`other=0.0` converted), promoted to `float32` for `-` with the `float32` `b_v` (`tl.convert`, exact); a `tl.dot` result feeds the subtraction, so the fusable `tl.subc`"
+  },
+  {
+   "src": [
+    "241-243"
+   ],
+   "model": [
+    "let p_v : Tensor [bt, bv] (Ptr .bf16) := v_new + o_t.col bv * bc (IntV.ofNat (HV * V) : I64) + o_v.row bt",
+    "tl.store p_v (← tl.cvt b_v) (some ((m_t.col bv).and (m_v.row bt)))"
+   ],
+   "note": "the compile-time `if SAVE_NEW_VALUE:` holds (line 407); the store converts to `bfloat16` (nearest even)"
+  },
+  {
+   "src": [
+    245
+   ],
+   "model": [
+    "let last_idx : I64 := (tl.iminimum",
+    "let last_idx : I32 := (tl.iminimum"
+   ],
+   "note": "Python's `min` with tensor operands: `tl.minimum`, on integers the exact `tl.iminimum`, in the loop variable's type (`int64` or `int32`): `(i_t + 1) * BT` (the Python `1`, the constexpr `BT`), `T` (`int64`, or the `int32` argument), then `- 1`; written in the caller of `chunk_step` (`fwd_kernel_h`), which passes line 247's offset (integer arithmetic only, read by the trip only when `USE_G`)"
+  },
+  {
+   "src": [
+    "246-247"
+   ],
+   "model": [
+    "if USE_G then do",
+    "step i_t_int64 (bos * (IntV.ofNat HV : I64) + last_idx * (IntV.ofNat HV : I64) + i_h) st",
+    "let lh := (← tl.convert .i32 .i64 (Tensor.scalar (last_idx * (IntV.ofNat HV : I32)))).item",
+    "let b_g_last : F32 ← tl.load1 (g + g_last_off)",
+    "else pure (b_v, b_h1, b_h2, b_h3, b_h4)"
+   ],
+   "note": "the compile-time `if USE_G:` (`g is not None`, the host's flag; `Inst.useG`), a Lean `if` on the parameter: when it is `False` lines 247-258 do not run and `b_v` and the state blocks pass unchanged; the offset `bos * HV + last_idx * HV + i_h`: in `int64`, or with the `int32` `last_idx * HV` (`Inst.ok.THV_lt`) promoted; `.to(tl.int64)` no conversion; a scalar `float32` load, `.to(tl.float32)` no conversion"
+  },
+  {
+   "src": [
+    "248-249"
+   ],
+   "model": [
+    "let p_g : Tensor [bt] (Ptr .f32) := g + (bos * (IntV.ofNat HV : I64) + i_h) + o_t * bc (IntV.ofNat HV : I64)",
+    "let b_g : Tensor [bt] F32 ← tl.load p_g (some m_t) (some (bc zf32))"
+   ],
+   "note": "`int64` offsets; `other=0.0` the `float32` `+0`; `.to(tl.float32)` no conversion (under `if USE_G`)"
+  },
+  {
+   "src": [
+    250
+   ],
+   "model": [
+    "let e_g ← tl.exp2 (← tl.sub (bc b_g_last) b_g)",
+    "let b_v ← tl.mul b_v ((tl.where m_t e_g (bc zf32)).col bv)"
+   ],
+   "note": "`b_g_last - b_g`: the IEEE `-` (two loaded values, no product feeds it); `exp2` inlined (lines 47-48); `tl.where` with the Python `0` built in `float32` beside the `float32` tensor; `[:, None]` broadcast to `[BT, BV]`; the IEEE `*` (its product feeds no addition: line 288 converts it) (under `if USE_G`)"
+  },
+  {
+   "src": [
+    251
+   ],
+   "model": [
+    "let b_g_last := (← tl.exp2 (Tensor.scalar b_g_last)).item"
+   ],
+   "note": "`exp2` inlined on the scalar (under `if USE_G`)"
+  },
+  {
+   "src": [
+    "252-258"
+   ],
+   "model": [
+    "let b_h1 ← tl.mul b_h1 (bc b_g_last)",
+    "let b_h2 ← if 64 < K then tl.mul b_h2 (bc b_g_last) else pure b_h2",
+    "let b_h4 ← if 192 < K then tl.mul b_h4 (bc b_g_last) else pure b_h4"
+   ],
+   "note": "IEEE `*` by the scalar, each block under its compile-time `if K > …`; without `STATE_V_FIRST` the product feeds only a `tl.dot` accumulator (lines 295-316), which is not an addition the backend may contract; with `STATE_V_FIRST` the product feeds the `+=` of lines 293, 300, 307, 314 instead, and the backend contracts the two: the kernel's PTX has 16 `fma.rn.f32` per K block there; `tl.addc`'s `AddRel` allows that result (the rounding of `p + q` with `p` the exact product, which rounds to the operand `tl.mul` gives), so the model's `tl.mul` then `tl.addc` covers it (under `if USE_G`)"
+  },
+  {
+   "src": [
+    "260-287"
+   ],
+   "drop": "config",
+   "note": "`USE_GK` is `False` on every covered launch (the host's `gk is None`, line 458), so this compile-time branch is never visited"
+  },
+  {
+   "src": [
+    288
+   ],
+   "model": [
+    "let b_vb : Tensor [bt, bv] BF16 ← tl.cvt b_v"
+   ],
+   "note": "`.to(k.dtype.element_ty)`: `bfloat16`, nearest even"
+  },
+  {
+   "src": [
+    "290-291"
+   ],
+   "model": [
+    "let p_k : Tensor [64, bt] (Ptr .bf16) := k + o_k1.col bt + o_t.row 64 * bc (IntV.ofNat (H * K) : I64)",
+    "let b_k : Tensor [64, bt] BF16 ← tl.load p_k (some ((m_k1.col bt).and (m_t.row 64)))"
+   ],
+   "note": "`o_k1[:, None]` (`int32`) then `o_t[None, :] * (H*K)` (`int64`, the compile-time product built in `int64`), broadcast to `[64, BT]`; `other=0.0` converted to `bfloat16`"
+  },
+  {
+   "src": [
+    "292-293"
+   ],
+   "model": [
+    "let d_h1 : Tensor [64, bv] F32 ← tl.dot cfgBF16 b_k b_vb (tl.zeros [64, bv] .f32)",
+    "let b_h1 ← tl.addc b_h1 d_h1.trans"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): `b_h1 += tl.trans(tl.dot(b_k, b_v))`: the dot from the default accumulator, `tl.trans`, then `+`, which a `tl.dot` result feeds: the fusable `tl.addc`; the combine pass does not rewrite it into the dot (the `addf`'s operand is the `tt.trans`, not a `tt.dot`: the kernel's TTIR keeps `tt.dot`, `tt.trans`, `arith.addf`); its other operand is line 252's product, and LLVM contracts the `*` and the `+` into an `fma` (16 `fma.rn.f32` per K block in the PTX), which `tl.addc`'s `AddRel` allows"
+  },
+  {
+   "src": [
+    "294-295"
+   ],
+   "model": [
+    "let b_h1 ← tl.dot cfgBF16 b_k b_vb b_h1"
+   ],
+   "note": "`tl.dot` with the state block as its accumulator"
+  },
+  {
+   "src": [
+    296
+   ],
+   "model": [
+    "let b_h2 ← if 64 < K then do"
+   ],
+   "note": "the compile-time `if K > 64:`"
+  },
+  {
+   "src": [
+    "297-298"
+   ],
+   "model": [
+    "let p_k : Tensor [64, bt] (Ptr .bf16) := k + o_k2.col bt + o_t.row 64 * bc (IntV.ofNat (H * K) : I64)",
+    "let b_k : Tensor [64, bt] BF16 ← tl.load p_k (some ((m_k2.col bt).and (m_t.row 64)))"
+   ],
+   "note": "as lines 290-291"
+  },
+  {
+   "src": [
+    "299-300"
+   ],
+   "model": [
+    "tl.addc b_h2 d_h2.trans"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 292-293"
+  },
+  {
+   "src": [
+    "301-302"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_k b_vb b_h2"
+   ],
+   "note": "as line 295"
+  },
+  {
+   "src": [
+    303
+   ],
+   "model": [
+    "let b_h3 ← if 128 < K then do"
+   ],
+   "note": "the compile-time `if K > 128:`"
+  },
+  {
+   "src": [
+    "304-305"
+   ],
+   "model": [
+    "let p_k : Tensor [64, bt] (Ptr .bf16) := k + o_k3.col bt + o_t.row 64 * bc (IntV.ofNat (H * K) : I64)",
+    "let b_k : Tensor [64, bt] BF16 ← tl.load p_k (some ((m_k3.col bt).and (m_t.row 64)))"
+   ],
+   "note": "as lines 290-291"
+  },
+  {
+   "src": [
+    "306-307"
+   ],
+   "model": [
+    "tl.addc b_h3 d_h3.trans"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 292-293"
+  },
+  {
+   "src": [
+    "308-309"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_k b_vb b_h3"
+   ],
+   "note": "as line 295"
+  },
+  {
+   "src": [
+    310
+   ],
+   "model": [
+    "let b_h4 ← if 192 < K then do"
+   ],
+   "note": "the compile-time `if K > 192:`"
+  },
+  {
+   "src": [
+    "311-312"
+   ],
+   "model": [
+    "let p_k : Tensor [64, bt] (Ptr .bf16) := k + o_k4.col bt + o_t.row 64 * bc (IntV.ofNat (H * K) : I64)",
+    "let b_k : Tensor [64, bt] BF16 ← tl.load p_k (some ((m_k4.col bt).and (m_t.row 64)))"
+   ],
+   "note": "as lines 290-291"
+  },
+  {
+   "src": [
+    "313-314"
+   ],
+   "model": [
+    "tl.addc b_h4 d_h4.trans"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 292-293"
+  },
+  {
+   "src": [
+    "315-316"
+   ],
+   "model": [
+    "tl.dot cfgBF16 b_k b_vb b_h4"
+   ],
+   "note": "as line 295"
+  },
+  {
+   "src": [
+    318
+   ],
+   "model": [
+    "if STORE_FINAL_STATE then do"
+   ],
+   "note": "the compile-time `if STORE_FINAL_STATE:` (`output_final_state`), a Lean `if` on the parameter"
+  },
+  {
+   "src": [
+    "319-321"
+   ],
+   "model": [
+    "let p_ht : Tensor [bv, 64] (Ptr .f32) := ht + o_v.col 64 * bc (IntV.ofNat K : I64) + o_k1.row bv"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 142-144 (the `[V, K]` layout of `ht`)"
+  },
+  {
+   "src": [
+    "322-325"
+   ],
+   "model": [
+    "let p_ht : Tensor [64, bv] (Ptr .f32) := ht + o_k1.col bv * bc (IntV.ofNat V : I32) + o_v.row 64",
+    "tl.store p_ht b_h1 (some ((m_k1.col bv).and (m_v.row 64)))"
+   ],
+   "note": "as lines 146-147; the store's `.to(p_ht.dtype.element_ty)` is no conversion (`float32` to the `float32` `ht`)"
+  },
+  {
+   "src": [
+    326
+   ],
+   "model": [
+    "if 64 < K then do"
+   ],
+   "note": "the compile-time `if K > 64:`"
+  },
+  {
+   "src": [
+    "327-329"
+   ],
+   "model": [
+    "let p_ht : Tensor [bv, 64] (Ptr .f32) := ht + o_v.col 64 * bc (IntV.ofNat K : I64) + o_k2.row bv"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 319-321"
+  },
+  {
+   "src": [
+    "330-333"
+   ],
+   "model": [
+    "let p_ht : Tensor [64, bv] (Ptr .f32) := ht + o_k2.col bv * bc (IntV.ofNat V : I32) + o_v.row 64",
+    "tl.store p_ht b_h2 (some ((m_k2.col bv).and (m_v.row 64)))"
+   ],
+   "note": "as lines 323-325"
+  },
+  {
+   "src": [
+    334
+   ],
+   "model": [
+    "if 128 < K then do"
+   ],
+   "note": "the compile-time `if K > 128:`"
+  },
+  {
+   "src": [
+    "335-337"
+   ],
+   "model": [
+    "let p_ht : Tensor [bv, 64] (Ptr .f32) := ht + o_v.col 64 * bc (IntV.ofNat K : I64) + o_k3.row bv"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 319-321"
+  },
+  {
+   "src": [
+    "338-341"
+   ],
+   "model": [
+    "let p_ht : Tensor [64, bv] (Ptr .f32) := ht + o_k3.col bv * bc (IntV.ofNat V : I32) + o_v.row 64",
+    "tl.store p_ht b_h3 (some ((m_k3.col bv).and (m_v.row 64)))"
+   ],
+   "note": "as lines 323-325"
+  },
+  {
+   "src": [
+    342
+   ],
+   "model": [
+    "if 192 < K then do"
+   ],
+   "note": "the compile-time `if K > 192:`"
+  },
+  {
+   "src": [
+    "343-345"
+   ],
+   "model": [
+    "let p_ht : Tensor [bv, 64] (Ptr .f32) := ht + o_v.col 64 * bc (IntV.ofNat K : I64) + o_k4.row bv"
+   ],
+   "note": "with `STATE_V_FIRST` (`state_v_first`, line 408; `Inst.vf`), a compile-time condition: the model's `chunk_step_vf` / `body_rest_vf` (`fwd_kernel_h` picks them by `if STATE_V_FIRST`): as lines 319-321"
+  },
+  {
+   "src": [
+    "346-349"
+   ],
+   "model": [
+    "let p_ht : Tensor [64, bv] (Ptr .f32) := ht + o_k4.col bv * bc (IntV.ofNat V : I32) + o_v.row 64",
+    "tl.store p_ht b_h4 (some ((m_k4.col bv).and (m_v.row 64)))"
+   ],
+   "note": "as lines 323-325"
+  }
+ ]
+}

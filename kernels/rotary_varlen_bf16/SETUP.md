@@ -52,7 +52,7 @@ The claim should cover the forward launches of fla's `RotaryEmbedding` on querie
   tables, cast to the dtype of `x`); `y` fresh, of the shape and dtype of `x`;
 - both values of `INTERLEAVED` (the module's `interleaved`, `False` by default: GPT-NeoX; `True`:
   GPT-J);
-- both values of `IS_VARLEN`: a padded batch (`cu_seqlens = None`, `B >= 1`), and packed
+- both values of `IS_VARLEN`: a padded batch (`cu_seqlens = None`, `1 <= B < 65536`), and packed
   variable-length sequences (`B = 1`, `x` `[1, T, H, D]`, `cu_seqlens` `[N + 1]` `int32` or
   `int64`, non-decreasing from 0 to `T`, as fla's tests and layers pass it:
   `tests/modules/test_rotary.py:92-130`, `fla/layers/attn.py:125`; `chunk_indices` from

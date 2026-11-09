@@ -1,0 +1,560 @@
+{
+ "source": {
+  "file": "source/wy_fast.py",
+  "sha256": "c67e8a86b32603bd6ee787c9e97389b87994ee8b9bed7ca9114c042fc1aa1950",
+  "ranges": [
+   [
+    61,
+    62
+   ],
+   [
+    65,
+    66
+   ],
+   [
+    69,
+    133
+   ]
+  ],
+  "host": [
+   [
+    1,
+    57
+   ],
+   [
+    59,
+    59
+   ],
+   [
+    136,
+    137
+   ],
+   [
+    140,
+    161
+   ],
+   [
+    164,
+    172
+   ],
+   [
+    175,
+    220
+   ]
+  ],
+  "unused": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.RecomputeWU",
+ "entries": [
+  {
+   "src": [
+    61
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module (SEMANTICS.md, the supported subset); adds no step"
+  },
+  {
+   "src": [
+    62
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (SEMANTICS.md, the supported subset), so every `tl.*` name of the kernel is Triton's, whose meaning is the library's `TVA.tl.*`; adds no step"
+  },
+  {
+   "src": [
+    65
+   ],
+   "drop": "decl",
+   "note": "`@triton.jit`: `exp2` is a helper of the kernel's file under a bare `@triton.jit`, inlined at its call (line 121)"
+  },
+  {
+   "src": [
+    66
+   ],
+   "model": [
+    "let b_g : Tensor [BT] F32 ← tl.exp2 l_g"
+   ],
+   "note": "the helper's body, inlined at line 121: `x.to(tl.float32)` of a `float32` block is the identity (the cast returns its operand), then `tl.math.exp2` on `float32` (`tl.exp2`, the platform's `P.math .exp2`)"
+  },
+  {
+   "src": [
+    69
+   ],
+   "drop": "decl",
+   "note": "`@triton.jit(do_not_specialize=['T'])`: makes `T` a runtime `int32` even at `1` (SEMANTICS.md, Scalar arguments), which the model's `T : I32` is"
+  },
+  {
+   "src": [
+    "70-90"
+   ],
+   "model": [
+    "def recompute_w_u_fwd_kernel_b32 {sD : DType} (k v : Ptr .bf16) (beta : Ptr .f32) (w u A : Ptr .bf16)",
+    "def recompute_w_u_fwd_kernel_b16 {sD : DType} (k v : Ptr .bf16) (beta : Ptr .bf16) (w u A : Ptr .bf16)",
+    "(g : Ptr .f32) (cu_seqlens chunk_indices : Ptr sD) (T : I32)",
+    "(H HV K V BT BK BV : Nat) (IS_VARLEN : Bool) : Kernel where"
+   ],
+   "note": "the signature, once per dtype of `beta` (Triton compiles the kernel for its arguments' pointer dtypes; `model` picks `_b32` for a `float32` `beta`, `_b16` for a `bfloat16` one; the two models differ only at lines 103-104, 115, 129 and 131): tensors as pointers (`k`, `v`, `w`, `u`, `A` `bfloat16`; `g` `float32`; `beta` `float32` or `bfloat16`; `cu_seqlens`, `chunk_indices` of the index dtype `sD`, `None` when padded); `T` a runtime `int32` scalar; the constexprs as Lean parameters; `USE_G = True` on every covered launch (the host passes `g is not None`, and `g` is given), so it is not a parameter and both `if USE_G:` bodies are in the model"
+  },
+  {
+   "src": [
+    91
+   ],
+   "model": [
+    "let i_t0 : I64 := IntV.cast (tl.program_id ctx 0)",
+    "let i_bh : I64 := IntV.cast (tl.program_id ctx 1)"
+   ],
+   "note": "the tuple's right side, left to right: `.to(tl.int64)` of the `int32` program ids is sign extension (`IntV.cast`)"
+  },
+  {
+   "src": [
+    92
+   ],
+   "model": [
+    "let i_b : I64 := (← tl.idiv (Tensor.scalar i_bh) (Tensor.scalar (IntV.ofNat HV : I64))).item",
+    "let i_h : I64 := (← tl.irem (Tensor.scalar i_bh) (Tensor.scalar (IntV.ofNat HV : I64))).item"
+   ],
+   "note": "`//` and `%` of the `int64` scalar by the constexpr `HV`, built in `int64` (the operation's dtype): the truncating `tl.idiv`, `tl.irem` (`HV ≥ 1`, Inst.ok.hv_pos)"
+  },
+  {
+   "src": [
+    93
+   ],
+   "model": [
+    "let st ← (if IS_VARLEN then (do"
+   ],
+   "note": "a compile-time `if` on the constexpr `IS_VARLEN`: only the taken branch is visited; the Lean `if` on the parameter picks it"
+  },
+  {
+   "src": [
+    94
+   ],
+   "model": [
+    "let v_n ← tl.load1 (chunk_indices + i_t0 * (IntV.ofNat 2 : I64))",
+    "let i_n : I32 := (← tl.convert sD .i32 (Tensor.scalar v_n)).item",
+    "let v_t ← tl.load1 (chunk_indices + i_t0 * (IntV.ofNat 2 : I64) + (IntV.ofNat 1 : I32))",
+    "let i_t : I64 := (← tl.convert sD .i64 (Tensor.scalar v_t)).item"
+   ],
+   "note": "the tuple's right side, left to right, with the old `i_t` (`i_t0`): two scalar loads of the index dtype, each converted (`tl.convert`; `.to(tl.int32)` truncates an `int64`, Inst.ok.n_lt and SeqOk keep the value). `i_t * 2`: the constant in `int64`; `+ 1`: the pointer plus the `int32` constant"
+  },
+  {
+   "src": [
+    95
+   ],
+   "model": [
+    "let v_b ← tl.load1 (cu_seqlens + i_n)",
+    "let bos : I64 := (← tl.convert sD .i64 (Tensor.scalar v_b)).item",
+    "let v_e ← tl.load1 (cu_seqlens + i_n + (IntV.ofNat 1 : I32))",
+    "let eos : I64 := (← tl.convert sD .i64 (Tensor.scalar v_e)).item"
+   ],
+   "note": "`cu_seqlens + i_n + 1` is `(cu_seqlens + i_n) + 1`, pointer arithmetic; both loads converted to `int64`"
+  },
+  {
+   "src": [
+    96
+   ],
+   "model": [
+    "let T_n : I64 := eos - bos",
+    "pure (i_t, bos, T_n))"
+   ],
+   "note": "`T` rebound to the `int64` difference; the branch hands on the chunk `i_t`, `bos` and `T`"
+  },
+  {
+   "src": [
+    97
+   ],
+   "model": [
+    "else (do"
+   ],
+   "note": "the `else` of the compile-time `if`"
+  },
+  {
+   "src": [
+    98
+   ],
+   "model": [
+    "let bos : I64 := i_b * (IntV.cast T : I64)",
+    "let _eos : I64 := i_b * (IntV.cast T : I64) + (IntV.cast T : I64)",
+    "pure (i_t0, bos, (IntV.cast T : I64))) : Prog (I64 × I64 × I64))",
+    "let (i_t, bos, T_n) := st"
+   ],
+   "note": "`i_b * T` and `i_b * T + T`: `int64` (the `int32` `T` sign-extended); `eos` is not read after this branch; the padded `T` is the `int32` argument, sign-extended where it meets an `int64` (line 101)"
+  },
+  {
+   "src": [
+    99
+   ],
+   "model": [
+    "let o_t : Tensor [BT] I64 := i_t * (IntV.ofNat BT : I64) + ((tl.arange 0 BT).castInt : Tensor [BT] I64)"
+   ],
+   "note": "the constexpr `BT` in `int64`, the `int32` range promoted (sign extension)"
+  },
+  {
+   "src": [
+    100
+   ],
+   "model": [
+    "let o_A : Tensor [BT] I32 := tl.arange 0 BT"
+   ],
+   "note": "the source line"
+  },
+  {
+   "src": [
+    101
+   ],
+   "model": [
+    "let m_t : Tensor [BT] Bool := o_t.ltS T_n"
+   ],
+   "note": "signed `int64` comparison"
+  },
+  {
+   "src": [
+    102
+   ],
+   "model": [
+    "let m_A : Tensor [BT, BT] Bool := (m_t.col BT).and ((o_A.ltS (IntV.ofNat BT : I32)).row BT)"
+   ],
+   "note": "`m_t[:, None] & (o_A[None, :] < BT)`: the constexpr an `int32` tensor of its own type (a comparison); the broadcast to `[BT, BT]` written at once"
+  },
+  {
+   "src": [
+    103
+   ],
+   "model": [
+    "let p_b : Tensor [BT] (Ptr .f32) :=",
+    "let p_b : Tensor [BT] (Ptr .bf16) :=",
+    "beta + bos * (IntV.ofNat HV : I64) + i_h + o_t * (IntV.ofNat HV : I64)"
+   ],
+   "note": "`((beta + bos*HV) + i_h) + o_t * HV`, left to right: two `int64` scalars added to the pointer, then the `int64` block; `HV` built in `int64`"
+  },
+  {
+   "src": [
+    104
+   ],
+   "model": [
+    "let b_b : Tensor [BT] F32 ← tl.load p_b (some m_t) (some (bc (FloatV.litF32 (FloatV.ofPat 0))))",
+    "let zb : Tensor [BT] BF16 ← tl.convert .f32 .bf16 (tl.full [BT] (FloatV.litF32 (FloatV.ofPat 0)))",
+    "let b_b ← tl.load p_b (some m_t) (some zb)"
+   ],
+   "note": "`other=0.0`: the `float32` `+0`, already the pointer's dtype (`_b32`), or converted to `bfloat16` (`_b16`)"
+  },
+  {
+   "src": [
+    105
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    106
+   ],
+   "model": [
+    "let p_A : Tensor [BT, BT] (Ptr .bf16) :=",
+    "A + (bos * (IntV.ofNat HV : I64) + i_h) * (IntV.ofNat BT : I64) +",
+    "o_t.col BT * (IntV.ofNat (HV * BT) : I64) + o_A.row BT"
+   ],
+   "note": "`((A + (bos*HV + i_h) * BT) + o_t[:, None] * (HV*BT)) + o_A[None, :]`: the `int64` scalar, the `int64` column (`HV*BT` computed by Python, built in `int64`), the `int32` row; the broadcast written at once"
+  },
+  {
+   "src": [
+    107
+   ],
+   "model": [
+    "let zA : Tensor [BT, BT] BF16 ← tl.convert .f32 .bf16 (tl.full [BT, BT] (FloatV.litF32 (FloatV.ofPat 0)))",
+    "let b_A ← tl.load p_A (some m_A) (some zA)"
+   ],
+   "note": "`other=0.0`: the `float32` `+0` converted to the pointer's `bfloat16` (SEMANTICS.md, `tl.load`, Constants)"
+  },
+  {
+   "src": [
+    108
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    109
+   ],
+   "model": [
+    "tl.forRange (IntV.ofInt 0 : I32) (IntV.ofNat ((V + (BV - 1)) / BV) : I32) (IntV.ofInt 1 : I32) ()",
+    "fun i_v _ => do"
+   ],
+   "note": "`range(tl.cdiv(V, BV))`: the bound is Python's `(V + (BV - 1)) // BV` (two constexprs; the one-argument `range` evaluates it twice, with no operation), an `int32` constant, so `i_v` is an `int32` from `0`, step `1`; no name is carried (every name the body assigns is first defined there and not used after the loop)"
+  },
+  {
+   "src": [
+    110
+   ],
+   "model": [
+    "let o_v : Tensor [BV] I32 := i_v * (IntV.ofNat BV : I32) + tl.arange 0 BV"
+   ],
+   "note": "`int32`; the constexpr `BV` built in `int32`"
+  },
+  {
+   "src": [
+    111
+   ],
+   "model": [
+    "let m_v : Tensor [BT, BV] Bool := (m_t.col BV).and ((o_v.ltS (IntV.ofNat V : I32)).row BT)"
+   ],
+   "note": "as line 102, with `V` an `int32` tensor (Inst.ok.V_lt)"
+  },
+  {
+   "src": [
+    112
+   ],
+   "model": [
+    "let p_v : Tensor [BT, BV] (Ptr .bf16) :=",
+    "v + (bos * (IntV.ofNat HV : I64) + i_h) * (IntV.ofNat V : I64) +",
+    "o_t.col BV * (IntV.ofNat (HV * V) : I64) + o_v.row BT"
+   ],
+   "note": "as line 106, with `V` and `HV*V`"
+  },
+  {
+   "src": [
+    113
+   ],
+   "model": [
+    "let p_u : Tensor [BT, BV] (Ptr .bf16) :=",
+    "u + (bos * (IntV.ofNat HV : I64) + i_h) * (IntV.ofNat V : I64) +"
+   ],
+   "note": "as line 112"
+  },
+  {
+   "src": [
+    114
+   ],
+   "model": [
+    "let zV : Tensor [BT, BV] BF16 ← tl.convert .f32 .bf16 (tl.full [BT, BV] (FloatV.litF32 (FloatV.ofPat 0)))",
+    "let b_v ← tl.load p_v (some m_v) (some zV)"
+   ],
+   "note": "`other=0.0` as line 107"
+  },
+  {
+   "src": [
+    115
+   ],
+   "model": [
+    "let b_vf : Tensor [BT, BV] F32 ← tl.cvt b_v",
+    "let b_vb : Tensor [BT, BV] BF16 ← tl.cvt (← tl.mul b_vf (b_b.col BV))",
+    "let b_vb : Tensor [BT, BV] BF16 ← tl.mul b_v (b_b.col BV)"
+   ],
+   "note": "`_b16`: both operands `bfloat16`, so the IEEE `bfloat16` product (one rounding), and `.to(b_v.dtype)` is the identity. `_b32`: `bfloat16 * float32` promotes to `float32`: the exact widening of `b_v`, the IEEE `float32` product with `b_b[:, None]` broadcast (no addition consumes it, so no contraction), then `.to(b_v.dtype)`, one rounding to `bfloat16` (to nearest even)"
+  },
+  {
+   "src": [
+    116
+   ],
+   "model": [
+    "let b_u ← tl.dot cfgU b_A b_vb (tl.zeros [BT, BV] .f32)"
+   ],
+   "note": "`tl.dot` with the default accumulator, the `float32` `+0`, and no addition after it; `allow_tf32=False` is `input_precision = \"ieee\"` (`cfgU`)"
+  },
+  {
+   "src": [
+    117
+   ],
+   "model": [
+    "let s_u : Tensor [BT, BV] BF16 ← tl.cvt b_u",
+    "tl.store p_u s_u (some m_v)"
+   ],
+   "note": "`.to(p_u.dtype.element_ty)`: one rounding to `bfloat16`; the masked store"
+  },
+  {
+   "src": [
+    118
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    119
+   ],
+   "drop": "config",
+   "note": "`if USE_G:` is a compile-time `if`, taken (`USE_G = True` on every covered launch): its body is modelled"
+  },
+  {
+   "src": [
+    120
+   ],
+   "model": [
+    "let p_g : Tensor [BT] (Ptr .f32) :=",
+    "g + (bos * (IntV.ofNat HV : I64) + i_h) + o_t * (IntV.ofNat HV : I64)"
+   ],
+   "note": "`(g + (bos*HV + i_h)) + o_t * HV`: the parenthesised `int64` sum first, then the block"
+  },
+  {
+   "src": [
+    121
+   ],
+   "model": [
+    "let l_g : Tensor [BT] F32 ← tl.load p_g (some m_t) (some (bc (FloatV.litF32 (FloatV.ofPat 0))))",
+    "let b_g : Tensor [BT] F32 ← tl.exp2 l_g"
+   ],
+   "note": "the load (`other=0.0` the `float32` `+0`), then the helper `exp2` inlined (lines 65-66): `.to(tl.float32)` the identity, `tl.math.exp2`"
+  },
+  {
+   "src": [
+    122
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    123
+   ],
+   "model": [
+    "tl.forRange (IntV.ofInt 0 : I32) (IntV.ofNat ((K + (BK - 1)) / BK) : I32) (IntV.ofInt 1 : I32) ()",
+    "fun i_k _ => do"
+   ],
+   "note": "as line 109, with `K` and `BK`"
+  },
+  {
+   "src": [
+    124
+   ],
+   "model": [
+    "let o_k : Tensor [BK] I32 := i_k * (IntV.ofNat BK : I32) + tl.arange 0 BK"
+   ],
+   "note": "as line 110"
+  },
+  {
+   "src": [
+    125
+   ],
+   "model": [
+    "let m_k : Tensor [BT, BK] Bool := (m_t.col BK).and ((o_k.ltS (IntV.ofNat K : I32)).row BT)"
+   ],
+   "note": "as line 111, with `K` (Inst.ok.K_lt)"
+  },
+  {
+   "src": [
+    126
+   ],
+   "model": [
+    "let p_k : Tensor [BT, BK] (Ptr .bf16) :=",
+    "k + (bos * (IntV.ofNat H : I64) +",
+    "(← tl.idiv (Tensor.scalar i_h) (Tensor.scalar (IntV.ofNat (HV / H) : I64))).item) *",
+    "(IntV.ofNat K : I64) +",
+    "o_t.col BK * (IntV.ofNat (H * K) : I64) + o_k.row BT"
+   ],
+   "note": "`(bos*H + i_h // (HV // H)) * K`: `HV // H` computed by Python (`≥ 1`: Inst.ok.hv_div, hv_pos), built in `int64`, the truncating `tl.idiv`; then as line 106 with `K` and `H*K`"
+  },
+  {
+   "src": [
+    127
+   ],
+   "model": [
+    "let p_w : Tensor [BT, BK] (Ptr .bf16) :=",
+    "w + (bos * (IntV.ofNat HV : I64) + i_h) * (IntV.ofNat K : I64) +",
+    "o_t.col BK * (IntV.ofNat (HV * K) : I64) + o_k.row BT"
+   ],
+   "note": "as line 106, with `K` and `HV*K`"
+  },
+  {
+   "src": [
+    128
+   ],
+   "model": [
+    "let zK : Tensor [BT, BK] BF16 ← tl.convert .f32 .bf16 (tl.full [BT, BK] (FloatV.litF32 (FloatV.ofPat 0)))",
+    "let b_k ← tl.load p_k (some m_k) (some zK)"
+   ],
+   "note": "`other=0.0` as line 107"
+  },
+  {
+   "src": [
+    129
+   ],
+   "model": [
+    "let b_kf : Tensor [BT, BK] F32 ← tl.cvt b_k",
+    "let b_kb ← tl.mul b_kf (b_b.col BK)",
+    "let b_kb16 : Tensor [BT, BK] BF16 ← tl.mul b_k (b_b.col BK)"
+   ],
+   "note": "as line 115: `_b32` the exact widening and the IEEE `float32` product; `_b16` the IEEE `bfloat16` product"
+  },
+  {
+   "src": [
+    130
+   ],
+   "drop": "config",
+   "note": "`if USE_G:` taken (`USE_G = True`): its body (line 131) is modelled"
+  },
+  {
+   "src": [
+    131
+   ],
+   "model": [
+    "let b_kb ← tl.mul b_kb (b_g.col BK)",
+    "let b_kbf : Tensor [BT, BK] F32 ← tl.cvt b_kb16",
+    "let b_kb ← tl.mul b_kbf (b_g.col BK)"
+   ],
+   "note": "`b_kb *= b_g[:, None]` is `b_kb = b_kb * b_g[:, None]`: the IEEE `float32` product (no addition consumes it); in `_b16`, `b_kb` is `bfloat16`, so it is first converted to `float32` (exact)"
+  },
+  {
+   "src": [
+    132
+   ],
+   "model": [
+    "let b_kbh : Tensor [BT, BK] BF16 ← tl.cvt b_kb",
+    "let b_w ← tl.dot cfgW b_A b_kbh (tl.zeros [BT, BK] .f32)"
+   ],
+   "note": "`b_kb.to(b_k.dtype)`: one rounding to `bfloat16`; `tl.dot` with the default accumulator and `input_precision` (`tf32`, `cfgW`), no addition after it"
+  },
+  {
+   "src": [
+    133
+   ],
+   "model": [
+    "let s_w : Tensor [BT, BK] BF16 ← tl.cvt b_w",
+    "tl.store p_w s_w (some m_k)"
+   ],
+   "note": "as line 117"
+  },
+  {
+   "src": [
+    "1-57"
+   ],
+   "drop": "host",
+   "note": "the module docstring: a string expression statement, evaluated at import, binding nothing the launch reads"
+  },
+  {
+   "src": [
+    59
+   ],
+   "drop": "host",
+   "note": "`import torch`: binds `torch`, which no kernel line reads"
+  },
+  {
+   "src": [
+    "136-137"
+   ],
+   "drop": "host",
+   "note": "`prepare_lens`: a host function the kernel does not call"
+  },
+  {
+   "src": [
+    "140-161"
+   ],
+   "drop": "host",
+   "note": "`_segmented_arange`: a host function"
+  },
+  {
+   "src": [
+    "164-172"
+   ],
+   "drop": "host",
+   "note": "`prepare_chunk_indices`: a host function (it builds `chunk_indices`, SeqOk)"
+  },
+  {
+   "src": [
+    "175-220"
+   ],
+   "drop": "host",
+   "note": "`recompute_w_u_fwd`, the host: allocates `w`, `u` and launches the kernel (`launch`)"
+  }
+ ]
+}

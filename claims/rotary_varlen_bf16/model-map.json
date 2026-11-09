@@ -1,0 +1,627 @@
+{
+ "source": {
+  "file": "source/rotary.py",
+  "sha256": "a4490e7b4fec9ae41b47e006122686d1fccfb3955bc1766074a867ee6bf3ca59",
+  "ranges": [
+   [
+    1,
+    354
+   ]
+  ],
+  "host": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.RotaryVarlen",
+ "entries": [
+  {
+   "src": [
+    "1-55"
+   ],
+   "drop": "host",
+   "note": "the module docstring: a string expression statement, evaluated at import, binding nothing the launch reads"
+  },
+  {
+   "src": [
+    56,
+    58,
+    61,
+    62
+   ],
+   "drop": "comment",
+   "note": "blank lines"
+  },
+  {
+   "src": [
+    57
+   ],
+   "drop": "host",
+   "note": "`import torch`: binds `torch`, which no kernel line reads"
+  },
+  {
+   "src": [
+    59
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module (SEMANTICS.md, the supported subset); adds no step"
+  },
+  {
+   "src": [
+    60
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (SEMANTICS.md, the supported subset); adds no step"
+  },
+  {
+   "src": [
+    63
+   ],
+   "drop": "decl",
+   "note": "`@triton.jit(do_not_specialize=['T'])`: makes `T` a runtime `int32` even at `1` (SEMANTICS.md, Scalar arguments), which the model's `T : I32` is"
+  },
+  {
+   "src": [
+    "64-84"
+   ],
+   "model": [
+    "def rotary_embedding_kernel {sD oD : DType} (x cos sin y : Ptr .bf16) (cu_seqlens chunk_indices : Ptr sD)",
+    "(seq_offsets_t : Ptr oD) (seq_offsets T : I32) (B H D R TR BT BD : Nat)",
+    "(IS_SEQLEN_OFFSETS_TENSOR IS_VARLEN INTERLEAVED : Bool) : Kernel where"
+   ],
+   "note": "the signature: tensors as pointers (`cu_seqlens`, `chunk_indices` of the index dtype `sD`, `None` when padded); `seq_offsets` is an `int` (a runtime `int32` scalar, `seq_offsets`) when `IS_SEQLEN_OFFSETS_TENSOR = False` and a pointer of the offsets' dtype `oD` (`seq_offsets_t`) when `True`, each path reading only its own one; `T` a runtime `int32` scalar; the constexprs as Lean parameters (`IS_SEQLEN_OFFSETS_TENSOR`, `IS_VARLEN`, `INTERLEAVED` as `Bool`); `CONJUGATE = False` on every covered instance (`model`), so it is not a parameter"
+  },
+  {
+   "src": [
+    85
+   ],
+   "model": [
+    "let i_t0 : I64 := IntV.cast (tl.program_id ctx 0)",
+    "let i_b : I64 := IntV.cast (tl.program_id ctx 1)",
+    "let i_h : I32 := tl.program_id ctx 2"
+   ],
+   "note": "`.to(tl.int64)` of the `int32` program ids: sign extension (`IntV.cast`); axis 2 stays `int32`"
+  },
+  {
+   "src": [
+    86
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    87
+   ],
+   "model": "let st ← (if IS_VARLEN then (do",
+   "note": "a compile-time `if` on the constexpr `IS_VARLEN`: only the taken branch is visited; the Lean `if` on the parameter picks it"
+  },
+  {
+   "src": [
+    88
+   ],
+   "model": [
+    "let v_n ← tl.load1 (chunk_indices + i_t0 * (IntV.ofNat 2 : I64))",
+    "let i_n : I32 := (← tl.convert sD .i32 (Tensor.scalar v_n)).item",
+    "let v_t ← tl.load1 (chunk_indices + i_t0 * (IntV.ofNat 2 : I64) + (IntV.ofNat 1 : I32))",
+    "let i_t : I64 := (← tl.convert sD .i64 (Tensor.scalar v_t)).item"
+   ],
+   "note": "the tuple's right side, left to right: two scalar loads of the index dtype, each converted (`tl.convert`; `.to(tl.int32)` truncates an `int64`, Inst.ok.n_lt keeps the value). `i_t * 2`: the constant in `int64`; `+ 1`: the pointer plus an `int32` constant"
+  },
+  {
+   "src": [
+    89
+   ],
+   "model": [
+    "let v_b ← tl.load1 (cu_seqlens + i_n)",
+    "let bos : I64 := (← tl.convert sD .i64 (Tensor.scalar v_b)).item",
+    "let v_e ← tl.load1 (cu_seqlens + i_n + (IntV.ofNat 1 : I32))",
+    "let eos : I64 := (← tl.convert sD .i64 (Tensor.scalar v_e)).item"
+   ],
+   "note": "`cu_seqlens + i_n + 1` is `(cu_seqlens + i_n) + 1`, pointer arithmetic (no integer wrap); both loads converted to `int64`"
+  },
+  {
+   "src": [
+    90
+   ],
+   "model": "let T_n : I64 := eos - bos",
+   "note": "`T` rebound to the `int64` difference; used by line 98 and the mask"
+  },
+  {
+   "src": [
+    91
+   ],
+   "model": "let x_h : Ptr .bf16 := x + bos * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) + i_h * (IntV.ofNat D : I32)",
+   "note": "`x + bos * H*D + i_h * D` is `(x + ((bos * H) * D)) + (i_h * D)`: the constexprs built in the operand's dtype (`int64`, then `int32`; `i_h * D < 2^24`)"
+  },
+  {
+   "src": [
+    92
+   ],
+   "model": "let y_h : Ptr .bf16 := y + bos * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) + i_h * (IntV.ofNat D : I32)",
+   "note": "as line 91"
+  },
+  {
+   "src": [
+    93
+   ],
+   "model": "else (do",
+   "note": "the `else` of the compile-time `if`"
+  },
+  {
+   "src": [
+    94
+   ],
+   "model": [
+    "pure (i_t0, x_h, y_h, (IntV.cast T : I64), (IntV.ofNat 0 : I32))) :",
+    "Prog (I64 × Ptr .bf16 × Ptr .bf16 × I64 × I32))"
+   ],
+   "note": "`i_n = i_b`: on the padded path line 105 reads `i_n` as the `int64` program id `i_b` (the model's line 105 uses `i_b` there), so the branch's tuple carries only the packed path's `int32` `i_n`, here an unused `0`; the padded `T` is the `int32` argument, sign-extended where it meets an `int64`"
+  },
+  {
+   "src": [
+    95
+   ],
+   "model": "let x_h : Ptr .bf16 := x + i_b * (IntV.cast T : I64) * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) + i_h * (IntV.ofNat D : I32)",
+   "note": "`x + i_n * T*H*D + i_h * D`: `((i_n * T) * H) * D` in `int64` (`T` promoted, sign extension), then the `int32` `i_h * D`"
+  },
+  {
+   "src": [
+    96
+   ],
+   "model": "let y_h : Ptr .bf16 := y + i_b * (IntV.cast T : I64) * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) + i_h * (IntV.ofNat D : I32)",
+   "note": "as line 95"
+  },
+  {
+   "src": [
+    97
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    98
+   ],
+   "model": "if IntV.le T_n (i_t * (IntV.ofNat BT : I64)) then",
+   "note": "a runtime `if` on scalars: `i_t * BT >= T`, signed `int64` (padded `T` sign-extended)"
+  },
+  {
+   "src": [
+    99
+   ],
+   "model": "return ()",
+   "note": "the early return"
+  },
+  {
+   "src": [
+    100
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    101
+   ],
+   "model": "let o_t : Tensor [BT] I64 := i_t * (IntV.ofNat BT : I64) + ((tl.arange 0 BT).castInt : Tensor [BT] I64)",
+   "note": "`int64` scalar plus the `int32` range promoted (sign extension)"
+  },
+  {
+   "src": [
+    102
+   ],
+   "note": "`if not IS_SEQLEN_OFFSETS_TENSOR:` is a compile-time `if` on the constexpr; the Lean `if` on the parameter picks the visited branch",
+   "model": "let o_cs : Tensor [BT] I64 ← (if !IS_SEQLEN_OFFSETS_TENSOR then"
+  },
+  {
+   "src": [
+    103
+   ],
+   "model": "pure (o_t + (IntV.cast seq_offsets : I64))",
+   "note": "`o_cs = o_t + seq_offsets`: the `int32` offset promoted to `int64` (sign extension); at offset `1` (a constexpr) the same value"
+  },
+  {
+   "src": [
+    104
+   ],
+   "model": "else (do",
+   "note": "the `else` of the compile-time `if`"
+  },
+  {
+   "src": [
+    105
+   ],
+   "model": [
+    "let v_o ← tl.load1 (if IS_VARLEN then seq_offsets_t + i_n else seq_offsets_t + i_b)",
+    "let off_n : I64 := (← tl.convert oD .i64 (Tensor.scalar v_o)).item",
+    "pure (o_t + off_n)) : Prog (Tensor [BT] I64))"
+   ],
+   "note": "`o_cs = o_t + tl.load(seq_offsets + i_n)`: a scalar load of the offsets' dtype at the sequence's index (the `int32` `i_n` when packed, the `int64` `i_b` when padded, line 94), promoted to `int64` for the sum with the `int64` `o_t` (`tl.convert`: sign extension of an `int32`, the identity on an `int64`), then broadcast"
+  },
+  {
+   "src": [
+    106
+   ],
+   "model": [
+    "let m_t : Tensor [BT] Bool :=",
+    "(((o_t.ltS (IntV.ofInt 0 : I64)).not.and (o_t.ltS T_n)).and",
+    "(o_cs.ltS (IntV.ofInt 0 : I64)).not).and (o_cs.ltS (IntV.ofNat TR : I64))"
+   ],
+   "note": "`&` left-associative; each Python integer an `int32` tensor converted to `int64` (same value); `a >= 0` as `not (a < 0)`; `TR` the constexpr"
+  },
+  {
+   "src": [
+    107
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    108
+   ],
+   "model": "if !INTERLEAVED then (do",
+   "note": "a compile-time `if` on the constexpr `INTERLEAVED`"
+  },
+  {
+   "src": [
+    109
+   ],
+   "drop": "comment",
+   "note": "comment"
+  },
+  {
+   "src": [
+    110
+   ],
+   "model": "let o_r : Tensor [BD / 2] I32 := tl.arange 0 (BD / 2)",
+   "note": "`BD // 2` is Python's floor division of the constexpr"
+  },
+  {
+   "src": [
+    111
+   ],
+   "model": [
+    "let p_x : Tensor [BT, BD / 2] (Ptr .bf16) :=",
+    "x_h + o_t.col (BD / 2) * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) + o_r.row BT"
+   ],
+   "note": "`(x + ((o_t[:, None] * H) * D)) + o_r[None, :]`: the `int64` column, then the `int32` row (pointer plus offsets, each at its value); the broadcast to `[BT, BD // 2]` written at once"
+  },
+  {
+   "src": [
+    112
+   ],
+   "model": [
+    "let p_cos : Tensor [BT, BD / 2] (Ptr .bf16) :=",
+    "cos + (o_cs.col (BD / 2) * (IntV.ofNat R : I64) + ((o_r.row BT).castInt : Tensor [BT, BD / 2] I64))"
+   ],
+   "note": "the parenthesised sum first: `int64` (the `int32` `o_r` promoted), then the pointer"
+  },
+  {
+   "src": [
+    113
+   ],
+   "model": [
+    "let p_sin : Tensor [BT, BD / 2] (Ptr .bf16) :=",
+    "sin + (o_cs.col (BD / 2) * (IntV.ofNat R : I64) + ((o_r.row BT).castInt : Tensor [BT, BD / 2] I64))"
+   ],
+   "note": "as line 112"
+  },
+  {
+   "src": [
+    114
+   ],
+   "model": [
+    "let mask : Tensor [BT, BD / 2] Bool :=",
+    "(m_t.col (BD / 2)).and ((o_r.ltS (IntV.ofNat R : I32)).row BT)"
+   ],
+   "note": "`m_t[:, None] & (o_r < R)[None, :]`"
+  },
+  {
+   "src": [
+    115
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    116
+   ],
+   "model": [
+    "tl.convert .f32 .bf16 (tl.full [BT, BD / 2] (FloatV.litF32 (FloatV.ofPat 0x3FF0000000000000)))",
+    "let l_cos ← tl.load p_cos (some mask) (some one_bf)",
+    "let b_cos : Tensor [BT, BD / 2] F32 ← tl.cvt l_cos"
+   ],
+   "note": "`other=1.0`: a `float32` tensor converted to the pointer's `bfloat16` (SEMANTICS.md, `tl.load`, Constants), exactly `1.0`; `.to(tl.float32)` the exact widening"
+  },
+  {
+   "src": [
+    117
+   ],
+   "model": [
+    "tl.convert .f32 .bf16 (tl.full [BT, BD / 2] (FloatV.litF32 (FloatV.ofPat 0)))",
+    "let l_sin ← tl.load p_sin (some mask) (some zero_bf)",
+    "let b_sin : Tensor [BT, BD / 2] F32 ← tl.cvt l_sin"
+   ],
+   "note": "`other=0.0`: `+0.0` in `float32`, converted to `bfloat16`"
+  },
+  {
+   "src": [
+    118
+   ],
+   "model": [
+    "let l_x0 ← tl.load p_x (some mask) (some zero_bf)",
+    "let b_x0 : Tensor [BT, BD / 2] F32 ← tl.cvt l_x0"
+   ],
+   "note": "as line 117"
+  },
+  {
+   "src": [
+    119
+   ],
+   "model": [
+    "let l_x1 ← tl.load (p_x + (bc (IntV.ofNat R : I32) : Tensor [BT, BD / 2] I32)) (some mask) (some zero_bf)",
+    "let b_x1 : Tensor [BT, BD / 2] F32 ← tl.cvt l_x1"
+   ],
+   "note": "`p_x + R`: the constexpr `R` as an `int32` constant"
+  },
+  {
+   "src": [
+    120,
+    121
+   ],
+   "drop": "config",
+   "note": "`if CONJUGATE:` not taken (`CONJUGATE = False`, the forward)"
+  },
+  {
+   "src": [
+    122
+   ],
+   "model": "let b_o0 ← tl.subc (← tl.mul b_x0 b_cos) (← tl.mul b_x1 b_sin)",
+   "note": "products feed the subtraction: the fusable `tl.subc` (IEEE, or an `fma` contraction); the products themselves IEEE `tl.mul`"
+  },
+  {
+   "src": [
+    123
+   ],
+   "model": "let b_o1 ← tl.addc (← tl.mul b_x0 b_sin) (← tl.mul b_x1 b_cos)",
+   "note": "as line 122, `tl.addc`"
+  },
+  {
+   "src": [
+    124
+   ],
+   "model": [
+    "let p_y : Tensor [BT, BD / 2] (Ptr .bf16) :=",
+    "y_h + (o_t.col (BD / 2) * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) +",
+    "((o_r.row BT).castInt : Tensor [BT, BD / 2] I64))"
+   ],
+   "note": "parenthesised: the `int64` sum, then the pointer"
+  },
+  {
+   "src": [
+    125
+   ],
+   "model": [
+    "let s_o0 : Tensor [BT, BD / 2] BF16 ← tl.cvt b_o0",
+    "tl.store p_y s_o0 (some mask)"
+   ],
+   "note": "the stored `float32` value converted to `y`'s `bfloat16` (round to nearest even)"
+  },
+  {
+   "src": [
+    126
+   ],
+   "model": [
+    "let s_o1 : Tensor [BT, BD / 2] BF16 ← tl.cvt b_o1",
+    "tl.store (p_y + (bc (IntV.ofNat R : I32) : Tensor [BT, BD / 2] I32)) s_o1 (some mask))"
+   ],
+   "note": "`p_y + R`, as line 119"
+  },
+  {
+   "src": [
+    127
+   ],
+   "model": "else (do",
+   "note": "the interleaved branch"
+  },
+  {
+   "src": [
+    "128-133"
+   ],
+   "drop": "comment",
+   "note": "comments"
+  },
+  {
+   "src": [
+    134
+   ],
+   "model": "let o_d : Tensor [BD] I32 := tl.arange 0 BD",
+   "note": "the source line"
+  },
+  {
+   "src": [
+    135
+   ],
+   "drop": "comment",
+   "note": "comment"
+  },
+  {
+   "src": [
+    136
+   ],
+   "model": [
+    "let r_swap ← tl.irem (o_d + (IntV.ofNat 1 : I32)) (bc (IntV.ofNat 2 : I32))",
+    "let o_d_swap : Tensor [BD] I32 := o_d + r_swap * (IntV.ofNat 2 : I32) - bc (IntV.ofNat 1 : I32)"
+   ],
+   "note": "`(o_d + (((o_d + 1) % 2) * 2)) - 1` in `int32`; `%` is `tl.irem` (the divisor `2` nonzero)"
+  },
+  {
+   "src": [
+    137
+   ],
+   "model": "let o_d_repeat ← tl.idiv (tl.arange 0 BD) (bc (IntV.ofNat 2 : I32))",
+   "note": "`//` on a nonnegative `int32` tensor: `tl.idiv`"
+  },
+  {
+   "src": [
+    138
+   ],
+   "model": [
+    "let p_x0 : Tensor [BT, BD] (Ptr .bf16) :=",
+    "x_h + o_t.col BD * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) + o_d.row BT"
+   ],
+   "note": "as line 111"
+  },
+  {
+   "src": [
+    139
+   ],
+   "model": [
+    "let p_x1 : Tensor [BT, BD] (Ptr .bf16) :=",
+    "x_h + o_t.col BD * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) + o_d_swap.row BT"
+   ],
+   "note": "as line 111"
+  },
+  {
+   "src": [
+    140
+   ],
+   "model": [
+    "let p_cos : Tensor [BT, BD] (Ptr .bf16) :=",
+    "cos + (o_cs.col BD * (IntV.ofNat R : I64) + ((o_d_repeat.row BT).castInt : Tensor [BT, BD] I64))"
+   ],
+   "note": "as line 112"
+  },
+  {
+   "src": [
+    141
+   ],
+   "model": [
+    "let p_sin : Tensor [BT, BD] (Ptr .bf16) :=",
+    "sin + (o_cs.col BD * (IntV.ofNat R : I64) + ((o_d_repeat.row BT).castInt : Tensor [BT, BD] I64))"
+   ],
+   "note": "as line 112"
+  },
+  {
+   "src": [
+    142
+   ],
+   "model": [
+    "let mask : Tensor [BT, BD] Bool :=",
+    "(m_t.col BD).and ((o_d_repeat.ltS (IntV.ofNat R : I32)).row BT)"
+   ],
+   "note": "as line 114"
+  },
+  {
+   "src": [
+    143
+   ],
+   "drop": "comment",
+   "note": "blank line"
+  },
+  {
+   "src": [
+    144
+   ],
+   "model": [
+    "tl.convert .f32 .bf16 (tl.full [BT, BD] (FloatV.litF32 (FloatV.ofPat 0x3FF0000000000000)))",
+    "let b_cos : Tensor [BT, BD] F32 ← tl.cvt l_cos"
+   ],
+   "note": "as line 116"
+  },
+  {
+   "src": [
+    145
+   ],
+   "model": [
+    "tl.convert .f32 .bf16 (tl.full [BT, BD] (FloatV.litF32 (FloatV.ofPat 0)))",
+    "let b_sin : Tensor [BT, BD] F32 ← tl.cvt l_sin"
+   ],
+   "note": "as line 117"
+  },
+  {
+   "src": [
+    146
+   ],
+   "model": [
+    "let l_x0 ← tl.load p_x0 (some mask) (some zero_bf)",
+    "let b_x0 : Tensor [BT, BD] F32 ← tl.cvt l_x0"
+   ],
+   "note": "as line 117"
+  },
+  {
+   "src": [
+    147
+   ],
+   "model": [
+    "let l_x1 ← tl.load p_x1 (some mask) (some zero_bf)",
+    "let b_x1 : Tensor [BT, BD] F32 ← tl.cvt l_x1"
+   ],
+   "note": "as line 117"
+  },
+  {
+   "src": [
+    148,
+    149
+   ],
+   "drop": "config",
+   "note": "`if CONJUGATE:` not taken"
+  },
+  {
+   "src": [
+    150
+   ],
+   "model": "let b_o0 ← tl.mul b_x0 b_cos",
+   "note": "the IEEE product (the addition it feeds, line 152, is fusable)"
+  },
+  {
+   "src": [
+    151
+   ],
+   "model": "let b_o1 ← tl.mul b_x1 b_sin",
+   "note": "as line 150"
+  },
+  {
+   "src": [
+    152
+   ],
+   "model": [
+    "let r_par ← tl.irem o_d (bc (IntV.ofNat 2 : I32))",
+    "let even : Tensor [BT, BD] Bool := (Tensor.eq r_par (bc (IntV.ofInt 0 : I32))).row BT",
+    "let b_dif ← tl.subc b_o0 b_o1",
+    "let b_sum ← tl.addc b_o0 b_o1",
+    "let b_y : Tensor [BT, BD] F32 := tl.where even b_dif b_sum"
+   ],
+   "note": "arguments left to right: the condition (`int1`), the difference and the sum (products feed both: `tl.subc`, `tl.addc`); `tl.where` broadcasts the `[1, BD]` condition"
+  },
+  {
+   "src": [
+    153
+   ],
+   "model": [
+    "let p_y : Tensor [BT, BD] (Ptr .bf16) :=",
+    "y_h + (o_t.col BD * (IntV.ofNat H : I64) * (IntV.ofNat D : I64) +",
+    "((o_d.row BT).castInt : Tensor [BT, BD] I64))"
+   ],
+   "note": "as line 124"
+  },
+  {
+   "src": [
+    154
+   ],
+   "model": [
+    "let s_y : Tensor [BT, BD] BF16 ← tl.cvt b_y",
+    "tl.store p_y s_y (some mask))"
+   ],
+   "note": "as line 125"
+  },
+  {
+   "src": [
+    "155-354"
+   ],
+   "drop": "host",
+   "note": "host code (the helpers, `rotary_embedding_fwd`, `reference`, `cos_sin_cache`, the test under `__main__`): run only on the host; the launch reads none of their names. `rotary_embedding_fwd`'s launch is `launch`; its asserts and allocations are Inst.ok's conditions"
+  }
+ ]
+}

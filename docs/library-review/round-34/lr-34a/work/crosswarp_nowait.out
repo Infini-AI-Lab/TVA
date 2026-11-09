@@ -1,0 +1,6 @@
+if q == 1: tl.atomic_add(Y, 1); watched C[511] (warp 3) sem=acq_rel N=400 M=60: Q=1 in 200/200, Q=1 and OUT[0]=1 (no outcome of the semantics) in 200/200
+if q == 1: tl.atomic_add(Y, 1); watched C[511] (warp 3) sem=relaxed N=400 M=60: Q=1 in 200/200, Q=1 and OUT[0]=1 (no outcome of the semantics) in 200/200
+tl.atomic_add(Y, q); watched C[511] (warp 3) sem=acq_rel N=400 M=60: Q=1 in 200/200, Q=1 and OUT[0]=1 (no outcome of the semantics) in 200/200
+tl.atomic_add(Y, q); watched C[511] (warp 3) sem=relaxed N=400 M=60: Q=1 in 200/200, Q=1 and OUT[0]=1 (no outcome of the semantics) in 200/200
+if q == 1: tl.atomic_add(Y, 1); watched C[0] (warp 0) sem=acq_rel N=400 M=60: Q=1 in 0/200, Q=1 and OUT[0]=1 (no outcome of the semantics) in 0/200
+if q == 1: tl.atomic_add(Y, 1); watched C[0] (warp 0) sem=relaxed N=400 M=60: Q=1 in 0/200, Q=1 and OUT[0]=1 (no outcome of the semantics) in 0/200

@@ -6,6 +6,10 @@ Library evidence (not a kernel's), for library issues L7, L40, L48, L50, L51, L5
 fetches from the packages' upstream repositories). Script: [run.py](run.py); output: [out.txt](out.txt).
 The release check's own run is in the round-10 author's notes.
 
+**Since round 35** (library issues L160, L170) the release check compares no kernel's certificate or
+generated pages (it checks no kernel's gate): in Question 6, only the ledgers' comparison is still a
+step of it (`records`).
+
 **Questions.**
 1. (L7) Does the `packages` step refuse a Mathlib commit that is not the upstream ref the manifest's
    `inputRev` names, an inherited package that Mathlib's own manifest does not pin, and a checkout whose

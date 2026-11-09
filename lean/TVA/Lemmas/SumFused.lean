@@ -22,7 +22,9 @@ operands' magnitudes, and a tree of such nodes keeps the same shape of bound:
   `4η` (absolute), and room `A + errBound ≤ maxVal/2 − 2η`;
 * `sum_bcast_mul_tree_err`: the tree form of `tl.sum_bcast_mul` on `float32` (rounded products
   summed by fusable additions), against the exact `Σ a·b`; `sum_bcast_mul_err` adds the other
-  form, the `ieee` `tl.dot`, with `Rules.Num.DotF32Ieee`.
+  form, the `ieee` `tl.dot`, with `Rules.Num.DotF32Ieee`;
+* `sum_bcast_mul_depth_err`: the same composition along a tree of depth at most `D`
+  (`bcastDepthBound`; `D = Nat.clog 2 K` with `Rules.Num.SumDepth`; library issue L159).
 -/
 namespace TVA
 
@@ -161,6 +163,32 @@ theorem sumc_err_covers (hf : f.Regular) (hs : f.specials ≠ .finite) (hu : f.u
   rw [Tree.sumOf_covers FloatV.toRat x hcov, Tree.absSumOf_covers FloatV.toRat x hcov] at herr
   exact ⟨hfin, herr.trans hmono⟩
 
+/-- **A float reduction with fusable additions along a tree over `0, …, n−1` of depth at most
+`D`**: as `sumc_err_covers`, with depth `D` (library issue L149: with `Rules.Num.SumDepth`,
+`D = ⌈log₂ n⌉`). -/
+theorem sumc_err_depth (hf : f.Regular) (hs : f.specials ≠ .finite) (hu : f.u ≤ 1 / 16) (fusion : Bool)
+    (x : Nat → FloatV f) {n D : Nat} {t : Tree} {r : FloatV f}
+    (hcov : t.Covers n) (hd : t.depth ≤ D) (h : t.Eval (AddRel fusion) x r)
+    (hx : ∀ i, i < n → (x i).isFinite = true)
+    (hM : ((List.range n).map fun i => |(x i).toRat|).sum +
+      Tree.errBound (3 * f.u) (4 * f.eta) D (n - 1) ((List.range n).map fun i => |(x i).toRat|).sum ≤
+        f.maxVal / 2 - 2 * f.eta) :
+    r.isFinite = true ∧
+      |r.toRat - ((List.range n).map fun i => (x i).toRat).sum| ≤
+        Tree.errBound (3 * f.u) (4 * f.eta) D (n - 1) ((List.range n).map fun i => |(x i).toRat|).sum := by
+  have hδ : (0 : ℚ) ≤ 3 * f.u := mul_nonneg (by norm_num) u_nonneg
+  have hη : (0 : ℚ) ≤ 4 * f.eta := mul_nonneg (by norm_num) eta_nonneg
+  have hN := Tree.nodes_of_covers hcov
+  have hmono := Tree.errBound_mono hδ hη hd (show t.nodes ≤ n - 1 by omega)
+    (Tree.absSumOf_nonneg FloatV.toRat x t) (le_refl (Tree.absSumOf FloatV.toRat x t))
+  rw [Tree.absSumOf_covers FloatV.toRat x hcov] at hmono
+  have hx' : ∀ i ∈ t.leaves, (x i).isFinite = true := fun i hi =>
+    hx i (List.mem_range.mp (hcov.subset hi))
+  obtain ⟨hfin, herr⟩ := sumc_err hf hs hu fusion x h hx'
+    (by rw [Tree.absSumOf_covers FloatV.toRat x hcov]; linarith)
+  rw [Tree.sumOf_covers FloatV.toRat x hcov, Tree.absSumOf_covers FloatV.toRat x hcov] at herr
+  exact ⟨hfin, herr.trans hmono⟩
+
 /-- **A float sum with fusable additions along a tree whose leaves are the list `L` up to
 order** (`L` without repeats): a position of `tl.cumsumc` (`ScanLeaves.perm`), a reduction, a
 segment. The bound uses depth and node count `|L| − 1`. -/
@@ -275,6 +303,92 @@ theorem sum_bcast_mul_tree_err {fusion : Bool} {K : Nat} (a b p : Nat → F32) {
     rw [Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
       nsmul_eq_mul, hB, sum_range_fin]
   unfold bcastTreeBound
+  have e : r.toRat - ((List.range K).map fun k => (a k).toRat * (b k).toRat).sum =
+      (r.toRat - ((List.range K).map fun k => (p k).toRat).sum) +
+        (((List.range K).map fun k => (p k).toRat).sum -
+          ((List.range K).map fun k => (a k).toRat * (b k).toRat).sum) := by ring
+  rw [e]
+  exact (abs_add_le _ _).trans (add_le_add (herr.trans hmono) hsumP)
+
+/-- The bound of the products `a k · b k` (`K` of them, absolute sum `B`), each rounded once in
+`float32`, summed along a tree of fusable additions of depth at most `D`: `bcastTreeBound` with
+depth `D` in place of `K − 1` (library issue L159). -/
+def bcastDepthBound (D K : Nat) (B : ℚ) : ℚ :=
+  Tree.errBound (3 * Format.binary32.u) (4 * Format.binary32.eta) D (K - 1)
+      ((1 + Format.binary32.u) * B + K * Format.binary32.eta) +
+    (Format.binary32.u * B + K * Format.binary32.eta)
+
+/-- `bcastTreeBound` is `bcastDepthBound` at depth `K − 1`. -/
+theorem bcastTreeBound_eq (K : Nat) (B : ℚ) : bcastTreeBound K B = bcastDepthBound (K - 1) K B := rfl
+
+/-- **Rounded `float32` products summed along a tree of depth at most `D`** (library issue L159),
+for one output element: products `p k` of `a k · b k` (IEEE, `tl.MulRel`) summed along a tree over
+`0, …, K−1` of depth at most `D` with fusable additions (`AccAdd`) are within
+`bcastDepthBound D K B` of `Σ a k · b k`, `B = Σ |a k · b k|`, when the operands are finite and
+there is room. The composition of `sum_bcast_mul_tree_err`, with `sumc_err_depth` for
+`sumc_err_covers`. A float reduction of products (`tl.sum1c` of `tl.mul`) has a tree of depth at
+most `tl.sumBound P K`, which `Rules.Num.SumDepth` with `SumDepth.depth_le` bounds by
+`Nat.clog 2 K` (`D = Nat.clog 2 K`; `log₂ K` for a power of two, `Rules.Num.clog_two_pow`).
+`tl.sum_bcast_mul` states no depth for its tree form, so this lemma is for a model that writes the
+products and the reduction (`tl.mul`, then `tl.sumc` or its axis forms). -/
+theorem sum_bcast_mul_depth_err {fusion : Bool} {K D : Nat} (a b p : Nat → F32) {t : Tree} {r : F32}
+    (hp : ∀ k, k < K → tl.MulRel .f32 (a k) (b k) (p k)) (hcov : t.Covers K) (hd : t.depth ≤ D)
+    (ht : t.Eval (AccAdd fusion .f32) p r)
+    (ha : ∀ k, k < K → (a k).isFinite = true) (hb : ∀ k, k < K → (b k).isFinite = true)
+    (hab : ∀ k, k < K → |(a k).toRat * (b k).toRat| ≤ Format.binary32.maxVal)
+    (hM : ((1 + Format.binary32.u) * ((List.range K).map fun k => |(a k).toRat * (b k).toRat|).sum +
+        K * Format.binary32.eta) +
+      Tree.errBound (3 * Format.binary32.u) (4 * Format.binary32.eta) D (K - 1)
+        ((1 + Format.binary32.u) * ((List.range K).map fun k => |(a k).toRat * (b k).toRat|).sum +
+          K * Format.binary32.eta) ≤ Format.binary32.maxVal / 2 - 2 * Format.binary32.eta) :
+    r.isFinite = true ∧
+      |r.toRat - ((List.range K).map fun k => (a k).toRat * (b k).toRat).sum| ≤
+        bcastDepthBound D K ((List.range K).map fun k => |(a k).toRat * (b k).toRat|).sum := by
+  have hu0 := u_nonneg (f := Format.binary32)
+  have he0 := eta_nonneg (f := Format.binary32)
+  have hpe : ∀ k, k < K → (p k).isFinite = true ∧
+      |(p k).toRat - (a k).toRat * (b k).toRat| ≤ |(a k).toRat * (b k).toRat| * Format.binary32.u +
+        Format.binary32.eta := by
+    intro k hk
+    obtain ⟨hfin, herr⟩ := FloatV.mul_err Format.binary32_regular (ha k hk) (hb k hk) (hab k hk)
+    have hne : FloatV.NaNEq (FloatV.mul (a k) (b k)) (p k) := hp k hk
+    rw [hne.eq (FloatV.isFinite_iff.mp hfin).1]
+    exact ⟨hfin, herr⟩
+  set B := ((List.range K).map fun k => |(a k).toRat * (b k).toRat|).sum with hB
+  have hP : ((List.range K).map fun k => |(p k).toRat|).sum ≤ (1 + Format.binary32.u) * B +
+      K * Format.binary32.eta := by
+    have : ∀ k ∈ List.range K, |(p k).toRat| ≤
+        (1 + Format.binary32.u) * |(a k).toRat * (b k).toRat| + Format.binary32.eta := by
+      intro k hk
+      have hk' := List.mem_range.mp hk
+      have h1 := (hpe k hk').2
+      have h2 := abs_sub_abs_le_abs_sub (p k).toRat ((a k).toRat * (b k).toRat)
+      nlinarith
+    have hsum := List.sum_le_sum this
+    rw [List.sum_map_add, List.sum_map_mul_left] at hsum
+    simpa [hB, mul_comm] using hsum
+  have hAP := List.sum_nonneg (l := (List.range K).map fun k => |(p k).toRat|)
+    (by simp only [List.mem_map]; rintro _ ⟨k, -, rfl⟩; exact abs_nonneg _)
+  have hδ : (0 : ℚ) ≤ 3 * Format.binary32.u := by positivity
+  have hη : (0 : ℚ) ≤ 4 * Format.binary32.eta := by positivity
+  have hmono := Tree.errBound_mono (d := D) (d' := D) (N := K - 1) (N' := K - 1) hδ hη le_rfl le_rfl hAP hP
+  have ht' : t.Eval (AddRel fusion) p r := ht
+  obtain ⟨hfin, herr⟩ := sumc_err_depth Format.binary32_regular (by decide) u32_le fusion p hcov hd ht'
+    (fun k hk => (hpe k hk).1) (by linarith)
+  refine ⟨hfin, ?_⟩
+  have hsumP : |((List.range K).map fun k => (p k).toRat).sum -
+      ((List.range K).map fun k => (a k).toRat * (b k).toRat).sum| ≤
+      Format.binary32.u * B + K * Format.binary32.eta := by
+    rw [sum_range_fin, sum_range_fin, ← Finset.sum_sub_distrib]
+    refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+    have hle : ∀ k ∈ (Finset.univ : Finset (Fin K)), |(p k).toRat - (a k).toRat * (b k).toRat| ≤
+        Format.binary32.u * |(a k).toRat * (b k).toRat| + Format.binary32.eta := fun k _ => by
+      have := (hpe k k.isLt).2
+      linarith [mul_comm (|(a k).toRat * (b k).toRat|) Format.binary32.u]
+    refine (Finset.sum_le_sum hle).trans (le_of_eq ?_)
+    rw [Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+      nsmul_eq_mul, hB, sum_range_fin]
+  unfold bcastDepthBound
   have e : r.toRat - ((List.range K).map fun k => (a k).toRat * (b k).toRat).sum =
       (r.toRat - ((List.range K).map fun k => (p k).toRat).sum) +
         (((List.range K).map fun k => (p k).toRat).sum -

@@ -225,6 +225,36 @@
       "source": "triton-3.8.0-backends-compiler.py",
       "sha256": "c5d3403b88b5bb728f8ac78c55163198e418430f126c842892c68cb4b6baaa78",
       "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/backends/compiler.py"
+    },
+    {
+      "source": "triton-3.8.0-PipeliningUtility.cpp",
+      "sha256": "48ed619d8ceefb8f424fbc69e8b5a7fd8b0b31306df20c90601287e93acaae0e",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Dialect/TritonGPU/Transforms/Pipeliner/PipeliningUtility.cpp"
+    },
+    {
+      "source": "triton-3.8.0-ReduceOpToLLVM.cpp",
+      "sha256": "b10f0ef68d3555f39302362e6d0a17756642d4e79df46b71613b903546bddb87",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Conversion/TritonGPUToLLVM/ReduceOpToLLVM.cpp"
+    },
+    {
+      "source": "triton-3.8.0-TargetInfoBase.h",
+      "sha256": "f69c4982448b9ee30592c4f250b26f6f189f3fdefbd02a80cf29456b789b4f75",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/include/triton/Conversion/TritonGPUToLLVM/TargetInfoBase.h"
+    },
+    {
+      "source": "triton-3.8.0-OptimizeThreadLocality.cpp",
+      "sha256": "409fe6c7c169f8c7c3a82247ffa84229be710f474ce649ce06bb521512f4f336",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Dialect/TritonGPU/Transforms/OptimizeThreadLocality.cpp"
+    },
+    {
+      "source": "triton-3.8.0-AccelerateMatmul.cpp",
+      "sha256": "64e41a3762a34a4e37369856d961b9450c1fba546f7531cf0dc54a4526dc0d33",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/lib/Dialect/TritonGPU/Transforms/AccelerateMatmul.cpp"
+    },
+    {
+      "source": "triton-3.8.0-TritonGPUAttrDefs.td",
+      "sha256": "1f19db896a652ef4786a3a72ea87ec3314317213a27c43b76875f1f58f894665",
+      "upstream": "https://github.com/triton-lang/triton/blob/v3.8.0/include/triton/Dialect/TritonGPU/IR/TritonGPUAttrDefs.td"
     }
   ],
   "api_exports": [

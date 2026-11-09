@@ -1,0 +1,28 @@
+Triton 3.8.0, torch 2.11.0+cu130, numpy 2.3.5, NVIDIA H200 NVL
+
+## A. PTX division instructions
+- tl.fdiv(ieee_rounding=True), float32 operands: div.rn.f32; result 1 `tt.precise_divf`
+- tl.div_rn, float32 operands: div.rn.f32; result 1 `tt.precise_divf`
+- tl.fdiv, float32 operands: div.full.f32; result 0 `tt.precise_divf`
+- tl.fdiv(ieee_rounding=True), float16 operands: rejected (RuntimeError: failed to translate module to LLVM IR)
+- tl.div_rn, float16 operands: rejected (CompilationError: at 8:12:)
+- tl.fdiv, float16 operands: rejected (RuntimeError: PassManager::run failed)
+- tl.fdiv(ieee_rounding=True), bfloat16 operands: rejected (RuntimeError: failed to translate module to LLVM IR)
+- tl.div_rn, bfloat16 operands: rejected (CompilationError: at 8:12:)
+- tl.fdiv, bfloat16 operands: rejected (RuntimeError: PassManager::run failed)
+- tl.fdiv(ieee_rounding=True), float64 operands: rejected (RuntimeError: failed to translate module to LLVM IR)
+- tl.div_rn, float64 operands: rejected (CompilationError: at 8:12:)
+- tl.fdiv, float64 operands: div.rn.f64; result 0 `tt.precise_divf`
+- tl.softmax(ieee_rounding=False), float32: div.full.f32
+- tl.softmax(ieee_rounding=True), float32: div.rn.f32
+
+## B. float32 quotients, bit for bit
+- all pairs of 256 patterns (65536): ieee_rounding=True vs tl.div_rn differ in 0; vs the IEEE quotient in 0; the default tl.fdiv vs the IEEE quotient in 13677
+- 2^24 random pairs (16777216): ieee_rounding=True vs tl.div_rn differ in 0; vs the IEEE quotient in 0; the default tl.fdiv vs the IEEE quotient in 3718265
+
+## C. a following addition, enable_fp_fusion on (the default)
+- tl.fdiv(x, y, ieee_rounding=True) + c: 1048576 results, 0 differ from the IEEE sum of the IEEE quotient (an unrounded quotient would differ on 1048575); SASS {'FFMA': 49, 'FADD': 8, 'MUFU.RCP': 9, 'CALL.REL.NOINC': 8}
+- c - tl.fdiv(x, y, ieee_rounding=True): 1048576 results, 0 differ from the IEEE sum of the IEEE quotient (an unrounded quotient would differ on 1048575); SASS {'FFMA': 49, 'FADD': 8, 'MUFU.RCP': 9, 'CALL.REL.NOINC': 8}
+
+## D. tl.softmax(ieee_rounding=True), rows of 16
+- 65536 results, 0 differ from `num / den` with the IEEE division

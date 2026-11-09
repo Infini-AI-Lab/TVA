@@ -1,0 +1,362 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+== Part P: the instructions (B = 128 lanes, 4 warps)
+| op | dtype | form | result | sem | scope | atomic instructions | strong loads | barrier |
+|---|---|---|---|---|---|---|---|---|
+| add | int32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.u32` | none | False |
+| add | int32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.add.u32` | none | False |
+| add | int32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.add.u32` | none | False |
+| add | int32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.add.u32` | none | False |
+| add | int32 | tensor | unused | release | gpu | `atom.global.gpu.release.add.u32` | none | False |
+| add | int32 | tensor | unused | release | sys | `atom.global.sys.release.add.u32` | none | False |
+| add | int32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.u32` | none | False |
+| add | int32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.add.u32` | none | False |
+| add | int32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.add.u32` | none | False |
+| add | int32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.u32` | none | False |
+| add | int32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.u32` | none | False |
+| add | int32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.u32` | none | False |
+| add | int32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.add.u32` | none | True |
+| add | int32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.u32` | none | True |
+| add | float32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.f32` | none | False |
+| add | float32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.add.f32` | none | False |
+| add | float32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.add.f32` | none | False |
+| add | float32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.add.f32` | none | False |
+| add | float32 | tensor | unused | release | gpu | `atom.global.gpu.release.add.f32` | none | False |
+| add | float32 | tensor | unused | release | sys | `atom.global.sys.release.add.f32` | none | False |
+| add | float32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f32` | none | False |
+| add | float32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.add.f32` | none | False |
+| add | float32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.add.f32` | none | False |
+| add | float32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f32` | none | False |
+| add | float32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.f32` | none | False |
+| add | float32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f32` | none | False |
+| add | float32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.add.f32` | none | True |
+| add | float32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f32` | none | True |
+| add | float16 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.f16` | none | False |
+| add | float16 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.add.noftz.f16` | none | False |
+| add | float16 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.add.noftz.f16` | none | False |
+| add | float16 | tensor | unused | acquire | sys | `atom.global.sys.acquire.add.noftz.f16` | none | False |
+| add | float16 | tensor | unused | release | gpu | `atom.global.gpu.release.add.noftz.f16` | none | False |
+| add | float16 | tensor | unused | release | sys | `atom.global.sys.release.add.noftz.f16` | none | False |
+| add | float16 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.f16` | none | False |
+| add | float16 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.add.noftz.f16` | none | False |
+| add | float16 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.f16` | none | False |
+| add | float16 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.f16` | none | False |
+| add | float16 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.f16` | none | False |
+| add | float16 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.f16` | none | False |
+| add | float16 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.f16` | none | True |
+| add | float16 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.f16` | none | True |
+| add | bfloat16 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | unused | acquire | sys | `atom.global.sys.acquire.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | unused | release | gpu | `atom.global.gpu.release.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | unused | release | sys | `atom.global.sys.release.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.bf16` | none | False |
+| add | bfloat16 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.bf16` | none | False |
+| add | bfloat16 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.bf16` | none | False |
+| add | bfloat16 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.bf16` | none | False |
+| add | bfloat16 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.bf16` | none | True |
+| add | bfloat16 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.bf16` | none | True |
+| add | float64 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.f64` | none | False |
+| add | float64 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.add.f64` | none | False |
+| add | float64 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.add.f64` | none | False |
+| add | float64 | tensor | unused | acquire | sys | `atom.global.sys.acquire.add.f64` | none | False |
+| add | float64 | tensor | unused | release | gpu | `atom.global.gpu.release.add.f64` | none | False |
+| add | float64 | tensor | unused | release | sys | `atom.global.sys.release.add.f64` | none | False |
+| add | float64 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f64` | none | False |
+| add | float64 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.add.f64` | none | False |
+| add | float64 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.add.f64` | none | False |
+| add | float64 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f64` | none | False |
+| add | float64 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.add.f64` | none | False |
+| add | float64 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f64` | none | False |
+| add | float64 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.add.f64` | none | True |
+| add | float64 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f64` | none | True |
+| max | int32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.max.s32` | none | False |
+| max | int32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.max.s32` | none | False |
+| max | int32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.max.s32` | none | False |
+| max | int32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.max.s32` | none | False |
+| max | int32 | tensor | unused | release | gpu | `atom.global.gpu.release.max.s32` | none | False |
+| max | int32 | tensor | unused | release | sys | `atom.global.sys.release.max.s32` | none | False |
+| max | int32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32` | none | False |
+| max | int32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.max.s32` | none | False |
+| max | int32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.max.s32` | none | False |
+| max | int32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32` | none | False |
+| max | int32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.max.s32` | none | False |
+| max | int32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32` | none | False |
+| max | int32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.max.s32` | none | True |
+| max | int32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32` | none | True |
+| max | float32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.max.s32`, `atom.global.gpu.relaxed.min.u32` | none | False |
+| max | float32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.max.s32`, `atom.global.sys.relaxed.min.u32` | none | False |
+| max | float32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.max.s32`, `atom.global.gpu.acquire.min.u32` | none | False |
+| max | float32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.max.s32`, `atom.global.sys.acquire.min.u32` | none | False |
+| max | float32 | tensor | unused | release | gpu | `atom.global.gpu.release.max.s32`, `atom.global.gpu.release.min.u32` | none | False |
+| max | float32 | tensor | unused | release | sys | `atom.global.sys.release.max.s32`, `atom.global.sys.release.min.u32` | none | False |
+| max | float32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32`, `atom.global.gpu.acq_rel.min.u32` | none | False |
+| max | float32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.max.s32`, `atom.global.sys.acq_rel.min.u32` | none | False |
+| max | float32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.max.s32`, `atom.global.gpu.relaxed.min.u32` | none | False |
+| max | float32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32`, `atom.global.gpu.acq_rel.min.u32` | none | False |
+| max | float32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.max.s32`, `atom.global.gpu.relaxed.min.u32` | none | False |
+| max | float32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32`, `atom.global.gpu.acq_rel.min.u32` | none | False |
+| max | float32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.max.s32`, `atom.global.gpu.relaxed.min.u32` | none | True |
+| max | float32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32`, `atom.global.gpu.acq_rel.min.u32` | none | True |
+| min | int32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.min.s32` | none | False |
+| min | int32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.min.s32` | none | False |
+| min | int32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.min.s32` | none | False |
+| min | int32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.min.s32` | none | False |
+| min | int32 | tensor | unused | release | gpu | `atom.global.gpu.release.min.s32` | none | False |
+| min | int32 | tensor | unused | release | sys | `atom.global.sys.release.min.s32` | none | False |
+| min | int32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.min.s32` | none | False |
+| min | int32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.min.s32` | none | False |
+| min | int32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.min.s32` | none | False |
+| min | int32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.min.s32` | none | False |
+| min | int32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.min.s32` | none | False |
+| min | int32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.min.s32` | none | False |
+| min | int32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.min.s32` | none | True |
+| min | int32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.min.s32` | none | True |
+| min | float32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.max.u32`, `atom.global.gpu.relaxed.min.s32` | none | False |
+| min | float32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.max.u32`, `atom.global.sys.relaxed.min.s32` | none | False |
+| min | float32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.max.u32`, `atom.global.gpu.acquire.min.s32` | none | False |
+| min | float32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.max.u32`, `atom.global.sys.acquire.min.s32` | none | False |
+| min | float32 | tensor | unused | release | gpu | `atom.global.gpu.release.max.u32`, `atom.global.gpu.release.min.s32` | none | False |
+| min | float32 | tensor | unused | release | sys | `atom.global.sys.release.max.u32`, `atom.global.sys.release.min.s32` | none | False |
+| min | float32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.max.u32`, `atom.global.gpu.acq_rel.min.s32` | none | False |
+| min | float32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.max.u32`, `atom.global.sys.acq_rel.min.s32` | none | False |
+| min | float32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.max.u32`, `atom.global.gpu.relaxed.min.s32` | none | False |
+| min | float32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.max.u32`, `atom.global.gpu.acq_rel.min.s32` | none | False |
+| min | float32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.max.u32`, `atom.global.gpu.relaxed.min.s32` | none | False |
+| min | float32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.max.u32`, `atom.global.gpu.acq_rel.min.s32` | none | False |
+| min | float32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.max.u32`, `atom.global.gpu.relaxed.min.s32` | none | True |
+| min | float32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.max.u32`, `atom.global.gpu.acq_rel.min.s32` | none | True |
+| and | int32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.and.b32` | none | False |
+| and | int32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.and.b32` | none | False |
+| and | int32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.and.b32` | none | False |
+| and | int32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.and.b32` | none | False |
+| and | int32 | tensor | unused | release | gpu | `atom.global.gpu.release.and.b32` | none | False |
+| and | int32 | tensor | unused | release | sys | `atom.global.sys.release.and.b32` | none | False |
+| and | int32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.and.b32` | none | False |
+| and | int32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.and.b32` | none | False |
+| and | int32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.and.b32` | none | False |
+| and | int32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.and.b32` | none | False |
+| and | int32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.and.b32` | none | False |
+| and | int32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.and.b32` | none | False |
+| and | int32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.and.b32` | none | True |
+| and | int32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.and.b32` | none | True |
+| or | int32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.or.b32` | none | False |
+| or | int32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.or.b32` | none | False |
+| or | int32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.or.b32` | none | False |
+| or | int32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.or.b32` | none | False |
+| or | int32 | tensor | unused | release | gpu | `atom.global.gpu.release.or.b32` | none | False |
+| or | int32 | tensor | unused | release | sys | `atom.global.sys.release.or.b32` | none | False |
+| or | int32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.or.b32` | none | False |
+| or | int32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.or.b32` | none | False |
+| or | int32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.or.b32` | none | False |
+| or | int32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.or.b32` | none | False |
+| or | int32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.or.b32` | none | False |
+| or | int32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.or.b32` | none | False |
+| or | int32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.or.b32` | none | True |
+| or | int32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.or.b32` | none | True |
+| xor | int32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.xor.b32` | none | False |
+| xor | int32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.xor.b32` | none | False |
+| xor | int32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.xor.b32` | none | False |
+| xor | int32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.xor.b32` | none | False |
+| xor | int32 | tensor | unused | release | gpu | `atom.global.gpu.release.xor.b32` | none | False |
+| xor | int32 | tensor | unused | release | sys | `atom.global.sys.release.xor.b32` | none | False |
+| xor | int32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.xor.b32` | none | False |
+| xor | int32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.xor.b32` | none | False |
+| xor | int32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.xor.b32` | none | False |
+| xor | int32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.xor.b32` | none | False |
+| xor | int32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.xor.b32` | none | False |
+| xor | int32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.xor.b32` | none | False |
+| xor | int32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.xor.b32` | none | True |
+| xor | int32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.xor.b32` | none | True |
+| xchg | int32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | none | False |
+| xchg | int32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.exch.b32` | none | False |
+| xchg | int32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.exch.b32` | none | False |
+| xchg | int32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.exch.b32` | none | False |
+| xchg | int32 | tensor | unused | release | gpu | `atom.global.gpu.release.exch.b32` | none | False |
+| xchg | int32 | tensor | unused | release | sys | `atom.global.sys.release.exch.b32` | none | False |
+| xchg | int32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | none | False |
+| xchg | int32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.exch.b32` | none | False |
+| xchg | int32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | none | False |
+| xchg | int32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | none | False |
+| xchg | int32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | none | False |
+| xchg | int32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | none | False |
+| xchg | int32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | none | True |
+| xchg | int32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | none | True |
+| xchg | float32 | tensor | unused | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | none | False |
+| xchg | float32 | tensor | unused | relaxed | sys | `atom.global.sys.relaxed.exch.b32` | none | False |
+| xchg | float32 | tensor | unused | acquire | gpu | `atom.global.gpu.acquire.exch.b32` | none | False |
+| xchg | float32 | tensor | unused | acquire | sys | `atom.global.sys.acquire.exch.b32` | none | False |
+| xchg | float32 | tensor | unused | release | gpu | `atom.global.gpu.release.exch.b32` | none | False |
+| xchg | float32 | tensor | unused | release | sys | `atom.global.sys.release.exch.b32` | none | False |
+| xchg | float32 | tensor | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | none | False |
+| xchg | float32 | tensor | unused | acq_rel | sys | `atom.global.sys.acq_rel.exch.b32` | none | False |
+| xchg | float32 | tensor | used | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | none | False |
+| xchg | float32 | tensor | used | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | none | False |
+| xchg | float32 | scalar | unused | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | none | False |
+| xchg | float32 | scalar | unused | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | none | False |
+| xchg | float32 | scalar | used | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | none | True |
+| xchg | float32 | scalar | used | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | none | True |
+| cas | int32 | tensor | unused | relaxed | gpu | `atom.global.relaxed.gpu.cas.b32` | none | False |
+| cas | int32 | tensor | unused | relaxed | sys | `atom.global.relaxed.sys.cas.b32` | none | False |
+| cas | int32 | tensor | unused | acquire | gpu | `atom.global.acquire.gpu.cas.b32` | none | False |
+| cas | int32 | tensor | unused | acquire | sys | `atom.global.acquire.sys.cas.b32` | none | False |
+| cas | int32 | tensor | unused | release | gpu | `atom.global.release.gpu.cas.b32` | none | False |
+| cas | int32 | tensor | unused | release | sys | `atom.global.release.sys.cas.b32` | none | False |
+| cas | int32 | tensor | unused | acq_rel | gpu | `atom.global.acq_rel.gpu.cas.b32` | none | False |
+| cas | int32 | tensor | unused | acq_rel | sys | `atom.global.acq_rel.sys.cas.b32` | none | False |
+| cas | int32 | tensor | used | relaxed | gpu | `atom.global.relaxed.gpu.cas.b32` | none | False |
+| cas | int32 | tensor | used | acq_rel | gpu | `atom.global.acq_rel.gpu.cas.b32` | none | False |
+| cas | int32 | scalar | unused | relaxed | gpu | `atom.global.relaxed.gpu.cas.b32` | none | False |
+| cas | int32 | scalar | unused | acq_rel | gpu | `atom.global.acq_rel.gpu.cas.b32` | none | False |
+| cas | int32 | scalar | used | relaxed | gpu | `atom.global.relaxed.gpu.cas.b32` | none | True |
+| cas | int32 | scalar | used | acq_rel | gpu | `atom.global.acq_rel.gpu.cas.b32` | none | True |
+scalar atomic_add(p, 0.0, sem=relaxed), result unused: atomic none, strong loads ['ld.global.gpu.relaxed.b32']; a cell holding -0.0 ends as -0.0
+scalar atomic_add(p, 0.0, sem=relaxed), result used: atomic none, strong loads ['ld.global.gpu.relaxed.b32']; a cell holding -0.0 ends as -0.0
+scalar atomic_add(p, 0.0, sem=acquire), result unused: atomic none, strong loads ['ld.global.gpu.acquire.b32']; a cell holding -0.0 ends as -0.0
+scalar atomic_add(p, 0.0, sem=acquire), result used: atomic none, strong loads ['ld.global.gpu.acquire.b32']; a cell holding -0.0 ends as -0.0
+scalar atomic_add(p, 0.0, sem=acq_rel), result unused: atomic ['atom.global.gpu.acq_rel.add.f32'], strong loads none; a cell holding -0.0 ends as +0.0
+scalar atomic_add(p, 0.0, sem=acq_rel), result used: atomic ['atom.global.gpu.acq_rel.add.f32'], strong loads none; a cell holding -0.0 ends as +0.0
+== Part A: atomicity under contention (G programs x B = 256 lanes onto C = 64 cells, R = 50 launches per case, 4 warps; G = 4096, 16384 updates per cell, except float16 and bfloat16: G = 32, 128 updates per cell, so that every partial sum is exact; lanes scattered (cell (7p + 13j) mod C) or contiguous (cell (8p + j) mod C, which Triton may pack or vectorise))
+| op | dtype | lanes | sem | scope | instruction | launches | cells checked | cells wrong |
+|---|---|---|---|---|---|---|---|---|
+| add | int32 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.add.u32` | 50 | 3200 | 0 |
+| add | int32 | scattered | relaxed | sys | `atom.global.sys.relaxed.add.u32` | 50 | 3200 | 0 |
+| add | int32 | scattered | acquire | gpu | `atom.global.gpu.acquire.add.u32` | 50 | 3200 | 0 |
+| add | int32 | scattered | release | gpu | `atom.global.gpu.release.add.u32` | 50 | 3200 | 0 |
+| add | int32 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.add.u32` | 50 | 3200 | 0 |
+| add | int32 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.add.u32` | 50 | 3200 | 0 |
+| add | int32 | contiguous | relaxed | sys | `atom.global.sys.relaxed.add.u32` | 50 | 3200 | 0 |
+| add | int32 | contiguous | acquire | gpu | `atom.global.gpu.acquire.add.u32` | 50 | 3200 | 0 |
+| add | int32 | contiguous | release | gpu | `atom.global.gpu.release.add.u32` | 50 | 3200 | 0 |
+| add | int32 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.add.u32` | 50 | 3200 | 0 |
+| add | float32 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.add.f32` | 50 | 3200 | 0 |
+| add | float32 | scattered | relaxed | sys | `atom.global.sys.relaxed.add.f32` | 50 | 3200 | 0 |
+| add | float32 | scattered | acquire | gpu | `atom.global.gpu.acquire.add.f32` | 50 | 3200 | 0 |
+| add | float32 | scattered | release | gpu | `atom.global.gpu.release.add.f32` | 50 | 3200 | 0 |
+| add | float32 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f32` | 50 | 3200 | 0 |
+| add | float32 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.add.v2.f32` | 50 | 3200 | 0 |
+| add | float32 | contiguous | relaxed | sys | `atom.global.sys.relaxed.add.v2.f32` | 50 | 3200 | 0 |
+| add | float32 | contiguous | acquire | gpu | `atom.global.gpu.acquire.add.v2.f32` | 50 | 3200 | 0 |
+| add | float32 | contiguous | release | gpu | `atom.global.gpu.release.add.v2.f32` | 50 | 3200 | 0 |
+| add | float32 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.add.v2.f32` | 50 | 3200 | 0 |
+| add | float16 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.f16` | 50 | 3200 | 0 |
+| add | float16 | scattered | relaxed | sys | `atom.global.sys.relaxed.add.noftz.f16` | 50 | 3200 | 0 |
+| add | float16 | scattered | acquire | gpu | `atom.global.gpu.acquire.add.noftz.f16` | 50 | 3200 | 0 |
+| add | float16 | scattered | release | gpu | `atom.global.gpu.release.add.noftz.f16` | 50 | 3200 | 0 |
+| add | float16 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.f16` | 50 | 3200 | 0 |
+| add | float16 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.v2.f16` | 50 | 3200 | 0 |
+| add | float16 | contiguous | relaxed | sys | `atom.global.sys.relaxed.add.noftz.v2.f16` | 50 | 3200 | 0 |
+| add | float16 | contiguous | acquire | gpu | `atom.global.gpu.acquire.add.noftz.v2.f16` | 50 | 3200 | 0 |
+| add | float16 | contiguous | release | gpu | `atom.global.gpu.release.add.noftz.v2.f16` | 50 | 3200 | 0 |
+| add | float16 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.v2.f16` | 50 | 3200 | 0 |
+| add | bfloat16 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | scattered | relaxed | sys | `atom.global.sys.relaxed.add.noftz.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | scattered | acquire | gpu | `atom.global.gpu.acquire.add.noftz.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | scattered | release | gpu | `atom.global.gpu.release.add.noftz.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.add.noftz.v2.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | contiguous | relaxed | sys | `atom.global.sys.relaxed.add.noftz.v2.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | contiguous | acquire | gpu | `atom.global.gpu.acquire.add.noftz.v2.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | contiguous | release | gpu | `atom.global.gpu.release.add.noftz.v2.bf16` | 50 | 3200 | 0 |
+| add | bfloat16 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.add.noftz.v2.bf16` | 50 | 3200 | 0 |
+| add | float64 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.add.f64` | 50 | 3200 | 0 |
+| add | float64 | scattered | relaxed | sys | `atom.global.sys.relaxed.add.f64` | 50 | 3200 | 0 |
+| add | float64 | scattered | acquire | gpu | `atom.global.gpu.acquire.add.f64` | 50 | 3200 | 0 |
+| add | float64 | scattered | release | gpu | `atom.global.gpu.release.add.f64` | 50 | 3200 | 0 |
+| add | float64 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f64` | 50 | 3200 | 0 |
+| add | float64 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.add.f64` | 50 | 3200 | 0 |
+| add | float64 | contiguous | relaxed | sys | `atom.global.sys.relaxed.add.f64` | 50 | 3200 | 0 |
+| add | float64 | contiguous | acquire | gpu | `atom.global.gpu.acquire.add.f64` | 50 | 3200 | 0 |
+| add | float64 | contiguous | release | gpu | `atom.global.gpu.release.add.f64` | 50 | 3200 | 0 |
+| add | float64 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.add.f64` | 50 | 3200 | 0 |
+| max | int32 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.max.s32` | 50 | 3200 | 0 |
+| max | int32 | scattered | relaxed | sys | `atom.global.sys.relaxed.max.s32` | 50 | 3200 | 0 |
+| max | int32 | scattered | acquire | gpu | `atom.global.gpu.acquire.max.s32` | 50 | 3200 | 0 |
+| max | int32 | scattered | release | gpu | `atom.global.gpu.release.max.s32` | 50 | 3200 | 0 |
+| max | int32 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32` | 50 | 3200 | 0 |
+| max | int32 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.max.s32` | 50 | 3200 | 0 |
+| max | int32 | contiguous | relaxed | sys | `atom.global.sys.relaxed.max.s32` | 50 | 3200 | 0 |
+| max | int32 | contiguous | acquire | gpu | `atom.global.gpu.acquire.max.s32` | 50 | 3200 | 0 |
+| max | int32 | contiguous | release | gpu | `atom.global.gpu.release.max.s32` | 50 | 3200 | 0 |
+| max | int32 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.max.s32` | 50 | 3200 | 0 |
+| min | int32 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.min.s32` | 50 | 3200 | 0 |
+| min | int32 | scattered | relaxed | sys | `atom.global.sys.relaxed.min.s32` | 50 | 3200 | 0 |
+| min | int32 | scattered | acquire | gpu | `atom.global.gpu.acquire.min.s32` | 50 | 3200 | 0 |
+| min | int32 | scattered | release | gpu | `atom.global.gpu.release.min.s32` | 50 | 3200 | 0 |
+| min | int32 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.min.s32` | 50 | 3200 | 0 |
+| min | int32 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.min.s32` | 50 | 3200 | 0 |
+| min | int32 | contiguous | relaxed | sys | `atom.global.sys.relaxed.min.s32` | 50 | 3200 | 0 |
+| min | int32 | contiguous | acquire | gpu | `atom.global.gpu.acquire.min.s32` | 50 | 3200 | 0 |
+| min | int32 | contiguous | release | gpu | `atom.global.gpu.release.min.s32` | 50 | 3200 | 0 |
+| min | int32 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.min.s32` | 50 | 3200 | 0 |
+| and | int32 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.and.b32` | 50 | 3200 | 0 |
+| and | int32 | scattered | relaxed | sys | `atom.global.sys.relaxed.and.b32` | 50 | 3200 | 0 |
+| and | int32 | scattered | acquire | gpu | `atom.global.gpu.acquire.and.b32` | 50 | 3200 | 0 |
+| and | int32 | scattered | release | gpu | `atom.global.gpu.release.and.b32` | 50 | 3200 | 0 |
+| and | int32 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.and.b32` | 50 | 3200 | 0 |
+| and | int32 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.and.b32` | 50 | 3200 | 0 |
+| and | int32 | contiguous | relaxed | sys | `atom.global.sys.relaxed.and.b32` | 50 | 3200 | 0 |
+| and | int32 | contiguous | acquire | gpu | `atom.global.gpu.acquire.and.b32` | 50 | 3200 | 0 |
+| and | int32 | contiguous | release | gpu | `atom.global.gpu.release.and.b32` | 50 | 3200 | 0 |
+| and | int32 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.and.b32` | 50 | 3200 | 0 |
+| or | int32 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.or.b32` | 50 | 3200 | 0 |
+| or | int32 | scattered | relaxed | sys | `atom.global.sys.relaxed.or.b32` | 50 | 3200 | 0 |
+| or | int32 | scattered | acquire | gpu | `atom.global.gpu.acquire.or.b32` | 50 | 3200 | 0 |
+| or | int32 | scattered | release | gpu | `atom.global.gpu.release.or.b32` | 50 | 3200 | 0 |
+| or | int32 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.or.b32` | 50 | 3200 | 0 |
+| or | int32 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.or.b32` | 50 | 3200 | 0 |
+| or | int32 | contiguous | relaxed | sys | `atom.global.sys.relaxed.or.b32` | 50 | 3200 | 0 |
+| or | int32 | contiguous | acquire | gpu | `atom.global.gpu.acquire.or.b32` | 50 | 3200 | 0 |
+| or | int32 | contiguous | release | gpu | `atom.global.gpu.release.or.b32` | 50 | 3200 | 0 |
+| or | int32 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.or.b32` | 50 | 3200 | 0 |
+| xor | int32 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | scattered | relaxed | sys | `atom.global.sys.relaxed.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | scattered | acquire | gpu | `atom.global.gpu.acquire.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | scattered | release | gpu | `atom.global.gpu.release.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | contiguous | relaxed | sys | `atom.global.sys.relaxed.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | contiguous | acquire | gpu | `atom.global.gpu.acquire.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | contiguous | release | gpu | `atom.global.gpu.release.xor.b32` | 50 | 3200 | 0 |
+| xor | int32 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.xor.b32` | 50 | 3200 | 0 |
+| xchg | int32 | scattered | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | scattered | relaxed | sys | `atom.global.sys.relaxed.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | scattered | acquire | gpu | `atom.global.gpu.acquire.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | scattered | release | gpu | `atom.global.gpu.release.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | scattered | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | contiguous | relaxed | gpu | `atom.global.gpu.relaxed.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | contiguous | relaxed | sys | `atom.global.sys.relaxed.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | contiguous | acquire | gpu | `atom.global.gpu.acquire.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | contiguous | release | gpu | `atom.global.gpu.release.exch.b32` | 50 | 3200 | 0 |
+| xchg | int32 | contiguous | acq_rel | gpu | `atom.global.gpu.acq_rel.exch.b32` | 50 | 3200 | 0 |
+| cas | int32 | scattered | relaxed | gpu | `atom.global.relaxed.gpu.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | scattered | relaxed | sys | `atom.global.relaxed.sys.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | scattered | acquire | gpu | `atom.global.acquire.gpu.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | scattered | release | gpu | `atom.global.release.gpu.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | scattered | acq_rel | gpu | `atom.global.acq_rel.gpu.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | contiguous | relaxed | gpu | `atom.global.relaxed.gpu.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | contiguous | relaxed | sys | `atom.global.relaxed.sys.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | contiguous | acquire | gpu | `atom.global.acquire.gpu.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | contiguous | release | gpu | `atom.global.release.gpu.cas.b32` | 50 | 3200 | 0 |
+| cas | int32 | contiguous | acq_rel | gpu | `atom.global.acq_rel.gpu.cas.b32` | 50 | 3200 | 0 |
+Part A: cells wrong in all cases: 0
+== Part M: plain stores and loads beside the atomics (G = 2048, B = 128, C = 128 cells x 2, T = 8 trips, R = 50 launches)
+sem=relaxed: shared cells wrong 0 of 12800; private elements wrong 0 of 26214400
+sem=acq_rel: shared cells wrong 0 of 12800; private elements wrong 0 of 26214400
+== Part L: the split-K pattern of _lora_shrink_kernel (R = 20 launches per case)
+M=16 N=16 K=4096 BLOCK_K=256 SPLIT_K=64 (64 programs), integer data, relaxed: elements not exact 0 of 5120
+    random data, relaxed: largest |c - ref| / sum|a*b|*scaling over 20 launches 2.501e-08
+    random data, acq_rel: largest |c - ref| / sum|a*b|*scaling over 20 launches 2.501e-08
+M=128 N=64 K=4096 BLOCK_K=32 SPLIT_K=8 (128 programs), integer data, relaxed: elements not exact 0 of 163840
+    random data, relaxed: largest |c - ref| / sum|a*b|*scaling over 20 launches 6.377e-08
+    random data, acq_rel: largest |c - ref| / sum|a*b|*scaling over 20 launches 6.377e-08
+M=100 N=48 K=14336 BLOCK_K=256 SPLIT_K=64 (768 programs), integer data, relaxed: elements not exact 0 of 96000
+    random data, relaxed: largest |c - ref| / sum|a*b|*scaling over 20 launches 2.413e-08
+    random data, acq_rel: largest |c - ref| / sum|a*b|*scaling over 20 launches 2.081e-08
+M=256 N=32 K=14336 BLOCK_K=32 SPLIT_K=8 (128 programs), integer data, relaxed: elements not exact 0 of 163840
+    random data, relaxed: largest |c - ref| / sum|a*b|*scaling over 20 launches 1.292e-07
+    random data, acq_rel: largest |c - ref| / sum|a*b|*scaling over 20 launches 1.292e-07
+Part L instructions: ['atom.global.gpu.relaxed.add.v4.f32']; barrier True
+time 70 s

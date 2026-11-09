@@ -1,0 +1,20 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+Z1 float32 strides [0, 1]: 0 of 6656 lanes differ from the formula
+Z1 float32 strides [4, 1]: 0 of 6656 lanes differ from the formula
+Z1 float32 strides [8, 1]: 0 of 6656 lanes differ from the formula
+Z1 float32 strides [16, 1]: 0 of 6656 lanes differ from the formula
+Z1 float32 strides [40, 1]: 0 of 6656 lanes differ from the formula
+Z1 float16 strides [0, 1]: 0 of 6656 lanes differ from the formula
+Z1 float16 strides [8, 1]: 0 of 6656 lanes differ from the formula
+Z1 float16 strides [16, 1]: 0 of 6656 lanes differ from the formula
+Z1 float16 strides [32, 1]: 0 of 6656 lanes differ from the formula
+Z1 float16 strides [40, 1]: 0 of 6656 lanes differ from the formula
+Z1 int8 strides [0, 1]: 0 of 6656 lanes differ from the formula
+Z1 int8 strides [16, 1]: 0 of 6656 lanes differ from the formula
+Z1 int8 strides [32, 1]: 0 of 6656 lanes differ from the formula
+Z1 int8 strides [64, 1]: 0 of 6656 lanes differ from the formula
+Z1 int8 strides [48, 1]: 0 of 6656 lanes differ from the formula
+Z2 float32 [4, 6, 32] strides [0, 32, 1]: 0 of 1024 lanes differ from the formula
+Z2 float32 [4, 6, 32] strides [32, 8, 1]: 0 of 1024 lanes differ from the formula
+Z3 atomic_add of ones, strides [0, 1]: 0 of 32 elements differ from one addition per lane (max count 8)
+Z3 atomic_add of ones, strides [8, 1]: 0 of 88 elements differ from one addition per lane (max count 4)

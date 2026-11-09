@@ -1,0 +1,3 @@
+Triton 3.8.0, NVIDIA H200 NVL
+enable_fp_fusion=True: 65536 elements, x/y - q nonzero on 65536, of which not a multiple of ulp(q)/2 (no model outcome) 65536; example (x, y, q, device x/y - q): (1.3902591466903687, 1.1719982624053955, 1.1862297058105469, -1.2905445601063548e-09)
+enable_fp_fusion=False: 65536 elements, x/y - q nonzero on 0, of which not a multiple of ulp(q)/2 (no model outcome) 0; example (x, y, q, device x/y - q): None

@@ -1,0 +1,11 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+result dtype: fp32
+torch.float8_e4m3fn ieee_rounding=False: compiles; ['div.full.f32']; max |result - torch softmax of the float32 values| = 1.19e-07
+result dtype: fp32
+torch.float8_e4m3fn ieee_rounding=True: compiles; ['div.rn.f32']; max |result - torch softmax of the float32 values| = 1.19e-07
+result dtype: fp32
+torch.float8_e5m2 ieee_rounding=False: compiles; ['div.full.f32']; max |result - torch softmax of the float32 values| = 1.19e-07
+result dtype: fp32
+torch.float8_e5m2 ieee_rounding=True: compiles; ['div.rn.f32']; max |result - torch softmax of the float32 values| = 2.38e-07
+torch.int32 ieee_rounding=False: rejected (CompilationError:         ^)
+torch.int32 ieee_rounding=True: rejected (CompilationError:         ^)

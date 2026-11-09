@@ -1,0 +1,174 @@
+{
+ "source": {
+  "file": "source/l2norm.py",
+  "sha256": "ab8238b18a5bdfb526880ebb4673375f1ef3298a09a63a39204dcd8cbfeb9c73",
+  "ranges": [
+   [
+    40,
+    60
+   ]
+  ],
+  "host": [
+   [
+    38,
+    38
+   ],
+   [
+    63,
+    126
+   ]
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.L2NormFwd",
+ "entries": [
+  {
+   "src": [
+    40
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, read by the decorator on line 44 (SEMANTICS.md, the supported subset, Names); no other statement binds it; it adds no step to the program"
+  },
+  {
+   "src": [
+    41
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (SEMANTICS.md, the supported subset, Names); no other statement binds it; it adds no step to the program"
+  },
+  {
+   "src": [
+    44
+   ],
+   "drop": "decl",
+   "note": "the decorator is covered by the model's definition `l2norm_fwd_kernel`; `do_not_specialize=[\"T\"]` keeps `T` a runtime scalar at every value, `1` included (SEMANTICS.md, Scalar arguments): an `int32` below `2^31`, an `int64` from `2^31`, which `model` passes as `Sum.inl`/`Sum.inr`"
+  },
+  {
+   "src": [
+    45
+   ],
+   "model": "def l2norm_fwd_kernel (x : Ptr .bf16) (y : Sum (Ptr .bf16) (Ptr .f32)) (rstd : Ptr .f32)\n    (eps : F32) (T : Sum I32 I64) (D BD NB BT : Nat) : Kernel where",
+   "note": "`x` is `*bf16` (the host passes a `bfloat16` tensor), `y` is `*bf16` (`Sum.inl`, `output_dtype = None`) or `*fp32` (`Sum.inr`, `output_dtype = torch.float32`): the pointer's dtype is part of the specialisation, so each is its own compiled kernel; `rstd` is `*fp32`; `eps` is a runtime `float32` scalar (a Python `float`: `FloatV.hostF32` of the double, in `model`); `T` a runtime `int32` or `int64` scalar by its value; the `tl.constexpr` parameters are Lean parameters, and the body never reads `NB` (an autotune key only)"
+  },
+  {
+   "src": [
+    46
+   ],
+   "model": "let i_t : I64 := (← tl.convert .i32 .i64 (Tensor.scalar (tl.program_id ctx 0))).item",
+   "note": "axis 0 of the grid, an `int32` scalar; `.to(tl.int64)` is the sign extension `tl.convert .i32 .i64`"
+  },
+  {
+   "src": [
+    47
+   ],
+   "model": [
+    "let o_a : Tensor [BT] I64 ← tl.convert .i32 .i64 (tl.arange 0 BT)",
+    "let o_t : Tensor [BT] I64 := i_t * (IntV.ofNat BT : I64) + o_a"
+   ],
+   "note": "the constexpr `BT` is built in `int64`, the dtype of the scalar tensor `i_t` (SEMANTICS.md, Constants); the `int32` `tl.arange(0, BT)` is promoted to `int64` by the addition, written as the conversion `o_a`; no wrap: `T < 2^51` (`Inst.ok.grid_lt`, `BT ≤ 2^20`)"
+  },
+  {
+   "src": [
+    48
+   ],
+   "model": "let o_d : Tensor [BD] I32 := tl.arange 0 BD",
+   "note": "an `int32` block"
+  },
+  {
+   "src": [
+    49
+   ],
+   "model": [
+    "let T64 : I64 ← match T with",
+    "| .inl t => do pure (← tl.convert .i32 .i64 (Tensor.scalar t)).item",
+    "| .inr t => pure t",
+    "let m_t : Tensor [BT] Bool := o_t.ltS T64"
+   ],
+   "note": "the `int64` block against the scalar `T`: the comparison promotes an `int32` `T` to `int64` (the conversion), and an `int64` `T` is already the comparison's dtype; `<` on signed integers is `ltS`"
+  },
+  {
+   "src": [
+    50
+   ],
+   "model": [
+    "let m_d : Tensor [BD] Bool := o_d.ltS (IntV.ofNat D : I32)",
+    "let m_x : Tensor [BT, BD] Bool := (m_t.col BD).and (m_d.row BT)"
+   ],
+   "note": "`o_d[None, :] < D`: the constexpr `D` built in `int32`, the tensor's dtype (SEMANTICS.md, Constants). `m_t[:, None] & (…)`: the `&` of a `[BT, 1]` and a `[1, BD]` block, broadcast to `[BT, BD]`; the model broadcasts the operands (`.col`/`.row`), the same lane values since `&` acts lane by lane"
+  },
+  {
+   "src": [
+    51
+   ],
+   "model": "let p_x : Tensor [BT, BD] (Ptr .bf16) :=\n      x + o_t.col BD * (IntV.ofNat D : I64) + o_d.row BT",
+   "note": "evaluated left to right: `o_t[:, None] * D` (the constexpr `D` built in `int64`, the `int64` product), added to the pointer `x`, then the `int32` offsets `o_d[None, :]` added to those pointers; the model broadcasts the `[BT, 1]` and `[1, BD]` operands to `[BT, BD]` first, the same lane values (each lane `x` advanced by `o_t[i]·D + o_d[j]` elements). No wrap: `T·D < 2^60`"
+  },
+  {
+   "src": [
+    52
+   ],
+   "model": [
+    "let p_y : Sum (Tensor [BT, BD] (Ptr .bf16)) (Tensor [BT, BD] (Ptr .f32)) := match y with",
+    "| .inl y => .inl (y + o_t.col BD * (IntV.ofNat D : I64) + o_d.row BT)",
+    "| .inr y => .inr (y + o_t.col BD * (IntV.ofNat D : I64) + o_d.row BT)"
+   ],
+   "note": "the same pointers into `y`, of its dtype (`*bf16` or `*fp32`): the same `int64` and `int32` offsets as line 51, the pointer of each dtype advanced by them"
+  },
+  {
+   "src": [
+    53
+   ],
+   "model": "let p_rstd : Tensor [BT] (Ptr .f32) := rstd + o_t",
+   "note": "the `*fp32` pointer advanced by the `int64` block `o_t`"
+  },
+  {
+   "src": [
+    55
+   ],
+   "model": [
+    "let b_x16 : Tensor [BT, BD] BF16 ←\n      tl.load p_x (some m_x) (some (bc (FloatV.litBF16 (FloatV.ofPat 0))))",
+    "let b_x : Tensor [BT, BD] F32 ← tl.cvt b_x16"
+   ],
+   "note": "the masked load with `other=0.0`: the Python `0.0` is a `float32` tensor (`+0`) converted to the pointer's dtype, `+0` in `bfloat16` (exact), the value `FloatV.litBF16 (FloatV.ofPat 0)`; `.to(tl.float32)` is the exact widening `tl.cvt`"
+  },
+  {
+   "src": [
+    56
+   ],
+   "model": [
+    "let b_xx : Tensor [BT, BD] F32 ← tl.mul b_x b_x",
+    "let s1 : Tensor [BT] F32 ← tl.sum1c b_xx",
+    "let s2 : Tensor [BT] F32 ← tl.addc s1 (bc eps)",
+    "let sq : Tensor [BT] F32 ← tl.sqrt s2",
+    "let b_rstd : Tensor [BT] F32 ←\n      tl.div (bc (FloatV.litF32 (FloatV.ofPat 0x3FF0000000000000))) sq"
+   ],
+   "note": "`b_x * b_x` the IEEE product; `tl.sum(…, 1)` sums products, so its additions may be contracted with them (`enable_fp_fusion`): `tl.sum1c`; `+ eps` adds the runtime `float32` scalar, and a product feeds it through the sum (at `BD = 1` the sum is the product itself, `x*x + eps` may become one `fma`): the fusable `tl.addc` (SEMANTICS.md, Float `+` and `-`); `tl.sqrt` the platform's square root; `1 / …`: the Python `1`, an operand of `/`, built in `float32` (the double `1.0`, `litF32`), and the platform's division `tl.div`"
+  },
+  {
+   "src": [
+    57
+   ],
+   "model": "let b_y : Tensor [BT, BD] F32 ← tl.mul b_x (b_rstd.col BD)",
+   "note": "the IEEE `float32` product with `b_rstd[:, None]` broadcast to the columns; no addition follows it"
+  },
+  {
+   "src": [
+    59
+   ],
+   "model": [
+    "match p_y with",
+    "let b_y16 : Tensor [BT, BD] BF16 ← tl.cvt b_y",
+    "tl.store p_y b_y16 (some m_x)",
+    "| .inr p_y => tl.store p_y b_y (some m_x)"
+   ],
+   "note": "`.to(p_y.dtype.element_ty)`: for a `bfloat16` `y`, one rounding to nearest even (`tl.cvt`); for a `float32` `y`, `b_y`'s own dtype, so `b_y` itself (SEMANTICS.md, `x.to(d)`: to `x`'s own dtype it is `x` itself); then the masked store"
+  },
+  {
+   "src": [
+    60
+   ],
+   "model": "tl.store p_rstd b_rstd (some m_t)",
+   "note": "`b_rstd` is already `float32`, the pointer's dtype: `.to(…)` converts nothing; the masked store"
+  }
+ ]
+}

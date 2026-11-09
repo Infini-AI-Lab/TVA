@@ -1,0 +1,402 @@
+{
+ "source": {
+  "file": "source/layernorm.py",
+  "sha256": "39e34f0182e3883377ec1a886ba57960abbf0ffba84aa69245fcb61935e135b9",
+  "ranges": [
+   [
+    46,
+    47
+   ],
+   [
+    50,
+    73
+   ],
+   [
+    75,
+    80
+   ],
+   [
+    82,
+    99
+   ],
+   [
+    101,
+    102
+   ],
+   [
+    104,
+    111
+   ],
+   [
+    113,
+    114
+   ]
+  ],
+  "host": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.LayerNormFwd",
+ "entries": [
+  {
+   "src": [
+    46
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the decorator `@triton.jit(do_not_specialize=['T'])` of line 50 names (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); it adds no step to the program"
+  },
+  {
+   "src": [
+    47
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 73–114 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    50
+   ],
+   "drop": "decl",
+   "note": "`@triton.jit(do_not_specialize=['T'])` on a top-level `def`: the kernel of the supported subset (SEMANTICS.md), so `T` is always a runtime `int32` (never the compile-time constant `1`) and the launch has `debug = false`; no other statement of the module binds `layer_norm_fwd_kernel`; the model is the `Kernel` `layer_norm_fwd_kernel`"
+  },
+  {
+   "src": [
+    "51-72"
+   ],
+   "model": "def layer_norm_fwd_kernel (x_ptr y_ptr w_ptr b_ptr res_ptr res_out_ptr : Ptr .bf16)",
+   "note": "the model's signature (the second and third lines name `mean_ptr rstd_ptr : Ptr .f32`, `eps : F32`, `T : I32`, `G D BD : Nat` and `HAS_RESIDUAL STORE_RESIDUAL_OUT : Bool`): the six `bfloat16` tensors are `*bf16` pointers and `mean`, `rstd` `*fp32` (the covered launches' dtypes, SETUP.md); without a residual the host passes `None` for `res` and `res_out`, a compile-time `None` that the branches not taken never read (the model's `res_ptr`, `res_out_ptr` stand for it); `eps` is the runtime `float32` scalar (a Python `float` argument, `FloatV.hostF32` of the double, `model`); `T` is a runtime `int32` (`do_not_specialize=['T']`); `G`, `D`, `BD`, `HAS_RESIDUAL` and `STORE_RESIDUAL_OUT` are `tl.constexpr` parameters, Lean parameters here (the flags' branches are compile-time `if`s, Lean `if`s; `model` passes `hasRes` for both flags). The constexpr parameters the model fixes, because the front end builds one specialised kernel per their values and every covered launch fixes them (SETUP.md): `BT = 32` (the host's `BT=32`, line 178), `NB` (not read by the body), and the flags `IS_RMS_NORM = False`, `HAS_WEIGHT = True`, `HAS_BIAS = True` (the branches they decide are dropped as `config` at lines 90, 96, 104, 106, 108, 109, 110). No parameter has a default"
+  },
+  {
+   "src": [
+    73
+   ],
+   "model": "let i_t := (← tl.convert .i32 .i64 (Tensor.scalar (tl.program_id ctx 0))).item",
+   "note": "axis 0 of the grid `(cdiv(T, 32), 1, 1)`, an `int32`, widened to `int64` (`tl.convert`, exact)",
+   "rules": [
+    "Values"
+   ]
+  },
+  {
+   "src": [
+    75
+   ],
+   "model": "let o_t : Tensor [32] I64 :=",
+   "note": "the model's second line is `i_t * (IntV.ofNat 32 : I64) + (← tl.convert .i32 .i64 (tl.arange 0 32))`: the constexpr `BT` (= 32 on every covered launch) is a Python number built in the operation's dtype `int64` (SEMANTICS.md, Constants); the `int32` `tl.arange(0, 32)` widens to `int64` (`tl.convert`), and the addition is `int64` (SEMANTICS.md, Operators and promotion; Index arithmetic); shape `[32]`"
+  },
+  {
+   "src": [
+    76
+   ],
+   "model": "let o_g ← tl.irem o_t (bc (IntV.ofNat G : I64))",
+   "note": "`o_t % G`: the constexpr `G` (`1 ≤ G ≤ 2^16`, `Inst.ok.g_pos`, `g_le`) is a Python number built in `int64`, the tensor operand's dtype, and `%` of two `int64` tensors is `tl.irem`, truncating, defined (the divisor is at least 1); `o_t ≥ 0`, so `o_g = o_t mod G`, below `G`",
+   "rules": [
+    "Integer //, %, <<, >>"
+   ]
+  },
+  {
+   "src": [
+    77
+   ],
+   "model": "let o_d : Tensor [BD] I32 := tl.arange 0 BD",
+   "note": "the `int32` block `0, …, BD − 1`, shape `[BD]` (`BD` a power of two, `next_power_of_2(D) ≤ 512`: `Inst.ok.bd_pow2`, `d_le_bd`, `bd_lt`, `d_le`)"
+  },
+  {
+   "src": [
+    78
+   ],
+   "model": "let m_d := o_d.ltS (IntV.ofNat D : I32)",
+   "note": "`o_d < D`: the constexpr `D` is a Python number built in the comparison's dtype `int32` (the tensor operand's own type), the signed comparison broadcast to every lane",
+   "rules": [
+    "Constants",
+    "Operators and promotion"
+   ]
+  },
+  {
+   "src": [
+    79
+   ],
+   "model": "let m_t := o_t.ltS (← tl.convert .i32 .i64 (Tensor.scalar T)).item",
+   "note": "`o_t < T`: the runtime `int32` scalar `T` widens to `int64` (`tl.convert`), and the signed comparison broadcasts to every lane",
+   "rules": [
+    "Operators and promotion"
+   ]
+  },
+  {
+   "src": [
+    80
+   ],
+   "model": "let m_x := (m_t.col BD).and (m_d.row 32)",
+   "note": "`m_t[:, None] & m_d[None, :]`: `&` of two `int1` tensors (`Tensor.and`), `m_t[:, None]` broadcast to `[32, BD]` columns and `m_d[None, :]` to 32 rows",
+   "rules": [
+    "Values"
+   ]
+  },
+  {
+   "src": [
+    82
+   ],
+   "model": "let p_x := x_ptr + o_t.col BD * (IntV.ofNat D : I64) + o_d.row 32",
+   "note": "`x + o_t[:, None] * D + o_d[None, :]`, left to right: the constexpr `D` built in `int64` for the `int64` product `o_t[:, None] * D` (`o_t` is `int64` since line 73's cast), the `*bf16` pointer advanced by it, then by the `int32` `o_d[None, :]` (Triton's `addptr` takes the offset as it is; the library's pointer–integer `+` advances by its signed value), broadcast to `[32, BD]`. No wrap: `o_t·D + d < (T + 31)·512 < 2^41` (`Inst.ok.t_lt`, `d_le`)",
+   "rules": [
+    "Index arithmetic",
+    "Operators and promotion"
+   ]
+  },
+  {
+   "src": [
+    83
+   ],
+   "model": "let b_x0 : Tensor [32, BD] F32 ← tl.cvt (← tl.load p_x (some m_x)",
+   "note": "the model's second line is the `other`: `(some (← tl.convert .f32 .bf16 (tl.full [32, BD] (FloatV.litF32 (FloatV.ofPat 0)))))`. The `other=0.0` is the Python `float` `+0`, a `float32` tensor of `+0` (`FloatV.litF32`), converted to the pointer's dtype `bfloat16` (`tl.convert`; SEMANTICS.md, `tl.load`); the mask as in the source; the loaded `bfloat16` block widens to `float32` exactly (`tl.cvt`, `tl.load` then `.to(tl.float32)`); `b_x0` names the value of `b_x` after this line",
+   "rules": [
+    "tl.load",
+    "Constants",
+    "Float conversions"
+   ]
+  },
+  {
+   "src": [
+    84
+   ],
+   "note": "`if HAS_RESIDUAL:` on the constexpr flag: a compile-time `if` (SEMANTICS.md, Statements), the Lean `if` on the parameter; with the flag the branch (lines 85–86) gives `b_x` its new value, without it `b_x` keeps line 83's value (`else pure b_x0`)",
+   "model": "let b_x : Tensor [32, BD] F32 ← if HAS_RESIDUAL then do",
+   "rules": [
+    "Statements"
+   ]
+  },
+  {
+   "src": [
+    85
+   ],
+   "model": "let p_res := res_ptr + o_t.col BD * (IntV.ofNat D : I64) +",
+   "note": "the model's second line is `o_d.row 32`: as line 82, the `*bf16` pointer of the residual"
+  },
+  {
+   "src": [
+    86
+   ],
+   "model": "tl.add b_x0 (← tl.cvt (← tl.load p_res (some m_x)",
+   "note": "the model's further lines are the `other` and the closing `)))` of the load: `(some (← tl.convert .f32 .bf16 (tl.full [32, BD] (FloatV.litF32 (FloatV.ofPat 0)))))))`; the branch's value is the new `b_x`. `b_x += tl.load(...).to(tl.float32)` is the IEEE `tl.add` (no product feeds it: the operands are loads and exact widenings) of the widened residual",
+   "rules": [
+    "Float + and -",
+    "tl.load"
+   ]
+  },
+  {
+   "src": [
+    87
+   ],
+   "note": "`if STORE_RESIDUAL_OUT:` on the constexpr flag: a compile-time `if` with no `else` (SEMANTICS.md, Statements), the Lean `if` on the parameter; the branch (lines 88–89) stores into `res_out` and assigns no name used later",
+   "model": "if STORE_RESIDUAL_OUT then do",
+   "rules": [
+    "Statements"
+   ]
+  },
+  {
+   "src": [
+    88
+   ],
+   "model": "let p_res_out := res_out_ptr + o_t.col BD * (IntV.ofNat D : I64) +",
+   "note": "the model's second line is `o_d.row 32`: as line 82, the `*bf16` pointer of `res_out`"
+  },
+  {
+   "src": [
+    89
+   ],
+   "model": "let b_x16 : Tensor [32, BD] BF16 ← tl.cvt b_x",
+   "note": "`b_x.to(p_res_out.dtype.element_ty)` into the `bfloat16` `res_out`: one rounding to nearest even (`tl.cvt`, no `fp_downcast_rounding`); then `tl.store p_res_out b_x16 (some m_x)`, the mask as in the source",
+   "rules": [
+    "Float conversions",
+    "tl.store"
+   ]
+  },
+  {
+   "src": [
+    90
+   ],
+   "drop": "config",
+   "note": "`if not IS_RMS_NORM:` with the constexpr `IS_RMS_NORM = False` on every covered launch: the front end visits the branch (lines 91–95); the `else` branch (lines 96–98) is dropped, `config`"
+  },
+  {
+   "src": [
+    91
+   ],
+   "model": "tl.div (← tl.sum1 b_x) (bc (FloatV.litF32 (FloatV.ofRat (D : ℚ))))",
+   "note": "the model's first line is `let b_mean : Tensor [32] F32 ←`. `tl.sum(b_x, axis=1) / D`: the reduction of the `float32` block along axis 1 is `tl.sum1` (its input is loads and IEEE additions, no product: IEEE additions along a tree Triton chooses, SEMANTICS.md, reductions); the constexpr `D` is a Python number with an arithmetic operator, built in the division's dtype `float32`: `FloatV.litF32` of its double (`FloatV.ofRat` of the integer `D ≤ 512`, exact); `/` on `float32` is the platform's division (`Num.DivFull`). At `D = 1` MLIR folds `x / 1.0` to `x`, a value within the card (rules/num.md, Division)",
+   "rules": [
+    "reductions",
+    "Constants",
+    "Float + and -"
+   ]
+  },
+  {
+   "src": [
+    92
+   ],
+   "model": "let p_mean := mean_ptr + o_t",
+   "note": "the `*fp32` pointer of `mean` advanced by the `int64` row indices (shape `[32]`)"
+  },
+  {
+   "src": [
+    93
+   ],
+   "model": "tl.store p_mean b_mean (some m_t)",
+   "note": "`b_mean.to(p_mean.dtype.element_ty)` is a `float32`-to-`float32` conversion: it adds no step (semantic.cast of one dtype folds), so the stored value is `b_mean`; mask as in the source",
+   "rules": [
+    "tl.store"
+   ]
+  },
+  {
+   "src": [
+    94
+   ],
+   "model": "let b_xbar := tl.where (m_d.row 32) (← tl.subc b_x (b_mean.col BD))",
+   "note": "the model's second line is `(bc (FloatV.litF32 (FloatV.ofPat 0)))`. `b_x - b_mean[:, None]`: `b_mean` is the `float32` quotient of line 91, a product for the fusion rule (SEMANTICS.md, Float `+` and `-`: a float `/` whose quotient is `float32`), so the subtraction it feeds is the fusable `tl.subc` (`AddRel` with the launch's fusion flag: the IEEE difference, or the rounding of the difference with the mean or `b_x` replaced by an exact value rounding to it), the scalar broadcast to 32 rows; `tl.where(m_d[None, :], …, 0.0)`: the condition is `int1` (no `!= 0`), and the constant `0.0` is built in the operation's dtype `float32` (`+0`); the masked lanes `d ≥ D` hold exactly `0.0`",
+   "rules": [
+    "Float + and -",
+    "Constants"
+   ]
+  },
+  {
+   "src": [
+    95
+   ],
+   "model": "let b_var : Tensor [32] F32 ←",
+   "note": "the model's second line is `tl.div (← tl.sum1c (← tl.mul b_xbar b_xbar)) (bc (FloatV.litF32 (FloatV.ofRat (D : ℚ))))`: `b_xbar * b_xbar` is the IEEE `tl.mul`, whose product feeds the reduction — the fusable form `tl.sum1c` (SEMANTICS.md, Float `+` and `-`); then `/` by `D` as line 91",
+   "rules": [
+    "Float + and -",
+    "reductions"
+   ]
+  },
+  {
+   "src": [
+    96
+   ],
+   "drop": "config",
+   "note": "`else:` of `if not IS_RMS_NORM:`: the front end does not visit it (`IS_RMS_NORM = False`, so `not IS_RMS_NORM` is `True`); lines 97–98 have no meaning in the program"
+  },
+  {
+   "src": [
+    97
+   ],
+   "drop": "config",
+   "note": "the `else` branch's first line: not visited (line 96)"
+  },
+  {
+   "src": [
+    98
+   ],
+   "drop": "config",
+   "note": "the `else` branch's second line: not visited (line 96)"
+  },
+  {
+   "src": [
+    99
+   ],
+   "model": "let b_rstd : Tensor [32] F32 ←",
+   "note": "the model's second and third lines are `tl.div (bc (FloatV.litF32 (FloatV.ofPat 0x3FF0000000000000)))` and `(← tl.sqrt (← tl.addc b_var (bc eps)))`. `b_var + eps`: the fusable form `tl.addc`, because a product may feed it: at `D = 1` the division `/ 1.0` folds away and the one-lane sum is the product `b_xbar * b_xbar` itself, which the backend may contract with this addition into an `fma` (SEMANTICS.md, Float `+` and `-`; `tl.addc` allows every IEEE result too); `eps` is the runtime `float32` scalar (`FloatV.hostF32` of the host's double, `model`), broadcast. `tl.sqrt` is the platform's square root (`sqrt.approx.ftz.f32`, `Num.SqrtF32`). `1 / …`: the Python number `1` built in the division's dtype `float32` (the pattern of the double `1.0`), and `/` the platform's division (`Num.DivFull`)",
+   "rules": [
+    "Float + and -",
+    "Constants"
+   ]
+  },
+  {
+   "src": [
+    101
+   ],
+   "model": "let p_rstd := rstd_ptr + o_t",
+   "note": "as line 92, the `*fp32` pointer of `rstd`"
+  },
+  {
+   "src": [
+    102
+   ],
+   "model": "tl.store p_rstd b_rstd (some m_t)",
+   "note": "`b_rstd.to(p_rstd.dtype.element_ty)` is `float32`-to-`float32`: no conversion; mask as in the source"
+  },
+  {
+   "src": [
+    104
+   ],
+   "drop": "config",
+   "note": "`if HAS_WEIGHT:` with the constexpr `HAS_WEIGHT = True` on every covered launch: the front end visits the branch (line 105)"
+  },
+  {
+   "src": [
+    105
+   ],
+   "model": "let b_w : Tensor [32, BD] F32 ← tl.cvt (← tl.load p_w (some (m_d.row 32)))",
+   "note": "the model's first line is the pointer: `let p_w := w_ptr + o_g.col BD * (IntV.ofNat D : I64) + o_d.row 32`. `w + o_g[:, None] * D + o_d[None, :]`: `o_g` is the `int64` `o_t % G` (line 76), the constexpr `D` built in `int64`, `o_d[None, :]` as line 82; element `(t % G)·D + j` of `weight` (`gidx`), inside its `G·D` elements for every row of the block, those `≥ T` included; the mask `m_d[None, :]` only (no `other`: the lanes `d ≥ D` hold unspecified values, which no stored lane reads — the stores' mask `m_x` has the `m_d` factor); the loaded `bfloat16` block widens to `float32` exactly",
+   "rules": [
+    "tl.load",
+    "Constants"
+   ]
+  },
+  {
+   "src": [
+    106
+   ],
+   "drop": "config",
+   "note": "`if HAS_BIAS:` with the constexpr `HAS_BIAS = True` on every covered launch: the front end visits the branch (line 107)"
+  },
+  {
+   "src": [
+    107
+   ],
+   "model": "let b_b : Tensor [32, BD] F32 ← tl.cvt (← tl.load p_b (some (m_d.row 32)))",
+   "note": "the model's first line is the pointer: `let p_b := b_ptr + o_g.col BD * (IntV.ofNat D : I64) + o_d.row 32`: as line 105, of `bias`"
+  },
+  {
+   "src": [
+    108
+   ],
+   "model": "let b_x_hat : Tensor [32, BD] F32 ← tl.mul (← tl.subc b_x (b_mean.col BD)) (b_rstd.col BD)",
+   "note": "the conditional expression `… if not IS_RMS_NORM else …` on a compile-time condition: only the first side is evaluated (`IS_RMS_NORM = False`, SEMANTICS.md, Order), so `b_x_hat = (b_x - b_mean[:, None]) * b_rstd[:, None]`: the fusable `tl.subc` (the quotient `b_mean` feeds it, as at line 94; its own `AddRel` choice, not necessarily line 94's value) and the IEEE `tl.mul`; the scalars broadcast to 32 rows",
+   "rules": [
+    "Float + and -",
+    "Order"
+   ]
+  },
+  {
+   "src": [
+    109
+   ],
+   "model": "let b_y0 : Tensor [32, BD] F32 ← tl.mul b_x_hat b_w",
+   "note": "the conditional expression's first side (`HAS_WEIGHT = True`): the IEEE `tl.mul` product; line 111's `tl.addc` consumes it"
+  },
+  {
+   "src": [
+    110
+   ],
+   "drop": "config",
+   "note": "`if HAS_BIAS:` with the constexpr `HAS_BIAS = True` on every covered launch: the front end visits the branch (line 111)"
+  },
+  {
+   "src": [
+    111
+   ],
+   "model": "let b_y : Tensor [32, BD] F32 ← tl.addc b_y0 b_b",
+   "note": "`b_y = b_y + b_b` where `b_y` is line 109's product: the addition a product feeds, the fusable form `tl.addc` — with `enable_fp_fusion` (the launch's default `true`) it allows the fused `fma(b_x_hat, b_w, b_b)` as well as the IEEE sum of the rounded product and `b_b` (`AddRel` with the launch's fusion flag)",
+   "rules": [
+    "Float + and -"
+   ]
+  },
+  {
+   "src": [
+    113
+   ],
+   "model": "let p_y := y_ptr + o_t.col BD * (IntV.ofNat D : I64) + o_d.row 32",
+   "note": "as line 82, the `*bf16` pointer of `y`"
+  },
+  {
+   "src": [
+    114
+   ],
+   "model": "let b_y16 : Tensor [32, BD] BF16 ← tl.cvt b_y",
+   "note": "`b_y.to(p_y.dtype.element_ty)` into the `bfloat16` `y`: one rounding to nearest even; then `tl.store p_y b_y16 (some m_x)`, the mask as in the source",
+   "rules": [
+    "Float conversions",
+    "tl.store"
+   ]
+  }
+ ]
+}

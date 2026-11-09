@@ -1,0 +1,160 @@
+Triton 3.8.0, NVIDIA H200 NVL
+| a,b dtype | add dtype | form | regime | elements | outside narrow AddRel | = IEEE | = fma |
+|---|---|---|---|---|---|---|---|
+| float32 | float32 | `a*b + c` | cancel | 4096 | 0 | 3307 | 4096 |
+| float32 | float32 | `a*b + c` | subnormal | 4096 | 0 | 4096 | 4096 |
+| float32 | float32 | `a*b + c` | overflow | 4096 | 0 | 2331 | 4096 |
+| float32 | float32 | `a*b + c` | infnan | 4096 | 0 | 3964 | 1316 |
+| float32 | float32 | `a*b + c` | random | 4096 | 0 | 2733 | 4096 |
+| float32 | float32 | `c + a*b` | cancel | 4096 | 0 | 3273 | 4096 |
+| float32 | float32 | `c + a*b` | subnormal | 4096 | 0 | 4042 | 4096 |
+| float32 | float32 | `c + a*b` | overflow | 4096 | 0 | 2290 | 4096 |
+| float32 | float32 | `c + a*b` | infnan | 4096 | 0 | 3964 | 1305 |
+| float32 | float32 | `c + a*b` | random | 4096 | 0 | 2728 | 4096 |
+| float32 | float32 | `a*b - c` | cancel | 4096 | 0 | 0 | 4096 |
+| float32 | float32 | `a*b - c` | subnormal | 4096 | 0 | 4096 | 4096 |
+| float32 | float32 | `a*b - c` | overflow | 4096 | 0 | 4092 | 4096 |
+| float32 | float32 | `a*b - c` | infnan | 4096 | 0 | 3967 | 1366 |
+| float32 | float32 | `a*b - c` | random | 4096 | 0 | 2746 | 4096 |
+| float32 | float32 | `c - a*b` | cancel | 4096 | 0 | 0 | 4096 |
+| float32 | float32 | `c - a*b` | subnormal | 4096 | 0 | 4096 | 4096 |
+| float32 | float32 | `c - a*b` | overflow | 4096 | 0 | 4091 | 4096 |
+| float32 | float32 | `c - a*b` | infnan | 4096 | 0 | 3989 | 1364 |
+| float32 | float32 | `c - a*b` | random | 4096 | 0 | 2661 | 4096 |
+| float32 | float32 | `-(a*b) + c` | cancel | 4096 | 0 | 0 | 4096 |
+| float32 | float32 | `-(a*b) + c` | subnormal | 4096 | 0 | 4096 | 4096 |
+| float32 | float32 | `-(a*b) + c` | overflow | 4096 | 0 | 4091 | 4096 |
+| float32 | float32 | `-(a*b) + c` | infnan | 4096 | 0 | 3962 | 1411 |
+| float32 | float32 | `-(a*b) + c` | random | 4096 | 0 | 2711 | 4096 |
+| float32 | float32 | `where(m, a*b, 0) + c` | cancel | 4096 | 0 | 4096 | 3675 |
+| float32 | float32 | `where(m, a*b, 0) + c` | subnormal | 4096 | 0 | 4096 | 4073 |
+| float32 | float32 | `where(m, a*b, 0) + c` | overflow | 4096 | 0 | 4096 | 3182 |
+| float32 | float32 | `where(m, a*b, 0) + c` | infnan | 4096 | 0 | 4096 | 1312 |
+| float32 | float32 | `where(m, a*b, 0) + c` | random | 4096 | 0 | 4096 | 3441 |
+| float32 | float64 | `(a*b).to(wide) + c` | cancel | 4096 | 0 | 4096 | 0 |
+| float32 | float64 | `(a*b).to(wide) + c` | subnormal | 4096 | 0 | 4096 | 0 |
+| float32 | float64 | `(a*b).to(wide) + c` | overflow | 4096 | 0 | 4096 | 0 |
+| float32 | float64 | `(a*b).to(wide) + c` | infnan | 4096 | 0 | 4096 | 712 |
+| float32 | float64 | `(a*b).to(wide) + c` | random | 4096 | 0 | 4096 | 0 |
+| float32 | float32 | `(a*b)*a + c` | cancel | 4096 | 0 | 2419 | 0 |
+| float32 | float32 | `(a*b)*a + c` | subnormal | 4096 | 0 | 4096 | 0 |
+| float32 | float32 | `(a*b)*a + c` | overflow | 4096 | 0 | 4096 | 0 |
+| float32 | float32 | `(a*b)*a + c` | infnan | 4096 | 0 | 4059 | 0 |
+| float32 | float32 | `(a*b)*a + c` | random | 4096 | 0 | 2816 | 0 |
+| float64 | float64 | `a*b + c` | cancel | 4096 | 0 | 3273 | 4096 |
+| float64 | float64 | `a*b + c` | subnormal | 4096 | 0 | 4096 | 4096 |
+| float64 | float64 | `a*b + c` | overflow | 4096 | 0 | 2309 | 4096 |
+| float64 | float64 | `a*b + c` | infnan | 4096 | 0 | 3985 | 1358 |
+| float64 | float64 | `a*b + c` | random | 4096 | 0 | 2937 | 4096 |
+| float64 | float64 | `c + a*b` | cancel | 4096 | 0 | 3279 | 4096 |
+| float64 | float64 | `c + a*b` | subnormal | 4096 | 0 | 3686 | 4096 |
+| float64 | float64 | `c + a*b` | overflow | 4096 | 0 | 2258 | 4096 |
+| float64 | float64 | `c + a*b` | infnan | 4096 | 0 | 3962 | 1360 |
+| float64 | float64 | `c + a*b` | random | 4096 | 0 | 2921 | 4096 |
+| float64 | float64 | `a*b - c` | cancel | 4096 | 0 | 0 | 4096 |
+| float64 | float64 | `a*b - c` | subnormal | 4096 | 0 | 4096 | 4096 |
+| float64 | float64 | `a*b - c` | overflow | 4096 | 0 | 4092 | 4096 |
+| float64 | float64 | `a*b - c` | infnan | 4096 | 0 | 3971 | 1369 |
+| float64 | float64 | `a*b - c` | random | 4096 | 0 | 2897 | 4096 |
+| float64 | float64 | `c - a*b` | cancel | 4096 | 0 | 0 | 4096 |
+| float64 | float64 | `c - a*b` | subnormal | 4096 | 0 | 4096 | 4096 |
+| float64 | float64 | `c - a*b` | overflow | 4096 | 0 | 4090 | 4096 |
+| float64 | float64 | `c - a*b` | infnan | 4096 | 0 | 3982 | 1364 |
+| float64 | float64 | `c - a*b` | random | 4096 | 0 | 2877 | 4096 |
+| float64 | float64 | `-(a*b) + c` | cancel | 4096 | 0 | 0 | 4096 |
+| float64 | float64 | `-(a*b) + c` | subnormal | 4096 | 0 | 3545 | 4096 |
+| float64 | float64 | `-(a*b) + c` | overflow | 4096 | 0 | 4092 | 4096 |
+| float64 | float64 | `-(a*b) + c` | infnan | 4096 | 0 | 3979 | 1389 |
+| float64 | float64 | `-(a*b) + c` | random | 4096 | 0 | 2892 | 4096 |
+| float64 | float64 | `where(m, a*b, 0) + c` | cancel | 4096 | 0 | 4096 | 3690 |
+| float64 | float64 | `where(m, a*b, 0) + c` | subnormal | 4096 | 0 | 4096 | 4079 |
+| float64 | float64 | `where(m, a*b, 0) + c` | overflow | 4096 | 0 | 4096 | 3229 |
+| float64 | float64 | `where(m, a*b, 0) + c` | infnan | 4096 | 0 | 4096 | 1409 |
+| float64 | float64 | `where(m, a*b, 0) + c` | random | 4096 | 0 | 4096 | 3487 |
+| float64 | float64 | `(a*b)*a + c` | cancel | 4096 | 0 | 2480 | 0 |
+| float64 | float64 | `(a*b)*a + c` | subnormal | 4096 | 0 | 4096 | 0 |
+| float64 | float64 | `(a*b)*a + c` | overflow | 4096 | 0 | 4096 | 0 |
+| float64 | float64 | `(a*b)*a + c` | infnan | 4096 | 0 | 4055 | 0 |
+| float64 | float64 | `(a*b)*a + c` | random | 4096 | 0 | 2994 | 0 |
+| float16 | float16 | `a*b + c` | cancel | 4096 | 0 | 3233 | 4096 |
+| float16 | float16 | `a*b + c` | subnormal | 4096 | 0 | 4047 | 4096 |
+| float16 | float16 | `a*b + c` | overflow | 4096 | 0 | 2324 | 4096 |
+| float16 | float16 | `a*b + c` | infnan | 4096 | 0 | 3992 | 1321 |
+| float16 | float16 | `a*b + c` | random | 4096 | 0 | 2721 | 4096 |
+| float16 | float16 | `c + a*b` | cancel | 4096 | 0 | 3290 | 4096 |
+| float16 | float16 | `c + a*b` | subnormal | 4096 | 0 | 3721 | 4096 |
+| float16 | float16 | `c + a*b` | overflow | 4096 | 0 | 2322 | 4096 |
+| float16 | float16 | `c + a*b` | infnan | 4096 | 0 | 3972 | 1400 |
+| float16 | float16 | `c + a*b` | random | 4096 | 0 | 2708 | 4096 |
+| float16 | float16 | `a*b - c` | cancel | 4096 | 0 | 22 | 4096 |
+| float16 | float16 | `a*b - c` | subnormal | 4096 | 0 | 3539 | 4096 |
+| float16 | float16 | `a*b - c` | overflow | 4096 | 0 | 4094 | 4096 |
+| float16 | float16 | `a*b - c` | infnan | 4096 | 0 | 3971 | 1377 |
+| float16 | float16 | `a*b - c` | random | 4096 | 0 | 2715 | 4096 |
+| float16 | float16 | `c - a*b` | cancel | 4096 | 0 | 20 | 4096 |
+| float16 | float16 | `c - a*b` | subnormal | 4096 | 0 | 3543 | 4096 |
+| float16 | float16 | `c - a*b` | overflow | 4096 | 0 | 4091 | 4096 |
+| float16 | float16 | `c - a*b` | infnan | 4096 | 0 | 3970 | 1313 |
+| float16 | float16 | `c - a*b` | random | 4096 | 0 | 2733 | 4096 |
+| float16 | float16 | `-(a*b) + c` | cancel | 4096 | 0 | 23 | 4096 |
+| float16 | float16 | `-(a*b) + c` | subnormal | 4096 | 0 | 3539 | 4096 |
+| float16 | float16 | `-(a*b) + c` | overflow | 4096 | 0 | 4093 | 4096 |
+| float16 | float16 | `-(a*b) + c` | infnan | 4096 | 0 | 3974 | 1367 |
+| float16 | float16 | `-(a*b) + c` | random | 4096 | 0 | 2733 | 4096 |
+| float16 | float16 | `where(m, a*b, 0) + c` | cancel | 4096 | 0 | 4096 | 3695 |
+| float16 | float16 | `where(m, a*b, 0) + c` | subnormal | 4096 | 0 | 4096 | 3958 |
+| float16 | float16 | `where(m, a*b, 0) + c` | overflow | 4096 | 0 | 4096 | 3192 |
+| float16 | float16 | `where(m, a*b, 0) + c` | infnan | 4096 | 0 | 4096 | 1367 |
+| float16 | float16 | `where(m, a*b, 0) + c` | random | 4096 | 0 | 4096 | 3457 |
+| float16 | float32 | `(a*b).to(wide) + c` | cancel | 4096 | 0 | 4096 | 19 |
+| float16 | float32 | `(a*b).to(wide) + c` | subnormal | 4096 | 0 | 4096 | 1 |
+| float16 | float32 | `(a*b).to(wide) + c` | overflow | 4096 | 0 | 4096 | 3 |
+| float16 | float32 | `(a*b).to(wide) + c` | infnan | 4096 | 0 | 4096 | 679 |
+| float16 | float32 | `(a*b).to(wide) + c` | random | 4096 | 0 | 4096 | 23 |
+| float16 | float16 | `(a*b)*a + c` | cancel | 4096 | 0 | 2450 | 0 |
+| float16 | float16 | `(a*b)*a + c` | subnormal | 4096 | 0 | 4096 | 0 |
+| float16 | float16 | `(a*b)*a + c` | overflow | 4096 | 0 | 4096 | 0 |
+| float16 | float16 | `(a*b)*a + c` | infnan | 4096 | 0 | 4050 | 0 |
+| float16 | float16 | `(a*b)*a + c` | random | 4096 | 0 | 2772 | 0 |
+| bfloat16 | bfloat16 | `a*b + c` | cancel | 4096 | 0 | 3331 | 4096 |
+| bfloat16 | bfloat16 | `a*b + c` | subnormal | 4096 | 0 | 4088 | 4096 |
+| bfloat16 | bfloat16 | `a*b + c` | overflow | 4096 | 0 | 2342 | 4096 |
+| bfloat16 | bfloat16 | `a*b + c` | infnan | 4096 | 0 | 4004 | 1393 |
+| bfloat16 | bfloat16 | `a*b + c` | random | 4096 | 0 | 2689 | 4096 |
+| bfloat16 | bfloat16 | `c + a*b` | cancel | 4096 | 0 | 3274 | 4096 |
+| bfloat16 | bfloat16 | `c + a*b` | subnormal | 4096 | 0 | 4094 | 4096 |
+| bfloat16 | bfloat16 | `c + a*b` | overflow | 4096 | 0 | 2309 | 4096 |
+| bfloat16 | bfloat16 | `c + a*b` | infnan | 4096 | 0 | 3955 | 1325 |
+| bfloat16 | bfloat16 | `c + a*b` | random | 4096 | 0 | 2724 | 4096 |
+| bfloat16 | bfloat16 | `a*b - c` | cancel | 4096 | 0 | 159 | 4096 |
+| bfloat16 | bfloat16 | `a*b - c` | subnormal | 4096 | 0 | 3523 | 4096 |
+| bfloat16 | bfloat16 | `a*b - c` | overflow | 4096 | 0 | 4094 | 4096 |
+| bfloat16 | bfloat16 | `a*b - c` | infnan | 4096 | 0 | 3986 | 1353 |
+| bfloat16 | bfloat16 | `a*b - c` | random | 4096 | 0 | 2757 | 4096 |
+| bfloat16 | bfloat16 | `c - a*b` | cancel | 4096 | 0 | 148 | 4096 |
+| bfloat16 | bfloat16 | `c - a*b` | subnormal | 4096 | 0 | 4081 | 4096 |
+| bfloat16 | bfloat16 | `c - a*b` | overflow | 4096 | 0 | 4094 | 4096 |
+| bfloat16 | bfloat16 | `c - a*b` | infnan | 4096 | 0 | 3959 | 1363 |
+| bfloat16 | bfloat16 | `c - a*b` | random | 4096 | 0 | 2744 | 4096 |
+| bfloat16 | bfloat16 | `-(a*b) + c` | cancel | 4096 | 0 | 152 | 4096 |
+| bfloat16 | bfloat16 | `-(a*b) + c` | subnormal | 4096 | 0 | 3043 | 4096 |
+| bfloat16 | bfloat16 | `-(a*b) + c` | overflow | 4096 | 0 | 4090 | 4096 |
+| bfloat16 | bfloat16 | `-(a*b) + c` | infnan | 4096 | 0 | 3982 | 1362 |
+| bfloat16 | bfloat16 | `-(a*b) + c` | random | 4096 | 0 | 2770 | 4096 |
+| bfloat16 | bfloat16 | `where(m, a*b, 0) + c` | cancel | 4096 | 0 | 4096 | 3738 |
+| bfloat16 | bfloat16 | `where(m, a*b, 0) + c` | subnormal | 4096 | 0 | 4096 | 4066 |
+| bfloat16 | bfloat16 | `where(m, a*b, 0) + c` | overflow | 4096 | 0 | 4096 | 3173 |
+| bfloat16 | bfloat16 | `where(m, a*b, 0) + c` | infnan | 4096 | 0 | 4096 | 1312 |
+| bfloat16 | bfloat16 | `where(m, a*b, 0) + c` | random | 4096 | 0 | 4096 | 3423 |
+| bfloat16 | float32 | `(a*b).to(wide) + c` | cancel | 4096 | 0 | 4096 | 125 |
+| bfloat16 | float32 | `(a*b).to(wide) + c` | subnormal | 4096 | 0 | 4096 | 81 |
+| bfloat16 | float32 | `(a*b).to(wide) + c` | overflow | 4096 | 0 | 4096 | 2114 |
+| bfloat16 | float32 | `(a*b).to(wide) + c` | infnan | 4096 | 0 | 4096 | 960 |
+| bfloat16 | float32 | `(a*b).to(wide) + c` | random | 4096 | 0 | 4096 | 132 |
+| bfloat16 | bfloat16 | `(a*b)*a + c` | cancel | 4096 | 0 | 2434 | 0 |
+| bfloat16 | bfloat16 | `(a*b)*a + c` | subnormal | 4096 | 0 | 4096 | 0 |
+| bfloat16 | bfloat16 | `(a*b)*a + c` | overflow | 4096 | 0 | 4096 | 0 |
+| bfloat16 | bfloat16 | `(a*b)*a + c` | infnan | 4096 | 0 | 4043 | 0 |
+| bfloat16 | bfloat16 | `(a*b)*a + c` | random | 4096 | 0 | 2831 | 0 |
+| float16 dot | float32 | `tl.dot(A, B) * S - C` | cancel | 4096 | 0 | | |
+TOTAL elements 638976, outside the narrow relation 0

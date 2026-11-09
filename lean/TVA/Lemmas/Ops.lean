@@ -510,42 +510,121 @@ theorem Tree.eval_exists {β : Type} {op : β → β → β → Prop} (htot : �
 theorem addRel_total (fusion : Bool) : ∀ a b : FloatV f, ∃ c, AddRel fusion a b c :=
   fun a b => ⟨_, AddRel.ieee fusion a b⟩
 
+/-- A balanced tree over `lo, …, lo + len − 1` in order: the first half has `⌈len/2⌉` leaves. -/
+def Tree.bal (lo : Nat) : Nat → Tree
+  | 0 => .leaf lo
+  | 1 => .leaf lo
+  | len + 2 =>
+    .node (Tree.bal lo ((len + 3) / 2)) (Tree.bal (lo + (len + 3) / 2) (len + 2 - (len + 3) / 2))
+termination_by len => len
+decreasing_by all_goals omega
+
+theorem Tree.bal_leaves (lo : Nat) : ∀ len, 0 < len → (Tree.bal lo len).leaves = List.range' lo len
+  | 0, h => absurd h (lt_irrefl 0)
+  | 1, _ => by simp [Tree.bal, Tree.leaves]
+  | len + 2, _ => by
+    rw [Tree.bal, Tree.leaves, Tree.bal_leaves lo ((len + 3) / 2) (by omega),
+      Tree.bal_leaves (lo + (len + 3) / 2) (len + 2 - (len + 3) / 2) (by omega)]
+    have := List.range'_append (s := lo) (m := (len + 3) / 2) (n := len + 2 - (len + 3) / 2) (step := 1)
+    simp only [one_mul] at this
+    rw [this]; congr 1; omega
+termination_by len => len
+decreasing_by all_goals omega
+
+/-- A balanced tree has depth `⌈log₂ len⌉`. -/
+theorem Tree.bal_depth (lo : Nat) : ∀ len, (Tree.bal lo len).depth ≤ Nat.clog 2 len
+  | 0 => by simp [Tree.bal, Tree.depth]
+  | 1 => by simp [Tree.bal, Tree.depth]
+  | len + 2 => by
+    rw [Tree.bal, Tree.depth, Nat.clog_of_two_le (by norm_num) (by omega)]
+    have h1 := Tree.bal_depth lo ((len + 3) / 2)
+    have h2 := Tree.bal_depth (lo + (len + 3) / 2) (len + 2 - (len + 3) / 2)
+    have hm : Nat.clog 2 (len + 2 - (len + 3) / 2) ≤ Nat.clog 2 ((len + 3) / 2) :=
+      Nat.clog_mono_right 2 (by omega)
+    have he : (len + 2 + 2 - 1) / 2 = (len + 3) / 2 := by omega
+    rw [he]; omega
+termination_by len => len
+decreasing_by all_goals omega
+
+theorem Tree.bal_covers {n : Nat} (hn : 0 < n) : (Tree.bal 0 n).Covers n := by
+  unfold Tree.Covers; rw [Tree.bal_leaves 0 n hn, List.range_eq_range']
+
+/-- Some tree over `0, …, n−1` fits every reduction's depth bound (`tl.sumBound`). -/
+theorem Tree.exists_sumBound (P : Platform) {n : Nat} (hn : 0 < n) :
+    ∃ t : Tree, t.Covers n ∧ t.depth ≤ tl.sumBound P n :=
+  ⟨Tree.bal 0 n, Tree.bal_covers hn, (Tree.bal_depth 0 n).trans (le_max_right _ _)⟩
+
+/-- `tl.sumWith`, with the depth bound of the tree (library issue L149). -/
+theorem safe_sumWith_depth (fusion : Bool) {n : Nat} (hn : 0 < n) {x : Tensor [n] (FloatV f)}
+    {k : FloatV f → Prog α}
+    (hk : ∀ r, (∃ t : Tree, t.Covers n ∧ t.depth ≤ tl.sumBound E.P n ∧
+        t.Eval (AddRel fusion) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sumWith fusion x >>= k) := by
+  simp only [tl.sumWith, bind_eq, Prog.bind]
+  refine .env ?_
+  obtain ⟨t, hc, hd⟩ := Tree.exists_sumBound E.P hn
+  obtain ⟨r, hr⟩ := Tree.eval_exists (addRel_total fusion)
+    (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) t
+  exact .pick ⟨r, t, hc, hd, hr⟩ hk
+
 theorem safe_sumWith (fusion : Bool) {n : Nat} (hn : 0 < n) {x : Tensor [n] (FloatV f)}
     {k : FloatV f → Prog α}
     (hk : ∀ r, (∃ t : Tree, t.Covers n ∧
         t.Eval (AddRel fusion) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r) →
       Safe E R W Q m (k r)) :
-    Safe E R W Q m (tl.sumWith fusion x >>= k) := by
-  simp only [tl.sumWith, bind_eq, Prog.bind]
-  obtain ⟨r, hr⟩ := Tree.eval_exists (addRel_total fusion)
-    (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) (Tree.seq n)
-  exact .pick ⟨r, Tree.seq n, Tree.seq_covers hn, hr⟩ hk
+    Safe E R W Q m (tl.sumWith fusion x >>= k) :=
+  safe_sumWith_depth fusion hn fun r ⟨t, hc, _, he⟩ => hk r ⟨t, hc, he⟩
+
+/-- `tl.sum1With`, with the depth bound of each row's tree (library issue L149). -/
+theorem safe_sum1With_depth (fusion : Bool) {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
+    {k : Tensor [M] (FloatV f) → Prog α}
+    (hk : ∀ r : Tensor [M] (FloatV f), (∀ i, ∃ t : Tree, t.Covers N ∧ t.depth ≤ tl.sumBound E.P N ∧
+        t.Eval (AddRel fusion) (fun j => if h : j < N then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sum1With fusion x >>= k) := by
+  simp only [tl.sum1With, bind_eq, Prog.bind]
+  refine .env ?_
+  obtain ⟨t, hc, hd⟩ := Tree.exists_sumBound E.P hn
+  have hex : ∀ i : Fin M, ∃ r, t.Eval (AddRel fusion)
+      (fun j => if h : j < N then x.get2 i ⟨j, h⟩ else default) r :=
+    fun i => Tree.eval_exists (addRel_total fusion) _ _
+  exact .pick ⟨Tensor.of1 (fun i => Classical.choose (hex i)), fun i =>
+    ⟨t, hc, hd, Classical.choose_spec (hex i)⟩⟩ hk
 
 theorem safe_sum1With (fusion : Bool) {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
     {k : Tensor [M] (FloatV f) → Prog α}
     (hk : ∀ r : Tensor [M] (FloatV f), (∀ i, ∃ t : Tree, t.Covers N ∧
         t.Eval (AddRel fusion) (fun j => if h : j < N then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) →
       Safe E R W Q m (k r)) :
-    Safe E R W Q m (tl.sum1With fusion x >>= k) := by
-  simp only [tl.sum1With, bind_eq, Prog.bind]
-  have hex : ∀ i : Fin M, ∃ r, (Tree.seq N).Eval (AddRel fusion)
-      (fun j => if h : j < N then x.get2 i ⟨j, h⟩ else default) r :=
-    fun i => Tree.eval_exists (addRel_total fusion) _ _
-  exact .pick ⟨Tensor.of1 (fun i => Classical.choose (hex i)), fun i =>
-    ⟨Tree.seq N, Tree.seq_covers hn, Classical.choose_spec (hex i)⟩⟩ hk
+    Safe E R W Q m (tl.sum1With fusion x >>= k) :=
+  safe_sum1With_depth fusion hn fun r hr => hk r fun i =>
+    let ⟨t, hc, _, he⟩ := hr i; ⟨t, hc, he⟩
+
+/-- `tl.sum0With`, with the depth bound of each column's tree (library issue L149). -/
+theorem safe_sum0With_depth (fusion : Bool) {M N : Nat} (hm : 0 < M) {x : Tensor [M, N] (FloatV f)}
+    {k : Tensor [N] (FloatV f) → Prog α}
+    (hk : ∀ r : Tensor [N] (FloatV f), (∀ j, ∃ t : Tree, t.Covers M ∧ t.depth ≤ tl.sumBound E.P M ∧
+        t.Eval (AddRel fusion) (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sum0With fusion x >>= k) := by
+  simp only [tl.sum0With, bind_eq, Prog.bind]
+  refine .env ?_
+  obtain ⟨t, hc, hd⟩ := Tree.exists_sumBound E.P hm
+  have hex : ∀ j : Fin N, ∃ r, t.Eval (AddRel fusion)
+      (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) r :=
+    fun j => Tree.eval_exists (addRel_total fusion) _ _
+  exact .pick ⟨Tensor.of1 (fun j => Classical.choose (hex j)), fun j =>
+    ⟨t, hc, hd, Classical.choose_spec (hex j)⟩⟩ hk
 
 theorem safe_sum0With (fusion : Bool) {M N : Nat} (hm : 0 < M) {x : Tensor [M, N] (FloatV f)}
     {k : Tensor [N] (FloatV f) → Prog α}
     (hk : ∀ r : Tensor [N] (FloatV f), (∀ j, ∃ t : Tree, t.Covers M ∧
         t.Eval (AddRel fusion) (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) →
       Safe E R W Q m (k r)) :
-    Safe E R W Q m (tl.sum0With fusion x >>= k) := by
-  simp only [tl.sum0With, bind_eq, Prog.bind]
-  have hex : ∀ j : Fin N, ∃ r, (Tree.seq M).Eval (AddRel fusion)
-      (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) r :=
-    fun j => Tree.eval_exists (addRel_total fusion) _ _
-  exact .pick ⟨Tensor.of1 (fun j => Classical.choose (hex j)), fun j =>
-    ⟨Tree.seq M, Tree.seq_covers hm, Classical.choose_spec (hex j)⟩⟩ hk
+    Safe E R W Q m (tl.sum0With fusion x >>= k) :=
+  safe_sum0With_depth fusion hm fun r hr => hk r fun j =>
+    let ⟨t, hc, _, he⟩ := hr j; ⟨t, hc, he⟩
 
 /-- `tl.sum` (IEEE nodes). -/
 theorem safe_sum {n : Nat} (hn : 0 < n) {x : Tensor [n] (FloatV f)} {k : FloatV f → Prog α}
@@ -554,6 +633,13 @@ theorem safe_sum {n : Nat} (hn : 0 < n) {x : Tensor [n] (FloatV f)} {k : FloatV 
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.sum x >>= k) := safe_sumWith false hn hk
 
+/-- `tl.sum`, with the depth bound of the tree. -/
+theorem safe_sum_depth {n : Nat} (hn : 0 < n) {x : Tensor [n] (FloatV f)} {k : FloatV f → Prog α}
+    (hk : ∀ r, (∃ t : Tree, t.Covers n ∧ t.depth ≤ tl.sumBound E.P n ∧
+        t.Eval (AddRel false) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sum x >>= k) := safe_sumWith_depth false hn hk
+
 theorem safe_sum1 {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
     {k : Tensor [M] (FloatV f) → Prog α}
     (hk : ∀ r : Tensor [M] (FloatV f), (∀ i, ∃ t : Tree, t.Covers N ∧
@@ -561,12 +647,26 @@ theorem safe_sum1 {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.sum1 x >>= k) := safe_sum1With false hn hk
 
+theorem safe_sum1_depth {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
+    {k : Tensor [M] (FloatV f) → Prog α}
+    (hk : ∀ r : Tensor [M] (FloatV f), (∀ i, ∃ t : Tree, t.Covers N ∧ t.depth ≤ tl.sumBound E.P N ∧
+        t.Eval (AddRel false) (fun j => if h : j < N then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sum1 x >>= k) := safe_sum1With_depth false hn hk
+
 theorem safe_sum0 {M N : Nat} (hm : 0 < M) {x : Tensor [M, N] (FloatV f)}
     {k : Tensor [N] (FloatV f) → Prog α}
     (hk : ∀ r : Tensor [N] (FloatV f), (∀ j, ∃ t : Tree, t.Covers M ∧
         t.Eval (AddRel false) (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) →
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.sum0 x >>= k) := safe_sum0With false hm hk
+
+theorem safe_sum0_depth {M N : Nat} (hm : 0 < M) {x : Tensor [M, N] (FloatV f)}
+    {k : Tensor [N] (FloatV f) → Prog α}
+    (hk : ∀ r : Tensor [N] (FloatV f), (∀ j, ∃ t : Tree, t.Covers M ∧ t.depth ≤ tl.sumBound E.P M ∧
+        t.Eval (AddRel false) (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sum0 x >>= k) := safe_sum0With_depth false hm hk
 
 /-- `tl.sumc` (fusable nodes). -/
 theorem safe_sumc {n : Nat} (hn : 0 < n) {x : Tensor [n] (FloatV f)} {k : FloatV f → Prog α}
@@ -577,6 +677,15 @@ theorem safe_sumc {n : Nat} (hn : 0 < n) {x : Tensor [n] (FloatV f)} {k : FloatV
   simp only [tl.sumc, bind_eq, Prog.bind]
   exact .env (by simpa only [bind_eq] using safe_sumWith E.fusion hn hk)
 
+/-- `tl.sumc`, with the depth bound of the tree. -/
+theorem safe_sumc_depth {n : Nat} (hn : 0 < n) {x : Tensor [n] (FloatV f)} {k : FloatV f → Prog α}
+    (hk : ∀ r, (∃ t : Tree, t.Covers n ∧ t.depth ≤ tl.sumBound E.P n ∧
+        t.Eval (AddRel E.fusion) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sumc x >>= k) := by
+  simp only [tl.sumc, bind_eq, Prog.bind]
+  exact .env (by simpa only [bind_eq] using safe_sumWith_depth E.fusion hn hk)
+
 theorem safe_sum1c {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
     {k : Tensor [M] (FloatV f) → Prog α}
     (hk : ∀ r : Tensor [M] (FloatV f), (∀ i, ∃ t : Tree, t.Covers N ∧
@@ -585,6 +694,15 @@ theorem safe_sum1c {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
     Safe E R W Q m (tl.sum1c x >>= k) := by
   simp only [tl.sum1c, bind_eq, Prog.bind]
   exact .env (by simpa only [bind_eq] using safe_sum1With E.fusion hn hk)
+
+theorem safe_sum1c_depth {M N : Nat} (hn : 0 < N) {x : Tensor [M, N] (FloatV f)}
+    {k : Tensor [M] (FloatV f) → Prog α}
+    (hk : ∀ r : Tensor [M] (FloatV f), (∀ i, ∃ t : Tree, t.Covers N ∧ t.depth ≤ tl.sumBound E.P N ∧
+        t.Eval (AddRel E.fusion) (fun j => if h : j < N then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sum1c x >>= k) := by
+  simp only [tl.sum1c, bind_eq, Prog.bind]
+  exact .env (by simpa only [bind_eq] using safe_sum1With_depth E.fusion hn hk)
 
 /-- `tl.sum0c` (fusable nodes), as `safe_sum1c` along the other axis (library issue L113). -/
 theorem safe_sum0c {M N : Nat} (hm : 0 < M) {x : Tensor [M, N] (FloatV f)}
@@ -595,6 +713,15 @@ theorem safe_sum0c {M N : Nat} (hm : 0 < M) {x : Tensor [M, N] (FloatV f)}
     Safe E R W Q m (tl.sum0c x >>= k) := by
   simp only [tl.sum0c, bind_eq, Prog.bind]
   exact .env (by simpa only [bind_eq] using safe_sum0With E.fusion hm hk)
+
+theorem safe_sum0c_depth {M N : Nat} (hm : 0 < M) {x : Tensor [M, N] (FloatV f)}
+    {k : Tensor [N] (FloatV f) → Prog α}
+    (hk : ∀ r : Tensor [N] (FloatV f), (∀ j, ∃ t : Tree, t.Covers M ∧ t.depth ≤ tl.sumBound E.P M ∧
+        t.Eval (AddRel E.fusion) (fun i => if h : i < M then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) →
+      Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.sum0c x >>= k) := by
+  simp only [tl.sum0c, bind_eq, Prog.bind]
+  exact .env (by simpa only [bind_eq] using safe_sum0With_depth E.fusion hm hk)
 
 theorem safe_max1 {M N : Nat} (hn : 0 < N) (isMax : Bool) {x : Tensor [M, N] (FloatV f)}
     {k : Tensor [M] (FloatV f) → Prog α}

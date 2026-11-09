@@ -1,0 +1,34 @@
+{
+  "kernel": "chunk_cumsum_f32",
+  "title": "Chunk-local cumulative sum (`chunk_local_cumsum_scalar_kernel`, float32), fla",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/chunk_cumsum.py",
+    "sha256": "541eb7100f63070edf97c01e88dc3cfd0a62c0ff21395660a25a6ad9b7da8e7e",
+    "ranges": [
+      [
+        66,
+        67
+      ],
+      [
+        70,
+        77
+      ],
+      [
+        80,
+        106
+      ],
+      [
+        108,
+        120
+      ]
+    ],
+    "host": []
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.ChunkCumsum",
+  "statement": "Claims.ChunkCumsum.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

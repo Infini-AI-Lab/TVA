@@ -13,7 +13,8 @@ tensor, element `D.elemAt (c i)` of `b`, where `c i` are the lane's coordinates
 * `safe_desc_atomic`: each in-bounds lane reduces its own element once (owned elements only:
   shared descriptor reductions race, see `TVA.Lang.Desc`);
 * `safe_desc_gather`, `safe_desc_scatter`: the row-indexed forms;
-* `safe_make_tensor_descriptor`: a descriptor built in the kernel (no memory access).
+* `safe_make_tensor_descriptor`: a descriptor built in the kernel (no memory access), which no
+  covered launch builds (`Rules.Compiler.Faithful`, scope point 5; library issue L146).
 -/
 namespace TVA
 

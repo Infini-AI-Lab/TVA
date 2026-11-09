@@ -25,11 +25,11 @@ Each kernel is one folder, kernels/<kernel>/ (the layout is section 1 of the pro
   tvr release [--dir DIR] [--keep] [--no-mask]
                                 the release check (protocol §2): copy the files TVA ships into an empty
                                 allowlist sandbox, make Mathlib's packages there from their upstream
-                                repositories (network needed), and build, re-check the library, gate every
-                                kernel (compared with the shipped gates, certificates and pages), check the
+                                repositories (network needed), and build, re-check the library, check the
                                 ledgers and the events they hold, lint the records not yet recorded and audit
-                                there, running only the system's git, bwrap and find (about 25 minutes
-                                and 16 GB: Mathlib is built from source; the sandbox is removed afterwards
+                                there (no kernel's gate is recomputed, library issue L160), running only the
+                                system's git, bwrap and find (about 25 minutes and 16 GB: Mathlib is built
+                                from source; the sandbox is removed afterwards
                                 unless --keep, release.json stays; the output masks the folder as <dir>)
   tvr library-check             the library's hygiene, that lean/TVA.lean reaches every library module, and
                                 `leanchecker TVA` (after `lake build TVA`)
@@ -3816,10 +3816,10 @@ def refresh(k):
 # not writable by the user), with a PATH of the system's folders and nothing else of the caller's environment;
 # git runs in an empty folder of the tool's own and reads no repository's configuration but the one it is
 # given (`_git`: each new package repository, and TVA's own to list what ships).
-# There it builds the library, re-checks it (`tvr library-check`: hygiene, `leanchecker TVA`), gates
-# every kernel and compares each gate, certificate and generated page with the shipped one, checks every
+# There it builds the library, re-checks it (`tvr library-check`: hygiene, `leanchecker TVA`), checks every
 # ledger against the records (and each kernel's events against the files they follow from), lints the
-# records not yet recorded and runs `tvr audit`; release.json keeps each ledger's length and sha256. A dependency on
+# records not yet recorded and runs `tvr audit`; release.json keeps each ledger's length and sha256. It gates no
+# kernel (library issue L160): the kernels' shipped gates, certificates and generated pages are not compared. A dependency on
 # anything outside TVA, Mathlib's pinned source, the Lean toolchain and the system fails in these steps,
 # however it is spelled or computed. Evidence scripts and reviewers' work scripts are not run (they need
 # Triton and the GPU); their text is checked by the audit's scan. Without `bwrap` the check fails (it
@@ -4360,9 +4360,6 @@ def cmd_release(argv):
             os.symlink(os.readlink(src), dst)
         else:
             shutil.copy2(src, dst)
-    # what the copy ships of what the sandbox regenerates (the pages, the gates, the certificates), read now,
-    # before anything runs in it: the steps below compare with these, not with the live tree (library issue L96)
-    shipped_recs = shipped_records(copy)
     os.makedirs(os.path.join(d, "scratch"), exist_ok=True)
     pk = make_packages(os.path.join(copy, "lean"), os.path.join(d, "scratch"))
     record("packages", not pk, "every package of lean/lake-manifest.json made afresh from its upstream repository: "
@@ -4442,19 +4439,10 @@ def cmd_release(argv):
         step("library", tvr + ["library-check"], inside_root, "library hygiene; leanchecker TVA re-checks every library declaration")
     else:
         record("library", False, "not run (the build failed)")
-    kr = os.path.join(copy, "kernels")
-    for k in sorted(x for x in (os.listdir(kr) if os.path.isdir(kr) else []) if os.path.exists(os.path.join(kr, x, "kernel.json"))):
-        shipped, cert = shipped_recs["gates"].get(k), shipped_recs["certificates"].get(k)
-        step(f"gate {k}", tvr + ["check", k], inside_root)
-        mism = gate_mismatch(shipped, _read_json(os.path.join(kr, k, "gate.json")) or {})
-        mism += certificate_mismatch(cert, _read_json(os.path.join(kr, k, "review", "certificate.json")))
-        if mism:
-            steps[-1]["ok"] = False
-            steps[-1]["detail"] = "; ".join(mism) + ("" if not steps[-1]["detail"] else " | " + steps[-1]["detail"])
-            print(f"FAIL  gate {k} (shipped files): {'; '.join(mism)}", flush=True)
-    pm = page_mismatch(shipped_recs, copy)
-    record("pages", not pm, "every generated page the copy shipped (claim.md, REVIEW.md, kernels/README.md, REPORTS.md) "
-           "is the one regenerated from the shipped files" if not pm else "; ".join(pm[:4]))
+    # No kernel's gate is recomputed, and so no certificate or generated page is compared (library issue L160;
+    # user, 2026-11-08: "I do not think we need recomputing the gates of all 38 kernels in kernels/"): the kernels
+    # are becoming benchmark tasks. Of kernels/ the check still reads each kernel's review records (`records`,
+    # and `lint` on its current round) and every file's text and imports (`audit`).
     rp = records_problems(copy)
     record("records", not rp, "every recorded file is as its ledger recorded it, nothing was added to a recorded folder, "
            "every event follows from a recorded file and every kernel's role folder from its events, and every library "

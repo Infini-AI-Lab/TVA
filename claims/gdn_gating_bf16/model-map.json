@@ -1,0 +1,196 @@
+{
+ "source": {
+  "file": "source/fused_gdn_gating.py",
+  "sha256": "53b3fe099f1deef4eb5d48658005e7e03c8c1beef88a4a7d34f4884f83ffc48f",
+  "ranges": [
+   [
+    47,
+    84
+   ]
+  ],
+  "host": [
+   [
+    45,
+    45
+   ],
+   [
+    87,
+    167
+   ]
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.GdnGating",
+ "entries": [
+  {
+   "src": [
+    47
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's module, which the decorator of line 53 names; no other statement binds it (SEMANTICS.md, the supported subset); no step"
+  },
+  {
+   "src": [
+    48
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language`, so every `tl.*` of lines 69-84 is Triton's (`TVA.tl.*`); no other statement binds `tl`; no step"
+  },
+  {
+   "src": [
+    "51-52"
+   ],
+   "drop": "comment",
+   "note": "comments"
+  },
+  {
+   "src": [
+    53
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit`: `debug` unset (`Launch.debug = false`), no `launch_metadata`, no autotune or heuristics"
+  },
+  {
+   "src": [
+    "54-68"
+   ],
+   "model": [
+    "def fused_gdn_gating_kernel (g beta_output A_log : Ptr .f32) (a b dt_bias : Ptr .bf16)",
+    "(seq_len stride_a stride_b : I32) (NUM_HEADS BLK_HEADS : Nat) : Kernel where"
+   ],
+   "note": "`g`, `beta_output`, `A_log` are `*fp32`, `a`, `b`, `dt_bias` `*bf16` (the host's tensors, SETUP.md); `seq_len` (always `1`, a compile-time constant that each product first makes an `int32` tensor), `stride_a`, `stride_b` are `int32` at every use (`Inst.ok.stride_a_lt`, `stride_b_lt`); `NUM_HEADS`, `BLK_HEADS` are constexprs, Lean parameters (`model`: `num_heads`, `8`); `beta = 1.0` and `threshold = 20.0` are compile-time values, written as the constants `oneF32`, `twentyF32` where they are used"
+  },
+  {
+   "src": [
+    69
+   ],
+   "model": [
+    "let i_b := tl.program_id ctx 0",
+    "let i_s := tl.program_id ctx 1",
+    "let i_d := tl.program_id ctx 2"
+   ],
+   "note": "the three grid axes, `int32`; the grid is `(batch, 1, cdiv(num_heads, 8))` (`launch`), so `i_s = 0`"
+  },
+  {
+   "src": [
+    70
+   ],
+   "model": "let head_off := i_d * (IntV.ofNat BLK_HEADS : I32) + tl.arange 0 BLK_HEADS",
+   "note": "the constexpr built in `int32`, the wrapping `int32` product and sum; `i_d < 2^16` (`Inst.ok.grid_z`) keeps it below `2^19`"
+  },
+  {
+   "src": [
+    71
+   ],
+   "model": [
+    "let off := i_b * seq_len * (IntV.ofNat NUM_HEADS : I32) + i_s * (IntV.ofNat NUM_HEADS : I32) +",
+    "head_off"
+   ],
+   "note": "left-associative `int32` products and sums, wrapping; on every enabled lane `i_b * num_heads + h < 2^31` (`Inst.ok.flat_le`)"
+  },
+  {
+   "src": [
+    72
+   ],
+   "model": "let mask := head_off.ltS (IntV.ofNat NUM_HEADS : I32)",
+   "note": "the `int32` tensor against the constexpr `NUM_HEADS` built in `int32`, signed"
+  },
+  {
+   "src": [
+    73
+   ],
+   "model": "let blk_A_log ← tl.load (A_log + head_off) (some mask)",
+   "note": "masked load without `other`: disabled lanes unspecified (they decide nothing: every later use is masked or lane-wise)"
+  },
+  {
+   "src": [
+    74
+   ],
+   "model": "let blk_a ← tl.load (a + i_b * stride_a + head_off) (some mask)",
+   "note": "`(a + i_b * stride_a) + head_off`, left to right; the `int32` product does not wrap (`Inst.ok.arow_le`); no `other`"
+  },
+  {
+   "src": [
+    75
+   ],
+   "model": "let blk_b ← tl.load (b + i_b * stride_b + head_off) (some mask)",
+   "note": "as line 74 (`Inst.ok.brow_le`)"
+  },
+  {
+   "src": [
+    76
+   ],
+   "model": "let blk_bias ← tl.load (dt_bias + head_off) (some mask)",
+   "note": "no `other`"
+  },
+  {
+   "src": [
+    77
+   ],
+   "model": [
+    "let xa ← tl.cvt (g := .binary32) blk_a",
+    "let xb ← tl.cvt (g := .binary32) blk_bias",
+    "let x ← tl.add xa xb"
+   ],
+   "note": "`.to(tl.float32)` of `bfloat16` (exact); the IEEE `+`: both operands are conversions, no product feeds it"
+  },
+  {
+   "src": [
+    "78-80"
+   ],
+   "model": [
+    "let t1 ← tl.mul (bc oneF32) x",
+    "let cond := t1.fle (bc twentyF32)",
+    "let t2 ← tl.mul (bc oneF32) x",
+    "let e ← tl.exp t2",
+    "let s ← tl.add (bc oneF32) e",
+    "let l ← tl.log s",
+    "let l2 ← tl.mul (bc oneF32) l",
+    "let softplus_x := tl.where cond l2 x"
+   ],
+   "note": "the arguments of `tl.where` in Python's order: `beta * x` (the constexpr `1.0` built in `float32`, the IEEE product) and `<= threshold` (the constant `20.0` a `float32` tensor, ordered `<=`); then `(1 / beta)` (the compile-time `1.0`), and `tl.log(1 + tl.exp(beta * x))` innermost first: the second `beta * x` the source writes, `tl.exp`, `1 + ...` (the integer `1` built as `float32` `1.0`; IEEE `+`: its operand is `tl.exp`'s result, not a product), `tl.log`, and the product by `1.0` (no addition consumes it); then the pure `tl.where` on the `int1` condition"
+  },
+  {
+   "src": [
+    81
+   ],
+   "model": [
+    "let eA ← tl.exp blk_A_log",
+    "let neA ← tl.neg eA",
+    "let blk_g ← tl.mul neA softplus_x"
+   ],
+   "note": "`blk_A_log.to(tl.float32)` is no conversion (`float32`); `tl.exp`; unary `-` binds before `*`; the IEEE product (no addition consumes it)"
+  },
+  {
+   "src": [
+    82
+   ],
+   "model": "tl.store (g + off) blk_g (some mask)",
+   "note": "`blk_g.to(g.dtype.element_ty)` is `float32` to `float32`, no conversion"
+  },
+  {
+   "src": [
+    83
+   ],
+   "model": [
+    "let blk_b32 ← tl.cvt (g := .binary32) blk_b",
+    "let nb ← tl.neg blk_b32",
+    "let eb ← tl.exp nb",
+    "let den ← tl.add (bc oneF32) eb",
+    "let blk_beta_output ← tl.div (bc oneF32) den"
+   ],
+   "note": "the exact widening, then `tl.sigmoid`'s body `1 / (1 + math.exp(-x))` inlined (SEMANTICS.md, `tl.sigmoid`): `-x`, `tl.exp`, the IEEE `+` of the constant `1` (no product feeds it), the default `float32` `/` of the constant `1`"
+  },
+  {
+   "src": [
+    84
+   ],
+   "model": [
+    "let beta16 ← tl.cvt (g := .bfloat16) blk_beta_output",
+    "let beta32 ← tl.cvt (g := .binary32) beta16",
+    "tl.store (beta_output + off) beta32 (some mask)"
+   ],
+   "note": "`.to(b.dtype.element_ty)`: `b` is `bfloat16`, round to nearest even; the store into the `float32` pointer converts back (exact)"
+  }
+ ]
+}

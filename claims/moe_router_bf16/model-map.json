@@ -1,0 +1,404 @@
+{
+ "source": {
+  "file": "source/moe_router.py",
+  "sha256": "10a053252d935345fb9f531cca7bc2cf4609d8b14bcb31c2ac181f5ffb874ac3",
+  "ranges": [
+   [
+    47,
+    152
+   ]
+  ],
+  "host": [
+   [
+    45,
+    45
+   ],
+   [
+    155,
+    236
+   ]
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.MoeRouter",
+ "entries": [
+  {
+   "src": [
+    47
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the decorator `@triton.jit` of line 51 names (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); it adds no step to the program"
+  },
+  {
+   "src": [
+    48
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 66–131 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    51
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`, so `debug` is unset (`Launch.debug = false`); the model is the `Kernel` `moe_router_kernel`"
+  },
+  {
+   "src": [
+    "52-65"
+   ],
+   "model": [
+    "def moe_router_kernel (input_ptr : Ptr .bf16) (moe_router_weight_ptr topk_weights_ptr : Ptr .f32)",
+    "(topk_ids_ptr : Ptr .i32) (hidden_dim BLOCK_SIZE : Nat) : Kernel where"
+   ],
+   "note": "the parameters: `input_ptr` is `*bf16`, `moe_router_weight_ptr` and `topk_weights_ptr` `*f32`, `topk_ids_ptr` `*i32` (the host's dtypes); `correction_bias_ptr` is the host's `None` (`is_correction_bias = False`) and is read only in the untaken branch of line 96, so the model takes no parameter for it; the constexprs `is_correction_bias = False`, `num_experts = 8`, `topk = 2`, `moe_softcapping = 30.0`, `moe_renormalize = False` (SETUP.md) are written as constants; `hidden_dim` and `BLOCK_SIZE` are Lean parameters"
+  },
+  {
+   "src": [
+    66
+   ],
+   "model": "let pid := tl.program_id ctx 0",
+   "note": "axis 0 of the 1-D grid `(bs,)`, an `int32`: the token"
+  },
+  {
+   "src": [
+    68
+   ],
+   "model": "let offsets := tl.arange 0 BLOCK_SIZE",
+   "note": "the `int32` lanes `0, …, BLOCK_SIZE − 1`; `BLOCK_SIZE` is a power of two on every covered instance (`Inst.ok.block_pow2`, the host's `next_power_of_2(hidden_dim`)`, ≤ 2^13)"
+  },
+  {
+   "src": [
+    69
+   ],
+   "model": "let mask := offsets.ltS (IntV.ofNat hidden_dim : I32)",
+   "note": "the constexpr `hidden_dim` as an operand of `<` with the `int32` tensor is built in `int32` (SEMANTICS.md, Constants; Operators and promotion: a comparison), and the comparison is the signed `int32` one, broadcast to every lane"
+  },
+  {
+   "src": [
+    72
+   ],
+   "model": "let expert_offsets := (tl.arange 0 8).col BLOCK_SIZE",
+   "note": "`tl.arange(0, num_experts)[:, None]`: the `[num_experts, 1]` column of expert indices (`int32`), broadcast to the block `[8, BLOCK_SIZE]` (`.col`); `num_experts = 8` on every covered instance (SETUP.md)"
+  },
+  {
+   "src": [
+    73
+   ],
+   "model": "let router_mask := mask.row 8",
+   "note": "`mask[None, :]`: the column mask broadcast along the new first axis; the load of lines 74–78 broadcasts it to the block's `[8, BLOCK_SIZE]` lanes"
+  },
+  {
+   "src": [
+    "74-78"
+   ],
+   "model": [
+    "let w_router ← tl.load",
+    "(moe_router_weight_ptr + expert_offsets * (IntV.ofNat hidden_dim : I32) + offsets.row 8)",
+    "(some router_mask) (some (bc (c32 0)))"
+   ],
+   "note": "the gate's weights: the pointer at lane `(e, k)` is `moe_router_weight_ptr + e·hidden_dim + k` (the `int32` product and sum, `e ≤ 7`, `hidden_dim ≤ 2^13`: no wrap; the pointer `+` is 64-bit); `moe_router_weight` is k major (the source's comment); the mask `router_mask` broadcast to the block; `other=0.0`: the Python `0.0` becomes the `float32` `+0` (`c32 0`), the pointer's dtype"
+  },
+  {
+   "src": [
+    80
+   ],
+   "model": [
+    "let x ← tl.load (input_ptr + pid * (IntV.ofNat hidden_dim : I32) + offsets) (some mask)",
+    "(some (bc (FloatV.litBF16 (FloatV.ofPat 0))))"
+   ],
+   "note": "the token's hidden state: the pointer at lane `k` is `input_ptr + pid·hidden_dim + k` (`int32`; `Inst.ok.x_off`: `(bs − 1)·hidden_dim + BLOCK_SIZE ≤ 2^31`, no wrap); `other=0.0`: the Python `0.0`, a `float32` `+0` first, then converted to the pointer's `bfloat16`: `+0`"
+  },
+  {
+   "src": [
+    83
+   ],
+   "model": [
+    "let x32 : Tensor [BLOCK_SIZE] F32 ← tl.cvt x",
+    "let prod ← tl.mul w_router (x32.row 8)",
+    "let logits ← tl.sum1c prod"
+   ],
+   "note": "`w_router.to(tl.float32)` changes nothing: the loaded block is `float32` already (no conversion is emitted); `x[None, :].to(tl.float32)` widens `bfloat16` to `float32`, exactly (`tl.cvt`; Float conversions: widening is exact), and `x[None, :]` is the row broadcast to the block's rows; the elementwise product is the IEEE `float32` product; the sum over the last axis is a sum of products, so its additions may fuse: `tl.sum1c` (SEMANTICS.md, Float `+` and `-`: a reduction that a product may feed)"
+  },
+  {
+   "src": [
+    86
+   ],
+   "drop": "config",
+   "note": "`moe_softcapping = 30.0` on every covered instance (SETUP.md), so the compile-time condition `moe_softcapping == 0` is false and the front end visits only the `else` branch (SEMANTICS.md, if/elif/else on a compile-time condition); the model writes only that branch"
+  },
+  {
+   "src": [
+    87
+   ],
+   "drop": "config",
+   "note": "the untaken branch of the compile-time `if` of line 86 (`moe_softcapping = 30.0 ≠ 0`): not visited by the front end, no meaning in the program"
+  },
+  {
+   "src": [
+    88
+   ],
+   "drop": "config",
+   "note": "the `else` of the compile-time `if` of line 86: the model writes the visited branch's body at lines 89–93"
+  },
+  {
+   "src": [
+    89
+   ],
+   "model": "let logits_scaled ← tl.div logits (bc (c32 0x403E000000000000))",
+   "note": "`logits / moe_softcapping`: the constexpr `30.0` as an operand of `/` with the `float32` tensor is built in `float32` (`c32` of the `float64` pattern of `30.0`, the `float32` `30`); `/` on `float32` is the platform's division (`tl.div`, `Rules.Num.DivFull`), not IEEE"
+  },
+  {
+   "src": [
+    90
+   ],
+   "model": [
+    "let doubled ← tl.mul (bc (c32 0x4000000000000000)) logits_scaled",
+    "let exped ← tl.exp doubled"
+   ],
+   "note": "`2 * logits_scaled`: the Python `2` built in `float32` (`c32` of `2.0`), the IEEE product; `tl.exp` on `float32` is the platform's (`Rules.Num.ExpF32`)"
+  },
+  {
+   "src": [
+    91
+   ],
+   "model": "let top ← tl.sub exped (bc (c32 0x3FF0000000000000))",
+   "note": "`exped − 1`: the Python `1` built in `float32`; no product is an operand (`exped` is `tl.exp`'s result), so the IEEE `-`"
+  },
+  {
+   "src": [
+    92
+   ],
+   "model": "let bottom ← tl.add exped (bc (c32 0x3FF0000000000000))",
+   "note": "`exped + 1`: the IEEE `+`, as above"
+  },
+  {
+   "src": [
+    93
+   ],
+   "model": "let logits_softcapped ← tl.mul (← tl.div top bottom) (bc (c32 0x403E000000000000))",
+   "note": "`top / bottom * moe_softcapping`: the platform's division, then the IEEE product with the `float32` `30`"
+  },
+  {
+   "src": [
+    96
+   ],
+   "drop": "config",
+   "note": "`is_correction_bias = False` on every covered instance (SETUP.md: the host passes `correction_bias=None`), a compile-time condition: the branch is not visited (SEMANTICS.md, if/elif/else on a compile-time condition)"
+  },
+  {
+   "src": [
+    97
+   ],
+   "drop": "config",
+   "note": "the untaken branch of the compile-time `if` of line 96: not visited by the front end"
+  },
+  {
+   "src": [
+    98
+   ],
+   "drop": "config",
+   "note": "the untaken branch of the compile-time `if` of line 96: not visited by the front end"
+  },
+  {
+   "src": [
+    105
+   ],
+   "model": "let top1 := (← tl.argmaxAll true true logits_softcapped).2",
+   "note": "`tl.argmax(logits_softcapped, axis=0)`: `tl.argmax` is the index half of `tl.max(…, axis=0, return_indices=True)` with `tie_break_left` the default (`tl.argmaxAll true true`), an `int32`; without NaN the result is the first index of the maximum (the `capped` logits are finite on covered instances: the proof's `cap_chain`)"
+  },
+  {
+   "src": [
+    106
+   ],
+   "model": "tl.store1 (topk_ids_ptr + (pid * (IntV.ofNat 2 : I32) + (IntV.ofInt 0 : I32))) top1",
+   "note": "`topk_ids_ptr + pid * topk + 0` with `topk = 2`: the constexprs `2` and `0` built in `int32` (`Inst.ok.out_off`: `2·bs ≤ 2^31`, no wrap); the `int32` index stored as it is"
+  },
+  {
+   "src": [
+    108
+   ],
+   "model": "let top1_v ← tl.maxAll true logits_softcapped",
+   "note": "`tl.max(logits_softcapped, axis=0)` of the 1-D `float32` block: the whole tensor combined with `maximum` along a tree Triton chooses (`tl.maxAll true`); without NaN the result is one of the values and not below any (`Tree.eval_maxRel`)"
+  },
+  {
+   "src": [
+    109
+   ],
+   "model": [
+    "let diffs ← tl.subc logits_softcapped (bc top1_v)",
+    "let exps ← tl.exp diffs",
+    "let den ← tl.sum exps",
+    "let invsumexp : F32 := (← tl.div (Tensor.scalar (c32 0x3FF0000000000000)) (Tensor.scalar den)).item"
+   ],
+   "note": "`logits_softcapped − top1_v`: `logits_softcapped` is a product (the `* moe_softcapping` of line 93 feeds it through the dataflow), so the subtraction may fuse: `tl.subc` (SEMANTICS.md, Float `+` and `-`); the scalar `top1_v` is broadcast to every lane; `tl.exp` of the differences is the platform's; `tl.sum(…, axis=0)` of the 1-D block sums the exponentials — they are not products, so the additions are IEEE (`tl.sum`); `1.0 / ` is the platform's division of the `float32` constant `1.0` (``c32` of `1.0``) by the sum"
+  },
+  {
+   "src": [
+    "111-114"
+   ],
+   "model": "tl.store1 (topk_weights_ptr + (pid * (IntV.ofNat 2 : I32) + (IntV.ofInt 0 : I32))) invsumexp",
+   "note": "`topk_weights_ptr + pid * topk + 0`, as at line 106; `invsumexp` is `float32`, the pointer's dtype"
+  },
+  {
+   "src": [
+    116
+   ],
+   "drop": "config",
+   "note": "a compile-time `if` on the constexpr `topk = 2` (SETUP.md): the branch is taken, and the model writes its body at lines 117–128 (SEMANTICS.md, if/elif/else on a compile-time condition)"
+  },
+  {
+   "src": [
+    "117-122"
+   ],
+   "model": [
+    "let masked := tl.where ((tl.arange 0 8).map (fun j => !(IntV.eq j top1))) logits_softcapped",
+    "(bc (c32 0xFFF0000000000000))",
+    "let top2 := (← tl.argmaxAll true true masked).2"
+   ],
+   "note": "the experts' indices against the `int32` `top1` (`!=`), the logits, and `float(\"-inf\")` built in `float32` (`c32` of the `float64` `−∞`): `tl.where` in `float32`; then `tl.argmax` (`tie_break_left`)"
+  },
+  {
+   "src": [
+    123
+   ],
+   "model": "tl.store1 (topk_ids_ptr + (pid * (IntV.ofNat 2 : I32) + (IntV.ofInt 1 : I32))) top2",
+   "note": "`topk_ids_ptr + pid * topk + 1`, as at line 106"
+  },
+  {
+   "src": [
+    124
+   ],
+   "model": [
+    "let onehot32 : Tensor [8] F32 ← tl.convert .i1 .f32 ((tl.arange 0 8).map (fun j => IntV.eq j top2))",
+    "let prod2 ← tl.mul logits_softcapped onehot32",
+    "let top2_v ← tl.sumc prod2"
+   ],
+   "note": "`logits_softcapped * (tl.arange(0, num_experts) == top2)`: the `int1` comparison (`int32` tensor against the `int32` `top2`) promoted with the `float32` logits: the computation dtype is `float32`, and the `int1` is converted to `float32` (`0.0`/`1.0` exactly, `tl.convert`); the product is the IEEE product; the sum over the experts (axis 0 of the 1-D block) is a sum of products, so its additions may fuse: `tl.sumc`"
+  },
+  {
+   "src": [
+    "125-128"
+   ],
+   "model": [
+    "let wdiff ← tl.sub (Tensor.scalar top2_v) (Tensor.scalar top1_v)",
+    "let w2e ← tl.exp wdiff",
+    "let w1 : F32 := (← tl.mul w2e (Tensor.scalar invsumexp)).item",
+    "tl.store1 (topk_weights_ptr + (pid * (IntV.ofNat 2 : I32) + (IntV.ofInt 1 : I32))) w1"
+   ],
+   "note": "`tl.exp(top2_v − top1_v) * invsumexp`: `top2_v` and `top1_v` are reduction results, not products, so the subtraction is the IEEE `float32` `-`; `tl.exp` is the platform's; the product with `invsumexp` is the IEEE product; the store to `topk_weights_ptr + pid * topk + 1` as at line 123, no conversion"
+  },
+  {
+   "src": [
+    131
+   ],
+   "drop": "config",
+   "note": "a compile-time `if` on the constexpr `topk = 2` (SETUP.md): `topk > 2` is false, so the branch is not visited, and the `for i in range(2, topk)` loop (line 139) inside it is not visited either (SEMANTICS.md, if/elif/else on a compile-time condition)"
+  },
+  {
+   "src": [
+    132
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131 (`topk = 2`): not visited by the front end"
+  },
+  {
+   "src": [
+    133
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131: not visited by the front end"
+  },
+  {
+   "src": [
+    136
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131: not visited by the front end"
+  },
+  {
+   "src": [
+    139
+   ],
+   "drop": "config",
+   "note": "the `for i in range(2, topk)` loop lies inside the untaken branch of the compile-time `if` of line 131 (`topk = 2` on every covered instance): not visited by the front end"
+  },
+  {
+   "src": [
+    140
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131: not visited by the front end"
+  },
+  {
+   "src": [
+    141
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131: not visited by the front end"
+  },
+  {
+   "src": [
+    144
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131: not visited by the front end"
+  },
+  {
+   "src": [
+    145
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131: not visited by the front end"
+  },
+  {
+   "src": [
+    148
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131: not visited by the front end"
+  },
+  {
+   "src": [
+    152
+   ],
+   "drop": "comment",
+   "note": "the source's own comment (`# assert not moe_renormalize, …`): the `assert` is commented out; nothing to run. (`moe_renormalize = False` is a covered compile-time value the kernel's body never reads.)"
+  },
+  {
+   "src": [
+    "134-135"
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131 (`topk = 2` on every covered instance, SETUP.md): not visited by the front end (SEMANTICS.md, if/elif/else on a compile-time condition)"
+  },
+  {
+   "src": [
+    "137-138"
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131 (`topk = 2` on every covered instance, SETUP.md): not visited by the front end (SEMANTICS.md, if/elif/else on a compile-time condition)"
+  },
+  {
+   "src": [
+    "142-143"
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131 (`topk = 2` on every covered instance, SETUP.md): not visited by the front end (SEMANTICS.md, if/elif/else on a compile-time condition)"
+  },
+  {
+   "src": [
+    "146-147"
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131 (`topk = 2` on every covered instance, SETUP.md): not visited by the front end (SEMANTICS.md, if/elif/else on a compile-time condition)"
+  },
+  {
+   "src": [
+    "149-151"
+   ],
+   "drop": "config",
+   "note": "inside the untaken branch of the compile-time `if` of line 131 (`topk = 2` on every covered instance, SETUP.md): not visited by the front end (SEMANTICS.md, if/elif/else on a compile-time condition)"
+  }
+ ]
+}

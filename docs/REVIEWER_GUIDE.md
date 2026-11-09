@@ -137,19 +137,16 @@ checklist, "How a bundle cites it"), point by point (the points keep their numbe
   `launch_cooperative_grid`, wherever the launch's own code gives them (the launch,
   `kernel.warmup(…)`, `triton.compile`'s options, a `triton.Config`), and no `@triton.heuristics`;
   the decorator's `debug` is `Launch.debug`, which must be `false`;
-- 5. when the kernel builds descriptors (`tl.make_tensor_descriptor`), an allocator
-  (`triton.set_allocator`) whose buffer holds none of the claim's buffers and that nothing else
-  writes during the launch;
+- 5. no descriptor built in the kernel: the front end visits no call of `tl.make_tensor_descriptor`
+  on a covered instance (library issue L146);
 - 6. for a `CompiledKernel` (`kernel.warmup(…)`, `triton.compile`), the kernel's own source (an
   `ASTSource`, not an IR file) and arguments in its specialisation: the warm-up's dtypes, each
   pointer 16-byte aligned exactly when the warm-up's was, each integer in the warm-up's class, each
   host `TensorDescriptor` with the warm-up's dtype and block shape;
-- 8. no host `TensorDescriptor` with `round_f32_to_tf32=True`;
-- 9. no CUDA graph capture: the launch is not made while a CUDA stream capture is in progress
-  (`torch.cuda.graph`, `triton.testing.do_bench_cudagraph`), on the capturing stream or any other,
-  and is not a replay of a captured graph.
+- 8. no host `TensorDescriptor` with `round_f32_to_tf32=True`.
 
-The launch is a direct launch of the `@triton.jit` function: `@triton.autotune` is outside the
+The launch is an execution of the `@triton.jit` function, however the host makes it happen (library
+issue L144): `@triton.autotune` is outside the
 supported subset, and a source that still has it is `UNSUPPORTED` (library issue L116). For a
 kernel a tutorial autotunes, the user and the coordinator chose one config when they set up the
 kernel's folder, removed the decorator and pass the config's values at the launch

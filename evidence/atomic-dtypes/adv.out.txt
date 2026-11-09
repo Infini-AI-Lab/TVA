@@ -1,0 +1,48 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+## S. SASS of a few accepted cases
+add torch.float16 used: PTX ['atom.global.gpu.acq_rel.add.noftz.f16']; SASS ['ATOMG.E.CAS.STRONG.GPU']; unused: PTX ['atom.global.gpu.acq_rel.add.noftz.f16']; SASS ['ATOMG.E.CAS.STRONG.GPU']
+add torch.bfloat16 used: PTX ['atom.global.gpu.acq_rel.add.noftz.bf16']; SASS ['ATOMG.E.CAS.STRONG.GPU']; unused: PTX ['atom.global.gpu.acq_rel.add.noftz.bf16']; SASS ['ATOMG.E.CAS.STRONG.GPU']
+max torch.float32 used: PTX ['atom.global.gpu.acq_rel.max.s32', 'atom.global.gpu.acq_rel.min.u32']; SASS ['ATOMG.E.MAX.S32.STRONG.GPU', 'ATOMG.E.MIN.STRONG.GPU']; unused: PTX ['atom.global.gpu.acq_rel.max.s32', 'atom.global.gpu.acq_rel.min.u32']; SASS ['ATOMG.E.MAX.S32.STRONG.GPU', 'ATOMG.E.MIN.STRONG.GPU']
+and torch.float64 used: PTX ['atom.global.gpu.acq_rel.and.b64']; SASS ['ATOMG.E.AND.64.STRONG.GPU']; unused: PTX ['atom.global.gpu.acq_rel.and.b64']; SASS ['ATOMG.E.AND.64.STRONG.GPU']
+cas torch.float16 used: PTX ['atom.global.acq_rel.gpu.cas.b16']; SASS ['ATOMG.E.CAS.STRONG.GPU']
+add torch.float32 used: PTX ['atom.global.gpu.acq_rel.add.f32']; SASS ['ATOMG.E.ADD.F32.FTZ.RN.STRONG.GPU']; unused: PTX ['atom.global.gpu.acq_rel.add.f32']; SASS ['ATOMG.E.ADD.F32.FTZ.RN.STRONG.GPU']
+## U. the result unused: new values
+add int32 unused: ['atom.global.gpu.acq_rel.add.u32']; new value wrong on 0 of 64
+add int64 unused: ['atom.global.gpu.acq_rel.add.u64']; new value wrong on 0 of 64
+add float16 unused: ['atom.global.gpu.acq_rel.add.noftz.f16']; new value wrong on 0 of 64
+add bfloat16 unused: ['atom.global.gpu.acq_rel.add.noftz.bf16']; new value wrong on 0 of 64
+add float32 unused: ['atom.global.gpu.acq_rel.add.f32']; new value wrong on 0 of 64
+max int32 unused: ['atom.global.gpu.acq_rel.max.s32']; new value wrong on 0 of 64
+max int64 unused: ['atom.global.gpu.acq_rel.max.s64']; new value wrong on 0 of 64
+max float32 unused: ['atom.global.gpu.acq_rel.max.s32', 'atom.global.gpu.acq_rel.min.u32']; new value wrong on 0 of 64
+min int32 unused: ['atom.global.gpu.acq_rel.min.s32']; new value wrong on 0 of 64
+min int64 unused: ['atom.global.gpu.acq_rel.min.s64']; new value wrong on 0 of 64
+min float32 unused: ['atom.global.gpu.acq_rel.max.u32', 'atom.global.gpu.acq_rel.min.s32']; new value wrong on 0 of 64
+and int32 unused: ['atom.global.gpu.acq_rel.and.b32']; new value wrong on 0 of 64
+and int64 unused: ['atom.global.gpu.acq_rel.and.b64']; new value wrong on 0 of 64
+or int32 unused: ['atom.global.gpu.acq_rel.or.b32']; new value wrong on 0 of 64
+or int64 unused: ['atom.global.gpu.acq_rel.or.b64']; new value wrong on 0 of 64
+xor int32 unused: ['atom.global.gpu.acq_rel.xor.b32']; new value wrong on 0 of 64
+xor int64 unused: ['atom.global.gpu.acq_rel.xor.b64']; new value wrong on 0 of 64
+xchg int32 unused: ['atom.global.gpu.acq_rel.exch.b32']; new value wrong on 0 of 64
+xchg int64 unused: ['atom.global.gpu.acq_rel.exch.b64']; new value wrong on 0 of 64
+xchg float32 unused: ['atom.global.gpu.acq_rel.exch.b32']; new value wrong on 0 of 64
+## C. scalar atomics: accepted or rejected
+atomic_add scalar accepts: ['int32', 'uint32', 'int64', 'uint64', 'float16', 'bfloat16', 'float32', 'float64']
+atomic_max scalar accepts: ['int32', 'uint32', 'int64', 'uint64', 'float32', 'float64']
+atomic_min scalar accepts: ['int32', 'uint32', 'int64', 'uint64', 'float32', 'float64']
+atomic_and scalar accepts: ['int32', 'uint32', 'int64', 'uint64', 'float32', 'float64']
+atomic_or scalar accepts: ['int32', 'uint32', 'int64', 'uint64', 'float32', 'float64']
+atomic_xor scalar accepts: ['int32', 'uint32', 'int64', 'uint64', 'float32', 'float64']
+atomic_xchg scalar accepts: ['int32', 'uint32', 'int64', 'uint64', 'float32', 'float64']
+atomic_cas scalar accepts: ['int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64', 'float16', 'bfloat16', 'float32', 'float64']
+## V. operand conversions
+float32 operand into float16 cells (0 + cast(x)): ['atom.global.gpu.acq_rel.add.noftz.f16']; != torch's conversion on 0 of 64; lanes 0,1: [inf, 1.0]
+float32 operand into bfloat16 cells (0 + cast(x)): ['atom.global.gpu.acq_rel.add.noftz.bf16']; != torch's conversion on 0 of 64; lanes 0,1: [65536.0, 1.0]
+float32 operand into int32 cells (0 + cast(x)): ['atom.global.gpu.acq_rel.add.u32']; != torch's conversion on 0 of 64; lanes 0,1: [65520, 1]
+cas case 0 (torch.int64): rejected (RuntimeError: error encountered during parsing)
+cas case 1 (torch.int64): rejected (RuntimeError: error encountered during parsing)
+cas case 2 (torch.float16): rejected (RuntimeError: error encountered during parsing)
+cas case 3 (torch.int32): rejected (RuntimeError: error encountered during parsing)
+## B. float32 atomic_cas compares bit patterns
+new value != bitwise-cas on 0 of 64; returned != old on 0 of 64; swapped where +0 vs -0: 0, where NaN == same NaN: 1

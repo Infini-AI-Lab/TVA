@@ -1,0 +1,27 @@
+# Library review, round 36, by lr-36b
+
+## Verdicts
+
+- **L160** ACCEPT — `cmd_release` (tools/tvr.py) runs shipped, packages, sandbox, build, library, records, lint and audit, and no kernel gate, certificate or page step; its comment and REVIEW_PROTOCOL.md §2 say what of `kernels/` it still reads (records, lint on the current round, audit text). The dropped clause is gone from §2 and both prompts, and DESIGN.md's two rows now say "built and checked" and that a gate is as the last `tvr check` wrote it.
+- **L164** ACCEPT — True of Triton 3.8.0: `semantic.py:1292-1373` predicates `MAX`/`UMIN` (max) and `MIN`/`UMAX` (min) on `mask & !signbit(val)` and `mask & signbit(val)` after casting the operand to the pointer's dtype, and returns `where(pos, pos_ret, neg_ret)`, the old value. `float_maxmin.py` re-ran bit-identical to `float_maxmin.out.txt`. My `work/maxmin_adv.py`: the same two predicated `atom`s for every `sem` (relaxed, acquire, release, acq_rel) and scope (gpu, cta, sys), tensor and scalar (scalar adds `bar.sync` for the result only); scalar `acq_rel` calls on every pair of 18 patterns per format (both zeros, subnormals of both signs, quiet/signalling NaNs of both signs, all-ones and max-payload NaNs): 0 new values other than the picked atomic's, 0 returned values other than the old; zeros order as `-0 < +0` (inside `fBound`, which leaves it open); 64 programs × 256 lanes on 8 cells, mixed signs: 0 of 160 cells wrong without NaN, and with NaN every cell holds a written or the initial value. `float16`/`bfloat16` `atomic_max`/`atomic_min` are rejected on the host ("does not support fp16"), so `maxUpd`'s 16-bit cases are unreachable and harmless.
+- **L165** ACCEPT — `variants.py` re-ran with the same table (barrier 0 of 100; loop, addr, unused2 100 of 100, (895, 384) and (895, 1000000)). With `relaxed`, launch A's used atomics keep `relaxed` and the unused ones are `MemSem.unused` (`acq_rel`), so the pairs on `Y[0]` and `C[511]` fail `Event.Strong` and are an `InterRace` (`Sem/Launch.lean:200-208`); launch B's two calls are `Event.SameAtomic`, so no `IntraRace`. The barrier paragraph is now limited to outside the exclusion and keeps the barrier meaningless; the "cannot tell, treat as shared" rule is in scope 12 (both texts), SEMANTICS.md and exclusions.md. `Rules/Compiler.lean` and `Lang/Ops.lean` check with `lake env lean`.
+- **L166** ACCEPT — `fdiv-ieee/run.py` re-ran bit-identical to `out.txt`. `semantic.py:331-341` emits `tt.precise_divf` for `ieee_rounding=True` without converting operands. My `work/softmax_fmt.py`: `tl.fdiv(x, 3.0 or 1.0, ieee_rounding=True)` is `div.rn.f32`, IEEE on 256 of 256; `float32`/`float16` and `float32`/`float64` operands fail to compile; `tl.softmax(ieee_rounding=True) - c` with fusion on: 0 of 16384 off the IEEE difference; `tl.softmax` of `float32` gives `div.rn.f32` (0 of 1024 off IEEE `num/den`) with `True` and `div.full.f32` with `False`; `float64` gives `div.rn.f64` (IEEE) with `False` and fails to compile with `True`. The library's statements agree with all of these. The 16-bit cases are filed below as wording.
+
+## New issues
+
+- **NEW** wording — `tl.softmax` of a `float16` or `bfloat16` tensor compiles and computes in `float32`, because `tl.max` widens floats narrower than 32 bits (SEMANTICS.md "reductions"), so `ieee_rounding=True` gives `div.rn.f32` (0 of 1024 off IEEE, `work/softmax_fmt.py`) and the default `div.full.f32`. The default on `float64` ends in the IEEE `float64` `/`, not in a product. SEMANTICS.md "`/` on floats" says that `tl.fdiv(…, ieee_rounding=True)` "on other formats … fails to compile", followed by "So `tl.softmax(x, …, ieee_rounding=True)` ends in `tl.div_rn`". A reader can take that to mean `tl.softmax` of a 16-bit tensor with `ieee_rounding=True` has no outcome, or is a 16-bit division. Fix: state the result per input format there and in the product list of "Float `+` and `-`": 16-bit inputs give a `float32` division, `float64` with `True` is rejected, and `float64` with the default is IEEE.
+- **NEW** wording — SEMANTICS.md "Atomics", the float `atomic_max`/`atomic_min` item says "the result is one of the two values". That means the new value, but the returned result is the old value. The section also never says which dtypes Triton accepts: `atom_red_typechecking_impl` (`semantic.py:1265-1290`) rejects `int8`, `int16` and `uint16` for every op, and `float16`/`bfloat16` for every op but `add`; `atomic_cas` takes 16-, 32- and 64-bit elements only. Fix: say "the new value", and list the accepted dtypes, rejected on the host otherwise. This is not a soundness problem, because such a launch has no outcome.
+
+## Re-ran
+
+- `evidence/relaxed-atomics/float_maxmin.py`, on a copy outside TVA, GPU 2: output bit-identical to `float_maxmin.out.txt`.
+- `evidence/fdiv-ieee/run.py`, on a copy: output bit-identical to `out.txt`.
+- `evidence/atomic-result-order/variants.py`, on a copy: output identical to `variants.out.txt`.
+- `work/maxmin_adv.py` (`maxmin_adv.out.txt`) and `work/softmax_fmt.py` (`softmax_fmt.out.txt`), H200 NVL, Triton 3.8.0, 2026-11-08.
+- `lake env lean` on `lean/TVA/Lang/Ops.lean` and `lean/TVA/Rules/Compiler.lean`: no errors.
+
+## Not checked
+
+- The release check (`tvr release`) was not run, at the coordinator's instruction.
+- `evidence/fdiv-ieee` part C's SASS counts, beyond the re-run's identical output.
+- The device survey beyond the batch's facts: the num.md facts table was read but not re-measured.

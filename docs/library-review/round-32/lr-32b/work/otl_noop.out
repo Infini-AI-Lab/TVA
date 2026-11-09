@@ -1,0 +1,5 @@
+tl.load(p).to(tl.float32) on float32: rewritten True; stored [2.0]; every association of the source gives 1.0
+x * SCALE, SCALE: constexpr = 1.0: rewritten True; stored [2.0]; every association of the source gives 1.0
+x / 1.0: rewritten True; stored [2.0]; every association of the source gives 1.0
+x - 0.0: rewritten True; stored [2.0]; every association of the source gives 1.0
+x + 0.0 (control): rewritten False; stored [1.0]; every association of the source gives 1.0

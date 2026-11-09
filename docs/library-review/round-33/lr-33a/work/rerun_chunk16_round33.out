@@ -1,0 +1,241 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+== Part W: kWidth and path by operand origin (Triton's choice; mma.sync unless M >= 64 with 4 warps)
+W f16 a=fmt b=fmt: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[] 64x64x128/4w:wgmma:kW[] 128x64x32/4w:wgmma:kW[] 128x64x128/4w:wgmma:kW[] 128x128x32/8w:wgmma:kW[] 128x128x128/8w:wgmma:kW[]
+W f16 a=f32 b=fmt: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=f32 b=f32: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=f64 b=f64: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=i16 b=fmt: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=i8 b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=u8 b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=bool b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=e5 b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=e4 b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=fmt b=e5: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[] 64x64x128/4w:wgmma:kW[] 128x64x32/4w:wgmma:kW[] 128x64x128/4w:wgmma:kW[] 128x128x32/8w:wgmma:kW[] 128x128x128/8w:wgmma:kW[]
+W f16 a=e5 b=e5: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=fmt b=i8: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[] 64x64x128/4w:wgmma:kW[] 128x64x32/4w:wgmma:kW[] 128x64x128/4w:wgmma:kW[] 128x128x32/8w:wgmma:kW[] 128x128x128/8w:wgmma:kW[]
+W f16 a=join b=fmt: 16x16x32/1w:mma.sync:kW[8] 16x16x128/1w:mma.sync:kW[8] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[8] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[8] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W f16 a=join b=e5: 16x16x32/1w:mma.sync:kW[8] 16x16x128/1w:mma.sync:kW[8] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[8] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[8] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=fmt b=fmt: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[] 64x64x128/4w:wgmma:kW[] 128x64x32/4w:wgmma:kW[] 128x64x128/4w:wgmma:kW[] 128x128x32/8w:wgmma:kW[] 128x128x128/8w:wgmma:kW[]
+W bf16 a=f32 b=fmt: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=f32 b=f32: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=f64 b=f64: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=i16 b=fmt: 16x16x32/1w:mma.sync:kW[2] 16x16x128/1w:mma.sync:kW[2] 32x32x32/2w:mma.sync:kW[2] 32x32x128/2w:mma.sync:kW[2] 16x64x32/1w:mma.sync:kW[2] 16x64x128/1w:mma.sync:kW[2] 32x64x32/4w:mma.sync:kW[2] 32x64x128/4w:mma.sync:kW[2] 64x32x32/2w:mma.sync:kW[2] 64x32x128/2w:mma.sync:kW[2] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=i8 b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=u8 b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=bool b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=e5 b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=e4 b=fmt: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=fmt b=e5: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[] 64x64x128/4w:wgmma:kW[] 128x64x32/4w:wgmma:kW[] 128x64x128/4w:wgmma:kW[] 128x128x32/8w:wgmma:kW[] 128x128x128/8w:wgmma:kW[]
+W bf16 a=e5 b=e5: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=fmt b=i8: 16x16x32/1w:mma.sync:kW[4] 16x16x128/1w:mma.sync:kW[4] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[4] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[4] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[] 64x64x128/4w:wgmma:kW[] 128x64x32/4w:wgmma:kW[] 128x64x128/4w:wgmma:kW[] 128x128x32/8w:wgmma:kW[] 128x128x128/8w:wgmma:kW[]
+W bf16 a=join b=fmt: 16x16x32/1w:mma.sync:kW[8] 16x16x128/1w:mma.sync:kW[8] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[8] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[8] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W bf16 a=join b=e5: 16x16x32/1w:mma.sync:kW[8] 16x16x128/1w:mma.sync:kW[8] 32x32x32/2w:mma.sync:kW[4] 32x32x128/2w:mma.sync:kW[4] 16x64x32/1w:mma.sync:kW[4] 16x64x128/1w:mma.sync:kW[8] 32x64x32/4w:mma.sync:kW[4] 32x64x128/4w:mma.sync:kW[8] 64x32x32/2w:mma.sync:kW[4] 64x32x128/2w:mma.sync:kW[4] 64x64x32/4w:wgmma:kW[2] 64x64x128/4w:wgmma:kW[2] 128x64x32/4w:wgmma:kW[2] 128x64x128/4w:wgmma:kW[2] 128x128x32/8w:wgmma:kW[2] 128x128x128/8w:wgmma:kW[2]
+W kWidth values seen (path, kWidth): mma.sync [2]: 100, mma.sync [4]: 184, mma.sync [8]: 16, wgmma []: 36, wgmma [2]: 144
+== Part P: the k of each instruction, probed on the device, against the model's rule
+P f16 a=fmt 16x16x16 1w mma.sync kW[2]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 16x16x32 1w mma.sync kW[2]: 2 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 16x16x64 1w mma.sync kW[2]: 4 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 16x16x128 1w mma.sync kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 16x16x256 1w mma.sync kW[2]: 16 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 32x32x16 2w mma.sync kW[2]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 32x32x32 2w mma.sync kW[2]: 2 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 32x32x64 2w mma.sync kW[2]: 4 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 32x32x128 2w mma.sync kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 16x64x16 1w mma.sync kW[2]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 16x64x32 1w mma.sync kW[2]: 2 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 16x64x64 1w mma.sync kW[2]: 4 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 16x64x128 1w mma.sync kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 32x64x16 4w mma.sync kW[2]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 32x64x32 4w mma.sync kW[2]: 2 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 32x64x64 4w mma.sync kW[2]: 4 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 32x64x128 4w mma.sync kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x16x16 1w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x16x32 1w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x16x64 1w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x16x128 1w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x16x256 1w mma.sync kW[4]: 16 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 32x32x16 2w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 32x32x32 2w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 32x32x64 2w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 32x32x128 2w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x64x16 1w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x64x32 1w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x64x64 1w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 16x64x128 1w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 32x64x16 4w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 32x64x32 4w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 32x64x64 4w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 32x64x128 4w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 16x16x16 1w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 16x16x32 1w mma.sync kW[8]: 2 instructions of [16] k, widest span 28, each in one aligned block of 64, blocks in order: True; equal to the rule: True; [[0, 1, 2, 3, 8, 9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27], [4, 5, 6, 7, 12, 13, 14, 15, 20, 21, 22, 23, 28, 29, 30, 31]]
+P f16 a=join 16x16x64 1w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 16x16x128 1w mma.sync kW[8]: 8 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 16x16x256 1w mma.sync kW[8]: 16 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 32x32x16 2w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 32x32x32 2w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 32x32x64 2w mma.sync kW[8]: 4 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True; [[0, 1, 8, 9, 16, 17, 24, 25, 32, 33, 40, 41, 48, 49, 56, 57], [2, 3, 10, 11, 18, 19, 26, 27, 34, 35, 42, 43, 50, 51, 58, 59], [4, 5, 12, 13, 20, 21, 28, 29, 36, 37, 44, 45, 52, 53, 60, 61], [6, 7, 14, 15, 22, 23, 30, 31, 38, 39, 46, 47, 54, 55, 62, 63]]
+P f16 a=join 32x32x128 2w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 16x64x16 1w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 16x64x32 1w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 16x64x64 1w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 16x64x128 1w mma.sync kW[8]: 8 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 32x64x16 4w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 32x64x32 4w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 32x64x64 4w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=join 32x64x128 4w mma.sync kW[8]: 8 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x16x16 1w mma.sync kW[2]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x16x32 1w mma.sync kW[2]: 2 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x16x64 1w mma.sync kW[2]: 4 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x16x128 1w mma.sync kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x16x256 1w mma.sync kW[2]: 16 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 32x32x16 2w mma.sync kW[2]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 32x32x32 2w mma.sync kW[2]: 2 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 32x32x64 2w mma.sync kW[2]: 4 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 32x32x128 2w mma.sync kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x64x16 1w mma.sync kW[2]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x64x32 1w mma.sync kW[2]: 2 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x64x64 1w mma.sync kW[2]: 4 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 16x64x128 1w mma.sync kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 32x64x16 4w mma.sync kW[2]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 32x64x32 4w mma.sync kW[2]: 2 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 32x64x64 4w mma.sync kW[2]: 4 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=fmt 32x64x128 4w mma.sync kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x16x16 1w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x16x32 1w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x16x64 1w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x16x128 1w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x16x256 1w mma.sync kW[4]: 16 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 32x32x16 2w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 32x32x32 2w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 32x32x64 2w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 32x32x128 2w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x64x16 1w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x64x32 1w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x64x64 1w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 16x64x128 1w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 32x64x16 4w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 32x64x32 4w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 32x64x64 4w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=e5 32x64x128 4w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 16x16x16 1w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 16x16x32 1w mma.sync kW[8]: 2 instructions of [16] k, widest span 28, each in one aligned block of 64, blocks in order: True; equal to the rule: True; [[0, 1, 2, 3, 8, 9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27], [4, 5, 6, 7, 12, 13, 14, 15, 20, 21, 22, 23, 28, 29, 30, 31]]
+P bf16 a=join 16x16x64 1w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 16x16x128 1w mma.sync kW[8]: 8 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 16x16x256 1w mma.sync kW[8]: 16 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 32x32x16 2w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 32x32x32 2w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 32x32x64 2w mma.sync kW[8]: 4 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True; [[0, 1, 8, 9, 16, 17, 24, 25, 32, 33, 40, 41, 48, 49, 56, 57], [2, 3, 10, 11, 18, 19, 26, 27, 34, 35, 42, 43, 50, 51, 58, 59], [4, 5, 12, 13, 20, 21, 28, 29, 36, 37, 44, 45, 52, 53, 60, 61], [6, 7, 14, 15, 22, 23, 30, 31, 38, 39, 46, 47, 54, 55, 62, 63]]
+P bf16 a=join 32x32x128 2w mma.sync kW[4]: 8 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 16x64x16 1w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 16x64x32 1w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 16x64x64 1w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 16x64x128 1w mma.sync kW[8]: 8 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 32x64x16 4w mma.sync kW[4]: 1 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 32x64x32 4w mma.sync kW[4]: 2 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 32x64x64 4w mma.sync kW[4]: 4 instructions of [16] k, widest span 30, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P bf16 a=join 32x64x128 4w mma.sync kW[8]: 8 instructions of [16] k, widest span 58, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=e5 64x64x128 4w wgmma kW[2]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P f16 a=fmt 64x64x128 4w wgmma kW[]: 8 instructions of [16] k, widest span 16, each in one aligned block of 64, blocks in order: True; equal to the rule: True
+P total: 104 configurations, 0 with a partition other than the rule or outside one block of 64; widest span of one instruction's k: 58
+== Part X: round 32's counterexample (lr-32b), K = 32, float16, a converted from float8e5, mma.sync
+X a=e5 mma.sync kW[4]: device [0.0], exact 32.9858 u, error 32.9858 u; round-32 facts (16-chunks) satisfiable: False; round-33 fact (one chunk of 64): ratio 0.008053 (holds: True)
+X a=fmt mma.sync kW[2]: device [5.660112947225571e-07], exact 32.9858 u, error 13.9937 u; round-32 facts (16-chunks) satisfiable: True; round-33 fact (one chunk of 64): ratio 0.003416 (holds: True)
+== Part M: the model (the instructions' k) against the device; the chunk facts' steps (chunks of 64)
+M model = device: 2605056 of 2605056 element results
+M bf16 mma.sync kW[2] accdom : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077
+M bf16 mma.sync kW[2] bits   : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0857
+M bf16 mma.sync kW[2] grow   : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026
+M bf16 mma.sync kW[2] normal : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0058
+M bf16 mma.sync kW[2] spread : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0060
+M bf16 mma.sync kW[2] sub    : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0023
+M bf16 mma.sync kW[4] accdom : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] bits   : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0081; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] grow   : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0911; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] normal : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0039; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] spread : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0058; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] sub    : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0057; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] b converted accdom : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] b converted bits   : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0272; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] b converted grow   : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] b converted normal : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0029; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] b converted spread : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0044; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[4] b converted sub    : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0046; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[8] accdom : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[8] bits   : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0052; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[8] grow   : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[8] normal : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0045; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[8] spread : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0061; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 mma.sync kW[8] sub    : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0334; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M bf16 wgmma kW[] accdom : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077
+M bf16 wgmma kW[] bits   : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0480
+M bf16 wgmma kW[] grow   : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026
+M bf16 wgmma kW[] normal : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0042
+M bf16 wgmma kW[] spread : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0066
+M bf16 wgmma kW[] sub    : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0015
+M bf16 wgmma kW[] b converted accdom : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077
+M bf16 wgmma kW[] b converted bits   : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0266
+M bf16 wgmma kW[] b converted grow   : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026
+M bf16 wgmma kW[] b converted normal : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0024
+M bf16 wgmma kW[] b converted spread : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0031
+M bf16 wgmma kW[] b converted sub    : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0000
+M bf16 wgmma kW[2] accdom : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077
+M bf16 wgmma kW[2] bits   : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0033
+M bf16 wgmma kW[2] grow   : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026
+M bf16 wgmma kW[2] normal : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0050
+M bf16 wgmma kW[2] spread : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0043
+M bf16 wgmma kW[2] sub    : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0062
+M bf16 wgmma kW[2] b converted accdom : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077
+M bf16 wgmma kW[2] b converted bits   : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0029
+M bf16 wgmma kW[2] b converted grow   : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026
+M bf16 wgmma kW[2] b converted normal : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0030
+M bf16 wgmma kW[2] b converted spread : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0035
+M bf16 wgmma kW[2] b converted sub    : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0036
+M f16 mma.sync kW[2] accdom : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3809
+M f16 mma.sync kW[2] bits   : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0058
+M f16 mma.sync kW[2] grow   : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0914
+M f16 mma.sync kW[2] normal : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0091
+M f16 mma.sync kW[2] spread : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0055
+M f16 mma.sync kW[2] sub    : 960 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0057
+M f16 mma.sync kW[4] accdom : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3809; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] bits   : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0059; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] grow   : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0914; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] normal : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0067; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] spread : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0051; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] sub    : 2432 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0064; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] b converted accdom : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] b converted bits   : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0046; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] b converted grow   : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] b converted normal : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0062; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] b converted spread : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0049; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[4] b converted sub    : 512 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0136; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[8] accdom : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3809; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[8] bits   : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0044; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[8] grow   : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0914; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[8] normal : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0043; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[8] spread : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0050; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 mma.sync kW[8] sub    : 448 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0074; at K = 32, 0 with no partial values of 16-chunks meeting the round-32 bound
+M f16 wgmma kW[] accdom : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3809
+M f16 wgmma kW[] bits   : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0049
+M f16 wgmma kW[] grow   : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0914
+M f16 wgmma kW[] normal : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0070
+M f16 wgmma kW[] spread : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0073
+M f16 wgmma kW[] sub    : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0068
+M f16 wgmma kW[] b converted accdom : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077
+M f16 wgmma kW[] b converted bits   : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0037
+M f16 wgmma kW[] b converted grow   : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026
+M f16 wgmma kW[] b converted normal : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0037
+M f16 wgmma kW[] b converted spread : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0042
+M f16 wgmma kW[] b converted sub    : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0035
+M f16 wgmma kW[2] accdom : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3809
+M f16 wgmma kW[2] bits   : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0043
+M f16 wgmma kW[2] grow   : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0914
+M f16 wgmma kW[2] normal : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0043
+M f16 wgmma kW[2] spread : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0047
+M f16 wgmma kW[2] sub    : 320 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0047
+M f16 wgmma kW[2] b converted accdom : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.3077
+M f16 wgmma kW[2] b converted bits   : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0038
+M f16 wgmma kW[2] b converted grow   : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026
+M f16 wgmma kW[2] b converted normal : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0018
+M f16 wgmma kW[2] b converted spread : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0026
+M f16 wgmma kW[2] b converted sub    : 128 elements checked exactly, 0 outside the chunk-of-64 bound, largest ratio 0.0047
+M total: 62976 elements checked exactly against the chunks of 64, 0 outside; on consecutive partitions 0 outside the round-32 bound (16-chunks)

@@ -59,7 +59,7 @@ SEMANTICS.md that says why. Adapt them; do not copy them blindly.
 | `mask = offs < n` | `let mask := offs.ltS n` | Values, "Operators on tensors" |
 | `x = tl.load(x_ptr + offs, mask=mask)` | `let x ← tl.load (x_ptr + offs) (some mask)` (no `other`: masked-off lanes are unspecified) | `tl.load` |
 | `x + y` on floats that no product feeds | `let z ← tl.add x y` | "Float `+` and `-`" |
-| `a * b + c`, `acc + tl.dot(…)`, `tl.rand(…) - 0.5` | `tl.mul_add a b c`, `tl.addc`, `tl.subc` (a product feeds them) | "Float `+` and `-`" |
+| `a * b + c`, `acc + tl.dot(…)`, `tl.rand(…) - 0.5`, `var / N + eps` and `x - s / N` on `float32` | `tl.mul_add a b c`, `tl.addc`, `tl.subc` (a product feeds them; a `float32` quotient is one) | "Float `+` and `-`" |
 | `tl.store(out_ptr + offs, y, mask=mask)` | `tl.store (out_ptr + offs) y (some mask)`, after the conversion to the pointer's dtype | `tl.store`; "Float conversions" |
 | `x.to(tl.float16)`, `x.to(tl.float16, fp_downcast_rounding="rtz")` | `← tl.cvt x`, `← tl.cvt x .rz` (`tl.cvt8` into fp8, `tl.cvtFrom8` out of it, `tl.itof` from integers, `tl.ftoi` to them) | "Float conversions"; `x.to(float)` |
 | `offs.to(tl.float32).to(tl.bfloat16)` | one `tl.itof` to `bfloat16` (default rounding); with `rtz`, `tl.itof` to `float32`, then `tl.cvt … .rz` | `x.to(float)` |
@@ -73,6 +73,7 @@ SEMANTICS.md that says why. Adapt them; do not copy them blindly.
 | `tl.maximum(x, 0.5)` with `x` a `float16` tensor | `0.5` as a `float32` tensor (`FloatV.litF32`), `x` converted to `float32`, then `tl.maximum` | "Constants"; `tl.maximum` |
 | `x * w + b` with `x` a `float32` and `w`, `b` `float16` tensors | `← tl.convert .f16 .f32 w` and `← tl.convert .f16 .f32 b` (the dtype `BinOp.typing? .mul (.tensor .f32 true) (.tensor .f16 true)` gives), then the `float32` product and, for the addition it feeds, `tl.mul_add` | "Operators and promotion"; "Float `+` and `-`" |
 | `x / n` with `x`, `n` `int32` | both `tl.convert .i32 .f32`, then `tl.div` | "Operators and promotion" |
+| `tl.fdiv(x, y, ieee_rounding=True) + c` with `float32` `x`, `y`, `c` (also the division ending `tl.softmax(x, ieee_rounding=True)`) | `tl.div_rn`, then the IEEE `tl.add`: no product (the default `tl.fdiv` and `/` are `tl.div`, and their addition `tl.addc`) | "`/` on floats"; "Float `+` and `-`" |
 | `x < 0.1` with `x` a `float64` tensor | the constant `FloatV.litF32 …` converted to `float64`, then the comparison | "Constants" (everywhere else) |
 | `tl.where(keep, x, 0.0)` with `keep` an `int32` tensor | `← tl.convert .i32 .i1 keep`, then `Tensor.where_` in the dtype `whereTyping?` gives: for a float `x`, `x`'s dtype, with the constant built in it (`FloatV.litF32 …`, `litBF16 …`, …); for an integer `x`, `float32`: `x` converted (`tl.convert .i32 .f32 x`, `tl.itof`'s rounding: `16777217` becomes `16777216`) and the constant `+0.0` in `float32` | "Operators and promotion" (`tl.where`); "Constants" |
 | `tl.where(offs < M, offs, 0)` with `offs` an `int32` tensor (tutorial 09) | `Tensor.where_` in `int32`, the constant `IntV.ofInt 0` | the same |
@@ -98,17 +99,19 @@ SEMANTICS.md that says why. Adapt them; do not copy them blindly.
 | `tl.multiple_of(p, 16)` in a loop body, on a name the loop carries | the check on `p`'s value before the loop, once, where it is defined (none after the loop starts) | Compiler hints: which value |
 | `tl.max_contiguous(tl.multiple_of(offs, B), B)` | `tl.max_contiguous_multiple_of offs B B`, where `offs` is defined | Compiler hints: what it promises |
 | `a, b = tl.split(z)` then `a = tl.multiple_of(a, 4)` | the check on `a` and on `b`, where the split defines them | Compiler hints: an operation with several results |
-| `desc = tl.make_tensor_descriptor(ptr, shape=[M, K], strides=[K, 1], block_shape=[…])` | `let D ← tl.make_tensor_descriptor ptr [M, K] [K, 1] […]` (the shape `int32`, the strides `int64`) | Tensor descriptors |
+| `desc = tl.make_tensor_descriptor(ptr, shape=[M, K], strides=[K, 1], block_shape=[…])` | none: a launch on which the front end visits it is outside every claim (`Compiler.Faithful`, scope 5; library issue L146); a helper such as tutorial 06's `_maybe_make_tensor_desc`, given a host `TensorDescriptor`, returns it without building one | Tensor descriptors |
 | `tl.make_block_ptr(…)`, `tl.load(bp, boundary_check=…)` | `tl.make_block_ptr` with each entry cast to `int64`, `tl.load_block` | Block pointers |
 | `desc.load([m, n])` on a host `TensorDescriptor` | `tl.desc_load D offsets` | Tensor descriptors |
 | `tl.associative_scan(x, 0, combine)` | `tl.associative_scan x 0 op reverse`, `op` a relation covering every result of `combine` | Scans |
 | `tl.cumsum(x, 0, dtype=d)` | `bfloat16` converted to `float32` first, then the conversion to `d` (`tl.convert`), then `tl.cumsum` (or `cumsumc`, `icumsum`) in `d` | Scans |
-| `tl.atomic_add(p, v, mask=m)` | the atomic with the source's `sem` and `scope` | Atomics |
+| `tl.atomic_add(p, v, mask=m)` | the atomic with the source's `sem` and `scope`, `v` first converted to the cell's element type as `tl.store` converts (`atomic_cas` converts nothing: operands of another type are rejected on the host) | Atomics |
+| `tl.atomic_add(c_ptr, acc, mask=m, sem="relaxed")` as a statement (its value unused) | `tl.atomic_add_unused c_ptr acc (some m) .relaxed`, the source's `sem` and `scope` (its order is `acq_rel` at `gpu`/`sys`, `MemSem.unused`); with the value used, `tl.atomic_add` | Atomics |
 
 ## 3. Pitfalls
 
 What most often makes a model differ from its source, and what a reviewer should look for:
-- **An IEEE `+` that a product feeds**, through any dataflow: a `*`, a `tl.dot`, a `tl.rand`, an
+- **An IEEE `+` that a product feeds**, through any dataflow: a `*`, a `tl.dot`, a `tl.rand`, a
+  float `/` with a `float32` quotient (the mean or variance of a layer norm, `tl.sigmoid`), an
   inlined helper. It may be fused on the device, and the IEEE form does not allow that.
 - **A missing conversion**: a dtype promotion (evaluate `BinOp.typing?` on the operands: `float16`
   with `bfloat16` is `float16`, an `int32` with an `int64` sign-extends, two integers under `/` are
@@ -161,6 +164,16 @@ What most often makes a model differ from its source, and what a reviewer should
   constant (Python's arithmetic), another one in `[-2^31, 2^31)` an `int32`, one outside it an
   `int64` (in `[-2^63, 2^63)`) or a `uint64` (from `2^63`); a Python `float` is `float32`; a
   `bfloat16` parameter truncates. `Inst.ok` must fix the class the model assumes.
+- **A pointer's `.type` and `if p:`**: `p.type.element_ty` of a pointer argument is its buffer's
+  dtype, but of a block of pointers it is the pointer type; `if p:` on a pointer argument is a
+  runtime `if` on `p.addr ≠ 0` (an empty tensor's address is `0`), and with `None` a compile-time
+  `if` whose branch is not visited (SEMANTICS.md, "A tensor's `.type`", "A runtime `if`").
+- **An integer `tl.dot` read as wrapping or saturating**: `DotI8` says the result is exact while
+  `|acc| + Σ|a·b| ≤ 2^31 - 1`, and nothing beyond; the conditions keep every instance within that
+  room (rules/num.md, "The integer `tl.dot`").
+- **A `uint32` accumulator of an int8 `tl.dot` read as unsigned**: the result is an `int32`, the
+  accumulator's bits read as `int32` plus the sum, so the model bitcasts the accumulator
+  (`tl.bitcast .u32 .i32`) and the room is on that reading (SEMANTICS.md, `tl.dot`).
 - **Masked-off lanes**: a masked load without `other` gives unspecified values, not necessarily
   `0`; the result of a masked-off atomic lane is unspecified and must decide nothing.
 - **Index arithmetic** that wraps in `int32`, or a missing `int64` cast.
@@ -204,23 +217,21 @@ What most often makes a model differ from its source, and what a reviewer should
 - **Names**: a kernel declaration or binder that makes a model line mean something else (§1).
 - **The host**: nothing else may write the claim's buffers while the launch runs, with Triton's
   knobs at their defaults, no hook, only the options `Launch` records (also at `warmup`, in
-  `triton.compile`'s options and in a config), no `@triton.heuristics`, a descriptor scratch that is
-  none of the claim's buffers, a precompiled kernel compiled from the kernel's source (not an IR
+  `triton.compile`'s options and in a config), no `@triton.heuristics`, no descriptor built in the
+  kernel, a precompiled kernel compiled from the kernel's source (not an IR
   file) with arguments in its specialisation (host descriptors with the warm-up's dtype and block
   shape), no host descriptor with `round_f32_to_tf32=True`, an H200 as the device and an x86-64 host
   with CPython 3.13 run without `-O`/`-OO` or `PYTHONOPTIMIZE` (which remove Triton's `assert`
   rejections) and in the default floating-point environment (no `fesetround`, `_mm_setcsr` or
-  `-ffast-math` library, which change the constants Triton builds), no CUDA graph capture (no call
-  while a stream captures, on any stream, `torch.cuda.graph` or `do_bench_cudagraph`, and no replay),
-  no `preload`, Triton and the kernel's module as installed and written (the installed `triton`; no
+  `-ffast-math` library, which change the constants Triton builds), no `preload`, Triton and the kernel's module as installed and written (the installed `triton`; no
   other code changes `tl.*`, Triton's classes and objects, a `JITFunction` or a name of the module,
-  other than through Triton's API as the tutorials use it: `set_allocator`, a hook's `block_shape`),
+  other than through Triton's API as the tutorials use it: a hook's `block_shape`),
   and the kernel new (the code the launch runs is the code Triton compiles for its own argument
   values and settings; code a cache returns counts when it is that code)
   ([rules/compiler-faithful.md](rules/compiler-faithful.md), "Scope"); `init` is the memory when
-  the direct launch starts, not the caller's memory before the call ("Which launch"). Of these, the
-  kernel and its launches (the options, `@triton.heuristics`, the
-  descriptor scratch, a precompiled kernel's arguments, host descriptors, graph capture) are part
+  the kernel's execution starts, not the caller's memory before the call ("Which launch"). Of these,
+  the kernel and its launches (the options, `@triton.heuristics`, descriptors built in the kernel, a
+  precompiled kernel's arguments, host descriptors) are part
   (A) of the scope, which the kernel reviewer checks; the rest is part (B), the environment, which
   TVA assumes and nobody checks.
 

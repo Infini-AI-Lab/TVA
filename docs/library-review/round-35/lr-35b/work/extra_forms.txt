@@ -1,0 +1,26 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+| form | regime | elements | outside the model | not the IEEE sum |
+|---|---|---|---|---|
+| `(a / b) * d + c` | cancel | 4096 | 0 | 4096 |
+| `(a / b) * d + c` | random | 4096 | 0 | 348 |
+| `(a / b) * d + c` | special | 4096 | 0 | 22 |
+| `d * (a / b) + c` | cancel | 4096 | 0 | 4096 |
+| `d * (a / b) + c` | random | 4096 | 0 | 419 |
+| `d * (a / b) + c` | special | 4096 | 0 | 26 |
+| `tl.where(m, a / b, b / a) + c` | cancel | 4096 | 0 | 0 |
+| `tl.where(m, a / b, b / a) + c` | random | 4096 | 0 | 0 |
+| `tl.where(m, a / b, b / a) + c` | special | 4096 | 0 | 0 |
+| `(a / b) + (a / b)` | cancel | 4096 | 0 | 0 |
+| `(a / b) + (a / b)` | random | 4096 | 0 | 0 |
+| `(a / b) + (a / b)` | special | 4096 | 0 | 0 |
+| `i / j + c (int32)` | cancel | 4096 | 0 | 4082 |
+| `i / j + c (int32)` | random | 4096 | 0 | 498 |
+| `i / j + c (int32)` | special | 4096 | 0 | 0 |
+| `tl.maximum(a / b, 0.0) + c` | cancel | 4096 | 0 | 0 |
+| `tl.maximum(a / b, 0.0) + c` | random | 4096 | 0 | 0 |
+| `tl.maximum(a / b, 0.0) + c` | special | 4096 | 0 | 41 |
+| `tl.where(True, a / b, 0.0) + c (constexpr)` | cancel | 4096 | 0 | 4096 |
+| `tl.where(True, a / b, 0.0) + c (constexpr)` | random | 4096 | 0 | 367 |
+| `tl.where(True, a / b, 0.0) + c (constexpr)` | special | 4096 | 0 | 14 |
+
+outside the model, all: 0

@@ -1,0 +1,43 @@
+{
+  "kernel": "streamk_matmul_f16",
+  "title": "Stream-K matrix multiplication (`streamk_matmul_kernel`, float16 into float32 with atomic adds)",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/streamk_matmul.py",
+    "sha256": "7d04a930fae74c16d1f7d3011e26d52e7c6f18537330460197effe08d30de6c7",
+    "ranges": [
+      [
+        22,
+        23
+      ],
+      [
+        26,
+        64
+      ]
+    ],
+    "host": [
+      [
+        20,
+        20
+      ],
+      [
+        67,
+        67
+      ],
+      [
+        70,
+        93
+      ],
+      [
+        96,
+        114
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.StreamKMatmul",
+  "statement": "Claims.StreamKMatmul.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

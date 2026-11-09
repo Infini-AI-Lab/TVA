@@ -1,0 +1,377 @@
+{
+ "source": {
+  "file": "source/09-persistent-matmul.py",
+  "sha256": "e36cf7558b20a0ad00298dd0f89e15950b44b1a591d55cbd95e061e90d629e27",
+  "ranges": [
+   [
+    44,
+    45
+   ],
+   [
+    291,
+    298
+   ],
+   [
+    407,
+    463
+   ]
+  ],
+  "host": [
+   [
+    19,
+    43
+   ],
+   [
+    46,
+    288
+   ],
+   [
+    301,
+    400
+   ],
+   [
+    466,
+    778
+   ]
+  ],
+  "unused": [
+   "matmul_kernel_tma",
+   "matmul_kernel_descriptor_persistent"
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.TmaPersistentMatmul",
+ "entries": [
+  {
+   "src": [
+    44
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the decorators `@triton.jit` of line 291 and `@triton.jit(launch_metadata=…)` of line 407 name (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); the kernel's body does not name `triton`; it adds no step to the program"
+  },
+  {
+   "src": [
+    45
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 293–463 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    291
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: the helper `_compute_pid`, which the front end inlines at each call (SEMANTICS.md, Helpers are inlined); no other statement of the module binds `_compute_pid` (lines 433 and 445, and the other kernels' lines 331, 352, 564 and 576, only call it); the model is the Lean function `compute_pid`, applied at each call site"
+  },
+  {
+   "src": [
+    292
+   ],
+   "model": "def compute_pid (tile_id num_pid_in_group num_pid_m : I32) (GROUP_SIZE_M : Nat) : Prog (I32 × I32) := do",
+   "note": "the two calls (lines 433, 445) pass three `int32` scalars (the loop's `int32` induction variable `tile_id` or the `int32` `tile_id_c`, and the kernel's `int32` names `num_pid_in_group`, `num_pid_m`) and the kernel's constexprs `GROUP_SIZE_M` and `NUM_SMS` directly, which stay compile-time values in the inlined body; the body never reads `NUM_SMS`, so the Lean function has no parameter for it; no parameter has a default"
+  },
+  {
+   "src": [
+    293
+   ],
+   "model": "let group_id := (← tl.idiv (Tensor.scalar tile_id) (Tensor.scalar num_pid_in_group)).item",
+   "note": "`int32` `//` of two `int32` scalars (`tl.idiv`): truncating, undefined on a zero divisor (`num_pid_in_group = 8·cdiv(N, 256) > 0` on covered instances, `N > 0`)"
+  },
+  {
+   "src": [
+    294
+   ],
+   "model": "let first_pid_m := group_id * (IntV.ofNat GROUP_SIZE_M : I32)",
+   "note": "the constexpr `GROUP_SIZE_M`, an operand of `*` with the `int32` scalar `group_id`, is built in `int32`; the wrapping `int32` product"
+  },
+  {
+   "src": [
+    295
+   ],
+   "model": "let group_size_m := (tl.iminimum (Tensor.scalar (num_pid_m - first_pid_m)) (Tensor.scalar (IntV.ofNat GROUP_SIZE_M : I32))).item",
+   "note": "Python's `min` in a kernel, with a tensor argument, is `tl.minimum` folded over its arguments (SEMANTICS.md, Python's builtins; Operators and promotion: `min`, `max`), which builds the constexpr `GROUP_SIZE_M` as an `int32` tensor of its own; on integers `tl.minimum` is the exact signed `tl.iminimum`; `num_pid_m - first_pid_m` is the wrapping `int32` difference (positive on every call: `first_pid_m ≤ pid_m < num_pid_m` for a tile below `num_tiles`)"
+  },
+  {
+   "src": [
+    296
+   ],
+   "model": "let pid_m := first_pid_m + (← tl.irem (Tensor.scalar tile_id) (Tensor.scalar group_size_m)).item",
+   "note": "`int32` `%` (`tl.irem`, truncating, undefined on a zero divisor), then the wrapping `int32` `+`"
+  },
+  {
+   "src": [
+    297
+   ],
+   "model": "let pid_n := (← tl.idiv (Tensor.scalar (← tl.irem (Tensor.scalar tile_id) (Tensor.scalar num_pid_in_group)).item) (Tensor.scalar group_size_m)).item",
+   "note": "`tile_id % num_pid_in_group` (`tl.irem`) first, then the `int32` `//` (`tl.idiv`)"
+  },
+  {
+   "src": [
+    298
+   ],
+   "model": "return (pid_m, pid_n)",
+   "note": "the helper's one `return`, of a tuple of two `int32` scalars (SEMANTICS.md, the supported subset: `return a, b` in a helper); each call site unpacks it with `a, b = e`"
+  },
+  {
+   "src": [
+    407
+   ],
+   "drop": "decl",
+   "note": "`@triton.jit(launch_metadata=_matmul_launch_metadata)` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel, under `@triton.jit(…)` with no argument but `launch_metadata=`): `launch_metadata=` only names a host function that computes profiling metadata for a launch-enter hook (`_matmul_launch_metadata`, lines 89–100, a host line), performance-only (SEMANTICS.md, Performance-only arguments); it sets no `debug` (`Launch.debug = false`); the folder's source has no `@triton.autotune` (lines 403–406 are comments; SETUP.md); no other statement of the module binds `matmul_kernel_tma_persistent` (line 496 only launches it); the model is the `Kernel` `matmul_kernel_tma_persistent`"
+  },
+  {
+   "src": [
+    "408-418"
+   ],
+   "model": [
+    "def matmul_kernel_tma_persistent (a_desc b_desc c_desc : TensorDesc .f16) (M N K : I32)",
+    "(BLOCK_SIZE_M BLOCK_SIZE_N BLOCK_SIZE_K GROUP_SIZE_M NUM_SMS : Nat)",
+    "(hsub : [BLOCK_SIZE_M, 2, BLOCK_SIZE_N / 2].prod = [BLOCK_SIZE_M, BLOCK_SIZE_N].prod) : Kernel where"
+   ],
+   "note": "`a_desc`, `b_desc`, `c_desc` receive host `TensorDescriptor`s of `float16` tensors (lines 481–483, block shapes set at line 495; SEMANTICS.md, Tensor descriptors: a host-built descriptor holds the host's base, shape, strides, block shape and padding, `TensorDesc .f16`; `model` gives `aDesc`, `bDesc`, `cDesc`); `M`, `N`, `K` are unannotated integers, `int32`: an integer argument in `[-2^31, 2^31)` other than `1` is a runtime `int32` (SEMANTICS.md, Scalar arguments; each is below `2^31` by `Inst.ok.M_le`, `N_le`, `K_le`; at `1` the compile-time `1` gives the same model, `model`'s docstring); the constexprs `BLOCK_SIZE_M`, `BLOCK_SIZE_N`, `BLOCK_SIZE_K`, `GROUP_SIZE_M`, `NUM_SMS` are Lean parameters (`model` passes `128`, `256`, `64`, `8` and the instance's `NUM_SMS`); `FP8_OUTPUT` (`False`), `EPILOGUE_SUBTILE` (`True`) and `WARP_SPECIALIZE` (`False`) are fixed on every covered launch (line 499 with `float16` matrices; line 501; the host's `warp_specialize = False`, SETUP.md) and are read only at compile time (lines 419, 453, 432), so the model has no parameter for them; `hsub` is the element count of line 454's reshape, which Triton requires (`model` proves it for `BLOCK_SIZE_N = 256`); no parameter has a default"
+  },
+  {
+   "src": [
+    419
+   ],
+   "drop": "config",
+   "note": "`dtype = tl.float8e4nv if FP8_OUTPUT else tl.float16` with the constexpr `FP8_OUTPUT = False` (line 499 on covered launches): a conditional expression on a compile-time condition, whose `else` side alone is evaluated (SEMANTICS.md, How the front end evaluates the source), giving `dtype` the compile-time dtype `tl.float16`; nothing runs; its uses, lines 457 and 459 (`.to(dtype)`), are written with `F16` in the model (`tl.cvt` into `F16`)"
+  },
+  {
+   "src": [
+    420
+   ],
+   "model": "let start_pid := tl.program_id ctx 0",
+   "note": "axis 0 of the 1-D grid, an `int32`"
+  },
+  {
+   "src": [
+    421
+   ],
+   "model": "let num_pid_m := (← tl.idiv (Tensor.scalar (M + (IntV.ofNat (BLOCK_SIZE_M - 1) : I32))) (Tensor.scalar (IntV.ofNat BLOCK_SIZE_M : I32))).item",
+   "note": "`tl.cdiv(x, div)` is `(x + (div - 1)) // div` (SEMANTICS.md, `tl.cdiv`): the constexpr `BLOCK_SIZE_M - 1` is computed by Python and built in `int32` as an operand of `+` with the `int32` `M`; the wrapping `int32` `+`, then the truncating `int32` `//` (`tl.idiv`); on covered instances `M + 127 < 2^31` (`Inst.ok.M_le`); at `M = 1` both operands are constants and `tl.cdiv` gives Python's `1` (`model`'s docstring)"
+  },
+  {
+   "src": [
+    422
+   ],
+   "model": "let num_pid_n := (← tl.idiv (Tensor.scalar (N + (IntV.ofNat (BLOCK_SIZE_N - 1) : I32))) (Tensor.scalar (IntV.ofNat BLOCK_SIZE_N : I32))).item",
+   "note": "as line 421, with `N` and `BLOCK_SIZE_N` (`Inst.ok.N_le`)"
+  },
+  {
+   "src": [
+    423
+   ],
+   "model": "let k_tiles := (← tl.idiv (Tensor.scalar (K + (IntV.ofNat (BLOCK_SIZE_K - 1) : I32))) (Tensor.scalar (IntV.ofNat BLOCK_SIZE_K : I32))).item",
+   "note": "as line 421, with `K` and `BLOCK_SIZE_K` (`K ≤ 2^13`, `Inst.ok.K_le`)"
+  },
+  {
+   "src": [
+    424
+   ],
+   "model": "let num_tiles := num_pid_m * num_pid_n",
+   "note": "the wrapping `int32` product of two `int32` scalars; no wrap on covered instances (`Inst.ok.tiles_le`)"
+  },
+  {
+   "src": [
+    426
+   ],
+   "model": "let tile_id_c := start_pid - (IntV.ofNat NUM_SMS : I32)",
+   "note": "the constexpr `NUM_SMS`, an operand of `-` with the `int32` `start_pid`, is built in `int32` (`NUM_SMS < 2^31`, `Inst.ok.sms`); the wrapping `int32` `-` (no wrap: `0 ≤ start_pid < NUM_SMS`)"
+  },
+  {
+   "src": [
+    427
+   ],
+   "model": "let num_pid_in_group := (IntV.ofNat GROUP_SIZE_M : I32) * num_pid_n",
+   "note": "the constexpr `GROUP_SIZE_M`, an operand of `*` with the `int32` scalar `num_pid_n`, is built in `int32`; the wrapping `int32` product (no wrap: `8·cdiv(N, 256) < 2^27`)"
+  },
+  {
+   "src": [
+    "429-431"
+   ],
+   "drop": "comment",
+   "note": "comments"
+  },
+  {
+   "src": [
+    432
+   ],
+   "model": [
+    "let _tile_id_c ← tl.forRange start_pid num_tiles (IntV.ofNat NUM_SMS : I32) tile_id_c",
+    "fun tile_id tile_id_c => do"
+   ],
+   "note": "`tl.range(start_pid, num_tiles, NUM_SMS, flatten=True, warp_specialize=WARP_SPECIALIZE)` is `tl.forRange` (SEMANTICS.md, Loops): the three arguments are evaluated once, before the loop; the `int32` bounds `start_pid`, `num_tiles` and the constexpr step `NUM_SMS` built in `int32`, so the induction variable `tile_id` is `int32`; undefined behaviour unless `tl.RangeOk` (positive step, `num_tiles + NUM_SMS − 1` within `int32`: `Inst.ok.sms`, `tiles_le`); `flatten=True` is a scheduling keyword with no meaning (SEMANTICS.md, Performance-only arguments), and `warp_specialize` is the constexpr `False` (no warp specialization); the loop carries `tile_id_c`, the only name defined before it that its body assigns (line 444); the names first defined in the body (`pid_m`, `pid_n`, `offs_am`, …, `acc`, `c0`, `c1`) and the loop variable are not used after the loop, and the kernel ends there"
+  },
+  {
+   "src": [
+    433
+   ],
+   "model": "let (pid_m, pid_n) ← compute_pid tile_id num_pid_in_group num_pid_m GROUP_SIZE_M",
+   "note": "the call of the helper (lines 292–298), inlined, with the induction variable `tile_id`; `a, b = e` with the helper's tuple result"
+  },
+  {
+   "src": [
+    434
+   ],
+   "model": "let offs_am := pid_m * (IntV.ofNat BLOCK_SIZE_M : I32)",
+   "note": "the constexpr built in `int32` (operand of `*` with the `int32` scalar `pid_m`), the wrapping product (no wrap: `pid_m < cdiv(M, 128)`, `Inst.ok.M_le`)"
+  },
+  {
+   "src": [
+    435
+   ],
+   "model": "let offs_bn := pid_n * (IntV.ofNat BLOCK_SIZE_N : I32)",
+   "note": "as line 434, with `pid_n`, `BLOCK_SIZE_N` (`Inst.ok.N_le`)"
+  },
+  {
+   "src": [
+    437
+   ],
+   "model": "let accumulator := tl.zeros [BLOCK_SIZE_M, BLOCK_SIZE_N] .f32",
+   "note": "`float32` `+0.0` in every element; the name is first defined in the tile loop's body, so the tile loop does not carry it"
+  },
+  {
+   "src": [
+    438
+   ],
+   "model": [
+    "let accumulator ← tl.forRange (IntV.ofInt 0 : I32) k_tiles (IntV.ofInt 1 : I32) accumulator",
+    "fun ki accumulator => do"
+   ],
+   "note": "`range(k_tiles)` with one argument: `range(0, k_tiles)`; the argument, a name, is evaluated twice (SEMANTICS.md, Loops and unrolling: the iterator's arguments), which emits no operation; the implicit `0` and step `1` are `int32` constants and the induction variable `ki` is `int32` (Loops); the loop carries `accumulator` (the only name defined before it that its body assigns); `offs_k`, `a`, `b` and `ki` are not used after it"
+  },
+  {
+   "src": [
+    439
+   ],
+   "model": "let offs_k := ki * (IntV.ofNat BLOCK_SIZE_K : I32)",
+   "note": "the constexpr built in `int32` (operand of `*` with the `int32` `ki`), the wrapping product (no wrap: `ki·64 < K + 64`)"
+  },
+  {
+   "src": [
+    440
+   ],
+   "model": "let a ← tl.desc_load (bs := [BLOCK_SIZE_M, BLOCK_SIZE_K]) a_desc [offs_am, offs_k]",
+   "note": "`desc.load(offsets)` is `tl.desc_load` (SEMANTICS.md, Tensor descriptors): the descriptor's block, `[128, 64]` (`aDesc`), at the `int32` offsets of the list; lanes inside the tensor `[M, K]` read `a`, the others hold the padding `\"zero\"` (`+0.0`); undefined behaviour unless `TensorDesc.Access` (valid descriptor, the block, the innermost offset `ki·64` a multiple of 16 bytes)"
+  },
+  {
+   "src": [
+    441
+   ],
+   "model": "let b ← tl.desc_load (bs := [BLOCK_SIZE_N, BLOCK_SIZE_K]) b_desc [offs_bn, offs_k]",
+   "note": "as line 440, `b_desc`'s block `[256, 64]` (`bDesc`), the tensor `[N, K]`"
+  },
+  {
+   "src": [
+    442
+   ],
+   "model": [
+    "tl.dot { a := .f16, b := .f16, acc := .f32, precision := .tf32, maxImpreciseAcc := 0 }",
+    "a b.trans accumulator"
+   ],
+   "note": "`b.T` of the rank-2 `b` is `b.trans` (SEMANTICS.md, Shape changes); `tl.dot(a, b.T, acc)` of `float16` operands into the `float32` accumulator: no `input_precision`, so `tf32`, the default, and no `max_num_imprecise_acc`, so `0`, the default for a dot that is not fp8 × fp8 (SEMANTICS.md, `tl.dot`); the accumulator is the loop-carried `accumulator`, not a zero, so this is the accumulating `tl.dot`, whose result is the loop body's new carried value"
+  },
+  {
+   "src": [
+    444
+   ],
+   "model": "let tile_id_c := tile_id_c + (IntV.ofNat NUM_SMS : I32)",
+   "note": "`x += y` is `x = x + y`: the constexpr built in `int32`, the wrapping `int32` `+` (no wrap: on iteration `t` the result is `start_pid + t·NUM_SMS = tile_id < num_tiles`)"
+  },
+  {
+   "src": [
+    445
+   ],
+   "model": "let (pid_m, pid_n) ← compute_pid tile_id_c num_pid_in_group num_pid_m GROUP_SIZE_M",
+   "note": "the second call of the helper, inlined, with `tile_id_c` (equal to `tile_id`), rebinding `pid_m`, `pid_n`"
+  },
+  {
+   "src": [
+    446
+   ],
+   "model": "let offs_am_c := pid_m * (IntV.ofNat BLOCK_SIZE_M : I32)",
+   "note": "as line 434"
+  },
+  {
+   "src": [
+    447
+   ],
+   "model": "let offs_bn_c := pid_n * (IntV.ofNat BLOCK_SIZE_N : I32)",
+   "note": "as line 435"
+  },
+  {
+   "src": [
+    "449-452"
+   ],
+   "drop": "comment",
+   "note": "comments"
+  },
+  {
+   "src": [
+    453
+   ],
+   "drop": "config",
+   "note": "`if EPILOGUE_SUBTILE:` on the constexpr `EPILOGUE_SUBTILE = True` (line 501): a compile-time `if` (SEMANTICS.md, the supported subset: `if` on a compile-time condition), whose first branch (lines 454–460) the front end visits as statements in sequence; the `else` branch (lines 461–463) is not visited and has no meaning on covered launches"
+  },
+  {
+   "src": [
+    454
+   ],
+   "model": "let acc := accumulator.reshape [BLOCK_SIZE_M, 2, BLOCK_SIZE_N / 2] hsub",
+   "note": "`tl.reshape(x, shape)` with the default `can_reorder=False` is `Tensor.reshape`, row-major, exact (SEMANTICS.md, Shape changes); the shape's `BLOCK_SIZE_N // 2` is Python's (`128`); element `(m, h, n)` is `accumulator[m, 128·h + n]`"
+  },
+  {
+   "src": [
+    455
+   ],
+   "model": "let acc : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N / 2, 2] F32 := acc.permute [0, 2, 1]",
+   "note": "`tl.permute(x, dims)` with the source's `dims` `(0, 2, 1)` is `Tensor.permute [0, 2, 1]`, exact (SEMANTICS.md, Shape changes); dimension `k` of the result is dimension `dims[k]` of the input, so the shape is `[BLOCK_SIZE_M, BLOCK_SIZE_N // 2, 2]`"
+  },
+  {
+   "src": [
+    456
+   ],
+   "model": "let (acc0, acc1) := Tensor.split (s := [BLOCK_SIZE_M, BLOCK_SIZE_N / 2]) acc",
+   "note": "`tl.split(x)` of a tensor whose last dimension has size `2` is `Tensor.split`, exact (SEMANTICS.md, Shape changes): the two halves `x[..., 0]`, `x[..., 1]`; `a, b = e` unpacks the pair; so `acc0[m, n] = accumulator[m, n]` and `acc1[m, n] = accumulator[m, 128 + n]`"
+  },
+  {
+   "src": [
+    457
+   ],
+   "model": "let c0 : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N / 2] F16 ← tl.cvt acc0",
+   "note": "`x.to(dtype)` with `dtype` the compile-time `tl.float16` (line 419) of a `float32` tensor: one rounding to nearest even (`tl.cvt` with the default `.rn`; no `fp_downcast_rounding`)"
+  },
+  {
+   "src": [
+    458
+   ],
+   "model": "tl.desc_store c_desc [offs_am_c, offs_bn_c] c0",
+   "note": "`desc.store(offsets, value)` is `tl.desc_store` (SEMANTICS.md, Tensor descriptors): `c_desc`'s block `[128, 128]` (`cDesc`) at the `int32` offsets; lanes outside the tensor `[M, N]` are not stored; `c0` is already `float16`, the descriptor's dtype; undefined behaviour unless `TensorDesc.Access` (the innermost offset `pid_n·256` a multiple of 16 bytes)"
+  },
+  {
+   "src": [
+    459
+   ],
+   "model": "let c1 : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N / 2] F16 ← tl.cvt acc1",
+   "note": "as line 457"
+  },
+  {
+   "src": [
+    460
+   ],
+   "model": [
+    "tl.desc_store c_desc [offs_am_c, offs_bn_c + (IntV.ofNat (BLOCK_SIZE_N / 2) : I32)] c1",
+    "return tile_id_c"
+   ],
+   "note": "as line 458, at the column offset `offs_bn_c + BLOCK_SIZE_N // 2`: Python's `128`, built in `int32` (operand of `+` with the `int32` `offs_bn_c`), the wrapping `int32` `+` (no wrap: `Inst.ok.N_le`; the offset is a multiple of 16 bytes); when it is at or past `N`, every lane is outside the tensor and nothing is stored; the end of the tile loop's body (the `if` is its last statement): its new carried value `tile_id_c`"
+  },
+  {
+   "src": [
+    "461-463"
+   ],
+   "drop": "config",
+   "note": "the `else` branch of the compile-time `if` of line 453, not visited on covered launches (`EPILOGUE_SUBTILE = True`): no meaning"
+  }
+ ]
+}

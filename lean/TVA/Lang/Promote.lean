@@ -29,6 +29,8 @@ operators), `:1481-1531` (`and`, `or`).
   are converted to, the result's dtype, and whether the result is a block; `none` when the front
   end rejects it (an error on the host before any program runs: no outcome, `TVA.Claim.Behaviour`).
 * `ConvRel`, `tl.convert`: `semantic.cast` with the default rounding, element by element.
+* `tl.bitcast` (`DType.bitwidth`): `bitcast=True`, each element's bits read in the target dtype
+  (library issue L143).
 * `Operand.constIn?`: the value Triton builds for a Python number in a dtype (`docs/SEMANTICS.md`,
   "Constants").
 
@@ -423,6 +425,40 @@ condition of `tl.where` (to `int1`). Each element as `ConvRel` allows; undefined
 element has no result. -/
 def convert {s : Shape} (d d' : DType) (x : Tensor s d.Val) : Prog (Tensor s d'.Val) :=
   .env fun e => .pick (fun r : Tensor s d'.Val => ∀ i, ConvRel e.P d d' (x.get i) (r.get i)) .ret
+
+end tl
+
+/-! ## Bit casts (library issue L143) -/
+
+/-- A dtype's width in bits, Triton's `primitive_bitwidth`: `1` for `int1`, and eight bits per
+byte of the others. -/
+def DType.bitwidth (d : DType) : Nat := if d = .i1 then 1 else 8 * d.bytes
+
+/-- Reading a value's bit pattern back in its own dtype gives the value. -/
+theorem DType.ofBits_toBits : (d : DType) → (v : d.Val) → d.ofBits (d.toBits v) = v
+  | .i1, b => by cases b <;> rfl
+  | .i8, ⟨b⟩ | .i16, ⟨b⟩ | .i32, ⟨b⟩ | .i64, ⟨b⟩ | .u8, ⟨b⟩ | .u16, ⟨b⟩ | .u32, ⟨b⟩ | .u64, ⟨b⟩ => by
+      simp [DType.ofBits, DType.toBits, IntV.ofNat]
+  | .f16, ⟨b⟩ | .bf16, ⟨b⟩ | .f32, ⟨b⟩ | .f64, ⟨b⟩ | .f8e5, ⟨b⟩ | .f8e4nv, ⟨b⟩ => by
+      simp [DType.ofBits, DType.toBits, FloatV.ofPat, FloatV.pat]
+
+namespace tl
+
+/-- `x.to(d', bitcast=True)`, `tl.cast(x, d', bitcast=True)` and `x.cast(d', bitcast=True)` of a
+tensor of dtype `d` (`triton-3.8.0-core.py:2322-2345`, `triton-3.8.0-semantic.py:793-809`): each
+element's bit pattern read as a value of `d'` (`DType.toBits`, `DType.ofBits`), exact, NaN payloads
+included; `fp_downcast_rounding` is ignored. Triton requires the same width (`DType.bitwidth`, the
+proof `h`; for literal dtypes the default proof is found by itself) and rejects every other pair on the
+host. For `d' = d` it is `x` itself (`bitcast_self`), as Triton returns its input. A pointer operand or
+target is not this operation: Triton converts it as without `bitcast` (`semantic.py:801-802`). -/
+def bitcast {s : Shape} (d d' : DType) (x : Tensor s d.Val)
+    (_h : d.bitwidth = d'.bitwidth := by decide) : Tensor s d'.Val :=
+  x.map fun v => d'.ofBits (d.toBits v)
+
+theorem bitcast_self {s : Shape} (d : DType) (x : Tensor s d.Val) (h : d.bitwidth = d.bitwidth) :
+    bitcast d d x h = x := by
+  ext i
+  exact DType.ofBits_toBits d (x.get i)
 
 end tl
 

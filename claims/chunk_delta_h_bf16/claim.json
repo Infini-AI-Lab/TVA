@@ -1,0 +1,71 @@
+{
+  "kernel": "chunk_delta_h_bf16",
+  "title": "Gated delta rule: the chunked state recurrence, forward (`chunk_gated_delta_rule_fwd_kernel_h_blockdim64`, bfloat16), fla",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/chunk_delta_h.py",
+    "sha256": "ab1b4d3f7c7a28ed83c1cbb193ac899087712f36debfa9bd9fb4051264389398",
+    "ranges": [
+      [
+        43,
+        44
+      ],
+      [
+        47,
+        48
+      ],
+      [
+        58,
+        349
+      ]
+    ],
+    "host": [
+      [
+        1,
+        42
+      ],
+      [
+        352,
+        353
+      ],
+      [
+        356,
+        377
+      ],
+      [
+        380,
+        388
+      ],
+      [
+        391,
+        395
+      ],
+      [
+        398,
+        467
+      ],
+      [
+        470,
+        470
+      ],
+      [
+        473,
+        524
+      ],
+      [
+        527,
+        559
+      ],
+      [
+        562,
+        589
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.ChunkDeltaH",
+  "statement": "Claims.ChunkDeltaH.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

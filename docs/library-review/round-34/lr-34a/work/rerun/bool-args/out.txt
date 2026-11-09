@@ -1,0 +1,8 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+bytes in the bool tensor: [0, 1, 2, 127, 128, 255, 0, 1]
+TTIR signature: tt.func public @k_load(%b_ptr: !tt.ptr<i1> {tt.divisibility = 16 : i32} loc("b_ptr"(#loc)), %o_ptr: !tt.ptr<i32> {tt.divisibility = 16 : i32} loc("o_ptr"(#loc)), %o2_ptr: !tt.ptr<i32> {tt.divisibility = 16 : i32} loc("o2_ptr"(#loc))) attributes {noinline = false} {
+tl.load, unmasked, .to(int32): [0, 1, 1, 1, 1, 1, 0, 1]
+tl.load, mask j < 3, other=5, .to(int32): [0, 1, 1, 1, 1, 1, 1, 1]
+PTX loads: ['ld.global.b8']
+tl.store(bool_ptr, v > 1) with v = [0, 1, 2, 3, -1, 5, 1, 2]: bytes [0, 0, 1, 1, 0, 1, 0, 1]
+tl.store(bool_ptr, int32 values [0, 1, 2, 255, 256, 257, -1, 512]): bytes [0, 1, 2, 255, 0, 1, 255, 0]

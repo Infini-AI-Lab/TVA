@@ -1,0 +1,19 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+F0   acc + tl.sum(x, 1).to(tl.float32): rewritten True; stored [2.0]; source gives 1.0
+F1   acc + tl.sum(x, 1) * 1.0: rewritten True; stored [2.0]; source gives 1.0
+F2   (acc + tl.sum(x, 1)) * 1.0: rewritten True; stored [2.0]; source gives 1.0
+F3   if FLAG (constexpr True): acc = acc + tl.sum(x, 1): rewritten True; stored [2.0]; source gives 1.0
+F4   for _ in tl.static_range(1): acc = acc + tl.sum(x, 1): rewritten True; stored [2.0]; source gives 1.0
+F5   s = tl.sum(x, 1); acc = acc + s; dead = s * 3.0 (unused): rewritten True; stored [2.0]; source gives 1.0
+F6   acc = upd_helper(acc, x) (reduction and update in a helper): rewritten True; stored [2.0]; source gives 1.0
+F7   acc starts at tl.zeros + iv, iv a runtime int argument = 0: rewritten False; stored [1.0]; source gives 1.0
+F70  acc starts at tl.zeros + iv, iv a runtime int argument = 1: rewritten True; stored [3.0]; source gives 2.0
+F8   acc starts at tl.zeros + fv, fv a runtime float argument = 0.0: rewritten False; stored [1.0]; source gives 1.0
+F9   acc = acc + rsum_helper(x) (reduction in a helper): rewritten True; stored [2.0]; source gives 1.0
+F10  acc = acc + tl.sum(x, 1); dead2 = acc * 2.0 (unused): rewritten True; stored [2.0]; source gives 1.0
+F11  acc = acc + tl.sum(x, 1); if FLAG (constexpr False): tl.store(acc): rewritten True; stored [2.0]; source gives 1.0
+F12  acc starts at tl.zeros * 1.0: rewritten True; stored [2.0]; source gives 1.0
+F13  for _ in tl.static_range(2): acc = acc + tl.sum(x, 1) * 0.5: rewritten False; stored [0.5]; source gives 1.0
+F14  acc + (-(-tl.sum(x, 1))): rewritten True; stored [2.0]; source gives 1.0
+F15  tl.sum(tl.broadcast_to(x, its shape), 1): rewritten True; stored [2.0]; source gives 1.0
+F16  if t >= 0 (runtime): acc = acc + tl.sum(x, 1)  [control]: rewritten False; stored [1.0]; source gives 1.0

@@ -47,14 +47,14 @@ not confirmed, and two reads, which need no order, are kept out until `docs/revi
 Q11 is settled.
 
 The library covers descriptors the host builds (a `TensorDescriptor` argument), with the host's
-shape, strides, block shape and padding, and descriptors built inside the kernel
-(`tl.make_tensor_descriptor`, library issue L5). Building one touches none of the launch's bytes in
-the model (`tl.make_tensor_descriptor` is pure): on the device each program writes it into the
-launch's scratch, a buffer the allocator set by `triton.set_allocator` returns (128 bytes per
-descriptor per program; without an allocator the launch is rejected on the host). That buffer is
-not part of the claim's memory, and `Rules.Compiler.Faithful` (scope point 5) covers the launch
-only when it holds none of the bytes `init` gives the launch and nothing else writes it during the
-launch (`evidence/desc-scratch`; `docs/SEMANTICS.md`, "Tensor descriptors").
+shape, strides, block shape and padding. Descriptors built inside the kernel
+(`tl.make_tensor_descriptor`) are outside every claim (library issue L146; the user's decision,
+2026-11-08: "let's exclude this case. we only cover descriptor outside of triton kernels"):
+`Rules.Compiler.Faithful` (scope point 5) covers no launch on which the front end visits such a
+call, since on the device each program writes the descriptor into a scratch buffer the allocator set
+by `triton.set_allocator` returns, outside the claim's memory (`docs/SEMANTICS.md`, "Tensor
+descriptors"; `docs/exclusions.md`). `tl.make_tensor_descriptor` below is kept as the meaning of the
+call in the language, which no covered launch reaches.
 -/
 namespace TVA
 
@@ -79,7 +79,9 @@ def rank (D : TensorDesc d) : Nat := D.shape.length
 `int32` values (`make_tensor_descriptor` casts them, `semantic.py:1872`): on the H200 every load,
 store or reduction through an in-kernel descriptor with a zero shape entry faults
 (`evidence/desc-zero-shape` Z2-Z11, library issue L5), and a host-built one is rejected on the host
-(Z13). -/
+(Z13). A leading stride is any multiple of 16 bytes, `0` and one shorter than the row included: on the
+H200 a host descriptor with such a stride loads, and reduces into, the elements `elemAt` names, lane by
+lane (`evidence/desc-strides` Z1-Z3, library issue L154). -/
 def Valid (D : TensorDesc d) : Prop :=
   1 ≤ D.rank ∧ D.rank ≤ 5 ∧ D.strides.length = D.rank ∧ D.block.length = D.rank ∧
     (∀ k, k < D.rank → 0 < D.shape.getD k 0 ∧ D.shape.getD k 0 < 2 ^ 31) ∧ D.base.addr % 16 = 0 ∧
@@ -161,7 +163,8 @@ namespace tl
 variable {d : DType}
 
 /-- `tl.make_tensor_descriptor(base, shape, strides, block_shape, padding_option)` in the kernel
-(`semantic.py:1851-1890`, `core.py:2647-2704`): the descriptor of the arguments' values, each shape
+(`semantic.py:1851-1890`, `core.py:2647-2704`), outside every claim (`Rules.Compiler.Faithful`,
+scope point 5; library issue L146): the descriptor of the arguments' values, each shape
 entry converted to `int32` and each stride to `int64` by the source's promotion, the source's
 `block_shape`, and the padding (`"zero"` by default). It accesses no memory of the model: the
 device writes the descriptor into the launch's scratch (see the module docstring). Undefined

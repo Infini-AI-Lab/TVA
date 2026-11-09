@@ -1,0 +1,1360 @@
+{
+  "source": {
+    "file": "source/extend_attention.py",
+    "sha256": "5be788eff8f6adf7a70d830ed8b08294427e46d14faa2a5d7b159b258547f614",
+    "ranges": [
+      [
+        89,
+        90
+      ],
+      [
+        93,
+        94
+      ],
+      [
+        96,
+        96
+      ],
+      [
+        99,
+        132
+      ],
+      [
+        134,
+        174
+      ],
+      [
+        176,
+        189
+      ],
+      [
+        191,
+        192
+      ],
+      [
+        194,
+        201
+      ],
+      [
+        203,
+        207
+      ],
+      [
+        210,
+        211
+      ],
+      [
+        213,
+        214
+      ],
+      [
+        217,
+        219
+      ],
+      [
+        221,
+        224
+      ],
+      [
+        226,
+        227
+      ],
+      [
+        229,
+        236
+      ],
+      [
+        238,
+        246
+      ],
+      [
+        248,
+        256
+      ],
+      [
+        259,
+        259
+      ],
+      [
+        261,
+        261
+      ],
+      [
+        263,
+        265
+      ],
+      [
+        267,
+        270
+      ],
+      [
+        272,
+        284
+      ],
+      [
+        287,
+        288
+      ],
+      [
+        291,
+        294
+      ],
+      [
+        296,
+        298
+      ],
+      [
+        300,
+        308
+      ],
+      [
+        313,
+        313
+      ],
+      [
+        315,
+        333
+      ],
+      [
+        341,
+        371
+      ],
+      [
+        373,
+        374
+      ],
+      [
+        376,
+        377
+      ],
+      [
+        379,
+        393
+      ],
+      [
+        395,
+        395
+      ],
+      [
+        397,
+        399
+      ],
+      [
+        401,
+        407
+      ],
+      [
+        409,
+        430
+      ],
+      [
+        434,
+        438
+      ],
+      [
+        440,
+        440
+      ],
+      [
+        444,
+        449
+      ],
+      [
+        454,
+        461
+      ],
+      [
+        463,
+        476
+      ],
+      [
+        478,
+        488
+      ],
+      [
+        490,
+        503
+      ],
+      [
+        505,
+        507
+      ],
+      [
+        509,
+        509
+      ],
+      [
+        511,
+        518
+      ],
+      [
+        520,
+        532
+      ],
+      [
+        534,
+        537
+      ],
+      [
+        539,
+        540
+      ],
+      [
+        542,
+        543
+      ],
+      [
+        545,
+        559
+      ],
+      [
+        561,
+        561
+      ],
+      [
+        563,
+        565
+      ],
+      [
+        567,
+        573
+      ],
+      [
+        575,
+        586
+      ],
+      [
+        590,
+        594
+      ],
+      [
+        596,
+        596
+      ],
+      [
+        598,
+        603
+      ],
+      [
+        607,
+        607
+      ],
+      [
+        609,
+        618
+      ],
+      [
+        620,
+        638
+      ]
+    ],
+    "host": [
+      [
+        87,
+        87
+      ],
+      [
+        641,
+        645
+      ],
+      [
+        647,
+        658
+      ],
+      [
+        660,
+        660
+      ],
+      [
+        662,
+        662
+      ],
+      [
+        664,
+        669
+      ],
+      [
+        671,
+        671
+      ],
+      [
+        673,
+        673
+      ],
+      [
+        676,
+        684
+      ],
+      [
+        687,
+        712
+      ],
+      [
+        714,
+        717
+      ],
+      [
+        719,
+        734
+      ],
+      [
+        736,
+        736
+      ],
+      [
+        738,
+        742
+      ],
+      [
+        744,
+        746
+      ],
+      [
+        749,
+        751
+      ],
+      [
+        753,
+        753
+      ],
+      [
+        755,
+        755
+      ],
+      [
+        757,
+        768
+      ],
+      [
+        770,
+        772
+      ],
+      [
+        774,
+        779
+      ],
+      [
+        782,
+        782
+      ],
+      [
+        784,
+        857
+      ],
+      [
+        860,
+        894
+      ],
+      [
+        897,
+        899
+      ],
+      [
+        904,
+        930
+      ],
+      [
+        934,
+        977
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.ExtendAttn",
+  "entries": [
+    {
+      "src": [
+        "89-90"
+      ],
+      "drop": "import",
+      "note": "binds `triton` and `tl` to `triton.language` (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds them), so every `tl.*` name of the kernel is Triton's, whose meaning is the library's `TVA.tl.*`; they add no step to the program"
+    },
+    {
+      "src": [
+        "93-94",
+        96
+      ],
+      "drop": "config",
+      "note": "`tanh`, a bare `@triton.jit` helper defined at the top level of the file (an admitted name of the module); the kernel calls it only at lines 374 and 540, inside `if logit_cap > 0:`, a compile-time condition (`logit_cap` is the `tl.constexpr` `0.0` on every covered launch, host line 725) that the front end does not visit, so the helper is never inlined and adds no step"
+    },
+    {
+      "src": [
+        99
+      ],
+      "drop": "decl",
+      "note": "a bare `@triton.jit` on a top-level `def`: the kernel; no other statement of the module binds `_fwd_kernel`; the model is the function `fwd_kernel`"
+    },
+    {
+      "src": [
+        "100-132",
+        "134-171"
+      ],
+      "drop": "decl",
+      "note": "the signature, no defaults: `Q_Extend`, `K_Extend`, `V_Extend`, `O_Extend`, `K_Buffer`, `V_Buffer` the model's `*bf16` parameters, `qo_indptr` `*i32` or `*i64` (`qo32`: `int32` for a target verification, `int64` for an extend batch, SETUP.md; Triton compiles the kernel for the pointer's type), `kv_indptr` `*i32`, `kv_indices` `*i64`, `mask_ptr` `*i1` (a `bool` tensor), `mask_indptr` and `window_kv_offset_ptr` `*i64` (with the custom mask; without it the host passes `None` for `mask_ptr` and `mask_indptr`, and `window_kv_offsets` only with a window: none is read then, and the model's parameters for them are not used); `sm_scale`, `k_scale`, `v_scale` runtime `float32` scalars (Python `float`s: `FloatV.hostF32` of the double; `k_scale = v_scale = 1.0`, host lines 723-724, a `float` is never a compile-time constant); `kv_group_num` and the strides `int32` (an `int` argument equal to `1` is the compile-time constant `1`: each use, an operand of `//`, `*` or `+` beside an `int32` or `int64` tensor, builds it in that dtype, the same value as the model's); the `tl.constexpr`s `USE_CUSTOM_MASK`, `SLIDING_WINDOW_SIZE` (the window when positive; the host's `-1` is the model's `0`: the value is used only under `SLIDING_WINDOW_SIZE > 0`, a compile-time condition), `Lq`, `Lv`, `BLOCK_DMODEL`, `BLOCK_DV`, `BLOCK_M`, `BLOCK_N`, `BLOCK_N_PREFIX` Lean parameters; the other constexprs fixed on every covered launch (`logit_cap = 0.0`, `xai_temperature_len = -1`, `BLOCK_DPE = 0`, `IS_CAUSAL = True`, `SKIP_PREFIX_CUSTOM_MASK = True`, `STORE_LSE = False`, `SKIP_PREFIX = SKIP_EXTEND = False`, `STORE_TRANSPOSE = False`, `HAS_SINK = False`, `USE_COMPACT_TILE_GRID = False`, `USE_EXP2 = False`, `USE_FP8_PREFIX = USE_FP8_EXTEND = False`, `FP8_MAX = 1.0`, `IS_GFX1250 = False`, `PAGE_SIZE = 1`, `IDENTITY_KV_INDICES = False`, `SCORE_MOD = None`); `LSE_Extend`, `sink_ptr`, `Aux0` the compile-time `None`; `stride_lse_bs`, `stride_lse_h`, `stride_buf_kpage`, `stride_buf_ktok`, `stride_buf_vpage`, `stride_buf_vtok`, `compact_batch_size`, `aux0_stride_t`, `aux0_stride_h`, `aux0_len` scalars the covered path never reads: no model parameter"
+    },
+    {
+      "src": [
+        "172-174",
+        "176-189",
+        "191-192",
+        194
+      ],
+      "drop": "config",
+      "note": "`if USE_COMPACT_TILE_GRID:` (`False`, host line 770), a compile-time condition: the branch, with its `while` loop and its `return`, is not visited"
+    },
+    {
+      "src": [
+        "195-198"
+      ],
+      "model": [
+        "let cur_seq := tl.program_id ctx 0",
+        "let cur_head := tl.program_id ctx 1",
+        "let cur_block_m := tl.program_id ctx 2"
+      ],
+      "note": "the `else` branch: axes 0, 1, 2 of the grid `(batch, num_heads, cdiv(max_len_extend, BLOCK_M))`, `int32`"
+    },
+    {
+      "src": [
+        199
+      ],
+      "model": [
+        "let cur_kv_head := (← tl.idiv (Tensor.scalar cur_head) (Tensor.scalar kv_group_num)).item"
+      ],
+      "note": "`int32` `//` (truncating; undefined for a zero divisor: `kv_pos`, `kv_dvd` give `kv_group_num ≥ 1`); `kv_group_num = 1` is the compile-time `1`, built in `int32` here: the same division"
+    },
+    {
+      "src": [
+        "200-201"
+      ],
+      "drop": "dead",
+      "note": "`LOG2E: tl.constexpr = …`, `LN2: tl.constexpr = …` on names not defined before (annotated names keep the Python `float`); read only under `USE_EXP2`, `HAS_SINK` and `STORE_LSE`, all `False`: no step"
+    },
+    {
+      "src": [
+        203
+      ],
+      "model": [
+        "let cur_seq_extend_start_idx : QI qo32 ← loadQo qo32 (qo_indptr + cur_seq)"
+      ],
+      "note": "a scalar load of `qo_indptr` advanced by the `int32` `cur_seq` (`loadQo`: `tl.load1`), an integer of `qo_indptr`'s type (`int32` with `qo32`, else `int64`)"
+    },
+    {
+      "src": [
+        204
+      ],
+      "model": [
+        "let cur_seq_len_extend : QI qo32 :=",
+        "(← loadQo qo32 (qo_indptr + cur_seq + (IntV.ofInt 1 : I32))) - cur_seq_extend_start_idx"
+      ],
+      "note": "the pointer advanced by `cur_seq`, then by the Python `1` (an `int32` offset); the wrapping `-` of `qo_indptr`'s type"
+    },
+    {
+      "src": [
+        205
+      ],
+      "model": [
+        "let cur_seq_kv_start_idx : I32 ← tl.load1 (kv_indptr + cur_seq)"
+      ],
+      "note": "a scalar load of the `*i32` pointer"
+    },
+    {
+      "src": [
+        206
+      ],
+      "model": [
+        "let cur_seq_len_prefix : I32 :=",
+        "(← tl.load1 (kv_indptr + cur_seq + (IntV.ofInt 1 : I32))) - cur_seq_kv_start_idx"
+      ],
+      "note": "the wrapping `int32` `-`"
+    },
+    {
+      "src": [
+        207
+      ],
+      "model": [
+        "let cur_seq_len : QI qo32 :=",
+        "(← toQ qo32 (Tensor.scalar cur_seq_len_prefix)).item + cur_seq_len_extend"
+      ],
+      "note": "the `int32` left operand promoted to `qo_indptr`'s type (`toQ`: none for `int32`, `tl.convert .i32 .i64` for `int64`), the wrapping `+`; read only under `USE_CUSTOM_MASK`"
+    },
+    {
+      "src": [
+        "210-211"
+      ],
+      "model": [
+        "if IntV.le cur_seq_len_extend",
+        "(← toQ qo32 (Tensor.scalar (cur_block_m * (IntV.ofNat BLOCK_M : I32)))).item then",
+        "return ()",
+        "else do"
+      ],
+      "note": "a runtime `if` that returns in one branch only (SEMANTICS.md, `return`: the programs that take it run nothing after it): `cur_block_m * BLOCK_M`, the constexpr built in `int32`, a wrapping product, promoted to `qo_indptr`'s type; the signed `>=`; the rest of the body is the `else` branch"
+    },
+    {
+      "src": [
+        "213-214",
+        217,
+        "218-219"
+      ],
+      "model": [
+        "let cm : Option (I64 × Option I64) ←",
+        "if USE_CUSTOM_MASK then do",
+        "let cur_seq_mask_start_idx : I64 ← tl.load1 (mask_indptr + cur_seq)",
+        "let window_kv_offset : Option I64 ←",
+        "if 0 < SLIDING_WINDOW_SIZE then do",
+        "let w : I64 ← tl.load1 (window_kv_offset_ptr + cur_seq)",
+        "pure (some w)",
+        "else pure none",
+        "pure (some (cur_seq_mask_start_idx, window_kv_offset))",
+        "else pure none"
+      ],
+      "note": "`if USE_CUSTOM_MASK:` (compile-time): the scalar load of the `*i64` `mask_indptr`; `window_kv_offset = 0`, the Python `0` assigned to a name (an `int32` scalar tensor), which `if USE_CUSTOM_MASK and SLIDING_WINDOW_SIZE > 0:` (compile-time) replaces by the scalar load of the `*i64` `window_kv_offset_ptr`; the two names are read only under `USE_CUSTOM_MASK` (line 464), so the model keeps them in `cm` (`none` without it), `window_kv_offset` as `some` the loaded `int64` or `none` for the `int32` `0` (its type changes the types of line 469)"
+    },
+    {
+      "src": [
+        "221-223"
+      ],
+      "model": [
+        "let offs_d : Tensor [BLOCK_DMODEL] I32 := tl.arange 0 BLOCK_DMODEL",
+        "let offs_dv : Tensor [BLOCK_DV] I32 := tl.arange 0 BLOCK_DV",
+        "let offs_m : Tensor [BLOCK_M] I32 := tl.arange 0 BLOCK_M"
+      ]
+    },
+    {
+      "src": [
+        224
+      ],
+      "model": [
+        "let mask_m : Tensor [BLOCK_M] Bool :=",
+        "(← toQ qo32 (cur_block_m * (IntV.ofNat BLOCK_M : I32) + offs_m)).ltS cur_seq_len_extend"
+      ],
+      "note": "the `int32` sum (scalar plus tensor) promoted to `qo_indptr`'s type (`BinOp.typing?`: two signed integers compute in the wider), the signed `<`"
+    },
+    {
+      "src": [
+        "226-227"
+      ],
+      "model": [
+        "let mask_d : Tensor [BLOCK_DMODEL] Bool := offs_d.ltS (IntV.ofNat Lq : I32)",
+        "let mask_dv : Tensor [BLOCK_DV] Bool := offs_dv.ltS (IntV.ofNat Lv : I32)"
+      ],
+      "note": "the constexprs, comparison operands, built as `int32` tensors of their own type; signed `<`"
+    },
+    {
+      "src": [
+        "229-236"
+      ],
+      "drop": "config",
+      "note": "`if xai_temperature_len > 0:` (`-1`), a compile-time condition: not visited"
+    },
+    {
+      "src": [
+        "238-243"
+      ],
+      "model": [
+        "let offs_q : Tensor [BLOCK_M, BLOCK_DMODEL] (QI qo32) :=",
+        "(← toQ qo32 (offs_m.col BLOCK_DMODEL))) *",
+        "(← toQ qo32 (Tensor.scalar stride_qbs)).item +",
+        "(← toQ qo32 (Tensor.scalar (cur_head * stride_qh))).item +",
+        "(← toQ qo32 (offs_d.row BLOCK_M))"
+      ],
+      "note": "left to right: the start (`qo_indptr`'s type) plus `cur_block_m * BLOCK_M` (the `int32` product promoted), plus `offs_m[:, None]` promoted, times `stride_qbs` promoted, plus `cur_head * stride_qh` (an `int32` product: `heads_i32`) promoted, plus `offs_d[None, :]` promoted; the wrapping operations of `qo_indptr`'s type (`int32` ones do not wrap: `cm_i32`); each term broadcast to `[BLOCK_M, BLOCK_DMODEL]` (`.col`, `.row`): the same values as the source's broadcast"
+    },
+    {
+      "src": [
+        "244-246"
+      ],
+      "model": [
+        "let q : Tensor [BLOCK_M, BLOCK_DMODEL] BF16 ←",
+        "tl.load (Q_Extend + offs_q) (some ((mask_m.col BLOCK_DMODEL).and (mask_d.row BLOCK_M)))",
+        "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_M, BLOCK_DMODEL] zf32)))"
+      ],
+      "note": "`other=0.0`: the Python number as a `float32` tensor (`+0`), converted to the pointer's `bfloat16`"
+    },
+    {
+      "src": [
+        "248-256"
+      ],
+      "drop": "config",
+      "note": "`if BLOCK_DPE > 0:` (`BLOCK_DPE = 0` for every head dim but 192, 288 and 576, host lines 647-658), a compile-time condition: not visited"
+    },
+    {
+      "src": [
+        259,
+        261
+      ],
+      "model": [
+        "let offs_n : Tensor [BLOCK_N] I32 := tl.arange 0 BLOCK_N",
+        "let offs_n_prefix : Tensor [BLOCK_N_PREFIX] I32 := tl.arange 0 BLOCK_N_PREFIX"
+      ]
+    },
+    {
+      "src": [
+        "263-264"
+      ],
+      "model": [
+        "let acc := tl.zeros [BLOCK_M, BLOCK_DV] .f32",
+        "let deno := tl.zeros [BLOCK_M] .f32"
+      ]
+    },
+    {
+      "src": [
+        265
+      ],
+      "model": [
+        "let e_max : Tensor [BLOCK_M] F32 ← tl.sub (tl.zeros [BLOCK_M] .f32) (bc pinf32)"
+      ],
+      "note": "`float(\"inf\")` is Python's `+∞`, an operand of `-` on a `float32` tensor: built in `float32`; the IEEE `-` (no product feeds it)"
+    },
+    {
+      "src": [
+        "267-268"
+      ],
+      "model": [
+        "let (acc, deno, e_max) ← tl.forRange (IntV.ofInt 0 : I32) cur_seq_len_prefix",
+        "(IntV.ofNat BLOCK_N_PREFIX : I32) (acc, deno, e_max)",
+        "fun start_n (acc, deno, e_max) => do"
+      ],
+      "note": "`prefix_end = 0 if SKIP_PREFIX else cur_seq_len_prefix`: a conditional expression on the compile-time `False`, so only `cur_seq_len_prefix` (an `int32` tensor) is evaluated and the name holds it; `range(0, prefix_end, BLOCK_N_PREFIX)`: the three bounds `int32`, so is the induction variable; the loop carries `acc`, `deno`, `e_max` (assigned in the runtime `if` of line 300); the names first defined in the body are not used after the loop"
+    },
+    {
+      "src": [
+        269
+      ],
+      "drop": "no-op:hint",
+      "note": "`tl.multiple_of` on the loop's induction variable (SEMANTICS.md, Compiler hints: which value): no effect; it is also true (`0 + t·BLOCK_N_PREFIX`)"
+    },
+    {
+      "src": [
+        270
+      ],
+      "model": [
+        "let mask_n : Tensor [BLOCK_N_PREFIX] Bool :=",
+        "(start_n + offs_n_prefix).ltS cur_seq_len_prefix"
+      ],
+      "note": "`int32`, signed"
+    },
+    {
+      "src": [
+        272
+      ],
+      "model": [
+        "let final_mask : Tensor [BLOCK_M, BLOCK_N_PREFIX] Bool :=",
+        "(mask_m.col BLOCK_N_PREFIX).and (mask_n.row BLOCK_M)"
+      ]
+    },
+    {
+      "src": [
+        "273-284",
+        287
+      ],
+      "drop": "config",
+      "note": "`if USE_CUSTOM_MASK and not SKIP_PREFIX_CUSTOM_MASK:`: `SKIP_PREFIX_CUSTOM_MASK = True` (compile-time) makes the `and` the compile-time `False`: not visited"
+    },
+    {
+      "src": [
+        288,
+        "291-294"
+      ],
+      "model": [
+        "let final_mask : Tensor [BLOCK_M, BLOCK_N_PREFIX] Bool :=",
+        "if 0 < SLIDING_WINDOW_SIZE then",
+        "final_mask.and (Tensor.le",
+        "(cur_seq_len_prefix + cur_block_m * (IntV.ofNat BLOCK_M : I32) +",
+        "offs_m.col BLOCK_N_PREFIX)",
+        "(start_n + offs_n_prefix.row BLOCK_M + (IntV.ofNat SLIDING_WINDOW_SIZE : I32)))",
+        "else final_mask"
+      ],
+      "note": "`if SLIDING_WINDOW_SIZE > 0:` (compile-time): `int32` operands throughout (`cur_seq_len_prefix`, the product, `offs_m[:, None]`; the induction variable, `offs_n_prefix[None, :]`, the constexpr built in `int32`, `sw_le`), left to right, the signed `<=`, broadcast to `[BLOCK_M, BLOCK_N_PREFIX]`; `final_mask &= window_mask` on `int1` tensors"
+    },
+    {
+      "src": [
+        296,
+        "297-298"
+      ],
+      "model": [
+        "let SKIP_TILE : Tensor [] Bool ←",
+        "if 0 < SLIDING_WINDOW_SIZE then do",
+        "let fm : Tensor [BLOCK_M, BLOCK_N_PREFIX] I32 ← tl.convert .i1 .i32 final_mask",
+        "(Tensor.foldAll IntV.max imin32 (Tensor.foldRows IntV.max imin32 fm))",
+        "else pure (Tensor.scalar false)"
+      ],
+      "note": "`SKIP_TILE = False`: a name assigned a Python `bool` holds an `int1` scalar tensor (SEMANTICS.md, a name assigned a Python number holds a tensor); `if (USE_CUSTOM_MASK and not SKIP_PREFIX_CUSTOM_MASK) or SLIDING_WINDOW_SIZE > 0:` is compile-time, the `and` `False` (`SKIP_PREFIX_CUSTOM_MASK = True`), so it is `SLIDING_WINDOW_SIZE > 0`; then `final_mask.to(tl.int32)` (`tl.convert .i1 .i32`: `0`/`1`), `tl.max(..., axis=1)` and `tl.max(..., axis=0)` of `int32` tensors (no widening; the exact folds `Tensor.foldRows`, `Tensor.foldAll` with `IntV.max`, from the `int32` minimum `imin32`: the maximum of the nonempty axis), and `== 0` with the Python `0` built in `int32`: an `int1` scalar"
+    },
+    {
+      "src": [
+        300
+      ],
+      "model": [
+        "if (Tensor.not SKIP_TILE).item then do"
+      ],
+      "note": "`not` on the `int1` tensor (`Tensor.not`), a runtime `if` (its condition a tensor): each branch's operations in its branch; the source has no `else`, so the other branch leaves `acc`, `deno`, `e_max`; the names the branch assigns are new to the `if` or tensors before it (`acc`, `deno`, `e_max`)"
+    },
+    {
+      "src": [
+        "301-308"
+      ],
+      "model": [
+        "let offs_kv_loc : Tensor [BLOCK_N_PREFIX] I64 ←",
+        "tl.load (kv_indices + cur_seq_kv_start_idx + start_n + offs_n_prefix) (some mask_n)",
+        "(some (← tl.convert .i32 .i64 (tl.full [BLOCK_N_PREFIX] (IntV.ofInt 0 : I32))))"
+      ],
+      "note": "`if IDENTITY_KV_INDICES:` (`False`), compile-time: the `else` branch: the `*i64` pointer advanced by the `int32` scalars `cur_seq_kv_start_idx` and `start_n` and the `int32` tensor, left to right; `other=0`: the Python `0` as an `int32` tensor, converted to `int64`"
+    },
+    {
+      "src": [
+        313,
+        "315-319"
+      ],
+      "model": [
+        "let offs_buf_k : Tensor [BLOCK_DMODEL, BLOCK_N_PREFIX] I64 :=",
+        "offs_kv_loc.row BLOCK_DMODEL *",
+        "(← tl.convert .i32 .i64 (Tensor.scalar stride_buf_kbs)).item +",
+        "(← tl.convert .i32 .i64 (Tensor.scalar (cur_kv_head * stride_buf_kh))).item +",
+        "(← tl.convert .i32 .i64 (offs_d.col BLOCK_N_PREFIX))"
+      ],
+      "note": "`if PAGE_SIZE == 1:` (`1`), compile-time: `offs_kv_loc[None, :] * stride_buf_kbs` (the `int32` stride widened), plus the `int32` product `cur_kv_head * stride_buf_kh` widened, plus `offs_d[:, None]` widened; wrapping `int64`"
+    },
+    {
+      "src": [
+        "320-328"
+      ],
+      "drop": "config",
+      "note": "the `else` of `PAGE_SIZE == 1`: not visited"
+    },
+    {
+      "src": [
+        "329-333"
+      ],
+      "model": [
+        "let k : Tensor [BLOCK_DMODEL, BLOCK_N_PREFIX] BF16 ←",
+        "tl.load (K_Buffer + offs_buf_k)",
+        "(some ((mask_n.row BLOCK_DMODEL).and (mask_d.col BLOCK_N_PREFIX)))",
+        "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_DMODEL, BLOCK_N_PREFIX] zf32)))"
+      ],
+      "note": "`other=0.0` as at line 245"
+    },
+    {
+      "src": [
+        "341-344"
+      ],
+      "model": [
+        "let q16 : Tensor [BLOCK_M, BLOCK_DMODEL] BF16 ← tl.cvt q",
+        "let qk : Tensor [BLOCK_M, BLOCK_N_PREFIX] F32 ←",
+        "tl.dot cfgBF16 q16 k (tl.zeros [BLOCK_M, BLOCK_N_PREFIX] .f32)"
+      ],
+      "note": "`if IS_GFX1250:` (`False`), compile-time: the `else` branch; `q.to(k.dtype)` from `bfloat16` to `bfloat16`: `tl.cvt`, exact (Triton emits nothing; the model's conversion is the identity up to NaN payload); `tl.dot` with the default zero accumulator and default `input_precision`, `out_dtype` (`cfgBF16`); its one use is the product of line 371, not an addition, so it is not the combine pass's shape"
+    },
+    {
+      "src": [
+        "345-367"
+      ],
+      "drop": "config",
+      "note": "`if BLOCK_DPE > 0:` (`0`): not visited"
+    },
+    {
+      "src": [
+        "368-371"
+      ],
+      "model": [
+        "let qk ← tl.mul qk (bc (← tl.mul (Tensor.scalar sm_scale) (Tensor.scalar k_scale)).item)"
+      ],
+      "note": "`if USE_EXP2:` (`False`): the `else`: `qk *= sm_scale * k_scale` is `qk = qk * (sm_scale * k_scale)`: the IEEE product of the two `float32` scalars, then the IEEE product (no addition follows either)"
+    },
+    {
+      "src": [
+        "373-374"
+      ],
+      "drop": "config",
+      "note": "`if logit_cap > 0:` (`0.0`): not visited (the only call of `tanh` in this stage)"
+    },
+    {
+      "src": [
+        "376-377"
+      ],
+      "drop": "config",
+      "note": "`if xai_temperature_len > 0:` (`-1`): not visited"
+    },
+    {
+      "src": [
+        "379-393"
+      ],
+      "drop": "config",
+      "note": "`if SCORE_MOD is not None:`: `is not` of the compile-time `None` is the compile-time `False`: not visited"
+    },
+    {
+      "src": [
+        395
+      ],
+      "model": [
+        "let qk := tl.where final_mask qk (bc ninf32)"
+      ],
+      "note": "`float(\"-inf\")`, a value of `tl.where`, built in the computation dtype `float32`"
+    },
+    {
+      "src": [
+        397
+      ],
+      "model": [
+        "let row_max : Tensor [BLOCK_M] F32 ← tl.max1 true qk"
+      ],
+      "note": "the row maximum of the `float32` block (no widening)"
+    },
+    {
+      "src": [
+        398
+      ],
+      "model": [
+        "let row_max_fixed := tl.where (row_max.feq (bc ninf32)) (bc neg1e20) row_max"
+      ],
+      "note": "the comparison's operand `float(\"-inf\")` a `float32` tensor of its own type, the ordered `==`; `-1e20`, a value of `tl.where`, built in `float32` (`FloatV.litF32` of the double `0xc415af1d78b58c40`)"
+    },
+    {
+      "src": [
+        399
+      ],
+      "model": [
+        "let n_e_max : Tensor [BLOCK_M] F32 ← tl.maximum row_max_fixed e_max"
+      ],
+      "note": "`float32` operands: no conversion"
+    },
+    {
+      "src": [
+        "401-405"
+      ],
+      "model": [
+        "let re_scale : Tensor [BLOCK_M] F32 ← tl.exp (← tl.sub e_max n_e_max)"
+      ],
+      "note": "`if USE_EXP2:` (`False`): the `else`; the IEEE `-` (no product feeds it), `tl.exp`"
+    },
+    {
+      "src": [
+        406
+      ],
+      "model": [
+        "let p : Tensor [BLOCK_M, BLOCK_N_PREFIX] F32 ←",
+        "tl.exp (← tl.sub qk (n_e_max.col BLOCK_N_PREFIX))"
+      ],
+      "note": "the IEEE `-`: `qk` is a `tl.where` value, not a product; `tl.exp`"
+    },
+    {
+      "src": [
+        407
+      ],
+      "model": [
+        "let deno ← tl.mul_add deno re_scale (← tl.sum1 p)"
+      ],
+      "note": "`tl.sum(p, 1)` of a block that is not a product: the IEEE row sum (`tl.sum1`, any tree); `deno * re_scale + …`: the addition a product feeds (`tl.mul_add`)"
+    },
+    {
+      "src": [
+        "409-414"
+      ],
+      "model": [
+        "let offs_buf_v : Tensor [BLOCK_N_PREFIX, BLOCK_DV] I64 :=",
+        "offs_kv_loc.col BLOCK_DV *",
+        "(← tl.convert .i32 .i64 (Tensor.scalar stride_buf_vbs)).item +",
+        "(← tl.convert .i32 .i64 (Tensor.scalar (cur_kv_head * stride_buf_vh))).item +",
+        "(← tl.convert .i32 .i64 (offs_dv.row BLOCK_N_PREFIX))"
+      ],
+      "note": "`PAGE_SIZE == 1`; as lines 315-319, with `offs_kv_loc[:, None]` and `offs_dv[None, :]`"
+    },
+    {
+      "src": [
+        "415-421"
+      ],
+      "drop": "config",
+      "note": "the `else` of `PAGE_SIZE == 1`: not visited"
+    },
+    {
+      "src": [
+        "422-426"
+      ],
+      "model": [
+        "let v : Tensor [BLOCK_N_PREFIX, BLOCK_DV] BF16 ←",
+        "tl.load (V_Buffer + offs_buf_v)",
+        "(some ((mask_n.col BLOCK_DV).and (mask_dv.row BLOCK_N_PREFIX)))",
+        "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_N_PREFIX, BLOCK_DV] zf32)))"
+      ],
+      "note": "`other=0.0` as at line 245"
+    },
+    {
+      "src": [
+        "427-429"
+      ],
+      "drop": "config",
+      "note": "`if USE_FP8_PREFIX:` (`False`): not visited"
+    },
+    {
+      "src": [
+        430,
+        "434-437"
+      ],
+      "model": [
+        "let p16 : Tensor [BLOCK_M, BLOCK_N_PREFIX] BF16 ← tl.cvt p",
+        "let dot : Tensor [BLOCK_M, BLOCK_DV] F32 ←",
+        "tl.dot cfgBF16 p16 v (tl.zeros [BLOCK_M, BLOCK_DV] .f32)"
+      ],
+      "note": "the `else` of `USE_FP8_PREFIX`; `if IS_GFX1250:` (`False`): its `else`: `p.to(v.dtype)`, one rounding to nearest even (`tl.cvt`); `tl.dot` with the default zero accumulator, whose one use is the product `dot * v_scale` of line 438 (not the combine pass's shape)"
+    },
+    {
+      "src": [
+        438
+      ],
+      "model": [
+        "let acc ← tl.addc (← tl.mul acc (re_scale.col BLOCK_DV)) (← tl.mul dot (bc v_scale))"
+      ],
+      "note": "`acc * re_scale[:, None] + dot * v_scale`: two IEEE products feeding the addition, which may fuse either (`tl.addc`)"
+    },
+    {
+      "src": [
+        440
+      ],
+      "model": [
+        "let e_max := n_e_max",
+        "pure (acc, deno, e_max)",
+        "pure (acc, deno, e_max)"
+      ],
+      "note": "the branch's end: the carried `acc`, `deno`, `e_max`; the other branch of the runtime `if` (none in the source) leaves them"
+    },
+    {
+      "src": [
+        "444-448"
+      ],
+      "model": [
+        "let cur_block_m_end : QI qo32 :=",
+        "(tl.iminimum (Tensor.scalar cur_seq_len_extend)",
+        "(← toQ qo32 (Tensor.scalar ((cur_block_m + (IntV.ofInt 1 : I32)) *"
+      ],
+      "note": "a conditional expression on `not IS_CAUSAL`, the compile-time `False`: only `tl.minimum(cur_seq_len_extend, (cur_block_m + 1) * BLOCK_M)` is evaluated: the `int32` sum and product (the Python `1` and the constexpr built in `int32`), the `int32` operand promoted to `qo_indptr`'s type (`tl.minimum` promotes), the exact minimum (`tl.iminimum`)"
+    },
+    {
+      "src": [
+        449
+      ],
+      "model": [
+        "let extend_end := cur_block_m_end"
+      ],
+      "note": "a conditional expression on the compile-time `SKIP_EXTEND = False`: only `cur_block_m_end` is evaluated"
+    },
+    {
+      "src": [
+        454,
+        "455-458"
+      ],
+      "model": [
+        "let extend_start : I32 ←",
+        "if 0 < SLIDING_WINDOW_SIZE then do",
+        "let lo : Tensor [] I32 :=",
+        "tl.imaximum (Tensor.scalar (cur_block_m * (IntV.ofNat BLOCK_M : I32) -",
+        "(IntV.ofNat SLIDING_WINDOW_SIZE : I32))) (Tensor.scalar (IntV.ofInt 0 : I32))",
+        "let lo ← tl.idiv lo (Tensor.scalar (IntV.ofNat BLOCK_N : I32))",
+        "pure (lo.item * (IntV.ofNat BLOCK_N : I32))",
+        "else pure (IntV.ofInt 0)"
+      ],
+      "note": "`extend_start = 0`: the Python `0` assigned to a name, an `int32` scalar tensor; `if SLIDING_WINDOW_SIZE > 0:` (compile-time) assigns `(tl.maximum(cur_block_m * BLOCK_M - SLIDING_WINDOW_SIZE, 0) // BLOCK_N) * BLOCK_N`: the constexprs and the Python `0` built in `int32`, the wrapping `int32` `*` and `-`, `tl.maximum` of two `int32` scalars (`tl.imaximum`), the truncating `//` (`tl.idiv`; its operand is nonnegative), the `*`"
+    },
+    {
+      "src": [
+        459
+      ],
+      "model": [
+        "let (acc, deno, _) ← tl.forRange",
+        "(← toQ qo32 (Tensor.scalar extend_start)).item extend_end",
+        "(IntV.ofNat BLOCK_N : QI qo32) (acc, deno, e_max)",
+        "fun start_n (acc, deno, e_max) => do"
+      ],
+      "note": "`range(extend_start, extend_end, BLOCK_N)`: the bounds promote to `qo_indptr`'s type (`extend_end` has it), so the `int32` `extend_start` is promoted and the induction variable has that type; the loop carries `acc`, `deno`, `e_max`; `e_max` is not used after the loop, nor any name first defined in the body; the names `mask_n`, `final_mask`, `SKIP_TILE`, … of the first loop's body are new here, assigned before their uses"
+    },
+    {
+      "src": [
+        460
+      ],
+      "drop": "no-op:hint",
+      "note": "`tl.multiple_of` on the loop's induction variable: no effect (also true: `extend_start` is a multiple of `BLOCK_N`, and so is each `extend_start + t·BLOCK_N`)"
+    },
+    {
+      "src": [
+        461
+      ],
+      "model": [
+        "let mask_n : Tensor [BLOCK_N] Bool :=",
+        "(start_n + (← toQ qo32 offs_n)).ltS cur_block_m_end"
+      ],
+      "note": "the induction variable plus `offs_n` promoted; the signed `<` with `cur_block_m_end`"
+    },
+    {
+      "src": [
+        463
+      ],
+      "model": [
+        "let final_mask : Tensor [BLOCK_M, BLOCK_N] Bool :=",
+        "(mask_m.col BLOCK_N).and (mask_n.row BLOCK_M)"
+      ]
+    },
+    {
+      "src": [
+        "464-476",
+        "478-479"
+      ],
+      "model": [
+        "let final_mask : Tensor [BLOCK_M, BLOCK_N] Bool ← match cm with",
+        "| some (cur_seq_mask_start_idx, window_kv_offset) => do",
+        "let ptrs : Tensor [BLOCK_M, BLOCK_N] (Ptr .i1) ← match window_kv_offset with",
+        "| none => do",
+        "let wko : I32 := IntV.ofInt 0",
+        "let row_len : QI qo32 := cur_seq_len + (← toQ qo32 (Tensor.scalar wko)).item",
+        "let row_off : Tensor [BLOCK_M, BLOCK_N] (QI qo32) :=",
+        "(← toQ qo32 (cur_block_m * (IntV.ofNat BLOCK_M : I32) + offs_m.col BLOCK_N)) *",
+        "| some wko => do",
+        "let row_len : I64 := (← qToI64 qo32 (Tensor.scalar cur_seq_len)).item + wko",
+        "let row_off : Tensor [BLOCK_M, BLOCK_N] I64 :=",
+        "(← tl.convert .i32 .i64",
+        "(cur_block_m * (IntV.ofNat BLOCK_M : I32) + offs_m.col BLOCK_N)) * row_len",
+        "pure (mask_ptr + cur_seq_mask_start_idx + row_off +",
+        "(bc wko : Tensor [BLOCK_M, BLOCK_N] _) +",
+        "(bc cur_seq_len_prefix : Tensor [BLOCK_M, BLOCK_N] _) +",
+        "(bc start_n : Tensor [BLOCK_M, BLOCK_N] _) + offs_n.row BLOCK_M)",
+        "let custom_mask : Tensor [BLOCK_M, BLOCK_N] Bool ←",
+        "tl.load ptrs (some ((mask_m.col BLOCK_N).and (mask_n.row BLOCK_M)))",
+        "(some (← tl.convert .i32 .i1 (tl.full [BLOCK_M, BLOCK_N] (IntV.ofInt 0 : I32))))",
+        "let cm32 : Tensor [BLOCK_M, BLOCK_N] I32 ← tl.convert .i1 .i32 custom_mask",
+        "let custom_mask : Tensor [BLOCK_M, BLOCK_N] Bool :=",
+        "((cm32.map (fun x => !(IntV.eq x (IntV.ofInt 0)))).and (mask_m.col BLOCK_N)).and",
+        "pure (final_mask.and custom_mask)"
+      ],
+      "note": "`if USE_CUSTOM_MASK:` (compile-time; `cm` is `some`): the address, left to right: the `*i1` pointer plus the `int64` `cur_seq_mask_start_idx`, plus the product of the row index `cur_block_m * BLOCK_M + offs_m[:, None]` (`int32`) and `cur_seq_len + window_kv_offset` (with the `int32` `0`: `qo_indptr`'s type, `int32` products that do not wrap: `cm_maxExt` and `ReqOk`'s `2^18`; with the loaded `int64`: `int64`), plus `window_kv_offset`, `cur_seq_len_prefix`, the induction variable and `offs_n[None, :]`, each a pointer advance by its own integer type, broadcast to `[BLOCK_M, BLOCK_N]`; the masked load (`other=0`, an `int32`, converted to the pointer's `int1`: `false`); `custom_mask != 0`: the `int1` block and the Python `0` compute in `int32` (`int1` counts as unsigned of width 1, so the signed `int32` wins), the `!=`; `&` with `mask_m[:, None]`, then `mask_n[None, :]`; `final_mask &= custom_mask`; the `elif` chain ends"
+    },
+    {
+      "src": [
+        "480-483"
+      ],
+      "model": [
+        "| none => do",
+        "let mask_causual : Tensor [BLOCK_M, BLOCK_N] Bool :=",
+        "Tensor.le (start_n + (← toQ qo32 (offs_n.row BLOCK_M)))",
+        "(← toQ qo32 (cur_block_m * (IntV.ofNat BLOCK_M : I32) + offs_m.col BLOCK_N))"
+      ],
+      "note": "`elif IS_CAUSAL:` (`True`) when `USE_CUSTOM_MASK` is `False` (`cm` is `none`), compile-time: the `int32` left side (`[BLOCK_M, 1]`) promoted to `qo_indptr`'s type (the right side, the induction variable plus `offs_n[None, :]` promoted, has it); `a >= b` is `Tensor.le b a`, signed"
+    },
+    {
+      "src": [
+        484
+      ],
+      "model": [
+        "let mask_causual := mask_causual.and ((mask_m.col BLOCK_N).and (mask_n.row BLOCK_M))"
+      ],
+      "note": "`&=` on `int1` tensors"
+    },
+    {
+      "src": [
+        485
+      ],
+      "model": [
+        "pure (final_mask.and mask_causual)"
+      ]
+    },
+    {
+      "src": [
+        "486-488"
+      ],
+      "drop": "config",
+      "note": "the `else` after the taken `elif`: not visited"
+    },
+    {
+      "src": [
+        "490-503"
+      ],
+      "model": [
+        "let final_mask : Tensor [BLOCK_M, BLOCK_N] Bool ←",
+        "if 0 < SLIDING_WINDOW_SIZE then do",
+        "let window_mask : Tensor [BLOCK_M, BLOCK_N] Bool :=",
+        "Tensor.le",
+        "(← toQ qo32 (cur_block_m * (IntV.ofNat BLOCK_M : I32) + offs_m.col BLOCK_N))",
+        "(start_n + (← toQ qo32 (offs_n.row BLOCK_M)) +",
+        "(IntV.ofNat SLIDING_WINDOW_SIZE : QI qo32))",
+        "pure (final_mask.and window_mask)",
+        "else pure final_mask"
+      ],
+      "note": "`if SLIDING_WINDOW_SIZE > 0:` (compile-time); `if not IS_CAUSAL:` is the compile-time `False`: its `else`: the `int32` row index promoted to `qo_indptr`'s type, against the induction variable plus `offs_n[None, :]` promoted plus the constexpr (a Python `int` beside a tensor of that type is built in it), the signed `<=`; `final_mask &= window_mask`"
+    },
+    {
+      "src": [
+        505,
+        "506-507"
+      ],
+      "model": [
+        "let SKIP_TILE : Tensor [] Bool ←",
+        "if USE_CUSTOM_MASK || decide (0 < SLIDING_WINDOW_SIZE) then do",
+        "let fm : Tensor [BLOCK_M, BLOCK_N] I32 ← tl.convert .i1 .i32 final_mask",
+        "else pure (Tensor.scalar false)"
+      ],
+      "note": "as lines 296-298, under the compile-time `USE_CUSTOM_MASK or SLIDING_WINDOW_SIZE > 0`"
+    },
+    {
+      "src": [
+        509
+      ],
+      "model": [
+        "if (Tensor.not SKIP_TILE).item then do"
+      ],
+      "note": "as line 300"
+    },
+    {
+      "src": [
+        "511-515"
+      ],
+      "model": [
+        "let offs_k : Tensor [BLOCK_DMODEL, BLOCK_N] (QI qo32) :=",
+        "(← toQ qo32 (offs_n.row BLOCK_DMODEL))) *",
+        "(← toQ qo32 (Tensor.scalar stride_kbs)).item +",
+        "(← toQ qo32 (Tensor.scalar (cur_kv_head * stride_kh))).item +",
+        "(← toQ qo32 (offs_d.col BLOCK_N))"
+      ],
+      "note": "left to right: the start plus the induction variable (both of `qo_indptr`'s type), plus `offs_n[None, :]` promoted, times `stride_kbs` promoted, plus the `int32` product promoted, plus `offs_d[:, None]` promoted"
+    },
+    {
+      "src": [
+        "516-518"
+      ],
+      "model": [
+        "let k : Tensor [BLOCK_DMODEL, BLOCK_N] BF16 ←",
+        "tl.load (K_Extend + offs_k) (some ((mask_n.row BLOCK_DMODEL).and (mask_d.col BLOCK_N)))",
+        "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_DMODEL, BLOCK_N] zf32)))"
+      ],
+      "note": "`other=0.0` as at line 245"
+    },
+    {
+      "src": [
+        520
+      ],
+      "model": [
+        "let qk : Tensor [BLOCK_M, BLOCK_N] F32 ←",
+        "tl.dot cfgBF16 q k (tl.zeros [BLOCK_M, BLOCK_N] .f32)"
+      ],
+      "note": "`out_dtype=tl.float32` (the default too), the default zero accumulator; its one use is the product of line 537"
+    },
+    {
+      "src": [
+        "521-532"
+      ],
+      "drop": "config",
+      "note": "`if BLOCK_DPE > 0:` (`0`): not visited"
+    },
+    {
+      "src": [
+        "534-537"
+      ],
+      "model": [
+        "let qk ← tl.mul qk (bc sm_scale)"
+      ],
+      "note": "`if USE_EXP2:` (`False`): the `else`: the IEEE product"
+    },
+    {
+      "src": [
+        "539-540"
+      ],
+      "drop": "config",
+      "note": "`if logit_cap > 0:` (`0.0`): not visited (the other call of `tanh`)"
+    },
+    {
+      "src": [
+        "542-543"
+      ],
+      "drop": "config",
+      "note": "`if xai_temperature_len > 0:` (`-1`): not visited"
+    },
+    {
+      "src": [
+        "545-559"
+      ],
+      "drop": "config",
+      "note": "`if SCORE_MOD is not None:`: compile-time `False`: not visited"
+    },
+    {
+      "src": [
+        561
+      ],
+      "model": [
+        "let qk := tl.where final_mask qk (bc ninf32)"
+      ],
+      "note": "as line 395"
+    },
+    {
+      "src": [
+        563
+      ],
+      "model": [
+        "let row_max : Tensor [BLOCK_M] F32 ← tl.max1 true qk"
+      ],
+      "note": "as line 397"
+    },
+    {
+      "src": [
+        564
+      ],
+      "model": [
+        "let row_max_fixed := tl.where (row_max.feq (bc ninf32)) (bc neg1e20) row_max"
+      ],
+      "note": "as line 398"
+    },
+    {
+      "src": [
+        565
+      ],
+      "model": [
+        "let n_e_max : Tensor [BLOCK_M] F32 ← tl.maximum row_max_fixed e_max"
+      ],
+      "note": "as line 399"
+    },
+    {
+      "src": [
+        "567-571"
+      ],
+      "model": [
+        "let re_scale : Tensor [BLOCK_M] F32 ← tl.exp (← tl.sub e_max n_e_max)"
+      ],
+      "note": "as lines 401-405"
+    },
+    {
+      "src": [
+        572
+      ],
+      "model": [
+        "let p : Tensor [BLOCK_M, BLOCK_N] F32 ← tl.exp (← tl.sub qk (n_e_max.col BLOCK_N))"
+      ],
+      "note": "as line 406"
+    },
+    {
+      "src": [
+        573
+      ],
+      "model": [
+        "let deno ← tl.mul_add deno re_scale (← tl.sum1 p)"
+      ],
+      "note": "as line 407"
+    },
+    {
+      "src": [
+        "575-579"
+      ],
+      "model": [
+        "let offs_v : Tensor [BLOCK_N, BLOCK_DV] (QI qo32) :=",
+        "(← toQ qo32 (offs_n.col BLOCK_DV))) *",
+        "(← toQ qo32 (Tensor.scalar stride_vbs)).item +",
+        "(← toQ qo32 (Tensor.scalar (cur_kv_head * stride_vh))).item +",
+        "(← toQ qo32 (offs_dv.row BLOCK_N))"
+      ],
+      "note": "as lines 511-515, with `offs_n[:, None]` and `offs_dv[None, :]`"
+    },
+    {
+      "src": [
+        "580-582"
+      ],
+      "model": [
+        "let v : Tensor [BLOCK_N, BLOCK_DV] BF16 ←",
+        "tl.load (V_Extend + offs_v) (some ((mask_n.col BLOCK_DV).and (mask_dv.row BLOCK_N)))",
+        "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_N, BLOCK_DV] zf32)))"
+      ],
+      "note": "`other=0.0` as at line 245"
+    },
+    {
+      "src": [
+        "583-585"
+      ],
+      "drop": "config",
+      "note": "`if USE_FP8_EXTEND:` (`False`): not visited"
+    },
+    {
+      "src": [
+        586,
+        "590-593"
+      ],
+      "model": [
+        "let p16 : Tensor [BLOCK_M, BLOCK_N] BF16 ← tl.cvt p"
+      ],
+      "note": "the `else` of `USE_FP8_EXTEND`; `if IS_GFX1250:` (`False`): its `else`: `p.to(v.dtype)`, one rounding to nearest even; the `tl.dot` itself is in the model line of line 594"
+    },
+    {
+      "src": [
+        594
+      ],
+      "model": [
+        "let acc ← tl.dot_add cfgBF16 p16 v (← tl.mul acc (re_scale.col BLOCK_DV))"
+      ],
+      "note": "`acc * re_scale[:, None] + dot` with `dot` the `tl.dot` of line 593 (default zero accumulator, no other use, `max_num_imprecise_acc = 0`): the combine pass's shape, `tl.dot_add` (either `tl.dot(p, v, acc * re_scale)` or the product then the fusable addition); its addend the IEEE product"
+    },
+    {
+      "src": [
+        596
+      ],
+      "model": [
+        "let e_max := n_e_max",
+        "pure (acc, deno, e_max)"
+      ],
+      "note": "as line 440"
+    },
+    {
+      "src": [
+        "598-603"
+      ],
+      "drop": "config",
+      "note": "`if HAS_SINK:` (`False`): not visited"
+    },
+    {
+      "src": [
+        607
+      ],
+      "model": [
+        "let no_kv := deno.feq (bc zf32)"
+      ],
+      "note": "the operand `0.0` a `float32` tensor of its own type; the ordered `==`"
+    },
+    {
+      "src": [
+        "609-618"
+      ],
+      "drop": "config",
+      "note": "`if STORE_LSE:` (`False`): not visited"
+    },
+    {
+      "src": [
+        "620-625"
+      ],
+      "model": [
+        "let offs_o : Tensor [BLOCK_M, BLOCK_DV] (QI qo32) :=",
+        "(← toQ qo32 (offs_m.col BLOCK_DV))) *",
+        "(← toQ qo32 (Tensor.scalar stride_obs)).item +",
+        "(← toQ qo32 (Tensor.scalar (cur_head * stride_oh))).item +",
+        "(← toQ qo32 (offs_dv.row BLOCK_M))"
+      ],
+      "note": "as lines 238-243"
+    },
+    {
+      "src": [
+        626
+      ],
+      "model": [
+        "let deno_safe := tl.where no_kv (bc one32) deno"
+      ],
+      "note": "`1.0`, a value of `tl.where`, built in `float32`"
+    },
+    {
+      "src": [
+        "627-632"
+      ],
+      "drop": "config",
+      "note": "`if STORE_TRANSPOSE:` (`False`), compile-time: not visited"
+    },
+    {
+      "src": [
+        "633-638"
+      ],
+      "model": [
+        "let o ← tl.div acc (deno_safe.col BLOCK_DV)",
+        "let o16 : Tensor [BLOCK_M, BLOCK_DV] BF16 ← tl.cvt o",
+        "tl.store (O_Extend + offs_o) o16 (some ((mask_m.col BLOCK_DV).and (mask_dv.row BLOCK_M)))"
+      ],
+      "note": "the `else`: the platform's `float32` `/` (`tl.div`, `DivFull`); the store's conversion to the pointer's `bfloat16` (nearest even), written explicitly; the mask `mask_m[:, None] & mask_dv[None, :]`"
+    }
+  ]
+}

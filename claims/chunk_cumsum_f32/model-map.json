@@ -1,0 +1,316 @@
+{
+ "source": {
+  "file": "source/chunk_cumsum.py",
+  "sha256": "541eb7100f63070edf97c01e88dc3cfd0a62c0ff21395660a25a6ad9b7da8e7e",
+  "ranges": [
+   [
+    66,
+    67
+   ],
+   [
+    70,
+    77
+   ],
+   [
+    80,
+    106
+   ],
+   [
+    108,
+    120
+   ]
+  ],
+  "host": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.ChunkCumsum",
+ "entries": [
+  {
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module (SEMANTICS.md, the supported subset, Names); no other statement of the module binds it; it adds no step to the program",
+   "src": [
+    66
+   ]
+  },
+  {
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (SEMANTICS.md, the supported subset, Names); no other statement of the module binds it; it adds no step to the program",
+   "src": [
+    67
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); the model is the `Kernel` it decorates",
+   "src": [
+    70
+   ]
+  },
+  {
+   "model": "def chunk_local_cumsum_scalar_kernel (s_ptr o_ptr : Ptr .f32) (idxD : DType) (ci_ptr cu_ptr : Ptr idxD) (scale : F32) (T : I32) (B H BT : Nat) (REVERSE HAS_SCALE IS_VARLEN : Bool) : Kernel where",
+   "note": "the helper's signature: the model inlines the helper at its call site (line 96), so the signature is covered by the model's definition; the parameter default `Y: tl.constexpr = None` is a literal (`None`), which the subset admits for a helper's parameter (SEMANTICS.md, Parameters and arguments: a helper's parameter), and the front end visits the default as `Y = None` before the body (a `None` default is accepted)",
+   "src": [
+    71
+   ],
+   "rules": [
+    "Helpers are inlined"
+   ]
+  },
+  {
+   "src": [
+    72
+   ],
+   "drop": "docstring",
+   "note": "the helper's docstring: a string constant, an expression statement with no effect"
+  },
+  {
+   "model": "let pid := (← tl.convert .i32 .i64 (Tensor.scalar pid)).item",
+   "note": "`tl.program_id(0)` is the `int32` program id (`tl.program_id ctx 0`, the first model line under line 96's entry); `.to(tl.int64)` widens exactly (`tl.convert`, `ConvRel`: an `int32` in `int64`'s range)",
+   "src": [
+    73
+   ],
+   "rules": [
+    "Index arithmetic"
+   ]
+  },
+  {
+   "note": "`Y` holds the default `None`, a compile-time value: the condition `Y is None` is the compile-time `True`, so only this branch is visited; the model writes it (line 75's entry)",
+   "src": [
+    74
+   ],
+   "drop": "config"
+  },
+  {
+   "model": "let i_bh := (← tl.irem (Tensor.scalar pid) (Tensor.scalar (IntV.ofNat (B * H) : I64))).item\n    let i_t := (← tl.idiv (Tensor.scalar pid) (Tensor.scalar (IntV.ofNat (B * H) : I64))).item",
+   "note": "`pid % X` and `pid // X` with `pid` an `int64` scalar tensor and `X = B * H` a compile-time value: the constant is built in `int64` (the tensor operand's dtype), and the operations are the `int64` tensor `%` and `//` (`tl.irem`, `tl.idiv`, truncating; defined here: `pid ≥ 0`, `B·H > 0`, `Inst.ok.B_pos`, `Inst.ok.H_pos`; the constant below `2^31`, `Inst.ok.BH_lt`)",
+   "src": [
+    75
+   ],
+   "rules": [
+    "Integer //, %, <<, >>"
+   ]
+  },
+  {
+   "note": "not visited: the compile-time condition `Y is None` is `True` (line 74)",
+   "src": [
+    76
+   ],
+   "drop": "config"
+  },
+  {
+   "note": "not visited: the compile-time condition `Y is None` is `True` (line 74)",
+   "src": [
+    77
+   ],
+   "drop": "config"
+  },
+  {
+   "model": "def chunk_local_cumsum_scalar_kernel (s_ptr o_ptr : Ptr .f32) (idxD : DType) (ci_ptr cu_ptr : Ptr idxD) (scale : F32) (T : I32) (B H BT : Nat) (REVERSE HAS_SCALE IS_VARLEN : Bool) : Kernel where",
+   "note": "`@triton.jit(do_not_specialize=['T'])`, in the subset (SEMANTICS.md, the supported subset: the kernel); `do_not_specialize` makes `T` a runtime `int32` at every launch, never the compile-time constant `1`; the model is the `Kernel` it decorates",
+   "src": [
+    80
+   ],
+   "rules": [
+    "Scalar arguments"
+   ]
+  },
+  {
+   "model": "def chunk_local_cumsum_scalar_kernel (s_ptr o_ptr : Ptr .f32) (idxD : DType) (ci_ptr cu_ptr : Ptr idxD) (scale : F32) (T : I32) (B H BT : Nat) (REVERSE HAS_SCALE IS_VARLEN : Bool) : Kernel where",
+   "note": "`s`, `o` are `*fp32` (the host passes `float32` tensors); `cu_seqlens` and `chunk_indices` are pointers of one integer dtype `idxD` — `cu_seqlens`' dtype (`int32` or `int64`), which `chunk_indices` carries (`prepare_chunk_indices` ends in `.to(cu_seqlens)`, line 159); `scale` is a Python `float` argument, a runtime `float32` (`FloatV.hostF32` of the double), or `None` when `HAS_SCALE` is `false` — a compile-time constant the kernel never reads, so the model keeps an arbitrary `float32`; `T` is a runtime `int32` (`do_not_specialize`, `Inst.ok.T_lt`), read on the fixed-length path (lines 106 and 109, promoted to `int64`) and reassigned at line 104 on the variable-length path; `B`, `H`, `BT`, `REVERSE`, `HAS_SCALE`, `IS_VARLEN` are `tl.constexpr`, Lean parameters; no parameter has a default (`Inst` records the covered values: `B = 1`, `IS_VARLEN = true`, `USE_GRAPH = false`); `USE_GRAPH` is the compile-time `False` on every covered launch (the host passes `use_graph=False`, SETUP.md), so it has no model parameter (lines 100-101)",
+   "src": [
+    "81-95"
+   ]
+  },
+  {
+   "model": "let pid := tl.program_id ctx 0\n    let pid := (← tl.convert .i32 .i64 (Tensor.scalar pid)).item\n    let i_bh := (← tl.irem (Tensor.scalar pid) (Tensor.scalar (IntV.ofNat (B * H) : I64))).item\n    let i_t := (← tl.idiv (Tensor.scalar pid) (Tensor.scalar (IntV.ofNat (B * H) : I64))).item",
+   "note": "the call of `unflatten_program_id(B * H)`, inlined: lines 73 and 75's model with `X = B * H` (a compile-time value, the constexpr product) and `Y` the default `None`; `i_bh = pid % (B·H)`, `i_t = pid // (B·H)` (`i_bh` fastest, the docstring's reading)",
+   "src": [
+    96
+   ]
+  },
+  {
+   "model": "let i_b := (← tl.idiv (Tensor.scalar i_bh) (Tensor.scalar (IntV.ofNat H : I64))).item\n    let i_h := (← tl.irem (Tensor.scalar i_bh) (Tensor.scalar (IntV.ofNat H : I64))).item",
+   "note": "`int64` `//` and `%` by the constexpr `H` (built in `int64`); `i_b` is never used on the covered `IS_VARLEN` path, the model keeps it (a pure computation, no memory access)",
+   "src": [
+    97
+   ]
+  },
+  {
+   "note": "`if IS_VARLEN:` on a `tl.constexpr`: a compile-time condition, so only the taken branch is visited; the model is the Lean `if` on the parameter, each branch giving the values the code after it reads (`i_t`, `bos`, and the length line 109 compares with as an `int64`): lines 99-104 when `IS_VARLEN` (a variable-length launch), lines 105-106 otherwise (a fixed-length launch)",
+   "src": [
+    98
+   ],
+   "model": "let (i_t, bos, T) ← if IS_VARLEN then do"
+  },
+  {
+   "model": "let i_n := (← tl.convert idxD .i32 (Tensor.scalar\n      (← tl.load1 (ci_ptr + i_t * (IntV.ofNat 2 : I64))))).item",
+   "note": "`chunk_indices + i_t * 2`: the pointer (of the tables' dtype `idxD`) advanced by the `int64` product `i_t·2` (the constant `2` built in `int64`); `tl.load` of one element; `.to(tl.int32)`: of an `int32` value the identity (the source emits no step; the model's conversion is the identity `ConvRel` forces), of an `int64` value the truncating conversion — in range on the covered instances (`Pre`: the entry names a sequence below `N < 2^31`), so exact either way",
+   "src": [
+    99
+   ],
+   "rules": [
+    "Constants"
+   ]
+  },
+  {
+   "note": "`USE_GRAPH` is a `tl.constexpr`, the compile-time `False` on every covered instance (the host passes `use_graph = False`, SETUP.md): a compile-time value that is false ends the `and`, so the condition is `False` and the branch is never visited; `i_n < 0` is not evaluated",
+   "src": [
+    100
+   ],
+   "drop": "config"
+  },
+  {
+   "note": "not visited: the condition of line 100 is the compile-time `False` (line 100's entry)",
+   "src": [
+    101
+   ],
+   "drop": "config"
+  },
+  {
+   "model": "let i_t := (← tl.convert idxD .i64 (Tensor.scalar\n      (← tl.load1 (ci_ptr + i_t * (IntV.ofNat 2 : I64) + (IntV.ofNat 1 : I32))))).item",
+   "note": "`chunk_indices + i_t * 2 + 1`: the pointer advanced by the `int64` product, then by the constant `1` (built in `int32`, `Operand.ownType?`); the load of one element; `.to(tl.int64)`: of an `int64` value the identity (no step in the source), of an `int32` value the exact widening; the name `i_t` is reassigned (the source's)",
+   "src": [
+    102
+   ]
+  },
+  {
+   "model": "let bos := (← tl.convert idxD .i64 (Tensor.scalar (← tl.load1 (cu_ptr + i_n)))).item\n    let eos := (← tl.convert idxD .i64\n      (Tensor.scalar (← tl.load1 (cu_ptr + i_n + (IntV.ofNat 1 : I32))))).item",
+   "note": "`cu_seqlens + i_n` and `cu_seqlens + i_n + 1`: the pointer (of `cu_seqlens`' dtype) advanced by the `int32` scalar `i_n` (line 99's value after its `.to(tl.int32)`) and by it plus the constant `1` (built in `int32`); each load of one element, `.to(tl.int64)` as on line 102",
+   "src": [
+    103
+   ]
+  },
+  {
+   "model": "pure (i_t, bos, eos - bos)",
+   "note": "`T = eos - bos`: the wrapping `int64` subtraction (`IntV.sub`), the branch's third value, which line 109 compares with; no wrap on the covered instances: both are `cu_seqlens` bounds in `[0, T]` (`Pre`, `TablesOk`). The name `T` shadows the `int32` argument",
+   "src": [
+    104
+   ]
+  },
+  {
+   "note": "the `else:` of line 98's compile-time `if`, visited on a fixed-length launch (`IS_VARLEN` the compile-time `False`)",
+   "src": [
+    105
+   ],
+   "model": "else do"
+  },
+  {
+   "note": "`bos, eos = i_b * T, i_b * T + T`: `i_b` is `int64` (line 97), so the `int32` argument `T` is promoted to `int64` (sign extension, `tl.convert .i32 .i64`) and `bos` is the wrapping `int64` product (no wrap: `i_b < B`, `B·T·H ≤ s.len`); `eos` is not read on this path (it is dead: a pure value with no effect), and `T` stays the `int32` argument, which line 109's comparison with the `int64` `o_t` promotes to `int64` in the same way, the branch's third value `T64`; `i_t` stays the chunk index line 96 gave",
+   "src": [
+    106
+   ],
+   "model": [
+    "let T64 := (← tl.convert .i32 .i64 (Tensor.scalar T)).item",
+    "pure (i_t, i_b * T64, T64)"
+   ]
+  },
+  {
+   "model": "let o_t := bc (i_t * (IntV.ofNat BT : I64)) + (← tl.convert .i32 .i64 (tl.arange 0 BT))",
+   "note": "`i_t * BT`: the constexpr `BT` built in `int64` (the scalar tensor operand's dtype); `tl.arange(0, BT)` is an `int32` `[BT]` block, promoted to `int64` by the addition with an `int64` operand (`tl.convert`, exact); the scalar is broadcast to every lane (`bc`); wrapping `int64` arithmetic, which does not wrap on the covered instances (the chunk index is below `2^31` and `BT ≤ 2^20`)",
+   "src": [
+    108
+   ],
+   "rules": [
+    "Operators and promotion"
+   ]
+  },
+  {
+   "model": "let m_t := o_t.ltS T",
+   "note": "the `int64` signed comparison of the `o_t` block with the scalar `T` (`T` the line-104 value), broadcast; the result is `int1`",
+   "src": [
+    109
+   ]
+  },
+  {
+   "model": "let p_s := s_ptr + bos * (IntV.ofNat H : I64) + i_h + o_t * (IntV.ofNat H : I64)",
+   "note": "`s + bos*H + i_h + o_t * H`: the `*fp32` pointer advanced in elements by the `int64` products `bos·H` and `o_t·H` (the constexpr `H` built in `int64`) and the scalar `i_h`; the last addition is with the `int64` block `o_t * H`, so `p_s` is a `[BT]` block of pointers",
+   "src": [
+    110
+   ]
+  },
+  {
+   "model": "let p_o := o_ptr + bos * (IntV.ofNat H : I64) + i_h + o_t * (IntV.ofNat H : I64)",
+   "note": "as line 110, on the output pointer `o`",
+   "src": [
+    111
+   ]
+  },
+  {
+   "src": [
+    112
+   ],
+   "drop": "comment",
+   "note": "the `# [BT]` comment"
+  },
+  {
+   "model": "let b_s ← tl.load p_s (some m_t) (some (bc (FloatV.litF32 (FloatV.ofPat 0))))",
+   "note": "the masked load of the `[BT]` block, `mask = m_t` as in the source; `other=0.0`: the Python `float` `0.0` becomes a `float32` tensor (`litF32` of `+0`), already the pointer's dtype; the disabled lanes hold `+0`; `.to(tl.float32)` of a `float32` value is no conversion, so the model writes none",
+   "src": [
+    113
+   ],
+   "rules": [
+    "tl.load",
+    "Constants"
+   ]
+  },
+  {
+   "model": "let b_o ← tl.cumsum b_s 0 REVERSE",
+   "note": "`if REVERSE:` on a `tl.constexpr`: a compile-time condition, so only the taken branch is visited; both branches are `tl.cumsum(b_s, axis=0)` with `reverse` the flag's value, which the model writes as one line (line 117 is the same call); `b_s` is a loaded block, no product feeds the scan, so the additions are IEEE (`tl.cumsum`, not `tl.cumsumc`)",
+   "src": [
+    114
+   ],
+   "rules": [
+    "Scans",
+    "Float + and -"
+   ]
+  },
+  {
+   "note": "the compile-time branch `REVERSE = true`; the model writes it as line 114's `tl.cumsum b_s 0 REVERSE` (the same scan with `reverse = true`)",
+   "src": [
+    115
+   ],
+   "drop": "config"
+  },
+  {
+   "note": "the `else` of a compile-time condition: visited only when `REVERSE` is the compile-time `false`, and then it is line 117's call, which the model writes as line 114's entry",
+   "src": [
+    116
+   ],
+   "drop": "config"
+  },
+  {
+   "model": "let b_o ← tl.cumsum b_s 0 REVERSE",
+   "note": "the compile-time branch `REVERSE = false`; the model writes it as line 114's entry (the same scan with `reverse = false`)",
+   "src": [
+    117
+   ]
+  },
+  {
+   "model": "let b_o ← if HAS_SCALE then tl.mul b_o (bc scale) else pure b_o",
+   "note": "`if HAS_SCALE:` on a `tl.constexpr`: a compile-time condition, so only the taken branch is visited; the model writes the two cases as one conditional (the empty branch adds no step)",
+   "src": [
+    118
+   ]
+  },
+  {
+   "model": "let b_o ← if HAS_SCALE then tl.mul b_o (bc scale) else pure b_o",
+   "note": "`b_o *= scale`: the IEEE product of the `b_o` block with the runtime `float32` scalar `scale` broadcast (`bc`); no product feeds it (`b_o` is the scan's result), and no promotion (both `float32`); when `HAS_SCALE` is the compile-time `false` the host passes `scale = None` and the branch is not visited (the model's `scale` value is never read)",
+   "src": [
+    119
+   ],
+   "rules": [
+    "Float + and -"
+   ]
+  },
+  {
+   "model": "tl.store p_o b_o (some m_t)",
+   "note": "the masked store of the `b_o` block, `mask = m_t` as in the source; `b_o.to(p_o.dtype.element_ty)` of a `float32` value into a `float32` pointer is no conversion, so the model writes none",
+   "src": [
+    120
+   ],
+   "rules": [
+    "tl.store"
+   ]
+  }
+ ]
+}

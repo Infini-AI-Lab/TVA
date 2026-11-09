@@ -7,7 +7,8 @@ Some Triton operations have no exact documented meaning. The device computes `tl
 `tl.sqrt` and `/` on `tl.float32` with approximate instructions. `tl.dot` uses tensor cores whose
 accumulation order and precision are the hardware's. Conversions into fp8 saturate or not by
 lowering. Float atomics round as the memory system does. `tl.dot_scaled` runs on native
-microscaling instructions or on an emulation.
+microscaling instructions or on an emulation. A float reduction combines its positions along
+a tree whose depth the lowering decides.
 
 The library does not guess these. A `Platform` gives each such operation as a *relation*
 between operands and results; nothing about it is defined. A claim quantifies over platforms,
@@ -104,6 +105,12 @@ structure Platform where
   `float32`. -/
   dotScaled : (cfg : ScaledCfg) → {M N K : Nat} → Tensor [M, K] Nat → Option (Tensor [M, K] Nat) →
     Tensor [K, N] Nat → Option (Tensor [K, N] Nat) → Tensor [M, N] F32 → Tensor [M, N] F32 → Prop
+  /-- How deep the trees of a float reduction may be (`tl.sum`, `tl.sumc` and their axis forms,
+  library issue L149): a reduction over the `n` positions of its axis combines them along a tree
+  of depth at most `max (sumDepth n) ⌈log₂ n⌉` (`tl.sumBound`; the `⌈log₂ n⌉` keeps a tree always
+  available, a balanced one). The default, `n - 1`, allows every tree over the positions;
+  `Rules.Num.SumDepth` states sm_90's, `⌈log₂ n⌉`. -/
+  sumDepth : Nat → Nat := fun n => n - 1
 
 /-- What a running program may consult besides memory. -/
 structure Env where

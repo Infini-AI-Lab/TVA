@@ -53,4 +53,6 @@ before another thread's access to the same address in the same program.
    `tl.debug_barrier()` keeps no meaning in the model, and `num_stages` stays dropped.
 3. Two atomics of one program on the same address are each atomic (every counter ends at 2), but
    their order is not the source order (Part C). So the semantics must allow every order of a
-   program's atomics, for returned old values as for `xchg`.
+   program's atomics, for returned old values as for `xchg`. (`Step.defer` does, except where a
+   program uses an atomic's result on a cell another program or another atomic operation of the
+   program also accesses, which is excluded: SEMANTICS.md, "Atomics", library issues L161, L167.)

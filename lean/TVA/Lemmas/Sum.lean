@@ -13,6 +13,9 @@ use. It uses the worst depth, `n − 1`:
 `|r − Σ xᵢ| ≤ ((1 + u)^(n−1) − 1) · Σ|xᵢ| + η · (n − 1) · (1 + u)^(n−1)`
 
 This holds when every element is finite and the bound keeps every partial sum in range.
+`sum_err_depth` gives the same bound with any depth `D` the tree is known not to exceed: with
+`Rules.Num.SumDepth` (sm_90, library issue L149) a reduction's tree has depth at most `⌈log₂ n⌉`
+(`Rules.Num.SumDepth.depth_le`), `log₂ n` for the power of two `n` of a Triton axis.
 -/
 namespace TVA
 
@@ -48,6 +51,26 @@ theorem sum_err_covers (hf : f.Regular) (x : Nat → FloatV f) {n : Nat} {t : Tr
   have hN := nodes_of_covers hcov
   have hD : t.depth ≤ n - 1 := by have := depth_le_nodes t; omega
   have hmono := errBound_mono (δ := f.u) (η := f.eta) u_nonneg eta_nonneg hD (show t.nodes ≤ n - 1 by omega)
+    (absSumOf_nonneg FloatV.toRat x t) (le_refl (absSumOf FloatV.toRat x t))
+  rw [absSumOf_covers FloatV.toRat x hcov] at hmono
+  have hx' : ∀ i ∈ t.leaves, (x i).isFinite = true := fun i hi =>
+    hx i (List.mem_range.mp (hcov.subset hi))
+  obtain ⟨hfin, herr⟩ := sum_err hf x h hx' (by rw [absSumOf_covers FloatV.toRat x hcov]; linarith)
+  rw [sumOf_covers FloatV.toRat x hcov, absSumOf_covers FloatV.toRat x hcov] at herr
+  exact ⟨hfin, herr.trans hmono⟩
+
+/-- **A float reduction along a tree over `0, …, n−1` of depth at most `D`.** The bound uses depth
+`D` and node count `n − 1` (library issue L149: with `Rules.Num.SumDepth`, `D = ⌈log₂ n⌉`). -/
+theorem sum_err_depth (hf : f.Regular) (x : Nat → FloatV f) {n D : Nat} {t : Tree} {r : FloatV f}
+    (hcov : t.Covers n) (hd : t.depth ≤ D) (h : t.Eval (AddRel false) x r)
+    (hx : ∀ i, i < n → (x i).isFinite = true)
+    (hM : ((List.range n).map fun i => |(x i).toRat|).sum +
+      errBound f.u f.eta D (n - 1) ((List.range n).map fun i => |(x i).toRat|).sum ≤ f.maxVal) :
+    r.isFinite = true ∧
+      |r.toRat - ((List.range n).map fun i => (x i).toRat).sum| ≤
+        errBound f.u f.eta D (n - 1) ((List.range n).map fun i => |(x i).toRat|).sum := by
+  have hN := nodes_of_covers hcov
+  have hmono := errBound_mono (δ := f.u) (η := f.eta) u_nonneg eta_nonneg hd (show t.nodes ≤ n - 1 by omega)
     (absSumOf_nonneg FloatV.toRat x t) (le_refl (absSumOf FloatV.toRat x t))
   rw [absSumOf_covers FloatV.toRat x hcov] at hmono
   have hx' : ∀ i ∈ t.leaves, (x i).isFinite = true := fun i hi =>

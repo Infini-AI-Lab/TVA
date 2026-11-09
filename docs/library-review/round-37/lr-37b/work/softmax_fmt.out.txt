@@ -1,0 +1,17 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+## A. tl.softmax by format
+torch.float16 ieee_rounding=False: result torch.float32; ['div.full.f32']; results != IEEE num/den: 257 of 1024
+torch.float16 ieee_rounding=True: result torch.float32; ['div.rn.f32']; results != IEEE num/den: 0 of 1024
+torch.bfloat16 ieee_rounding=False: result torch.float32; ['div.full.f32']; results != IEEE num/den: 220 of 1024
+torch.bfloat16 ieee_rounding=True: result torch.float32; ['div.rn.f32']; results != IEEE num/den: 0 of 1024
+torch.float32 ieee_rounding=False: result torch.float32; ['div.full.f32']; results != IEEE num/den: 213 of 1024
+torch.float32 ieee_rounding=True: result torch.float32; ['div.rn.f32']; results != IEEE num/den: 0 of 1024
+torch.float64 ieee_rounding=False: result torch.float64; ['div.rn.f64']; results != IEEE num/den: 0 of 1024
+torch.float64 ieee_rounding=True: rejected (RuntimeError: failed to translate module to LLVM IR)
+## B. tl.fdiv(ieee_rounding=True) with constants and mixed operands
+float32 / constant 3.0: ['div.rn.f32']; != IEEE: 0 of 256
+float32 / constant 1.0: ['div.rn.f32']; != IEEE: 0 of 256
+float32 / torch.float16: rejected (RuntimeError: error encountered during parsing)
+float32 / torch.float64: rejected (RuntimeError: error encountered during parsing)
+## C. tl.softmax(ieee_rounding=True) - c, fusion on
+0 of 16384 differ from the IEEE difference of the stored softmax

@@ -1,0 +1,43 @@
+{
+  "kernel": "seeded_dropout_f32",
+  "title": "Seeded dropout, Triton tutorial 04 (`_seeded_dropout`, float32)",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/04-low-memory-dropout.py",
+    "sha256": "43ea69769349d20654fe7bb983e60ad9c38591d195891caf3a56053d9b0ab788",
+    "ranges": [
+      [
+        38,
+        39
+      ],
+      [
+        110,
+        131
+      ]
+    ],
+    "host": [
+      [
+        35,
+        36
+      ],
+      [
+        41,
+        41
+      ],
+      [
+        134,
+        140
+      ],
+      [
+        143,
+        155
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.SeededDropout",
+  "statement": "Claims.SeededDropout.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

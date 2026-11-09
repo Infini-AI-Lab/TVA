@@ -1,0 +1,55 @@
+{
+  "kernel": "recompute_wu_bf16",
+  "title": "WY representation of the gated DeltaNet's chunks, `w` and `u` (`recompute_w_u_fwd_kernel`, bfloat16), fla",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/wy_fast.py",
+    "sha256": "c67e8a86b32603bd6ee787c9e97389b87994ee8b9bed7ca9114c042fc1aa1950",
+    "ranges": [
+      [
+        61,
+        62
+      ],
+      [
+        65,
+        66
+      ],
+      [
+        69,
+        133
+      ]
+    ],
+    "host": [
+      [
+        1,
+        57
+      ],
+      [
+        59,
+        59
+      ],
+      [
+        136,
+        137
+      ],
+      [
+        140,
+        161
+      ],
+      [
+        164,
+        172
+      ],
+      [
+        175,
+        220
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.RecomputeWU",
+  "statement": "Claims.RecomputeWU.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

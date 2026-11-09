@@ -1,0 +1,48 @@
+{
+  "kernel": "paged_attention_f16",
+  "title": "Paged attention, decode (`paged_attention_kernel`, float16)",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/paged_attention.py",
+    "sha256": "f9c86dde4426760215c0a095d01cd9d211fb129118995cb3e440b747a068ac5e",
+    "ranges": [
+      [
+        26,
+        27
+      ],
+      [
+        30,
+        72
+      ]
+    ],
+    "host": [
+      [
+        24,
+        24
+      ],
+      [
+        75,
+        97
+      ],
+      [
+        100,
+        115
+      ],
+      [
+        118,
+        134
+      ],
+      [
+        137,
+        155
+      ]
+    ],
+    "unused": []
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.PagedAttention",
+  "statement": "Claims.PagedAttention.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

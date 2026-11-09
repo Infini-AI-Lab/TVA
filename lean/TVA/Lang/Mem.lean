@@ -109,6 +109,43 @@ instance {d : DType} {sg : Bool} {w : Nat} : HAdd (Ptr d) (IntV sg w) (Ptr d) :=
 @[simp] theorem Ptr.add_int {d : DType} {sg : Bool} {w : Nat} (p : Ptr d) (k : IntV sg w) :
     p + k = p.offset k.toInt := rfl
 
+/-! `ptr - k` (library issue L151). Triton builds `p - k` as `p + (0 - k)`, the negation computed in
+`k`'s own integer type, wrapping (`semantic.sub`, `semantic.minus`, `triton-3.8.0-semantic.py:261-267,
+478-485`), and then adds that value as `+` does: sign-extended for a signed type, zero-extended for an
+unsigned one (`semantic.add`, `:244-250`). So for a signed `k` other than the type's minimum it is `k`
+elements back (`Ptr.sub_int_of_signed`), and for an unsigned `k ≠ 0` it is `2^w − k` elements forward. -/
+
+/-- `ptr - k` for a scalar pointer and a scalar integer: `p + (-k)`, `-k` wrapping in `k`'s type. -/
+instance {d : DType} {sg : Bool} {w : Nat} : HSub (Ptr d) (IntV sg w) (Ptr d) := ⟨fun p k => p + (-k)⟩
+
+/-- `ptr - offsets` (a scalar pointer minus an integer tensor), lane by lane. -/
+instance {s : Shape} {d : DType} {sg : Bool} {w : Nat} :
+    HSub (Ptr d) (Tensor s (IntV sg w)) (Tensor s (Ptr d)) := ⟨fun p offs => p + offs.map (fun o => -o)⟩
+
+/-- `ptrs - offsets` (a pointer tensor minus an integer tensor), lane by lane. -/
+instance {s : Shape} {d : DType} {sg : Bool} {w : Nat} :
+    HSub (Tensor s (Ptr d)) (Tensor s (IntV sg w)) (Tensor s (Ptr d)) :=
+  ⟨fun ps offs => ps + offs.map (fun o => -o)⟩
+
+@[simp] theorem Ptr.sub_int {d : DType} {sg : Bool} {w : Nat} (p : Ptr d) (k : IntV sg w) :
+    p - k = p.offset (-k).toInt := rfl
+
+/-- A signed `k` above the type's minimum: `p - k` is `k` elements back. -/
+theorem Ptr.sub_int_of_signed {d : DType} {w : Nat} (p : Ptr d) (k : IntV true w)
+    (hk : -(2 ^ (w - 1) : Int) < k.toInt) : p - k = p.offset (-k.toInt) := by
+  rw [Ptr.sub_int]
+  congr 1
+  simp only [IntV.toInt, ite_true]
+  show (-k.bits).toInt = -k.bits.toInt
+  rcases Nat.eq_zero_or_pos w with hw | hw
+  · subst hw; simp [BitVec.toInt_zero_length]
+  · rw [BitVec.toInt_neg_of_ne_intMin]
+    intro h
+    have : k.bits.toInt = -(2 ^ (w - 1) : Int) := by
+      rw [h, BitVec.toInt_intMin_of_pos hw]
+    simp only [IntV.toInt, ite_true] at hk
+    omega
+
 @[simp] theorem Ptr.offset_offset {d : DType} (p : Ptr d) (i j : Int) :
     (p.offset i).offset j = p.offset (i + j) := by
   simp only [Ptr.offset]; congr 1; rw [Int.add_mul, Int.add_assoc]

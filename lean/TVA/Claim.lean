@@ -15,9 +15,11 @@ theorem satisfiable : TVA.Claim.Satisfiable Inst.ok Pre
 ```
 
 * `Inst` is the bundle's type of instances (shapes, scalar arguments, buffer addresses).
-* `K d init o`: launching the compiled kernel on instance `d` from global memory `init` can end
-  with outcome `o`. Nothing about `K` is defined, and the theorem holds for every `K` that
-  satisfies the assumptions.
+* `K d init o`: an execution of the compiled kernel on instance `d` (its grid of programs, with the
+  instance's arguments, compile-time values and options), from global memory `init`, can end with
+  outcome `o`. The claim is about the kernel's execution, however a caller makes it happen (library
+  issue L144; the user, 2026-11-08: "we verify the kernel itself"). Nothing about `K` is defined, and
+  the theorem holds for every `K` that satisfies the assumptions.
 * A launch that is *rejected*, that is, reported to the host with an error before any program
   runs, has no outcome. Examples are too much shared memory, too many threads or registers, a
   `tl.dot` below its minimum size, a dtype the architecture lacks, or a grid dimension above
@@ -27,16 +29,15 @@ theorem satisfiable : TVA.Claim.Satisfiable Inst.ok Pre
   zero dimension ends `ok` with memory unchanged. Triton 3.8.0's launcher also returns without
   an error, running no program, when the grid has `2^31` to `2^32` programs. Such a launch is not
   `Launch.Valid`, so `Rules.Compiler.Faithful` says nothing about it, and a claim cannot cover it
-  (library issue L9). A call made on a stream that is capturing into a CUDA graph also returns
-  without an error and runs no program (its programs run at each replay of the graph), and a call
-  made on another stream while a capture is in progress runs at once; the rule's scope excludes
-  every call made while a capture is in progress, on any stream, and every replay (library issue
-  L91).
+  (library issue L9): it ends `ok` with memory unchanged, and only `Launch.Valid` keeps it out.
+  A host call that only records the grid, for a run that a later call makes, is not an execution
+  of it and has no outcome; that later run is the execution, with the arguments and the memory it
+  runs on, and `Rules.Compiler.Faithful` is about it as about any other.
 * `init` is the global memory when the launch starts, as far as the launch is given it: the bytes
   present in `init` (`Mem` is a partial map), the buffers of `Pre`. The outcome `ok fin` gives the
   same bytes, with their contents when the launch ends, so `Post` speaks only of them. It covers
-  one launch, a direct launch of the kernel's `@triton.jit` function, and no call of an autotuned
-  kernel: TVA verifies the kernel itself, not the autotuner, and `@triton.autotune` is outside the
+  one launch, an execution of the code Triton compiles for a direct launch of the kernel's
+  `@triton.jit` function, and no call of an autotuned kernel: TVA verifies the kernel itself, not the autotuner, and `@triton.autotune` is outside the
   supported subset (library issue L116; the user's decisions, 2026-10-29: "actually we do not
   neccessarily cover autotune. we do verification basically for the kernel." and "our principle
   is, we are verifying kernel itself."). Its scope has two parts (the user's decisions, 2026-10-29: "To make the verifier
@@ -44,10 +45,9 @@ theorem satisfiable : TVA.Claim.Satisfiable Inst.ok Pre
   to verify the kernel itself, rather than triton installation or other code programmed by
   users."). (A) The kernel and its launches, which the kernel reviewer checks: no compile option
   `Launch` does not record, given to the launch, to `warmup` or `triton.compile`, in an autotune
-  config or by `@triton.heuristics`; a descriptor scratch, if any, that holds none of its bytes;
-  host descriptors that do not round to tf32; through a precompiled kernel, only one compiled from
-  the kernel's source, with arguments of its specialisation; and a launch made outside CUDA graph
-  capture (no call while a stream capture is in progress, no replay of a captured graph). (B) The
+  config or by `@triton.heuristics`; no descriptor built in the kernel (`tl.make_tensor_descriptor`);
+  host descriptors that do not round to tf32; and, through a precompiled kernel, only one compiled
+  from the kernel's source, with arguments of its specialisation. (B) The
   environment, which TVA assumes and nobody checks: nothing else writes the launch's bytes until
   it ends (not the host, another kernel on any stream or device, or a later kernel that
   programmatic dependent launch lets start early; writes to other bytes do not matter); Triton at
@@ -64,16 +64,17 @@ theorem satisfiable : TVA.Claim.Satisfiable Inst.ok Pre
   for example for a repeated launch of the same instance, and TVA does not verify the caches. A
   runtime argument's value is part of the instance, and `Inst.ok` constrains it (for example
   `n ≤ x.len` for a length `n_elements`). `Rules.Compiler.Faithful` states this scope
-  (library issues L5, L17, L18, L19, L21, L47, L49, L72, L74, L76, L77, L78, L91, L103, L104,
-  L105, L107, L109, L110, L116, L117).
+  (library issues L5, L17, L18, L19, L21, L47, L49, L72, L74, L76, L77, L78, L103, L104,
+  L105, L107, L109, L110, L116, L117, L144, L146).
 * **Other memory** (library issue L73). `Rules.Compiler.Faithful` also states that a valid,
   well-behaved launch within its scope writes no byte of global memory other than those `init`
-  gives, except the scratch of the descriptors the kernel builds (its scope 5). A claim's `main`
+  gives (its scope 5 excludes descriptors built in the kernel, and with them a scratch). A claim's
+  `main`
   can only be proved when the launch is valid and well behaved on every covered instance and memory
   (the rule says nothing of the others, and no other assumption constrains `K`, so a behaviour that
   faults there would satisfy the assumptions). So a claim that cites the rule also implies, through
   the rule's text, that on every covered instance and memory, within the rule's scope, the launch
-  leaves every other byte as it was, the descriptor scratch aside. `Post` cannot
+  leaves every other byte as it was. `Post` cannot
   state this frame: it rests on the rule's text, not on the outcome.
 * `P` is the platform (`TVA.Platform`): the device's meaning of the operations Triton leaves
   open (approximate math, `tl.dot`, fp8 conversions, float atomics).
@@ -104,13 +105,13 @@ inductive Outcome where
   /-- The launch never completes. -/
   | hang
 
-/-- The compiled kernel as it runs on the device (the H200): `K d init o` says that a launch on
-instance `d` from global memory `init` can end with `o`. A launch reported to the host with an error before
-any program runs (resources, unsupported sizes or dtypes, grid limits, a missing allocator) has no
-outcome. A launch that returns without an error has one, even if no program ran. `init` and the
-final memory of `ok` give the bytes the launch is given. The rules relate `K` to the model only for
-a launch whose bytes nothing else writes until it ends, through Triton at its defaults, as installed
-and unmodified, outside CUDA graph capture, running the code compiled for it
+/-- The compiled kernel as it runs on the device (the H200): `K d init o` says that an execution of
+the kernel on instance `d` from global memory `init` can end with `o`. A launch reported to the host
+with an error before any program runs (resources, unsupported sizes or dtypes, grid limits) has no
+outcome, nor has a host call that only records the grid for a run a later call makes; an execution of a grid with a
+zero dimension ends `ok` with memory unchanged. `init` and the final memory of `ok` give the bytes
+the launch is given. The rules relate `K` to the model only for an execution whose bytes nothing else writes until it
+ends, through Triton at its defaults, as installed and unmodified, running the code compiled for it
 (`Rules.Compiler.Faithful`, "Scope"). -/
 abbrev Behaviour (Inst : Type) : Type := Inst → Mem → Outcome → Prop
 

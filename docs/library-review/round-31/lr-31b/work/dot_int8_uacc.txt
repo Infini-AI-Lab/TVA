@@ -1,0 +1,5 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+U1 out_dtype=omitted: accepted; values equal acc's bits read as int32 plus the sum on 256/256 (also equal mod 2^32 to the uint32 value plus the sum on 256/256); row 0 (acc = 3000000000): stored -1294967287, as uint32 + sum 3000000009
+U2 out_dtype=omitted: (c < 0) on row 0: 1; c.to(tl.float32) on row 0: -1294967296.0 (int32 reading -1294967287.0, uint32 reading 3000000009.0)
+U1 out_dtype=tl.uint32: accepted; values equal acc's bits read as int32 plus the sum on 256/256 (also equal mod 2^32 to the uint32 value plus the sum on 256/256); row 0 (acc = 3000000000): stored -1294967287, as uint32 + sum 3000000009
+U2 out_dtype=tl.uint32: (c < 0) on row 0: 1; c.to(tl.float32) on row 0: -1294967296.0 (int32 reading -1294967287.0, uint32 reading 3000000009.0)

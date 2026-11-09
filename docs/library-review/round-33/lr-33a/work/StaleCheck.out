@@ -1,0 +1,45 @@
+def TVA.Rules.Num.chunks16 : ℕ → ℕ :=
+fun K => (K + 63) / 64
+def TVA.Rules.Num.chunk16 : (K : ℕ) → ℕ → Finset (Fin K) :=
+fun K j => {k | ↑k / 64 = j}
+def TVA.Rules.Num.rhoChunk16 : ℚ :=
+2 ^ (-13)
+def TVA.Rules.Num.sigmaChunk16 : ℚ :=
+2 ^ (-20)
+def TVA.Rules.Num.alphaChunk16 : ℚ :=
+2 ^ (-143)
+def TVA.Rules.Num.rhoLossChunk16 : ℚ :=
+2 ^ (-22)
+def TVA.Rules.Num.kappaChunk16 : ℚ :=
+2
+def TVA.Rules.Num.DotChunk16Loss : TVA.Platform → TVA.DotCfg → ℚ → ℚ → ℚ → ℚ → ℚ → Prop :=
+fun P cfg rho sigma alpha kappa rho' =>
+  ∀ ⦃M N K : ℕ⦄ (a : TVA.Tensor [M, K] cfg.a.Val) (b : TVA.Tensor [K, N] cfg.b.Val)
+    (acc r : TVA.Tensor [M, N] cfg.acc.Val),
+    P.dot cfg a b acc r →
+      ∀ (i : Fin M) (n : Fin N) (va vb : Fin K → ℚ) (vc : ℚ),
+        (∀ (k : Fin K), cfg.a.val? (a.get2 i k) = some (va k)) →
+          (∀ (k : Fin K), cfg.b.val? (b.get2 k n) = some (vb k)) →
+            cfg.acc.val? (acc.get2 i n) = some vc →
+              |vc| + ∑ k, |va k * vb k| +
+                    (TVA.Rules.Num.relChunk16 K * (|vc| + ∑ k, |va k * vb k|) + TVA.Rules.Num.absChunk16 K) ≤
+                  cfg.acc.bound →
+                ∃ s vr,
+                  cfg.acc.val? (r.get2 i n) = some vr ∧
+                    s 0 = vc ∧
+                      s (TVA.Rules.Num.chunks16 K) = vr ∧
+                        ∀ j < TVA.Rules.Num.chunks16 K,
+                          ∀ (Mj : ℚ),
+                            |s j| ≤ Mj →
+                              (∀ k ∈ TVA.Rules.Num.chunk16 K j,
+                                  TVA.Rules.Num.liftMag cfg.a (va k) * TVA.Rules.Num.liftMag cfg.b (vb k) ≤ Mj) →
+                                |s (j + 1) - (s j + TVA.Rules.Num.chunkSum16 va vb j)| ≤
+                                  min (rho * Mj) (kappa * TVA.Rules.Num.chunkAbs16 va vb j + rho' * Mj) +
+                                      sigma * |s j + TVA.Rules.Num.chunkSum16 va vb j| +
+                                    alpha
+829 chars: **`tl.dot` of `float16` operands into `float32`, chunk by chunk** (`Dot16BitChunk`): partial
+values `acc = s 0, …, s ⌈K/
+165 chars: Chunk `j` of `K` products: the `k < K` with `k / 64 = j`, the `64` consecutive `k` from
+`64·j` (all `K` of them when `K 
+765 chars: **A 16-bit `tl.dot` chunk by chunk**, per output element `(i, n)`. Suppose row `i` of `a` and
+column `n` of `b` have val

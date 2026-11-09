@@ -1,0 +1,587 @@
+{
+ "source": {
+  "file": "source/triton_scaled_mm.py",
+  "sha256": "faccb55ce7968054b6cf7575abb8358bd033f247e7d0b4ab38965aaac2dc06e6",
+  "ranges": [
+   [
+    43,
+    44
+   ],
+   [
+    55,
+    206
+   ]
+  ],
+  "host": [
+   [
+    41,
+    41
+   ],
+   [
+    47,
+    52
+   ],
+   [
+    211,
+    302
+   ],
+   [
+    305,
+    313
+   ],
+   [
+    316,
+    356
+   ]
+  ],
+  "unused": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.ScaledMmInt8",
+ "entries": [
+  {
+   "src": [
+    43,
+    44
+   ],
+   "drop": "import",
+   "note": "binds `triton` and `triton.language` as `tl` (SEMANTICS.md, the supported subset: Triton's modules as the source imports them), so every `tl.*` name of the kernel is Triton's, whose meaning is the library's `TVA.tl.*`; no other statement of the module binds them; they add no step to the program"
+  },
+  {
+   "src": [
+    55
+   ],
+   "drop": "decl",
+   "note": "the bare `@triton.jit` decorator: covered by the model's definition"
+  },
+  {
+   "src": [
+    "56-80"
+   ],
+   "model": [
+    "def scaled_mm_kernel (od : DType) (a_ptr b_ptr : Ptr .i8) (scale_a_ptr scale_b_ptr : Ptr .f32)",
+    "(c_ptr : Ptr od) (bias_ptr : Option (Ptr od)) (M N K : I32)",
+    "(stride_am stride_ak stride_bk stride_bn stride_cm stride_cn : I32)",
+    "(BLOCK_SIZE_M BLOCK_SIZE_N BLOCK_SIZE_K BLOCK_SIZE_SCALE_A BLOCK_SIZE_SCALE_B : Nat) : Kernel where"
+   ],
+   "note": "the kernel's `def` and its parameters, none with a default. `ACCUMULATOR_DTYPE: tl.constexpr` holds the dtype `tl.int32` on every covered launch (the host's value for `int8` inputs, line 268) and means at each use what `tl.int32` means (SEMANTICS.md, 'A dtype as a `tl.constexpr` argument'), so the model writes the dtype `.i32` (lines 89, 167); `USE_TD` is `False` (line 272), so the descriptor branches are not visited and `B_T`, read only there, has no meaning; the output's dtype `od` is `c_ptr`'s element type (also `bias_ptr`'s). `bias_ptr` is `none` when the host passes `None` (a compile-time `None`), `some p` for a tensor. The pointers are tensor arguments, `M`, `N`, `K` and the six strides `int32` arguments (each below `2^31` on covered instances; at `1` the compile-time constant gives the same values: `model`'s docstring), the block sizes Lean parameters"
+  },
+  {
+   "src": [
+    81
+   ],
+   "model": [
+    "let pid := tl.program_id ctx 0"
+   ],
+   "note": "axis 0 of the 1-D grid, an `int32`"
+  },
+  {
+   "src": [
+    83
+   ],
+   "model": [
+    "let num_pid_n := (← tl.idiv (Tensor.scalar (N + (IntV.ofNat (BLOCK_SIZE_N - 1) : I32)))",
+    "(Tensor.scalar (IntV.ofNat BLOCK_SIZE_N : I32))).item"
+   ],
+   "note": "`tl.cdiv(N, BLOCK_SIZE_N)` is `(N + (BLOCK_SIZE_N - 1)) // BLOCK_SIZE_N` (SEMANTICS.md, `tl.cdiv`): the constexpr built in `int32` as an operand of `+` with the `int32` `N`; the wrapping `int32` `+` (`Inst.ok.N_le`: no wrap), then the truncating `//`"
+  },
+  {
+   "src": [
+    85
+   ],
+   "model": [
+    "let pid_m := (← tl.idiv (Tensor.scalar pid) (Tensor.scalar num_pid_n)).item"
+   ],
+   "note": "`int32` `//` (`num_pid_n ≥ 1` since `N > 0`)"
+  },
+  {
+   "src": [
+    86
+   ],
+   "model": [
+    "let pid_n := (← tl.irem (Tensor.scalar pid) (Tensor.scalar num_pid_n)).item"
+   ],
+   "note": "`int32` `%`"
+  },
+  {
+   "src": [
+    88,
+    89
+   ],
+   "model": [
+    "let accumulator := tl.zeros [BLOCK_SIZE_M, BLOCK_SIZE_N] .i32"
+   ],
+   "note": "line 88 binds the name `accumulator_dtype` to the dtype `ACCUMULATOR_DTYPE = tl.int32` (a `tl.constexpr` parameter holding a dtype, SEMANTICS.md 'A dtype as a `tl.constexpr` argument'; a dtype stays a dtype when assigned, SEMANTICS.md, 'A name assigned a Python number holds a tensor'); line 89: `0` in every element"
+  },
+  {
+   "src": [
+    96
+   ],
+   "model": [
+    "let offsets_am : Tensor [BLOCK_SIZE_M] I64 :=",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (pid_m * (IntV.ofNat BLOCK_SIZE_M : I32)))).item +",
+    "(← tl.convert .i32 .i64 (tl.arange 0 BLOCK_SIZE_M))"
+   ],
+   "note": "`.to(tl.int64)` binds tighter than `+`: the `int32` `tl.arange` widened exactly; the `int32` scalar `pid_m * BLOCK_SIZE_M` (the constexpr built in `int32`; `Inst.ok.M_le`: no wrap) widened to `int64` by the promotion of `+`; the wrapping `int64` sum"
+  },
+  {
+   "src": [
+    97
+   ],
+   "model": [
+    "let masks_am : Tensor [BLOCK_SIZE_M] Bool :=",
+    "offsets_am.ltS (← tl.convert .i32 .i64 (Tensor.scalar M)).item"
+   ],
+   "note": "the signed comparison of the `int64` block with the `int32` scalar `M`, which promotion widens to `int64`"
+  },
+  {
+   "src": [
+    99
+   ],
+   "model": [
+    "let offsets_bn : Tensor [BLOCK_SIZE_N] I64 :=",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (pid_n * (IntV.ofNat BLOCK_SIZE_N : I32)))).item +",
+    "(← tl.convert .i32 .i64 (tl.arange 0 BLOCK_SIZE_N))"
+   ],
+   "note": "as line 96"
+  },
+  {
+   "src": [
+    100
+   ],
+   "model": [
+    "let masks_bn : Tensor [BLOCK_SIZE_N] Bool :=",
+    "offsets_bn.ltS (← tl.convert .i32 .i64 (Tensor.scalar N)).item"
+   ],
+   "note": "as line 97"
+  },
+  {
+   "src": [
+    102
+   ],
+   "model": [
+    "let offsets_k : Tensor [BLOCK_SIZE_K] I64 ← tl.convert .i32 .i64 (tl.arange 0 BLOCK_SIZE_K)"
+   ],
+   "note": "the exact widening"
+  },
+  {
+   "src": [
+    103
+   ],
+   "model": [
+    "let offsets_a : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] I64 :=",
+    "((← tl.convert .i32 .i64 (Tensor.scalar stride_am)).item * offsets_am).col BLOCK_SIZE_K +",
+    "((← tl.convert .i32 .i64 (Tensor.scalar stride_ak)).item * offsets_k).row BLOCK_SIZE_M"
+   ],
+   "note": "each `int32` scalar stride times an `int64` block: the stride widened, the wrapping `int64` product (below `2^62` on covered instances: strides and rows below `2^31`); the column `offsets_am[:, None]` and the row `offsets_k[None, :]` broadcast to `[BLOCK_SIZE_M, BLOCK_SIZE_K]` (multiplying before or after the broadcast gives the same elements); the wrapping `int64` sum"
+  },
+  {
+   "src": [
+    104
+   ],
+   "model": [
+    "let offsets_b : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] I64 :=",
+    "((← tl.convert .i32 .i64 (Tensor.scalar stride_bk)).item * offsets_k).col BLOCK_SIZE_N +",
+    "((← tl.convert .i32 .i64 (Tensor.scalar stride_bn)).item * offsets_bn).row BLOCK_SIZE_K"
+   ],
+   "note": "as line 103, `[BLOCK_SIZE_K, BLOCK_SIZE_N]`"
+  },
+  {
+   "src": [
+    "109-112"
+   ],
+   "model": [
+    "let offsets_scale_am : Tensor [BLOCK_SIZE_SCALE_A] I32 :=",
+    "tl.arange 0 BLOCK_SIZE_SCALE_A +",
+    "(IntV.ofNat (if 1 < BLOCK_SIZE_SCALE_A then 1 else 0) : I32) * pid_m * (IntV.ofNat BLOCK_SIZE_M : I32)"
+   ],
+   "note": "`BLOCK_SIZE_SCALE_A > 1` compares two compile-time values: a Python `bool`; `bool * pid_m` with the `int32` scalar `pid_m` builds it as the `int32` constant `1` or `0` (a Python number with a tensor of a kind no lower, SEMANTICS.md, Constants); the wrapping `int32` products, left to right; the scalar added to every lane of the `int32` `tl.arange` (`Inst.ok.M_le`: no wrap)"
+  },
+  {
+   "src": [
+    113
+   ],
+   "model": [
+    "let masks_scale_am : Tensor [BLOCK_SIZE_SCALE_A] Bool := offsets_scale_am.ltS M"
+   ],
+   "note": "signed `int32` comparison with `M`"
+  },
+  {
+   "src": [
+    "115-118"
+   ],
+   "model": [
+    "let offsets_scale_bn : Tensor [BLOCK_SIZE_SCALE_B] I32 :=",
+    "tl.arange 0 BLOCK_SIZE_SCALE_B +",
+    "(IntV.ofNat (if 1 < BLOCK_SIZE_SCALE_B then 1 else 0) : I32) * pid_n * (IntV.ofNat BLOCK_SIZE_N : I32)"
+   ],
+   "note": "as lines 109-112"
+  },
+  {
+   "src": [
+    119
+   ],
+   "model": [
+    "let masks_scale_bn : Tensor [BLOCK_SIZE_SCALE_B] Bool := offsets_scale_bn.ltS N"
+   ],
+   "note": "as line 113"
+  },
+  {
+   "src": [
+    121
+   ],
+   "model": [
+    "let a_ptrs := a_ptr + offsets_a"
+   ],
+   "note": "pointer plus an `int64` block, in elements"
+  },
+  {
+   "src": [
+    122
+   ],
+   "model": [
+    "let b_ptrs := b_ptr + offsets_b"
+   ],
+   "note": "as line 121"
+  },
+  {
+   "src": [
+    124
+   ],
+   "model": [
+    "let scale_a_ptrs := scale_a_ptr + offsets_scale_am"
+   ],
+   "note": "pointer plus an `int32` block"
+  },
+  {
+   "src": [
+    125
+   ],
+   "model": [
+    "let scale_b_ptrs := scale_b_ptr + offsets_scale_bn"
+   ],
+   "note": "as line 124"
+  },
+  {
+   "src": [
+    "127-149"
+   ],
+   "drop": "config",
+   "note": "`USE_TD` is `False` on every covered launch (a compile-time condition, the host's argument of line 298, `use_td = False` at line 272), so the descriptor branch is never visited"
+  },
+  {
+   "src": [
+    151
+   ],
+   "model": [
+    "let (_offsets_k, _a_ptrs, _b_ptrs, accumulator) ← tl.forRange (IntV.ofInt 0 : I32)",
+    "(← tl.idiv (Tensor.scalar (K + (IntV.ofNat (BLOCK_SIZE_K - 1) : I32)))",
+    "(Tensor.scalar (IntV.ofNat BLOCK_SIZE_K : I32))).item",
+    "(IntV.ofInt 1 : I32) (offsets_k, a_ptrs, b_ptrs, accumulator)",
+    "fun _k (offsets_k, a_ptrs, b_ptrs, accumulator) => do",
+    "return (offsets_k, a_ptrs, b_ptrs, accumulator)"
+   ],
+   "note": "`range(0, tl.cdiv(K, BLOCK_SIZE_K))`: two positional arguments, each evaluated once before the loop; the bound `(K + (BLOCK_SIZE_K - 1)) // BLOCK_SIZE_K` in `int32` (`K_lt`: no wrap); the `int32` induction variable (unused in the body: `k` appears only in the descriptor branch); the loop carries `offsets_k`, `a_ptrs`, `b_ptrs`, `accumulator`, which the body assigns and are defined before it; the names first defined in the body are not used after it"
+  },
+  {
+   "src": [
+    "152-158"
+   ],
+   "drop": "config",
+   "note": "`if USE_TD:` is a compile-time condition, `False` on every covered launch: lines 153-157 are not visited, and the `else:` of line 158 is the branch visited (lines 159-164)"
+  },
+  {
+   "src": [
+    159
+   ],
+   "model": [
+    "let masks_k : Tensor [BLOCK_SIZE_K] Bool :=",
+    "offsets_k.ltS (← tl.convert .i32 .i64 (Tensor.scalar K)).item"
+   ],
+   "note": "the signed `int64` comparison with `K` widened"
+  },
+  {
+   "src": [
+    160
+   ],
+   "model": [
+    "let masks_a := (masks_am.col BLOCK_SIZE_K).and (masks_k.row BLOCK_SIZE_M)"
+   ],
+   "note": "the column `masks_am[:, None]` and the row `masks_k[None, :]`, broadcast, `&` on `int1`"
+  },
+  {
+   "src": [
+    161
+   ],
+   "model": [
+    "let a ← tl.load a_ptrs (some masks_a)"
+   ],
+   "note": "a masked load with no `other`: the disabled lanes hold unspecified values (SEMANTICS.md, `tl.load`); on covered instances (`Inst.ok.K_div`) only the rows `>= M` are disabled, which reach only the rows of the result that line 206 masks"
+  },
+  {
+   "src": [
+    163
+   ],
+   "model": [
+    "let masks_b := (masks_k.col BLOCK_SIZE_N).and (masks_bn.row BLOCK_SIZE_K)"
+   ],
+   "note": "as line 160"
+  },
+  {
+   "src": [
+    164
+   ],
+   "model": [
+    "let b ← tl.load b_ptrs (some masks_b)"
+   ],
+   "note": "as line 161, the columns `>= N` disabled"
+  },
+  {
+   "src": [
+    167
+   ],
+   "model": [
+    "let accumulator ← tl.dot",
+    "{ a := .i8, b := .i8, acc := .i32, precision := .tf32, maxImpreciseAcc := 0 } a b accumulator"
+   ],
+   "note": "`tl.dot(a, b, accumulator, out_dtype=tl.int32)`: `int8` operands into the `int32` accumulator, given as the dot's own accumulator (not `c + tl.dot(...)`); no `input_precision` (the default `tf32`) and no `max_num_imprecise_acc` (`0` for operands that are not fp8, `semantic.py:1516-1520`); exact by `Rules.Num.DotI8` (the `dot` assumption) when `|acc| + Σ|a·b| ≤ 2^31 - 1`"
+  },
+  {
+   "src": [
+    169
+   ],
+   "model": [
+    "let offsets_k := offsets_k + (IntV.ofNat BLOCK_SIZE_K : I64)"
+   ],
+   "note": "`x += y` is `x = x + y`; the constexpr built in `int64`, the block's dtype"
+  },
+  {
+   "src": [
+    170
+   ],
+   "model": [
+    "let a_ptrs := a_ptrs +",
+    "(bc ((IntV.ofNat BLOCK_SIZE_K : I32) * stride_ak) : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] I32)"
+   ],
+   "note": "the constexpr built in `int32` as an operand of `*` with the `int32` scalar stride, the wrapping product (`Inst.ok.steps`: no wrap), broadcast and added to every pointer; at `stride_ak = 1` the product is Python's `BLOCK_SIZE_K`, the same `int32` value"
+  },
+  {
+   "src": [
+    171
+   ],
+   "model": [
+    "let b_ptrs := b_ptrs +",
+    "(bc ((IntV.ofNat BLOCK_SIZE_K : I32) * stride_bk) : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] I32)"
+   ],
+   "note": "as line 170"
+  },
+  {
+   "src": [
+    174
+   ],
+   "model": [
+    "let masks_scale_a : Tensor [BLOCK_SIZE_SCALE_A, 1] Bool :=",
+    "(masks_scale_am.col 1).and",
+    "(Tensor.bcastRows (((tl.arange 0 1).ltS (IntV.ofInt 1 : I32)).col 1 : Tensor [1, 1] Bool)",
+    "BLOCK_SIZE_SCALE_A)"
+   ],
+   "note": "`masks_scale_am[:, None]` (`[BLOCK_SIZE_SCALE_A, 1]`) `&` the `[1, 1]` block `(tl.arange(0, 1) < 1)[:, None]` broadcast; the Python `1` of the comparison is an `int32` tensor of its own type (SEMANTICS.md, Constants: everywhere else)"
+  },
+  {
+   "src": [
+    175
+   ],
+   "model": [
+    "let scale_a ← tl.load (scale_a_ptrs.col 1) (some masks_scale_a)"
+   ],
+   "note": "the load of `scale_a_ptrs[:, None]`, the mask given positionally, no `other` (disabled lanes: the rows `>= M`, which line 206 masks)"
+  },
+  {
+   "src": [
+    179
+   ],
+   "model": [
+    "let scale_a ← if h : Shape.bcastOk [BLOCK_SIZE_SCALE_A, 1] [BLOCK_SIZE_M, 1] = true then",
+    "pure (scale_a.broadcastTo [BLOCK_SIZE_M, 1] h) else .ub"
+   ],
+   "note": "`scale_a.broadcast_to((BLOCK_SIZE_M, 1))` of a `[BLOCK_SIZE_SCALE_A, 1]` block: `Tensor.broadcastTo` (SEMANTICS.md, `tl.broadcast_to`). Triton accepts it only when `Shape.bcastOk [BLOCK_SIZE_SCALE_A, 1] [BLOCK_SIZE_M, 1]` holds, i.e. `BLOCK_SIZE_SCALE_A` is `1` (every row the one element) or `BLOCK_SIZE_M` (the block itself), as on every covered launch (`BSA`); any other shape is rejected on the host, where the model has no outcome (`.ub`, never reached)"
+  },
+  {
+   "src": [
+    180
+   ],
+   "model": [
+    "let acc_f : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] F32 ← tl.itof accumulator",
+    "let accumulator ← tl.mul (scale_a.bcastCols BLOCK_SIZE_N) acc_f"
+   ],
+   "note": "`accumulator.to(tl.float32)` of the `int32` block: `sitofp` (`tl.itof`); then the IEEE `float32` product with `scale_a` broadcast along the columns: no addition consumes this product (line 185 multiplies it)"
+  },
+  {
+   "src": [
+    182
+   ],
+   "model": [
+    "let masks_scale_b : Tensor [BLOCK_SIZE_SCALE_B, 1] Bool :=",
+    "(masks_scale_bn.col 1).and",
+    "(Tensor.bcastRows (((tl.arange 0 1).ltS (IntV.ofInt 1 : I32)).row 1 : Tensor [1, 1] Bool)",
+    "BLOCK_SIZE_SCALE_B)"
+   ],
+   "note": "as line 174, with `(tl.arange(0, 1) < 1)[None, :]`, also `[1, 1]`"
+  },
+  {
+   "src": [
+    183
+   ],
+   "model": [
+    "let scale_b ← tl.load (scale_b_ptrs.col 1) (some masks_scale_b)"
+   ],
+   "note": "as line 175 (disabled lanes: the columns `>= N`)"
+  },
+  {
+   "src": [
+    184
+   ],
+   "model": [
+    "let scale_b ← if h : Shape.bcastOk [BLOCK_SIZE_SCALE_B, 1] [BLOCK_SIZE_N, 1] = true then",
+    "pure (scale_b.broadcastTo [BLOCK_SIZE_N, 1] h) else .ub"
+   ],
+   "note": "as line 179, for the `[BLOCK_SIZE_SCALE_B, 1]` block (`BLOCK_SIZE_SCALE_B` is `1` or `BLOCK_SIZE_N`, `BSB`)"
+  },
+  {
+   "src": [
+    185
+   ],
+   "model": [
+    "let accumulator ← tl.mul (Tensor.bcastRows scale_b.trans BLOCK_SIZE_M) accumulator"
+   ],
+   "note": "`scale_b.T` (`Tensor.trans`, `[1, BLOCK_SIZE_N]`) broadcast along the rows; `accumulator.to(tl.float32)` of a `float32` block is the block (`semantic.cast` returns its input, `semantic.py:815-816`); the IEEE `float32` product (the addition of line 193 that may consume it is written there as contractible)"
+  },
+  {
+   "src": [
+    188
+   ],
+   "model": [
+    "let accumulator ← (match bias_ptr with",
+    "| none => pure accumulator",
+    "| some bias_ptr =>",
+    "if bias_ptr.addr ≠ 0 then do",
+    "else pure accumulator)"
+   ],
+   "note": "`if bias_ptr:`: with `None` (`hasBias = false`) a compile-time condition that is false, lines 189-193 not visited; with a pointer, a runtime `if` (SEMANTICS.md, 'A runtime `if`'): the condition converted to `int1`, for a pointer its address as a 64-bit integer, `p.addr ≠ 0` (SEMANTICS.md: `if p:` on a pointer argument), so the branch runs when the address is not `0` (`Inst.ok.bias_nz`); `accumulator`, defined before, keeps its dtype and shape"
+  },
+  {
+   "src": [
+    189
+   ],
+   "model": [
+    "let offsets_bias := offsets_bn"
+   ],
+   "note": "a name for the same block"
+  },
+  {
+   "src": [
+    190
+   ],
+   "model": [
+    "let bias_ptrs := bias_ptr + offsets_bias"
+   ],
+   "note": "pointer plus an `int64` block"
+  },
+  {
+   "src": [
+    191
+   ],
+   "model": [
+    "let bias_mask : Tensor [BLOCK_SIZE_N] Bool :=",
+    "offsets_bias.ltS (← tl.convert .i32 .i64 (Tensor.scalar N)).item"
+   ],
+   "note": "as line 100"
+  },
+  {
+   "src": [
+    192
+   ],
+   "model": [
+    "let bias ← tl.load bias_ptrs (some bias_mask)"
+   ],
+   "note": "the mask positional, no `other` (disabled lanes: the columns `>= N`)"
+  },
+  {
+   "src": [
+    193
+   ],
+   "model": [
+    "let bias32 ← tl.convert od .f32 bias",
+    "tl.addc accumulator (bias32.row BLOCK_SIZE_M)"
+   ],
+   "note": "`accumulator += bias`: the `float32` block plus the `od` row: `bias` converted to `float32` (`tl.convert`, an exact widening) and broadcast along the rows; the addition consumes the product of line 185, outside this branch, so it is the contractible `tl.addc` (SEMANTICS.md, 'Float `+` and `-`')"
+  },
+  {
+   "src": [
+    196
+   ],
+   "model": [
+    "let c : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] od.Val ← tl.convert .f32 od accumulator"
+   ],
+   "note": "`c_ptr.type.element_ty` of a pointer argument is its buffer's dtype `od` (SEMANTICS.md, 'Values': `p.type.element_ty` is `p.dtype.element_ty`); `float32` to `od`, one rounding to nearest even (`tl.convert`)"
+  },
+  {
+   "src": [
+    199
+   ],
+   "model": [
+    "let offs_cm : Tensor [BLOCK_SIZE_M] I64 :=",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (pid_m * (IntV.ofNat BLOCK_SIZE_M : I32)))).item +"
+   ],
+   "note": "as line 96"
+  },
+  {
+   "src": [
+    200
+   ],
+   "model": [
+    "let offs_cn : Tensor [BLOCK_SIZE_N] I64 :=",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (pid_n * (IntV.ofNat BLOCK_SIZE_N : I32)))).item +"
+   ],
+   "note": "as line 99"
+  },
+  {
+   "src": [
+    201,
+    202
+   ],
+   "drop": "dead",
+   "note": "`.to(tl.int64)` of an `int64` block is the block itself (`semantic.cast` returns its input), no operation"
+  },
+  {
+   "src": [
+    203
+   ],
+   "model": [
+    "let c_ptrs := c_ptr +",
+    "((← tl.convert .i32 .i64 (Tensor.scalar stride_cm)).item * offs_cm).col BLOCK_SIZE_N +",
+    "((← tl.convert .i32 .i64 (Tensor.scalar stride_cn)).item * offs_cn).row BLOCK_SIZE_M"
+   ],
+   "note": "`(c_ptr + stride_cm * offs_cm[:, None]) + stride_cn * offs_cn[None, :]`: the `int32` scalar strides widened, the `int64` products, two pointer additions, broadcast to `[BLOCK_SIZE_M, BLOCK_SIZE_N]`"
+  },
+  {
+   "src": [
+    204
+   ],
+   "model": [
+    "let c_mask := ((offs_cm.col BLOCK_SIZE_N).ltS (← tl.convert .i32 .i64 (Tensor.scalar M)).item).and",
+    "((offs_cn.row BLOCK_SIZE_M).ltS (← tl.convert .i32 .i64 (Tensor.scalar N)).item)"
+   ],
+   "note": "two signed `int64` comparisons with `M`, `N` widened, broadcast, then `&`"
+  },
+  {
+   "src": [
+    206
+   ],
+   "model": [
+    "tl.store c_ptrs c (some c_mask)"
+   ],
+   "note": "`c` is already of the pointer's dtype"
+  }
+ ]
+}

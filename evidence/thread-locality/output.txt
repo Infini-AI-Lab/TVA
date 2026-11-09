@@ -1,0 +1,83 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+== Part U: the update operation (a plain tl.load operand; x is 1 everywhere but 2 in column 1, so each trip's row sum is 65, max 2, min 1)
+U0  acc = acc - tl.sum(x, 1)                       rewritten True; stored [260.0]; source -260.0; U(c, R(v)) 260.0
+U1  acc = tl.sum(x, 1) - acc                       rewritten True; stored [260.0]; source 0.0; U(c, R(v)) 260.0
+U2  acc = acc + tl.max(x, 1)                       rewritten True; stored [-inf]; source 8.0; U(c, R(v)) -inf
+U3  acc = tl.maximum(acc, tl.sum(x, 1))            rewritten True; stored [65.0]; source 65.0; U(c, R(v)) 65.0
+U4  acc = acc * tl.sum(x, 1)  (acc from 1)         rewritten True; stored [0.0]; source 17850625.0; U(c, R(v)) 0.0
+U5  acc = acc + tl.min(x, 1)                       rewritten True; stored [inf]; source 4.0; U(c, R(v)) inf
+U6  acc = tl.minimum(acc, tl.sum(x, 1))            rewritten True; stored [0.0]; source 0.0; U(c, R(v)) 0.0
+U7  acc = tl.maximum(acc, tl.max(x, 1))  (the combine) rewritten True; stored [2.0]; source 2.0; U(c, R(v)) 2.0
+U8  acc = acc / tl.sum(x, 1)                       rewritten True; stored ['nan']; source 0.0; U(c, R(v)) nan
+U9  acc = acc * tl.max(x, 1)  (acc from 1)         rewritten True; stored [-inf]; source 16.0; U(c, R(v)) -inf
+U10 acc = acc + tl.sum(x, 1)  (the combine)        rewritten True; stored [260.0]; source 260.0; U(c, R(v)) 260.0
+U3b acc = tl.maximum(acc, tl.sum(x, 1)), trip 0: a 1 in column 0, trip 1: a 1 in column 63: rewritten True; stored [2.0]; source 1.0; U(c, R(v)) 2.0 when the two columns are in different threads
+== Part F: the operand, on the IR the pass sees (acc = acc + tl.sum(operand, 1) from 0, two trips; every association within the trips gives 1.0, the rewrite 2.0)
+F0   tl.load(p)                                     rewritten True; stored [2.0]; source 1.0
+F1   tl.load(p).to(tl.float32) of float32           rewritten True; stored [2.0]; source 1.0
+F2   tl.load(p) * 1.0                               rewritten True; stored [2.0]; source 1.0
+F3   tl.load(p) * SCALE, SCALE: constexpr = 1.0     rewritten True; stored [2.0]; source 1.0
+F4   tl.load(p) / 1.0                               rewritten True; stored [2.0]; source 1.0
+F5   tl.load(p) - 0.0                               rewritten True; stored [2.0]; source 1.0
+F6   tl.load(p) + (-0.0)                            rewritten False; stored [1.0]; source 1.0
+F7   tl.load(block pointer)                         rewritten True; stored [2.0]; source 1.0
+F8   a helper returning tl.load(p)                  rewritten True; stored [2.0]; source 1.0
+F9   tl.maximum(x, x), x = tl.load(p)               rewritten True; stored [2.0]; source 1.0
+F10  tl.trans(tl.trans(tl.load(p)))                 rewritten True; stored [2.0]; source 1.0
+F11  tl.reshape(tl.load(p), its shape)              rewritten True; stored [2.0]; source 1.0
+F12  tl.where(SCALE == 1.0, tl.load(p), 0.0)        rewritten True; stored [2.0]; source 1.0
+F13  tl.load(p, mask=always true, other=0.0)        rewritten True; stored [2.0]; source 1.0
+F14  tl.load(p, cache_modifier='.cg')               rewritten True; stored [2.0]; source 1.0
+F15  tl.load(p, mask=rn < n (runtime n = 64), other=0.0) rewritten True; stored [2.0]; source 1.0
+F100 control: tl.load(p) + 0.0                      rewritten False; stored [1.0]; source 1.0
+F101 control: tl.sum(tl.load(p) * 2.0) * 0.5        rewritten False; stored [1.0]; source 1.0
+F102 control: float16 (2048, 1; -2048, 1) summed into a float32 acc (converted before U) rewritten False; stored [1.0]; source 1.0
+F103 control: a host-descriptor load                rewritten False; stored [1.0]; source 1.0
+F104 control: the update inside a runtime if        rewritten False; stored [1.0]; source 1.0
+F105 control: acc starts from a load (* 0.0)        rewritten False; stored [1.0]; source 1.0
+F106 control: tl.where(x == x, x, 0.0) (a runtime mask) rewritten False; stored [1.0]; source 1.0
+F107 control: the sum used twice                    rewritten False; stored [1.0]; source 1.0
+F108 control: x * tl.load(ones)                     rewritten False; stored [1.0]; source 1.0
+== Part L: the loop and the layout
+L0 tl.range(0, T, num_stages=3)             rewritten True; stored [2.0]; source 1.0
+L1 tl.static_range(T) (unrolled: no loop)   rewritten False; stored [1.0]; source 1.0
+L2 while t < T                              rewritten False; stored [1.0]; source 1.0
+L4 tl.sum(axis=0) of a 2-D load                 rewritten False; stored [1.0]; source 1.0
+L5 a 1-D load                                   rewritten False; stored [1.0]; source 1.0
+L6 tl.load(p), 1 warps                            rewritten True; stored [2.0]; source 1.0
+L6 tl.load(p), 2 warps                            rewritten True; stored [2.0]; source 1.0
+L6 tl.load(p), 8 warps                            rewritten True; stored [2.0]; source 1.0
+L7 tl.load(p) of [1, 64]                      rewritten False; stored [1.0]; source 1.0
+L7 tl.load(p) of [64, 1]                      rewritten False; stored [1.0]; source 1.0
+L7 tl.load(p) of [2, 16]                      rewritten False; stored [1.0]; source 1.0
+L7 tl.load(p) of [128, 128]                      rewritten True; stored [2.0]; source 1.0
+== Part W (round 34): round 33's review forms, and the edges of the broader exclusion (two trips of data_assoc(); 'source' is the source's float32 value, operation by operation)
+W0    acc + tl.sum(x, 1).to(tl.float32)                                      rewritten True; stored [2.0]; source 1.0
+W1    acc + tl.sum(x, 1) * 1.0                                               rewritten True; stored [2.0]; source 1.0
+W2    (acc + tl.sum(x, 1)) * 1.0                                             rewritten True; stored [2.0]; source 1.0
+W3    if FLAG (constexpr True): acc = acc + tl.sum(x, 1)                     rewritten True; stored [2.0]; source 1.0
+W4    for _ in tl.static_range(1): acc = acc + tl.sum(x, 1)                  rewritten True; stored [2.0]; source 1.0
+W5    s = tl.sum(x, 1); acc = acc + s; dead = s * 3.0 (unused)               rewritten True; stored [2.0]; source 1.0
+W6    acc = upd_helper(acc, x) (reduction and update in a helper)            rewritten True; stored [2.0]; source 1.0
+W7    acc from tl.zeros + iv, iv a runtime int argument = 0                  rewritten False; stored [1.0]; source 1.0
+W7b   acc from tl.zeros + iv, iv a runtime int argument = 1 (specialised)    rewritten True; stored [3.0]; source 1.0
+W8    acc from tl.zeros + fv, fv a runtime float argument = 0.0              rewritten False; stored [1.0]; source 1.0
+W9    acc = acc + rsum_helper(x) (reduction in a helper)                     rewritten True; stored [2.0]; source 1.0
+W10   acc = acc + tl.sum(x, 1); dead2 = acc * 2.0 (unused)                   rewritten True; stored [2.0]; source 1.0
+W11   acc = acc + tl.sum(x, 1); if FLAG (constexpr False): tl.store(acc)     rewritten True; stored [2.0]; source 1.0
+W12   acc from tl.zeros * 1.0                                                rewritten True; stored [2.0]; source 1.0
+W13   for _ in tl.static_range(2): acc = acc + tl.sum(x, 1) * 0.5            rewritten False; stored [0.5]; source 0.5
+W14   acc + (-(-tl.sum(x, 1)))                                               rewritten True; stored [2.0]; source 1.0
+W15   tl.sum(tl.broadcast_to(x, its own shape), 1)                           rewritten True; stored [2.0]; source 1.0
+W16   if t >= 0 (runtime): acc = acc + tl.sum(x, 1)                          rewritten False; stored [1.0]; source 1.0
+W21   tl.sum(x * k, 1), k a runtime int argument = 1 (specialised)           rewritten True; stored [2.0]; source 1.0
+W21b  tl.sum(x * k, 1), k a runtime int argument = 2                         rewritten False; stored [2.0]; source 2.0
+W22   tl.sum(x.to(tl.float64).to(tl.float32), 1)                             rewritten True; stored [2.0]; source 1.0
+W23   float16 acc + tl.sum(float16 load, 1) (2048, 1; -2048, 1)              rewritten True; stored [2.0]; source 1.0
+W25   float16 acc + tl.reduce(float16 load, 1, maximum) (1, 2 in column 1)   rewritten True; stored [-inf]; source 4.0
+W26   acc + tl.sum(x, 1) * 2.0                                               rewritten False; stored [2.0]; source 2.0
+W24   r0, r1 = tl.reduce((x, tl.load(ones)), 1, (a0 + b0, a1)); acc = acc + r0 rejected on the host (exit code 1; 'tt.reduce' op requires the same shape for all operands; `TritonGPUOptimizeThreadLocality` on 'builtin.module' operation); source 1.0
+W20   tl.range(0, T (constexpr), loop_unroll_factor=2), 2 trips              rewritten False; stored [1.0]; source 1.0
+W20   tl.range(0, T (constexpr), loop_unroll_factor=2), 3 trips              rewritten False; stored [1.0]; source 1.0
+W20   tl.range(0, Tr (runtime), loop_unroll_factor=2), 2 trips               rejected on the host (exit code 1; the pass's assertion `isa<BlockArgument>(accumOperand)' failed.; `TritonGPUOptimizeThreadLocality` on 'builtin.module' operation); source 1.0
+W20   tl.range(0, Tr (runtime), loop_unroll_factor=2), 3 trips               rejected on the host (exit code 1; the pass's assertion `isa<BlockArgument>(accumOperand)' failed.; `TritonGPUOptimizeThreadLocality` on 'builtin.module' operation); source 1.0

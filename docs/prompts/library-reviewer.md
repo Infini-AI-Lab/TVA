@@ -60,8 +60,8 @@ Read these in `~/fpv/tva`:
   (it needs the network) and builds Mathlib from source inside its sandbox (about 25 minutes), so
   run it in the background; that build is not the `lake build` forbidden below. Run in the middle
   of a round, it fails `lint` on the round's records still in progress (your report among them),
-  and a scratch path that any work file holds (yours or the other reviewer's) fails the audit and
-  every kernel's `independence` check: keep paths out of your work files. Its output writes its
+  and a scratch path that any work file holds (yours or the other reviewer's) fails the audit: keep
+  paths out of your work files. Its output writes its
   folder as `<dir>` and TVA's copy as `<tva>`, so you can keep it in `work/`.
 - Check Lean on your own files with `cd ~/fpv/tva/lean && ~/.elan/bin/lake env lean <file>`.
   Never run `lake build`, and never edit the library.

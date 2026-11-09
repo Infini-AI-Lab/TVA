@@ -1,0 +1,7 @@
+'TVA.Platform.sm90ref.dotF16Chunk' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.dotBF16Chunk' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.expF32Overflow' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.ref.mathAt_far' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.ref.mathTotal' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.ref.mathAcc' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.Platform.sm90ref.divF32InfDivisor' depends on axioms: [propext, Classical.choice, Quot.sound]

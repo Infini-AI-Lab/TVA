@@ -1,0 +1,42 @@
+## a / b + c
+  PTX: ['div.full.f32', 'add.f32']
+  SASS (last 4): ['MUFU.RCP R8, R8 ;', '@P0 FMUL R0, R0, 0.25 ;', '@!P1 FMUL R0, R0, 16777216 ;', 'FFMA R7, R8, R0, R7 ;']
+## tl.log + c
+  PTX: ['mul.f32', 'fma.rn.ftz.f32', 'add.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'mul.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'add.f32']
+  SASS (last 4): ['FFMA.FTZ R6, R6, R5, R6 ;', 'FFMA.FTZ R6, R7, 0.69314718246459960938, R6 ;', '@P1 FFMA.FTZ R6, R0, R5, +INF ;', 'FADD R5, R4, R5 ;']
+## tl.sqrt + c
+  PTX: ['sqrt.approx.ftz.f32', 'add.f32']
+  SASS (last 4): ['MUFU.SQRT R5, R0 ;', 'FADD R5, R4, R5 ;']
+## tl.rsqrt + c
+  PTX: ['rsqrt.approx.ftz.f32', 'add.f32']
+  SASS (last 4): ['MUFU.RSQ R5, R0 ;', 'FADD R5, R4, R5 ;']
+## tl.exp + c
+  PTX: ['mul.f32', 'ex2.approx.f32', 'add.f32']
+  SASS (last 4): ['@!P0 FMUL R0, R0, 0.5 ;', 'MUFU.EX2 R7, R0 ;', '@!P0 FMUL R7, R7, R7 ;', 'FADD R7, R4, R7 ;']
+## tl.sigmoid + c
+  PTX: ['mul.f32', 'ex2.approx.f32', 'add.f32', 'div.full.f32', 'add.f32']
+  SASS (last 4): ['FADD R6, R6, 1 ;', '@P0 FMUL R6, R6, 0.25 ;', 'MUFU.RCP R5, R6 ;', 'FFMA R5, R5, R0, R4 ;']
+## tl.erf + c
+  PTX: ['mul.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'ex2.approx.ftz.f32', 'sub.f32', 'add.f32']
+  SASS (last 4): ['FFMA.FTZ R5, R2, R3, R3 ;', '@P0 MUFU.EX2 R6, R5 ;', '@P0 FADD R7, -R6, 1 ;', 'FADD R5, R4, R5 ;']
+## tl.log2 + c
+  PTX: ['mul.f32', 'fma.rn.ftz.f32', 'add.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'mul.f32', 'mul.f32', 'fma.rn.ftz.f32', 'add.f32', 'fma.rn.ftz.f32', 'add.f32']
+  SASS (last 4): ['FFMA.FTZ R6, R6, 1.4426950216293334961, R5 ;', 'FADD R6, R7, R6 ;', '@P1 FFMA.FTZ R6, R0, R5, +INF ;', 'FADD R5, R4, R5 ;']
+## tl.sin + c
+  PTX: ['add.u64', 'mul.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'mul.rn.ftz.f32', 'mul.f64', 'mul.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'add.f32']
+  SASS (last 4): ['FFMA.FTZ R3, R5, R3, R4 ;', 'FFMA.FTZ R0, R7, R3, R0 ;', '@P1 FFMA.FTZ R0, R0, -1, RZ ;', 'FADD R13, R13, R0 ;']
+## tl.exp2 + c
+  PTX: ['ex2.approx.ftz.f32', 'add.f32']
+  SASS (last 4): ['MUFU.EX2 R5, R0 ;', 'FADD R5, R4, R5 ;']
+## tl.fdiv + c
+  PTX: ['div.full.f32', 'add.f32']
+  SASS (last 4): ['MUFU.RCP R8, R8 ;', '@P0 FMUL R0, R0, 0.25 ;', '@!P1 FMUL R0, R0, 16777216 ;', 'FFMA R7, R8, R0, R7 ;']
+## tl.div_rn + c
+  PTX: ['div.rn.f32', 'add.f32']
+  SASS (last 4): ['FFMA.RM R5, R10, R6.reuse, R13.reuse ;', 'FFMA.RP R0, R10, R6, R13 ;', 'MUFU.RSQ R3, -QNAN ;', 'FADD.FTZ R3, R0, R3 ;']
+## tl.sqrt_rn + c
+  PTX: ['sqrt.rn.f32', 'add.f32']
+  SASS (last 4): ['FADD.FTZ R2, -R5, -RZ ;', 'FFMA R2, R5, R2, R0 ;', 'FFMA R2, R2, R3, R5 ;', 'FMUL.FTZ R2, R2, 2.3283064365386962891e-10 ;']
+## tl.cos + c
+  PTX: ['add.u64', 'mul.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'mul.rn.ftz.f32', 'mul.f64', 'mul.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'fma.rn.ftz.f32', 'add.f32']
+  SASS (last 4): ['FFMA.FTZ R7, R7, R0, RZ ;', 'FFMA.FTZ R0, R7, R5, R0 ;', '@P1 FFMA.FTZ R0, R0, -1, RZ ;', 'FADD R13, R13, R0 ;']

@@ -1,0 +1,129 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+## atomic_add
+bool: rejected (CompilationError: atomic_add does not support int1)
+int8: rejected (CompilationError: atomic_add does not support int8)
+uint8: rejected (CompilationError: atomic_add does not support uint8)
+int16: rejected (CompilationError: atomic_add does not support int16)
+uint16: rejected (CompilationError: atomic_add does not support uint16)
+int32: accepted, ['atom.global.gpu.acq_rel.add.u32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint32: accepted, ['atom.global.gpu.acq_rel.add.u32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int64: accepted, ['atom.global.gpu.acq_rel.add.u64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint64: accepted, ['atom.global.gpu.acq_rel.add.u64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float8_e4m3fn: rejected (CompilationError: atomic_add does not support fp8e4nv)
+float8_e5m2: rejected (CompilationError: atomic_add does not support fp8e5)
+float16: accepted, ['atom.global.gpu.acq_rel.add.noftz.f16']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+bfloat16: accepted, ['atom.global.gpu.acq_rel.add.noftz.bf16']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float32: accepted, ['atom.global.gpu.acq_rel.add.f32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float64: accepted, ['atom.global.gpu.acq_rel.add.f64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+## atomic_max
+bool: rejected (CompilationError: atomic_max does not support int1)
+int8: rejected (CompilationError: atomic_max does not support int8)
+uint8: rejected (CompilationError: atomic_max does not support uint8)
+int16: rejected (CompilationError: atomic_max does not support int16)
+uint16: rejected (CompilationError: atomic_max does not support uint16)
+int32: accepted, ['atom.global.gpu.acq_rel.max.s32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint32: accepted, ['atom.global.gpu.acq_rel.max.u32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int64: accepted, ['atom.global.gpu.acq_rel.max.s64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint64: accepted, ['atom.global.gpu.acq_rel.max.u64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float8_e4m3fn: rejected (CompilationError: atomic_max does not support fp8e4nv)
+float8_e5m2: rejected (CompilationError: atomic_max does not support fp8e5)
+float16: rejected (CompilationError: atomic_max does not support fp16)
+bfloat16: rejected (CompilationError: atomic_max does not support bf16)
+float32: accepted, ['atom.global.gpu.acq_rel.max.s32', 'atom.global.gpu.acq_rel.min.u32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float64: accepted, ['atom.global.gpu.acq_rel.max.s64', 'atom.global.gpu.acq_rel.min.u64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+## atomic_min
+bool: rejected (CompilationError: atomic_min does not support int1)
+int8: rejected (CompilationError: atomic_min does not support int8)
+uint8: rejected (CompilationError: atomic_min does not support uint8)
+int16: rejected (CompilationError: atomic_min does not support int16)
+uint16: rejected (CompilationError: atomic_min does not support uint16)
+int32: accepted, ['atom.global.gpu.acq_rel.min.s32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint32: accepted, ['atom.global.gpu.acq_rel.min.u32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int64: accepted, ['atom.global.gpu.acq_rel.min.s64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint64: accepted, ['atom.global.gpu.acq_rel.min.u64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float8_e4m3fn: rejected (CompilationError: atomic_min does not support fp8e4nv)
+float8_e5m2: rejected (CompilationError: atomic_min does not support fp8e5)
+float16: rejected (CompilationError: atomic_min does not support fp16)
+bfloat16: rejected (CompilationError: atomic_min does not support bf16)
+float32: accepted, ['atom.global.gpu.acq_rel.max.u32', 'atom.global.gpu.acq_rel.min.s32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float64: accepted, ['atom.global.gpu.acq_rel.max.u64', 'atom.global.gpu.acq_rel.min.s64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+## atomic_and
+bool: rejected (CompilationError: atomic_and does not support int1)
+int8: rejected (CompilationError: atomic_and does not support int8)
+uint8: rejected (CompilationError: atomic_and does not support uint8)
+int16: rejected (CompilationError: atomic_and does not support int16)
+uint16: rejected (CompilationError: atomic_and does not support uint16)
+int32: accepted, ['atom.global.gpu.acq_rel.and.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint32: accepted, ['atom.global.gpu.acq_rel.and.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int64: accepted, ['atom.global.gpu.acq_rel.and.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint64: accepted, ['atom.global.gpu.acq_rel.and.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float8_e4m3fn: rejected (CompilationError: atomic_and does not support fp8e4nv)
+float8_e5m2: rejected (CompilationError: atomic_and does not support fp8e5)
+float16: rejected (CompilationError: atomic_and does not support fp16)
+bfloat16: rejected (CompilationError: atomic_and does not support bf16)
+float32: accepted, ['atom.global.gpu.acq_rel.and.b32']; returned value not the old one on 0 of 64; new value not the and of the bit patterns on 0 of 64
+float64: accepted, ['atom.global.gpu.acq_rel.and.b64']; returned value not the old one on 0 of 64; new value not the and of the bit patterns on 0 of 64
+## atomic_or
+bool: rejected (CompilationError: atomic_or does not support int1)
+int8: rejected (CompilationError: atomic_or does not support int8)
+uint8: rejected (CompilationError: atomic_or does not support uint8)
+int16: rejected (CompilationError: atomic_or does not support int16)
+uint16: rejected (CompilationError: atomic_or does not support uint16)
+int32: accepted, ['atom.global.gpu.acq_rel.or.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint32: accepted, ['atom.global.gpu.acq_rel.or.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int64: accepted, ['atom.global.gpu.acq_rel.or.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint64: accepted, ['atom.global.gpu.acq_rel.or.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float8_e4m3fn: rejected (CompilationError: atomic_or does not support fp8e4nv)
+float8_e5m2: rejected (CompilationError: atomic_or does not support fp8e5)
+float16: rejected (CompilationError: atomic_or does not support fp16)
+bfloat16: rejected (CompilationError: atomic_or does not support bf16)
+float32: accepted, ['atom.global.gpu.acq_rel.or.b32']; returned value not the old one on 0 of 64; new value not the or of the bit patterns on 0 of 64
+float64: accepted, ['atom.global.gpu.acq_rel.or.b64']; returned value not the old one on 0 of 64; new value not the or of the bit patterns on 0 of 64
+## atomic_xor
+bool: rejected (CompilationError: atomic_xor does not support int1)
+int8: rejected (CompilationError: atomic_xor does not support int8)
+uint8: rejected (CompilationError: atomic_xor does not support uint8)
+int16: rejected (CompilationError: atomic_xor does not support int16)
+uint16: rejected (CompilationError: atomic_xor does not support uint16)
+int32: accepted, ['atom.global.gpu.acq_rel.xor.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint32: accepted, ['atom.global.gpu.acq_rel.xor.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int64: accepted, ['atom.global.gpu.acq_rel.xor.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint64: accepted, ['atom.global.gpu.acq_rel.xor.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float8_e4m3fn: rejected (CompilationError: atomic_xor does not support fp8e4nv)
+float8_e5m2: rejected (CompilationError: atomic_xor does not support fp8e5)
+float16: rejected (CompilationError: atomic_xor does not support fp16)
+bfloat16: rejected (CompilationError: atomic_xor does not support bf16)
+float32: accepted, ['atom.global.gpu.acq_rel.xor.b32']; returned value not the old one on 0 of 64; new value not the xor of the bit patterns on 0 of 64
+float64: accepted, ['atom.global.gpu.acq_rel.xor.b64']; returned value not the old one on 0 of 64; new value not the xor of the bit patterns on 0 of 64
+## atomic_xchg
+bool: rejected (CompilationError: atomic_xchg does not support int1)
+int8: rejected (CompilationError: atomic_xchg does not support int8)
+uint8: rejected (CompilationError: atomic_xchg does not support uint8)
+int16: rejected (CompilationError: atomic_xchg does not support int16)
+uint16: rejected (CompilationError: atomic_xchg does not support uint16)
+int32: accepted, ['atom.global.gpu.acq_rel.exch.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint32: accepted, ['atom.global.gpu.acq_rel.exch.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int64: accepted, ['atom.global.gpu.acq_rel.exch.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint64: accepted, ['atom.global.gpu.acq_rel.exch.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float8_e4m3fn: rejected (CompilationError: atomic_xchg does not support fp8e4nv)
+float8_e5m2: rejected (CompilationError: atomic_xchg does not support fp8e5)
+float16: rejected (CompilationError: atomic_xchg does not support fp16)
+bfloat16: rejected (CompilationError: atomic_xchg does not support bf16)
+float32: accepted, ['atom.global.gpu.acq_rel.exch.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float64: accepted, ['atom.global.gpu.acq_rel.exch.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+## atomic_cas
+bool: rejected (CompilationError: atomic_cas only supports elements with width {16, 32, 64})
+int8: rejected (CompilationError: atomic_cas only supports elements with width {16, 32, 64})
+uint8: rejected (CompilationError: atomic_cas only supports elements with width {16, 32, 64})
+int16: accepted, ['atom.global.acq_rel.gpu.cas.b16']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint16: accepted, ['atom.global.acq_rel.gpu.cas.b16']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int32: accepted, ['atom.global.acq_rel.gpu.cas.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint32: accepted, ['atom.global.acq_rel.gpu.cas.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+int64: accepted, ['atom.global.acq_rel.gpu.cas.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+uint64: accepted, ['atom.global.acq_rel.gpu.cas.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float8_e4m3fn: rejected (CompilationError: atomic_cas only supports elements with width {16, 32, 64})
+float8_e5m2: rejected (CompilationError: atomic_cas only supports elements with width {16, 32, 64})
+float16: accepted, ['atom.global.acq_rel.gpu.cas.b16']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+bfloat16: accepted, ['atom.global.acq_rel.gpu.cas.b16']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float32: accepted, ['atom.global.acq_rel.gpu.cas.b32']; returned value not the old one on 0 of 64; new value wrong on 0 of 64
+float64: accepted, ['atom.global.acq_rel.gpu.cas.b64']; returned value not the old one on 0 of 64; new value wrong on 0 of 64

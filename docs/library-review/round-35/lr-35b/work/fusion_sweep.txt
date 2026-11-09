@@ -1,0 +1,73 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+4096 elements per form and side (B: v + c, C: c2 - v), |k| <= 3 ulp
+
+| form | fusion | elements | sums not exact | SASS change A -> B (v + c) | example (side, a, b, v, c, got, IEEE) |
+|---|---|---|---|---|---|
+| `tl.exp(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.exp(a)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.math.exp2(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.math.exp2(a)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.log(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.log(a)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.math.log2(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.math.log2(a)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.sqrt(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.sqrt(a)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.sqrt_rn(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.sqrt_rn(a)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.math.rsqrt(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.math.rsqrt(a)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.sin(a)` | True | 8192 | 0 | FADD +32, HFMA2 -8 |  |
+| `tl.sin(a)` | False | 8192 | 0 | FADD +32, HFMA2 -8 |  |
+| `tl.cos(a)` | True | 8192 | 0 | FADD +32, HFMA2 +5 |  |
+| `tl.cos(a)` | False | 8192 | 0 | FADD +32, HFMA2 +5 |  |
+| `tl.math.erf(a)` | True | 8192 | 0 | FADD +32, HFMA2 +7 |  |
+| `tl.math.erf(a)` | False | 8192 | 0 | FADD +32, HFMA2 +7 |  |
+| `tl.fdiv(a, b, ieee_rounding=True)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.fdiv(a, b, ieee_rounding=True)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.div_rn(a, b)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.div_rn(a, b)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.softmax(a, ieee_rounding=True)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.softmax(a, ieee_rounding=True)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.fma(a, b, -0.0)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.fma(a, b, -0.0)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.fma(a, b, 0.0)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.fma(a, b, 0.0)` | False | 8192 | 0 | FADD +32 |  |
+| `a + a` | True | 8160 | 0 | FADD +32 |  |
+| `a + a` | False | 8164 | 0 | FADD +32 |  |
+| `tl.maximum(a, b)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.maximum(a, b)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.floor(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.floor(a)` | False | 8192 | 0 | FADD +32 |  |
+| `i.to(tl.float32) (int32 i)` | True | 8192 | 0 | FADD +32 |  |
+| `i.to(tl.float32) (int32 i)` | False | 8192 | 0 | FADD +32 |  |
+| `a.to(tl.float16).to(tl.float32)` | True | 7332 | 0 | FADD +32 |  |
+| `a.to(tl.float16).to(tl.float32)` | False | 7198 | 0 | FADD +32 |  |
+| `tl.clamp(a, -1.0, 1.0)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.clamp(a, -1.0, 1.0)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.abs(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.abs(a)` | False | 8192 | 0 | FADD +32 |  |
+| `a / b (float64)` | True | 8192 | 0 | DADD +32 |  |
+| `a / b (float64)` | False | 8192 | 0 | DADD +32 |  |
+| `tl.sqrt(a) (float64)` | True | 8192 | 0 | DADD +32 |  |
+| `tl.sqrt(a) (float64)` | False | 8192 | 0 | DADD +32 |  |
+| `tl.fma(a, b, -0.0) (float64)` | True | 8192 | 0 | DADD +32 |  |
+| `tl.fma(a, b, -0.0) (float64)` | False | 8192 | 0 | DADD +32 |  |
+| `tl.ceil(a)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.ceil(a)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.cumsum(a, 0)` | True | 8192 | 0 | FADD +32 |  |
+| `tl.cumsum(a, 0)` | False | 8192 | 0 | FADD +32 |  |
+| `tl.exp(a) * 1.0 [a product]` | True | 8192 | 0 | FADD +32 |  |
+| `tl.exp(a) * 1.0 [a product]` | False | 8192 | 0 | FADD +32 |  |
+| `a / b [a product]` | True | 8192 | 8192 | FFMA +32, FMUL -32 | (0, 1578.6667582738883, 0.16717476454425623, 9443.2119140625, -9443.2138671875, -0.0021987496875226498, -0.001953125) |
+| `a / b [a product]` | False | 8192 | 0 | FADD +32 |  |
+| `tl.sigmoid(a) [a product]` | True | 8192 | 0 | FFMA +32, FMUL -32 |  |
+| `tl.sigmoid(a) [a product]` | False | 8192 | 0 | FADD +32 |  |
+| `a * b [a product]` | True | 8192 | 8192 | FFMA +32, FMUL -32 | (0, 0.003870045631420365, 0.0001574065090990026, 6.091703426136519e-07, -6.091702289268142e-07, 1.319124795290047e-13, 1.1368683772161603e-13) |
+| `a * b [a product]` | False | 8192 | 0 | FADD +32 |  |
+| `tl.div_rn(a, b) * 1.0 [a product]` | True | 8192 | 0 | FADD +32 |  |
+| `tl.div_rn(a, b) * 1.0 [a product]` | False | 8192 | 0 | FADD +32 |  |
+| `pair sum tl.sum(.., axis=1)` | True | 4096 | 0 | FADD +16 |  |
+| `pair sum tl.sum(.., axis=1)` | False | 4096 | 0 | FADD +16 |  |
+| `tl.sqrt_rn(a) - 0.0` | True | 8192 | 0 | FADD +32 |  |
+| `tl.sqrt_rn(a) - 0.0` | False | 8192 | 0 | FADD +32 |  |

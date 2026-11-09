@@ -1,0 +1,24 @@
+watched C[511] (warp 3) sem=acq_rel N=400: OUT[0]=1 in 200/200 launches
+watched C[511] (warp 3) sem=relaxed N=400: OUT[0]=1 in 200/200 launches
+watched C[0] (warp 0) sem=acq_rel N=400: OUT[0]=1 in 0/200 launches
+watched C[0] (warp 0) sem=relaxed N=400: OUT[0]=1 in 0/200 launches
+    bar.sync 	0;
+    @%p2 atom.global.gpu.acq_rel.add.u32 %r3, [ %rd4 + 0 ], %r4;
+    bar.sync 	0;
+    @%p2 atom.global.gpu.acq_rel.add.u32 %r7, [ %rd1 + 0 ], %r8;
+    ld.global.b32 { %r23 }, [ %rd5 + 0 ];
+    ld.global.b32 { %r22 }, [ %rd6 + 0 ];
+    ld.global.b32 { %r21 }, [ %rd7 + 0 ];
+    ld.global.b32 { %r20 }, [ %rd8 + 0 ];
+    @%p5 atom.global.gpu.acq_rel.add.u32 %r10, [ %rd9 + 0 ], %r9;
+    @%p5 atom.global.gpu.acq_rel.add.u32 %r11, [ %rd10 + 0 ], %r9;
+    @%p5 atom.global.gpu.acq_rel.add.u32 %r12, [ %rd11 + 0 ], %r9;
+    @%p5 atom.global.gpu.acq_rel.add.u32 %r13, [ %rd12 + 0 ], %r9;
+    st.global.b32 [ %rd13 + 0 ], { %r10 };
+    st.global.b32 [ %rd14 + 0 ], { %r11 };
+    st.global.b32 [ %rd15 + 0 ], { %r12 };
+    st.global.b32 [ %rd16 + 0 ], { %r13 };
+    @%p5 atom.global.gpu.relaxed.add.u32 %r14, [ %rd17 + 0 ], %r15;
+    @%p5 atom.global.gpu.relaxed.add.u32 %r16, [ %rd18 + 0 ], %r15;
+    @%p5 atom.global.gpu.relaxed.add.u32 %r17, [ %rd19 + 0 ], %r15;
+    @%p5 atom.global.gpu.relaxed.add.u32 %r18, [ %rd20 + 0 ], %r15;

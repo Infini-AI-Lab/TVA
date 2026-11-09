@@ -5,8 +5,9 @@ import TVA.Lemmas.FloatErr
 
 With `enable_fp_fusion` an addition may consume an operand that is a product the compiler fused
 into an `fma`, so the operand enters unrounded: `AddRel` (`TVA.Lang.Ops`) allows the rounding of
-`p + q` for any exact `p`, `q` that round to the operands (`RoundsTo`). These lemmas bound such
-results.
+`p + q` for exact `p`, `q` that round to the operands (`RoundsTo`), one of them the operand's own
+value (library issue L155). These lemmas bound such results, through the wide relation
+(`AddRel.wide`).
 
 * `RoundsTo.err`: an exact value rounding to a finite `x` is within `u·|x| + η` of it (one
   rounding's bound), also above `maxVal`; `RoundsTo.abs_le`: so `|p| ≤ (1 + u)·|x| + η`.
@@ -50,7 +51,8 @@ theorem RoundsTo.abs_le (hf : f.Regular) (hs : f.specials ≠ .finite) {p : ℚ}
 namespace FloatV
 
 /-- **A contractible addition** (`AddRel`, any `fusion`) of finite operands with room is finite
-and within `3u·(|x| + |y|) + 4η` of `x + y`. -/
+and within `3u·(|x| + |y|) + 4η` of `x + y`. The bound is that of the wide relation
+(`AddRel.wide`, both operands replaced), so it holds a fortiori. -/
 theorem AddRel.err (hf : f.Regular) (hs : f.specials ≠ .finite) (hu : f.u ≤ 1 / 16) {fusion : Bool}
     {x y r : FloatV f} (h : AddRel fusion x y r) (hx : x.isFinite = true) (hy : y.isFinite = true)
     (hM : |x.toRat| + |y.toRat| ≤ f.maxVal / 2 - 2 * f.eta) :
@@ -61,7 +63,7 @@ theorem AddRel.err (hf : f.Regular) (hs : f.specials ≠ .finite) (hu : f.u ≤ 
   have hmax0 := Format.maxVal_pos hf
   have hxy : |x.toRat + y.toRat| ≤ |x.toRat| + |y.toRat| := abs_add_le _ _
   have hS0 : 0 ≤ |x.toRat| + |y.toRat| := by positivity
-  rcases h with hne | ⟨-, hfu⟩
+  rcases h.wide with hne | ⟨-, hfu⟩
   · -- the IEEE sum
     obtain ⟨hfin, herr⟩ := add_err hf hx hy (by linarith)
     rw [hne.eq (isFinite_iff.mp hfin).1]

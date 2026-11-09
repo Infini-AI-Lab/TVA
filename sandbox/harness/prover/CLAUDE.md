@@ -121,14 +121,14 @@ after each, record it with `tva-kit clock "stage N done: …; next: …"`.
   attempts closes the lemma, take the best one's stated helpers (`tva-kit try accept LEMMA K --partial`)
   and start a new round on the hardest helper, or from the best attempt (`--from K`), or change the
   statement: two rounds without a proof mean the statement needs to change, or the claim to narrow.
-  Subagents run in the foreground (their
-  report is the result of the call; several started in one message run at once). Give each its own file:
+  Subagents run in the background: the call returns at once, several started in one message run at
+  once, and each one's closing report comes to you as a message when it ends. Work on something else
+  meanwhile, or end your turn when only waiting is left: the next report starts a new turn. Give each its own file:
   two agents editing one file undo each other's work. They may all build: the harness runs one
   `lake build` at a time, and `lake env lean` only while no build runs (a Lean process that reads a file
   another build is writing reports errors that are not there), so do not tell them not to build. When a report comes back, check it yourself
   (`tva-kit stage`, `tva-kit gate`) before going on. To continue a subagent's work, start a new one and
-  give it the earlier report: a resumed subagent (SendMessage) would run in the background, so the
-  harness refuses SendMessage.
-- Never wait in a loop: `sleep` is blocked, and a `read` loop keeps a core busy that the builds need.
-  There is nothing to wait for but the review (`tva-review wait`).
+  give it the earlier report (the harness refuses SendMessage).
+- Never wait with `sleep` or in a loop: a subagent's report comes to you by itself, and the review is
+  waited for with `tva-review wait`.
 - Long outputs: redirect to `~/scratch/…` and read the part you need.

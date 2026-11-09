@@ -1,0 +1,31 @@
+{
+  "kernel": "lora_shrink_bf16",
+  "title": "Multi-LoRA shrink, tokens grouped by adapter (`_lora_shrink_kernel` with `do_shrink_kernel`, bfloat16, split-K with `float32` atomics, one to several slices), vLLM",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/lora_shrink.py",
+    "sha256": "508518b45f2af5ca88a1994723870696fbb171fe5d6f27d964d3ac895c237779",
+    "ranges": [
+      [
+        79,
+        423
+      ]
+    ],
+    "host": [
+      [
+        77,
+        77
+      ],
+      [
+        426,
+        665
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.LoraShrink",
+  "statement": "Claims.LoraShrink.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

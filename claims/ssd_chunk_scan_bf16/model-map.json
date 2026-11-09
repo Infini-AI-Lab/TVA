@@ -1,0 +1,933 @@
+{
+ "source": {
+  "file": "source/ssd_chunk_scan.py",
+  "sha256": "396b9a9b41d5da0ff0d93163282061035c5b72980b83bde9b315f4a8d511772b",
+  "ranges": [
+   [
+    88,
+    89
+   ],
+   [
+    92,
+    488
+   ]
+  ],
+  "host": [
+   [
+    84,
+    86
+   ],
+   [
+    491,
+    809
+   ]
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.SsdChunkScan",
+ "entries": [
+  {
+   "src": [
+    88
+   ],
+   "drop": "import",
+   "note": "binds `triton`, which the host's grid (`triton.cdiv`, lines 545-549) reads; the launch is a direct launch of the `@triton.jit` function"
+  },
+  {
+   "src": [
+    89
+   ],
+   "drop": "import",
+   "note": "binds `tl`, the vocabulary of every model line"
+  },
+  {
+   "src": [
+    92
+   ],
+   "drop": "decl",
+   "note": "`@triton.jit`: the model's `Kernel` definition (`chunk_scan_kernel`)"
+  },
+  {
+   "src": [
+    "93-171"
+   ],
+   "drop": "decl",
+   "note": "the signature: the model's parameters. The pointers (`cb`, `dt`, `dA_cumsum`, `states`, `initial_states` `*fp32`; `x`, `out`, `C`, `D` `*bf16`; `seq_idx`, `chunk_indices`, `chunk_offsets` `*i32`); `chunk_meta_num`, `chunk_size`, `hdim`, `dstate`, `seqlen`, `nheads_ngroups_ratio` and the strides `int32` arguments (`Inst.ok` keeps each below `2^31`; one equal to `1` is the compile-time constant `1`, whose every use builds the constant in the computation dtype with the same value); `batch = 1`, the constant (lines 173-174); `z_ptr`, `out_x_ptr` (`None`) and the four `z` strides (`0`) are read by no line the launch runs (`HAS_Z = False`) and have no model parameter. The constexprs: `IS_CAUSAL`, `HAS_D`, `HAS_SEQ_IDX`, `IS_TRITON_22`, `HAS_INITSTATES` `True`, `D_HAS_HDIM`, `HAS_Z` `False` (SETUP.md); `BLOCK_SIZE_DSTATE`, `BLOCK_SIZE_M`, `BLOCK_SIZE_N`, `BLOCK_SIZE_K` Lean parameters (`model` passes `BSD`, 64, 64, 32)"
+  },
+  {
+   "src": [
+    172
+   ],
+   "model": "let pid_bc : I64 := IntV.cast (tl.program_id ctx 1)",
+   "note": "axis 1 of the grid (`int32`), `.to(tl.int64)` sign-extends"
+  },
+  {
+   "src": [
+    173
+   ],
+   "model": "(← tl.idiv (Tensor.scalar pid_bc) (Tensor.scalar (IntV.ofNat 1 : I64))).item",
+   "note": "`batch` is the constant `1` (an argument equal to `1`), built in `int64` for the `int64` `//`"
+  },
+  {
+   "src": [
+    174
+   ],
+   "model": "let pid_b : I64 := pid_bc - pid_c * (IntV.ofNat 1 : I64)",
+   "note": "`int64` arithmetic; `pid_b = 0` on every covered launch"
+  },
+  {
+   "src": [
+    175
+   ],
+   "drop": "config",
+   "note": "`if not HAS_INITSTATES:`: with initial states not taken (lines 179-180 are `chunk_scan_kernel`'s lines); without, taken (lines 176-177 are `chunk_scan_kernel_noinit`'s)"
+  },
+  {
+   "src": [
+    176
+   ],
+   "model": "let c_idx : I64 := pid_c",
+   "note": "without initial states: `c_idx` holds the `int64` `pid_c`; with initial states not visited"
+  },
+  {
+   "src": [
+    177
+   ],
+   "model": "let c_off : I32 := IntV.ofInt 0",
+   "note": "without initial states: the Python `0` assigned to a name, an `int32` scalar tensor; with initial states not visited"
+  },
+  {
+   "src": [
+    178
+   ],
+   "drop": "config",
+   "note": "the `else` of line 175: taken with initial states only"
+  },
+  {
+   "src": [
+    179
+   ],
+   "model": [
+    "let c_idx : I32 := (← tl.load (Tensor.scalar (chunk_indices_ptr + pid_c))",
+    "(some (Tensor.scalar (IntV.lt (IntV.ofInt (-1) : I64) pid_c)))"
+   ],
+   "note": "with initial states (without: not visited): a masked scalar load at the `int64` offset `pid_c`; `pid_c > -1` compares in `int64` (the Python `-1` a tensor of its own `int32`, then promoted); `other=0` the `int32` `0`"
+  },
+  {
+   "src": [
+    180
+   ],
+   "model": "let c_off : I32 := (← tl.load (Tensor.scalar (chunk_offsets_ptr + pid_c))",
+   "note": "as line 179"
+  },
+  {
+   "src": [
+    182
+   ],
+   "model": "let pid_h := tl.program_id ctx 2",
+   "note": "axis 2 of the grid"
+  },
+  {
+   "src": [
+    183
+   ],
+   "model": [
+    "let num_pid_n : I32 := (← tl.idiv",
+    "(Tensor.scalar (hdim + (IntV.ofNat (BLOCK_SIZE_N - 1) : I32)))"
+   ],
+   "note": "`tl.cdiv` with a runtime `hdim` and a constexpr divisor: `(hdim + 63) // 64`, a wrapping `int32` sum and the `int32` `//` (SEMANTICS.md, `tl.cdiv`); with `hdim = 1` (the constant) it is Python's `1`, assigned to a name: the same `int32` value"
+  },
+  {
+   "src": [
+    184
+   ],
+   "model": "(← tl.idiv (Tensor.scalar (tl.program_id ctx 0)) (Tensor.scalar num_pid_n)).item",
+   "note": "the `int32` `//` (`num_pid_n >= 1`)"
+  },
+  {
+   "src": [
+    185
+   ],
+   "model": "(← tl.irem (Tensor.scalar (tl.program_id ctx 0)) (Tensor.scalar num_pid_n)).item",
+   "note": "the `int32` `%`"
+  },
+  {
+   "src": [
+    "186-190"
+   ],
+   "model": [
+    "(← tl.idiv (Tensor.scalar pid_h) (Tensor.scalar nheads_ngroups_ratio)).item",
+    "let cb_ptr := cb_ptr + (pid_b * (IntV.cast stride_cb_batch : I64) +",
+    "(IntV.cast (c_idx * stride_cb_chunk) : I64) + (IntV.cast (g_cb * stride_cb_head) : I64))",
+    "c_idx * (IntV.cast stride_cb_chunk : I64) + (IntV.cast (g_cb * stride_cb_head) : I64))"
+   ],
+   "note": "without initial states `c_idx` is `int64`, so `c_idx * stride` is an `int64` product (second text). With initial states: `pid_b * stride` is an `int64` product (the stride sign-extended); `c_idx * stride_cb_chunk` and `(pid_h // ratio) * stride_cb_head` are `int32` (wrapping; `Inst.ok.cb_i32`), sign-extended into the `int64` sum; then the pointer `+`"
+  },
+  {
+   "src": [
+    "191-195"
+   ],
+   "model": [
+    "let x_ptr := x_ptr + (pid_b * (IntV.cast stride_x_batch : I64) +",
+    "(IntV.cast (c_idx * chunk_size * stride_x_seqlen) : I64) +",
+    "c_idx * (IntV.cast chunk_size : I64) * (IntV.cast stride_x_seqlen : I64) +"
+   ],
+   "note": "as lines 186-190; with initial states `c_idx * chunk_size * stride_x_seqlen` is an `int32` product, below `seqlen·xT` (`Inst.ok.x_arg`); without, `int64`"
+  },
+  {
+   "src": [
+    196
+   ],
+   "model": [
+    "let dt_ptr := dt_ptr + (pid_b * (IntV.cast stride_dt_batch : I64) +",
+    "(IntV.cast (c_idx * stride_dt_chunk) : I64) + (IntV.cast (pid_h * stride_dt_head) : I64))",
+    "c_idx * (IntV.cast stride_dt_chunk : I64) + (IntV.cast (pid_h * stride_dt_head) : I64))"
+   ],
+   "note": "`+=` evaluates the right-hand side first; as lines 186-190 (`Inst.ok.dt_i32`)"
+  },
+  {
+   "src": [
+    "197-201"
+   ],
+   "model": [
+    "let dA_cumsum_ptr := dA_cumsum_ptr + (pid_b * (IntV.cast stride_dA_cs_batch : I64) +",
+    "(IntV.cast (c_idx * stride_dA_cs_chunk) : I64) +",
+    "c_idx * (IntV.cast stride_dA_cs_chunk : I64) +"
+   ],
+   "note": "as line 196"
+  },
+  {
+   "src": [
+    "202-206"
+   ],
+   "model": [
+    "let g_C : I32 :=",
+    "let C_ptr := C_ptr + (pid_b * (IntV.cast stride_C_batch : I64) +",
+    "(IntV.cast (c_idx * chunk_size * stride_C_seqlen) : I64) +",
+    "c_idx * (IntV.cast chunk_size : I64) * (IntV.cast stride_C_seqlen : I64) +"
+   ],
+   "note": "as lines 191-195, with the second `pid_h // nheads_ngroups_ratio` (`Inst.ok.c_arg`)"
+  },
+  {
+   "src": [
+    210
+   ],
+   "model": [
+    "let offs_m : Tensor [BLOCK_SIZE_M] I32 :=",
+    "(pid_m * (IntV.ofNat BLOCK_SIZE_M : I32) + c_off) + tl.arange 0 BLOCK_SIZE_M",
+    "let offs_m64 : Tensor [BLOCK_SIZE_M] I64 := offs_m.castInt"
+   ],
+   "note": "`int32` products and sums, left to right; without initial states the model also names `offs_m64`, the sign extension its comparisons with the `int64` limit make (no operation of its own)"
+  },
+  {
+   "src": [
+    "211-216"
+   ],
+   "model": [
+    "let prev_states_ptr := states_ptr + pid_b * (IntV.cast stride_states_batch : I64) +",
+    "c_idx * stride_states_chunk + pid_h * stride_states_head",
+    "c_idx * (IntV.cast stride_states_chunk : I64) + pid_h * stride_states_head"
+   ],
+   "note": "(without initial states the second `+` is by an `int64` product) no parentheses: three pointer `+`s, left to right (the first by an `int64` product, the others by `int32` products; `Inst.ok.st_i32`)"
+  },
+  {
+   "src": [
+    217
+   ],
+   "model": "let prev_states_hdim : I32 := stride_states_hdim",
+   "note": "a name assigned an `int32` argument holds it (an argument equal to `1`, a Python number, becomes an `int32` scalar tensor of the same value)"
+  },
+  {
+   "src": [
+    218
+   ],
+   "model": "let prev_states_dstate : I32 := stride_states_dstate",
+   "note": "as line 217 (`stride_states_dstate = 1`: the `int32` tensor `1`)"
+  },
+  {
+   "src": [
+    220
+   ],
+   "model": [
+    "let chunk_size_limit : I32 := (tl.iminimum (Tensor.scalar chunk_size)",
+    "(Tensor.scalar (seqlen - c_idx * chunk_size))).item",
+    "let chunk_size_limit : I64 := (tl.iminimum (Tensor.scalar (IntV.cast chunk_size : I64))"
+   ],
+   "note": "Python's `min` with a tensor operand is `tl.minimum`, on integers the exact `tl.iminimum`: `int32` with initial states; without, `seqlen - c_idx * chunk_size` is `int64` and `chunk_size` is promoted (second text)"
+  },
+  {
+   "src": [
+    221
+   ],
+   "drop": "config",
+   "note": "`if HAS_SEQ_IDX:` taken on every covered launch (`SETUP.md`): the front end visits only this branch, whose body is model lines"
+  },
+  {
+   "src": [
+    "222-224"
+   ],
+   "model": [
+    "let seq_idx_ptr := seq_idx_ptr + (pid_b * (IntV.cast stride_seq_idx_batch : I64) +",
+    "(IntV.cast (c_idx * chunk_size * stride_seq_idx_seqlen) : I64))",
+    "c_idx * (IntV.cast chunk_size : I64) * (IntV.cast stride_seq_idx_seqlen : I64))"
+   ],
+   "note": "as lines 191-195"
+  },
+  {
+   "src": [
+    "227-229"
+   ],
+   "model": [
+    "(Tensor.scalar (seq_idx_ptr + (- stride_seq_idx_seqlen)))",
+    "(some (Tensor.scalar (IntV.le (IntV.ofInt 1 : I32) c_idx)))",
+    "(some (Tensor.scalar (IntV.le (IntV.ofInt 1 : I64) c_idx)))"
+   ],
+   "note": "(the mask compares in `int64` without initial states) `ptr - k` is `ptr + (-k)` (`semantic.py:265-267`); the mask `c_idx >= 1` (signed `int32`); `other=0` the `int32` `0`; masked off for `c_idx = 0`"
+  },
+  {
+   "src": [
+    231
+   ],
+   "drop": "config",
+   "note": "`if HAS_INITSTATES:` taken with initial states (lines 236-259 are `chunk_scan_kernel`'s lines), not taken without (not visited)"
+  },
+  {
+   "src": [
+    236
+   ],
+   "model": [
+    "let (prev_states_ptr, prev_states_hdim, prev_states_dstate) ←",
+    "if IntV.lt (pid_m * (IntV.ofNat BLOCK_SIZE_M : I32) + c_off) chunk_size_limit then do"
+   ],
+   "note": "a runtime `if` on a signed `int32` comparison; it merges the three names a branch assigns (each holds a tensor before the `if`); `seq_idx_m` belongs to the branch"
+  },
+  {
+   "src": [
+    "237-240"
+   ],
+   "model": [
+    "let seq_idx_m : I32 ← tl.load1",
+    "(seq_idx_ptr + (pid_m * (IntV.ofNat BLOCK_SIZE_M : I32) + c_off) * stride_seq_idx_seqlen)"
+   ],
+   "note": "an unmasked scalar load (a token below `seqlen`: the row is below `chunk_size_limit`)"
+  },
+  {
+   "src": [
+    "245-251"
+   ],
+   "model": [
+    "if (IntV.eq c_off (IntV.ofInt 0) && !(IntV.eq seq_idx_prev seq_idx_m)) ||",
+    "IntV.lt (IntV.ofInt 0) c_off then"
+   ],
+   "note": "a runtime `if` on `(A and B) or C` (Python's precedence), `int1` scalars, every operand evaluated"
+  },
+  {
+   "src": [
+    "253-257"
+   ],
+   "model": [
+    "pure (initstates_ptr + seq_idx_m * stride_init_states_batch +",
+    "pid_h * stride_init_states_head,"
+   ],
+   "note": "two pointer `+`s by `int32` products (`Inst.ok.init_i32`, a kernel limit)"
+  },
+  {
+   "src": [
+    258
+   ],
+   "model": "stride_init_states_hdim, stride_init_states_dstate)",
+   "note": "the `int32` argument"
+  },
+  {
+   "src": [
+    259
+   ],
+   "model": "stride_init_states_hdim, stride_init_states_dstate)",
+   "note": "the `int32` argument (`1`: the `int32` tensor `1`)"
+  },
+  {
+   "src": [
+    261
+   ],
+   "model": [
+    "let offs_n : Tensor [BLOCK_SIZE_N] I32 :=",
+    "pid_n * (IntV.ofNat BLOCK_SIZE_N : I32) + tl.arange 0 BLOCK_SIZE_N"
+   ],
+   "note": "`int32`"
+  },
+  {
+   "src": [
+    "262-264"
+   ],
+   "model": [
+    "let dA_cs_m : Tensor [BLOCK_SIZE_M] F32 ← tl.load (dA_cumsum_ptr + offs_m * stride_dA_cs_csize)",
+    "(some (offs_m.ltS chunk_size)) (some (bc zf32))"
+   ],
+   "note": "`other=0.0` the `float32` `+0`; `.to(tl.float32)` of a `float32` load is the identity"
+  },
+  {
+   "src": [
+    267
+   ],
+   "drop": "config",
+   "note": "`if HAS_INITSTATES:` taken with initial states (lines 269-308 are `chunk_scan_kernel`'s lines), not taken without (not visited; `dA_cs_m_boundary` is used only on line 344, not visited either)"
+  },
+  {
+   "src": [
+    269
+   ],
+   "model": "let dA_cs_m_boundary₀ : F32 := zf32",
+   "note": "the Python `0.0` assigned to a name: a `float32` scalar tensor holding `+0`"
+  },
+  {
+   "src": [
+    "272-276"
+   ],
+   "model": [
+    "(Tensor.scalar (chunk_indices_ptr + (pid_c + (IntV.ofInt 1 : I64))))",
+    "(Tensor.scalar (IntV.lt (pid_c + (IntV.ofInt 1 : I64)) (IntV.cast chunk_meta_num : I64)))))",
+    "(some (Tensor.scalar (IntV.ofInt (-1) : I32)))).item"
+   ],
+   "note": "a masked scalar load at the `int64` offset `pid_c + 1`; the mask, `and` of two `int1` scalars (both evaluated; `chunk_meta_num` sign-extended); `other=-1` the `int32` `-1`"
+  },
+  {
+   "src": [
+    287
+   ],
+   "model": [
+    "let (chunk_size_limit, dA_cs_m_boundary) ←",
+    "if IntV.eq c_idx c_idx_n || IntV.lt (IntV.ofInt 0) c_off then do"
+   ],
+   "note": "a runtime `if` on `or` of two `int1` scalars (both evaluated); it merges `chunk_size_limit` and `dA_cs_m_boundary` (tensors before the `if`)"
+  },
+  {
+   "src": [
+    "289-293"
+   ],
+   "model": [
+    "(Tensor.scalar (chunk_offsets_ptr + (pid_c + (IntV.ofInt 1 : I64))))",
+    "(some (Tensor.scalar chunk_size))).item"
+   ],
+   "note": "as lines 272-276; `other=chunk_size`, the `int32` argument"
+  },
+  {
+   "src": [
+    296
+   ],
+   "model": "if IntV.eq c_idx c_idx_n then",
+   "note": "a runtime `if` on the `int32` equality"
+  },
+  {
+   "src": [
+    297
+   ],
+   "model": "(tl.iminimum (Tensor.scalar c_off_n) (Tensor.scalar chunk_size_limit)).item",
+   "note": "Python's `min` on `int32` tensors: `tl.iminimum`"
+  },
+  {
+   "src": [
+    "304-308"
+   ],
+   "model": [
+    "(Tensor.scalar (dA_cumsum_ptr + (c_off - IntV.ofInt 1) * stride_dA_cs_csize))",
+    "(some (Tensor.and (Tensor.scalar (IntV.lt (IntV.ofInt (-1)) (c_off - IntV.ofInt 1)))",
+    "(Tensor.scalar (IntV.lt c_off chunk_size))))"
+   ],
+   "note": "a masked scalar load (masked off when `c_off = 0`); the mask, `and` of two `int1` scalars, both evaluated; `other=0.0` the `float32` `+0`; `.to(tl.float32)` the identity"
+  },
+  {
+   "src": [
+    310
+   ],
+   "drop": "config",
+   "note": "`if HAS_SEQ_IDX:` taken; its only statement is the `if` of line 312"
+  },
+  {
+   "src": [
+    312
+   ],
+   "drop": "config",
+   "note": "`if not HAS_INITSTATES:` taken without initial states (lines 313-317 are `chunk_scan_kernel_noinit`'s), not taken with them"
+  },
+  {
+   "src": [
+    "313-317"
+   ],
+   "model": [
+    "let seq_idx_m : Tensor [BLOCK_SIZE_M] I32 ← tl.load",
+    "(some (offs_m64.ltS chunk_size_limit)) (some (bc (IntV.ofInt (-1) : I32)))"
+   ],
+   "note": "without initial states: a masked block load, the mask `offs_m < chunk_size_limit` compared in `int64`; `other=-1` the `int32` `-1`. With initial states not visited"
+  },
+  {
+   "src": [
+    319
+   ],
+   "model": "let _acc := tl.zeros [BLOCK_SIZE_M, BLOCK_SIZE_N] .f32",
+   "note": "a value with no effect, replaced at line 361 before any use (the model's `acc₀`)"
+  },
+  {
+   "src": [
+    324
+   ],
+   "drop": "config",
+   "note": "`IS_TRITON_22 or c_idx > -1`: the compile-time `True` ends the `or` (`c_idx > -1` is not evaluated), a compile-time `if`, taken: its body is model lines"
+  },
+  {
+   "src": [
+    "326-328"
+   ],
+   "model": "let offs_k_dstate : Tensor [BLOCK_SIZE_DSTATE] I32 := tl.arange 0 BLOCK_SIZE_DSTATE",
+   "note": "the compile-time conditional picks `BLOCK_SIZE_DSTATE` (`<= 128`, `Inst.ok.bsd_le`)"
+  },
+  {
+   "src": [
+    "329-331"
+   ],
+   "model": [
+    "let C_ptrs : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_DSTATE] (Ptr .bf16) :=",
+    "C_ptr + ((offs_m.col BLOCK_SIZE_DSTATE) * stride_C_seqlen +"
+   ],
+   "note": "`x[:, None]` is `.col`, `x[None, :]` `.row`; `int32` products and sum (`Inst.ok.c_i32`), then the pointer `+`"
+  },
+  {
+   "src": [
+    "333-336"
+   ],
+   "model": [
+    "let prev_states_ptrs : Tensor [BLOCK_SIZE_DSTATE, BLOCK_SIZE_N] (Ptr .f32) :=",
+    "prev_states_ptr + ((offs_n.row BLOCK_SIZE_DSTATE) * prev_states_hdim +"
+   ],
+   "note": "as lines 329-331, with the strides lines 236-259 leave (without initial states, lines 217-218's)"
+  },
+  {
+   "src": [
+    337
+   ],
+   "drop": "config",
+   "note": "`if HAS_SEQ_IDX:` taken"
+  },
+  {
+   "src": [
+    338
+   ],
+   "drop": "config",
+   "note": "`if not HAS_INITSTATES:` taken without initial states (line 340), not taken with them (line 344)"
+  },
+  {
+   "src": [
+    340
+   ],
+   "model": [
+    "let scale_m : Tensor [BLOCK_SIZE_M] F32 :=",
+    "tl.where (Tensor.eq seq_idx_m (bc seq_idx_prev)) (← tl.exp dA_cs_m) (bc zf32)"
+   ],
+   "note": "without initial states: the `int32` equality with the broadcast scalar `seq_idx_prev`; `tl.exp` runs on every lane; `0.0` built in `float32`. With initial states not visited"
+  },
+  {
+   "src": [
+    341
+   ],
+   "drop": "config",
+   "note": "the `else` of line 338: taken with initial states only"
+  },
+  {
+   "src": [
+    344
+   ],
+   "model": [
+    "let scale_m : Tensor [BLOCK_SIZE_M] F32 ←",
+    "tl.exp (← tl.sub dA_cs_m (bc dA_cs_m_boundary))"
+   ],
+   "note": "with initial states (without: not visited): the IEEE `-` (no product feeds it; the scalar broadcast), then `tl.exp` (`Num.ExpF32`)"
+  },
+  {
+   "src": [
+    345
+   ],
+   "drop": "config",
+   "note": "the `else` of line 337, not visited"
+  },
+  {
+   "src": [
+    346
+   ],
+   "drop": "config",
+   "note": "the branch of line 345, not visited"
+  },
+  {
+   "src": [
+    347
+   ],
+   "drop": "config",
+   "note": "`if BLOCK_SIZE_DSTATE <= 128:` taken (`Inst.ok.bsd_le`): lines 348-361 are model lines"
+  },
+  {
+   "src": [
+    "348-353"
+   ],
+   "model": [
+    "let C : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_DSTATE] BF16 ← tl.load C_ptrs",
+    "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_SIZE_M, BLOCK_SIZE_DSTATE] zf32)))",
+    "(some (((offs_m64.col BLOCK_SIZE_DSTATE).ltS chunk_size_limit).and"
+   ],
+   "note": "`other=0.0` is the `float32` `+0` converted to the pointer's `bfloat16`; without initial states the row mask compares in `int64`"
+  },
+  {
+   "src": [
+    "355-359"
+   ],
+   "model": [
+    "let prev_states : Tensor [BLOCK_SIZE_DSTATE, BLOCK_SIZE_N] F32 ← tl.load prev_states_ptrs",
+    "((offs_n.row BLOCK_SIZE_DSTATE).ltS hdim)))"
+   ],
+   "note": "`other=0.0` the `float32` `+0`"
+  },
+  {
+   "src": [
+    360
+   ],
+   "model": "let prev_states₁ : Tensor [BLOCK_SIZE_DSTATE, BLOCK_SIZE_N] BF16 ← tl.cvt prev_states",
+   "note": "`.to(C_ptr.dtype.element_ty)`: `bfloat16`, one rounding to nearest even"
+  },
+  {
+   "src": [
+    361
+   ],
+   "model": [
+    "let acc₀ : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] F32 ← tl.mul",
+    "(← tl.dot cfgBF16 C prev_states₁ (tl.zeros [BLOCK_SIZE_M, BLOCK_SIZE_N] .f32))",
+    "(scale_m.col BLOCK_SIZE_N)"
+   ],
+   "note": "`tl.dot` with the default zero `float32` accumulator (`Num.DotBF16`), then the IEEE `*` by `scale_m[:, None]` (a product; its result is the accumulator of line 420's `tl.dot_add`)"
+  },
+  {
+   "src": [
+    362
+   ],
+   "drop": "config",
+   "note": "the `else` of line 347, not visited"
+  },
+  {
+   "src": [
+    "363-381"
+   ],
+   "drop": "config",
+   "note": "the branch of line 362 (`BLOCK_SIZE_DSTATE > 128`), not visited"
+  },
+  {
+   "src": [
+    383
+   ],
+   "model": [
+    "let offs_k : Tensor [BLOCK_SIZE_K] I32 := tl.arange 0 BLOCK_SIZE_K + c_off",
+    "let offs_k64 : Tensor [BLOCK_SIZE_K] I64 := offs_k.castInt"
+   ],
+   "note": "`int32`; without initial states also `offs_k64`, the sign extension of its comparisons with `int64` values"
+  },
+  {
+   "src": [
+    "384-386"
+   ],
+   "model": [
+    "let cb_ptrs : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] (Ptr .f32) :=",
+    "cb_ptr + ((offs_m.col BLOCK_SIZE_K) * stride_cb_csize_m +"
+   ],
+   "note": "`int32` products and sum, then the pointer `+`"
+  },
+  {
+   "src": [
+    "387-389"
+   ],
+   "model": [
+    "let x_ptrs : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] (Ptr .bf16) :=",
+    "x_ptr + ((offs_k.col BLOCK_SIZE_N) * stride_x_seqlen +"
+   ],
+   "note": "as lines 384-386 (`Inst.ok.x_i32`)"
+  },
+  {
+   "src": [
+    390
+   ],
+   "model": "let dt_ptrs : Tensor [BLOCK_SIZE_K] (Ptr .f32) := dt_ptr + offs_k * stride_dt_csize",
+   "note": "`int32`"
+  },
+  {
+   "src": [
+    391
+   ],
+   "model": "dA_cumsum_ptr + offs_k * stride_dA_cs_csize",
+   "note": "`int32`"
+  },
+  {
+   "src": [
+    "392-396"
+   ],
+   "model": [
+    "let K_MAX : I32 := (tl.iminimum",
+    "(Tensor.scalar ((pid_m + IntV.ofInt 1) * (IntV.ofNat BLOCK_SIZE_M : I32)))",
+    "(Tensor.scalar (IntV.cast ((pid_m + IntV.ofInt 1) * (IntV.ofNat BLOCK_SIZE_M : I32)) : I64))"
+   ],
+   "note": "a conditional expression on the constexpr `IS_CAUSAL = True`: only `min(...)` is evaluated, the exact `tl.iminimum` (`int32`; `int64` without initial states, the product sign-extended)"
+  },
+  {
+   "src": [
+    397
+   ],
+   "model": [
+    "tl.forRange (IntV.ofInt 0 : I32) K_MAX (IntV.ofNat BLOCK_SIZE_K : I32)",
+    "tl.forRange (IntV.ofInt 0 : I64) K_MAX (IntV.ofNat BLOCK_SIZE_K : I64)",
+    "(acc₀, cb_ptrs, x_ptrs, dt_ptrs, dA_cumsum_ptrs)"
+   ],
+   "note": "`range(0, K_MAX, BLOCK_SIZE_K)`: `int32` bounds (`int64` without initial states: `K_MAX` is `int64`, so is the loop variable) (`RangeOk`: `K_MAX <= chunk_size <= 2^14`); the loop carries `acc`, `cb_ptrs`, `x_ptrs`, `dt_ptrs`, `dA_cumsum_ptrs`; `k` is not used after the loop"
+  },
+  {
+   "src": [
+    "398-402"
+   ],
+   "model": [
+    "let cb : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] F32 ← tl.load cb_ptrs",
+    "((offs_k.row BLOCK_SIZE_M).ltS (chunk_size - k))))",
+    "((offs_k64.row BLOCK_SIZE_M).ltS ((IntV.cast chunk_size : I64) - k))))"
+   ],
+   "note": "`other=0.0` the `float32` `+0`; `.to(tl.float32)` the identity; without initial states `chunk_size - k` is `int64`"
+  },
+  {
+   "src": [
+    "403-405"
+   ],
+   "model": [
+    "let dA_cs_k : Tensor [BLOCK_SIZE_K] F32 ← tl.load dA_cumsum_ptrs",
+    "(some (offs_k.ltS (chunk_size - k))) (some (bc zf32))",
+    "(some (offs_k64.ltS ((IntV.cast chunk_size : I64) - k))) (some (bc zf32))"
+   ],
+   "note": "as lines 398-402"
+  },
+  {
+   "src": [
+    408
+   ],
+   "model": [
+    "let cb₁ : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] F32 ← tl.mul cb",
+    "(← tl.exp (← tl.sub (dA_cs_m.col BLOCK_SIZE_K) (dA_cs_k.row BLOCK_SIZE_M)))"
+   ],
+   "note": "the IEEE `-` of two loaded values (no product feeds it), broadcast; `tl.exp`; the IEEE `*` (its result feeds the product of line 410, not an addition)"
+  },
+  {
+   "src": [
+    409
+   ],
+   "model": [
+    "let dt_k : Tensor [BLOCK_SIZE_K] F32 ← tl.load dt_ptrs",
+    "(some (offs_k.ltS (chunk_size - k))) (some (bc zf32))"
+   ],
+   "note": "as lines 398-402"
+  },
+  {
+   "src": [
+    410
+   ],
+   "model": "let cb₂ : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] F32 ← tl.mul cb₁ (dt_k.row BLOCK_SIZE_M)",
+   "note": "the IEEE `*`, `dt_k` broadcast along axis 0 (its result goes to `tl.where` and a conversion, not to an addition)"
+  },
+  {
+   "src": [
+    411
+   ],
+   "drop": "config",
+   "note": "`if IS_CAUSAL:` taken on every covered launch (`SETUP.md`): the front end visits only this branch, whose body is model lines"
+  },
+  {
+   "src": [
+    412
+   ],
+   "model": [
+    "let mask : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] Bool :=",
+    "Tensor.le ((k + offs_k).row BLOCK_SIZE_M) (offs_m.col BLOCK_SIZE_K)",
+    "Tensor.le ((k + offs_k64).row BLOCK_SIZE_M) (offs_m64.col BLOCK_SIZE_K)"
+   ],
+   "note": "`offs_m[:, None] >= k + offs_k[None, :]`, signed `int32` (`int64` without initial states)"
+  },
+  {
+   "src": [
+    413
+   ],
+   "model": "let cb₃ : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] F32 := tl.where mask cb₂ (bc zf32)",
+   "note": "`0.0` built in `float32`, the dtype of `cb`"
+  },
+  {
+   "src": [
+    414
+   ],
+   "model": "let cb₄ : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] BF16 ← tl.cvt cb₃",
+   "note": "`.to(x_ptr.dtype.element_ty)`: `bfloat16`, one rounding to nearest even"
+  },
+  {
+   "src": [
+    "415-419"
+   ],
+   "model": [
+    "let x : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] BF16 ← tl.load x_ptrs",
+    "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_SIZE_K, BLOCK_SIZE_N] zf32)))",
+    "(some (((offs_k64.col BLOCK_SIZE_N).ltS (chunk_size_limit - k)).and"
+   ],
+   "note": "`other=0.0` converted to `bfloat16`; the row mask in `int64` without initial states"
+  },
+  {
+   "src": [
+    420
+   ],
+   "model": "let acc : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] F32 ← tl.dot_add cfgBF16 cb₄ x acc",
+   "note": "`acc += tl.dot(cb, x)`: a zero default accumulator and no other use of the product: the combine pass's `tl.dot_add`, `acc` the addend"
+  },
+  {
+   "src": [
+    421
+   ],
+   "model": "q + (IntV.ofNat BLOCK_SIZE_K : I32) * stride_cb_csize_k)",
+   "note": "the constexpr times the `int32` stride (`1`: Python's `32`, the same `int32` value), then a pointer `+` on each lane"
+  },
+  {
+   "src": [
+    422
+   ],
+   "model": "q + (IntV.ofNat BLOCK_SIZE_K : I32) * stride_x_seqlen)",
+   "note": "as line 421"
+  },
+  {
+   "src": [
+    423
+   ],
+   "model": "q + (IntV.ofNat BLOCK_SIZE_K : I32) * stride_dt_csize)",
+   "note": "as line 421"
+  },
+  {
+   "src": [
+    424
+   ],
+   "model": "q + (IntV.ofNat BLOCK_SIZE_K : I32) * stride_dA_cs_csize)",
+   "note": "as line 421"
+  },
+  {
+   "src": [
+    426
+   ],
+   "model": [
+    "let offs_out_m : Tensor [BLOCK_SIZE_M] I32 :=",
+    "let offs_out_m64 : Tensor [BLOCK_SIZE_M] I64 := offs_out_m.castInt"
+   ],
+   "note": "as line 210"
+  },
+  {
+   "src": [
+    427
+   ],
+   "model": [
+    "let offs_out_n : Tensor [BLOCK_SIZE_N] I32 :="
+   ],
+   "note": "as line 261"
+  },
+  {
+   "src": [
+    429
+   ],
+   "drop": "config",
+   "note": "`if HAS_D:` taken on every covered launch (`SETUP.md`): the front end visits only this branch, whose body is model lines"
+  },
+  {
+   "src": [
+    430
+   ],
+   "drop": "config",
+   "note": "`if D_HAS_HDIM:` not taken (`D` is `[nheads]`): lines 431-433 are not visited"
+  },
+  {
+   "src": [
+    "431-433"
+   ],
+   "drop": "config",
+   "note": "the branch of line 430, not visited"
+  },
+  {
+   "src": [
+    434
+   ],
+   "drop": "config",
+   "note": "the `else` of line 430, taken: line 435 is a model line"
+  },
+  {
+   "src": [
+    435
+   ],
+   "model": [
+    "let D₀ : BF16 ← tl.load1 (D_ptr + pid_h * stride_D_head)",
+    "let D : F32 := (← tl.cvt (Tensor.scalar D₀)).item"
+   ],
+   "note": "an unmasked scalar load, then `.to(tl.float32)`, exact"
+  },
+  {
+   "src": [
+    "436-441"
+   ],
+   "model": [
+    "let x_residual₀ : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] BF16 ← tl.load",
+    "let x_residual : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] F32 ← tl.cvt x_residual₀",
+    "(some (((offs_m64.col BLOCK_SIZE_N).ltS chunk_size_limit).and"
+   ],
+   "note": "`other=0.0` converted to `bfloat16`; `.to(tl.float32)` exact; the row mask in `int64` without initial states"
+  },
+  {
+   "src": [
+    442
+   ],
+   "model": "let acc ← tl.mul_add x_residual (bc D) acc",
+   "note": "`acc + x_residual * D`: a product feeds the addition: `tl.mul_add` (the two IEEE operations, or one `fma`)"
+  },
+  {
+   "src": [
+    444
+   ],
+   "drop": "config",
+   "note": "`if HAS_Z:` not taken (`z = None`): lines 445-474 are not visited"
+  },
+  {
+   "src": [
+    "445-474"
+   ],
+   "drop": "config",
+   "note": "the branch of line 444, not visited"
+  },
+  {
+   "src": [
+    "476-480"
+   ],
+   "model": [
+    "let out_ptr := out_ptr + (pid_b * (IntV.cast stride_out_batch : I64) +",
+    "(IntV.cast (c_idx * chunk_size * stride_out_seqlen) : I64) +",
+    "c_idx * (IntV.cast chunk_size : I64) * (IntV.cast stride_out_seqlen : I64) +"
+   ],
+   "note": "as lines 191-195 (`Inst.ok.out_arg`)"
+  },
+  {
+   "src": [
+    "481-483"
+   ],
+   "model": [
+    "let out_ptrs : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] (Ptr .bf16) :=",
+    "out_ptr + (stride_out_seqlen * (offs_out_m.col BLOCK_SIZE_N) +"
+   ],
+   "note": "`int32` products and sum, then the pointer `+`"
+  },
+  {
+   "src": [
+    "484-488"
+   ],
+   "model": [
+    "let out16 : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] BF16 ← tl.cvt acc",
+    "tl.store out_ptrs out16",
+    "(some (((offs_out_m64.col BLOCK_SIZE_N).ltS chunk_size_limit).and"
+   ],
+   "note": "the row mask in `int64` without initial states; the store's conversion of the `float32` `acc` to the pointer's `bfloat16` (nearest even), written explicitly"
+  }
+ ]
+}

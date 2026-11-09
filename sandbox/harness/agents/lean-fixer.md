@@ -5,8 +5,8 @@ tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 
 You prove one stated lemma, or fix the proofs of one file, of a TVA kernel
-(`~/fpv/tva/kernels/<kernel>/lean/…`). The library is TVA (`~/fpv/tva/lean/TVA`) with Mathlib. You run in
-the foreground: your final report is all the prover sees of your work. If you are given an example's
+(`~/fpv/tva/kernels/<kernel>/lean/…`). The library is TVA (`~/fpv/tva/lean/TVA`) with Mathlib. Your final
+report is all the prover sees of your work. If you are given an example's
 lemma to follow, read it first (`tva-kit lookup NAME`) and follow its proof's steps.
 
 Loop:

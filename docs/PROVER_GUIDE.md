@@ -72,7 +72,8 @@ def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZ
   name a statement assigned a number holds a tensor of its own type (SEMANTICS.md, "How the front
   end evaluates the source").
 - **Pick the meaning of each float `+`/`-`.**
-  - `tl.add`/`tl.sub` when no product feeds it.
+  - `tl.add`/`tl.sub` when no product feeds it (a `float32` quotient is a product: SEMANTICS.md
+    "Float `+` and `-`").
   - `tl.mul_add a b c` for `a * b + c`.
   - `tl.addc` when you cannot tell.
 
@@ -161,13 +162,12 @@ def add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZ
   bundle cites it"), point by point: (4) only the launch options `Launch` records plus
   `num_warps`, `num_stages`, `maxnreg`, `launch_cooperative_grid`, at the launch, at
   `kernel.warmup(…)`, in `triton.compile`'s options or in a `triton.Config`, and no
-  `@triton.heuristics`, with the decorator's `debug` as `Launch.debug`; (5) when the kernel builds
-  descriptors, an allocator whose buffer holds none of the claim's buffers and that nothing else
-  writes during the launch; (6) for a `CompiledKernel`, the kernel's own source (an `ASTSource` for
+  `@triton.heuristics`, with the decorator's `debug` as `Launch.debug`; (5) no descriptor built in
+  the kernel (no call of `tl.make_tensor_descriptor` the front end visits on a covered instance);
+  (6) for a `CompiledKernel`, the kernel's own source (an `ASTSource` for
   `triton.compile`, not an IR file) and arguments in its specialisation (dtypes, pointer alignment,
   integer class, host descriptors' dtype and block shape); (8) no host `TensorDescriptor` with
-  `round_f32_to_tf32=True`; (9) no CUDA graph capture (no call while a stream capture is in
-  progress, on any stream, no replay). Say so in the write-up's Conditions.
+  `round_f32_to_tf32=True`. Say so in the write-up's Conditions.
   Part (B), the environment (points 1, 2, 3, the environment's part of 4, 7, 10 and 11: other
   writers, knobs, hooks, `kernel.debug` and `preload`, the target and host (an H200; x86-64,
   CPython 3.13 without `-O`/`-OO` and with `PYTHONOPTIMIZE` unset, in the default floating-point
@@ -305,7 +305,10 @@ instead of `meets_independent`.
   `SafeA.atomic`: it may find any old value, and each step goes into the program's log.
 - The postcondition `Q i log m` says what the log contains, for example "one `atomic_add` of
   my partial sum per cell". It must not depend on the log's order (`PermInv`): a program's
-  atomics may be performed in any order their dependences allow (`Step.defer`).
+  atomics may be performed after later steps that do not depend on their result (`Step.defer`).
+  A launch in which a program uses an atomic's result on a cell another program, or another
+  atomic operation of the program, also accesses is excluded (SEMANTICS.md "Atomics", library
+  issue L161).
 - `replay_add` and `sum_proj` (`replay_add_any`, `sum_proj_any` at any width) then give each
   integer cell's final value.
 - A logged step does not record its operand, so for float accumulation and `max`/`min` the

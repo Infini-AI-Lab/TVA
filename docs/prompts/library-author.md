@@ -88,8 +88,7 @@ Read these in `~/fpv/tva`:
    upstream repositories, so it needs the network, and builds Mathlib from source in its sandbox),
    in the background, and report its result. Run in the middle of a round it fails `lint` on the
    round's records still in progress (yours, if your notes are not finished, and the reviewers'),
-   and a scratch path that any work file holds fails the audit and every kernel's `independence`
-   check. Its output writes its folder as `<dir>` and TVA's copy as `<tva>`, so you can keep it.
+   and a scratch path that any work file holds fails the audit. Its output writes its folder as `<dir>` and TVA's copy as `<tva>`, so you can keep it.
 
 ## Final message
 

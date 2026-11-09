@@ -1,0 +1,7 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+| variant | launches | outside the semantics | last: max first-call value, min second-call value |
+|---|---|---|---|
+| barrier | 100 | 0 | None |
+| loop | 100 | 100 | (895, 384) |
+| addr | 100 | 100 | (895, 384) |
+| unused2 | 100 | 100 | (895, 1000000) |

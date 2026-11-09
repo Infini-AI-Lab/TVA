@@ -1,0 +1,295 @@
+{
+ "source": {
+  "file": "source/route_histogram.py",
+  "sha256": "8031a5291735d871e233770e10b668dfbb8c9686b336f316b26d5fad302ed44a",
+  "ranges": [
+   [
+    58,
+    59
+   ],
+   [
+    62,
+    89
+   ],
+   [
+    92,
+    106
+   ],
+   [
+    109,
+    144
+   ]
+  ],
+  "host": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.RouteHistogram",
+ "entries": [
+  {
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module (SEMANTICS.md, the supported subset, Names); no other statement of the module binds it; it adds no step to the program",
+   "src": [
+    58
+   ]
+  },
+  {
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (SEMANTICS.md, the supported subset, Names); no other statement of the module binds it; it adds no step to the program",
+   "src": [
+    59
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); the model is the `Kernel` it decorates",
+   "src": [
+    62
+   ]
+  },
+  {
+   "model": "def route_bucket_ids {B : Nat} (group_ids_ptr token_slots_ptr : Ptr .i32)",
+   "note": "[`route_bucket_ids`, source lines 62-89] the two pointers are `*i32` (the host passes `int32` tensors; without groups `group_ids_ptr` is the placeholder, which is `token_slots`, and it is never read); the constexprs `GROUPS_PER_SLOT`, `MAX_LORAS`, `WIDTH`, `HAS_GROUPS` are Lean parameters, and the shape of `pair_ids`/`pair_mask` is the caller's `[B]`. The helper is a `@triton.jit` function, which the front end inlines at its one call (lines 127-142), so the model is a Lean function the call site applies",
+   "src": [
+    "63-72"
+   ]
+  },
+  {
+   "src": [
+    73
+   ],
+   "drop": "comment",
+   "note": "the comment above `token_ids`"
+  },
+  {
+   "src": [
+    74
+   ],
+   "drop": "comment",
+   "note": "the comment, continued"
+  },
+  {
+   "model": "let token_ids ← tl.idiv pair_ids (tl.full [B] (IntV.ofNat WIDTH : I32))",
+   "note": "the constexpr `WIDTH`, an operand of `//` with the `int32` tensor `pair_ids`, is built in `int32` (SEMANTICS.md, Constants); `//` is the truncating `tl.idiv` (SEMANTICS.md, Integer `//`), defined on covered instances (`Inst.ok.width_pos`)",
+   "src": [
+    75
+   ]
+  },
+  {
+   "model": "let slots ← tl.load (token_slots_ptr + token_ids) (some pair_mask) (some (tl.full [B] (IntV.ofInt (-1) : I32)))",
+   "note": "`token_slots_ptr + token_ids` advances the `*i32` pointer by each lane's `int32` offset `pair_ids // WIDTH`; the mask is the caller's `pair_mask`; `other=-1` is the `int32` `-1` (a tensor of its own type, already the pointer's dtype)",
+   "src": [
+    76
+   ]
+  },
+  {
+   "model": "let live := ((tl.full [B] (IntV.ofInt 0 : I32)).le slots).and (slots.ltS (IntV.ofNat MAX_LORAS))",
+   "note": "two signed `int32` comparisons with the constants `0` and `MAX_LORAS` (each built in `int32`), then `&` of two `int1` tensors (`Tensor.and`)",
+   "src": [
+    77
+   ]
+  },
+  {
+   "model": "let slots32 : Tensor [B] I32 := slots.castInt",
+   "note": "`slots.to(tl.int32)` of an `int32` tensor: the identity cast (`IntV.cast` of the same signedness and width; SEMANTICS.md, conversions), which the model writes as `Tensor.castInt`",
+   "src": [
+    78
+   ]
+  },
+  {
+   "model": "if HAS_GROUPS = true then",
+   "note": "`HAS_GROUPS` is a `tl.constexpr`, so this is a compile-time `if` (SEMANTICS.md, How the front end evaluates the source: a compile-time `if`): the model is a Lean `if` on the parameter, which the proof cases on",
+   "src": [
+    79
+   ]
+  },
+  {
+   "model": "let groups ← tl.load (group_ids_ptr + pair_ids) (some pair_mask) (some (tl.full [B] (IntV.ofInt (-1) : I32)))",
+   "note": "as line 76, of element `pair_ids` (the pair's group) of `group_ids`; `other=-1` the `int32` `-1`",
+   "src": [
+    80
+   ]
+  },
+  {
+   "model": "let live := live.and ((tl.full [B] (IntV.ofInt 0 : I32)).le groups)",
+   "note": "the signed `int32` comparison `groups >= 0`, `&` with line 77's `live`",
+   "src": [
+    81
+   ]
+  },
+  {
+   "model": "if GROUPS_PER_SLOT = 1 then",
+   "note": "a compile-time `if` on the constexpr (as line 79)",
+   "src": [
+    82
+   ]
+  },
+  {
+   "model": "pure (tl.where live slots32 (tl.full [B] (IntV.ofInt (-1) : I32)))",
+   "note": "`buckets = slots`: the branch keeps the slot as the bucket; the model's `tl.where` is line 89's (the source assigns `buckets` and returns `tl.where(live, buckets, -1)`)",
+   "src": [
+    83
+   ]
+  },
+  {
+   "note": "the `else:` of line 82's compile-time `if`",
+   "src": [
+    84
+   ],
+   "drop": "decl"
+  },
+  {
+   "model": "let live := live.and (groups.ltS (IntV.ofNat GROUPS_PER_SLOT))",
+   "note": "the signed `int32` comparison `groups < GROUPS_PER_SLOT` (the constexpr built in `int32`), `&` with line 81's `live`",
+   "src": [
+    85
+   ]
+  },
+  {
+   "model": "let buckets := slots32 * (IntV.ofNat GROUPS_PER_SLOT : I32) + (groups.castInt : Tensor [B] I32)",
+   "note": "the wrapping `int32` `*` and `+` (the constexpr `GROUPS_PER_SLOT` built in `int32`; it does not wrap for a live pair, whose slot and group are in range); `groups.to(tl.int32)` is the identity cast, as line 78",
+   "src": [
+    86
+   ]
+  },
+  {
+   "note": "the `else:` of line 79's compile-time `if`",
+   "src": [
+    87
+   ],
+   "drop": "decl"
+  },
+  {
+   "model": "pure (tl.where live slots32 (tl.full [B] (IntV.ofInt (-1) : I32)))",
+   "note": "`buckets = slots` in the no-groups branch: the same model text as line 83's",
+   "src": [
+    88
+   ]
+  },
+  {
+   "model": "pure (tl.where live buckets (tl.full [B] (IntV.ofInt (-1) : I32)))",
+   "note": "`tl.where(live, buckets, -1)`: the `-1` built in `int32`; the live lanes keep their bucket, the others get `-1`",
+   "src": [
+    89
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); the model is the `Kernel` it decorates",
+   "src": [
+    92
+   ]
+  },
+  {
+   "model": "def add_counts {B : Nat} (counts_ptr : Ptr .i32) (bucket_ids : Tensor [B] I32)",
+   "note": "[`_add_counts`, source lines 92-106] inlined at its one call (lines 127-142), like `route_bucket_ids`; the constexprs `NUM_BUCKETS`, `BINS` are Lean parameters, `bucket_ids` and `mask` (the caller's `pair_mask`) are the arguments",
+   "src": [
+    "93-99"
+   ]
+  },
+  {
+   "model": "let buckets := tl.where (bucket_ids.ltS (IntV.ofInt 0 : I32)) (tl.full [B] (IntV.ofNat (NUM_BUCKETS - 1) : I32)) bucket_ids",
+   "note": "the constexpr `NUM_BUCKETS - 1` is computed by Python and built in `int32`; `bucket_ids < 0` is the signed `int32` comparison; an invalid pair's `-1` becomes the last bucket",
+   "src": [
+    100
+   ]
+  },
+  {
+   "src": [
+    101
+   ],
+   "model": "if BINS = 0 then",
+   "note": "`BINS` is a `tl.constexpr`, so this is a compile-time `if` (SEMANTICS.md, How the front end evaluates the source: a compile-time `if`): the model is a Lean `if` on the parameter. `BINS = 0` is the host's choice when `NUM_BUCKETS >= 512` or `num_pairs < 16384`; otherwise `BINS > NUM_BUCKETS` (`Inst.ok.bins_ok`)"
+  },
+  {
+   "src": [
+    102
+   ],
+   "model": "let _ ← tl.atomic_add (counts_ptr + buckets) (tl.full [B] (IntV.ofInt 1 : I32)) (some mask)",
+   "note": "one `tl.atomic_add` per enabled lane (the caller's `pair_mask`), with the defaults `sem=\"acq_rel\"`, `scope=\"gpu\"` (SEMANTICS.md, Atomics; its result unused, then `pure ()`): the value `1` becomes an `int32` tensor of its own (SEMANTICS.md, Constants: an argument of a `tl.*` function), broadcast to `[B]`, already the pointer's dtype; `counts_ptr + buckets` advances the `*i32` pointer by each lane's `int32` bucket, in `[0, NUM_BUCKETS)` on every lane (line 100 maps `-1` to `NUM_BUCKETS - 1`). The integer add wraps"
+  },
+  {
+   "src": [
+    103
+   ],
+   "drop": "decl",
+   "note": "the `else:` of line 101's compile-time `if`: the `tl.histogram` path, `BINS > NUM_BUCKETS` (`Inst.ok.bins_ok`)"
+  },
+  {
+   "model": "let mine ← tl.histogram (tl.where mask buckets (tl.full [B] (IntV.ofNat (BINS - 1) : I32))) BINS",
+   "note": "`mine = tl.histogram(tl.where(mask, buckets, BINS - 1), BINS)`: a masked-off lane's value becomes `BINS - 1`, which is at least `NUM_BUCKETS` (`Inst.ok.bins_ok` on this path) and not added (line 106's mask), so the histogram counts the pairs of each bucket over all `BINS` bins; the histogram has no `mask` argument of its own.",
+   "src": [
+    104
+   ]
+  },
+  {
+   "model": "let bins := tl.arange 0 BINS",
+   "note": "the bins, `int32` `0 … BINS - 1`",
+   "src": [
+    105
+   ]
+  },
+  {
+   "model": "let _ ← tl.atomic_add (counts_ptr + bins) mine (some ((bins.ltS (IntV.ofNat NUM_BUCKETS : I32)).and ((tl.full [BINS] (IntV.ofInt 0 : I32)).lt mine)))",
+   "note": "the atomic `tl.atomic_add(counts_ptr + bins, mine, mask=...)` with the defaults `sem=\"acq_rel\"`, `scope=\"gpu\"` (its result unused) and the mask `(bins < NUM_BUCKETS) & (mine > 0)`, two signed `int32` comparisons with the constants, then `&`; `mine > 0` keeps out the empty bins",
+   "src": [
+    106
+   ]
+  },
+  {
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); the model is the `Kernel` it decorates",
+   "src": [
+    109
+   ]
+  },
+  {
+   "model": "def route_histogram_kernel (group_ids_ptr token_slots_ptr counts_ptr : Ptr .i32) (num_pairs : I32)",
+   "note": "[`_route_histogram_kernel`, source lines 109-144] the pointers are `*i32`; `num_pairs` is an `int32` (an integer argument in `[0, 2^31)`, `Inst.ok.n_lt`); the constexprs are Lean parameters. The source's constexpr `USE_PDL` is `False` at every covered launch (the host passes `USE_PDL=False`, SETUP.md), so lines 143-144 are not code and the model has no `USE_PDL` parameter",
+   "src": [
+    "110-123"
+   ]
+  },
+  {
+   "src": [
+    124
+   ],
+   "drop": "comment",
+   "note": "the comment: the host's `torch.zeros` cleared `counts`; `Post` is stated for any initial `counts`"
+  },
+  {
+   "model": "let pair_ids := tl.program_id ctx 0 * (IntV.ofNat BLOCK : I32) + tl.arange 0 BLOCK",
+   "note": "axis 0 of the 1-D grid; the constexpr `BLOCK` is built in `int32` (an operand of `*` with the `int32` `tl.program_id`); the wrapping `int32` `*` and `+` do not wrap on covered instances (`Inst.ok.n_lt`, `Block.fits_of_grid_pow2`)",
+   "src": [
+    125
+   ]
+  },
+  {
+   "model": "let pair_mask := pair_ids.ltS num_pairs",
+   "note": "the signed `int32` comparison of every lane with the scalar `num_pairs`",
+   "src": [
+    126
+   ]
+  },
+  {
+   "model": "let bucket_ids ← route_bucket_ids group_ids_ptr token_slots_ptr pair_ids pair_mask GROUPS_PER_SLOT MAX_LORAS WIDTH HAS_GROUPS add_counts counts_ptr bucket_ids pair_mask NUM_BUCKETS BINS",
+   "note": "the inlined calls of lines 127-142: `route_bucket_ids` (a `Prog`), then `_add_counts` on its result and `pair_mask`",
+   "src": [
+    "127-142"
+   ]
+  },
+  {
+   "note": "`USE_PDL` is a `tl.constexpr` whose value is `False` at every covered launch (the host passes `USE_PDL=False`, SETUP.md; programmatic dependent launch is outside TVA's launches), so the branch is not code",
+   "src": [
+    143
+   ],
+   "drop": "config"
+  },
+  {
+   "note": "`gdc_launch_dependents()`: only with `launch_pdl=True` at a following launch (SEMANTICS.md, Launches), which no covered launch has; it is also in the branch of line 143, which is not code",
+   "src": [
+    144
+   ],
+   "drop": "no-op:gdc"
+  }
+ ]
+}

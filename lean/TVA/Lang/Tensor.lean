@@ -15,8 +15,9 @@ rounds and may be nondeterministic, so it lives in `TVA.Lang.Ops` as program act
 
 Triton broadcasts implicitly (`x[:, None] + y[None, :]`, `offs < n`). A model broadcasts
 explicitly: `bc a` is the scalar `a` at every index, `x.col n` is `x[:, None]` broadcast to `n`
-columns, `x.row m` is `x[None, :]` broadcast to `m` rows. The reviewer checks that each
-broadcast matches the source.
+columns, `x.row m` is `x[None, :]` broadcast to `m` rows. `tl.broadcast_to(x, t)` of a block is
+`x.broadcastTo t`, any rank, with Triton's check of the shapes (`Shape.bcastOk`; library issue
+L140). The reviewer checks that each broadcast matches the source.
 -/
 namespace TVA
 
@@ -300,6 +301,11 @@ def InOrder (n : Nat) (t : Tree) : Prop := t.leaves = List.range n
 inductive Eval {α : Type} (op : α → α → α → Prop) (x : Nat → α) : Tree → α → Prop where
   | leaf (i : Nat) : Eval op x (leaf i) (x i)
   | node {l r : Tree} {a b c : α} : Eval op x l a → Eval op x r b → op a b c → Eval op x (node l r) c
+
+/-- The depth: a leaf has depth `0`. -/
+def depth : Tree → Nat
+  | leaf _ => 0
+  | node l r => max l.depth r.depth + 1
 
 /-- The left-to-right sequential tree over `0, …, n-1` (`n ≥ 1`). -/
 def seq : Nat → Tree
@@ -635,6 +641,112 @@ theorem permute_trans {m n : Nat} (x : Tensor [m, n] α) : x.permute [1, 0] = x.
     match k, hk with
     | 0, _ => rfl
     | 1, _ => rfl).trans rfl
+
+end Tensor
+
+/-! ## Broadcasting to a shape (library issue L140) -/
+
+/-- Triton's check that a block of shape `s` broadcasts to `t` (`broadcast_impl_shape`,
+`triton-3.8.0-semantic.py:711-725`): the same rank, and each dimension of `s` equal to `t`'s or
+`1`. Triton rejects every other pair on the host. -/
+def Shape.bcastOk : Shape → Shape → Bool
+  | [], [] => true
+  | a :: s, b :: t => (a == b || a == 1) && Shape.bcastOk s t
+  | _, _ => false
+
+theorem Shape.bcastOk_length : ∀ {s t : Shape}, Shape.bcastOk s t = true → s.length = t.length
+  | [], [], _ => rfl
+  | _ :: s, _ :: t, h => by
+      simp only [Shape.bcastOk, Bool.and_eq_true] at h
+      simp [Shape.bcastOk_length (s := s) (t := t) h.2]
+  | [], _ :: _, h => by simp [Shape.bcastOk] at h
+  | _ :: _, [], h => by simp [Shape.bcastOk] at h
+
+theorem Shape.bcastOk_dim : ∀ {s t : Shape}, Shape.bcastOk s t = true → ∀ k,
+    Shape.dim s k = Shape.dim t k ∨ Shape.dim s k = 1 ∨ s.length ≤ k
+  | [], [], _, k => Or.inr (Or.inr (Nat.zero_le k))
+  | a :: s, b :: t, h, k => by
+      simp only [Shape.bcastOk, Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at h
+      cases k with
+      | zero =>
+        rcases h.1 with h1 | h1
+        · exact Or.inl h1
+        · exact Or.inr (Or.inl h1)
+      | succ k =>
+        rcases Shape.bcastOk_dim (s := s) (t := t) h.2 k with h2 | h2 | h2
+        · exact Or.inl h2
+        · exact Or.inr (Or.inl h2)
+        · exact Or.inr (Or.inr (by simpa using h2))
+  | [], _ :: _, h, _ => by simp [Shape.bcastOk] at h
+  | _ :: _, [], h, _ => by simp [Shape.bcastOk] at h
+
+namespace Tensor
+
+variable {s : Shape} {α : Type}
+
+/-- The coordinates `broadcastTo` reads are in range. -/
+theorem bcast_coord_lt {t : Shape} (h : Shape.bcastOk s t = true) (o : Idx t) :
+    ∀ k, k < s.length → (if Shape.dim s k = 1 then 0 else o.coord k) < Shape.dim s k := by
+  intro k hk
+  by_cases h1 : Shape.dim s k = 1
+  · simp only [h1, ite_true]; exact Nat.zero_lt_one
+  · simp only [h1, ite_false]
+    rcases Shape.bcastOk_dim h k with h2 | h2 | h2
+    · rw [h2]; exact Idx.coord_lt o (by rw [← Shape.bcastOk_length h]; exact hk)
+    · exact absurd h2 h1
+    · exact absurd hk (Nat.not_lt_of_le h2)
+
+/-- `tl.broadcast_to(x, t)` and its method forms `x.broadcast_to(t)`, `x.broadcast_to(*t)`
+(`triton-3.8.0-core.py:2049-2066`, `triton-3.8.0-semantic.py:711-725`) of a block `x` of shape `s`:
+the block of shape `t` whose element at index `o` is `x`'s element at the index with `o`'s
+coordinates, except that each dimension of size `1` in `s` is read at `0` (`get_broadcastTo`).
+Triton accepts only a `t` of the same rank whose every dimension equals `s`'s or where `s` has `1`
+(`Shape.bcastOk`, the proof `h`; for shapes of literal sizes the default proof is found by itself),
+and rejects every other `t` on the host. A scalar's broadcast is `Tensor.full` (`splat`,
+`semantic.py:629-634`). `col`, `row`, `bcastCols` and `bcastRows` are special cases. -/
+def broadcastTo (x : Tensor s α) (t : Shape) (h : Shape.bcastOk s t = true := by decide) :
+    Tensor t α :=
+  ⟨fun o => x.get (Idx.ofCoords s (fun k => if Shape.dim s k = 1 then 0 else o.coord k)
+    (bcast_coord_lt h o))⟩
+
+/-- The element of `x.broadcastTo t` at `o` is `x` at the index `i` whose coordinate `k` is `0` where
+`s` has size `1`, and `o`'s coordinate `k` otherwise. -/
+theorem get_broadcastTo (x : Tensor s α) (t : Shape) (h : Shape.bcastOk s t = true) (o : Idx t)
+    (i : Idx s) (hi : ∀ k, k < s.length → i.coord k = if Shape.dim s k = 1 then 0 else o.coord k) :
+    (x.broadcastTo t h).get o = x.get i := by
+  unfold broadcastTo
+  refine congrArg x.get (Idx.ext_coord fun k => ?_)
+  by_cases hk : k < s.length
+  · rw [Idx.coord_ofCoords _ _ _ hk, hi k hk]
+  · rw [Idx.coord_of_ge _ (Nat.le_of_not_lt hk), Idx.coord_of_ge _ (Nat.le_of_not_lt hk)]
+
+/-- On rank 2, broadcasting a column `[m, 1]` to `[m, n]` is `bcastCols`. -/
+theorem broadcastTo_cols {m n : Nat} (x : Tensor [m, 1] α) (h : Shape.bcastOk [m, 1] [m, n] = true) :
+    x.broadcastTo [m, n] h = x.bcastCols n := by
+  ext ⟨i, j, ⟨⟩⟩
+  rw [get_broadcastTo x [m, n] h (i, j, ()) (i, ⟨0, Nat.zero_lt_one⟩, ()) fun k hk => ?_]
+  · rfl
+  · match k, hk with
+    | 0, _ =>
+      show i.1 = if m = 1 then 0 else i.1
+      split
+      · next hm => have := i.2; omega
+      · rfl
+    | 1, _ => rfl
+
+/-- On rank 2, broadcasting a row `[1, n]` to `[m, n]` is `bcastRows`. -/
+theorem broadcastTo_rows {m n : Nat} (x : Tensor [1, n] α) (h : Shape.bcastOk [1, n] [m, n] = true) :
+    x.broadcastTo [m, n] h = x.bcastRows m := by
+  ext ⟨i, j, ⟨⟩⟩
+  rw [get_broadcastTo x [m, n] h (i, j, ()) (⟨0, Nat.zero_lt_one⟩, j, ()) fun k hk => ?_]
+  · rfl
+  · match k, hk with
+    | 0, _ => rfl
+    | 1, _ =>
+      show j.1 = if n = 1 then 0 else j.1
+      split
+      · next hn => have := j.2; omega
+      · rfl
 
 end Tensor
 

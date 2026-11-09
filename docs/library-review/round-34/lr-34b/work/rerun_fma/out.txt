@@ -1,0 +1,25 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+8 launches of N = 1024 elements per dtype and form
+| dtype | form | elements | outside the narrow set | inputs where the wide-only value differs | device = wide-only value there | PTX add/fma | SASS |
+|---|---|---|---|---|---|---|---|
+| float32 | `a*b + c*d` | 8192 | 0 | 8030 | 0 | `fma.rn.f32`, `mul.f32` | `FFMA`, `FMUL` |
+| float32 | `a*b - c*d` | 8192 | 0 | 8024 | 0 | `fma.rn.f32`, `mul.f32` | `FFMA`, `FMUL` |
+| float32 | `tl.sum(join(a,c) * join(b,d), axis=1)` | 8192 | 0 | 8021 | 0 | `fma.rn.f32`, `mul.f32` | `FFMA`, `FMUL` |
+| float32 | `r = a*b; loop: r += c*d` | 8192 | 0 | 8030 | 0 | `fma.rn.f32`, `mul.f32` | `FFMA`, `FMUL` |
+| float32 | `(a*b + c*d) + e*f` | 8192 | 0 | 8009 | 0 | `fma.rn.f32`, `mul.f32` | `FFMA`, `FMUL` |
+| float64 | `a*b + c*d` | 8192 | 0 | 8030 | 0 | `fma.rn.f64`, `mul.f64` | `DFMA`, `DMUL` |
+| float64 | `a*b - c*d` | 8192 | 0 | 8013 | 0 | `fma.rn.f64`, `mul.f64` | `DFMA`, `DMUL` |
+| float64 | `tl.sum(join(a,c) * join(b,d), axis=1)` | 8192 | 0 | 8028 | 0 | `fma.rn.f64`, `mul.f64` | `DFMA`, `DMUL` |
+| float64 | `r = a*b; loop: r += c*d` | 8192 | 0 | 8020 | 0 | `fma.rn.f64`, `mul.f64` | `DFMA`, `DMUL` |
+| float64 | `(a*b + c*d) + e*f` | 8192 | 0 | 8021 | 0 | `fma.rn.f64`, `mul.f64` | `DFMA`, `DMUL` |
+| float16 | `a*b + c*d` | 8192 | 0 | 7915 | 0 | `fma.rn.f16x2`, `mul.f16x2` | `HFMA2`, `HFMA2.MMA`, `HMUL2` |
+| float16 | `a*b - c*d` | 8192 | 0 | 7896 | 0 | `fma.rn.f16x2`, `mul.f16x2` | `HFMA2`, `HFMA2.MMA`, `HMUL2` |
+| float16 | `tl.sum(join(a,c) * join(b,d), axis=1)` | 8192 | 0 | 7924 | 0 | `fma.rn.f16x2`, `mul.f16x2` | `HFMA2`, `HFMA2.MMA`, `HMUL2` |
+| float16 | `r = a*b; loop: r += c*d` | 8192 | 0 | 7914 | 0 | `fma.rn.f16x2`, `mul.f16x2` | `HFMA2`, `HFMA2.MMA`, `HMUL2` |
+| float16 | `(a*b + c*d) + e*f` | 8192 | 0 | 7929 | 0 | `fma.rn.f16x2`, `mul.f16x2` | `HFMA2`, `HFMA2.MMA`, `HMUL2` |
+| bfloat16 | `a*b + c*d` | 8192 | 0 | 7222 | 0 | `fma.rn.bf16x2`, `mul.bf16x2` | `HFMA2.BF16_V2`, `HFMA2.MMA.BF16_V2`, `HMUL2.BF16_V2` |
+| bfloat16 | `a*b - c*d` | 8192 | 0 | 7323 | 0 | `fma.rn.bf16x2`, `mul.bf16x2` | `HFMA2.BF16_V2`, `HFMA2.MMA.BF16_V2`, `HMUL2.BF16_V2` |
+| bfloat16 | `tl.sum(join(a,c) * join(b,d), axis=1)` | 8192 | 0 | 7268 | 0 | `fma.rn.bf16x2`, `mul.bf16x2` | `HFMA2.BF16_V2`, `HFMA2.MMA.BF16_V2`, `HMUL2.BF16_V2` |
+| bfloat16 | `r = a*b; loop: r += c*d` | 8192 | 0 | 7234 | 0 | `fma.rn.bf16x2`, `mul.bf16x2` | `HFMA2.BF16_V2`, `HFMA2.MMA.BF16_V2`, `HMUL2.BF16_V2` |
+| bfloat16 | `(a*b + c*d) + e*f` | 8192 | 0 | 7413 | 0 | `fma.rn.bf16x2`, `mul.bf16x2` | `HFMA2.BF16_V2`, `HFMA2.MMA.BF16_V2`, `HMUL2.BF16_V2` |
+results outside the narrow set, all cases: 0

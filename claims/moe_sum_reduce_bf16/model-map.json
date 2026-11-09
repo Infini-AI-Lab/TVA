@@ -1,0 +1,252 @@
+{
+ "source": {
+  "file": "source/moe_sum_reduce.py",
+  "sha256": "0bfe7343f7194d119523c53692e3fcdea141ad1c7a095275c9a76f550c65868b",
+  "ranges": [
+   [
+    44,
+    44
+   ],
+   [
+    46,
+    47
+   ],
+   [
+    50,
+    70
+   ],
+   [
+    72,
+    73
+   ],
+   [
+    75,
+    76
+   ],
+   [
+    78,
+    79
+   ],
+   [
+    81,
+    81
+   ],
+   [
+    83,
+    83
+   ],
+   [
+    85,
+    87
+   ],
+   [
+    89,
+    96
+   ],
+   [
+    98,
+    104
+   ]
+  ],
+  "host": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.MoeSumReduce",
+ "entries": [
+  {
+   "src": [
+    44
+   ],
+   "drop": "host-only",
+   "note": "binds `torch`, which only the host function `moe_sum_reduce` (lines 107–146) and the `__main__` test (lines 154–178) read; the kernel reads no module-level name but `triton` and `tl`"
+  },
+  {
+   "src": [
+    46
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the decorator `@triton.jit` of line 50 names (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); it adds no step to the program"
+  },
+  {
+   "src": [
+    47
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 68–104 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    50
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def` (SEMANTICS.md, the supported subset: the kernel), so its `debug` is unset (`Launch.debug = false`); no other statement of the module binds `_moe_sum_reduce_kernel`; the model is the `Kernel` `moe_sum_reduce_kernel`"
+  },
+  {
+   "src": [
+    "51-67"
+   ],
+   "model": "def moe_sum_reduce_kernel (input_ptr : Ptr .bf16)",
+   "note": "the signature. `input_ptr`, `output_ptr` are `*bfloat16` (the host passes `bfloat16` tensors, lines 131 and 133). `input_stride_0`, `input_stride_1`, `output_stride_0` are unannotated integer arguments: a value in `[-2^31, 2^31)` other than `1` is a runtime `int32`, and at the value `1` (when `topk_num = hidden_dim = 1`) it is the compile-time constant `1`, which the cast of lines 68–70 builds in `int64`, the same value the runtime `int32` gives — so the model takes each as an `int32` (`I32`); `input_stride_2` and `output_stride_1` are declared and never used (the model keeps them as parameters and ignores them). `token_num: int`, `topk_num: int`, `hidden_dim: int` carry the annotation `int`, so they are runtime `int32` values, never compile-time constants (SEMANTICS.md, Scalar arguments). `routed_scaling_factor: tl.constexpr` holds a Python `float`: an operand of `*` with the `float32` accumulator (line 96), it is built in the computation dtype `float32` — the model's parameter `routed_scaling_factor : F32` (SEMANTICS.md, Constants). The constexprs `BLOCK_M`, `BLOCK_DIM` are Lean parameters (the host passes `BLOCK_M = 1`, `BLOCK_DIM = 2048`, lines 139–140). `NUM_STAGE: tl.constexpr` has no model parameter: its only use is the `tl.range` scheduling keyword `num_stages=NUM_STAGE` of line 89, which changes no outcome of a well-behaved model (SEMANTICS.md, Loops; Performance-only arguments). `USE_GDC: tl.constexpr` has no model parameter: the host passes `USE_GDC=False` (line 142), so the `if` of line 85 is a compile-time condition whose branch is never taken"
+  },
+  {
+   "src": [
+    68
+   ],
+   "model": "let s0 := (← tl.convert .i32 .i64 (Tensor.scalar input_stride_0)).item",
+   "note": "`input_stride_0 = tl.cast(input_stride_0, dtype=tl.int64)`: the `int32` scalar argument (or, at the value `1`, the compile-time constant) widened to `int64` by sign extension — exact, never undefined; the name is reused. `tl.cast(x, dtype=d)` is `semantic.cast(x, d)` (SEMANTICS.md, `x.to(d)`, `tl.cast(x, d)` and `x.cast(d)`): the model writes the conversion as `tl.convert .i32 .i64` of the scalar tensor, then reads the scalar back out"
+  },
+  {
+   "src": [
+    69
+   ],
+   "model": "let s1 := (← tl.convert .i32 .i64 (Tensor.scalar input_stride_1)).item",
+   "note": "as line 68, for `input_stride_1`"
+  },
+  {
+   "src": [
+    70
+   ],
+   "model": "let os0 := (← tl.convert .i32 .i64 (Tensor.scalar output_stride_0)).item",
+   "note": "as line 68, for `output_stride_0`"
+  },
+  {
+   "src": [
+    72
+   ],
+   "model": "let token_block_id := tl.program_id ctx 0",
+   "note": "axis 0 of the 2-D grid (lines 125–128), an `int32`"
+  },
+  {
+   "src": [
+    73
+   ],
+   "model": "let dim_block_id := tl.program_id ctx 1",
+   "note": "axis 1 of the 2-D grid, an `int32`"
+  },
+  {
+   "src": [
+    75
+   ],
+   "model": "let offs_token := token_block_id * (IntV.ofNat BLOCK_M : I32) + tl.arange 0 BLOCK_M",
+   "note": "the constexpr `BLOCK_M`, an operand of `*` with the `int32` tensor `token_block_id`, is built in the dtype the product computes in, `int32`, modulo `2^32` (SEMANTICS.md, Constants); the product and sum are the wrapping `int32` ones, which do not wrap on covered instances: the grid's axis 0 is `cdiv(token_num, BLOCK_M)`, `token_num < 2^31` (`Inst.ok.T_lt`) and `BLOCK_M` a power of two dividing `2^31`, so the largest offset is below `2^31`"
+  },
+  {
+   "src": [
+    76
+   ],
+   "model": "let offs_dim := dim_block_id * (IntV.ofNat BLOCK_DIM : I32) + tl.arange 0 BLOCK_DIM",
+   "note": "the same with `BLOCK_DIM` and the grid's axis 1, `cdiv(hidden_dim, BLOCK_DIM)`: `hidden_dim < 2^31` (`Inst.ok.D_lt`) and `BLOCK_DIM` a power of two, so the largest offset is below `2^31` and does not wrap"
+  },
+  {
+   "src": [
+    78
+   ],
+   "model": "let mask_token := offs_token.ltS token_num",
+   "note": "the `int32` tensor against the `int32` scalar `token_num`, broadcast to every lane: the signed `int32` comparison"
+  },
+  {
+   "src": [
+    79
+   ],
+   "model": "let mask_dim := offs_dim.ltS hidden_dim",
+   "note": "the same with `offs_dim`, `hidden_dim`"
+  },
+  {
+   "src": [
+    81
+   ],
+   "model": [
+    "let offs0 : Tensor [BLOCK_M] I64 ← tl.convert .i32 .i64 offs_token",
+    "let offs1 : Tensor [BLOCK_DIM] I64 ← tl.convert .i32 .i64 offs_dim",
+    "let base_ptrs := input_ptr + (offs0.col BLOCK_DIM * s0 + offs1.row BLOCK_M)"
+   ],
+   "note": "`base_ptrs = input_ptr + offs_token[:, None] * input_stride_0 + offs_dim[None, :]`. The product's operands are the `int32` `offs_token[:, None]` and the `int64` scalar tensor `input_stride_0` (after line 68's cast), so the front end promotes `offs_token` to `int64` (sign extension, exact) and multiplies in `int64`, wrapping; the model writes the promotion as the two `tl.convert` lines above, `offs_token[:, None]` as `.col BLOCK_DIM` (the `[BLOCK_M]` tensor broadcast along a new column axis). The sum with `offs_dim[None, :]` (`.row BLOCK_M`, likewise promoted to `int64`) is the wrapping `int64` one, which does not wrap on covered instances (the offsets are at most `token_num·topk_num·hidden_dim < 2^63`). `input_ptr + …` advances the `*bfloat16` pointer by each lane's `int64` offset, in elements"
+  },
+  {
+   "src": [
+    83
+   ],
+   "model": "let accumulator := tl.zeros [BLOCK_M, BLOCK_DIM] .f32",
+   "note": "`tl.zeros((BLOCK_M, BLOCK_DIM), dtype=tl.float32)`: `+0.0` in every element"
+  },
+  {
+   "src": [
+    85
+   ],
+   "drop": "config",
+   "note": "`if USE_GDC:` is a compile-time condition and the host's launch passes `USE_GDC=False` (line 142), so the front end never visits the branch (SEMANTICS.md, `if` on a compile-time condition); the model has no branch here"
+  },
+  {
+   "src": [
+    86
+   ],
+   "drop": "config",
+   "note": "`tl.extra.cuda.gdc_wait()`: inside the branch line 85's condition does not take, so the front end never visits it"
+  },
+  {
+   "src": [
+    87
+   ],
+   "drop": "config",
+   "note": "`tl.extra.cuda.gdc_launch_dependents()`: inside the branch line 85's condition does not take"
+  },
+  {
+   "src": [
+    89
+   ],
+   "model": "let accumulator ← tl.forRange (IntV.ofInt 0 : I32) topk_num (IntV.ofInt 1 : I32) accumulator",
+   "note": "`for i in tl.range(0, topk_num, num_stages=NUM_STAGE)`: the loop from `0` to the `int32` `topk_num`, step `1`, whose induction variable is an `int32` (the promotion of the bounds); it carries `accumulator` (`tile` is new to the body and not used after the loop, SEMANTICS.md, Loops and unrolling). The scheduling keyword `num_stages=NUM_STAGE` (the host's `NUM_STAGE = 1`) changes the order of one program's accesses; a well-behaved model has no two accesses of one program to the same bytes (this one loads its input tiles and stores its output tile, disjoint), so it changes no outcome and the model omits it (SEMANTICS.md, Loops; Performance-only arguments)"
+  },
+  {
+   "src": [
+    "90-94"
+   ],
+   "model": "let tile ← tl.load (base_ptrs + (bc (i64 * s1) : Tensor [BLOCK_M, BLOCK_DIM] I64))",
+   "note": "`tile = tl.load(base_ptrs + i * input_stride_1, mask=mask_token[:, None] & mask_dim[None, :], other=0.0)`. The pointer block: the `int32` induction variable `i` promotes to the `int64` of `input_stride_1` (the cast made it `int64`), and the model writes the promotion and product as the `tl.convert` line and `i64 * s1` above the load (`let i64 := (← tl.convert .i32 .i64 (Tensor.scalar i)).item`), broadcast to every pointer by `bc`; the wrapping `int64` product does not wrap on covered instances. The mask is the conjunction of the two signed comparisons broadcast along the two axes, `mask_token[:, None] & mask_dim[None, :]` — the model's `(mask_token.col BLOCK_DIM).and (mask_dim.row BLOCK_M)`. `other=0.0` is the Python number `0.0`: a `float32` tensor of its own type (`+0.0`, `FloatV.litF32`), converted to the pointer's dtype `bfloat16` — the model's `tl.convert .f32 .bf16 (tl.full … (FloatV.litF32 (FloatV.ofPat 0)))`; the disabled lanes hold `+0.0`"
+  },
+  {
+   "src": [
+    95
+   ],
+   "model": [
+    "let tile32 : Tensor [BLOCK_M, BLOCK_DIM] F32 ← tl.cvt tile",
+    "let acc ← tl.add accumulator tile32"
+   ],
+   "note": "`accumulator += tile.to(tl.float32)`: the loaded `bfloat16` tile widened to `float32` (one exact widening, the model's `tl.cvt tile`), then added to the accumulator. No product feeds the addition — `tile32` is a conversion and `accumulator` an addition, not a product (`*`, `tl.dot`, `tl.rand`) — so it is the IEEE `tl.add` (SEMANTICS.md, Float `+` and `-`)"
+  },
+  {
+   "src": [
+    96
+   ],
+   "model": "let acc2 ← tl.mul accumulator (bc routed_scaling_factor)",
+   "note": "`accumulator *= routed_scaling_factor`: the `float32` product of the accumulator with the constant the constexpr builds in the computation dtype `float32` (the model's parameter `routed_scaling_factor : F32`, broadcast by `bc`); a bare product, not fed into a further addition, so `tl.mul`"
+  },
+  {
+   "src": [
+    98
+   ],
+   "drop": "comment",
+   "note": "the `# -------- Write back --------` comment: nothing to run"
+  },
+  {
+   "src": [
+    99
+   ],
+   "model": [
+    "let offs0 : Tensor [BLOCK_M] I64 ← tl.convert .i32 .i64 offs_token",
+    "let store_ptrs := output_ptr + (offs0.col BLOCK_DIM * os0 + offs1.row BLOCK_M)"
+   ],
+   "note": "`store_ptrs = output_ptr + offs_token[:, None] * output_stride_0 + offs_dim[None, :]`: as line 81, with `output_ptr` and the cast `int64` `output_stride_0` (`os0`, line 70); `offs0`, `offs1` are the same promoted offsets (defined at line 81's model)"
+  },
+  {
+   "src": [
+    "100-104"
+   ],
+   "model": [
+    "let out : Tensor [BLOCK_M, BLOCK_DIM] BF16 ← tl.cvt acc2",
+    "tl.store store_ptrs out (some ((mask_token.col BLOCK_DIM).and (mask_dim.row BLOCK_M)))"
+   ],
+   "note": "`tl.store(store_ptrs, accumulator.to(input_ptr.dtype.element_ty), mask=mask_token[:, None] & mask_dim[None, :])`: the values converted from `float32` to the pointer's dtype `bfloat16` — one rounding to nearest even, the model's `tl.cvt acc2` — then the masked store; the mask as in the source (line 92's conjunction), which line 103 spans"
+  }
+ ]
+}

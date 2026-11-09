@@ -1,0 +1,22 @@
+{
+  "kernel": "rotary_varlen_bf16",
+  "title": "Rotary position embedding, interleaved or not, over variable-length batches (`rotary_embedding_kernel`, bfloat16), fla",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/rotary.py",
+    "sha256": "a4490e7b4fec9ae41b47e006122686d1fccfb3955bc1766074a867ee6bf3ca59",
+    "ranges": [
+      [
+        1,
+        354
+      ]
+    ],
+    "host": []
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.RotaryVarlen",
+  "statement": "Claims.RotaryVarlen.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

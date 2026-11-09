@@ -1,0 +1,384 @@
+{
+ "source": {
+  "file": "source/reshape_and_cache_flash.py",
+  "sha256": "1f2fcc499cf8129184807e331a42a8562a3ef5816845af7ee788da3ce1c50a74",
+  "ranges": [
+   [
+    60,
+    61
+   ],
+   [
+    73,
+    195
+   ]
+  ],
+  "host": [
+   [
+    58,
+    58
+   ],
+   [
+    64,
+    70
+   ],
+   [
+    198,
+    375
+   ]
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.KvCacheWrite",
+ "entries": [
+  {
+   "src": [
+    60
+   ],
+   "drop": "import",
+   "note": "binds `triton`, which the decorator of line 73 names; no step"
+  },
+  {
+   "src": [
+    61
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language`: every `tl.*` of lines 103-195 is Triton's; no step"
+  },
+  {
+   "src": [
+    73
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit`: `debug` unset (`Launch.debug = false`)"
+  },
+  {
+   "src": [
+    "74-102"
+   ],
+   "model": [
+    "def reshape_and_cache_kernel_flash (m : Mode)",
+    "(key_ptr value_ptr : Ptr m.kd) (key_cache_ptr value_cache_ptr : Ptr m.cd)",
+    "(slot_mapping_ptr : Ptr .i64) (k_scale v_scale : Ptr .f32)",
+    "(key_stride value_stride block_stride head_stride dim_stride_k dim_stride_v page_stride : I64)",
+    "(num_heads head_size block_size TILE_SIZE : Nat) : Kernel where"
+   ],
+   "note": "the configuration `m` (`Mode`: the inputs' and caches' dtypes and `FP8_KV_CACHE`); the tensors: `*m.kd` (key, value: `bfloat16`, or `float8e4nv` in `Mode.fp8in`), `*m.cd` (both caches: `bfloat16` with `kv_cache_dtype = \"auto\"`, `float8e4nv` with `\"fp8\"`, the host's view), `*i64` (`slot_mapping`), `*fp32` (`k_scale`, `v_scale`); the seven strides annotated `tl.int64`: runtime `int64` values, never constants (SEMANTICS.md, Scalar arguments); `num_heads`, `head_size`, `block_size`, `TILE_SIZE` constexprs (Lean parameters); `x = 1`, `USE_HEAD_MAJOR_LAYOUT = False`, `INTERLEAVED_V_PACK_FACTOR = 0` are constexprs used only in the compile-time condition of line 118 and the branch it cuts; `FP8_KV_CACHE` (`m`) decides the compile-time conditions of lines 164 and 175; lines 82, 95-96, 98, 100 are comments"
+  },
+  {
+   "src": [
+    103
+   ],
+   "model": "let token_idx := tl.program_id ctx 0",
+   "note": "axis 0, an `int32`"
+  },
+  {
+   "src": [
+    104
+   ],
+   "model": [
+    "let slot_idx := (← tl.convert .i64 .i64",
+    "(Tensor.scalar (← tl.load1 (slot_mapping_ptr + token_idx)))).item"
+   ],
+   "note": "a scalar `int64` load, `.to(tl.int64)` (`tl.convert`, the identity)"
+  },
+  {
+   "src": [
+    105
+   ],
+   "model": "if IntV.lt slot_idx (IntV.ofInt 0 : I64) then",
+   "note": "a runtime `if` on `slot_idx < 0`: the Python `0` built in `int64`, the signed comparison (SEMANTICS.md, A runtime `if`); only this branch returns, so the statements after the `if` stay in the subset (SEMANTICS.md, `return`)"
+  },
+  {
+   "src": [
+    107
+   ],
+   "model": "return ()",
+   "note": "the padding token's program ends (line 106 is a comment)"
+  },
+  {
+   "src": [
+    109
+   ],
+   "model": [
+    "let block_idx :=",
+    "(← tl.idiv (Tensor.scalar slot_idx) (Tensor.scalar (IntV.ofNat block_size : I64))).item"
+   ],
+   "note": "`slot_idx // block_size`: the constexpr built in `int64`; the truncating `//` (`tl.idiv`), which equals Python's on `slot_idx >= 0`"
+  },
+  {
+   "src": [
+    110
+   ],
+   "model": [
+    "let block_offset :=",
+    "(← tl.irem (Tensor.scalar slot_idx) (Tensor.scalar (IntV.ofNat block_size : I64))).item"
+   ],
+   "note": "`slot_idx % block_size` (`tl.irem`)"
+  },
+  {
+   "src": [
+    112
+   ],
+   "model": "let tile_i := tl.program_id ctx 1",
+   "note": "axis 1, an `int32`"
+  },
+  {
+   "src": [
+    113
+   ],
+   "model": "let tile_offs := tl.arange 0 TILE_SIZE",
+   "note": "`int32`"
+  },
+  {
+   "src": [
+    114
+   ],
+   "model": [
+    "let tile_pos : Tensor [TILE_SIZE] I32 :=",
+    "tile_i * (IntV.ofNat TILE_SIZE : I32) + tile_offs"
+   ],
+   "note": "the constexpr built in `int32`; wrapping `int32`, which `Inst.ok.vals_lt` keeps from wrapping (the grid's last tile ends at most at `2^31`)"
+  },
+  {
+   "src": [
+    115
+   ],
+   "model": [
+    "let src_key_idx : I64 :=",
+    "(← tl.convert .i32 .i64 (Tensor.scalar token_idx)).item * key_stride"
+   ],
+   "note": "`int32` times the `int64` stride: `token_idx` promoted (sign extension), the `int64` product"
+  },
+  {
+   "src": [
+    116
+   ],
+   "model": [
+    "let src_value_idx : I64 :=",
+    "(← tl.convert .i32 .i64 (Tensor.scalar token_idx)).item * value_stride"
+   ],
+   "note": "as line 115"
+  },
+  {
+   "src": [
+    118
+   ],
+   "drop": "config",
+   "note": "`if USE_HEAD_MAJOR_LAYOUT:` on the constexpr `False` (the host's 4-D cache): only the `else` of line 149 is visited"
+  },
+  {
+   "src": [
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    "126-133",
+    134,
+    "135-140",
+    141,
+    "142-148"
+   ],
+   "drop": "config",
+   "note": "the head-major branch, never visited"
+  },
+  {
+   "src": [
+    149
+   ],
+   "drop": "config",
+   "note": "the `else:` of line 118, taken; its statements are lines 150-158"
+  },
+  {
+   "src": [
+    150
+   ],
+   "model": "let cur_head ← tl.idiv tile_pos (tl.full [TILE_SIZE] (IntV.ofNat head_size : I32))",
+   "note": "`int32` `//` by the constexpr built in `int32` (below `2^31`, `Inst.ok.hs_lt`), broadcast"
+  },
+  {
+   "src": [
+    151
+   ],
+   "model": "let cur_dim ← tl.irem tile_pos (tl.full [TILE_SIZE] (IntV.ofNat head_size : I32))",
+   "note": "`int32` `%`"
+  },
+  {
+   "src": [
+    "152-157"
+   ],
+   "model": [
+    "let head64 ← tl.convert .i32 .i64 cur_head",
+    "let dim64 ← tl.convert .i32 .i64 cur_dim",
+    "let tgt_idx_k : Tensor [TILE_SIZE] I64 :=",
+    "block_idx * block_stride + block_offset * page_stride + head64 * head_stride + dim64"
+   ],
+   "note": "left to right: the `int64` scalar `block_idx * block_stride + block_offset * page_stride`, plus the `int32` block `cur_head` promoted to `int64` times the `int64` stride (the scalar broadcast), plus `cur_dim` promoted; wrapping `int64`, which `Inst.ok` keeps below `2^63`"
+  },
+  {
+   "src": [
+    158
+   ],
+   "model": "let tgt_idx_v : Tensor [TILE_SIZE] I64 := tgt_idx_k",
+   "note": "the flash layout addresses the value cache with the key cache's indices"
+  },
+  {
+   "src": [
+    160
+   ],
+   "drop": "comment",
+   "note": "a comment"
+  },
+  {
+   "src": [
+    "161-163"
+   ],
+   "model": [
+    "let mask : Tensor [TILE_SIZE] Bool :=",
+    "tile_pos.ltS (IntV.ofNat (num_heads * head_size) : I32)",
+    "(match m, key_ptr, value_ptr, key_cache_ptr, value_cache_ptr with",
+    "let key_load ← tl.load (key_ptr + src_key_idx + tile_pos) (some mask)"
+   ],
+   "note": "`(key_ptr + src_key_idx) + tile_pos`: the scalar pointer advanced by the `int64` offset, then by each `int32` lane; the mask `tile_pos < (num_heads * head_size)`: the constexpr product (a Python `int` below `2^31`, `Inst.ok.vals_lt`) is an `int32` tensor (SEMANTICS.md, Constants, a comparison); written once as `mask` and used by the four identical masks of lines 162, 173, 188 and 193, which compute the same pure value; no `other`. Lines 161-195 depend on compile-time values only through `FP8_KV_CACHE` and the loads' dtype (`key_load.dtype.is_fp8()`, `value_load.dtype.is_fp8()`, and the stores' conversion to the cache's dtype), all fixed by `m`: the model's `match m` gives them once per configuration, each arm the source's statements in order"
+  },
+  {
+   "src": [
+    164
+   ],
+   "drop": "config",
+   "note": "`if FP8_KV_CACHE:`, a compile-time condition: `True` in `Mode.fp8` and `Mode.fp8in` (its body, line 167, is visited), `False` in `Mode.bf16` (the `else`, lines 168-169)"
+  },
+  {
+   "src": [
+    165,
+    166
+   ],
+   "drop": "comment",
+   "note": "comments"
+  },
+  {
+   "src": [
+    167
+   ],
+   "model": [
+    "let key_tile ← tl.div (← tl.cvt (g := .binary32) key_load) (bc (← tl.load1 k_scale))",
+    "let key_tile := key_load"
+   ],
+   "note": "a conditional expression on the compile-time `key_load.dtype.is_fp8()` (SEMANTICS.md, A dtype's predicates): only the side it picks is visited. `Mode.fp8` (`bfloat16` load, `False`): `key_load / tl.load(k_scale)`: the scalar `float32` load (`tl.load1`), the operands promoted to `float32` (the `bfloat16` tile widened, exact `tl.cvt`; `/` of floats computes in the promoted dtype), the scalar broadcast (`bc`), the platform's division `tl.div` (`/` is not IEEE: `Rules.Num.DivFull`). `Mode.fp8in` (`float8e4nv` load, `True`): `key_load`"
+  },
+  {
+   "src": [
+    168
+   ],
+   "drop": "config",
+   "note": "the `else:` of line 164, taken in `Mode.bf16`"
+  },
+  {
+   "src": [
+    169
+   ],
+   "model": "let key_tile := key_load",
+   "note": "`Mode.bf16`: no conversion, the cache's dtype is the load's"
+  },
+  {
+   "src": [
+    171
+   ],
+   "drop": "comment",
+   "note": "a comment"
+  },
+  {
+   "src": [
+    "172-174"
+   ],
+   "model": "let value_load ← tl.load (value_ptr + src_value_idx + tile_pos) (some mask)",
+   "note": "as lines 161-163, in each configuration"
+  },
+  {
+   "src": [
+    175
+   ],
+   "drop": "config",
+   "note": "`if FP8_KV_CACHE:`, as line 164"
+  },
+  {
+   "src": [
+    176
+   ],
+   "drop": "config",
+   "note": "`if value_load.dtype.is_fp8():`, a compile-time condition: `True` in `Mode.fp8in` (line 177), `False` in `Mode.fp8` (the `else`, line 181)"
+  },
+  {
+   "src": [
+    177
+   ],
+   "model": "let value_tile := value_load",
+   "note": "`Mode.fp8in`: the `float8e4nv` load itself"
+  },
+  {
+   "src": [
+    178
+   ],
+   "drop": "config",
+   "note": "the `else:` of line 176, taken in `Mode.fp8`"
+  },
+  {
+   "src": [
+    179,
+    180
+   ],
+   "drop": "comment",
+   "note": "comments"
+  },
+  {
+   "src": [
+    181
+   ],
+   "model": "let value_tile ← tl.div (← tl.cvt (g := .binary32) value_load) (bc (← tl.load1 v_scale))",
+   "note": "`Mode.fp8`: `value_load / tl.load(v_scale)`, as line 167"
+  },
+  {
+   "src": [
+    182
+   ],
+   "drop": "config",
+   "note": "the `else:` of line 175, taken in `Mode.bf16`"
+  },
+  {
+   "src": [
+    183
+   ],
+   "model": "let value_tile := value_load",
+   "note": "`Mode.bf16`: no conversion"
+  },
+  {
+   "src": [
+    "185-189"
+   ],
+   "model": [
+    "tl.store (key_cache_ptr + tgt_idx_k) key_tile (some mask)",
+    "tl.store (key_cache_ptr + tgt_idx_k) (← tl.cvt8 (g := .e4m3) key_tile .rn) (some mask)"
+   ],
+   "note": "`key_cache_ptr + tgt_idx_k`: the scalar pointer plus each `int64` lane. `tl.store` converts the values to the pointer's dtype (SEMANTICS.md, `tl.store`): in `Mode.bf16` (`bfloat16` to `bfloat16`) and `Mode.fp8in` (`float8e4nv` to `float8e4nv`) nothing to convert; in `Mode.fp8` the `float32` tile to `float8e4nv`, `tl.cvt8 .rn`, the saturating rounding to nearest even (`Rules.Num.CvtSatF32E4m3`)"
+  },
+  {
+   "src": [
+    "190-194"
+   ],
+   "model": [
+    "tl.store (value_cache_ptr + tgt_idx_v) value_tile (some mask)",
+    "tl.store (value_cache_ptr + tgt_idx_v) (← tl.cvt8 (g := .e4m3) value_tile .rn) (some mask)"
+   ],
+   "note": "as lines 185-189, on the value cache"
+  },
+  {
+   "src": [
+    195
+   ],
+   "model": "return ()",
+   "note": "the kernel's last statement, in each configuration"
+  }
+ ]
+}

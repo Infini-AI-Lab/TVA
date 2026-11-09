@@ -197,16 +197,6 @@ every role.
     - `tvr library-check`: the library's hygiene, that `lean/TVA.lean` reaches every library module
       through its imports, and `leanchecker TVA`, which re-checks every library declaration with
       Lean's kernel (L40);
-    - the gate on every kernel, each compared with what the kernel ships: its `gate.json` (the
-      result, the digest, the item digests, the kernel files it read, the gate's code and the build's
-      other inputs must be the same, L42, L53, L69), and its certificate, which the tool regenerates from the ledger and the
-      recomputed gate (both absent, or both present with the same gate, items and reviewers, L52);
-    - `pages`: every page `tvr` generates (each kernel's `claim.md` and `REVIEW.md`,
-      `kernels/README.md`, `docs/library-review/REPORTS.md`) must be the one regenerated from the
-      shipped files, the gate's time aside (L53). The check compares each regenerated page with the
-      page the copy shipped, read from the copy before anything runs in the sandbox (as it reads each
-      shipped gate and certificate), never with the live tree, which may change during the run
-      (library issue L96);
     - `records`: every file a ledger records (each kernel's `review/ledger.jsonl`, and the library's
       `docs/library-review/ledger.jsonl`) must exist with the sha256 it was recorded with, and no file
       may be recorded with two; no file may have been added to a folder a ledger records; every event
@@ -220,6 +210,19 @@ every role.
       its ledger does not record, and each kernel's current round;
     - `tvr audit`.
 
+    It gates no kernel (library issue L160; user, 2026-11-08: "we do not need 12 certified kernels'
+    shipped gates now. since they are becoming tasks in our benchmark." and "I do not think we need
+    recomputing the gates of all 38 kernels in kernels/"). Until round 35 it also ran the gate on every
+    kernel, compared each recomputed `gate.json` and the certificate regenerated from it with what the
+    kernel ships (L42, L52, L53, L69), and compared every page `tvr` generates (each kernel's
+    `claim.md` and `REVIEW.md`, `kernels/README.md`, `docs/library-review/REPORTS.md`) with the one
+    regenerated there (L53, L96); those steps are gone, and a kernel's `gate.json`, certificate and
+    generated pages are as the tree holds them, checked by no step. Of `kernels/` the check still
+    reads each kernel's review records (the `records` step: its ledger, the files it records and their
+    events, its snapshots, its role folders; and `lint` on its current round, which reads the shipped
+    `gate.json`) and the text and imports of every file (`tvr audit`); `lake build TVA` builds no
+    kernel's modules.
+
     A dependency of these steps on anything but TVA, Mathlib's pinned source, the Lean toolchain and
     the system fails there, however it is spelled or computed, because nothing else exists.
     Evidence scripts and reviewers' work scripts are not run in it (they need Triton and the GPU):
@@ -232,8 +235,7 @@ every role.
     The check's output (what it prints, and `release.json`) writes its folder as `<dir>`, TVA's
     copy as `<tva>` and the home directory as `~`, so the output can be kept in TVA (library issue
     L56). Run in the middle of a round, it fails `lint` on that round's records still in progress,
-    and a scratch path that any work file holds fails the audit, and so the `independence` check of
-    every kernel's gate, in every run.
+    and a scratch path that any work file holds fails the audit, in every run.
   - `tvr audit` checks the whole project's imports, lake configuration and text.
   - The gate's `independence` check covers a kernel and the library.
   - `tvr file`, `tvr respond` and `tvr lint` refuse a filing, report, work file, response or
@@ -599,10 +601,10 @@ returns without an error has an outcome, even if no program ran. The launcher sk
 `2^31` to `2^32` programs without an error (its product of the grid's sizes wraps to a value
 `≤ 0`), and a larger grid may run (`2^32 + 1` programs wrap to one, and every program runs);
 `Launch.Valid`, which every claim needs for its covered instances, excludes both (fewer than
-`2^31` programs). A call made on a stream that is capturing into a CUDA graph also returns without
-an error and runs no program, its programs running at each replay of the graph, and a call made on
-another stream during the capture runs at once: a claim covers no call made while a capture is in
-progress, on any stream, and no replay (`Compiler.Faithful`'s scope 9; library issue L91).
+`2^31` programs). A claim is about an execution of the kernel, however the host makes it happen: a host
+call that only records the grid, for a run that a later call makes, is not an execution of it and
+has no outcome (the later run is), while the launcher's skip above ends `ok` and is excluded by
+`Launch.Valid` (`Compiler.Faithful`, "A launch is an execution of the kernel"; library issue L144).
 
 ## 7. The model map
 
@@ -711,9 +713,10 @@ are as the last `tvr check` wrote them, in its caller's environment (the `lake` 
 names, the toolchain elan picks, the Mathlib of the local `lean/.lake/packages`), or as anyone
 edited them since. Staleness compares the tree with what `gate.json` says it read, so a `gate.json`
 written by hand, with the tree's sha256s, is current for `tvr` and for the certificate. Only the
-release check recomputes them, in its clean sandbox from what TVA ships and Mathlib's upstream
-source, and fails on a shipped gate, certificate or page that differs (§2). As for ledger lines
-(§3), a gate in the tree is trusted as the coordinator keeps it until the release check runs.
+release check recomputed them, in its clean sandbox from what TVA ships and Mathlib's upstream
+source, and failed on a shipped gate, certificate or page that differed, until round 35; it no
+longer gates any kernel (§2, library issue L160). As for ledger lines (§3), a gate in the tree is
+trusted as the coordinator keeps it.
 
 The gate writes `gate.json` and `claim.md`:
 1. the claim;
@@ -855,8 +858,8 @@ The certificate is granted, and `review/certificate.json` written, when all of t
 It holds under the library as it stands. `REVIEW.md` lists the open library issues that touch the
 kernel, and a library fix re-opens the affected items. In the tree, the certificate rests on the
 gate as the last `tvr check` wrote it and on the ledger as the coordinator keeps it (§3, §8,
-library issue L82); the release check recomputes the gate and regenerates the certificate in its
-sandbox, and fails on a shipped one that differs.
+library issue L82); since round 35 the release check no longer recomputes the gate or regenerates
+the certificate (§2, library issue L160).
 
 ## 10. Library issues and library review
 

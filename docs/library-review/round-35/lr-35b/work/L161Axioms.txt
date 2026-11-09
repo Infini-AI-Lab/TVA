@@ -1,0 +1,8 @@
+'TVA.AtomicResult.crosswarp_excluded' depends on axioms: [propext, Classical.choice, Quot.sound]
+TVA.AtomicResult.crosswarp_excluded : ∀ (P : TVA.Platform) (Y C OUT Q : TVA.Ptr TVA.DType.i32) (sem : TVA.MemSem)
+  (init : TVA.Mem),
+  (∃ v, init.read TVA.DType.i32 (C.offset 511).addr = some v) →
+    (∃ v, init.read TVA.DType.i32 Y.addr = some v) →
+      Disjoint (TVA.Mem.span TVA.DType.i32 (C.offset 511).addr) (TVA.Mem.span TVA.DType.i32 Y.addr) →
+        TVA.UsesSharedAtomicResult (TVA.AtomicResult.launch.env P) (TVA.AtomicResult.kernel Y C OUT Q sem)
+          TVA.AtomicResult.launch init

@@ -1,0 +1,93 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+## float32 atomic_max, sem=relaxed
+PTX atoms: @%p1 atom.global.gpu.relaxed.max.s32 %r3, [ %rd2 + 0 ], %r1; | @%p3 atom.global.gpu.relaxed.min.u32 %r4, [ %rd2 + 0 ], %r1;
+PTX setp: setp.lt.s32 	%p4, %r1, 0; | setp.gt.s32 	%p5, %r1, -1; | setp.eq.b32 	%p2, %r8, 0;
+SASS atoms: ATOMG.E.MAX.S32.STRONG.GPU PT, R0, desc[UR6][R2.64], R5 ; | ATOMG.E.MIN.STRONG.GPU PT, R4, desc[UR6][R2.64], R5 ;
+| old | operand | new (device) | new is old | new is operand | returned is old |
+|---|---|---|---|---|---|
+| 0x3f800000 (1.0) | 0x7fc00000 (nan) | 0x7fc00000 | False | True | True |
+| 0x3f800000 (1.0) | 0xffc00000 (nan) | 0x3f800000 | True | False | True |
+| 0x3f800000 (1.0) | 0x80000000 (-0.0) | 0x3f800000 | True | False | True |
+| 0xbf800000 (-1.0) | 0x7fc00000 (nan) | 0x7fc00000 | False | True | True |
+| 0xbf800000 (-1.0) | 0xffc00000 (nan) | 0xbf800000 | True | False | True |
+| 0xbf800000 (-1.0) | 0x80000000 (-0.0) | 0x80000000 | False | True | True |
+| 0x00000000 (0.0) | 0x7fc00000 (nan) | 0x7fc00000 | False | True | True |
+| 0x00000000 (0.0) | 0xffc00000 (nan) | 0x00000000 | True | False | True |
+| 0x00000000 (0.0) | 0x80000000 (-0.0) | 0x00000000 | True | False | True |
+| 0x80000000 (-0.0) | 0x7fc00000 (nan) | 0x7fc00000 | False | True | True |
+| 0x80000000 (-0.0) | 0xffc00000 (nan) | 0x80000000 | True | False | True |
+| 0x80000000 (-0.0) | 0x80000000 (-0.0) | 0x80000000 | True | True | True |
+| 0x80000000 (-0.0) | 0x00000000 (0.0) | 0x00000000 | False | True | True |
+| 0x7fc00000 (nan) | 0x7fc00000 (nan) | 0x7fc00000 | True | True | True |
+| 0x7fc00000 (nan) | 0xffc00000 (nan) | 0x7fc00000 | True | False | True |
+| 0x7fc00000 (nan) | 0x80000000 (-0.0) | 0x7fc00000 | True | False | True |
+| 0x7fc00000 (nan) | 0x00000000 (0.0) | 0x7fc00000 | True | False | True |
+| 0x7fc00000 (nan) | 0xbf800000 (-1.0) | 0x7fc00000 | True | False | True |
+| 0x7fc00000 (nan) | 0x40000000 (2.0) | 0x7fc00000 | True | False | True |
+| 0x7fc00000 (nan) | 0x7f800000 (inf) | 0x7fc00000 | True | False | True |
+| 0x7fc00000 (nan) | 0xff800000 (-inf) | 0x7fc00000 | True | False | True |
+| 0xffc00000 (nan) | 0x7fc00000 (nan) | 0x7fc00000 | False | True | True |
+| 0xffc00000 (nan) | 0xffc00000 (nan) | 0xffc00000 | True | True | True |
+| 0xffc00000 (nan) | 0x80000000 (-0.0) | 0x80000000 | False | True | True |
+| 0xffc00000 (nan) | 0x00000000 (0.0) | 0x00000000 | False | True | True |
+| 0xffc00000 (nan) | 0xbf800000 (-1.0) | 0xbf800000 | False | True | True |
+| 0xffc00000 (nan) | 0x40000000 (2.0) | 0x40000000 | False | True | True |
+| 0xffc00000 (nan) | 0x7f800000 (inf) | 0x7f800000 | False | True | True |
+| 0xffc00000 (nan) | 0xff800000 (-inf) | 0xff800000 | False | True | True |
+| 0xc0400000 (-3.0) | 0x7fc00000 (nan) | 0x7fc00000 | False | True | True |
+| 0xc0400000 (-3.0) | 0xffc00000 (nan) | 0xc0400000 | True | False | True |
+| 0xc0400000 (-3.0) | 0x80000000 (-0.0) | 0x80000000 | False | True | True |
+| 0xc0400000 (-3.0) | 0x7f800000 (inf) | 0x7f800000 | False | True | True |
+| 0x40a00000 (5.0) | 0x7fc00000 (nan) | 0x7fc00000 | False | True | True |
+| 0x40a00000 (5.0) | 0xffc00000 (nan) | 0x40a00000 | True | False | True |
+| 0x40a00000 (5.0) | 0x80000000 (-0.0) | 0x40a00000 | True | False | True |
+| 0x40a00000 (5.0) | 0xff800000 (-inf) | 0x40a00000 | True | False | True |
+new value neither old nor operand: 0 of 64
+NaN operands that were written into the cell: 7 of 16
+
+## float32 atomic_min, sem=relaxed
+PTX atoms: @%p1 atom.global.gpu.relaxed.min.s32 %r3, [ %rd2 + 0 ], %r1; | @%p3 atom.global.gpu.relaxed.max.u32 %r4, [ %rd2 + 0 ], %r1;
+PTX setp: setp.lt.s32 	%p4, %r1, 0; | setp.gt.s32 	%p5, %r1, -1; | setp.eq.b32 	%p2, %r8, 0;
+SASS atoms: ATOMG.E.MIN.S32.STRONG.GPU PT, R0, desc[UR6][R2.64], R5 ; | ATOMG.E.MAX.STRONG.GPU PT, R4, desc[UR6][R2.64], R5 ;
+| old | operand | new (device) | new is old | new is operand | returned is old |
+|---|---|---|---|---|---|
+| 0x3f800000 (1.0) | 0x7fc00000 (nan) | 0x3f800000 | True | False | True |
+| 0x3f800000 (1.0) | 0xffc00000 (nan) | 0xffc00000 | False | True | True |
+| 0x3f800000 (1.0) | 0x80000000 (-0.0) | 0x80000000 | False | True | True |
+| 0xbf800000 (-1.0) | 0x7fc00000 (nan) | 0xbf800000 | True | False | True |
+| 0xbf800000 (-1.0) | 0xffc00000 (nan) | 0xffc00000 | False | True | True |
+| 0xbf800000 (-1.0) | 0x80000000 (-0.0) | 0xbf800000 | True | False | True |
+| 0x00000000 (0.0) | 0x7fc00000 (nan) | 0x00000000 | True | False | True |
+| 0x00000000 (0.0) | 0xffc00000 (nan) | 0xffc00000 | False | True | True |
+| 0x00000000 (0.0) | 0x80000000 (-0.0) | 0x80000000 | False | True | True |
+| 0x80000000 (-0.0) | 0x7fc00000 (nan) | 0x80000000 | True | False | True |
+| 0x80000000 (-0.0) | 0xffc00000 (nan) | 0xffc00000 | False | True | True |
+| 0x80000000 (-0.0) | 0x80000000 (-0.0) | 0x80000000 | True | True | True |
+| 0x80000000 (-0.0) | 0x00000000 (0.0) | 0x80000000 | True | False | True |
+| 0x7fc00000 (nan) | 0x7fc00000 (nan) | 0x7fc00000 | True | True | True |
+| 0x7fc00000 (nan) | 0xffc00000 (nan) | 0xffc00000 | False | True | True |
+| 0x7fc00000 (nan) | 0x80000000 (-0.0) | 0x80000000 | False | True | True |
+| 0x7fc00000 (nan) | 0x00000000 (0.0) | 0x00000000 | False | True | True |
+| 0x7fc00000 (nan) | 0xbf800000 (-1.0) | 0xbf800000 | False | True | True |
+| 0x7fc00000 (nan) | 0x40000000 (2.0) | 0x40000000 | False | True | True |
+| 0x7fc00000 (nan) | 0x7f800000 (inf) | 0x7f800000 | False | True | True |
+| 0x7fc00000 (nan) | 0xff800000 (-inf) | 0xff800000 | False | True | True |
+| 0xffc00000 (nan) | 0x7fc00000 (nan) | 0xffc00000 | True | False | True |
+| 0xffc00000 (nan) | 0xffc00000 (nan) | 0xffc00000 | True | True | True |
+| 0xffc00000 (nan) | 0x80000000 (-0.0) | 0xffc00000 | True | False | True |
+| 0xffc00000 (nan) | 0x00000000 (0.0) | 0xffc00000 | True | False | True |
+| 0xffc00000 (nan) | 0xbf800000 (-1.0) | 0xffc00000 | True | False | True |
+| 0xffc00000 (nan) | 0x40000000 (2.0) | 0xffc00000 | True | False | True |
+| 0xffc00000 (nan) | 0x7f800000 (inf) | 0xffc00000 | True | False | True |
+| 0xffc00000 (nan) | 0xff800000 (-inf) | 0xffc00000 | True | False | True |
+| 0xc0400000 (-3.0) | 0x7fc00000 (nan) | 0xc0400000 | True | False | True |
+| 0xc0400000 (-3.0) | 0xffc00000 (nan) | 0xffc00000 | False | True | True |
+| 0xc0400000 (-3.0) | 0x80000000 (-0.0) | 0xc0400000 | True | False | True |
+| 0xc0400000 (-3.0) | 0x7f800000 (inf) | 0xc0400000 | True | False | True |
+| 0x40a00000 (5.0) | 0x7fc00000 (nan) | 0x40a00000 | True | False | True |
+| 0x40a00000 (5.0) | 0xffc00000 (nan) | 0xffc00000 | False | True | True |
+| 0x40a00000 (5.0) | 0x80000000 (-0.0) | 0x80000000 | False | True | True |
+| 0x40a00000 (5.0) | 0xff800000 (-inf) | 0xff800000 | False | True | True |
+new value neither old nor operand: 0 of 64
+NaN operands that were written into the cell: 7 of 16
+

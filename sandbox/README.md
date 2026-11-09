@@ -101,3 +101,58 @@ first), and Harbor fails the trial before the prover starts.
   returned.
 - The verifier on a tampered export (a ledger line removed) or on a scripted record under an agent task:
   reward 0.
+
+## Claim tasks: a benchmark of proofs of fixed claims
+
+A claim task gives an agent one of TVA's fixed claims (`claims/<kernel>/`). The claim's model, conditions,
+specification and assumptions were prepared and reviewed in advance, and the agent proves its `Statement`.
+There are no reviewers: a machine check grades the proof.
+
+`claim/build_base.sh` builds one image per TVA commit, `tva-claim-base:<commit>`, which every claim task
+starts from:
+
+```
+/app/claim/                  the task's claim (each task adds it); the agent writes Proof.lean and Proof/ here
+/app/examples/vec_add_f32/   the worked example: a fixed claim with its complete proof (checked at build)
+/app/lean/                   the TVA library with Mathlib, built (lakefile: TVA, and ClaimTask = /app/claim)
+/app/docs/                   SEMANTICS.md, PROVER_GUIDE.md, LIBRARY.md, TRANSCRIPTION.md, rules/
+/instruction.md              the task (each task adds it); Harbor's prompt points to it
+/CLAUDE.md                   how to work in the container; /process_safety.md: what never to kill
+/.claude/                    the prover's hooks (settings.json) and subagent (lean-fixer); the prover
+                             starts in /, so Claude Code loads them as the project's settings
+/usr/local/bin/tva-claim     the one tool: check, verify, prepare, hook
+```
+
+`make_claim_task.py KERNEL` writes `tva-claim-KERNEL/`:
+- `task.toml`, and `instruction.md`, Harbor's prompt, which points the agent to `/instruction.md`;
+- `environment/`: the base, Claude Code, the claim in `/app/claim`, and the task text at `/instruction.md`;
+- `tests/`: the base and the verifier's own copy of the claim;
+- `solution/`, with `--oracle` only.
+
+Harbor hands only `/app/claim/Proof.lean` and `/app/claim/Proof/` to the verifier. `tva-claim verify`
+then writes reward 1 when every check passes:
+- `Claim.lean` is unchanged;
+- the proof passes the gate's hygiene list and imports only `TVA`, `Mathlib`, `Claim` and `Proof`;
+- `lake build Claim Proof` succeeds;
+- `main` has type `Statement` and uses only the standard axioms;
+- `leanchecker` passes on `Claim` and `Proof`.
+
+The prover runs the same check (`tva-claim check`), and its Stop hook holds the agent until the check passes.
+Its pre-tool hook refuses any change to `Claim.lean` or `claim.json`. Its clock: a `SessionStart` hook records the start (`/tmp/.tva-claim-clock.json`) and tells the
+agent its time limit (`--agent-timeout`, passed as `TVA_CLAIM_AGENT_TIMEOUT_SEC`). `tva-claim time` shows the
+time left, and a `PostToolUse` hook reminds the agent at 50%, 75% and 90%, and with 30 and 10 minutes left.
+`/process_safety.md` lists the processes a broad `kill` or `pkill` would hit: the agent's own, the shell
+running each command, and PID 1.
+
+`vec_add_f32` is the example and is never a task. `--oracle` adds the proof `claim/oracle.py` derives from
+TVA's certified proof of the same kernel. That works only where the claim's definitions are the certified
+bundle's (`attn_bwd_pre_f16`, `paged_attention_f16`), and it tests that the task can be solved and that the
+verifier accepts a correct proof.
+
+```bash
+sandbox/claim/build_base.sh                                           # once per TVA commit
+python3 -I sandbox/make_claim_task.py attn_bwd_pre_f16 --out ../tasks --oracle
+harbor run -p ../tasks/tva-claim-attn_bwd_pre_f16 -a oracle -e docker -o ../jobs     # reward 1
+PYTHONPATH=sandbox/harness harbor run -p ../tasks/tva-claim-attn_bwd_pre_f16 \
+    -a cc_agent:ClaudeCodeClaim -m anthropic/MODEL -e docker -o ../jobs
+```

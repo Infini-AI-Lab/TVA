@@ -1,0 +1,47 @@
+{
+  "kernel": "scaled_mm_int8",
+  "title": "Scaled int8 GEMM, int32 accumulation, per-token/per-tensor and per-channel/per-tensor float32 scales, optional bias, bfloat16 or float16 output (`scaled_mm_kernel`), vLLM",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/triton_scaled_mm.py",
+    "sha256": "faccb55ce7968054b6cf7575abb8358bd033f247e7d0b4ab38965aaac2dc06e6",
+    "ranges": [
+      [
+        43,
+        44
+      ],
+      [
+        55,
+        206
+      ]
+    ],
+    "host": [
+      [
+        41,
+        41
+      ],
+      [
+        47,
+        52
+      ],
+      [
+        211,
+        302
+      ],
+      [
+        305,
+        313
+      ],
+      [
+        316,
+        356
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.ScaledMmInt8",
+  "statement": "Claims.ScaledMmInt8.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

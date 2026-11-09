@@ -1,0 +1,31 @@
+{
+  "kernel": "ssd_state_passing_f32",
+  "title": "Mamba-2 SSD state passing across chunks of a packed prefill batch, with or without initial states (`_state_passing_fwd_kernel`, float32), SGLang",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/ssd_state_passing.py",
+    "sha256": "a06a9c1bf41372f8d3d88d0d1bc339a0178a476e406c03a517e8c6eaf21fd6a3",
+    "ranges": [
+      [
+        75,
+        231
+      ]
+    ],
+    "host": [
+      [
+        71,
+        73
+      ],
+      [
+        234,
+        464
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.SsdStatePassing",
+  "statement": "Claims.SsdStatePassing.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

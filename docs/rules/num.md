@@ -3,7 +3,8 @@
 Lean: `TVA.Rules.Num` (`lean/TVA/Rules/Num.lean`), the definitions; `TVA.Rules.Num.Sm90`
 (`lean/TVA/Rules/Num/Sm90.lean`), the facts the library states for sm_90 and Triton 3.8.0;
 `TVA.Rules.Num.Dot8Chunk` (`lean/TVA/Rules/Num/Dot8Chunk.lean`), the fp8 `tl.dot` chunk by chunk;
-`TVA.Lemmas.Sm90`, `TVA.Lemmas.Dot8Chunk` and `TVA.Lemmas.DotLift`, a platform satisfying them all
+`TVA.Rules.Num.Dot16Chunk` (`lean/TVA/Rules/Num/Dot16Chunk.lean`), the 16-bit `tl.dot` chunk by chunk;
+`TVA.Lemmas.Sm90`, `TVA.Lemmas.Dot8Chunk`, `TVA.Lemmas.Dot16Chunk` and `TVA.Lemmas.DotLift`, a platform satisfying them all
 and the lemmas that put the `tl.dot` facts to use.
 
 The Triton documentation does not define these operations exactly:
@@ -80,18 +81,20 @@ model uses**:
   | The model's operation | Facts it may cite |
   |---|---|
   | any of these operations, for having a result | `MathTotal P fn f`, `DivTotal P f`, `CvtTotal P f g rnd`, `DotTotal P cfg`, `AtomicAddTotal P f`, `DotScaledTotal P cfg` |
-  | `tl.exp` on `float32` | `ExpF32 P`; at `-∞`, `ExpF32NegInf P` |
+  | `tl.exp` on `float32` | `ExpF32 P`; at `-∞`, `ExpF32NegInf P`; from `1453635/16384` and at `+∞`, `ExpF32Overflow P` |
   | `tl.math.exp2` on `float32` | `Exp2F32 P`; at `-∞`, `Exp2F32NegInf P` |
   | `tl.log`, `tl.math.log2` on `float32` | `LogF32 P`, `Log2F32 P` |
   | `tl.sqrt`, `tl.math.rsqrt` on `float32` | `SqrtF32 P`, `RsqrtF32 P` |
-  | `/` on `float32` (also `fp16`/`bf16` `/`, which the model converts to `float32`) | `DivFull P` |
+  | `/` on `float32` (also `fp16`/`bf16` `/`, which the model converts to `float32`) | `DivFull P`; by an infinite divisor, `DivF32InfDivisor P` |
   | `/` on `float64` | `DivRn P .binary64` |
   | `tl.cvt8 x .rn` (`x.to(tl.float8e4nv)`, `x.to(tl.float8e5)`, default rounding) from `float32`, `float16`, `bfloat16` | in range: `CvtF32E4m3 P`, `CvtF32E5m2 P`, `CvtF16E4m3 P`, `CvtF16E5m2 P`, `CvtBF16E4m3 P`, `CvtBF16E5m2 P`; every input (saturation): `CvtSatF32E4m3 P`, `CvtSatF32E5m2 P`, `CvtSatF16E4m3 P`, `CvtSatF16E5m2 P`, `CvtSatBF16E4m3 P`, `CvtSatBF16E5m2 P` |
-  | `tl.dot` of `float16` or `bfloat16` operands into `float32`, `maxImpreciseAcc = 0` (the default), any `precision` | `DotF16 P`, `DotBF16 P` |
+  | `tl.dot` of `float16` or `bfloat16` operands into `float32`, `maxImpreciseAcc = 0` (the default), any `precision` | `DotF16 P`, `DotBF16 P`; or, chunk by chunk, `DotF16Chunk P`, `DotBF16Chunk P` |
   | `tl.dot` of fp8 operands into `float32`, `maxImpreciseAcc = 2^30` (the default on sm_90), any `precision` | `DotE4m3Chunk P`, `DotE5m2Chunk P`, `DotE4m3E5m2Chunk P`, `DotE5m2E4m3Chunk P`; or, each step the smaller of two bounds, `DotE4m3ChunkLoss P`, `DotE5m2ChunkLoss P`, `DotE4m3E5m2ChunkLoss P`, `DotE5m2E4m3ChunkLoss P` |
   | `tl.dot` of `float32` operands, `precision = .ieee`, into `float32` | `DotF32Ieee P` |
+  | `tl.dot` of `int8` operands (into `int32`; a `uint32` accumulator bitcast to `int32`), `maxImpreciseAcc = 0` (the default), any `precision` | `DotI8 P` |
   | `tl.dot_scaled` with `e8m0` scales, `group = 32`, `K`-packed operands: `"e4m3"` by `"e4m3"`; `"e4m3"` by `"e2m1"` | `DotScaledE4m3 P`, `DotScaledE4m3E2m1 P` |
   | `tl.atomic_add` (pointer or descriptor) on `float32` | `AtomicAddF32 P` |
+  | the depth of a float `tl.sum`'s tree (`sum`, `sum1`, `sum0`, `sumc`, `sum1c`, `sum0c`) | `SumDepth P` |
 
 - **The format and configuration** are the model's: the same `Format`, rounding mode, `DotCfg`
   or `ScaledCfg` as the operation in the model.
@@ -106,8 +109,10 @@ A doubt about the facts themselves is a `LIBRARY_REPORT`.
 
 All on an NVIDIA H200 NVL (sm_90), measured with Triton 3.8.0 on 2026-10-28 (the chunk facts
 `DotE4m3Chunk` … on 2026-10-31, `DotF16`, `DotBF16` as restated in round 25 on 2026-11-01, and the
-loss facts `DotE4m3ChunkLoss` … of round 26 on 2026-11-01); each evidence folder has its question,
-method, script and output.
+loss facts `DotE4m3ChunkLoss` … of round 26 on 2026-11-01, `DotI8` on 2026-11-08, and the round-32 facts
+`DotF16Chunk`, `DotBF16Chunk`, `DivF32InfDivisor`, `SumDepth` on 2026-11-08, and the round-33 fact
+`ExpF32Overflow` and the round-33 restatement of `DotF16Chunk`, `DotBF16Chunk` on 2026-11-08); each evidence
+folder has its question, method, script and output.
 
 | Fact (`TVA.Rules.Num`) | Operation | Says | What Triton runs | Evidence |
 |---|---|---|---|---|
@@ -118,11 +123,14 @@ method, script and output.
 | `SqrtF32` | `tl.sqrt`, `float32` | `MathAcc` on `sqrtDom` (`0` and `x ≥ 2^-126`): `2^-22`, `2^-149` | `sqrt.approx.ftz.f32` | num-math-f32 |
 | `RsqrtF32` | `tl.math.rsqrt`, `float32` | `MathAcc` on `x ≥ 2^-126`: `2^-22`, `2^-149` | `rsqrt.approx.ftz.f32` | num-math-f32 |
 | `ExpF32NegInf`, `Exp2F32NegInf` | `tl.exp(-∞)`, `tl.math.exp2(-∞)`, `float32` | `MathAt`: `+0` (`zeroF32`) at `negInfF32` | as above | num-math-f32 |
+| `ExpF32Overflow` | `tl.exp`, `float32`, from `1453635/16384` (`88.72283935546875`, pattern `0x42b17218`) and at `+∞` | every result is `+∞` (`posInfF32`) | `mul.f32` by `log2 e`, `ex2.approx.f32` (`+∞` once the product reaches `128`) | [num-special-f32](../../evidence/num-special-f32/README.md) E1 |
 | `DivFull` | `/`, `float32` | `DivAcc` with `qmax = 2^126`: `2^-22`, `2^-148` | `div.full.f32` | [num-div-f32](../../evidence/num-div-f32/README.md) |
+| `DivF32InfDivisor` | `/`, `float32`, a finite dividend by `±∞` | the zero of sign `sign x xor sign y` (`1 / ∞ = +0`) | `div.full.f32` | [num-special-f32](../../evidence/num-special-f32/README.md) |
 | `DivRn P .binary64` | `/`, `float64` | IEEE (`FloatV.divRn`), up to NaN payload | `div.rn.f64` | [num-div-f64](../../evidence/num-div-f64/README.md) |
 | `CvtF32E4m3`, `CvtF32E5m2`, `CvtF16E4m3`, `CvtF16E5m2`, `CvtBF16E4m3`, `CvtBF16E5m2` | `.to(fp8)`, `"rtne"` | `CvtRn`: round to nearest even for finite `\|x\| ≤ maxVal` (448, 57344) | `cvt.rn.satfinite.{e4m3,e5m2}x2.{f32,f16x2}`; `bfloat16` widened to `float32` first | [num-cvt8](../../evidence/num-cvt8/README.md) |
 | `CvtSatF32E4m3`, `CvtSatF32E5m2`, `CvtSatF16E4m3`, `CvtSatF16E5m2`, `CvtSatBF16E4m3`, `CvtSatBF16E5m2` | `.to(fp8)`, `"rtne"`, every input | `CvtSat`: `FloatV.cvtSat .rn x` up to NaN payload (beyond `maxVal` and `±∞`: `±maxVal`) | as above (`.satfinite`) | [float-layer](../../evidence/float-layer/README.md) (part A), num-cvt8 |
 | `DotF16`, `DotBF16` | `tl.dot` of `float16` (`bfloat16`) operands into `float32`, `maxImpreciseAcc = 0`, any `precision` | `DotLiftAcc` for all operand values: `relDot16 K = (K+2)·2^-22`, `absDot16 K = (K+2)·2^-126`, relative to `\|acc\| + Σ liftMag a·liftMag b`, a subnormal operand counted as `2^-14` (`float16`) or `2^-126` (`bfloat16`) | one `mma.sync`/`wgmma` (`k16`) per chunk of 16 in increasing `k`: the accumulator and 16 products aligned to the largest exponent field (a subnormal operand read as the smallest normal), 25 bits kept below it (truncated toward zero), the sum truncated toward zero to `float32` | [num-dot-sub16-round25](../../evidence/num-dot-sub16-round25/README.md), num-dot |
+| `DotF16Chunk`, `DotBF16Chunk` | `tl.dot` of `float16` (`bfloat16`) operands into `float32`, `maxImpreciseAcc = 0`, any `precision` | partial values `s 0 = acc, …, s ⌈K/64⌉ = result`, chunks of 64 consecutive `k` (all `K` when `K < 64`) in increasing order, each step within `min(2^-13·Mj, 2·A_j + 2^-22·Mj) + 2^-20·\|s j + c_j\| + 2^-143`, `Mj` bounding `\|s j\|` and the chunk's lifted products (a subnormal operand counted as `2^-14` or `2^-126`), `A_j` the chunk's `Σ\|a·b\|`; room `mag + relChunk16 K·mag + absChunk16 K` | at most four `mma.sync…m16n8k16` or `wgmma…m64nNk16` per chunk, each adding 16 of its `k` (16 consecutive on `wgmma`; on `mma.sync`, as the operands' `kWidth` of 2, 4 or 8 lays them out): the accumulator and 16 products aligned to the largest exponent field, 25 bits kept below it (truncated toward zero), the sum truncated toward zero to `float32` | [num-dot-chunk16-round33](../../evidence/num-dot-chunk16-round33/README.md), num-dot-chunk16, num-dot-sub16-round25 |
 | `DotE5m2Chunk` | `tl.dot` of `float8e5` by `float8e5` into `float32`, `maxImpreciseAcc = 2^30`, any `precision` | `DotChunkAcc` for all operand values: chunks of 32 consecutive `k` in increasing order, each step within `2^-7·Mj + 2^-12·\|s j + c_j\| + 2^-126`, `Mj` bounding the previous value and the chunk's products with a subnormal operand counted as `2^-14` | one `wgmma` (`k32`) per chunk: the accumulator and 32 products aligned to the largest exponent field, 13 bits kept below it (truncated toward zero), the sum cut to 14 bits; or `mma.sync` after an upcast to `float16`, two per chunk | [num-dot-chunk](../../evidence/num-dot-chunk/README.md) |
 | `DotE4m3Chunk` | `tl.dot` of `float8e4nv` by `float8e4nv`, as `DotE5m2Chunk` | as `DotE5m2Chunk`, a subnormal operand counted as `2^-6` | as `DotE5m2Chunk` | num-dot-chunk |
 | `DotE4m3E5m2Chunk` | `tl.dot` of `float8e4nv` by `float8e5`, as `DotE5m2Chunk` | as `DotE5m2Chunk`, subnormals counted as `2^-6` (`a`) and `2^-14` (`b`) | as `DotE5m2Chunk` | num-dot-chunk |
@@ -132,7 +140,9 @@ method, script and output.
 | `DotE4m3E5m2ChunkLoss` | as `DotE4m3E5m2Chunk` | as `DotE5m2ChunkLoss`, subnormals counted as `2^-6` (`a`) and `2^-14` (`b`); gives `DotE4m3E5m2Chunk` | as `DotE5m2Chunk` | num-dot-chunk-round26, num-dot-chunk |
 | `DotE5m2E4m3ChunkLoss` | as `DotE5m2E4m3Chunk` | as `DotE5m2ChunkLoss`, subnormals counted as `2^-14` (`a`) and `2^-6` (`b`); gives `DotE5m2E4m3Chunk` | as `DotE5m2Chunk` | num-dot-chunk-round26, num-dot-chunk |
 | `DotF32Ieee` | `tl.dot`, `float32` operands, `"ieee"` | `DotAcc` for all operand values: `(K+1)·2^-23`, `(K+1)·2^-149` | `K` sequential `fma.rn.f32` | num-dot |
+| `DotI8` | `tl.dot` of `int8` operands into `int32`, with or without an accumulator (`int32`, or `uint32` read as `int32`: `tl.bitcast .u32 .i32`), `maxImpreciseAcc = 0`, any `precision` | `DotAcc` for all operand values with `rel = abs = 0`: exact, `acc + Σ a·b`, when `\|acc\| + Σ\|a·b\| ≤ 2^31 - 1` | `mma.sync.aligned.m16n8k32.row.col.satfinite.s32.s8.s8.s32` or `wgmma.mma_async.sync.aligned.m64nNk32.s32.s8.s8` along `K`, integer sums (the first saturates at the `int32` range, the second wraps) | [num-dot-int8](../../evidence/num-dot-int8/README.md) |
 | `DotScaledE4m3`, `DotScaledE4m3E2m1` | `tl.dot_scaled`, `e8m0` scales, groups of 32, `K`-packed, either `fast_math` | `DotScaledAcc` on `scaledDomBF16` (`0` or a normal `bfloat16` magnitude), scale bits `e8m0Dom` (`1 … 254`): `relDot16`, `absDot16` | Triton's emulation: upcast to `bfloat16`, `mul.bf16` by the scale, `bfloat16` `wgmma` into `float32` | [num-dot-scaled](../../evidence/num-dot-scaled/README.md) |
+| `SumDepth` | `tl.sum`, `tl.sumc` and their axis forms, float, along an axis of `n` positions | each tree has depth at most `⌈log₂ n⌉` (`log₂ n` for a Triton axis): `P.sumDepth n ≤ Nat.clog 2 n`, so `SumDepth.depth_le` turns `t.depth ≤ tl.sumBound P n` into `t.depth ≤ Nat.clog 2 n`; `sum_err_depth`, `sumc_err_depth` give the error with that depth; not stated for a reduction the loop rewrite reassociates (exclusions.md) | `ReduceOpToLLVM.cpp`: a balanced binary tree over each thread's elements of the axis, a `shfl.sync.bfly` butterfly over its lanes, and the same butterfly over its warps after a conversion through shared memory | [reduce-tree](../../evidence/reduce-tree/README.md) |
 | `AtomicAddF32` | `tl.atomic_add` (every `sem` and `scope`) and `desc.atomic_add`, `float32` | `AtomicAddAcc`: `2^-23`, `2^-124` | `atom.global.{cta,gpu,sys}.{relaxed,acquire,release,acq_rel}.add.f32` (`.v4`); `cp.reduce.async.bulk.tensor ….add` | [num-atomic-add](../../evidence/num-atomic-add/README.md) |
 
 Every fact chooses its constants with margin over what the evidence measured (each README gives
@@ -159,6 +169,12 @@ it, [num-div-f32](../../evidence/num-div-f32/README.md)).
   is flushed (`sqrt` gives `0`, `rsqrt` gives `+∞`), so the domains exclude subnormals.
 - **At `-∞`** both `tl.exp` and `tl.math.exp2` give `+0` (`0x00000000`). That is what a masked
   softmax or an online softmax with a `-inf` running maximum needs.
+- **Past the overflow** (`ExpF32Overflow`, round 33, library issue L154): `tl.exp` gives `+∞` on
+  every `float32` input from `1453635/16384` (`88.72283935546875`, pattern `0x42b17218`) up, and at
+  `+∞`; the largest input with a finite result is `0x42b17217` (`88.72283172607422`, result
+  `0x7f7fff4f`) ([evidence/num-special-f32](../../evidence/num-special-f32/README.md) E1, every
+  pattern from `+64` to `+∞`). `ExpF32` says nothing there: its room fails. With
+  `DivF32InfDivisor`, `1 / (1 + tl.exp(x))` is `+0` there.
 
 `tl.sqrt_rn` and `tl.div_rn` are IEEE in the library and need no fact ("Exact operations").
 
@@ -210,8 +226,12 @@ paths. The facts hold for every `K`; their constants follow from a per-chunk bou
     `max(⌊log₂|s|⌋, −126)` for the accumulator. With `E` the largest field and `u = 2^(E−25)`, every
     term is truncated toward zero to a multiple of `u`, the truncated terms are summed exactly, and
     the sum is truncated toward zero to `float32` (24 significant bits, and the grid `2^-149` below
-    `2^-126`: subnormal results are kept). The chunks are 16 consecutive `k`, added in increasing
-    order (Part E).
+    `2^-126`: subnormal results are kept). Each instruction adds 16 of the `k`, one instruction
+    after another: 16 consecutive `k` in increasing order (Part E) on `wgmma` and on `mma.sync` with
+    operands loaded in 16 bits or wider; on `mma.sync` with an operand converted in registers from an
+    8-bit load, other sets of 16 `k` within a block of 32 or 64 ("Chunk by chunk" below). The
+    derivation of `DotF16` and `DotBF16` uses only that each instruction adds 16 products to the
+    accumulator the previous one left, so they hold whichever 16.
   - **The constants.** Each of the at most 17 terms loses less than `u`, and no more than its own
     magnitude; the cut to `float32` loses less than `2^-23·|S'| + 2^-149` of the truncated sum `S'`,
     and `|S'| ≤ |s| + Σ_chunk |a·b|`. Since `2^e(x) ≤ liftMag x` and the accumulator's field is at
@@ -246,6 +266,59 @@ paths. The facts hold for every `K`; their constants follow from a per-chunk bou
     `float16`, contain them.
   - `input_precision` makes no difference for these operands (num-dot Part 3, and the new
     evidence's Part G1 on subnormal operands, bit for bit), so the facts hold for every `precision`.
+  - **Chunk by chunk** (`DotF16Chunk`, `DotBF16Chunk`, rounds 32 and 33, library issue L150; Lean
+    `TVA.Rules.Num.Dot16Chunk`, lemmas `TVA.Lemmas.Dot16Chunk`;
+    [evidence/num-dot-chunk16-round33](../../evidence/num-dot-chunk16-round33/README.md),
+    [evidence/num-dot-chunk16](../../evidence/num-dot-chunk16/README.md)). Beside `DotF16` and
+    `DotBF16`, which stay, these state the same instructions one chunk at a time, as the fp8 loss
+    facts do (below): per output element, with room
+    (`mag + relChunk16 K·mag + absChunk16 K` at most the `float32` maximum, `mag = |acc| + Σ|a·b|`,
+    `relChunk16 K = (1 + 2^-13)^⌈K/64⌉ − 1`, `absChunk16 K = ⌈K/64⌉·(1 + 2^-13)^⌈K/64⌉·2^-143`), the
+    result has a value, and there are partial values `s 0 = acc, …, s ⌈K/64⌉ = result`, one step per
+    chunk of 64 consecutive `k` (`chunk16 K j`, the `k` with `k / 64 = j`; all `K` when `K < 64`) in
+    increasing order, each within `min(2^-13·Mj, 2·A_j + 2^-22·Mj) + 2^-20·|s j + c_j| + 2^-143` of
+    `s j + c_j`, for every `Mj` bounding `|s j|` and the chunk's lifted products, `c_j` the chunk's
+    exact sum and `A_j` its exact `Σ|a·b|` (not lifted).
+    - **Why chunks of 64.** Which 16 `k` an instruction adds depends on the operands' layout on
+      `mma.sync`, whose `kWidth` Triton sets from the narrowest dtype the operands were loaded in
+      (`primitives/triton-3.8.0-AccelerateMatmul.cpp:385-427, 561-568`; `kWidth = max(32 / bitwidth,
+      1)`, `primitives/triton-3.8.0-TritonGPUAttrDefs.td:1478-1488`, with `bitwidth` at most the
+      operands' own 16; the evidence's Part W): `2` for operands loaded in 16 bits or wider (16 consecutive `k`), `4`
+      for an operand converted in registers from an 8-bit load (`float8`, `int8`, `uint8`, a
+      `bool` load: the `k ≡ 0, 1 (mod 4)` of each block of 32, then the `k ≡ 2, 3`), `8` for an
+      8-bit load unpacked into twice as many `k` by `tl.join` (the `k ≡ 2i, 2i+1 (mod 8)` of each
+      block of 64, `i = 0, …, 3`; at `K = 32`, two sets within the 32). On `wgmma` they are 16
+      consecutive `k`. In every case measured each instruction's `k` lie in one aligned block of
+      64, the blocks are taken in increasing order and each block's instructions one after the
+      other (Part P, 104 configurations, probed on the device). Until round 33 the facts were per
+      chunk of 16 consecutive `k` (`2^-20`, `2^-22`, `2^-145`, `2^-24`), which a `K = 32` launch
+      with an operand converted from `float8e5` refutes: its device result `0` is reached by no
+      partial values of 16-chunks (Part X, round 32's library review).
+    - **The constants**, from the per-instruction model above. In a chunk the `i`-th instruction
+      (`i ≤ 4`) starts from an accumulator `|t| ≤ |s j| + Σ_{earlier} |p| ≤ (16i − 15)·Mj` (every
+      truncation is toward zero), so its unit is `u ≤ 2^-25·max(|t|, Mj) + 2^-151`. In the first
+      arm each instruction's 17 terms lose less than `u`, and each cut to `float32` less than
+      `2^-23` of a sum exceeding `|s j + c_j|` by at most the products still to come: a chunk is
+      within `17·(1 + 17 + 33 + 49)·2^-25·Mj + 2^-23·(48 + 32 + 16)·Mj + 2^-21·|s j + c_j| +
+      21·2^-149` (up to terms `2^-21` smaller), that is `2084·2^-25·Mj + …`, kept as `2^-13` (a
+      factor `1.97`), `2^-20` (2) and `2^-143` (3.05). In the second a product loses at most
+      `min(|p|, u)` and the accumulator less than `u`, with `u ≤ 2^-25·(Mj + Σ_{earlier} |p|) +
+      2^-151`, so a chunk is within `(1 + 2^-21 + 2^-23)·A_j + (1 + 2^-21)·2^-23·Mj +
+      (1 + 2^-21)·2^-21·|s j + c_j| + 5·2^-149`, kept as `2·A_j` and `2^-22·Mj`. An accumulator
+      that dominates its chunk is charged about `(2^-22 + 2^-20)·|acc|` per 64 `k`, where `DotF16`
+      charges `relDot16 K·|acc|` per `tl.dot`.
+    - **Using them.** A kernel bounds a dot from the exact inputs with
+      `Dot16Chunk.Dot16BitChunk.err` (the result within `errM`, the recursion and closed forms of
+      the fp8 lemmas, `errM_le_errB`, `errM_le_errL`), or on the whole dot with
+      `Dot16Chunk.Dot16BitChunk.liftAcc` (`DotLiftAcc` with `relLift16`, `absLift16`).
+    - **Evidence.** [evidence/num-dot-chunk16-round33](../../evidence/num-dot-chunk16-round33/README.md):
+      the per-instruction model with the instructions' `k` equals the device on every element
+      result (`2605056` of them, `kWidth` 2, 4 and 8 on `mma.sync`, `wgmma`, `float16` and
+      `bfloat16`, `a` or `b` converted from 8 bits, `K = 16` to 256), and every step of 62976
+      elements checked in exact rationals is within the bound (largest ratio `0.38`, an
+      accumulator dominating its chunk). [evidence/num-dot-chunk16](../../evidence/num-dot-chunk16/README.md)
+      (round 32) checked the model on about `1.2·10^8` element results with operands loaded in 16
+      bits (16 consecutive `k`).
 - **fp8 operands, `maxImpreciseAcc = 2^30`.** Triton's default on sm_90 accumulates the whole
   `K` in the tensor core's reduced-precision accumulator. On `wgmma` each instruction keeps only
   `13` bits below the largest term, the accumulator included (Part 1: `acc = 1 + 2^-23` comes
@@ -272,6 +345,31 @@ paths. The facts hold for every `K`; their constants follow from a per-chunk bou
   and products just below its ulp: the first `fma` rounds up to a power of two and each later
   product is lost, an error of almost `(K−1)·2^-24·(|acc| + Σ|a·b|)`, so the ratio is
   `(K−1)/(2(K+1))` (evidence/num-dot, "The ratio of `DotF32Ieee`").
+
+## The integer `tl.dot`
+
+(`DotI8`; library issue L141, round 31; [evidence/num-dot-int8](../../evidence/num-dot-int8/README.md).)
+Triton 3.8.0's only integer `tl.dot` is `int8 × int8`, into an `int32` result whatever `out_dtype` says, with
+`K ≥ 32` (`semantic.py:1429-1520`, `nvidia-compiler.py:19-31`; another integer operand and a smaller `K` are
+rejected on the host, that evidence's I5). The accumulator is `int32` or `uint32`; any other accumulator dtype is
+rejected on the host, and a `uint32` one computes as its bits read as `int32`, so `DotI8` covers it with the
+accumulator `tl.bitcast .u32 .i32 acc`, the room on that reading (round 32, library issue L141;
+[evidence/num-dot-int8-round32](../../evidence/num-dot-int8-round32/README.md) A1–A3: 4096 of 4096 results on
+`mma.sync` and 65536 of 65536 on `wgmma` at each of three `K`, the edge of the room included). On sm_90 it is a chain along
+`K` of integer tensor-core instructions of 32 products each: `mma.sync.aligned.m16n8k32.row.col.satfinite.s32.s8.s8.s32`
+when the block has `M < 64` or `num_warps < 4`, and `wgmma.mma_async.sync.aligned.m64nNk32.s32.s8.s8` otherwise
+(I6). The first clamps an `int32` result that leaves the range (`.satfinite`), the second wraps it (I4: a final
+sum past `2^31 - 1` gave `2^31 - 1` and its value modulo `2^32`; a partial sum past it, brought back in range by
+the later chunks, gave a clamped and an exact result). So the fact needs room: while
+`|acc| + Σ|a·b| ≤ 2^31 - 1`, every partial sum, in any order and any grouping, has magnitude at most
+`|acc| + Σ|a·b|`, neither path clamps or wraps, and the result is `acc + Σ a·b` exactly, for every `K`. That is
+`DotAcc` with `rel = abs = 0` on all operand values, the room being `DotAcc`'s own condition with the
+accumulator's `DType.bound` (`2^31 - 1`). The evidence found it exact on 2142192 outputs with room (14 tile
+configurations, both paths, `M` and `N` from 1 to 128, three `K` up to 2048, four spellings with and without
+an accumulator), on 236992 more under every `input_precision` the front end accepts (Triton ignores it for
+these operands) and `allow_tf32=False`, and at the edge of the room (`K = 131040`, results `±(2^31 - 1)`).
+`DotI8` is stated for `max_num_imprecise_acc = 0`, the value a source that does not give it has; a given value
+(`32` gave the exact result too, I5) is not stated.
 
 ## `tl.dot` of fp8, chunk by chunk
 
@@ -459,12 +557,38 @@ relative to lifted magnitudes since round 25, is the bound these facts state rel
   any order, against the sum of every program's operands (`accStep_atomicAdd`, `Paired`,
   `replay_err_shared`).
 
+## The depth of a float reduction (`SumDepth`)
+
+(Library issue L149, round 32; [evidence/reduce-tree](../../evidence/reduce-tree/README.md);
+`primitives/triton-3.8.0-ReduceOpToLLVM.cpp`, `-TargetInfoBase.h`.) The library's `tl.sum` and its forms
+pick a tree of depth at most `tl.sumBound P n = max (P.sumDepth n) ⌈log₂ n⌉` (`TVA.Lang.Ops`), any tree
+under the default `Platform.sumDepth n = n − 1`. On sm_90 a float reduction over the `2^k` positions of
+its axis is a perfect binary tree of depth `k`, whatever the layout: Triton 3.8.0 reduces each thread's
+elements of the axis along a balanced binary tree (`treeReduce`, arity 2 on NVIDIA; `float16` and
+`bfloat16` packed two by two), then along a `shfl.sync.bfly` butterfly over the lanes that hold the axis,
+then, after a conversion through shared memory, along the same butterfly over the warps. The layout
+decides only which positions pair up. `SumDepth P : ∀ n, P.sumDepth n ≤ Nat.clog 2 n` states it, and
+`sum_err_depth` (`TVA.Lemmas.Sum`) and `sumc_err_depth` (`TVA.Lemmas.SumFused`) bound the result with
+depth `⌈log₂ n⌉` and `n − 1` nodes, where `sum_err_covers` used `n − 1` for both. The evidence ran 7960
+configurations, each checked twice (a tuple `tl.reduce` that returns its tree's depth and leaf count:
+`log₂ n` over exactly `n` leaves; and float sums of leaves `1 + 2^-p` and `1 − 2^-(p+1)`, exact only
+along a perfect tree): 1-D axes of 1 to 16384 positions with 1 to 16 warps and contiguous and strided
+loads, in `float32`, `float16`, `bfloat16`, `float64` and of products; 2-D tiles along both axes,
+row- and column-major, `tl.trans` and `keep_dims`; `tl.dot` results on `mma.sync` and `wgmma`; and
+reductions of reductions; 259 distinct layouts of the reduced operand, none failing. It is not stated
+for a reduction that Triton's `OptimizeThreadLocality` pass rewrites across a loop's trips, a
+miscompile that is excluded ([exclusions.md](../exclusions.md); [SEMANTICS.md](../SEMANTICS.md),
+"Float `+` and `-`", states the excluded loops on the source, more broadly than the pass's own pattern), nor for a scan (`tl.cumsum`), which is sequential within
+a thread and over the warps, so that its depth depends on the layout.
+
 ## What the library does not state
 
 A kernel that needs one of these asks the library first (protocol §2):
 - `tl.dot` with `float32` operands and `tf32`, `tf32x3`, `bf16x3` or `bf16x6` precision; any
   `tl.dot` into `float16`; an fp8 `tl.dot` with a `max_num_imprecise_acc` other than the default;
-  integer `tl.dot` (exact, but not stated: `dotAcc_int` shows it is satisfiable);
+  an `int8` `tl.dot` with a `max_num_imprecise_acc` given, or whose `|acc| + Σ|a·b|` exceeds
+  `2^31 - 1` (then `mma.sync` saturates and `wgmma` wraps, so the result depends on the path:
+  [evidence/num-dot-int8](../../evidence/num-dot-int8/README.md) I4);
 - the fp8 conversions with `"rtz"` (only `float32` to `float8e5` compiles);
 - `tl.sin`, `tl.cos`, `tl.erf`, other libdevice functions, and any approximate function on
   `float64` (on `float16` and `bfloat16` Triton rejects them on the host: `_check_dtype` allows
@@ -531,10 +655,15 @@ A bundle proves its assumptions satisfiable together (`Claim.Consistent`, checke
 and every fact of the library must be satisfiable together with the others.
 
 **The sm_90 facts.** `Platform.sm90ref` (`lean/TVA/Lemmas/Sm90.lean`) is `Platform.ref` with
-one rounding's bound (`u·|y| + η`) as every function's bound and `exp(-∞) = exp2(-∞) = +0` in `float32`; its
+one rounding's bound (`u·|y| + η`) as every function's bound, `exp(-∞) = exp2(-∞) = +0` in `float32`,
+and `exp x = +∞` in `float32` from `1453635/16384` (where no float is within that bound of `e^x`:
+`128·log 2 + 2^-23` is below it, `Real.log_two_lt_d9`) and at `+∞`; its
 conversions to nearest saturate, as sm_90's into fp8 do. Every fact of `TVA.Rules.Num.Sm90` holds
-of it (`Platform.sm90ref.expF32`, `.exp2F32`, …, `.cvtF32E4m3`, …, `.cvtSatF32E4m3`, …,
-`.dotF16`, `.dotBF16` (one rounding of the exact result, `DotAcc.liftAcc`), …, `.dotScaledE4m3`,
+of it (`Platform.sm90ref.expF32`, `.exp2F32`, …, `.expF32Overflow`, `.cvtF32E4m3`, …, `.cvtSatF32E4m3`, …,
+`.dotF16`, `.dotBF16` (one rounding of the exact result, `DotAcc.liftAcc`), `.dotF16Chunk`,
+`.dotBF16Chunk` (`Platform.ref.dotChunk16Loss`, in `lean/TVA/Lemmas/Dot16Chunk.lean`), `.sumDepth`
+(`Platform.ref`'s trees are balanced), …, `.dotI8`
+(`Platform.ref.dotAcc_int`), `.dotScaledE4m3`,
 `.atomicAddF32`), and so do `DivFull`, `DivRn` and every
 `…Total` rule, and the chunk facts of `TVA.Rules.Num.Dot8Chunk` (`Platform.sm90ref.dotE4m3Chunk`,
 …, `.dotE5m2E4m3Chunk`, and the loss facts `.dotE4m3ChunkLoss`, …, `.dotE5m2E4m3ChunkLoss`, in
@@ -552,7 +681,8 @@ together, with `u = 2^-(m+1)` and `η = 2^(emin−m−1)` of the format:
   - for any `abs ≥ 0` where the real function's values are normal, `|ref x| ≥ 2^emin`
     (`mathAcc_of_normal`);
   - wherever the bundle proves that floats that accurate exist (`mathAcc`);
-- `MathAt` at non-finite inputs, given by the table `sp` (`mathAt`);
+- `MathAt` at non-finite inputs, given by the table `sp` (`mathAt`), and at finite inputs where
+  no float is within the requested bound (`mathAt_far`; round 33, library issue L154);
 - `DivRn`, `DivFull`;
 - `CvtAcc`; `CvtSat` (`cvtSat`: its conversions to nearest saturate, `FloatV.cvtSat .rn`; toward
   zero they are `FloatV.cvtWith .rz`); `CvtRn` into a regular format (`cvtRn`, in
@@ -585,7 +715,12 @@ What Triton 3.8.0 compiles `/` to on NVIDIA (sources pinned in `primitives/`; se
 - **Frontend.** `x / y` and `tl.fdiv(x, y)` (`ieee_rounding=False`) emit `arith.divf`
   (`triton-3.8.0-semantic.py:292-315, 331-341`). `fp16` and `bf16` operands are converted to
   `fp32` first (`semantic.py:89-102`), and the model writes that conversion. `tl.div_rn` emits
-  `tt.precise_divf` (IEEE, `tl.div_rn` in the library).
+  `tt.precise_divf` (IEEE, `tl.div_rn` in the library), and so does `tl.fdiv(x, y,
+  ieee_rounding=True)` (`semantic.py:337-338`), which is therefore `tl.div_rn` too and needs no fact
+  (library issue L166; [evidence/fdiv-ieee](../../evidence/fdiv-ieee/README.md)). `tl.fdiv` does
+  not convert its operands (`semantic.py:336`): on `float16` or `bfloat16` operands, either form fails
+  to compile, and with `ieee_rounding=True` so does `float64` (`tt.precise_divf` lowers to
+  `llvm.nvvm.div.rn.f`, a `float32` intrinsic, `nvidia-ElementwiseOpToLLVM.cpp:886-887`).
 - **MLIR.** `arith.divf` folds `x / 1.0` to `x`, folds two constants to the IEEE quotient, and
   rewrites `(-x) / (-y)` to `x / y` (`llvm-ArithOps.cpp:1451-1468`,
   `llvm-ArithCanonicalization.td:526-528`). Each gives a value within the card at the original
@@ -601,6 +736,13 @@ What Triton 3.8.0 compiles `/` to on NVIDIA (sources pinned in `primitives/`; se
   ulp. The card is not "2 ulp" but the relative bound `2^-22·|x/y| + 2^-148` for `|x/y| ≤ 2^126`:
   2 ulp of a normal quotient is at most `2^-22·|x/y|`, and the bound is up to twice that near the
   top of a binade.
+- **A following addition** (library issue L163). `ptxas` expands `div.full.f32` into `MUFU.RCP`
+  and a multiply by the (scaled) dividend, and with `enable_fp_fusion` fuses that multiply with a
+  following `add.f32` into one `FFMA`. The card is the quotient's, and the addition is a fusable one
+  on it (SEMANTICS.md, "Float `+` and `-`": a `float32` quotient is a product), which
+  [evidence/div-fusion](../../evidence/div-fusion/README.md) checks against `AddRel` at the quotient
+  the division alone gives. `tl.div_rn`, `tl.fdiv(x, y, ieee_rounding=True)` and `float64`
+  division are not fused.
 - **TVA's measurement** ([evidence/num-div-f32](../../evidence/num-div-f32/README.md)): about
   `3.1·10^10` adversarial pairs (every divisor mantissa at seven divisor exponents against
   dividends placed in every binade of interest, every subnormal divisor and dividend, and `2^31`
@@ -614,11 +756,16 @@ What Triton 3.8.0 compiles `/` to on NVIDIA (sources pinned in `primitives/`; se
   powers of two, quotients near overflow, next to the exact value and next to midpoints, the
   special values, and constant divisors. Every result is equal, up to NaN payload:
   `DivRn P .binary64`.
-- **Satisfiable.** `DivFull.of_divRn`: IEEE `float32` division meets the card.
+- **Satisfiable.** `DivFull.of_divRn`: IEEE `float32` division meets the card, and
+  `Platform.sm90ref.divF32InfDivisor` the infinite-divisor fact.
+- **An infinite divisor** (`DivF32InfDivisor`, round 32, library issue L154): a finite dividend by
+  `±∞` gives the zero of sign `sign x xor sign y`, as IEEE division does, on every finite `float32`
+  dividend, by `+∞` and by `-∞` (about `8.6·10^9` pairs,
+  [evidence/num-special-f32](../../evidence/num-special-f32/README.md) D1, no exception).
 
-What the rule does not promise:
-- nothing for `|x/y| > 2^126`, a zero divisor, or an infinite or NaN operand (the result there is
-  some value of `P.div`);
+What the rules do not promise:
+- nothing for `|x/y| > 2^126` (but an infinite divisor, above), a zero divisor, or an infinite
+  dividend or a NaN operand (the result there is some value of `P.div`);
 - not determinism: each element of `tl.div` is some value within the card at its operands. A
   constant quotient folded by MLIR (IEEE) and the same quotient computed by the unit may differ.
 

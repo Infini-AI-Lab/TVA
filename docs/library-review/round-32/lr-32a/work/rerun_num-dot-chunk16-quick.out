@@ -1,0 +1,91 @@
+# num-dot-chunk16: output
+
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL (sm_90)
+
+## Part S: single chunks on the device (K = 16)
+
+Each element against the step bound with the device's own partial values (the accumulator and the result), at the smallest `Mj`; `arm 1`, `arm 2`: the ratio to each arm alone (plus the `2^-22`, `2^-145` terms); every element above 0.95 and each call's largest recomputed in exact rationals. `model = device`: as values.
+
+| operands | M x N, warps | variant | path | elements in range | outside | model = device | largest ratio | arm 1 | arm 2 | worst kind |
+|---|---|---|---|---|---|---|---|---|---|---|
+| float16 | 16 x 16, 1 | acc | mma.sync | 9216 | 0 | 9216/9216 | 0.4996 | 0.4996 | 0.3809 | subwin |
+| float16 | 64 x 64, 4 | acc | wgmma | 147456 | 0 | 147456/147456 | 0.4996 | 0.4996 | 0.3809 | subwin |
+| bfloat16 | 16 x 16, 1 | acc | mma.sync | 9216 | 0 | 9216/9216 | 0.4669 | 0.4669 | 0.3806 | subwin |
+| bfloat16 | 64 x 64, 4 | acc | wgmma | 147456 | 0 | 147456/147456 | 0.4972 | 0.4972 | 0.3806 | subwin |
+
+Totals:
+
+| operands | path | elements in range | outside | model = device | largest ratio | arm 1 | arm 2 | exact rechecks |
+|---|---|---|---|---|---|---|---|---|
+| bfloat16 | mma.sync | 9216 | 0 | 9216/9216 | 0.4669 | 0.4669 | 0.3806 | 36 |
+| bfloat16 | wgmma | 147456 | 0 | 147456/147456 | 0.4972 | 0.4972 | 0.3806 | 36 |
+| float16 | mma.sync | 9216 | 0 | 9216/9216 | 0.4996 | 0.4996 | 0.3809 | 36 |
+| float16 | wgmma | 147456 | 0 | 147456/147456 | 0.4996 | 0.4996 | 0.3809 | 36 |
+
+## Part C: chains at every K that compiles
+
+The device result against the model; each step of the model's chain (equal to the device's result) against the step bound; the result against the composed `errM` from the exact inputs (`errM ratio`); `DotF16 ratio`: the same error against `relDot16 K L + absDot16 K`. Rejected launches (out of resources) are recorded.
+
+| operands | M x N, warps | path | K | elements in range | outside | model = device | step ratio | errM ratio | DotF16 ratio |
+|---|---|---|---|---|---|---|---|---|---|
+| float16 | 16 x 16, 1 | mma.sync | 32 | 4608 | 0 | 4608/4608 | 0.4685 | 0.4414 | 0.1176 |
+| float16 | 16 x 16, 1 | mma.sync | 128 | 4608 | 0 | 4608/4608 | 0.4996 | 0.4709 | 0.1230 |
+| float16 | 64 x 64, 4 | wgmma | 32 | 73728 | 0 | 73728/73728 | 0.4685 | 0.4685 | 0.1176 |
+| float16 | 64 x 64, 4 | wgmma | 128 | 73728 | 0 | 73728/73728 | 0.4685 | 0.4372 | 0.1230 |
+| bfloat16 | 16 x 16, 1 | mma.sync | 32 | 4608 | 0 | 4608/4608 | 0.4972 | 0.4735 | 0.1172 |
+| bfloat16 | 16 x 16, 1 | mma.sync | 128 | 4608 | 0 | 4608/4608 | 0.4972 | 0.4542 | 0.1226 |
+| bfloat16 | 64 x 64, 4 | wgmma | 32 | 73728 | 0 | 73728/73728 | 0.4706 | 0.4669 | 0.1172 |
+| bfloat16 | 64 x 64, 4 | wgmma | 128 | 73728 | 0 | 73728/73728 | 0.4972 | 0.4781 | 0.1226 |
+
+Totals:
+
+| operands | path | elements in range | outside | model = device | step ratio | errM ratio |
+|---|---|---|---|---|---|---|
+| bfloat16 | mma.sync | 9216 | 0 | 9216/9216 | 0.4972 | 0.4735 |
+| bfloat16 | wgmma | 147456 | 0 | 147456/147456 | 0.4972 | 0.4781 |
+| float16 | mma.sync | 9216 | 0 | 9216/9216 | 0.4996 | 0.4709 |
+| float16 | wgmma | 147456 | 0 | 147456/147456 | 0.4685 | 0.4685 |
+
+## Part L: fed-back accumulators
+
+`for t in range(T): [acc = acc * alpha_t]; acc = tl.dot(p_t, v_t, acc)`, K = 64 per dot, every acc_t stored. `K loop`: tutorial 03 (p_t loaded in the format); `p.to`: tutorial 06 (p_t converted in registers from a softmax). Per dot, from the stored accumulator before it: the model against the device, each step against the step bound, the dot against errM. Whole chain (no rescale): the final result against errM over 4T chunks from the exact inputs (`whole errM ratio`); `bound / DotF16 composed`: errM over the whole chain divided by the bound a kernel gets by composing DotF16 step by step (e_{t+1} = e_t + relDot16(64) (|S_t| + e_t + L_t) + absDot16(64)), the largest over the elements.
+
+| operands | M x N, warps | path | p, v | rescale | T | elements | outside | model = device | step ratio | per-dot errM ratio | whole errM ratio | bound / DotF16 composed |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| float16 | 128 x 64, 4 | wgmma | K loop normal | no | 1 | 8192 | 0 | 8192/8192 | 0.2486 | 0.1253 | 0.1253 | 0.1287 |
+| float16 | 128 x 64, 4 | wgmma | K loop normal | no | 8 | 8192 | 0 | 65536/65536 | 0.2625 | 0.1179 | 0.0590 | 0.1745 |
+| float16 | 128 x 64, 4 | wgmma | K loop accdom | no | 1 | 8192 | 0 | 8192/8192 | 0.3998 | 0.3998 | 0.3998 | 0.3030 |
+| float16 | 128 x 64, 4 | wgmma | K loop accdom | no | 8 | 8192 | 0 | 65536/65536 | 0.3998 | 0.3998 | 0.2974 | 0.3004 |
+| float16 | 128 x 64, 4 | wgmma | p.to softmax | no | 1 | 8192 | 0 | 8192/8192 | 0.2283 | 0.1337 | 0.1337 | 0.3021 |
+| float16 | 128 x 64, 4 | wgmma | p.to softmax | no | 8 | 8192 | 0 | 65536/65536 | 0.2533 | 0.1457 | 0.0579 | 0.2419 |
+| float16 | 128 x 64, 4 | wgmma | p.to softmax | yes | 1 | 8192 | 0 | 8192/8192 | 0.2453 | 0.1264 | - | - |
+| float16 | 128 x 64, 4 | wgmma | p.to softmax | yes | 8 | 8192 | 0 | 65536/65536 | 0.2712 | 0.1478 | - | - |
+| float16 | 32 x 64, 2 | mma.sync | K loop normal | no | 1 | 2048 | 0 | 2048/2048 | 0.2196 | 0.1047 | 0.1047 | 0.1194 |
+| float16 | 32 x 64, 2 | mma.sync | K loop normal | no | 8 | 2048 | 0 | 16384/16384 | 0.2427 | 0.1379 | 0.0556 | 0.1786 |
+| float16 | 32 x 64, 2 | mma.sync | K loop accdom | no | 1 | 2048 | 0 | 2048/2048 | 0.3998 | 0.3998 | 0.3998 | 0.3030 |
+| float16 | 32 x 64, 2 | mma.sync | K loop accdom | no | 8 | 2048 | 0 | 16384/16384 | 0.3998 | 0.3998 | 0.2806 | 0.2776 |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 1 | 2048 | 0 | 2048/2048 | 0.2335 | 0.1033 | 0.1033 | 0.2996 |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 8 | 2048 | 0 | 16384/16384 | 0.2464 | 0.1073 | 0.0528 | 0.2334 |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | yes | 1 | 2048 | 0 | 2048/2048 | 0.2008 | 0.0981 | - | - |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | yes | 8 | 2048 | 0 | 16384/16384 | 0.2343 | 0.1269 | - | - |
+| bfloat16 | 128 x 64, 4 | wgmma | K loop normal | no | 1 | 8192 | 0 | 8192/8192 | 0.2377 | 0.1073 | 0.1073 | 0.1177 |
+| bfloat16 | 128 x 64, 4 | wgmma | K loop normal | no | 8 | 8192 | 0 | 65536/65536 | 0.2609 | 0.0975 | 0.0387 | 0.1724 |
+| bfloat16 | 128 x 64, 4 | wgmma | K loop accdom | no | 1 | 8192 | 0 | 8192/8192 | 0.3984 | 0.3984 | 0.3984 | 0.3030 |
+| bfloat16 | 128 x 64, 4 | wgmma | K loop accdom | no | 8 | 8192 | 0 | 65536/65536 | 0.3984 | 0.3984 | 0.2144 | 0.2164 |
+| bfloat16 | 128 x 64, 4 | wgmma | p.to softmax | no | 1 | 8192 | 0 | 8192/8192 | 0.2223 | 0.1152 | 0.1152 | 0.3017 |
+| bfloat16 | 128 x 64, 4 | wgmma | p.to softmax | no | 8 | 8192 | 0 | 65536/65536 | 0.2472 | 0.1141 | 0.0486 | 0.2392 |
+| bfloat16 | 128 x 64, 4 | wgmma | p.to softmax | yes | 1 | 8192 | 0 | 8192/8192 | 0.2375 | 0.1101 | - | - |
+| bfloat16 | 128 x 64, 4 | wgmma | p.to softmax | yes | 8 | 8192 | 0 | 65536/65536 | 0.2649 | 0.1355 | - | - |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop normal | no | 1 | 2048 | 0 | 2048/2048 | 0.1941 | 0.0902 | 0.0902 | 0.1078 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop normal | no | 8 | 2048 | 0 | 16384/16384 | 0.2301 | 0.0982 | 0.0412 | 0.1799 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop accdom | no | 1 | 2048 | 0 | 2048/2048 | 0.3984 | 0.3984 | 0.3984 | 0.3030 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop accdom | no | 8 | 2048 | 0 | 16384/16384 | 0.3984 | 0.3984 | 0.1855 | 0.2010 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 1 | 2048 | 0 | 2048/2048 | 0.2221 | 0.0994 | 0.0994 | 0.2923 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 8 | 2048 | 0 | 16384/16384 | 0.2364 | 0.1143 | 0.0490 | 0.2224 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | yes | 1 | 2048 | 0 | 2048/2048 | 0.2239 | 0.1087 | - | - |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | yes | 8 | 2048 | 0 | 16384/16384 | 0.2681 | 0.1265 | - | - |
+
+Elements outside in Part L: 0; largest whole-chain errM ratio 0.3998
+
+Run time: 6 s
+exit 0

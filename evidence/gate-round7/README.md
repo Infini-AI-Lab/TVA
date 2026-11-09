@@ -6,6 +6,9 @@ toolchain), Python 3.13, git 2.52, 2026-10-28; no GPU and no Triton run. Script:
 output: [out.txt](out.txt). The release check's own evidence is in
 [evidence/release-check](../release-check/README.md).
 
+**Since round 35** (library issues L160, L170) the release check recomputes no kernel's gate:
+Conclusion 5's last sentence records a step that no longer runs.
+
 **Questions.**
 1. (L38) Does the gate refuse a `kernel.json` whose module or namespace is not a plain name, before
    anything is spliced into the claim reader?
@@ -54,5 +57,5 @@ certificate.
 4. What ships is what the scan reads (L41).
 5. A library change makes every gate it reaches stale until `tvr check` runs again; the certificate
    lapses meanwhile, and the tool refuses filings against the stale gate (L42). The release check
-   also compares each recomputed gate with the shipped one.
+   also compared each recomputed gate with the shipped one (until round 35; no longer run).
 6. Rule pages follow modules into subfolders (L43).

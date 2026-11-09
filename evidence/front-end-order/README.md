@@ -54,7 +54,8 @@ facts:
 1. The front end evaluates a call's keyword arguments before its positional ones. A model is not
    affected: only which operations are evaluated matters, since a well-behaved model's accesses to
    the same bytes with a write among them are atomics, which the semantics performs in every order
-   (SEMANTICS.md, "Order").
+   (SEMANTICS.md, "Order"), outside the exclusion of an atomic's result used on a shared cell
+   (SEMANTICS.md, "Atomics"; library issues L161, L167).
 2. A conditional expression with a runtime condition runs only the taken side. What such a runtime
    branch means in a model stays open (library issue L28).
 3. `launch_metadata=` changes neither the compiled code nor any result, and its function runs only

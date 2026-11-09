@@ -1,0 +1,8 @@
+== relaxed-atomics
+exit 0
+== bool-args
+exit 0
+== fma-one-product
+exit 0
+== thread-locality
+exit 0

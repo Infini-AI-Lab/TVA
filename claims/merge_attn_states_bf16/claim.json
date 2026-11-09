@@ -1,0 +1,94 @@
+{
+  "kernel": "merge_attn_states_bf16",
+  "title": "Merge of two attention states by their lse, with or without the merged lse (`merge_attn_states_kernel`, bfloat16), vLLM",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/merge_attn_states.py",
+    "sha256": "124cca1c9bf654709d3171428beccf72d61bfb1a20cf402852155e1f02bd8c81",
+    "ranges": [
+      [
+        61,
+        62
+      ],
+      [
+        65,
+        92
+      ],
+      [
+        94,
+        94
+      ],
+      [
+        96,
+        97
+      ],
+      [
+        101,
+        113
+      ],
+      [
+        115,
+        121
+      ],
+      [
+        123,
+        126
+      ],
+      [
+        128,
+        136
+      ],
+      [
+        140,
+        149
+      ],
+      [
+        156,
+        157
+      ],
+      [
+        159,
+        161
+      ],
+      [
+        163,
+        165
+      ],
+      [
+        167,
+        168
+      ],
+      [
+        171,
+        177
+      ],
+      [
+        179,
+        192
+      ],
+      [
+        197,
+        199
+      ],
+      [
+        202,
+        202
+      ],
+      [
+        204,
+        207
+      ],
+      [
+        209,
+        216
+      ]
+    ],
+    "host": []
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.MergeAttnStates",
+  "statement": "Claims.MergeAttnStates.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

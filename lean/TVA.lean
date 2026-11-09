@@ -12,11 +12,13 @@ import TVA.Lang.Scan
 import TVA.Lang.Scaled
 import TVA.Sem.Step
 import TVA.Sem.Launch
+import TVA.Sem.AtomicResult
 import TVA.Claim
 import TVA.Rules.Compiler
 import TVA.Rules.Num
 import TVA.Rules.Num.Sm90
 import TVA.Rules.Num.Dot8Chunk
+import TVA.Rules.Num.Dot16Chunk
 import TVA.Lemmas.Mem
 import TVA.Lemmas.Buf
 import TVA.Lemmas.Int
@@ -46,3 +48,5 @@ import TVA.Lemmas.SumFused
 import TVA.Lemmas.SharedAcc
 import TVA.Lemmas.Dot8Chunk
 import TVA.Lemmas.DotLift
+import TVA.Lemmas.Dot16Chunk
+import TVA.Lemmas.AtomicResult

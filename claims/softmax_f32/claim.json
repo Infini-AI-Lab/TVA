@@ -1,0 +1,71 @@
+{
+  "kernel": "softmax_f32",
+  "title": "Fused softmax, Triton tutorial 02 (`softmax_kernel`, float32)",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/02-fused-softmax.py",
+    "sha256": "8a65b696d5b02a3900380395ecd883671afeb66328db108f55622ed8853a05da",
+    "ranges": [
+      [
+        26,
+        27
+      ],
+      [
+        84,
+        109
+      ]
+    ],
+    "host": [
+      [
+        24,
+        24
+      ],
+      [
+        28,
+        28
+      ],
+      [
+        30,
+        30
+      ],
+      [
+        33,
+        34
+      ],
+      [
+        37,
+        39
+      ],
+      [
+        42,
+        59
+      ],
+      [
+        115,
+        121
+      ],
+      [
+        124,
+        175
+      ],
+      [
+        186,
+        190
+      ],
+      [
+        203,
+        226
+      ],
+      [
+        229,
+        229
+      ]
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.Softmax",
+  "statement": "Claims.Softmax.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

@@ -1,0 +1,10 @@
+kernels/softmax_f32/lean/Softmax/Proof.lean exit-errors:[none] 8s
+kernels/attn_fwd_f16/lean/AttnFwd.lean exit-errors:[none] 8s
+kernels/attn_bwd_f16/lean/AttnBwd.lean exit-errors:[none] 8s
+kernels/attn_fwd_e5m2/lean/AttnFwdE5m2.lean exit-errors:[none] 6s
+kernels/paged_attention_f16/lean/PagedAttention.lean exit-errors:[none] 7s
+kernels/matmul_f16/lean/Matmul.lean exit-errors:[none] 8s
+kernels/matmul_e5m2/lean/MatmulE5m2.lean exit-errors:[none] 8s
+kernels/streamk_matmul_f16/lean/StreamKMatmul.lean exit-errors:[none] 8s
+kernels/block_scaled_matmul_mxfp8/lean/BlockScaledMxfp8.lean exit-errors:[none] 7s
+kernels/grouped_matmul_tma_f16/lean/GroupedMatmulTma.lean exit-errors:[none] 8s

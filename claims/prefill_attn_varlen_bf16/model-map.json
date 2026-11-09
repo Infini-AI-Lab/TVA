@@ -1,0 +1,605 @@
+{
+ "source": {
+  "file": "source/prefill_attention.py",
+  "sha256": "f28dc33ddaa1a6c7931aed48c71073c53675276e4d980e4360b0f5835f243d4d",
+  "ranges": [
+   [
+    47,
+    48
+   ],
+   [
+    51,
+    77
+   ],
+   [
+    79,
+    79
+   ],
+   [
+    81,
+    82
+   ],
+   [
+    84,
+    84
+   ],
+   [
+    87,
+    96
+   ],
+   [
+    98,
+    98
+   ],
+   [
+    100,
+    104
+   ],
+   [
+    106,
+    107
+   ],
+   [
+    110,
+    112
+   ],
+   [
+    114,
+    114
+   ],
+   [
+    116,
+    122
+   ],
+   [
+    124,
+    128
+   ],
+   [
+    131,
+    133
+   ],
+   [
+    135,
+    145
+   ],
+   [
+    148,
+    150
+   ],
+   [
+    152,
+    155
+   ],
+   [
+    158,
+    159
+   ],
+   [
+    161,
+    162
+   ],
+   [
+    164,
+    168
+   ],
+   [
+    170,
+    171
+   ],
+   [
+    173,
+    174
+   ],
+   [
+    176,
+    184
+   ]
+  ],
+  "host": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.PrefillAttnVarlen",
+ "entries": [
+  {
+   "src": [
+    47
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the `@triton.jit` of line 51 names (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); the kernel's body does not name `triton`; it adds no step to the program"
+  },
+  {
+   "src": [
+    48
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 75–184 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    51
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: the kernel; no other statement of the module binds `_fwd_kernel`; the model is the function `fwd_kernel`"
+  },
+  {
+   "src": [
+    "52-74"
+   ],
+   "note": "the signature: `Q`, `K`, `V`, `Out` the model's `*bf16` parameters, `sm_scale` the runtime `float32` scalar (a Python `float` argument: `FloatV.hostF32` of the double), `B_Start_Loc`, `B_Seqlen` `*i32`, the eight strides `int32` (one equal to `1` is the compile-time constant `1`, built in `int32` at each use: the same model), the five integer `tl.constexpr`s Lean parameters (`fwd_kernel`'s) and `IS_CAUSAL` a Lean `Bool` (the host's `is_causal`, `Inst.causal`)",
+   "drop": "decl"
+  },
+  {
+   "src": [
+    75
+   ],
+   "model": [
+    "let cur_batch := tl.program_id ctx 0"
+   ],
+   "note": "axis 0 of the grid (`batch`), an `int32`"
+  },
+  {
+   "src": [
+    76
+   ],
+   "model": [
+    "let cur_head := tl.program_id ctx 1"
+   ],
+   "note": "axis 1 (`num_heads`)"
+  },
+  {
+   "src": [
+    77
+   ],
+   "model": [
+    "let start_m := tl.program_id ctx 2"
+   ],
+   "note": "axis 2 (`cdiv(max_input_len, 128)`)"
+  },
+  {
+   "src": [
+    79
+   ],
+   "model": [
+    "(← tl.idiv (Tensor.scalar cur_head) (Tensor.scalar (IntV.ofNat kv_group_num : I32))).item"
+   ],
+   "note": "`int32` `//` by the constexpr, built in `int32`; truncating, undefined for a zero divisor: `kv_pos` and `kv_dvd` of `Inst.ok` (`kv_group_num = num_heads // num_kv_heads ≥ 1`, line 213)"
+  },
+  {
+   "src": [
+    81
+   ],
+   "model": [
+    "let cur_batch_seq_len ← tl.load1 (B_Seqlen + cur_batch)"
+   ],
+   "note": "the `*i32` pointer advanced by the scalar `cur_batch`; one `int32` element (`tl.load` of a scalar pointer)"
+  },
+  {
+   "src": [
+    82
+   ],
+   "model": [
+    "let cur_batch_in_all_start_index ← tl.load1 (B_Start_Loc + cur_batch)"
+   ]
+  },
+  {
+   "src": [
+    84
+   ],
+   "model": [
+    "let block_start_loc := (IntV.ofNat BLOCK_M : I32) * start_m"
+   ],
+   "note": "the constexpr `BLOCK_M` built in `int32` times `start_m`, a wrapping `int32` product; `start_m·128 < 2^31` on a covered instance (`start_m < cdiv(max_input_len, 128) ≤ 1024`)"
+  },
+  {
+   "src": [
+    87
+   ],
+   "model": [
+    "let offs_n : Tensor [BLOCK_N] I32 := tl.arange 0 BLOCK_N"
+   ]
+  },
+  {
+   "src": [
+    88
+   ],
+   "model": [
+    "let offs_d : Tensor [BLOCK_DMODEL] I32 := tl.arange 0 BLOCK_DMODEL"
+   ]
+  },
+  {
+   "src": [
+    89
+   ],
+   "model": [
+    "start_m * (IntV.ofNat BLOCK_M : I32) + tl.arange 0 BLOCK_M"
+   ],
+   "note": "the `int32` product plus the `tl.arange`, one value per row of the query tile"
+  },
+  {
+   "src": [
+    "90-94"
+   ],
+   "model": [
+    "(cur_batch_in_all_start_index + offs_m.col BLOCK_DMODEL) * stride_qbs +",
+    "bc (cur_head * stride_qh) + offs_d.row BLOCK_M"
+   ],
+   "note": "the `int32` products and sums in the source's order, each term broadcast to the final shape `[BLOCK_M, BLOCK_DMODEL]` (`x[:, None]` is `.col`, `x[None, :]` is `.row`, the scalar terms `bc`); no wrap: `Inst.ok`'s `q_i32`, `k_i32`, `v_i32`, `o_i32`"
+  },
+  {
+   "src": [
+    95
+   ],
+   "model": [
+    "offs_n.row BLOCK_DMODEL * stride_kbs +",
+    "bc (cur_kv_head * stride_kh) + offs_d.col BLOCK_N"
+   ],
+   "note": "in the final shape `[BLOCK_DMODEL, BLOCK_N]`: `k` is loaded transposed for `tl.dot(q, k)`"
+  },
+  {
+   "src": [
+    96
+   ],
+   "model": [
+    "offs_n.col BLOCK_DMODEL * stride_vbs +",
+    "bc (cur_kv_head * stride_vh) + offs_d.row BLOCK_N"
+   ],
+   "note": "in the final shape `[BLOCK_N, BLOCK_DMODEL]`"
+  },
+  {
+   "src": [
+    98
+   ],
+   "model": [
+    "let mask_d : Tensor [BLOCK_DMODEL] Bool := offs_d.ltS (IntV.ofNat Lk : I32)"
+   ],
+   "note": "the constexpr `Lk` built in `int32`; a signed `int32` comparison (`int1`)"
+  },
+  {
+   "src": [
+    "100-104"
+   ],
+   "model": [
+    "tl.load (Q + off_q)",
+    "(some (((offs_m.col BLOCK_DMODEL).ltS cur_batch_seq_len).and (mask_d.row BLOCK_M)))",
+    "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_M, BLOCK_DMODEL] zf32)))"
+   ],
+   "note": "the row mask `offs_m[:, None] < cur_batch_seq_len` (`ltS` on the `[BLOCK_M, BLOCK_DMODEL]` broadcast) and the column mask `mask_d[None, :]`, conjoined elementwise (`&` on `int1`); `other=0.0` is first the `float32` `+0` (a Python `float`, SEMANTICS.md, Constants: everywhere else), then converted to the pointer's dtype `bfloat16` (`semantic.cast`) — `+0` either way; disabled lanes are not accessed"
+  },
+  {
+   "src": [
+    106
+   ],
+   "model": [
+    "let k_ptrs := K + off_k"
+   ],
+   "note": "the `*bf16` pointer plus the `int32` block, a `[BLOCK_DMODEL, BLOCK_N]` block of pointers"
+  },
+  {
+   "src": [
+    107
+   ],
+   "model": [
+    "let v_ptrs := V + off_v"
+   ]
+  },
+  {
+   "src": [
+    110
+   ],
+   "model": [
+    "let m_i : Tensor [BLOCK_M] F32 ← tl.sub (tl.zeros [BLOCK_M] .f32) (bc pinf32)"
+   ],
+   "note": "`tl.zeros([BLOCK_M], tl.float32) - float(\"inf\")`: the Python `float(\"inf\")` is built in `float32` (`+∞`, `FloatV.litF32`, SEMANTICS.md, Constants), the IEEE `-`: `−∞`"
+  },
+  {
+   "src": [
+    111
+   ],
+   "model": [
+    "let l_i := tl.zeros [BLOCK_M] .f32"
+   ]
+  },
+  {
+   "src": [
+    112
+   ],
+   "model": [
+    "let acc := tl.zeros [BLOCK_M, BLOCK_DMODEL] .f32"
+   ]
+  },
+  {
+   "src": [
+    114
+   ],
+   "model": [
+    "tl.where (Tensor.lt (Tensor.scalar block_start_loc) (Tensor.scalar cur_batch_seq_len))",
+    "(bc (IntV.ofInt 1 : I32)) (bc (IntV.ofInt 0 : I32))"
+   ],
+   "note": "a runtime `if`'s value: the Python `1` and `0` are built in `int32` (the comparison's result dtype, `whereTyping?`), so `block_mask` is a scalar `int32` tensor holding `1` or `0`"
+  },
+  {
+   "src": [
+    "116-120"
+   ],
+   "model": [
+    "if !IS_CAUSAL then cur_batch_seq_len",
+    "(tl.iminimum (Tensor.scalar ((start_m + (IntV.ofInt 1 : I32)) * (IntV.ofNat BLOCK_M : I32)))",
+    "(Tensor.scalar cur_batch_seq_len)).item"
+   ],
+   "note": "a conditional expression on the compile-time `not IS_CAUSAL` (a constexpr `bool`): only the side it picks is evaluated (SEMANTICS.md, Order): `cur_batch_seq_len` when `IS_CAUSAL = False`, else `tl.minimum((start_m + 1) * BLOCK_M, cur_batch_seq_len)`, the exact `tl.iminimum` of two `int32` scalars; the Python `1` is built in `int32`"
+  },
+  {
+   "src": [
+    121
+   ],
+   "model": [
+    "let (_, _, acc) ← tl.forRange (IntV.ofInt 0 : I32)",
+    "((block_mask * Tensor.scalar end_n).item) (IntV.ofNat BLOCK_N : I32) (m_i, l_i, acc)",
+    "fun start_n (m_i, l_i, acc) => do"
+   ],
+   "note": "`range(0, block_mask * end_n, BLOCK_N)` is `tl.forRange` with step `BLOCK_N = 128`: the bound is the `int32` product of line 114's `tl.where` result and `end_n`, evaluated once before the loop (each argument once, SEMANTICS.md, loops); the loop carries `m_i`, `l_i`, `acc` (`q`, the pointers and the offsets do not change); the model names the loop's final `acc`"
+  },
+  {
+   "src": [
+    122
+   ],
+   "drop": "no-op:hint",
+   "note": "`tl.multiple_of(start_n, BLOCK_N)` on the loop's induction variable marks no operation and has no effect (SEMANTICS.md, compiler hints: a hint on an induction variable)"
+  },
+  {
+   "src": [
+    "124-128"
+   ],
+   "model": [
+    "tl.load (k_ptrs + (bc ((cur_batch_in_all_start_index + start_n) *",
+    "stride_kbs) : Tensor [BLOCK_DMODEL, BLOCK_N] I32))",
+    "(some ((((start_n + offs_n).row BLOCK_DMODEL).ltS cur_batch_seq_len).and",
+    "(mask_d.col BLOCK_N)))",
+    "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_DMODEL, BLOCK_N] zf32)))"
+   ],
+   "note": "the pointer block `k_ptrs` plus the scalar `int32` offset `(cur_batch_in_all_start_index + start_n) * stride_kbs` (broadcast); the key mask row-broadcast and the column mask `mask_d[:, None]`; `other=0.0` the `float32` `+0` converted to `bfloat16`; disabled lanes are not accessed (`Inst.ok`'s `k_len` bounds the enabled ones)"
+  },
+  {
+   "src": [
+    131
+   ],
+   "model": [
+    "let qk₀ := tl.zeros [BLOCK_M, BLOCK_N] .f32"
+   ]
+  },
+  {
+   "src": [
+    132
+   ],
+   "model": [
+    "let qk₁ : Tensor [BLOCK_M, BLOCK_N] F32 ← tl.dot_add cfgBF16 q k qk₀"
+   ],
+   "note": "`qk += tl.dot(q, k)`: the dot's own accumulator is the default `±0` and the product has no other use, so the combine pass's rewrite applies (`tl.dot_add`): either `tl.dot(q, k, qk₀)` or the product followed by the (fusable) addition; `cfgBF16` is the operands' `bfloat16`, the default `float32` accumulator, the default `input_precision` and the default `max_num_imprecise_acc = 0`"
+  },
+  {
+   "src": [
+    133
+   ],
+   "model": [
+    "tl.mul_add qk₁ (bc sm_scale)"
+   ],
+   "note": "lines 133 and 135–145 in one `tl.mul_add`: the multiply `qk *= sm_scale` feeds the addition `qk += tl.where(cond, 0, float(\"-inf\"))` of whichever branch the compile-time `if IS_CAUSAL:` visits, so the two statements are one fusable multiply-add (`tl.mul_add`: either the two roundings of `qk₁·sm_scale` and the addition of the mask, or one `fma(qk₁, sm_scale, mask)`); at a masked lane both arms give exactly `−∞` (the finite product plus `−∞`, or the `fma` with a `−∞` addend)"
+  },
+  {
+   "src": [
+    135
+   ],
+   "model": [
+    "(if IS_CAUSAL then"
+   ],
+   "note": "a compile-time `if` on the constexpr `IS_CAUSAL`: the front end visits only the branch it picks (SEMANTICS.md, if/elif/else on a compile-time condition), a Lean `if` on the `Bool` parameter giving the addend of line 133’s `tl.mul_add`"
+  },
+  {
+   "src": [
+    "136-141"
+   ],
+   "model": [
+    "tl.where",
+    "((((start_n + offs_n).row BLOCK_M).ltS cur_batch_seq_len).and",
+    "(Tensor.le ((start_n + offs_n).row BLOCK_M) (offs_m.col BLOCK_N)))",
+    "(bc zf32) (bc ninf32)"
+   ],
+   "note": "`IS_CAUSAL = True`: the `tl.where` inside line 133's `tl.mul_add`: the condition's conjunction (the key mask `start_n + offs_n[None, :] < cur_batch_seq_len`, a signed `int32` comparison, row-broadcast, and the causal mask `offs_m[:, None] >= start_n + offs_n[None, :]`), a `[BLOCK_M, BLOCK_N]` block, and the `float32` constants `+0`/`−∞` (`whereTyping?`)"
+  },
+  {
+   "src": [
+    142
+   ],
+   "model": [
+    "else"
+   ],
+   "note": "the `else` of the compile-time `if` on `IS_CAUSAL`: the branch visited when `IS_CAUSAL = False`"
+  },
+  {
+   "src": [
+    "143-145"
+   ],
+   "model": [
+    "tl.where (((start_n + offs_n).row BLOCK_M).ltS cur_batch_seq_len)",
+    "(bc zf32) (bc ninf32))"
+   ],
+   "note": "`IS_CAUSAL = False`: `tl.where((start_n + offs_n[None, :]) < cur_batch_seq_len, 0, float(\"-inf\"))`, the key mask alone (a signed `int32` comparison), a `[1, BLOCK_N]` select of the `float32` constants `+0`/`−∞`, which the `+=` of line 133 broadcasts to `[BLOCK_M, BLOCK_N]`; the model writes the select at the broadcast shape (`.row BLOCK_M`), the same value in every row"
+  },
+  {
+   "src": [
+    148
+   ],
+   "model": [
+    "let m_ij : Tensor [BLOCK_M] F32 ← tl.max1 true qk"
+   ],
+   "note": "`tl.max(qk, 1)`, the row maximum (`float32`, no widening)"
+  },
+  {
+   "src": [
+    149
+   ],
+   "model": [
+    "let p : Tensor [BLOCK_M, BLOCK_N] F32 ← tl.exp (← tl.sub qk (m_ij.col BLOCK_N))"
+   ],
+   "note": "the IEEE `-` (no product feeds it: `qk` is the result of the select of lines 136–141 and `m_ij` of the reduction; the library's `tl.add`/`tl.sub` reading), then `tl.exp` (`P.math .exp`, `Rules.Num.ExpF32`)"
+  },
+  {
+   "src": [
+    150
+   ],
+   "model": [
+    "let l_ij : Tensor [BLOCK_M] F32 ← tl.sum1 p"
+   ],
+   "note": "`tl.sum(p, 1)`: `p` is not a product, so the IEEE `tl.sum1` (float32, no widening)"
+  },
+  {
+   "src": [
+    152
+   ],
+   "model": [
+    "let m_i_new : Tensor [BLOCK_M] F32 ← tl.maximum m_i m_ij"
+   ],
+   "note": "`float32` `tl.maximum` (`MaxRel`); both operands are `float32` blocks"
+  },
+  {
+   "src": [
+    153
+   ],
+   "model": [
+    "let alpha : Tensor [BLOCK_M] F32 ← tl.exp (← tl.sub m_i m_i_new)"
+   ],
+   "note": "the IEEE `-` (no product feeds it), then `tl.exp`; on the first trip `m_i = −∞`, so the input is `−∞` and the result is `+0` (`Rules.Num.ExpF32NegInf`)"
+  },
+  {
+   "src": [
+    154
+   ],
+   "model": [
+    "let beta : Tensor [BLOCK_M] F32 ← tl.exp (← tl.sub m_ij m_i_new)"
+   ]
+  },
+  {
+   "src": [
+    155
+   ],
+   "model": [
+    "          tl.addc (← tl.mul alpha l_i) (← tl.mul beta l_ij)"
+   ],
+   "note": "line 155: `alpha * l_i + beta * l_ij`: both operands are products, so the fusable `tl.addc` (either product may contract into the addition, or none)"
+  },
+  {
+   "src": [
+    158
+   ],
+   "model": [
+    "let p_scale : Tensor [BLOCK_M] F32 ← tl.div beta l_i_new"
+   ],
+   "note": "`float32 / float32`, the platform's division (`P.div`, `Rules.Num.DivFull`)"
+  },
+  {
+   "src": [
+    159
+   ],
+   "model": [
+    "let p₁ : Tensor [BLOCK_M, BLOCK_N] F32 ← tl.mul p (p_scale.col BLOCK_N)"
+   ],
+   "note": "the IEEE `*`, `p_scale[:, None]` broadcast to the block's shape"
+  },
+  {
+   "src": [
+    161
+   ],
+   "model": [
+    "let acc_scale : Tensor [BLOCK_M] F32 ← tl.mul (← tl.div l_i l_i_new) alpha"
+   ],
+   "note": "`(l_i / l_i_new) * alpha`: Python's left-associative `*` and `/` of equal precedence; the division first (`P.div`), then the IEEE `*`"
+  },
+  {
+   "src": [
+    162
+   ],
+   "model": [
+    "let acc₁ : Tensor [BLOCK_M, BLOCK_DMODEL] F32 ← tl.mul acc (acc_scale.col BLOCK_DMODEL)"
+   ]
+  },
+  {
+   "src": [
+    "164-168"
+   ],
+   "model": [
+    "tl.load (v_ptrs + (bc ((cur_batch_in_all_start_index + start_n) *",
+    "stride_vbs) : Tensor [BLOCK_N, BLOCK_DMODEL] I32))",
+    "(some ((((start_n + offs_n).col BLOCK_DMODEL).ltS cur_batch_seq_len).and",
+    "(mask_d.row BLOCK_N)))",
+    "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_N, BLOCK_DMODEL] zf32)))"
+   ],
+   "note": "as lines 124–128, with the masks transposed (`offs_n[:, None]`, `mask_d[None, :]`); disabled lanes are not accessed"
+  },
+  {
+   "src": [
+    170
+   ],
+   "model": [
+    "let p₂ : Tensor [BLOCK_M, BLOCK_N] BF16 ← tl.cvt p₁"
+   ],
+   "note": "`p.to(v.dtype)` with `v` `bfloat16`: one rounding to nearest even (`tl.cvt`)"
+  },
+  {
+   "src": [
+    171
+   ],
+   "model": [
+    "let acc₂ : Tensor [BLOCK_M, BLOCK_DMODEL] F32 ← tl.dot_add cfgBF16 p₂ v acc₁"
+   ],
+   "note": "`acc += tl.dot(p, v)`: the dot's own accumulator is the default `±0` and the product has no other use, so `tl.dot_add`: either `tl.dot(p₂, v, acc₁)` or the product followed by the (fusable) addition; the shapes `[BLOCK_M, BLOCK_N] × [BLOCK_N, BLOCK_DMODEL]`"
+  },
+  {
+   "src": [
+    173
+   ],
+   "model": [
+    "pure (m_i_new, l_i_new, acc₂)"
+   ],
+   "note": "lines 173–174 are the loop's carried state (`l_i = l_i_new`, `m_i = m_i_new`)"
+  },
+  {
+   "src": [
+    174
+   ],
+   "model": [
+    "pure (m_i_new, l_i_new, acc₂)"
+   ],
+   "note": "as line 173"
+  },
+  {
+   "src": [
+    "176-180"
+   ],
+   "model": [
+    "(cur_batch_in_all_start_index + offs_m.col BLOCK_DMODEL) * stride_obs +",
+    "bc (cur_head * stride_oh) + offs_d.row BLOCK_M"
+   ],
+   "note": "as lines 90–94, with `Out`'s strides, in the final shape `[BLOCK_M, BLOCK_DMODEL]`"
+  },
+  {
+   "src": [
+    181
+   ],
+   "model": [
+    "let out_ptrs := Out + off_o"
+   ]
+  },
+  {
+   "src": [
+    "182-184"
+   ],
+   "model": [
+    "let o16 : Tensor [BLOCK_M, BLOCK_DMODEL] BF16 ← tl.cvt acc",
+    "tl.store out_ptrs o16",
+    "(some (((offs_m.col BLOCK_DMODEL).ltS cur_batch_seq_len).and (mask_d.row BLOCK_M)))"
+   ],
+   "note": "the store converts `acc` to the pointer's dtype `bfloat16` (one rounding to nearest even, SEMANTICS.md, tl.store), with the row mask `offs_m[:, None] < cur_batch_seq_len` and the column mask `mask_d[None, :]`: rows at or above `cur_batch_seq_len` and components at or above `Lk` are not written"
+  }
+ ]
+}

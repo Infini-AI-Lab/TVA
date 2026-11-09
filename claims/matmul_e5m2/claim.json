@@ -1,0 +1,81 @@
+{
+  "kernel": "matmul_e5m2",
+  "title": "Matrix multiplication, Triton tutorial 03 (`matmul_kernel`, float8e5 operands, float16 output)",
+  "setup": "SETUP.md",
+  "source": {
+    "file": "source/03-matrix-multiplication.py",
+    "sha256": "0214d122b309ed88b97c8b88a66ddc03b0d7dcc7cca8444e887d4c8b71447ba5",
+    "ranges": [
+      [
+        154,
+        155
+      ],
+      [
+        228,
+        316
+      ]
+    ],
+    "host": [
+      [
+        152,
+        152
+      ],
+      [
+        157,
+        157
+      ],
+      [
+        160,
+        161
+      ],
+      [
+        164,
+        164
+      ],
+      [
+        202,
+        202
+      ],
+      [
+        216,
+        216
+      ],
+      [
+        320,
+        321
+      ],
+      [
+        330,
+        350
+      ],
+      [
+        359,
+        388
+      ],
+      [
+        400,
+        420
+      ],
+      [
+        423,
+        437
+      ],
+      [
+        440,
+        440
+      ]
+    ],
+    "unused": [
+      "get_cuda_autotune_config",
+      "get_hip_autotune_config",
+      "get_autotune_config",
+      "leaky_relu"
+    ]
+  },
+  "lean": "Claim.lean",
+  "namespace": "Claims.MatmulE5m2",
+  "statement": "Claims.MatmulE5m2.Statement",
+  "model_map": "model-map.json",
+  "readme": "README.md",
+  "check": "check_gpu.py"
+}

@@ -1,0 +1,60 @@
+probe src=fp16 M=16 N=16 K=32 warps=1 path=mma.sync kWidth=['2'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=16 N=16 K=32 warps=1 path=mma.sync kWidth=['2'] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['2'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['2'] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+random src=fp16 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['2']: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 683
+probe src=fp16 M=32 N=32 K=32 warps=2 path=mma.sync kWidth=['2'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=32 N=32 K=32 warps=2 path=mma.sync kWidth=['2'] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['2'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['2'] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+random src=fp16 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['2']: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 673
+probe src=fp16 M=64 N=64 K=32 warps=4 path=wgmma kWidth=[] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=64 N=64 K=32 warps=4 path=wgmma kWidth=[] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=64 N=64 K=64 warps=4 path=wgmma kWidth=[] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=64 N=64 K=64 warps=4 path=wgmma kWidth=[] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+random src=fp16 M=64 N=64 K=64 warps=4 path=wgmma kWidth=[]: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 692
+probe src=fp16 M=128 N=64 K=32 warps=4 path=wgmma kWidth=[] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=128 N=64 K=32 warps=4 path=wgmma kWidth=[] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=128 N=64 K=64 warps=4 path=wgmma kWidth=[] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp16 M=128 N=64 K=64 warps=4 path=wgmma kWidth=[] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+random src=fp16 M=128 N=64 K=64 warps=4 path=wgmma kWidth=[]: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 668
+probe src=fp8e5 M=16 N=16 K=32 warps=1 path=mma.sync kWidth=['4'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=16 N=16 K=32 warps=1 path=mma.sync kWidth=['4'] big=20: device=[1.0] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4'] big=20: device=[1.0] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+random src=fp8e5 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4']: 1280 elements, differ from model(consecutive) 698, from model(interleaved8) 702
+probe src=fp8e5 M=32 N=32 K=32 warps=2 path=mma.sync kWidth=['4'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=32 N=32 K=32 warps=2 path=mma.sync kWidth=['4'] big=20: device=[1.0] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['4'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['4'] big=20: device=[1.0] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+random src=fp8e5 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['4']: 1280 elements, differ from model(consecutive) 676, from model(interleaved8) 673
+probe src=fp8e5 M=64 N=64 K=32 warps=4 path=wgmma kWidth=['2'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=64 N=64 K=32 warps=4 path=wgmma kWidth=['2'] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2'] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+random src=fp8e5 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2']: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 692
+probe src=fp8e5 M=128 N=64 K=32 warps=4 path=wgmma kWidth=['2'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=128 N=64 K=32 warps=4 path=wgmma kWidth=['2'] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=128 N=64 K=64 warps=4 path=wgmma kWidth=['2'] big=4: device=[1.0] model(consecutive)=1.0 model(interleaved8)=1.0000001192092896
+probe src=fp8e5 M=128 N=64 K=64 warps=4 path=wgmma kWidth=['2'] big=20: device=[1.0000001192092896] model(consecutive)=1.0000001192092896 model(interleaved8)=1.0000001192092896
+random src=fp8e5 M=128 N=64 K=64 warps=4 path=wgmma kWidth=['2']: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 668
+probe src=int8 M=16 N=16 K=32 warps=1 path=mma.sync kWidth=['4'] big=4: device=[2097152.0] model(consecutive)=2097152.0 model(interleaved8)=2097152.25
+probe src=int8 M=16 N=16 K=32 warps=1 path=mma.sync kWidth=['4'] big=20: device=[2097152.0] model(consecutive)=2097152.25 model(interleaved8)=2097152.25
+probe src=int8 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4'] big=4: device=[2097152.0] model(consecutive)=2097152.0 model(interleaved8)=2097152.25
+probe src=int8 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4'] big=20: device=[2097152.0] model(consecutive)=2097152.25 model(interleaved8)=2097152.25
+random src=int8 M=16 N=16 K=64 warps=1 path=mma.sync kWidth=['4']: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 0
+probe src=int8 M=32 N=32 K=32 warps=2 path=mma.sync kWidth=['4'] big=4: device=[2097152.0] model(consecutive)=2097152.0 model(interleaved8)=2097152.25
+probe src=int8 M=32 N=32 K=32 warps=2 path=mma.sync kWidth=['4'] big=20: device=[2097152.0] model(consecutive)=2097152.25 model(interleaved8)=2097152.25
+probe src=int8 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['4'] big=4: device=[2097152.0] model(consecutive)=2097152.0 model(interleaved8)=2097152.25
+probe src=int8 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['4'] big=20: device=[2097152.0] model(consecutive)=2097152.25 model(interleaved8)=2097152.25
+random src=int8 M=32 N=32 K=64 warps=2 path=mma.sync kWidth=['4']: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 0
+probe src=int8 M=64 N=64 K=32 warps=4 path=wgmma kWidth=['2'] big=4: device=[2097152.0] model(consecutive)=2097152.0 model(interleaved8)=2097152.25
+probe src=int8 M=64 N=64 K=32 warps=4 path=wgmma kWidth=['2'] big=20: device=[2097152.25] model(consecutive)=2097152.25 model(interleaved8)=2097152.25
+probe src=int8 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2'] big=4: device=[2097152.0] model(consecutive)=2097152.0 model(interleaved8)=2097152.25
+probe src=int8 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2'] big=20: device=[2097152.25] model(consecutive)=2097152.25 model(interleaved8)=2097152.25
+random src=int8 M=64 N=64 K=64 warps=4 path=wgmma kWidth=['2']: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 0
+probe src=int8 M=128 N=64 K=32 warps=4 path=wgmma kWidth=['2'] big=4: device=[2097152.0] model(consecutive)=2097152.0 model(interleaved8)=2097152.25
+probe src=int8 M=128 N=64 K=32 warps=4 path=wgmma kWidth=['2'] big=20: device=[2097152.25] model(consecutive)=2097152.25 model(interleaved8)=2097152.25
+probe src=int8 M=128 N=64 K=64 warps=4 path=wgmma kWidth=['2'] big=4: device=[2097152.0] model(consecutive)=2097152.0 model(interleaved8)=2097152.25
+probe src=int8 M=128 N=64 K=64 warps=4 path=wgmma kWidth=['2'] big=20: device=[2097152.25] model(consecutive)=2097152.25 model(interleaved8)=2097152.25
+random src=int8 M=128 N=64 K=64 warps=4 path=wgmma kWidth=['2']: 1280 elements, differ from model(consecutive) 0, from model(interleaved8) 0

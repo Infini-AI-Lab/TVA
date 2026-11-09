@@ -1,0 +1,33 @@
+@sum_bcast_mul_depth_err : ∀ {fusion : Bool} {K D : ℕ} (a b p : ℕ → F32) {t : TVA.Tree} {r : F32},
+  (∀ k < K, tl.MulRel DType.f32 (a k) (b k) (p k)) →
+    Tree.Covers K t →
+      t.depth ≤ D →
+        Tree.Eval (AccAdd fusion DType.f32) p t r →
+          (∀ k < K, FloatV.isFinite (a k) = true) →
+            (∀ k < K, FloatV.isFinite (b k) = true) →
+              (∀ k < K, |FloatV.toRat (a k) * FloatV.toRat (b k)| ≤ Math.Float.Format.binary32.maxVal) →
+                (1 + Math.Float.Format.binary32.u) *
+                          (List.map (fun k => |FloatV.toRat (a k) * FloatV.toRat (b k)|) (List.range K)).sum +
+                        ↑K * Math.Float.Format.binary32.eta +
+                      Tree.errBound (3 * Math.Float.Format.binary32.u) (4 * Math.Float.Format.binary32.eta) D (K - 1)
+                        ((1 + Math.Float.Format.binary32.u) *
+                            (List.map (fun k => |FloatV.toRat (a k) * FloatV.toRat (b k)|) (List.range K)).sum +
+                          ↑K * Math.Float.Format.binary32.eta) ≤
+                    Math.Float.Format.binary32.maxVal / 2 - 2 * Math.Float.Format.binary32.eta →
+                  FloatV.isFinite r = true ∧
+                    |FloatV.toRat r -
+                          (List.map (fun k => FloatV.toRat (a k) * FloatV.toRat (b k)) (List.range K)).sum| ≤
+                      bcastDepthBound D K
+                        (List.map (fun k => |FloatV.toRat (a k) * FloatV.toRat (b k)|) (List.range K)).sum
+bcastTreeBound_eq : ∀ (K : ℕ) (B : ℚ), bcastTreeBound K B = bcastDepthBound (K - 1) K B
+@AddRel.wide : ∀ {f : Math.Float.Format} {fusion : Bool} {x y r : FloatV f},
+  AddRel fusion x y r → AddRelWide fusion x y r
+@tl.atomic_add_unused : {s : Shape} →
+  {d : DType} →
+    Tensor s (Ptr d) →
+      Tensor s d.Val →
+        optParam (Option (Tensor s Bool)) none → optParam MemSem MemSem.acqRel → optParam Scope Scope.gpu → Prog Unit
+'TVA.sum_bcast_mul_depth_err' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.AddRel.wide' depends on axioms: [propext, Classical.choice, Quot.sound]
+'TVA.MemSem.unused_gpu' depends on axioms: [propext]
+'TVA.bcastTreeBound_eq' depends on axioms: [propext, Classical.choice, Quot.sound]

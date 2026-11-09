@@ -20,10 +20,7 @@ A claim that holds for every tree uses the depth bound `depth ≤ N` (`depth_le_
 -/
 namespace TVA.Tree
 
-/-- The depth: a leaf has depth `0`. -/
-def depth : Tree → Nat
-  | leaf _ => 0
-  | node l r => max l.depth r.depth + 1
+-- `depth` (a leaf has depth `0`) is defined with `Tree` in `TVA.Lang.Tensor`.
 
 /-- The number of combining nodes (one less than the number of leaves). -/
 def nodes : Tree → Nat

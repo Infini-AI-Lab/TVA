@@ -1,0 +1,30 @@
+| `tl.exp(x) + c` | moderate | 4096 | 0 | FADD, FMUL, MUFU.EX2 |
+| `tl.exp(x) + c` | wide | 4096 | 0 | FADD, FMUL, MUFU.EX2 |
+| `tl.exp(x) + c` | exp-subnormal | 4096 | 0 | FADD, FMUL, MUFU.EX2 |
+| `tl.exp(x) + c` | exp2-subnormal | 4096 | 0 | FADD, FMUL, MUFU.EX2 |
+| `tl.exp2(x) + c` | moderate | 4096 | 0 | FADD, MUFU.EX2 |
+| `tl.exp2(x) + c` | wide | 4096 | 0 | FADD, MUFU.EX2 |
+| `tl.exp2(x) + c` | exp-subnormal | 4096 | 0 | FADD, MUFU.EX2 |
+| `tl.exp2(x) + c` | exp2-subnormal | 4096 | 0 | FADD, MUFU.EX2 |
+| `tl.log(x) + c` | moderate | 4096 | 0 | FADD, FFMA.FTZ, FMUL, HFMA2.MMA |
+| `tl.log(x) + c` | wide | 4096 | 0 | FADD, FFMA.FTZ, FMUL, HFMA2.MMA |
+| `tl.log2(x) + c` | moderate | 4096 | 0 | FADD, FFMA.FTZ, FMUL, HFMA2.MMA |
+| `tl.log2(x) + c` | wide | 4096 | 0 | FADD, FFMA.FTZ, FMUL, HFMA2.MMA |
+| `tl.sqrt(x) + c` | moderate | 4096 | 0 | FADD, MUFU.SQRT |
+| `tl.sqrt(x) + c` | wide | 4096 | 0 | FADD, MUFU.SQRT |
+| `tl.rsqrt(x) + c` | moderate | 4096 | 0 | FADD, MUFU.RSQ |
+| `tl.rsqrt(x) + c` | wide | 4096 | 0 | FADD, MUFU.RSQ |
+| `tl.sin(x) + c` | moderate | 4096 | 0 | DMUL, FADD, FADD.FTZ, FFMA.FTZ, FMUL, FMUL.FTZ, HFMA2.MMA |
+| `tl.sin(x) + c` | wide | 4096 | 0 | DMUL, FADD, FADD.FTZ, FFMA.FTZ, FMUL, FMUL.FTZ, HFMA2.MMA |
+| `tl.cos(x) + c` | moderate | 4096 | 0 | DMUL, FADD, FADD.FTZ, FFMA.FTZ, FMUL, FMUL.FTZ, HFMA2.MMA |
+| `tl.cos(x) + c` | wide | 4096 | 0 | DMUL, FADD, FADD.FTZ, FFMA.FTZ, FMUL, FMUL.FTZ, HFMA2.MMA |
+| `tl.erf(x) + c` | moderate | 4096 | 0 | FADD, FADD.FTZ, FFMA.FTZ, FMUL, HFMA2.MMA, MUFU.EX2 |
+| `tl.erf(x) + c` | wide | 4096 | 0 | FADD, FADD.FTZ, FFMA.FTZ, FMUL, HFMA2.MMA, MUFU.EX2 |
+| `tl.sqrt_rn(x) + c` | moderate | 4096 | 0 | FADD, FADD.FTZ, FFMA, FMUL.FTZ, HFMA2.MMA, MUFU.RSQ |
+| `tl.sqrt_rn(x) + c` | wide | 4096 | 0 | FADD, FADD.FTZ, FFMA, FMUL.FTZ, HFMA2.MMA, MUFU.RSQ |
+| `tl.div_rn (control)(x) + c` | moderate | 4096 | 0 | FADD, FADD.FTZ, FFMA, FFMA.RM, FFMA.RP, FFMA.RZ, HFMA2.MMA, MUFU.RCP, MUFU.RSQ |
+| `tl.div_rn (control)(x) + c` | wide | 4096 | 0 | FADD, FADD.FTZ, FFMA, FFMA.RM, FFMA.RP, FFMA.RZ, HFMA2.MMA, MUFU.RCP, MUFU.RSQ |
+| `libdevice.tanh(x) + c` | moderate | 4096 | 0 | FADD, FADD.FTZ, FFMA.FTZ, FMUL, HFMA2.MMA, MUFU.EX2, MUFU.RCP |
+| `libdevice.tanh(x) + c` | wide | 4096 | 0 | FADD, FADD.FTZ, FFMA.FTZ, FMUL, HFMA2.MMA, MUFU.EX2, MUFU.RCP |
+| `libdevice.pow(x, 1.5)(x) + c` | moderate | 4096 | 0 | FADD, FADD.FTZ, FFMA, FFMA.FTZ, FMUL, FMUL.FTZ, HFMA2.MMA, MUFU.EX2, MUFU.RCP |
+| `libdevice.pow(x, 1.5)(x) + c` | wide | 4096 | 0 | FADD, FADD.FTZ, FFMA, FFMA.FTZ, FMUL, FMUL.FTZ, HFMA2.MMA, MUFU.EX2, MUFU.RCP |

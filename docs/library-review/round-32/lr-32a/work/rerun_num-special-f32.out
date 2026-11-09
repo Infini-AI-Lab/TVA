@@ -1,0 +1,6 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+E1 tl.exp on 1023410177 patterns from +64 to +inf: 1020169705 give +inf, 0 NaN; the largest input with a result other than +inf is 0x42b17217 (88.72283172607422); every input from 0x42b17218 (88.72283935546875) to +inf gives +inf; the largest finite result is 0x7f7fff4f (3.402787769344386e+38)
+E2 tl.exp on 1023410177 patterns from -64 to -inf: 1018170957 give +0, 2180451 a subnormal, 3058769 a normal, 0 anything else
+D1 x / +inf for every finite float32 x (4278190080): 0 differ from the zero of sign sign(x) xor sign(y)
+D1 x / -inf for every finite float32 x (4278190080): 0 differ from the zero of sign sign(x) xor sign(y)
+exit 0

@@ -7,7 +7,9 @@ The process is in [../LIBRARY_REVIEW.md](../LIBRARY_REVIEW.md); kernel findings 
 
 States: `OPEN` (to be fixed in the round named), `ACCEPTED` (fixed, and accepted by library
 review), `FIXED` (fixed in a round that no library review followed, by the user's decision under
-L36: rounds 21 to 23 and 26 to 28; the fixes of rounds 24 and 25 were reviewed later), `CLOSED` (settled by the coordinator, as its section says).
+L36: rounds 21 to 23 and 26 to 28; the fixes of rounds 24 and 25 were reviewed later; and round 38, the
+final fix, by the user's decision of 2026-11-08: "let's run up to round37, and file a final fix without further
+review"), `CLOSED` (settled by the coordinator, as its section says).
 
 The kernels of the first round (vec-add, grouped GEMM, flash attention) were cleared on
 2026-10-27 at the user's request, to restart from scratch. The issues they raised stand on their
@@ -134,8 +136,8 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L117](#l117) | FIXED | 23 | vec_add_f32#F3, vec_add_f32#F4 (r-vecadd, r-vecadd2) | soundness: condition 11's reuse clause does not ask for the same specialisation of the runtime arguments |
 | [L118](#l118) | FIXED | 23 | vec_add_f32#F2 (r-vecadd) | wording: the `int32` docstring sits on `I8` in `Lang/Scalar.lean`; two pages still say only "without `-O`" |
 | [L119](#l119) | CLOSED | — | matmul_e5m2#F3 (r-e5m2), matmul_e5m2#F4 (r-e5m2b) | accuracy: `relDot8`'s per-chunk constant `2^-7` is about twice the `33·2^-13` that num-dot's derivation gives |
-| [L120](#l120) | OPEN | — | grouped_matmul_tma_f16#F2 (r-gmm2) | gap: nothing states that a descriptor the kernel builds again in a loop is rewritten only after the accesses through its old contents (a TMA store may still be in flight) |
-| [L121](#l121) | OPEN | — | grouped_matmul_tma_f16#F4 (r-gmm) | gap: scope 5 does not ask the allocator to return the `alignment` the launcher asks for the descriptor scratch |
+| [L120](#l120) | CLOSED | — | grouped_matmul_tma_f16#F2 (r-gmm2) | gap: nothing states that a descriptor the kernel builds again in a loop is rewritten only after the accesses through its old contents (a TMA store may still be in flight) |
+| [L121](#l121) | CLOSED | — | grouped_matmul_tma_f16#F4 (r-gmm) | gap: scope 5 does not ask the allocator to return the `alignment` the launcher asks for the descriptor scratch |
 | [L122](#l122) | OPEN | — | attn_fwd_f16#F3 (r-fwd) | wording: "Performance-only arguments" says `num_stages` and `warp_specialize` are given by a model, but `Launch` and `tl.forRange` have no place for them and "Loops" says they change no outcome |
 | [L123](#l123) | OPEN | — | attn_fwd_f16#F5 (r-fwd2) | wording: the fusion rule does not say whether a `tl.maximum` or `tl.where` result that carries a product's value is a product |
 | [L124](#l124) | FIXED | 26 | attn_fwd_e5m2#F2 (r-e5fwd2) | sharpness: `DotE5m2`'s `relDot8` charges each fp8 `tl.dot` `2^-7` per chunk of `\|acc\|` too, so an accumulator fed back once per block compounds as `(1 + relDot8 64)^T` |
@@ -153,6 +155,42 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L136](#l136) | FIXED | 28 | user, 2026-11-04 (sandbox pilot, paged_attention_f16) | protocol: a write-up that states a claim other than the Lean's (a constant, tolerance or condition its definition does not have) could only be filed as `DOC`, which does not block, so a kernel was certified with a README stating a looser tolerance and a wider covered range than its Lean proves |
 | [L137](#l137) | FIXED | 29 | sandbox test-set run, 2026-11-05 (`gdn_gating_bf16`, a REFERRED `UNSUPPORTED` finding) | gap: SEMANTICS.md names `tl.sigmoid` among the `tl.*` functions Triton writes in Triton but states no body, so a model of it cannot be judged against the page |
 | [L138](#l138) | FIXED | 30 | sandbox test-set run, 2026-11-05 (`l2norm_fwd_bf16`: every submission after round 1 rejected) | tool: the generated REVIEW.md writes a `|` of a finding's summary as `/`, so a reviewer's `|x|=2^30` becomes `/x/` followed directly by `=2^30`, which the kernel's independence check reads as an absolute path outside TVA; the prover cannot edit the page, so its gate fails on the service's own record |
+| [L139](#l139) | ACCEPTED | 31 | fixed claims, 2026-11-08 (`claims/scaled_mm_int8`), `claims/ssd_bmm_chunk_bf16`, `claims/fused_moe_bf16` | gap: a dtype as the argument of a `tl.constexpr` parameter has no stated meaning |
+| [L140](#l140) | ACCEPTED | 31 | fixed claims, 2026-11-08 (`claims/scaled_mm_int8`) | gap: `tl.broadcast_to` and its method form `x.broadcast_to(shape)` are not stated as an operation |
+| [L141](#l141) | ACCEPTED | 32 | fixed claims, 2026-11-08 (`claims/scaled_mm_int8`) | gap: the integer `tl.dot` (`int8 × int8 → int32`) is exact but no device fact states it |
+| [L142](#l142) | ACCEPTED | 31 | fixed claims, 2026-11-08 (`claims/scaled_mm_int8`) | gap: a pointer's `.type.element_ty`, and a pointer as the condition of a runtime `if`, are not in the subset |
+| [L143](#l143) | ACCEPTED | 31 | fixed claims, 2026-11-08 (`claims/moe_sum_reduce_bf16`) | gap: `tl.cast(x, dtype=…)` has no stated meaning |
+| [L144](#l144) | ACCEPTED | 33 | user, 2026-11-08 | rules: the framework names CUDA graphs; state `Compiler.Faithful` about an execution of the kernel instead, so no dispatch mechanism is mentioned |
+| [L145](#l145) | CLOSED | — | user, 2026-11-08 | semantics: treat programmatic dependent launch as scheduling, like `warp_specialize`: allow `launch_pdl`, drop `gdc_wait`/`gdc_launch_dependents` from models |
+| [L146](#l146) | ACCEPTED | 33 | user, 2026-11-08 | scope: descriptors built inside a kernel (`tl.make_tensor_descriptor`) are excluded; host `TensorDescriptor`s stay covered (settles L120, L121) |
+| [L147](#l147) | ACCEPTED | 32 | library review round 31 (lr-31a) | wording: the `tl.cast` entry does not say what a float narrowing is (`bfloat16 ↔ float16` is rejected) |
+| [L148](#l148) | ACCEPTED | 32 | library review round 31 (lr-31a) | wording: a block's `.type` is not a dtype; only a scalar's `.type` and a block type's `.element_ty` stand where a dtype goes |
+| [L149](#l149) | ACCEPTED | 34 | fixed-claims recheck, 2026-11-08 | gap: the reduction and scan facts allow any tree; Triton's `tl.sum`/`tl.cumsum` tree depth on sm_90 is not stated, so some claims' tolerances accept wrong kernels |
+| [L150](#l150) | ACCEPTED | 33 | fixed-claims recheck, 2026-11-08 | gap: the 16-bit `tl.dot` facts (`DotF16`, `DotBF16`) charge `(K+2)·2^-22` per step, about 6× their own per-chunk derivation, and the whole `|acc|` on a fed-back accumulator |
+| [L151](#l151) | ACCEPTED | 32 | fixed-claims recheck, 2026-11-08 | gap: a pointer minus an integer (`p - i`) is not stated |
+| [L152](#l152) | ACCEPTED | 32 | fixed-claims recheck, 2026-11-08 | gap: `dtype.is_fp8()` (and the other dtype predicates) are not in the subset |
+| [L153](#l153) | ACCEPTED | 32 | fixed-claims recheck, 2026-11-08 | soundness: exclusions.md says tutorial 10's fp4 launches are rejected on the host, but `--format mixed` (e4m3 × e2m1) runs on the H200 |
+| [L154](#l154) | ACCEPTED | 33 | fixed-claims recheck, 2026-11-08 | sharpness: small precision items (`tl.ItofRel .binary32` has one value for |z| < 2^53; `AddRel` widens a non-product operand; `tl.exp` overflow and `1/∞`; `TensorDesc.Valid` zero or short strides without evidence) |
+| [L155](#l155) | ACCEPTED | 34 | library author, round 33 (from L154 (2)) | sharpness: `AddRel` lets both operands of a fusable addition enter unrounded; an `fma` takes one product |
+| [L156](#l156) | ACCEPTED | 34 | library review round 33 (lr-33a) | wording: evidence/num-special-f32's conclusion 2 still says the library states no `tl.exp` overflow fact |
+| [L157](#l157) | ACCEPTED | 34 | claim fix (lora_shrink_bf16), user decision 2026-11-08 | coverage: relaxed read-modify-write atomics on memory other programs touch race (Q10), which excludes split-K accumulation (vLLM's default LoRA shrink) |
+| [L158](#l158) | ACCEPTED | 34 | claim re-review (rejection_greedy_i32) | wording: SEMANTICS.md does not say a `torch.bool` argument is `*i1` and that loading an `*i1` element reads one byte and tests ≠ 0 |
+| [L159](#l159) | ACCEPTED | 34 | claim fix (attn_bwd_pre_f16) | lemma: no depth form of `sum_bcast_mul_tree_err` (a prover must compose `sumc_err_depth` with the products' roundings) |
+| [L160](#l160) | ACCEPTED | 36 | user decision 2026-11-08 | tooling: the release check recomputes every kernel's gate and certificate, which is no longer needed (the kernels are becoming benchmark tasks) |
+| [L161](#l161) | ACCEPTED | 35 | library review round 34 (lr-34a) | soundness: `Step.defer` treats a whole tensor load or store as one step, so a store that uses an atomic's result holds back every later atomic of the program; the device orders each thread's accesses only (a well-behaved launch's H200 outcome has no model outcome) |
+| [L162](#l162) | ACCEPTED | 35 | library review round 34 (lr-34a) | wording: the source and IR definitions of an atomic's "unused" result disagree (a value read only by a dead pure operation; returned from a helper called as a statement) |
+| [L163](#l163) | ACCEPTED | 35 | library review round 34 (lr-34b) | soundness: ptxas fuses the final multiply of float32 `/` (`div.full.f32`) with a following add into one `FFMA`, but SEMANTICS.md counts only `*`, `tl.dot` and `tl.rand` as products, so it calls that add IEEE |
+| [L164](#l164) | ACCEPTED | 36 | library review round 34 (lr-34b) | wording: float `atomic_max`/`atomic_min` compile to two predicated integer atoms (at most one runs per lane), not "one `atom`" |
+| [L165](#l165) | ACCEPTED | 37 | library review round 35 (lr-35a) | wording: three sentences around the atomic-result exclusion (the barrier sentence, the `relaxed` form of the counterexample, scope 12's rule when a reviewer cannot tell whether a cell is shared) |
+| [L166](#l166) | ACCEPTED | 36 | library review round 35 (lr-35b) | wording: `tl.fdiv(..., ieee_rounding=True)` has no meaning in the library, and `tl.softmax(ieee_rounding=True)` is called a product though it ends in an IEEE division |
+| [L167](#l167) | ACCEPTED | 37 | library review round 36 (lr-36a) | wording: SEMANTICS.md "Programs" says without qualification that the semantics performs a program's atomics in every order their dependences allow (false inside the atomic-result exclusion); LIBRARY_REVIEW.md:106 still asks whether a claim can "pass `tvr release`" |
+| [L168](#l168) | FIXED | 38 | library review round 36 (lr-36b) | wording: `tl.softmax` of float16/bfloat16 compiles (it divides in float32) though SEMANTICS.md can be read as saying it fails; "the result is one of the two values" in "Atomics" means the new value; the atomic dtypes Triton accepts are not listed |
+| [L169](#l169) | FIXED | 38 | library review round 37 (lr-37a) | wording: SEMANTICS.md "Programs", "Atomics" and review-questions Q7 say a step using any lane of an atomic's result waits for the whole atomic; `Step.defer` is finer (a store masked to lane 0 waits only for lane 0) |
+| [L170](#l170) | FIXED | 38 | library review round 37 (lr-37a) | wording: evidence/gate-round7 and evidence/tool-round18 describe the gate and pages comparisons removed in round 35 in the present tense |
+| [L171](#l171) | FIXED | 38 | library review round 37 (lr-37a) | wording: LIBRARY_REVIEW.md's gate row omits the release check's shipped, packages and sandbox steps; the audit also reads the kernels' imports |
+| [L172](#l172) | FIXED | 38 | library review round 37 (lr-37b) | wording: review-questions Q7 describes the wrong sm_90 instructions for 16-bit atomics (a single float16/bfloat16 add and a 16-bit atomic_cas are a 32-bit CAS loop; contiguous lanes are `.v8` atomics, not `f16x2`) |
+| [L173](#l173) | FIXED | 38 | library review round 37 (lr-37b) | wording: SEMANTICS.md "Atomics" does not say the operand is converted to the pointer's element type, or that `atomic_cas` converts nothing (mismatched operands are rejected on the host) |
+| [L174](#l174) | FIXED | 38 | library review round 37 (lr-37b) | wording: "signed max or unsigned min" (S3) holds for `atomic_max` only; its line references are off |
 
 ## L1
 
@@ -827,6 +865,18 @@ layer norm backward and programmatic dependent launch. but we might want to have
   (L61: 3, L64: 8, L75: 3) and 10 excluded rows; no soundness issue found. Every in-scope function
   of tutorials 01, 03, 04 and 05 is covered.
 - **Round 11** ([notes](round-11/author/notes.md)): accepted by [lr-11a](round-11/lr-11a/report.md) and [lr-11b](round-11/lr-11b/report.md). exclusions.md rows 46 and 47 record both decisions.
+- **User decision, 2026-11-08 (L146):** descriptors built inside a kernel are **excluded** ("let's
+  exclude this case. we only cover descriptor outside of triton kernels"). This removes from the
+  target tutorial 08's `grouped_matmul_tma_kernel` and tutorial 09's
+  `matmul_kernel_descriptor_persistent`, which build every descriptor in the kernel, and tutorial
+  06's `_attn_fwd` on the launches where its host passes tensors (the Hopper warp-specialised path,
+  where `_maybe_make_tensor_desc` builds them); `_attn_fwd` with host `TensorDescriptor`s, tutorial
+  09's `matmul_kernel_tma_persistent` and tutorial 10 stay in scope. Recorded in exclusions.md
+  (round 32, [notes](round-32/author/notes.md)).
+- **Tutorial 10's formats on the H200 (L153, round 32):** the decision above says fp4 launches are
+  rejected on the H200. At the tutorial's config `mxfp4` and `nvfp4` are (out of shared memory), but
+  `mixed` (`e4m3` by `e2m1`) runs, through `DotScaledE4m3E2m1`, and is covered with `mxfp8`
+  (evidence/tut10-formats).
 
 ## L38
 
@@ -2408,6 +2458,9 @@ after the accesses through the old contents.
 - **Status.** The issue stays open for a later library round (a statement in SEMANTICS, with an
   evidence folder), if the user starts one: library rounds have stopped (L36). Kernel review
   trusts the library as it stands, so the `LIBRARY_REPORT` does not block the kernel.
+- **Closed** (round 32, [notes](round-32/author/notes.md)): settled by L146. Descriptors built
+  inside a kernel are excluded by the user's decision (2026-11-08), so no covered launch rebuilds
+  one (`Compiler.Faithful` scope 5, `docs/exclusions.md`).
 
 ## L121
 
@@ -2425,6 +2478,9 @@ writes it during the launch. Neither asks that it have the alignment the launche
   but the rule does not require an allocator to be.
 - **Status.** Left open for a later library round (a condition in scope 5), if the user starts
   one (L36). The `LIBRARY_REPORT` does not block the kernel.
+- **Closed** (round 32, [notes](round-32/author/notes.md)): settled by L146. No covered launch
+  builds a descriptor in the kernel, so the launcher allocates no scratch and calls no allocator
+  (`Compiler.Faithful` scope 5, `docs/exclusions.md`).
 
 ## L122
 
@@ -2667,3 +2723,260 @@ escape `|` as `\|` (`md_cell`), which Markdown renders as `|` and the scan does 
 gate's own code changed, so every gate was stale; `tvr check` was re-run on the twelve kernels with a
 gate (all PASS, digests unchanged). No Lean file and no fact page changed. Fixed in round 30
 (`round-30/author/notes.md`).
+
+## L139
+
+**A dtype as the argument of a `tl.constexpr` parameter** (gap; fixed claims, 2026-11-08). SEMANTICS.md
+("Parameters and arguments") lists `tl.constexpr` arguments that are a Python `int`, `float`, `bool`, `str` or
+`None`. vLLM's `scaled_mm_kernel` takes `ACCUMULATOR_DTYPE: tl.constexpr` (`claims/scaled_mm_int8/source/triton_scaled_mm.py:72`),
+passed `tl.int32` by the host (line 292) and used as `tl.zeros`'s `dtype=` (line 89) and `tl.dot`'s `out_dtype=`
+(line 167). SGLang's `_bmm_chunk_fwd_kernel` takes `dot_dtype: tl.constexpr` (`claims/ssd_bmm_chunk_bf16/source/ssd_bmm.py:109`,
+`tl.bfloat16`, the target of `.to(dot_dtype)`), and vLLM's `fused_moe_kernel` `compute_type: tl.constexpr`
+(`claims/fused_moe_bf16/source/fused_moe.py:157`). The library should state that such a parameter holds the dtype,
+a compile-time value, and where it may be used. Round 31.
+
+## L140
+
+**`tl.broadcast_to` and `x.broadcast_to(shape)`** (gap; fixed claims, 2026-11-08). `scaled_mm_kernel`
+writes `scale_a.broadcast_to((BLOCK_SIZE_M, 1))` and `scale_b.broadcast_to((BLOCK_SIZE_N, 1))`
+(`claims/scaled_mm_int8/source/triton_scaled_mm.py:179, 184`). SEMANTICS.md mentions `tl.broadcast_to` only inside
+other entries (shape rules), with no entry of its own giving its meaning, its method form, and when a shape is
+rejected. Round 31.
+
+## L141
+
+**The integer `tl.dot`** (gap; fixed claims, 2026-11-08). `scaled_mm_kernel` computes
+`tl.dot(a, b, acc, out_dtype=ACCUMULATOR_DTYPE)` with `int8` operands into an `int32` accumulator
+(`claims/scaled_mm_int8/source/triton_scaled_mm.py:167`). docs/rules/num.md lists the integer `tl.dot` under "What the
+library does not state" (exact, but not stated: `dotAcc_int` shows it is satisfiable), so a claim must write
+`DotAcc` with zero error directly instead of citing a fact. The library should state the exact `int8 × int8 → int32`
+`tl.dot` on sm_90 (with or without an accumulator, every `input_precision` the front end accepts for it, the
+wrap of the `int32` sum if any) with TVA's own evidence, and list it in "Facts the library states". Round 31.
+
+**Round 31 review** (lr-31a ACCEPT, lr-31b REOPEN): `DotI8` holds (0 wrong of about 2.2 million outputs in both
+reviews), but SEMANTICS.md and rules/num.md ("The integer `tl.dot`") say an accumulator other than `int32` is
+rejected on the host, and a `uint32` accumulator is accepted: the result is `int32`, the accumulator's bits read as
+`int32` plus the sum (3000000000 + 9 gave −1294967287). State that case (a `tl.bitcast .u32 .i32` of the accumulator,
+then the dot with ⟨.i8, .i8, .i32, p, 0⟩) with evidence, or exclude it in exclusions.md; correct the two sentences
+and evidence/num-dot-int8 (I5, conclusion 1). Round 32.
+
+## L142
+
+**A pointer's `.type.element_ty`; a pointer as an `if` condition** (gap; fixed claims, 2026-11-08).
+`scaled_mm_kernel` writes `accumulator.to(c_ptr.type.element_ty)` (line 196; the subset lists `.dtype` and a
+dtype's `.element_ty`) and `if bias_ptr:` on a pointer argument that may be `None` or a tensor (line 188;
+`semantic.cast` to `int1` is `ptrtoint` then `!= 0`, `semantic.py:900-906`, or a compile-time `None`)
+(`claims/scaled_mm_int8/source/triton_scaled_mm.py`). The library should state both forms. Round 31.
+
+## L143
+
+**`tl.cast(x, dtype=…)`** (gap; fixed claims, 2026-11-08). SGLang's `_moe_sum_reduce_kernel` writes
+`tl.cast(input_stride_0, dtype=tl.int64)` (`claims/moe_sum_reduce_bf16/source/moe_sum_reduce.py:68-70`). SEMANTICS.md
+does not state `tl.cast`; the claim writes it as `tl.convert`. The library should state `tl.cast`'s meaning (its
+relation to `.to`, `fp_downcast_rounding`, `bitcast=`) for the dtypes it accepts. Round 31.
+
+## L144
+
+**The framework should not mention CUDA graphs** (rules; user, 2026-11-08: "we verify the kernel itself";
+"I do not think we even need to mention CUDA Graph in our claims or in our framework"). `Compiler.Faithful`
+is stated about a host call that launches the kernel through Triton, so its scope point 9
+(`lean/TVA/Rules/Compiler.lean:118-128`, `docs/rules/compiler-faithful.md`) excludes calls made during CUDA-graph
+capture (which run no program) and replays (which are not calls), and `lean/TVA/Claim.lean:30`,
+`lean/TVA/Sem/Launch.lean`, SEMANTICS.md, exclusions.md, PROVER_GUIDE.md, REVIEWER_GUIDE.md, REVIEW_PROTOCOL.md and
+TRANSCRIPTION.md repeat it. What TVA verifies is the kernel: an execution of its grid of programs on a memory with
+given arguments. State the rule (and the claim's notion of a launch) about such an execution, however a caller
+dispatches it, so that no dispatch mechanism needs a scope point; remove point 9 and every mention of CUDA graphs,
+keeping the rule true (a host call that runs no program is not an execution). Round 32.
+
+**Round 32 review** (lr-32a REOPEN, lr-32b ACCEPT): the restated rule is true and usable, and no framework page names CUDA graphs, but the new sentence "a host call that does not run the grid … (later, or never) … has no outcome" contradicts the one kept beside it, "a launch that returns without an error has an outcome, even if no program ran": the launcher's silent skip of a grid of 2^31 to 2^32 programs falls under both, and the new reading gives it a vacuous `Meets` (the L9 hazard). The contradiction is in `lean/TVA/Claim.lean`, `lean/TVA/Rules/Compiler.lean`, rules/compiler-faithful.md, SEMANTICS.md and REVIEW_PROTOCOL.md §6; and "returns while its programs run later" describes every asynchronous launch. Drop "or never": the skipped grid ends `ok`, and `Launch.Valid` excludes it. Round 33.
+
+## L145
+
+**Programmatic dependent launch as scheduling** (semantics; user, 2026-11-08: "Let's deal with PDL just like warp
+specialization. since we trust triton compiler."). Today `Launch.Valid` requires `pdl = false` (exclusions.md,
+programmatic dependent launch), and SEMANTICS.md gives `tl.extra.cuda.gdc_wait()` and
+`gdc_launch_dependents()` a meaning only without `launch_pdl` (evidence/pdl). Treat PDL as SEMANTICS.md treats
+`num_stages` and `warp_specialize`: a launch option and two calls that change when a program's accesses happen, not
+what the kernel computes, dropped from the model, with the condition that keeps that true stated as for pipelining
+(a launch with `launch_pdl` reads the claim's initial memory, the previous kernel's final memory, in every access
+after the program's `gdc_wait()`; what the kernel needs of its accesses before that wait, if any, the author decides
+and states). Real uses: SGLang's `_moe_sum_reduce_kernel` on the H200 (`USE_GDC=True`, `launch_pdl=True`;
+`gdc_wait()` before any access, `claims/moe_sum_reduce_bf16/source/moe_sum_reduce.py:85-87`) and the LoRA
+`_route_histogram_kernel` (`launch_pdl=True`, `gdc_launch_dependents()` at the end and no `gdc_wait()`,
+`claims/route_histogram_i32/source/route_histogram.py:143-144`). Closed by the user's decision (2026-11-08: "let's
+consider PDL is turned off"): programmatic dependent launch stays outside (`Launch.Valid` requires `pdl = false`), and
+the claims cover the launches with it off.
+
+## L146
+
+**Exclude descriptors built inside a kernel** (scope; user, 2026-11-08: "let's exclude this case. we only cover
+descriptor outside of triton kernels"). A kernel that calls `tl.make_tensor_descriptor` needs the launcher's
+global scratch from the allocator set by `triton.set_allocator` (Compiler.Faithful scope 5), which raised L120 (a
+descriptor rebuilt in a loop) and L121 (the allocator's alignment). Exclude every launch whose kernel builds a
+descriptor (docs/exclusions.md, SEMANTICS.md "Tensor descriptors", scope 5), keep host `TensorDescriptor` arguments
+(scope 8), and close L120 and L121 as settled by the exclusion. Affected claims: `grouped_matmul_tma_f16` (replaced by
+tutorial 09's `matmul_kernel_tma_persistent` with host descriptors) and `attn_fwd_f16`'s `warp_specialize = True`
+path (narrowed to the host-descriptor path). Round 32.
+
+**Round 32 review** (lr-32a REOPEN, lr-32b ACCEPT): the exclusion is true, complete and consistent (scope 5, SEMANTICS.md, exclusions.md, L37), and host descriptors stay covered; every in-scope feature compiled asked no allocator. Leftover: scope 10(c) no longer names `triton.set_allocator`, but exclusions.md (row 61) still lists it, and the in-scope host path of `claims/attn_fwd_f16` calls it (source line 548): say whether a host that sets an allocator the launch never calls is within scope 10. Round 33.
+
+## L147
+
+**`tl.cast`: what a float narrowing is** (wording; lr-31a). Triton's test is a float target with fewer bits, so `bfloat16 ↔ float16` is rejected with either rounding mode. Say "to a float of fewer bits" and add that pair to the examples. Round 32.
+
+## L148
+
+**A block's `.type` is not a dtype** (wording; lr-31a). `block.to(x.type)` works, but `scalar.to(x.type)` and `tl.zeros(..., dtype=x.type)` are rejected on the host. Say that only a scalar's `.type` and a block type's `.element_ty` may stand where a dtype goes. Round 32.
+
+## L149
+
+**The depth of Triton's reduction and scan trees** (gap; fixed-claims recheck, 2026-11-08). `sum_err_covers`, `sumc_err_covers` and `ScanLeaves` allow any tree over `n` leaves (depth up to `n − 1`). Claims that compose them: `claims/layer_norm_fwd_f16` (at N ≥ 8192 `Post` accepts a mean with a term dropped, a variance with a term dropped, and the unbiased variance) and `claims/moe_router_bf16` (`capTol` about 1000× the kernel's error; a kernel without the soft cap passes on 95–100% of tokens), and, looser than needed, `softmax_f32`, `attn_bwd_pre_f16`, `layer_norm_fwd_bf16`, `chunk_cumsum_f32`, `l2norm_fwd_bf16`. State, with TVA's evidence, the order and depth of Triton 3.8.0's `tl.sum` (each thread's elements in sequence, then the warp's shuffle tree, then across warps through shared memory, by the layout) and `tl.cumsum` on sm_90, as a fact a claim can cite with a depth that depends on the layout, and lemmas that compose it. Round 32.
+
+**Round 32 review** (lr-32a and lr-32b REOPEN): `SumDepth` holds (the reduce-tree evidence re-ran identical; 310 further reductions exact over reshape/permute/join/interleave layouts, 3-D tiles on every axis, transposed wgmma results, axes up to 131072, 32 warps). The `OptimizeThreadLocality` exclusion is wrong in two ways. (1) The pass is not a reassociation when the loop's update is not the reduction's combine: with exact values, `acc - tl.sum` stored +260 for −260 (and 2.0 for −1.0), `max(acc, tl.sum)` stored 11 for 4, `acc + tl.max` stored −inf, `acc * tl.sum` stored 0 — a miscompile, not a rounding. (2) "Produced directly by `tl.load`" is too narrow: the pass reads the IR after folding, and also rewrote loops whose tile was `tl.load(p).to(own dtype)`, `tl.load(p).to(tl.float32)` on float32 data, `x * 1.0` (a constexpr), `x / 1.0`, `x - 0.0`, a block-pointer load, or a load in a helper. State the excluded pattern on the IR the pass sees (a loop-carried value updated by an elementwise operation with a reduction of a tile that folds to a load), call it a miscompile, and keep TVA's evidence for each case; lr-32a checked all 40 claims and none has the pattern on its covered path. Round 33.
+
+**Round 33 review** (lr-33a REOPEN): `SumDepth` stands; the restated operand wording catches every round-32 case and its "folds to a load" test is checkable, but Triton also rewrote (2.0 stored where the source gives 1.0) loops the wording says it does not: an identity between the reduction and the update or after the update (`.to(tl.float32)`, `* 1.0`, `-(-s)`); a second use of the result that is dead (a store under a constexpr-false `if`); a reduction under a compile-time `if` or in a nested `tl.static_range(1)`; a reduction or update inside a helper; a runtime int argument equal to 1 as the initial value (specialised: 3.0 stored for 2.0). State the whole pattern on the IR after folding, specialisation and inlining, or exclude it more broadly (round-33 lr-33a `work/otl_wording33.py`). A static scan of the claims' sources finds no affected claim. Round 34.
+
+## L150
+
+**Sharper 16-bit `tl.dot` facts** (gap; fixed-claims recheck, 2026-11-08). `relDot16 K = (K+2)·2^-22` per step is about 6× the `16·5.25·2^-23` per 256-chunk that the fact's own docstring derives, and a dot that accumulates charges it on the whole `|acc|` every trip. Claims: `claims/lora_shrink_bf16` (on signed data at K = 14336 a dropped K block passes for 95% of outputs), `claims/extend_attn_bf16` (no-prefix bound 0.087 at 2^18 tokens against 0.0078 measured), `claims/streamk_matmul_f16` (a float16-rounded result passes from K ≈ 2048), and `fused_moe_bf16`, `ssd_bmm_chunk_bf16`, `attn_fwd_f16`. State per-chunk facts for float16 and bfloat16 `tl.dot` on sm_90 (both `mma.sync` and `wgmma`) with the accumulator's share bounded per chunk, with TVA's evidence, alongside the present facts. Round 32.
+
+**Round 32 review** (lr-32b REOPEN: soundness; lr-32a ACCEPT on the quick re-run): `DotF16Chunk` and `DotBF16Chunk` are false on `mma.sync` when an operand was converted in registers from fp8 or int8 (the dequantising-matmul pattern): the layout's `kWidth` is then 4 and each instruction adds the k ≡ 0, 1 (mod 4) of a 32-k block, not 16 consecutive k; a per-instruction model with that partition matches the device bit for bit, and a K = 32 counterexample has device result 0 where no partial values satisfy the fact (exact rational check). State the chunks as 32 consecutive k (or the facts with a stated condition on the operands' origin, with evidence), and check whether `kWidth = 8` occurs for 16-bit dots. The fp8 chunk facts are unaffected. Round 33.
+
+## L151
+
+**Pointer minus integer** (gap; fixed-claims recheck, 2026-11-08). vLLM's `rejection_greedy_sample_kernel` writes `cu_num_draft_tokens_ptr + req_idx - 1` (`claims/rejection_greedy_i32/source`, line 91), which Triton's `semantic.sub` builds as `addptr(p, -i)`; `lean/TVA/Lang/Mem.lean` has only `HAdd (Ptr d) (IntV ..)` and SEMANTICS.md states only `+`. State `p - i`. Round 32.
+
+## L152
+
+**`dtype.is_fp8()` and the other dtype predicates** (gap; fixed-claims recheck, 2026-11-08). vLLM's `reshape_and_cache_kernel_flash` branches on `key_load.dtype.is_fp8()` on its fp8 KV-cache path (`claims/kv_cache_write_bf16/source`, lines 167, 176). In Triton 3.8.0 `is_fp8()` is `'fp8' in self.name` (`core.py:449`), a compile-time bool. State it (and `is_fp8e4nv`, `is_fp16`, `is_floating`, …, as the subset needs), and check that the fp8 conversion of an implicit `tl.store` to an fp8 pointer is stated. Round 32.
+
+## L153
+
+**Tutorial 10's `mixed` format runs** (soundness: a false statement; fixed-claims recheck, 2026-11-08). docs/exclusions.md (line 45) says tutorial 10's fp4 launches are rejected on the host. That is true of mxfp4 and nvfp4 (out of shared memory on the H200) but `--format mixed` (e4m3 × e2m1, the `MIXED_PREC` branch) runs at 1024³ with a maximum error of 0.0625, through the stated `DotScaledE4m3E2m1`. Correct the entry. Round 32.
+
+## L154
+
+**Small precision items** (sharpness; fixed-claims recheck, 2026-11-08). (1) A lemma that the alternatives of `tl.ItofRel .binary32 z` coincide for |z| < 2^53 (`claims/seeded_dropout_f32`'s `uRef`; provable now). (2) `AddRel` lets an operand that is not a product be replaced by any exact value rounding to it; on sm_90 only a product enters an `fma` unrounded, so a narrower relation would let `l2norm_fwd_bf16` and `layer_norm_fwd_bf16` cover `eps ∈ [2^-126, 2^-125)`. (3) `tl.exp` overflowing to `+∞` on `float32` and `DivFull` at an infinite divisor (`1/∞ = +0`): `gdn_gating_bf16` could cover every `b`. (4) `TensorDesc.Valid` admits a zero row stride or one shorter than the row; the H200 handled both, but no evidence folder records it. Round 32.
+
+**Round 32 review** (lr-32b REOPEN, lr-32a ACCEPT): the itof lemma, `DivF32InfDivisor` (exhaustive) and the descriptor-stride evidence are correct; narrowing `AddRel` for a non-product operand and the `tl.exp` overflow fact were left undone with no issue tracking them. Do them (the overflow fact after the `Platform.ref` change it needs), or file each as its own issue with the reason. Round 33.
+
+## L155
+
+**`AddRel` with one operand unrounded** (sharpness; library author, round 33, split from L154 (2) as round 32's
+review asked). `AddRel fusion x y r` (`lean/TVA/Lang/Ops.lean`) lets, with fusion, *both* operands be replaced by
+exact values that round to them, whether or not they are products. On sm_90 contraction makes an addition an `fma`,
+which takes one product unrounded and its other operand as it is, so at most one operand of each addition enters
+unrounded. A relation with one operand replaced (and the infinite cases as now) is narrower and still covers every
+fusion; it would let `l2norm_fwd_bf16` and `layer_norm_fwd_bf16` cover `eps ∈ [2^-126, 2^-125)` (a variance that
+rounds to `0` and an `eps` just above `2^-126` cannot then both move down). Not done in round 33 because it changes
+the meaning of every fusable float addition (`tl.addc`, `tl.subc`, `tl.sumc` and its axis forms, `tl.cumsumc`, the
+scaled dot's addition, `AccAdd`), the library lemmas that take the relation apart (`Lemmas/FusedErr.lean`,
+`SumFused.lean`, `Ops.lean`, `Scan.lean`, `Scaled.lean`, `DotLoop.lean`), the kernel proofs that do
+(`attn_fwd_f16`, `attn_fwd_e5m2`, `attn_bwd_f16`, `attn_bwd_pre_f16`, `paged_attention_f16`, `softmax_f32`) and the
+claims whose models or posts name it (`attn_bwd_pre_f16`, `chunk_delta_h_bf16`, `scaled_mm_int8`); and the narrowing
+needs its own evidence that Triton 3.8.0's lowering never feeds two unrounded products into one addition (sm_90 has
+no fused two-product instruction for these formats; LLVM's NVPTX contraction and the combine pass's `dot_add`, read
+for it). Do it in a round of its own: define the narrow relation, prove it implies today's (`AddRel.wide`), restate
+the lemmas through it, and name the kernels that no longer build. Round 34.
+
+## L156
+
+**num-special-f32's conclusion is out of date** (wording; lr-33a). `evidence/num-special-f32/README.md` conclusion 2 says the library states no overflow fact for `tl.exp`; round 33 added `ExpF32Overflow` and the `Platform.ref` change (`mathAt_far`). Name both. Round 34.
+
+## L157
+
+**Relaxed atomics that only accumulate** (coverage; user decision 2026-11-08: a library rule rather than narrowing the claim). `docs/exclusions.md` and review-questions.md Q10 make `sem="relaxed"` (and acquire-only / release-only) atomics on memory other programs touch a race, so the launch is not well behaved and `Compiler.Faithful` constrains nothing. vLLM's LoRA shrink (`_lora_shrink_kernel`, split-K, its default config: split_k 64 below 128 tokens, 8 from 128) adds each part into the output with `tl.atomic_add(..., sem="relaxed")`, a pattern common in hand-tuned kernels. State a rule (Q10's proposal): relaxed read-modify-write atomics whose returned values are unused, on cells that no plain load or store of the launch touches, behave like `acq_rel` ones (PTX atomicity holds for relaxed operations; only their ordering with other accesses differs, and no access observes it). Give its exact conditions (scope `gpu`, the ops covered, what "unused" means on the IR), the evidence (PTX memory model citation; device runs), and update exclusions.md and Q10. `AtomicAddF32`'s numerical part already covers every `sem`. Round 34.
+
+## L158
+
+**`torch.bool` arguments** (wording; claim re-review). SEMANTICS.md does not state that a `torch.bool` tensor argument is a `*i1` pointer, one byte per element, and that `tl.load` of an `*i1` element reads the byte and tests ≠ 0 (Triton's `semantic.py` loads `int8` then compares with 0); the library states it only in the Lean docstrings of `DType.bytes` and `DType.ofBits`. Say it in SEMANTICS.md (arguments; `tl.load`/`tl.store` of `i1`). Round 34.
+
+## L159
+
+**Depth form of the broadcast-product sum lemma** (lemma; claim fix). `sum_bcast_mul_tree_err` takes the any-tree bound; with `SumDepth` a prover must rebuild its composition from `sumc_err_depth` and the products' roundings. State `sum_bcast_mul_depth_err` (depth `Nat.clog 2 n`) beside it. Round 34.
+
+## L160
+
+**The release check without the kernels' gates** (tooling; user decision 2026-11-08: "we do not need 12 certified kernels' shipped gates now. since they are becoming tasks in our benchmark." and "I do not think we need recomputing the gates of all 38 kernels in kernels/"). `tvr release` recomputes the gate of every kernel under `kernels/` and compares it and the certificate with what the kernel ships, one kernel after another; that step is most of the check's time and is no longer needed. Drop the kernel gate and certificate steps from `tvr release` (and the pages and records steps' parts that only follow from them, if any), keeping the library build, `tvr library-check`, the library's records, lint and audit; update REVIEW_PROTOCOL.md's description of the release check. Say what of `kernels/` the check still reads. Round 35.
+
+**Round 35 review** (lr-35a REOPEN, lr-35b ACCEPT): `cmd_release` is right and nothing it still runs needs the dropped steps, but the docs still describe them: REVIEW_PROTOCOL.md §2 says a scratch path fails "the `independence` check of every kernel's gate" (no gate runs there now); the same clause is in docs/prompts/library-reviewer.md:64 and docs/prompts/library-author.md:91; DESIGN.md:159 lists "the gates" among the sandbox's steps. Round 36.
+
+## L161
+
+**A tensor store waits for every lane's atomic** (soundness; lr-34a, round 34, `work/crosswarp_nowait.py`). `Step.defer` treats a whole tensor `tl.load`/`tl.store` as one step, so a store that uses any lane of an atomic's result holds back every later atomic of that program, while on the device each thread orders only its own accesses. Example (a well-behaved launch: only `acq_rel` atomics touch the shared cells, no program waits on another): program 0 does `r = atomic_add(Y + x, 0)`, `store(OUT + x, r)`, `atomic_add(C + x, 1)`; program 1 does `q = atomic_add(C + 511, 0)`, `atomic_add(Y, q)`. The semantics gives no outcome with `q = 1` and `OUT[0] = 1`; the H200 gave exactly that in 200 of 200 launches, with both `acq_rel` and `relaxed` (so `Compiler.Faithful` is false there; the exclusion argument is by hand, no Lean proof yet). The defect predates L157 and is in the `acq_rel` semantics; L157's docstring premise relies on it. No current claim uses an atomic's result. Fix: per-lane, deferrable load and store steps, or exclude launches that use an atomic's result on a cell another program also accesses; prove the counterexample's exclusion in Lean either way. Round 35.
+
+**Decision** (user, 2026-11-08: "let's exclude with Fix B"): keep the model; exclude, stated on the source and checkable like `MemSem.unused`, every launch in which a program uses an atomic's result (in a store, an address, a branch, or any other operation) on a cell that another program of the launch also accesses. Prove in Lean that the counterexample falls under the exclusion; correct L157's docstring premise; update exclusions.md, SEMANTICS.md and review-questions.md (a new question for the per-lane model, to do when a kernel needs atomic results across programs: work queues, tickets, locks). None of the 41 claims is affected (stream-K, the histogram and the LoRA shrink discard their atomics' results; the persistent matmuls use none; the tutorial layer norm's lock is in the backward kernel, outside its claim).
+
+**Decision** (user, 2026-11-08, on round 35's widening): keep the wider exclusion — a used atomic result on a cell that another program, or another atomic operation of the same program (another call, or the same call in a loop), also accesses ("Keep wider").
+
+## L162
+
+**"Unused" on the source and on the IR** (wording; lr-34a). The source and IR definitions of an atomic's unused result disagree for a value read only by a dead pure operation, or returned from a helper whose call is a statement. Both are sound; say which governs `MemSem.unused`. Round 35.
+
+## L163
+
+**Float `/` fused into a following add** (soundness; lr-34b, round 34, `work/`). On float32, and on float16/bfloat16 `/` (computed in float32), ptxas fuses the final multiply of `div.full.f32` (reciprocal times dividend) with a following addition into one `FFMA`. SEMANTICS.md counts only `*`, `tl.dot` and `tl.rand` as products whose following addition may fuse, so it gives that addition its IEEE meaning. On the device, `x / y - q`, with `q` the same quotient stored by an earlier launch, is nonzero on 65536 of 65536 elements, at values no model outcome gives; with fusion off it is 0. `tl.div_rn` and float64 `/` are not affected. It reaches claims: the layer-norm pattern's `var + eps` compiles to `FFMA(rcp(N), sum, eps)`, which `claims/layer_norm_fwd_f16` models as an IEEE addition. Fix: count float32 `/` (and 16-bit `/`) as a product for the fusion rule (the add after it has `AddRel` meaning, with the quotient's own `DivFull` error), with evidence for each spelling (`a / b + c`, `c + a / b`, `- c`, through `tl.where`, `.to`), and list the claims that use `/` followed by an addition so they can be re-checked (about 13 use `tl.div`). Round 35.
+
+## L164
+
+**"One `atom`" per atomic** (wording; lr-34b). Float `atomic_max`/`atomic_min` compile to two predicated integer atomics, at most one of which runs per lane. evidence/relaxed-atomics and SEMANTICS.md should say "one atomic read-modify-write per enabled lane". Round 35.
+
+**Round 35 review** (lr-35a and lr-35b REOPEN): the restated sentence is still wrong. Triton 3.8.0 picks which of the two integer atomics runs from the operand's sign bit (`semantic.py:1326-1333`), so exactly one runs per enabled lane, NaN operands included ("neither with a NaN operand" and "or none" are false; on the H200 `atomic_max(1.0, +NaN)` stored NaN, 7 of 16 NaN-operand lanes wrote the NaN); for `atomic_min` the pair is `min.s32`/`max.u32`. `fBound` still holds (0 of 128 new values outside). Fix SEMANTICS.md "Atomics" and the Part P note of evidence/relaxed-atomics/README.md. Round 36.
+
+## L165
+
+**Wording around the atomic-result exclusion** (lr-35a, round 35). (1) The "No barrier semantics" sentence ("a barrier could only remove behaviours") holds only outside the L161 exclusion: say so. (2) The `relaxed` form of lr-34a's launch is not a counterexample: the semantics already counts it as a race; say which form the exclusion is for. (3) Scope point 12 does not say what a reviewer does when they cannot tell whether a cell is shared: state the rule (treat it as shared). Round 36.
+
+**Round 36 review** (lr-36a REOPEN, lr-36b ACCEPT): parts (2) and (3) are right, but part (1) is fixed only in SEMANTICS.md: its twin, the `tl.debug_barrier` row of docs/exclusions.md (line 8), still says the semantics allows "every order" of two atomics on the same bytes, false inside the exclusion; add the same qualification there. Round 37.
+
+## L166
+
+**`ieee_rounding=True` divisions** (wording; lr-35b, round 35). The library gives `tl.fdiv(x, y, ieee_rounding=True)` no meaning; Triton compiles it to the same IEEE `div.rn.f32` as `tl.div_rn`, which is not fused into a following addition on the device. SEMANTICS.md calls `tl.softmax` a product unconditionally, but with `ieee_rounding=True` it ends in that IEEE division (sound but loose). State both. Round 36.
+
+## L167
+
+**Unqualified "every order"** (wording; lr-36a, round 36). SEMANTICS.md lines 145-157 ("Programs") say without qualification that the semantics performs a program's atomics in every order their dependences allow, the premise L161 found false across threads: qualify it with the Atomics exclusion. Also LIBRARY_REVIEW.md:106 still asks whether a claim can "pass `tvr release`", which no longer reads any claim. Round 37.
+
+## L168
+
+**Softmax formats and atomic wording** (wording; lr-36b, round 36). (1) `tl.softmax` of float16/bfloat16 compiles and divides in float32 (`tl.max` widens 16-bit floats); with `ieee_rounding=True` it is IEEE (0 of 1024 off); SEMANTICS.md's "fails to compile on other formats … So `tl.softmax` …" can be read as saying it fails: state the result for each input format. (2) In "Atomics", "the result is one of the two values" means the new value, not the returned one: say so; and list the atomic dtypes Triton accepts (float16/bfloat16 `atomic_max`/`atomic_min` are rejected on the host). Round 37.
+
+**Round 37 review** (lr-37a REOPEN, lr-37b ACCEPT with the same point as a new item): the atomic dtype lists, the "new value" wording and the float `atomic_and`/`or`/`xor` exclusion are right, but the per-format `tl.softmax` statement leaves out the two fp8 formats, which compile and return `float32` (ending in `div.full.f32` by default, `div.rn.f32` with `ieee_rounding=True`; lr-37a `work/fmt_probe.py`); integer softmax is rejected. Add fp8 there and to the product lists of "Float `+` and `-`" and evidence/div-fusion. Round 38 (the final fix, with no review after it: user decision 2026-11-08).
+
+**Round 38 fix** (FIXED, no review followed): SEMANTICS.md "`/` on floats" and "Float `+` and `-`", evidence/div-fusion and evidence/fdiv-ieee (new Part F, `fmt_probe.py`) give `tl.softmax` on `float8e5`/`float8e4nv` with the 16-bit formats (`float32` result, `div.full.f32` by default, `div.rn.f32` with `ieee_rounding=True`) and integer inputs as rejected.
+
+## L169
+
+**Lane granularity of an atomic's result** (wording; lr-37a, round 37). SEMANTICS.md "Programs" says a step using any lane of an atomic's result "depends on every lane"; "Atomics" and review-questions.md Q7 say it holds the atomic back "as a whole". `Step.defer` is finer: a store masked to lane 0 waits only for lane 0. Use the "Granularity"/Q17 wording. Round 38 (the final fix, no review after it).
+
+**Round 38 fix** (FIXED, no review followed): SEMANTICS.md "Programs" and "Atomics", review-questions.md Q7 and `Step.defer`'s docstring say that a tensor step waits for the atomics of the lanes whose result it uses and, being one step, holds back every later atomic of the program.
+
+## L170
+
+**Evidence describing removed release steps** (wording; lr-37a, round 37). evidence/gate-round7 and evidence/tool-round18 still describe the gate and pages comparisons, removed from `tvr release` in round 35, in the present tense: add a note that the release check no longer runs them. Round 38 (the final fix, no review after it).
+
+**Round 38 fix** (FIXED, no review followed): "Since round 35" notes in evidence/gate-round7, evidence/tool-round18 and evidence/tool-round10, and their conclusions put in the past tense.
+
+## L171
+
+**The release check's steps in LIBRARY_REVIEW.md** (wording; lr-37a, round 37). The gate row lists the build, library, records, lint and audit steps but not the shipped, packages and sandbox steps; and the audit reads the kernels' imports, not only "the text". List them as `cmd_release` runs them. Round 38 (the final fix, no review after it).
+
+**Round 38 fix** (FIXED, no review followed): LIBRARY_REVIEW.md's `gate` row lists the release check's steps as `cmd_release` runs them (shipped, packages, sandbox, build, library, records, lint, audit) and says the audit reads the text and the kernels' Lean imports.
+
+## L172
+
+**16-bit atomics on sm_90** (wording; lr-37b, round 37). review-questions.md Q7 describes the wrong instructions: a single `float16`/`bfloat16` atomic add and a 16-bit `atomic_cas` compile to a 32-bit compare-and-swap loop that rewrites the neighbouring half; contiguous lanes become `.v8` atomics, not `f16x2`. A stress test found no wrong value in 40960 cells (lr-37b `work/`). Correct Q7. Round 38 (the final fix, no review after it).
+
+**Round 38 fix** (FIXED, no review followed): review-questions.md Q7 describes the sm_90 forms (per-lane 32-bit compare-and-swap loop; vector `.v8` atomics; `f16x2` only before sm_90), with new evidence/half-atomics; the trust is unchanged.
+
+## L173
+
+**Atomic operand conversion** (wording; lr-37b, round 37). SEMANTICS.md "Atomics" does not say that an atomic's operand is converted to the pointer's element type (as `tl.store` does), or that `atomic_cas` converts nothing, so mismatched operands are rejected on the host. Say both. Round 38 (the final fix, no review after it).
+
+**Round 38 fix** (FIXED, no review followed): SEMANTICS.md "Atomics" gains "The operand" (converted to the cell's type as by `tl.store`; `atomic_cas` converts nothing, mismatched operands rejected on the host), with evidence/atomic-dtypes `adv.py` part V; the transcription row says the same.
+
+## L174
+
+**S3's max/min pair** (wording; lr-37b, round 37). The sentence "signed max or unsigned min" (S3) is true for `atomic_max` only (`atomic_min` is signed min or unsigned max), and its line references into Triton's `semantic.py` are off. Correct both. Round 38 (the final fix, no review after it).
+
+**Round 38 fix** (FIXED, no review followed): S3 gives both pairs (`atomic_max`: signed max or unsigned min; `atomic_min`: signed min or unsigned max) and cites `semantic.py:1299-1374` and `1271-1275`.

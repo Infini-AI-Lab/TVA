@@ -1,0 +1,9 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+host descriptors, pipelined loop: global scratch 0, profile scratch 0; with the null allocator: ran; with triton.set_allocator: 0 allocator calls [], outputs equal to the first launch's: True
+host descriptors, warp-specialised loop: global scratch 0, profile scratch 0; with the null allocator: ran; with triton.set_allocator: 0 allocator calls [], outputs equal to the first launch's: True
+pointer loads and tl.dot, pipelined loop: global scratch 0, profile scratch 0; with the null allocator: ran; with triton.set_allocator: 0 allocator calls [], outputs equal to the first launch's: True
+block pointers, pipelined loop: global scratch 0, profile scratch 0; with the null allocator: ran; with triton.set_allocator: 0 allocator calls [], outputs equal to the first launch's: True
+gather, sort, cumsum, histogram, atomics, inline asm: global scratch 0, profile scratch 0; with the null allocator: ran; with triton.set_allocator: 0 allocator calls [], outputs equal to the first launch's: True
+tl.dot_scaled e4m3: global scratch 0, profile scratch 0; with the null allocator: ran; with triton.set_allocator: 0 allocator calls [], outputs equal to the first launch's: True
+3-D tl.dot: global scratch 0, profile scratch 0; with the null allocator: ran; with triton.set_allocator: 0 allocator calls [], outputs equal to the first launch's: True
+CONTROL tl.make_tensor_descriptor in the kernel: global scratch 128, profile scratch 0; with the null allocator: RuntimeError: Kernel requires a runtime memory allocation, but no allocator was set.; with triton.set_allocator: 1 allocator calls [(128, 128)], outputs equal to the first launch's: None

@@ -1,0 +1,447 @@
+{
+ "source": {
+  "file": "source/ssd_chunk_state.py",
+  "sha256": "f3be523c49631724940f126d7319ec20bb5b3bc6759d293ea50a1de10f86f2e6",
+  "ranges": [
+   [
+    73,
+    224
+   ]
+  ],
+  "host": [
+   [
+    71,
+    71
+   ],
+   [
+    227,
+    386
+   ]
+  ],
+  "unused": []
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.SsdChunkState",
+ "entries": [
+  {
+   "src": [
+    73
+   ],
+   "drop": "import",
+   "note": "binds `triton`, which the launch's grid formula (`triton.cdiv`, lines 254-258) reads; the launch is a direct launch of the `@triton.jit` function"
+  },
+  {
+   "src": [
+    74
+   ],
+   "drop": "import",
+   "note": "binds `tl` (SEMANTICS.md, the supported subset: Triton's modules as the source imports them), the vocabulary of every model line; no other statement of the module binds it"
+  },
+  {
+   "src": [
+    77
+   ],
+   "drop": "decl",
+   "note": "`@triton.jit`: the model's `Kernel` definition (`ssd_chunk_state_kernel`)"
+  },
+  {
+   "src": [
+    "78-122"
+   ],
+   "drop": "decl",
+   "note": "the signature: the model's parameters - the six pointers (`x_ptr`, `b_ptr` `*bf16`; `states_ptr`, `dt_ptr`, `dA_cumsum_ptr` `*fp32`; `seq_idx_ptr` `*i32`), the `int32` scalar arguments `hdim`, `dstate`, `chunk_size`, `batch`, `seqlen`, `nheads_ngroups_ratio` and eighteen of the strides (`Inst.ok` keeps each below `2^31`), and the five batch strides `stride_x_batch`, `stride_b_batch`, `stride_states_batch`, `stride_dt_batch`, `stride_dA_cs_batch` as `I64` (an `int32` argument below `2^31`, an `int64` one from `2^31` to `2^63`, `Inst.ok.batch_lt`: each is used only as an operand of `*` with the `int64` `pid_b`, where an `int32` argument is widened to the same `int64` value, so the model's `I64` value is the operand in either class), and the constexprs `BLOCK_SIZE_M`, `BLOCK_SIZE_N`, `BLOCK_SIZE_K` (Lean parameters; the host passes 64, 128, 64). An integer argument equal to `1` (`batch` always, and on many launches several strides and `nheads_ngroups_ratio`) is the compile-time constant `1`; each of its uses (an operand of `+`, `-`, `*`, `//`, a comparison, a `min`) builds the constant in the operation's computation dtype with the same value, or is Python's arithmetic with the same value, so the model's `IntV` is the same. `HAS_SEQ_IDX` is `True` on every covered launch (`SETUP.md`): the model writes only the taken branches. Comment lines 79, 86, 93, 117 inside the signature add nothing"
+  },
+  {
+   "src": [
+    123
+   ],
+   "model": "let pid_bc : I64 := (← tl.convert .i32 .i64 (Tensor.scalar (tl.program_id ctx 1))).item",
+   "note": "axis 1 of the grid, an `int32`, then `.to(tl.int64)`: the exact widening (`semantic.cast`, sign extension)"
+  },
+  {
+   "src": [
+    124
+   ],
+   "model": [
+    "let batch64 : I64 := (← tl.convert .i32 .i64 (Tensor.scalar batch)).item",
+    "let pid_c : I64 := (← tl.idiv (Tensor.scalar pid_bc) (Tensor.scalar batch64)).item"
+   ],
+   "note": "the `int32` `batch` widened to `int64` (the other operand is `int64`), then the truncating `int64` `//` (`tl.idiv`); with `batch = 1` the constant `1` built in `int64`, the same value"
+  },
+  {
+   "src": [
+    125
+   ],
+   "model": "let pid_b : I64 := pid_bc - pid_c * batch64",
+   "note": "wrapping `int64` product and difference (always `0` with `batch = 1`)"
+  },
+  {
+   "src": [
+    126
+   ],
+   "model": "let pid_h := tl.program_id ctx 2",
+   "note": "axis 2 of the grid, an `int32`"
+  },
+  {
+   "src": [
+    127
+   ],
+   "model": [
+    "let num_pid_n : I32 := (← tl.idiv (Tensor.scalar (dstate + (IntV.ofNat (BLOCK_SIZE_N - 1) : I32)))",
+    "(Tensor.scalar (IntV.ofNat BLOCK_SIZE_N : I32))).item"
+   ],
+   "note": "`tl.cdiv(dstate, BLOCK_SIZE_N)` with an `int32` `dstate` and a constexpr is `(dstate + (BLOCK_SIZE_N - 1)) // BLOCK_SIZE_N` (SEMANTICS.md, `tl.cdiv`): Python's `BLOCK_SIZE_N - 1`, built in `int32`, the wrapping `+` (`Inst.ok.dstate_lt` keeps it below `2^31`), the truncating `int32` `//`"
+  },
+  {
+   "src": [
+    128
+   ],
+   "model": "let pid_m : I32 := (← tl.idiv (Tensor.scalar (tl.program_id ctx 0)) (Tensor.scalar num_pid_n)).item",
+   "note": "axis 0 of the grid, the truncating `int32` `//` (`num_pid_n >= 1`)"
+  },
+  {
+   "src": [
+    129
+   ],
+   "model": "let pid_n : I32 := (← tl.irem (Tensor.scalar (tl.program_id ctx 0)) (Tensor.scalar num_pid_n)).item",
+   "note": "the `int32` `%` (`tl.irem`, truncating); `tl.program_id(axis=0)` evaluated again, the same value"
+  },
+  {
+   "src": [
+    "130-134"
+   ],
+   "model": [
+    "let head_b : I32 := (← tl.idiv (Tensor.scalar pid_h) (Tensor.scalar nheads_ngroups_ratio)).item",
+    "let b_ptr := b_ptr +",
+    "(pid_b * stride_b_batch +",
+    "(← tl.convert .i32 .i64 (Tensor.scalar stride_b_seqlen)).item +",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (head_b * stride_b_head))).item)"
+   ],
+   "note": "`b_ptr += e` is `b_ptr = b_ptr + e`: `pid_b * stride_b_batch` and `pid_c * chunk_size * stride_b_seqlen` are `int64` (each `int32` operand widened, the batch stride the `int64` value of its argument in either class, wrapping products, left to right); `(pid_h // nheads_ngroups_ratio) * stride_b_head` is `int32` (truncating `//`, `ratio >= 1`; wrapping `*`, `Inst.ok.bhead_lt`) widened for the `int64` sum; the pointer `+` in elements"
+  },
+  {
+   "src": [
+    "135-139"
+   ],
+   "model": [
+    "let x_ptr := x_ptr +",
+    "(pid_b * stride_x_batch +",
+    "(← tl.convert .i32 .i64 (Tensor.scalar stride_x_seqlen)).item +",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (pid_h * stride_x_head))).item)"
+   ],
+   "note": "as lines 130-134; `pid_h * stride_x_head` is an `int32` product (`Inst.ok.xhead_lt`), widened"
+  },
+  {
+   "src": [
+    140
+   ],
+   "model": [
+    "let dt_ptr := dt_ptr +",
+    "(pid_b * stride_dt_batch +",
+    "pid_c * (← tl.convert .i32 .i64 (Tensor.scalar stride_dt_chunk)).item +",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (pid_h * stride_dt_head))).item)"
+   ],
+   "note": "`int64` products with `pid_b` (the batch stride's `int64` value) and `pid_c` (the `int32` stride widened); the `int32` product `pid_h * stride_dt_head` (`Inst.ok.dt_lt`) widened; the `int64` sum; the pointer `+=`"
+  },
+  {
+   "src": [
+    "141-145"
+   ],
+   "model": [
+    "let dA_cumsum_ptr := dA_cumsum_ptr +",
+    "(pid_b * stride_dA_cs_batch +",
+    "pid_c * (← tl.convert .i32 .i64 (Tensor.scalar stride_dA_cs_chunk)).item +",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (pid_h * stride_dA_cs_head))).item)"
+   ],
+   "note": "as line 140"
+  },
+  {
+   "src": [
+    "146-149"
+   ],
+   "model": [
+    "let seq_idx_ptr := seq_idx_ptr +",
+    "(pid_b * (← tl.convert .i32 .i64 (Tensor.scalar stride_seq_idx_batch)).item +",
+    "(← tl.convert .i32 .i64 (Tensor.scalar stride_seq_idx_seqlen)).item)"
+   ],
+   "note": "`if HAS_SEQ_IDX:` is a compile-time condition, `True` on every covered launch: the body is visited; `int64` products and sum, the pointer `+=`"
+  },
+  {
+   "src": [
+    151
+   ],
+   "model": "let offs_m : Tensor [BLOCK_SIZE_M] I32 := pid_m * (IntV.ofNat BLOCK_SIZE_M : I32) + tl.arange 0 BLOCK_SIZE_M",
+   "note": "the constexpr built in `int32` as an operand of `*` with the `int32` scalar `pid_m`; wrapping `*` and `+` (`Inst.ok.headdim_lt`: no wrap)"
+  },
+  {
+   "src": [
+    152
+   ],
+   "model": "let offs_n : Tensor [BLOCK_SIZE_N] I32 := pid_n * (IntV.ofNat BLOCK_SIZE_N : I32) + tl.arange 0 BLOCK_SIZE_N",
+   "note": "as line 151 (`Inst.ok.dstate_lt`)"
+  },
+  {
+   "src": [
+    153
+   ],
+   "model": "let offs_k : Tensor [BLOCK_SIZE_K] I32 := tl.arange 0 BLOCK_SIZE_K",
+   "note": "`tl.arange`, `int32`"
+  },
+  {
+   "src": [
+    "154-156"
+   ],
+   "model": [
+    "let x_ptrs : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] (Ptr .bf16) :=",
+    "x_ptr + (offs_m.col BLOCK_SIZE_K * stride_x_hdim + offs_k.row BLOCK_SIZE_M * stride_x_seqlen)"
+   ],
+   "note": "`offs_m[:, None]` and `offs_k[None, :]` broadcast to `[BLOCK_SIZE_M, BLOCK_SIZE_K]`; `int32` products and sum (`Inst.ok.xtile_lt`: no wrap on any lane); the pointer `+`"
+  },
+  {
+   "src": [
+    "157-159"
+   ],
+   "model": [
+    "let b_ptrs : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] (Ptr .bf16) :=",
+    "b_ptr + (offs_n.row BLOCK_SIZE_K * stride_b_dstate + offs_k.col BLOCK_SIZE_N * stride_b_seqlen)"
+   ],
+   "note": "as lines 154-156, `[BLOCK_SIZE_K, BLOCK_SIZE_N]` (`Inst.ok.btile_lt`)"
+  },
+  {
+   "src": [
+    160
+   ],
+   "model": "let dt_ptrs : Tensor [BLOCK_SIZE_K] (Ptr .f32) := dt_ptr + offs_k * stride_dt_csize",
+   "note": "an `int32` product, the pointer `+`"
+  },
+  {
+   "src": [
+    "161-163"
+   ],
+   "model": "let dA_cs_last : F32 ← tl.load1 (dA_cumsum_ptr + (chunk_size - IntV.ofInt 1) * stride_dA_cs_csize : Ptr .f32)",
+   "note": "the `int32` `chunk_size - 1` (the Python `1` built in `int32`) times the stride, a scalar load; `.to(tl.float32)` is the identity on `float32`"
+  },
+  {
+   "src": [
+    164
+   ],
+   "model": "let dA_cumsum_ptrs : Tensor [BLOCK_SIZE_K] (Ptr .f32) := dA_cumsum_ptr + offs_k * stride_dA_cs_csize",
+   "note": "as line 160"
+  },
+  {
+   "src": [
+    "165-166"
+   ],
+   "model": "let seq_idx_ptrs : Tensor [BLOCK_SIZE_K] (Ptr .i32) := seq_idx_ptr + offs_k * stride_seq_idx_seqlen",
+   "note": "`if HAS_SEQ_IDX:` taken (compile-time); as line 160"
+  },
+  {
+   "src": [
+    168
+   ],
+   "model": [
+    "let chunk_size_limit : I64 := (tl.iminimum",
+    "(Tensor.scalar (← tl.convert .i32 .i64 (Tensor.scalar chunk_size)).item)",
+    "(Tensor.scalar ((← tl.convert .i32 .i64 (Tensor.scalar seqlen)).item -",
+    "pid_c * (← tl.convert .i32 .i64 (Tensor.scalar chunk_size)).item))).item"
+   ],
+   "note": "Python's `min` with a tensor operand folds `tl.minimum` (SEMANTICS.md, Python's builtins): `pid_c * chunk_size` is `int64` (the `int32` operand widened), so is `seqlen - ...` (`seqlen` widened); `chunk_size` is widened to the promoted `int64`; on integers `tl.minimum` is the exact signed `tl.iminimum`"
+  },
+  {
+   "src": [
+    "169-172"
+   ],
+   "model": [
+    "let seq_idx_last : I32 ← tl.load1 (seq_idx_ptr +",
+    "(chunk_size_limit - IntV.ofInt 1) * (← tl.convert .i32 .i64 (Tensor.scalar stride_seq_idx_seqlen)).item :"
+   ],
+   "note": "`if HAS_SEQ_IDX:` taken; the `int64` offset (the Python `1` built in `int64`, the stride widened), a scalar load of `int32`"
+  },
+  {
+   "src": [
+    174
+   ],
+   "model": "let acc := tl.zeros [BLOCK_SIZE_M, BLOCK_SIZE_N] .f32",
+   "note": "`float32` `+0.0` in every element"
+  },
+  {
+   "src": [
+    175
+   ],
+   "model": [
+    "tl.forRange (IntV.ofInt 0 : I64) chunk_size_limit (IntV.ofNat BLOCK_SIZE_K : I64)",
+    "(x_ptrs, b_ptrs, dt_ptrs, dA_cumsum_ptrs, seq_idx_ptrs, acc)",
+    "fun k (x_ptrs, b_ptrs, dt_ptrs, dA_cumsum_ptrs, seq_idx_ptrs, acc) => do"
+   ],
+   "note": "a three-argument `range`: the bounds' promoted type is `int64` (`chunk_size_limit` is), so the `0`, the constexpr step and `k` are `int64`; each argument evaluated once (plain names); the loop carries the six names its body assigns that are defined before it; `x`, `b`, `dA_cs_k`, `seq_idx_k`, `dt_k`, `scale` are first defined in the body and not used after it"
+  },
+  {
+   "src": [
+    "176-180"
+   ],
+   "model": [
+    "let offs_k64 : Tensor [BLOCK_SIZE_K] I64 ← tl.convert .i32 .i64 offs_k",
+    "let k_mask : Tensor [BLOCK_SIZE_K] Bool := offs_k64.ltS (chunk_size_limit - k)",
+    "let x : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] BF16 ← tl.load x_ptrs",
+    "(some (((offs_m.col BLOCK_SIZE_K).ltS hdim).and (k_mask.row BLOCK_SIZE_M)))",
+    "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_SIZE_M, BLOCK_SIZE_K] (FloatV.litF32 (FloatV.ofPat 0)))))"
+   ],
+   "note": "the mask: `offs_m[:, None] < hdim` (signed `int32`), `offs_k[None, :] < chunk_size_limit - k` (`offs_k` widened to `int64`, the wrapping `int64` difference, signed), `&` on `int1`; the model computes `k_mask` once and uses it in the five masks of lines 178, 183, 187, 191, 193, which compute the same value; `other=0.0`: the `float32` `+0.0`, converted to the pointer's dtype `bfloat16`"
+  },
+  {
+   "src": [
+    "181-185"
+   ],
+   "model": [
+    "let b0 : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] BF16 ← tl.load b_ptrs",
+    "(some ((k_mask.col BLOCK_SIZE_N).and ((offs_n.row BLOCK_SIZE_K).ltS dstate)))",
+    "(some (← tl.convert .f32 .bf16 (tl.full [BLOCK_SIZE_K, BLOCK_SIZE_N] (FloatV.litF32 (FloatV.ofPat 0)))))",
+    "let b : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] F32 ← tl.cvt b0"
+   ],
+   "note": "the mask `offs_k[:, None] < ...` and `offs_n[None, :] < dstate`; `other` as lines 176-180; `.to(tl.float32)`: `bfloat16` to `float32`, exact (`tl.cvt`)"
+  },
+  {
+   "src": [
+    "186-188"
+   ],
+   "model": [
+    "let dA_cs_k : Tensor [BLOCK_SIZE_K] F32 ← tl.load dA_cumsum_ptrs (some k_mask)",
+    "(some (bc (FloatV.litF32 (FloatV.ofPat 0))))"
+   ],
+   "note": "`other=0.0` is the `float32` `+0.0` (the pointer's dtype); `.to(tl.float32)` the identity"
+  },
+  {
+   "src": [
+    "189-192"
+   ],
+   "model": [
+    "let seq_idx_k : Tensor [BLOCK_SIZE_K] I32 ← tl.load seq_idx_ptrs (some k_mask)",
+    "(some (bc (IntV.ofInt (-1) : I32)))"
+   ],
+   "note": "`if HAS_SEQ_IDX:` taken; `other=-1`: the Python `-1` is an `int32` tensor, the pointer's dtype"
+  },
+  {
+   "src": [
+    "193-195"
+   ],
+   "model": "let dt_k : Tensor [BLOCK_SIZE_K] F32 ← tl.load dt_ptrs (some k_mask)",
+   "note": "as lines 186-188"
+  },
+  {
+   "src": [
+    "196-197"
+   ],
+   "drop": "config",
+   "note": "`if not HAS_SEQ_IDX:` is `False` (compile-time): the branch is not visited; the `else` branch follows"
+  },
+  {
+   "src": [
+    "198-201"
+   ],
+   "model": [
+    "let dA_diff ← tl.sub (bc dA_cs_last) dA_cs_k",
+    "let decay ← tl.exp dA_diff",
+    "let w ← tl.mul decay dt_k",
+    "let scale : Tensor [BLOCK_SIZE_K] F32 :=",
+    "tl.where (seq_idx_k.eq (bc seq_idx_last)) w (bc (FloatV.litF32 (FloatV.ofPat 0)))"
+   ],
+   "note": "the `else` branch: `dA_cs_last - dA_cs_k` is the IEEE `float32` `-` (two loaded values, no product feeds it), the scalar broadcast; `tl.exp`; `* dt_k` the IEEE product (it feeds no addition); `seq_idx_k == seq_idx_last` the `int32` `==` with the scalar broadcast (`int1`); `tl.where` computes both operands, and `0.0` is built in `float32`, `x`'s dtype (`whereTyping?`)"
+  },
+  {
+   "src": [
+    202
+   ],
+   "model": "let b ← tl.mul b (scale.col BLOCK_SIZE_N)",
+   "note": "`b *= scale[:, None]` is `b = b * scale[:, None]`: the IEEE `float32` product; its only use is the conversion of line 203, so no addition consumes it"
+  },
+  {
+   "src": [
+    203
+   ],
+   "model": "let b : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] BF16 ← tl.cvt b",
+   "note": "`x_ptr.dtype.element_ty` is `tl.bfloat16` (a compile-time attribute); `float32` to `bfloat16`: one rounding to nearest even (`tl.cvt`)"
+  },
+  {
+   "src": [
+    204
+   ],
+   "model": [
+    "let acc ← tl.dot_add",
+    "{ a := .bf16, b := .bf16, acc := .f32, precision := .tf32, maxImpreciseAcc := 0 } x b acc"
+   ],
+   "note": "`acc += tl.dot(x, b)`: `acc + tl.dot(x, b)` with the dot's default zero accumulator and no other use of the product, so Triton's combine pass may rewrite it to `tl.dot(x, b, acc)` (`tl.dot_add`, SEMANTICS.md, the combine pass's rewrites); no `input_precision` (the default `tf32`), no `max_num_imprecise_acc` (`0` for 16-bit operands)"
+  },
+  {
+   "src": [
+    "205-210"
+   ],
+   "model": [
+    "let x_ptrs := x_ptrs +",
+    "(bc ((IntV.ofNat BLOCK_SIZE_K : I32) * stride_x_seqlen) : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_K] I32)",
+    "let b_ptrs := b_ptrs +",
+    "(bc ((IntV.ofNat BLOCK_SIZE_K : I32) * stride_b_seqlen) : Tensor [BLOCK_SIZE_K, BLOCK_SIZE_N] I32)",
+    "let dt_ptrs := dt_ptrs +",
+    "(bc ((IntV.ofNat BLOCK_SIZE_K : I32) * stride_dt_csize) : Tensor [BLOCK_SIZE_K] I32)",
+    "let dA_cumsum_ptrs := dA_cumsum_ptrs +",
+    "(bc ((IntV.ofNat BLOCK_SIZE_K : I32) * stride_dA_cs_csize) : Tensor [BLOCK_SIZE_K] I32)",
+    "let seq_idx_ptrs := seq_idx_ptrs +",
+    "(bc ((IntV.ofNat BLOCK_SIZE_K : I32) * stride_seq_idx_seqlen) : Tensor [BLOCK_SIZE_K] I32)",
+    "pure (x_ptrs, b_ptrs, dt_ptrs, dA_cumsum_ptrs, seq_idx_ptrs, acc)"
+   ],
+   "note": "`p += BLOCK_SIZE_K * stride` is `p = p + ...`: the constexpr built in `int32` as an operand of `*` with the `int32` stride (with a stride equal to `1`, Python's `64`, the same value), the wrapping product (`Inst.ok.xtile_lt`, `btile_lt`) added to every pointer; line 209 `if HAS_SEQ_IDX:` taken; the loop's state"
+  },
+  {
+   "src": [
+    211
+   ],
+   "model": "let states := acc",
+   "note": "`acc.to(states_ptr.dtype.element_ty)`: `float32` to `float32` returns its operand (`semantic.cast` of the same type)"
+  },
+  {
+   "src": [
+    "213-217"
+   ],
+   "model": [
+    "let states_ptr := states_ptr +",
+    "(pid_b * stride_states_batch +",
+    "pid_c * (← tl.convert .i32 .i64 (Tensor.scalar stride_states_chunk)).item +",
+    "(← tl.convert .i32 .i64 (Tensor.scalar (pid_h * stride_states_head))).item)"
+   ],
+   "note": "as line 140: `int64` products with `pid_b`, `pid_c`; the `int32` product `pid_h * stride_states_head` widened; the pointer `+=`"
+  },
+  {
+   "src": [
+    "218-219"
+   ],
+   "model": [
+    "let offs_m : Tensor [BLOCK_SIZE_M] I32 := pid_m * (IntV.ofNat BLOCK_SIZE_M : I32) + tl.arange 0 BLOCK_SIZE_M",
+    "let offs_n : Tensor [BLOCK_SIZE_N] I32 := pid_n * (IntV.ofNat BLOCK_SIZE_N : I32) + tl.arange 0 BLOCK_SIZE_N"
+   ],
+   "note": "as lines 151-152 (recomputed, the same values)"
+  },
+  {
+   "src": [
+    "220-222"
+   ],
+   "model": [
+    "let states_ptrs : Tensor [BLOCK_SIZE_M, BLOCK_SIZE_N] (Ptr .f32) :=",
+    "states_ptr + (offs_m.col BLOCK_SIZE_N * stride_states_hdim + offs_n.row BLOCK_SIZE_M * stride_states_dstate)"
+   ],
+   "note": "`int32` products and sum (`Inst.ok.sttile_lt`), the pointer `+`"
+  },
+  {
+   "src": [
+    223
+   ],
+   "model": "let c_mask := ((offs_m.col BLOCK_SIZE_N).ltS hdim).and ((offs_n.row BLOCK_SIZE_M).ltS dstate)",
+   "note": "two signed `int32` comparisons, broadcast, `&`"
+  },
+  {
+   "src": [
+    224
+   ],
+   "model": "tl.store states_ptrs states (some c_mask)",
+   "note": "`states` is already `float32`, the pointer's dtype"
+  }
+ ]
+}

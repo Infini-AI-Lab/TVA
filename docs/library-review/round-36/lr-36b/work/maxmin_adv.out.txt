@@ -1,0 +1,61 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+## A. dtypes accepted
+torch.float16 max: rejected: atomic_max does not support fp16
+torch.float16 min: rejected: atomic_min does not support fp16
+torch.bfloat16 max: rejected: atomic_max does not support bf16
+torch.bfloat16 min: rejected: atomic_min does not support bf16
+torch.int8 max: rejected: atomic_max does not support int8
+torch.int8 min: rejected: atomic_min does not support int8
+torch.int16 max: rejected: atomic_max does not support int16
+torch.int16 min: rejected: atomic_min does not support int16
+torch.float32 max: compiles
+torch.float32 min: compiles
+torch.float64 max: compiles
+torch.float64 min: compiles
+torch.int32 max: compiles
+torch.int32 min: compiles
+torch.uint32 max: compiles
+torch.uint32 min: compiles
+## B. PTX
+torch.float32 relaxed gpu tensor max: @%_ atom.global.gpu.relaxed.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.relaxed.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 relaxed cta tensor max: @%_ atom.global.cta.relaxed.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.cta.relaxed.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 relaxed sys tensor max: @%_ atom.global.sys.relaxed.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.sys.relaxed.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 acq_rel gpu tensor max: @%_ atom.global.gpu.acq_rel.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.acq_rel.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 acq_rel cta tensor max: @%_ atom.global.cta.acq_rel.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.cta.acq_rel.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 acq_rel sys tensor max: @%_ atom.global.sys.acq_rel.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.sys.acq_rel.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 acquire gpu tensor max: @%_ atom.global.gpu.acquire.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.acquire.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 acquire cta tensor max: @%_ atom.global.cta.acquire.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.cta.acquire.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 acquire sys tensor max: @%_ atom.global.sys.acquire.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.sys.acquire.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 release gpu tensor max: @%_ atom.global.gpu.release.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.release.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 release cta tensor max: @%_ atom.global.cta.release.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.cta.release.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 release sys tensor max: @%_ atom.global.sys.release.max.s32 %_, [ %_ + 0 ], %_; | @%_ atom.global.sys.release.min.u32 %_, [ %_ + 0 ], %_;
+torch.float32 relaxed scalar min: @%_ atom.global.gpu.relaxed.max.u32 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.relaxed.min.s32 %_, [ %_ + 0 ], %_; | bar.sync
+torch.float32 acq_rel scalar min: @%_ atom.global.gpu.acq_rel.max.u32 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.acq_rel.min.s32 %_, [ %_ + 0 ], %_; | bar.sync
+torch.float64 relaxed gpu tensor max: @%_ atom.global.gpu.relaxed.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.relaxed.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 relaxed cta tensor max: @%_ atom.global.cta.relaxed.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.cta.relaxed.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 relaxed sys tensor max: @%_ atom.global.sys.relaxed.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.sys.relaxed.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 acq_rel gpu tensor max: @%_ atom.global.gpu.acq_rel.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.acq_rel.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 acq_rel cta tensor max: @%_ atom.global.cta.acq_rel.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.cta.acq_rel.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 acq_rel sys tensor max: @%_ atom.global.sys.acq_rel.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.sys.acq_rel.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 acquire gpu tensor max: @%_ atom.global.gpu.acquire.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.acquire.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 acquire cta tensor max: @%_ atom.global.cta.acquire.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.cta.acquire.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 acquire sys tensor max: @%_ atom.global.sys.acquire.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.sys.acquire.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 release gpu tensor max: @%_ atom.global.gpu.release.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.release.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 release cta tensor max: @%_ atom.global.cta.release.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.cta.release.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 release sys tensor max: @%_ atom.global.sys.release.max.s64 %_, [ %_ + 0 ], %_; | @%_ atom.global.sys.release.min.u64 %_, [ %_ + 0 ], %_;
+torch.float64 relaxed scalar min: @%_ atom.global.gpu.relaxed.max.u64 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.relaxed.min.s64 %_, [ %_ + 0 ], %_; | bar.sync
+torch.float64 acq_rel scalar min: @%_ atom.global.gpu.acq_rel.max.u64 %_, [ %_ + 0 ], %_; | @%_ atom.global.gpu.acq_rel.min.s64 %_, [ %_ + 0 ], %_; | bar.sync
+## C. scalar calls, acq_rel, every pair
+float32 max: 324 pairs, new != picked: 0, ret != old: 0, zero sign bits (old, operand) -> new: {(0, 0): 0, (0, 1): 0, (1, 0): 0, (1, 1): 1}
+float32 min: 324 pairs, new != picked: 0, ret != old: 0, zero sign bits (old, operand) -> new: {(0, 0): 0, (0, 1): 1, (1, 0): 1, (1, 1): 1}
+float64 max: 324 pairs, new != picked: 0, ret != old: 0, zero sign bits (old, operand) -> new: {(0, 0): 0, (0, 1): 0, (1, 0): 0, (1, 1): 1}
+float64 min: 324 pairs, new != picked: 0, ret != old: 0, zero sign bits (old, operand) -> new: {(0, 0): 0, (0, 1): 1, (1, 0): 1, (1, 1): 1}
+## D. contention, 64 programs x 256 lanes on 8 cells
+float32 max nan=False: cells wrong 0 of 160
+float32 max nan=True: cells wrong 0 of 160
+float32 min nan=False: cells wrong 0 of 160
+float32 min nan=True: cells wrong 0 of 160
+float64 max nan=False: cells wrong 0 of 160
+float64 max nan=True: cells wrong 0 of 160
+float64 min nan=False: cells wrong 0 of 160
+float64 min nan=True: cells wrong 0 of 160

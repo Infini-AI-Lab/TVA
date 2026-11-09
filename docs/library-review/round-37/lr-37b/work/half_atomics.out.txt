@@ -1,0 +1,13 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+## P. packing
+float16 mask=False used=False: PTX ['atom.global.gpu.acq_rel.add.noftz.v8.f16']; SASS ['ATOMG.E.ADD.F16']; new value != one IEEE add on 0 of 1024
+float16 mask=False used=True: PTX ['atom.global.gpu.acq_rel.add.noftz.v8.f16']; SASS ['ATOMG.E.ADD.F16']; new value != one IEEE add on 0 of 1024; returned != old on 0
+float16 mask=True used=False: PTX ['atom.global.gpu.acq_rel.add.noftz.f16']; SASS ['ATOMG.E.CAS.STRONG.GPU']; new value != one IEEE add on 0 of 1024
+float16 mask=True used=True: PTX ['atom.global.gpu.acq_rel.add.noftz.f16']; SASS ['ATOMG.E.CAS.STRONG.GPU']; new value != one IEEE add on 0 of 1024; returned != old on 0
+bfloat16 mask=False used=False: PTX ['atom.global.gpu.acq_rel.add.noftz.v8.bf16']; SASS ['ATOMG.E.ADD.BF16']; new value != one IEEE add on 0 of 1024
+bfloat16 mask=False used=True: PTX ['atom.global.gpu.acq_rel.add.noftz.v8.bf16']; SASS ['ATOMG.E.ADD.BF16']; new value != one IEEE add on 0 of 1024; returned != old on 0
+bfloat16 mask=True used=False: PTX ['atom.global.gpu.acq_rel.add.noftz.bf16']; SASS ['ATOMG.E.CAS.STRONG.GPU']; new value != one IEEE add on 0 of 1024
+bfloat16 mask=True used=True: PTX ['atom.global.gpu.acq_rel.add.noftz.bf16']; SASS ['ATOMG.E.CAS.STRONG.GPU']; new value != one IEEE add on 0 of 1024; returned != old on 0
+## N. neighbours
+float16: 20 launches: even halves != 2048 on 0 of 20480; odd halves != 64 on 0 of 20480
+bfloat16: 20 launches: even halves != 256 on 0 of 20480; odd halves != 8 on 0 of 20480

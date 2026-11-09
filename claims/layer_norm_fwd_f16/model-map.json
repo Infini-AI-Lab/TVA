@@ -1,0 +1,351 @@
+{
+ "source": {
+  "file": "source/05-layer-norm.py",
+  "sha256": "241f9f74e2f18567b26f3b4cf9b9873ae859150ccd10976d65d38fe24896d1d2",
+  "ranges": [
+   [
+    34,
+    35
+   ],
+   [
+    48,
+    95
+   ]
+  ],
+  "host": [
+   [
+    32,
+    32
+   ],
+   [
+    37,
+    45
+   ],
+   [
+    132,
+    144
+   ],
+   [
+    197,
+    204
+   ],
+   [
+    233,
+    297
+   ],
+   [
+    300,
+    375
+   ]
+  ],
+  "unused": [
+   "_layer_norm_bwd_dx_fused",
+   "_layer_norm_bwd_dwdb"
+  ]
+ },
+ "lean": "Claim.lean",
+ "namespace": "Claims.LayerNormFwdF16",
+ "entries": [
+  {
+   "src": [
+    34
+   ],
+   "drop": "import",
+   "note": "binds `triton`, Triton's own module, which the `@triton.jit` of line 48 names (SEMANTICS.md, the supported subset, Names: Triton's modules as the source imports them, each bound only by its own `import`; no other statement of the module binds `triton`); the kernel's body does not name `triton`; it adds no step to the program"
+  },
+  {
+   "src": [
+    35
+   ],
+   "drop": "import",
+   "note": "binds `tl` to `triton.language` (and nothing else), so every `tl.*` name of lines 49–95 is Triton's, whose meaning is the library's `TVA.tl.*` (SEMANTICS.md); no other statement of the module binds `tl`; it adds no step to the program"
+  },
+  {
+   "src": [
+    48
+   ],
+   "drop": "decl",
+   "note": "a bare `@triton.jit` on a top-level `def`: the kernel; no other statement of the module binds `_layer_norm_fwd_fused`; the model is the function `layer_norm_fwd_fused`"
+  },
+  {
+   "src": [
+    "49-60"
+   ],
+   "model": [
+    "def layer_norm_fwd_fused (X Y W B : Ptr .f16) (Mean Rstd : Ptr .f32) (stride N : I32) (eps : F32)",
+    "(BLOCK_SIZE : Nat) : Kernel where"
+   ],
+   "note": "the signature: `X`, `Y`, `W`, `B` the model's `*fp16` parameters and `Mean`, `Rstd` its `*fp32` ones (the covered launches' dtypes); `stride` and `N` runtime `int32` scalars (Python `int`s other than `1`: `Inst.ok.n_ge`, and `stride = N`); `eps` the runtime `float32` scalar (a Python `float`: `FloatV.hostF32` of the double, `model`); the `tl.constexpr` `BLOCK_SIZE` a Lean parameter; no parameter has a default"
+  },
+  {
+   "src": [
+    62
+   ],
+   "model": [
+    "let row := tl.program_id ctx 0"
+   ],
+   "note": "`tl.program_id(0)`, the `int32` program index"
+  },
+  {
+   "src": [
+    63
+   ],
+   "model": [
+    "let Y := Y + row * stride"
+   ],
+   "note": "`Y += row * stride`: the `int32` product of two `int32` values (wrapping; `Inst.ok.rows_lt` keeps it below `2^31`), the pointer advanced by it"
+  },
+  {
+   "src": [
+    64
+   ],
+   "model": [
+    "let X := X + row * stride"
+   ],
+   "note": "as line 63"
+  },
+  {
+   "src": [
+    66
+   ],
+   "drop": "no-op",
+   "note": "`mean = 0` binds a Python number to `mean`, which line 72 reassigns before any use (SEMANTICS.md, How the front end evaluates the source: the name holds a constant, no operation is emitted)"
+  },
+  {
+   "src": [
+    67
+   ],
+   "model": [
+    "let _mean := tl.zeros [BLOCK_SIZE] .f32"
+   ],
+   "note": "`tl.zeros([BLOCK_SIZE], dtype=tl.float32)`"
+  },
+  {
+   "src": [
+    68
+   ],
+   "model": [
+    "let _mean ← tl.forRange (IntV.ofInt 0 : I32) N (IntV.ofNat BLOCK_SIZE : I32) _mean",
+    "fun off _mean => do"
+   ],
+   "note": "`for off in range(0, N, BLOCK_SIZE)` with the runtime `int32` bound `N`: an `int32` loop (the Python `0` an `int32`, the constexpr step built in `int32`); it carries `_mean`, the one name the body updates and the code after the loop reads"
+  },
+  {
+   "src": [
+    69
+   ],
+   "model": [
+    "let cols := off + tl.arange 0 BLOCK_SIZE"
+   ],
+   "note": "the `int32` induction variable plus the `int32` block"
+  },
+  {
+   "src": [
+    70
+   ],
+   "model": [
+    "let a : Tensor [BLOCK_SIZE] F32 ← tl.cvt (← tl.load (X + cols) (some (cols.ltS N))",
+    "(some (← other16 BLOCK_SIZE)))"
+   ],
+   "note": "the masked load (`cols < N`, signed `int32`); `other=0.` the Python `float` built as a `float32` tensor and converted to the pointer's dtype `float16` (`other16`); `.to(tl.float32)` widens exactly (`tl.cvt`)"
+  },
+  {
+   "src": [
+    71
+   ],
+   "model": [
+    "tl.add _mean a"
+   ],
+   "note": "`_mean += a`: the IEEE `+`, no product feeds it"
+  },
+  {
+   "src": [
+    72
+   ],
+   "model": [
+    "let nf1 : Tensor [] F32 ← tl.itof (Tensor.scalar N)",
+    "let mean := (← tl.div (Tensor.scalar (← tl.sum _mean)) nf1).item"
+   ],
+   "note": "`tl.sum(_mean, axis=0)`: the reduction of a `float32` block that is not a product (`tl.sum`, IEEE additions along a tree of depth at most `tl.sumBound P BLOCK_SIZE`: `log₂ BLOCK_SIZE` with `Rules.Num.SumDepth`); `/ N`: the `int32` scalar promoted to `float32` (`tl.itof`, exact for `N ≤ 32768`), then the platform's `float32` division (`tl.div`, `DivFull`)"
+  },
+  {
+   "src": [
+    74
+   ],
+   "model": [
+    "let _var := tl.zeros [BLOCK_SIZE] .f32"
+   ],
+   "note": "as line 67"
+  },
+  {
+   "src": [
+    75
+   ],
+   "model": [
+    "let _var ← tl.forRange (IntV.ofInt 0 : I32) N (IntV.ofNat BLOCK_SIZE : I32) _var",
+    "fun off _var => do"
+   ],
+   "note": "as line 68, carrying `_var`"
+  },
+  {
+   "src": [
+    76
+   ],
+   "model": [
+    "let cols := off + tl.arange 0 BLOCK_SIZE"
+   ],
+   "note": "as line 69"
+  },
+  {
+   "src": [
+    77
+   ],
+   "model": [
+    "let x : Tensor [BLOCK_SIZE] F32 ← tl.cvt (← tl.load (X + cols) (some (cols.ltS N))",
+    "(some (← other16 BLOCK_SIZE)))"
+   ],
+   "note": "as line 70"
+  },
+  {
+   "src": [
+    78
+   ],
+   "model": [
+    "let x := tl.where (cols.ltS N) (← tl.subc x (bc mean)) (bc (FloatV.litF32 (FloatV.ofPat 0)))"
+   ],
+   "note": "`x - mean`: `mean` is the `float32` quotient of line 72, a product for the fusion rule (SEMANTICS.md, Float `+` and `-`: a float `/` is a product), so the fusable `-` (`tl.subc`, `AddRel` on the quotient `tl.div` picks), the scalar broadcast; `tl.where`'s constant `0.` built in the operation's dtype `float32` (`litF32` of its double)"
+  },
+  {
+   "src": [
+    79
+   ],
+   "model": [
+    "tl.mul_add x x _var"
+   ],
+   "note": "`_var += x * x`: an addition the product feeds, so the backend may contract it (`tl.mul_add`)"
+  },
+  {
+   "src": [
+    80
+   ],
+   "model": [
+    "let nf2 : Tensor [] F32 ← tl.itof (Tensor.scalar N)",
+    "let var := (← tl.div (Tensor.scalar (← tl.sum _var)) nf2).item"
+   ],
+   "note": "as line 72; `_var` holds `tl.mul_add` results, not products, so the reduction is `tl.sum` (IEEE additions)"
+  },
+  {
+   "src": [
+    81
+   ],
+   "model": [
+    "let rstd := (← tl.div (Tensor.scalar (FloatV.litF32 (FloatV.ofPat 0x3FF0000000000000)))",
+    "(← tl.sqrt (← tl.addc (Tensor.scalar var) (Tensor.scalar eps)))).item"
+   ],
+   "note": "`var + eps`: `var` is the `float32` quotient of line 80, a product for the fusion rule, so the fusable `+` of two `float32` scalars (`tl.addc`); `tl.sqrt` the platform's `float32` square root (`SqrtF32`); `1 / ·`: the Python `1` built in the division's dtype `float32`, the platform's division (`DivFull`)"
+  },
+  {
+   "src": [
+    83
+   ],
+   "model": [
+    "tl.store1 (Mean + row) mean"
+   ],
+   "note": "`tl.store(Mean + row, mean)`: one `float32` scalar, the pointer's dtype (no conversion)"
+  },
+  {
+   "src": [
+    84
+   ],
+   "model": [
+    "tl.store1 (Rstd + row) rstd"
+   ],
+   "note": "as line 83"
+  },
+  {
+   "src": [
+    86
+   ],
+   "model": [
+    "tl.forRange (IntV.ofInt 0 : I32) N (IntV.ofNat BLOCK_SIZE : I32) () fun off _ => do"
+   ],
+   "note": "as line 68; no carried name (every name the body assigns is first defined there and not read after the loop)"
+  },
+  {
+   "src": [
+    87
+   ],
+   "model": [
+    "let cols := off + tl.arange 0 BLOCK_SIZE"
+   ],
+   "note": "as line 69"
+  },
+  {
+   "src": [
+    88
+   ],
+   "model": [
+    "let mask := cols.ltS N"
+   ],
+   "note": "`cols < N`, signed `int32`"
+  },
+  {
+   "src": [
+    89
+   ],
+   "model": [
+    "let w ← tl.load (W + cols) (some mask)"
+   ],
+   "note": "the masked `float16` load with no `other`: the disabled lanes hold unspecified values, which no stored lane uses"
+  },
+  {
+   "src": [
+    90
+   ],
+   "model": [
+    "let b ← tl.load (B + cols) (some mask)"
+   ],
+   "note": "as line 89"
+  },
+  {
+   "src": [
+    91
+   ],
+   "model": [
+    "let x : Tensor [BLOCK_SIZE] F32 ← tl.cvt (← tl.load (X + cols) (some mask)",
+    "(some (← other16 BLOCK_SIZE)))"
+   ],
+   "note": "as line 70"
+  },
+  {
+   "src": [
+    92
+   ],
+   "model": [
+    "let x_hat ← tl.mul (← tl.subc x (bc mean)) (bc rstd)"
+   ],
+   "note": "`(x - mean) * rstd`: the fusable `-` on the quotient `mean` (`tl.subc`, as line 78), then the IEEE `*` (it feeds line 93's product, not an addition)"
+  },
+  {
+   "src": [
+    93
+   ],
+   "model": [
+    "let w32 : Tensor [BLOCK_SIZE] F32 ← tl.cvt w",
+    "let b32 : Tensor [BLOCK_SIZE] F32 ← tl.cvt b",
+    "let y ← tl.mul_add x_hat w32 b32"
+   ],
+   "note": "`x_hat * w + b`: the `float16` `w` and `b` promoted to `float32` (exactly, `tl.cvt`); the addition the product feeds (`tl.mul_add`)"
+  },
+  {
+   "src": [
+    95
+   ],
+   "model": [
+    "let y16 : Tensor [BLOCK_SIZE] F16 ← tl.cvt y",
+    "tl.store (Y + cols) y16 (some mask)"
+   ],
+   "note": "the `float32` `y` stored through the `*fp16` pointer: converted to `float16`, one rounding to nearest even (`tl.cvt`); the masked store"
+  }
+ ]
+}
