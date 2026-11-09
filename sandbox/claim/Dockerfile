@@ -3,10 +3,10 @@
 #   /app/examples/vec_add_f32/ a fixed claim with its complete proof (Proof.lean), checked at build
 #   /app/lean/                 the TVA library (TVA/) with Mathlib, built; lakefile: TVA and the claim (ClaimTask)
 #   /app/docs/                 TVA's semantics and proof guide
-# /CLAUDE.md (how to work here) and /process_safety.md (what never to kill) are the prover's; each task adds
-# /instruction.md. /.claude/ holds the prover's Claude Code settings (hooks) and its subagent: the prover starts in /, so
-# Claude Code loads them as the project's (Harbor points CLAUDE_CONFIG_DIR elsewhere, so ~/.claude is not
-# read). One tool, /usr/local/bin/tva-claim (check, verify, prepare, hooks). The verifier is the same image.
+# /app/CLAUDE.md (how to work here) and /app/.claude/ (the prover's Claude Code settings: hooks, and its subagent) are
+# the prover's harness: the prover starts in /app, so Claude Code loads both as the project's, for the prover and its
+# subagents (Harbor points CLAUDE_CONFIG_DIR elsewhere, so ~/.claude is not
+# read). /process_safety.md (what never to kill) is the prover's too, and each task adds /instruction.md. One tool, /usr/local/bin/tva-claim (check, verify, prepare, hooks). The verifier is the same image.
 ARG BASE
 FROM ${BASE} AS tva
 USER root
@@ -28,9 +28,10 @@ COPY --from=tva /stage /app
 COPY --from=tva --chown=root:root /home/tva/fpv/tva/tools/tvr.py /usr/local/lib/tva-claim/tvr.py
 COPY tva-claim /usr/local/bin/tva-claim
 COPY lake /tmp/tva-lake
-COPY settings.json /.claude/settings.json
-COPY lean-fixer.md /.claude/agents/lean-fixer.md
-COPY CLAUDE.md process_safety.md /
+COPY settings.json /app/.claude/settings.json
+COPY lean-fixer.md /app/.claude/agents/lean-fixer.md
+COPY CLAUDE.md /app/CLAUDE.md
+COPY process_safety.md /
 COPY example/ /app/examples/vec_add_f32/
 # every `lake` waits its turn (the wrapper: builds alone, `lake env` alongside other readers)
 RUN mv /opt/elan/bin/lake /opt/elan/bin/lake.elan && install -m 755 /tmp/tva-lake /opt/elan/bin/lake \
@@ -48,9 +49,9 @@ RUN timeout 900 lake build TVA \
 # where its builds and its proof go: /tmp, and the build folders of /app/lean (sticky, so a build adds the claim's
 # and the proof's outputs but never replaces or removes root's). Each task's image opens /app/claim the same way.
 RUN useradd -m -u 2000 -s /bin/bash prover \
-    && chmod -R go-w /.claude /CLAUDE.md /process_safety.md /usr/local/lib/tva-claim /app/examples \
+    && chmod -R go-w /app/.claude /app/CLAUDE.md /process_safety.md /usr/local/lib/tva-claim /app/examples \
     && chmod 1777 /app/lean/.lake \
     && find /app/lean/.lake/build -type d -exec chmod 1777 {} + \
-    && test -z "$(find /app /opt/elan /.claude /CLAUDE.md /process_safety.md /usr/local/bin/tva-claim \
+    && test -z "$(find /app /opt/elan /process_safety.md /usr/local/bin/tva-claim \
        /usr/local/lib/tva-claim -not -user root -print -quit)"
 WORKDIR /app

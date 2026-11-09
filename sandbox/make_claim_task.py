@@ -86,8 +86,9 @@ def instruction(k, cj, wyp, a_timeout, v_timeout=3600):
 4. Run `{GRADE}` (in the background: it rebuilds your proof from scratch) and see `reward 1`.
 
 You have {hm(a_timeout)}. Grading is all or nothing: the reward is 1 if the check passes and 0 otherwise.
-You may not change the claim. [/CLAUDE.md](/CLAUDE.md) explains how to work in this container (paths,
-builds, subagents). **Read [/process_safety.md](/process_safety.md) before you stop or kill any process**:
+You may not change the claim. [/app/CLAUDE.md](/app/CLAUDE.md) explains how to work in this container (paths,
+builds, subagents); Claude Code loads it for you (you start in `/app`).
+**Read [/process_safety.md](/process_safety.md) before you stop or kill any process**:
 a broad `kill` or `pkill` can end your own session, and the task then fails.
 
 ## The commands
@@ -103,11 +104,11 @@ Run them exactly like this, from any directory:
 `check` and `grade` take the workspace `/app/claim` as their one argument and check all of it: the fixed
 `Claim.lean` and your proof, `Proof.lean` and every file under `Proof/`. They never check one file alone. To
 build while you work, run `lake` from `/app/lean`: `timeout 1200 lake build Proof`, or one module with
-`lake build Proof.Lanes` (/CLAUDE.md).
+`lake build Proof.Lanes` (/app/CLAUDE.md).
 
 You work as the user `prover`. Everything in this container is read-only to you except your proof
 (`/app/claim/Proof.lean` and `/app/claim/Proof/`), the library's build folder (your builds add to it) and
-`/tmp`: the claim, this file, `/CLAUDE.md`, the library, the docs, the example and the tool cannot be changed.
+`/tmp`: the claim, this file, `/app/CLAUDE.md`, the library, the docs, the example and the tool cannot be changed.
 
 ## What the theorem says
 
@@ -309,6 +310,8 @@ network_mode = "no-network"
 build_timeout_sec = 3600
 cpus = {a.cpus}
 memory_mb = {a.memory_mb}
+# the agent runs in /app, where Claude Code loads its harness (/app/CLAUDE.md, /app/.claude)
+workdir = "/app"
 
 # only the proof goes to the verifier, whose image has its own copy of the claim
 [[artifacts]]
@@ -329,8 +332,8 @@ COPY instruction.md /instruction.md
 RUN tva-claim prepare \
     && chown -R root:root /app/claim /instruction.md && chmod -R a+rX,go-w /app/claim && chmod 444 /instruction.md \
     && chmod 1777 /app/claim
-# the agent starts in /, where Claude Code finds its settings (/.claude)
-WORKDIR /
+# the agent starts in /app, where Claude Code loads its harness (/app/CLAUDE.md, /app/.claude)
+WORKDIR /app
 """)
     write(os.path.join(out, "tests", "Dockerfile"), f"""# The verifier's image: the claim base image and its own copy of the claim; the proof arrives as artifacts.
 FROM {base}

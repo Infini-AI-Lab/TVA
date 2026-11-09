@@ -8,7 +8,8 @@
   tva-claim grade /app/claim     the grader's procedure, here: the proof's build outputs deleted, a fresh build of
                                  Proof.lean and Proof/ only, the check within the grader's limit; prints the reward
   tva-claim time                 the agent's time: elapsed, left, and the deadline
-  tva-claim hook session-start|pre-tool|post-tool|stop   the prover's Claude Code hooks (/.claude/settings.json)
+  tva-claim hook session-start|subagent-start|pre-tool|post-tool|stop   the prover's Claude Code hooks
+                                 (/app/.claude/settings.json)
 
 The workspace is /app/claim: `Claim.lean` and `claim.json` (the fixed claim; `claim_sha256` is Claim.lean's
 sha256) and the prover's proof, `Proof.lean` and `Proof/**.lean`, which must hold
@@ -255,9 +256,16 @@ def hook_pre_tool(inp):
 
 def hook_session_start(inp):
     c = clock(start=True)
-    out({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": time_line(c) + " Grading "
-         "is all or nothing, and an unfinished proof scores 0: plan for the time you have. `/usr/local/bin/tva-claim time` shows "
-         "what is left."}})
+    text = time_line(c) + (" Grading is all or nothing, and an unfinished proof scores 0: plan for the time you have. "
+                           "`/usr/local/bin/tva-claim time` shows what is left.")
+    out({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}})
+
+
+def hook_subagent_start(inp):
+    text = ("You are a subagent of the prover. Work only on what your prompt names, in its files under /app/claim/Proof/; "
+            "never run `/usr/local/bin/tva-claim grade` (it deletes the build outputs the prover's other agents share). "
+            "End with a short report: what builds, what you changed, what is left.")
+    out({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": text}})
 
 
 def hook_post_tool(inp):
@@ -337,9 +345,9 @@ def main():
         grade()
     elif a[:1] == ["time"]:
         show_time()
-    elif a[:1] == ["hook"] and a[1:2] in (["session-start"], ["pre-tool"], ["post-tool"], ["stop"]):
-        {"session-start": hook_session_start, "pre-tool": hook_pre_tool, "post-tool": hook_post_tool,
-         "stop": hook_stop}[a[1]](json.load(sys.stdin))
+    elif a[:1] == ["hook"] and a[1:2] in (["session-start"], ["subagent-start"], ["pre-tool"], ["post-tool"], ["stop"]):
+        {"session-start": hook_session_start, "subagent-start": hook_subagent_start, "pre-tool": hook_pre_tool,
+         "post-tool": hook_post_tool, "stop": hook_stop}[a[1]](json.load(sys.stdin))
     else:
         sys.exit(__doc__)
 
