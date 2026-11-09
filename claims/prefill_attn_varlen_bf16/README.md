@@ -13,7 +13,7 @@ The covered paths are `SETUP.md`'s: `IS_CAUSAL = True` and `IS_CAUSAL = False` (
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.PrefillAttnVarlen.main : Statement` (`Statement`:
-`Claim.lean` line 518). Unfolded (`Spec`, line 490, is `Claim.Meets Inst.ok Pre Post K`), it says:
+`Claim.lean` line 523). Unfolded (`Spec`, line 495, is `Claim.Meets Inst.ok Pre Post K`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -21,24 +21,24 @@ The covered paths are `SETUP.md`'s: `IS_CAUSAL = True` and `IS_CAUSAL = False` (
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 270), and every initial memory `init` that `Pre` accepts (line 413), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 482).
+(`Inst.ok`, line 270), and every initial memory `init` that `Pre` accepts (line 418), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 487).
 
-**What `Post` asks** (line 482), two parts:
-1. for every `b < batch`, `p < lenOf d init b` (line 356), `h < H`, `e < Lk`: element
-   `oIdx d (startOf d init b + p) h e` (lines 257, 354) of `o` reads in `fin` (`rdB`, line 335) as
+**What `Post` asks** (line 487), two parts:
+1. for every `b < batch`, `p < lenOf d init b` (line 361), `h < H`, `e < Lk`: element
+   `oIdx d (startOf d init b + p) h e` (lines 257, 359) of `o` reads in `fin` (`rdB`, line 340) as
    a `bfloat16` `c` that is finite, with
    `|c.toReal − attnRef| ≤ tolRel d.BD (trips (lastKey d init b p)) (Xrow d init b h p) · attnAbs + tolAbs (vSum)`
-   (all at `d init b h p e`). `attnRef` (line 422) is the exact softmax-weighted mean of `v`, in the
-   reals, over the keys `j ≤ lastKey` (line 382: `p` when `causal`, `lenOf − 1` when not), with the
-   exact scores `score` (line 370) from `init`; `attnAbs` (line 428) is the same mean of `|v|`,
-   `vSum` (line 434) the plain sum of `|v|`. `trips` is line 439, `Xrow` (line 386) the largest
-   `scoreMag` (line 376) over the attended keys. The tolerance is `tolRel` (line 467, built from
-   `dlt`, `rho`, `gam`, `errE`, lines 448–461) and `tolAbs` (line 470). Every element of every
+   (all at `d init b h p e`). `attnRef` (line 427) is the exact softmax-weighted mean of `v`, in the
+   reals, over the keys `j ≤ lastKey` (line 387: `p` when `causal`, `lenOf − 1` when not), with the
+   exact scores `score` (line 375) from `init`; `attnAbs` (line 433) is the same mean of `|v|`,
+   `vSum` (line 439) the plain sum of `|v|`. `trips` is line 444, `Xrow` (line 391) the largest
+   `scoreMag` (line 381) over the attended keys. The tolerance is `tolRel` (line 472, built from
+   `dlt`, `rho`, `gam`, `errE`, lines 453–466) and `tolAbs` (line 475). Every element of every
    sequence is asked; there is no further guard;
-2. the frame: every byte outside `d.o.elems (outElems d init)` (line 473) is unchanged.
+2. the frame: every byte outside `d.o.elems (outElems d init)` (line 478) is unchanged.
 
-**What you are given** (`Assumptions`, line 494), eight fields:
+**What you are given** (`Assumptions`, line 499), eight fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and is well behaved from `init`;
 - `dot` (`Num.DotBF16`): `tl.dot` of `bfloat16` into `float32` is within `relDot16 K = (K+2)·2^-22`
@@ -52,7 +52,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
   `|x/y| ≤ 2^126` (source lines 158, 161);
 - `div_total` (`Num.DivTotal P .binary32`): `/` has a result for every pair of inputs.
 
-**The kernel, as the model runs it** (`fwd_kernel` line 58, `model` line 316, `launch` line 329):
+**The kernel, as the model runs it** (`fwd_kernel` line 58, `model` line 321, `launch` line 334):
 a 3-D grid `(batch, H, nBlocks d)` (`nBlocks`, line 267: `cdiv(maxLen, 128)`). Program
 `(b, h, m)` loads `b_seq_len[b]` and `b_start_loc[b]` (`tl.load1`), takes the key/value head
 `h / kvg d` (`tl.idiv`; `kvh`, line 264), and loads the `[128, BD]` tile of `q` at rows
@@ -76,7 +76,7 @@ The loop rule is `safe_forRange` with an invariant on `(m_i, l_i, acc)`; the bod
   block shapes `TritonOk` (`bd_pow2`, `bd_le`). `Launch.valid_grid1` is for 1-D grids only; prove
   the seven parts directly;
 - each program is `Safe`: the scalar loads in bounds (`bsl_len`, `bsq_len`, `Valid` from `Pre`;
-  `safe_load1_buf`) with `SeqOk` (line 392) giving `0 ≤ start`, `len ≤ maxLen`,
+  `safe_load1_buf`) with `SeqOk` (line 397) giving `0 ≤ start`, `len ≤ maxLen`,
   `start + len ≤ total`; the `tl.idiv` divisor `kvg d ≥ 1` (`kv_pos`, `kv_dvd`), and `kvh d h < HKV`;
   every enabled lane's `int32` offset is the exact element index, below `2^31` and within its
   buffer (`strides_lt`, `q_i32` … `o_i32`, `q_len` … `o_len`); the store writes distinct elements
@@ -85,7 +85,7 @@ The loop rule is `safe_forRange` with an invariant on `(m_i, l_i, acc)`; the bod
   programs by `o_layout` and `SeqOk`'s packing (no two non-empty sequences share a token), and no
   program reads `o` (`disj`), which gives both `hdisj` and `hRW`;
 - the value part of `Post`: a per-row loop invariant for the online softmax (README `## Tolerances`,
-  steps 3–5), from `ValsOk` (line 403: finite inputs, `|v| ≤ 2^120`, `scoreMag ≤ 2^12` on every pair
+  steps 3–5), from `ValsOk` (line 408: finite inputs, `|v| ≤ 2^120`, `scoreMag ≤ 2^12` on every pair
   of the sequence, masked or not), `dot` (one step: `DotLift.dotAdd_step`), `exp_acc`
   (`MathAcc.mono`), `exp_ninf`, `div_full`, `sum_err_covers`, `FloatV.mul_err`, `FloatV.cvt_err`,
   `FloatV.AddRel.err`; then the store's rounding and the assembly into `tolRel·attnAbs + tolAbs`
@@ -93,9 +93,9 @@ The loop rule is `safe_forRange` with an invariant on `(m_i, l_i, acc)`; the bod
 - the frame: the union of the write footprints is `d.o.elems (outElems d init)`, and the bytes no
   program writes keep their `init` value.
 
-**Already in `Claim.lean`** (do not prove again): `consistent` (line 522), `satisfiable` (line
-1020), `canon_ok` (line 578), `fusedQKV_ok` (line 823) and the `setup_*_ok` theorems;
-`bytes_disj` (line 560) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 527), `satisfiable` (line
+1031), `canon_ok` (line 583), `fusedQKV_ok` (line 832) and the `setup_*_ok` theorems;
+`bytes_disj` (line 565) can be reused.
 
 ## Specification
 
@@ -153,6 +153,10 @@ at Qwen2.5-VL's 16 heads of 80, not causal, one image of 5476 patches: the bound
 * the grid `(batch, H, cdiv(maxLen, 128))` within CUDA's limits, fewer than `2^31` programs;
 * `1 ≤ HKV`, `HKV ∣ H` (SETUP.md); `1 ≤ Lk ≤ BD ≤ 256`, `BD` a power of two;
 * `maxLen ≤ 2^17` (see Exclusions);
+* `total ≤ 2^22`: the packed batch's tokens (`total_tokens`) are a context length, at most `2^22`
+  tokens (real model shapes, see Exclusions);
+* `batch ≤ 8192`: the number of sequences (`b_seq_len.shape[0]`) is a batch size, at most `8192`
+  (real model shapes, see Exclusions);
 * `sm_scale` finite in `[2^-64, 2^64]` (the default is `1/sqrt(Lq) ∈ [1/16, 1]`);
 * the eight strides are `int32` arguments (`< 2^31`);
 * **every element index of `q`, `k`, `v`, `o` is below `2^31`** (`q_i32`, …): a limit of the
@@ -191,7 +195,7 @@ shape `[BLOCK_M, BLOCK_N]`); `end_n` is the side of the compile-time conditional
 ## Coverage
 
 `canon batch total H HKV Lk BD maxLen sm causal` is the host's launch (contiguous `q`, `k`, `v`,
-`o = empty_like(q)`). `canon_ok` proves `Inst.ok` for every `batch ≤ 2^14`, `total ≤ 2^17`,
+`o = empty_like(q)`). `canon_ok` proves `Inst.ok` for every `batch ≤ 8192`, `total ≤ 2^17`,
 `1 ≤ H ≤ 64`, `HKV ∣ H`, `1 ≤ Lk ≤ BD ≤ 256` (`BD` a power of two), `maxLen ≤ 2^17`, every
 `sm_scale` in range and both values of `causal`. The host's eight test cases (causal) are `setup_h128`, `setup_h96`, `setup_h80`,
 `setup_h13`, `setup_llama` (32/8, 128, lengths 1 … 1000), `setup_qwen` (28/4, lengths up to
@@ -204,8 +208,8 @@ lengths), with `o = empty_like(q)` contiguous.
 The vision encoders' launches (`is_causal=False`): `fusedQKV batch total H HKV Lk BD maxLen sm
 causal` is the encoder's launch on the views of its fused `qkv` projection (token stride
 `(H + 2·HKV)·Lk`) with `o = empty_like(q)` contiguous; `fusedQKV_ok` proves `Inst.ok` for every
-`batch ≤ 2^14`, `1 ≤ H ≤ 64`, `HKV ∣ H`, head dims up to 256, `maxLen ≤ 2^17` and a `qkv` of at
-most `2^31` elements. SETUP.md's shapes: `setup_vit_full` (Qwen2.5-VL, 16 heads of 80, one image
+`batch ≤ 8192`, `total ≤ 2^22`, `1 ≤ H ≤ 64`, `HKV ∣ H`, head dims up to 256, `maxLen ≤ 2^17` and a
+`qkv` of at most `2^31` elements. SETUP.md's shapes: `setup_vit_full` (Qwen2.5-VL, 16 heads of 80, one image
 of 5476 patches), `setup_vit_window` (the same image in 100 windows of at most 64 patches),
 `setup_vit_max` (one image of 65536 patches, `SGLANG_IMAGE_MAX_PIXELS`), `setup_vit_max_tp8` (the
 same, 2 heads per rank), `setup_vit_video` (16 frame pairs of 3072 patches), `setup_vit_qwen3`
@@ -298,6 +302,13 @@ Meaningful: `tolRel ≈ 0.85·10^-2` of the weighted mean of `|v|` at the host's
   library's `tl.dot` fact (`130·2^-22` per key block on the accumulator) makes the bound grow with
   the number of trips: `tolRel ≈ 0.05` at `2^17` tokens, about `0.09` at `2^18`. SETUP.md asks
   for prompts of 1 to thousands of tokens; `2^17` is far beyond. Not a kernel limit.
+* **Contexts longer than `2^22` tokens, batches of more than `8192` (out of scope).** Dimensions
+  that are not multiples of 128 or exceed `2^17`, contexts longer than `2^22` tokens, and batches of
+  more than `8192` requests: the claim covers real model shapes only. The fields are `total ≤ 2^22`
+  (`total_le`, the packed batch's tokens) and `batch ≤ 8192` (`batch_le`, the sequences: requests,
+  or a vision encoder's images, frame pairs or windows); each sequence is already within
+  `maxLen ≤ 2^17`. The kernel has no model dimension (`Lk` is a head dimension, `H`, `HKV` head
+  counts). Every launch of `SETUP.md` meets them (`total ≤ 2^16`, at most `100` sequences).
 * **Head dims of 8 or less** (`BLOCK_DMODEL < 16`) are rejected on the host (`tl.dot` needs
   `K ≥ 16`; `check_gpu.py` confirms it at `Lk = 1` and `8`): no outcome. They stay in `Inst.ok`
   (the claim is about the model there too). Head dims above 256 are outside real use (SETUP.md:

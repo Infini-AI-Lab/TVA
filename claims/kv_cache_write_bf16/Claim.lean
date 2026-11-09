@@ -263,6 +263,8 @@ structure Inst.ok (d : Inst) : Prop where
   /-- The grid `(num_tokens, cdiv(n, TILE_SIZE))` within CUDA's limits, fewer than `2^31`
   programs (`Launch.Valid`). -/
   tokens_lt : d.num_tokens < 2 ^ 31
+  /-- `num_tokens`, the tokens of the batch, is a context length: at most `2^22`. -/
+  tokens_ctx : d.num_tokens ≤ 2 ^ 22
   tiles_lt : numTiles d < 2 ^ 16
   programs_lt : d.num_tokens * numTiles d < 2 ^ 31
   /-- `num_heads * head_size < 2^31`: the mask's constant is an `int32`, and the `int32` tile
@@ -529,13 +531,13 @@ theorem kvIdx_mk_triton (m : Mode) (T nh hs bs nb TILE b r h e : Nat) :
   simp only [kvIdx, mk]; ring
 
 /-- Every instance `mk` builds is covered, given its sizes' bounds (`hq`, `hc`: the inputs and the
-cache allocation each within its `2^40`-byte region). -/
+cache allocation each within its `2^40`-byte region; at most `2^22` tokens). -/
 theorem mk_ok (m : Mode) (L : Layout) (T nh hs bs nb TILE : Nat) (ht : ∃ e, TILE = 2 ^ e)
     (htl : TILE ≤ 2 ^ 20)
     (h1 : T < 2 ^ 31) (h2 : (nh * hs + TILE - 1) / TILE < 2 ^ 16)
     (h3 : T * ((nh * hs + TILE - 1) / TILE) < 2 ^ 31) (h4 : nh * hs < 2 ^ 31) (h5 : bs < 2 ^ 31)
     (h6 : hs < 2 ^ 31) (hq : T * (3 * (nh * hs)) + 2 * (nh * hs) < 2 ^ 37)
-    (hc : (nb + 1) * (2 * bs * (nh * hs)) + 2 * hs < 2 ^ 37) :
+    (hc : (nb + 1) * (2 * bs * (nh * hs)) + 2 * hs < 2 ^ 37) (hTc : T ≤ 2 ^ 22) :
     (mk m L T nh hs bs nb TILE).ok := by
   have hX : 2 * bs * (nh * hs) ≤ (nb + 1) * (2 * bs * (nh * hs)) :=
     Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
@@ -545,7 +547,7 @@ theorem mk_ok (m : Mode) (L : Layout) (T nh hs bs nb TILE : Nat) (ht : ∃ e, TI
     omega
   have hvo : vOff L bs (nh * hs) hs ≤ bs * (nh * hs) + hs := by
     cases L <;> simp only [vOff] <;> omega
-  refine ⟨ht, htl, h1, h2, h3, h4, h6, ?_, le_refl _, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+  refine ⟨ht, htl, h1, hTc, h2, h3, h4, h6, ?_, le_refl _, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_⟩
   · -- block_size_lt
     show bs < 2 ^ 63
@@ -724,58 +726,58 @@ their layouts, and SETUP.md's serving shapes, with a `bfloat16` cache; vLLM's fp
 def setup_t21_h64_flash : Inst := mk .bf16 .flash 21 8 64 16 512 512
 theorem setup_t21_h64_flash_ok : setup_t21_h64_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨9, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- 21 tokens, 8 heads of 80, blocks of 8, 512 blocks, flash. -/
 def setup_t21_h80_flash : Inst := mk .bf16 .flash 21 8 80 8 512 1024
 theorem setup_t21_h80_flash_ok : setup_t21_h80_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- 21 tokens, 8 heads of 256, blocks of 32, 5000 blocks, flash. -/
 def setup_t21_h256_flash : Inst := mk .bf16 .flash 21 8 256 32 5000 2048
 theorem setup_t21_h256_flash_ok : setup_t21_h256_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨11, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- 1 token, 8 heads of 128, blocks of 16, 64 blocks, flash. -/
 def setup_t1_flash : Inst := mk .bf16 .flash 1 8 128 16 64 1024
 theorem setup_t1_flash_ok : setup_t1_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- 1 token (padding), 8 heads of 128, blocks of 16, 64 blocks, triton_attn. -/
 def setup_t1_triton : Inst := mk .bf16 .triton_attn 1 8 128 16 64 1024
 theorem setup_t1_triton_ok : setup_t1_triton.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- 256 tokens (64 padding), 8 heads of 128, blocks of 16, 64 blocks, triton_attn. -/
 def setup_t256_triton : Inst := mk .bf16 .triton_attn 256 8 128 16 64 1024
 theorem setup_t256_triton_ok : setup_t256_triton.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- 300 tokens (17 padding), 4 heads of 96, blocks of 64, 20 blocks, triton_attn. -/
 def setup_t300_h96_triton : Inst := mk .bf16 .triton_attn 300 4 96 64 20 512
 theorem setup_t300_h96_triton_ok : setup_t300_h96_triton.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨9, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- 4096 tokens (100 padding), 32 heads of 128 (two tiles), blocks of 16, 300 blocks, flash. -/
 def setup_t4096_h32_flash : Inst := mk .bf16 .flash 4096 32 128 16 300 2048
 theorem setup_t4096_h32_flash_ok : setup_t4096_h32_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨11, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- Serving (SETUP.md): Llama-3's 8 KV heads of 128, vLLM's default blocks of 16, 65536 blocks,
 8192 batched tokens, in each layout. -/
 def setup_serving_flash : Inst := mk .bf16 .flash 8192 8 128 16 65536 1024
 theorem setup_serving_flash_ok : setup_serving_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_serving_triton : Inst := mk .bf16 .triton_attn 8192 8 128 16 65536 1024
 theorem setup_serving_triton_ok : setup_serving_triton.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Serving: 32 KV heads of 256 (`n = 8192`, four tiles), blocks of 32. -/
 def setup_serving_h32x256 : Inst := mk .bf16 .flash 4096 32 256 32 4096 2048
 theorem setup_serving_h32x256_ok : setup_serving_h32x256.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨11, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- The fp8 cache from `bfloat16` inputs (`Mode.fp8`): vLLM's test shapes (21 tokens, 8 heads of
 64, 80 and 256, blocks of 16, 8 and 32, 512 and 5000 blocks, the flash layout) and serving
@@ -783,34 +785,34 @@ theorem setup_serving_h32x256_ok : setup_serving_h32x256.ok :=
 def setup_fp8_t21_h64_flash : Inst := mk .fp8 .flash 21 8 64 16 512 512
 theorem setup_fp8_t21_h64_flash_ok : setup_fp8_t21_h64_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨9, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fp8_t21_h80_flash : Inst := mk .fp8 .flash 21 8 80 8 512 1024
 theorem setup_fp8_t21_h80_flash_ok : setup_fp8_t21_h80_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fp8_t21_h256_flash : Inst := mk .fp8 .flash 21 8 256 32 5000 2048
 theorem setup_fp8_t21_h256_flash_ok : setup_fp8_t21_h256_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨11, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fp8_serving_flash : Inst := mk .fp8 .flash 8192 8 128 16 65536 1024
 theorem setup_fp8_serving_flash_ok : setup_fp8_serving_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fp8_serving_triton : Inst := mk .fp8 .triton_attn 8192 8 128 16 65536 1024
 theorem setup_fp8_serving_triton_ok : setup_fp8_serving_triton.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- The fp8 cache from `float8e4nv` inputs (`Mode.fp8in`, the `is_fp8()` side): 8 KV heads of
 128, blocks of 16, in each layout. -/
 def setup_fp8in_flash : Inst := mk .fp8in .flash 8192 8 128 16 65536 1024
 theorem setup_fp8in_flash_ok : setup_fp8in_flash.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fp8in_triton : Inst := mk .fp8in .triton_attn 256 8 128 16 64 1024
 theorem setup_fp8in_triton_ok : setup_fp8in_triton.ok :=
   mk_ok _ _ _ _ _ _ _ _ ⟨10, rfl⟩ (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- A covered instance and memory: the test's one-token flash case on the all-zero memory (the
 token's slot `0`). -/

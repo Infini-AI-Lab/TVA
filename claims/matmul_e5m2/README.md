@@ -26,7 +26,7 @@ configs and `benchmark` (400–437) and its run (440). The functions `get_cuda_a
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.MatmulE5m2.main : Statement` (`Statement`:
-`Claim.lean` line 540). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 549). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -34,11 +34,11 @@ configs and `benchmark` (400–437) and its run (440). The functions `get_cuda_a
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 179), and every initial memory `init` that `Pre` accepts (line 261), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 494).
+(`Inst.ok`, line 180), and every initial memory `init` that `Pre` accepts (line 270), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 503).
 
-**What `Post` asks** (line 494), two parts:
-1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 477). Element
+**What `Post` asks** (line 503), two parts:
+1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 486). Element
    `i·stride_cm + j·stride_cn` of `c` reads in `fin` as some `float16` `c`. This holds for every
    element. Only when row `i` of `a` and column `j` of `b` read in `init` as finite `float8e5`
    values `va k`, `vb k` (`k < K`) it also asks for a finite `float32` `v` with
@@ -46,15 +46,15 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    - if `|dotSum va vb d.K| + tol va vb d.K ≤ Format.binary16.maxVal`: `c` is finite and
      `|c.toRat - dotSum …| ≤ tol … + (|dotSum …| + tol …) * Format.binary16.u + Format.binary16.eta`.
 
-   `dotSum` (line 461) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 319) is
-   `errAt (prodV …) (liftV …) (2 * steps K)`: the recursion `errAt` (line 305) over the
-   `2·cdiv(K, 64)` chunks of 32 products (`steps`, line 269), with each step the smaller of the two
-   arms of `Rules.Num.DotE5m2ChunkLoss`, the exact partial sums `partSum` (line 283), each chunk's
-   largest lifted product `chunkMax` (line 286) of `liftV` (line 279) and its exact magnitude
-   `chunkAbs` (line 291);
+   `dotSum` (line 470) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 328) is
+   `errAt (prodV …) (liftV …) (2 * steps K)`: the recursion `errAt` (line 314) over the
+   `2·cdiv(K, 64)` chunks of 32 products (`steps`, line 278), with each step the smaller of the two
+   arms of `Rules.Num.DotE5m2ChunkLoss`, the exact partial sums `partSum` (line 292), each chunk's
+   largest lifted product `chunkMax` (line 295) of `liftV` (line 288) and its exact magnitude
+   `chunkAbs` (line 300);
 2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 174) is unchanged.
 
-**What you are given** (`Assumptions`, line 502):
+**What you are given** (`Assumptions`, line 511):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `dot` (`Rules.Num.DotE5m2ChunkLoss`, a `DotChunkLoss`): the `tl.dot` of source line 300 on finite
@@ -65,8 +65,8 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
   range, so `other=0.0` (source lines 297–298) is `+0`;
 - `cvt_total` (`Rules.Num.CvtTotal`): that conversion always has a result.
 
-**The kernel, as the model runs it** (`matmul_kernel` line 38, `model` line 245, `launch`
-line 254): a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs. Program `pid` computes the grouped
+**The kernel, as the model runs it** (`matmul_kernel` line 38, `model` line 254, `launch`
+line 263): a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs. Program `pid` computes the grouped
 tile `(pid_m, pid_n)` (`GROUP_SIZE_M = 8`, `tl.idiv`, `tl.irem`, `tl.iminimum`), checks eight
 `tl.assume`s, and forms `a_ptrs` and `b_ptrs` with rows and columns taken `% M` and `% N`. A
 `tl.forRange` loop of `steps K` trips loads the `[128, 64]` tile of `a` and the `[64, 256]` tile of
@@ -94,12 +94,17 @@ disjoint tiles of `c` and only read `a` and `b`: the route is `TVA.meets_indepen
   `FloatV.cvt_err`. `## Tolerances` gives the derivation;
 - the bytes no program writes give part 2.
 
+The real-shape conditions simplify the proof: `128 ∣ K` (`K_dim`) makes every trip of the loop a full
+step of `64` (`steps K = K / 64`, no `k` lane masked off, no `other` value used in a product), and
+`128 ∣ N` (`N_dim`) with `BLOCK_SIZE_N = 256` makes the last column tile full or half full; `M` stays
+any token count up to `2^22` (`M_ctx`), so the last row tile may be partial.
+
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok`
-(line 604) and the `setup_*_ok` theorems; reusable: `errAt_succ` (line 344), `errAt_nonneg`
-(line 354), `errAt_succ_le_acc` (line 370), `errAt_succ_le_loss` (line 382), `partSum_succ`
-(line 392), `le_chunkMax`, `chunkMax_le` (lines 398, 401), `errAt_le_bound` (line 407),
-`tolA_rel_lt`, `tolA_le` (lines 431, 440), the constants `rho_eq` … `rhoL_eq`, `q_eq`
-(lines 330–341), `row_lt` (line 573), `rm_inj` (line 579), `bytes_disjoint` (line 594).
+(line 613) and the `setup_*_ok` theorems; reusable: `errAt_succ` (line 353), `errAt_nonneg`
+(line 363), `errAt_succ_le_acc` (line 379), `errAt_succ_le_loss` (line 391), `partSum_succ`
+(line 401), `le_chunkMax`, `chunkMax_le` (lines 407, 410), `errAt_le_bound` (line 416),
+`tolA_rel_lt`, `tolA_le` (lines 440, 449), the constants `rho_eq` … `rhoL_eq`, `q_eq`
+(lines 339–350), `row_lt` (line 582), `rm_inj` (line 588), `bytes_disjoint` (line 603).
 
 ## Specification
 
@@ -141,6 +146,9 @@ for `b` and `c` (`aIdx`, `bIdx`, `cIdx`).
 | `M_le`, `N_le` | `M + 128 ≤ 2^31`, `N + 256 ≤ 2^31` | `M` and `N` are `int32` arguments, and `tl.cdiv` computes `M + 127` and `N + 255` in `int32` (lines 253–254); the tile rows and columns `pid_m·128 + i`, `pid_n·256 + j` (lines 282–283, 312–313) then stay below `2^31` |
 | `grid_lt` | `cdiv(M, 128)·cdiv(N, 256) < 2^31` | the grid's size (`Launch.Valid`: CUDA's limit on a 1-D grid; `pid` is an `int32`) |
 | `K_le` | `K ≤ 2^11` | the setup's largest `K` (`2048`); the tolerance grows with `K`, and beyond `2048` `Post` stops rejecting typical wrong results (Tolerances, Exclusions) |
+| `M_ctx` | `M ≤ 2^22` | `M` counts tokens: a context length, at most `2^22` (real model shapes, Exclusions) |
+| `N_dim` | `0 < N`, `128 ∣ N`, `N ≤ 2^17` | `N` is a model dimension (the output features): a positive multiple of `128`, at most `2^17` (real model shapes, Exclusions) |
+| `K_dim` | `0 < K`, `128 ∣ K`, `K ≤ 2^17` | `K` is a model dimension (the inner features): a positive multiple of `128`, at most `2^17` (real model shapes, Exclusions) |
 | `am`, `ak`, `bk`, `bn`, `cm`, `cn` | each stride is positive and below `2^31` | the kernel's `tl.assume(stride_… > 0)` (lines 268–273) is undefined behaviour otherwise; each stride is an `int32` argument |
 | `a_fit` | `(M − 1)·stride_am + 64·stride_ak < 2^31` | the `int32` offsets of `a_ptrs`, `offs_am·stride_am + offs_k·stride_ak` with `offs_am < M` (taken `% M`, line 282) and `offs_k < 64` (line 285), and the step `64·stride_ak` (line 302), do not wrap |
 | `b_fit` | `64·stride_bk + (N − 1)·stride_bn < 2^31` | the same for `b_ptrs` (`offs_bn < N`, line 286) and its step (line 303) |
@@ -154,8 +162,8 @@ constants, which give the same model: `model`'s docstring). Their values are par
 and the conditions above constrain them; `Compiler.Faithful`'s point 11 assumes that the launch
 runs the code Triton compiles for these values. The conditions allow any positive strides (a
 row-major `b`, a non-contiguous `a`, any layout of `c` whose elements do not overlap), any `M`, `N`,
-`K` within the bounds, `M = 0` or `N = 0` (an empty grid: memory unchanged) and `K = 0` (no loop
-trip: `c = 0`); `a` and `b` may overlap each other in any way (both are only read).
+`K` within the bounds, and `M = 0` (an empty grid: memory unchanged); `a` and `b` may overlap each
+other in any way (both are only read).
 
 `Pre d init`: the three buffers are valid in the initial memory (`Buf.Valid`: base address
 non-negative and aligned to its element size, the buffer inside `[0, 2^64)`, every byte present).
@@ -232,7 +240,8 @@ rounding the library defines (`tl.cvt`) and needs no platform fact.
 
 Every launch of `SETUP.md` ("The launches"): `a` contiguous `[M, K]` (strides `(K, 1)`), `b`
 `[K, N]` the transpose of a contiguous matrix (strides `(1, K)`), the fresh `c` (strides `(N, 1)`),
-`M = N = K ≤ 2048`. `Inst.ok` covers them: `a_fit` reads `(M − 1)·K + 64 < 2^31`, `b_fit`
+`M = N = K ≤ 2048`, multiples of `128`. `Inst.ok` covers them: `M_ctx`, `N_dim` and `K_dim` hold
+(`128·i ≤ 2048`), `a_fit` reads `(M − 1)·K + 64 < 2^31`, `b_fit`
 `64 + (N − 1)·K < 2^31`, `cm_fit` `(M − 1)·N < 2^31`, `c_inj` holds for a row-major `c`, and
 `K ≤ 2048 = 2^11`; at `2048` the binding bound is below `2^22 + 64`.
 
@@ -325,6 +334,11 @@ Launches of the file the claim leaves out:
 
 Conditions that exclude launches outside `SETUP.md`'s launches:
 
+- **Out of scope**: dimensions that are not multiples of `128` or exceed `2^17`, contexts longer
+  than `2^22` tokens, and batches of more than `8192` requests: the claim covers real model shapes
+  only (`N_dim` and `K_dim` for `N` and `K`, `M_ctx` for `M`; the kernel has no batch field). The
+  setup's launches are all inside.
+
 - `K > 2^11` in general (outside the setup but for the sizes above): the tolerance only grows
   there.
 - Strides of `2^31` or more, or sizes that make Triton pass an argument as `int64`: outside the
@@ -362,11 +376,12 @@ them):
    all-zero memory).
 3. **Coverage**: 16 `setup_*_ok` (the test and the 15 benchmark sizes up to `2048`).
 4. **GPU** (`check_gpu.py`, H200 NVL, Triton 3.8.0): `matmul` on the test and the 15 benchmark sizes
-   `256 … 2048` with the file's draws; six edges inside `Inst.ok` (`K = 2047` with `M = 1000`,
-   `N = 777`; `K = 2000` with `M = 300`, `N = 1000`, whose last step's second chunk holds only
-   disabled lanes; `M = 4096`, `N = 384`, `K = 2048`; `M = N = 1` with `K = 65`; `K = 1`; inputs
-   scaled by 16); two direct launches with a padded and a column-major `c` in a guarded buffer and
-   a row-major `b`; coherent data at `K = 512, 1024, 2048` (`M = N = 256`). On the file's draws the
+   `256 … 2048` with the file's draws; two edges inside `Inst.ok` (`M = 4096`, `N = 384`,
+   `K = 2048`; inputs scaled by 16) and four launches outside its real-shape conditions, where `Post`
+   holds as well (`K = 2047` with `M = 1000`, `N = 777`; `K = 2000` with `M = 300`, `N = 1000`, whose
+   last step's second chunk holds only disabled lanes; `M = N = 1` with `K = 65`; `K = 1`); two
+   direct launches with a padded and a column-major `c` in a guarded buffer and a row-major `b`
+   (outside the real-shape conditions too: `N = 1000`, `K = 777`; `N = 259`, `K = 1000`); coherent data at `K = 512, 1024, 2048` (`M = N = 256`). On the file's draws the
    largest error / tolerance is `0.045` (`K = 256`), `0.023` on the test and `0.010` at `K = 2048`,
    with a median `E / |S|` from `0.046` (`K = 256`) to `0.44` (`K = 2048`); on coherent data it is
    `0.458` (margin `2.2×`; the device's error `5.2%`, `9.9%`, `17.9%` of the output, and `30%` at

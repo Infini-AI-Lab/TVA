@@ -9,7 +9,7 @@ check: [`check_gpu.py`](check_gpu.py).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.SsdChunkState.main : Statement` (`Statement`:
-`Claim.lean` line 637). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 643). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,26 +17,26 @@ check: [`check_gpu.py`](check_gpu.py).
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 337), and every initial memory `init` that `Pre` accepts (line 449: the six
-buffers valid, `seq_idx` the host's, `MetaOk` line 443), every outcome of the launch is a normal end
-(no fault, no hang) whose final memory `fin` satisfies `Post` (line 603).
+(`Inst.ok`, line 337), and every initial memory `init` that `Pre` accepts (line 455: the six
+buffers valid, `seq_idx` the host's, `MetaOk` line 449), every outcome of the launch is a normal end
+(no fault, no hang) whose final memory `fin` satisfies `Post` (line 609).
 
-**What `Post` asks** (line 603), two parts:
+**What `Post` asks** (line 609), two parts:
 1. for every `c < nc d`, `h < nheads`, `p < headdim`, `n < dstate`: element `stIdx d c h p n`
    (line 324) of `states` holds some `float32` `v` (on every input); and when `Vals init d` holds
-   (line 584), `v` is finite and `|v.toReal - sRef init d c h p n| ≤ tol init d c h p n`. Without
-   `Vals`, only "holds a value" is asked. The reference `sRef` (line 494) is exact, in the reals:
+   (line 590), `v` is finite and `|v.toReal - sRef init d c h p n| ≤ tol init d c h p n`. Without
+   `Vals`, only "holds a value" is asked. The reference `sRef` (line 500) is exact, in the reals:
    `Σ_{t ∈ toks d c} xV t h p · bV t h n · wRef c h t`, over the chunk's tokens of the request at
-   its end (`toks`, line 465; `endTok`, `eReq`, lines 458, 461, from `qsl`), with
-   `wRef = exp(dRef) · dtV` (lines 488, 484, 479) and `bV` read at group `grp d h` (lines 475, 469).
-   `tol` (line 575) is `Σ_{t ∈ toks d c} |xV t h p| · errB c h t n + dotTol (steps d c)
-   (dotMag c h p n)`: the per-token operand error `errB` (line 542, built from `dErr`, `expRel`,
-   `errE`, `eHat`, `errS`, `sHat`, `errP`, `pHat`, lines 506–537) and the accumulation's
-   `dotTol` (line 570, with `rhod`, `alphad`, lines 564–566; `dotMag`, line 555; `steps`, line
-   560);
+   its end (`toks`, line 471; `endTok`, `eReq`, lines 464, 467, from `qsl`), with
+   `wRef = exp(dRef) · dtV` (lines 494, 490, 485) and `bV` read at group `grp d h` (lines 481, 475).
+   `tol` (line 581) is `Σ_{t ∈ toks d c} |xV t h p| · errB c h t n + dotTol (steps d c)
+   (dotMag c h p n)`: the per-token operand error `errB` (line 548, built from `dErr`, `expRel`,
+   `errE`, `eHat`, `errS`, `sHat`, `errP`, `pHat`, lines 512–543) and the accumulation's
+   `dotTol` (line 576, with `rhod`, `alphad`, lines 570–572; `dotMag`, line 561; `steps`, line
+   566);
 2. the frame: every byte outside `states`' first `sSb d` elements (line 304) is unchanged.
 
-**What you are given** (`Assumptions`, line 616):
+**What you are given** (`Assumptions`, line 622):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `exp_acc` (`Rules.Num.ExpF32`): for every `X ≥ 0`, `tl.exp` on `float32` (source line 200) on
@@ -44,10 +44,10 @@ buffers valid, `seq_idx` the host's, `MetaOk` line 443), every outcome of the la
 - `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): that `tl.exp` has a result;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot` of source line 204 is within
   `relDot16 K · (|acc| + Σ liftMag a · liftMag b) + absDot16 K` of `acc + Σ a·b`, with room;
-- `dot_total` (`Rules.Num.DotTotal P dotCfg`, `dotCfg` line 614): that `tl.dot` has a result.
+- `dot_total` (`Rules.Num.DotTotal P dotCfg`, `dotCfg` line 620): that `tl.dot` has a result.
 
-**The kernel, as the model runs it** (`ssd_chunk_state_kernel`, line 50; `model` line 407,
-`launch` line 425): a 3-D grid `(gx d, nc d, nheads)` (`gx`, `nc`, lines 293, 290). Program
+**The kernel, as the model runs it** (`ssd_chunk_state_kernel`, line 50; `model` line 413,
+`launch` line 431): a 3-D grid `(gx d, nc d, nheads)` (`gx`, `nc`, lines 293, 290). Program
 `(pid, pid_c, pid_h)` owns one `64 × 128` tile (`pid_m`, `pid_n` from `pid`) of chunk `pid_c`'s
 state for head `pid_h`. It loads `dA_cumsum` at the chunk's end and `seq_idx` at the chunk's last
 token, then runs `tl.forRange 0 chunk_size_limit 64` (`int64` bounds, `steps d c` trips): five
@@ -77,8 +77,14 @@ loop writes nothing (`safe_forRange` with an invariant and `fun _ => ∅`).
   `chunk_le`, via `DotLoop.bound_le`); README `## Tolerances` gives the composition;
 - the frame: the bytes no program writes.
 
+The real-shape conditions (`seqlen_ctx`: `seqlen ≤ 2^22`; `nreq_le`: `num_requests ≤ 8192`) bound
+the token positions, `nchunks·chunk_size < 2^22 + 2^16`, and the requests a chunk can meet
+(`reqOf` counts at most `8191` later requests); the `int32` bounds of the offsets still come from
+the conditions above (`dt_lt`, `xhead_lt`, …), since `nheads`, `headdim` and `dstate` are not
+bounded by them.
+
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable` and the `setup_*_ok`
-theorems; `bytes_disj` (line 676), `zero_i32` (line 804) and `valid_zero` (line 811) can be
+theorems; `bytes_disj` (line 682), `zero_i32` (line 810) and `valid_zero` (line 817) can be
 reused.
 
 ## Specification
@@ -154,7 +160,11 @@ nheads)`, the source's block shapes, `enable_fp_fusion` at its default.
   offsets `(headdim + 63)·dstate + dstate + 127` below `2^31` (Exclusions);
 * the buffers hold their tensors (the largest index of `x` and `B` inside their storage);
   `states` shares no byte with the inputs (the host allocates it). `x` and `B` may share storage,
-  as in SGLang's layer.
+  as in SGLang's layer;
+* real shapes: `seqlen ≤ 2^22` (`seqlen_ctx`: the packed batch's tokens, a context length; every
+  request's length is at most it) and `num_requests ≤ 8192` (`nreq_le`: a batch size). `headdim`
+  (a head dim), `dstate` (a per-group state width; head-dim-like, so left unbounded),
+  `nheads`, `ngroups` and `chunk_size` are not model dimensions and keep their own conditions.
 
 `Pre`: the six buffers are valid (aligned, present), and `seq_idx[0, t] = reqOf t` for every
 token (`MetaOk`: the host's `repeat_interleave(arange(num_requests), seqlens)`). No condition on
@@ -198,7 +208,8 @@ a memory of zeros. The SETUP sizes beyond these (128 heads, `dstate` 256, `ngrou
 tens of thousands of tokens) are inside `Inst.ok`, and so are long requests whose `x.stride(0) = seqlen·conv_dim` is an
 `int64` argument (from about 210,000 tokens; `setup_e7`, one request of 180,000 tokens at 128
 heads × 80 × 128, is proved covered): for SGLang's layout at 128 heads × 64 × 128 with eight
-groups and `chunk_size` 256, up to the grid's limit, `nchunks < 2^16` (16,776,960 tokens).
+groups and `chunk_size` 256, up to `seqlen_ctx`'s `2^22` tokens (4,194,304). Every instance has at
+most 200 requests and 180,000 tokens, so none is left out.
 
 ## Tolerances
 
@@ -268,7 +279,7 @@ What `SETUP.md` allows and the claim leaves out:
   before the storage of `dt` and `dA_cumsum`. `Inst.ok` keeps it below `2^31` (`dt_lt`). First
   launch that hits it: 128 heads, `chunk_size` 512 (so that `nchunks < 2^16`), 16,909,313 tokens.
   Real use (prefills of up to tens of thousands of tokens, a few hundred thousand for one long
-  request) does not reach it.
+  request) does not reach it. Within `seqlen_ctx` (`2^22` tokens) it takes 513 heads or more.
 * **`x` with a large head or feature stride**: a limit of the kernel. `pid_h * stride_x_head` (line
   138) and `offs_m * stride_x_hdim + offs_k * stride_x_seqlen` (line 155) are `int32` and wrap when
   `(nheads − 1)·sXh` or `(headdim + 63)·sXp + 64·sXs` reaches `2^31` (`xhead_lt`, `xtile_lt`; the
@@ -288,6 +299,11 @@ What `SETUP.md` allows and the claim leaves out:
 * **`nchunks ≥ 2^16`** (CUDA's grid `y`; the launch fails) and **`nheads ≥ 2^16`**, `headdim + 63`,
   `dstate + 127`, `nchunks·chunk_size` or `nheads·headdim·dstate` at `2^31`: outside real use
   (16.8 million tokens at `chunk_size` 256).
+* **out of scope**: dimensions that are not multiples of 128 or exceed 2^17, contexts longer
+  than 2^22 tokens, and batches of more than 8192 requests: the claim covers real model shapes
+  only. The fields: `seqlen`, the packed tokens (`seqlen_ctx`), and `num_requests`, the batch size
+  (`nreq_le`); the kernel has no model-dimension field (`headdim`, `dstate` are per-head and
+  per-group widths).
 * **Values** (`Vals`, a hypothesis of `Post`'s numeric clause; the frame and termination hold on
   every input): non-finite inputs; a positive `dA_cumsum` entry (outside real use: `A < 0`, `dt ≥
   0`); and, a limit of the kernel's `float32` arithmetic, a decay exponent above `64`, a scale or

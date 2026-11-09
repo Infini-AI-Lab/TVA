@@ -232,6 +232,8 @@ structure Inst.ok (d : Inst) : Prop where
   hgreedy : ∀ g, d.greedy = some g → d.B ≤ g.len
   /-- A mask shares no byte with the output. -/
   hout_greedy : ∀ g, d.greedy = some g → Disjoint d.out.bytes g.bytes
+  /-- `batch_size` is the number of requests of the batch: a batch size, at most `8192`. -/
+  hB_le : d.B ≤ 8192
 
 /-- The model on an instance: the kernel's arguments are the buffers' first elements (the mask's,
 or `none`), `max_spec_len` as an `int32`. -/
@@ -251,7 +253,8 @@ with its last entry at most the lengths of `draft_token_ids` and `target_argmax`
 draft count is at most `max_spec_len` (the host passes `max_r n_r`). The draft, target and bonus
 token values are arbitrary (`-1` drafts and any `int64` target included), and so are the mask's
 bytes. The running sums hold for every request, greedy or not (vLLM's `cu_num_draft_tokens`
-counts every request's drafts). -/
+counts every request's drafts). The packed drafts are the tokens of the batch's draft
+sequences: their total, `cu`'s last entry, is a context length, at most `2^22`. -/
 def Pre (d : Inst) (init : Mem) : Prop :=
   d.out.Valid init ∧ d.cu.Valid init ∧ d.draft.Valid init ∧ d.target.Valid init ∧
     d.bonus.Valid init ∧ (∀ g, d.greedy = some g → g.Valid init) ∧
@@ -259,7 +262,8 @@ def Pre (d : Inst) (init : Mem) : Prop :=
     (∀ r, r + 1 < d.B → rd32 d.cu init ((r : Nat) : Int) ≤ rd32 d.cu init ((r + 1 : Nat) : Int)) ∧
     rd32 d.cu init ((d.B - 1 : Nat) : Int) ≤ d.draft.len ∧
     rd32 d.cu init ((d.B - 1 : Nat) : Int) ≤ d.target.len ∧
-    (∀ r, r < d.B → nOf d init r ≤ d.S)
+    (∀ r, r < d.B → nOf d init r ≤ d.S) ∧
+    rd32 d.cu init ((d.B - 1 : Nat) : Int) ≤ 2 ^ 22
 
 /-! ## The specification -/
 
@@ -322,8 +326,8 @@ def mk (B S N : Nat) (masked : Bool := false) : Inst :=
     target := ⟨t, N⟩, bonus := ⟨bo, B⟩, greedy := if masked then some ⟨g, B⟩ else none }
 
 theorem mk_ok (B S N : Nat) (masked : Bool) (h1 : 1 ≤ B) (h2 : B < 2 ^ 31)
-    (h3 : B * (S + 1) ≤ 2 ^ 31) : (mk B S N masked).ok := by
-  refine ⟨h1, h2, h3, le_refl _, le_refl _, le_refl _, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    (h3 : B * (S + 1) ≤ 2 ^ 31) (h4 : B ≤ 8192) : (mk B S N masked).ok := by
+  refine ⟨h1, h2, h3, le_refl _, le_refl _, le_refl _, ?_, ?_, ?_, ?_, ?_, ?_, h4⟩
   rotate_left 4
   · intro g hg
     cases masked <;> simp only [mk, Bool.false_eq_true, ↓reduceIte, reduceCtorEq,
@@ -376,8 +380,8 @@ theorem valid_zeroMem {d : DType} (b : Buf d) (h0 : 0 ≤ b.base)
 /-- The vLLM case "no drafts" (source line 225), `B = 1`, `S = 0`, no draft tokens, on the
 all-zero memory (`cu = [0]`). -/
 theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
-  refine ⟨mk 1 0 0, zeroMem, mk_ok 1 0 0 false (le_refl _) (by norm_num) (by norm_num), ?_⟩
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨mk 1 0 0, zeroMem, mk_ok 1 0 0 false (le_refl _) (by norm_num) (by norm_num) (by norm_num), ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try (apply valid_zeroMem <;> norm_num [mk, DType.bytes])
   · intro g hg; simp [mk] at hg
   · rw [rd32_zeroMem]
@@ -389,6 +393,7 @@ theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
     have : r = 0 := by omega
     subst this
     simp [nOf, startOf, rd32_zeroMem, mk]
+  · rw [rd32_zeroMem]; norm_num
 
 /-! ## The setup's launches
 
@@ -399,79 +404,75 @@ batches' `S` and `N` are those the test's generator (`torch.Generator().manual_s
 
 /-- vLLM's "perfect match" and "early mismatch" (`[[1, 2, 3]]`). -/
 def setup_vllm_one_req : Inst := mk 1 3 3
-theorem setup_vllm_one_req_ok : setup_vllm_one_req.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_vllm_one_req_ok : setup_vllm_one_req.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- vLLM's `[[1, 2], [3]]`. -/
 def setup_vllm_two_req : Inst := mk 2 2 3
-theorem setup_vllm_two_req_ok : setup_vllm_two_req.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_vllm_two_req_ok : setup_vllm_two_req.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- vLLM's "single token" (`[[1]]`). -/
 def setup_vllm_single : Inst := mk 1 1 1
-theorem setup_vllm_single_ok : setup_vllm_single.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_vllm_single_ok : setup_vllm_single.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- vLLM's "no drafts" (`[[]]`). -/
 def setup_vllm_no_drafts : Inst := mk 1 0 0
-theorem setup_vllm_no_drafts_ok : setup_vllm_no_drafts.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_vllm_no_drafts_ok : setup_vllm_no_drafts.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- vLLM's `[[1, 2, 3], [4, 5, 6]]`. -/
 def setup_vllm_multi_mismatch : Inst := mk 2 3 6
-theorem setup_vllm_multi_mismatch_ok : setup_vllm_multi_mismatch.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_vllm_multi_mismatch_ok : setup_vllm_multi_mismatch.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch: 1 request, 1 draft. -/
 def setup_b1_k1 : Inst := mk 1 1 1
-theorem setup_b1_k1_ok : setup_b1_k1.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b1_k1_ok : setup_b1_k1.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch: 8 requests, 3 drafts each. -/
 def setup_b8_k3 : Inst := mk 8 3 24
-theorem setup_b8_k3_ok : setup_b8_k3.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b8_k3_ok : setup_b8_k3.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch: 64 requests, 0 to 5 drafts (`S = 5`, 134 drafts). -/
 def setup_b64_k5 : Inst := mk 64 5 134
-theorem setup_b64_k5_ok : setup_b64_k5.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b64_k5_ok : setup_b64_k5.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch: 256 requests, 0 to 4 drafts, padded (`-1`) drafts (`S = 4`, 500 drafts). -/
 def setup_b256_k4 : Inst := mk 256 4 500
-theorem setup_b256_k4_ok : setup_b256_k4.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b256_k4_ok : setup_b256_k4.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch: 1024 requests, 0 to 8 drafts (`S = 8`, 4084 drafts). -/
 def setup_b1024_k8 : Inst := mk 1024 8 4084
-theorem setup_b1024_k8_ok : setup_b1024_k8.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b1024_k8_ok : setup_b1024_k8.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch: 37 requests, 0 to 128 drafts (`S = 123`, 2340 drafts). -/
 def setup_b37_k128 : Inst := mk 37 123 2340
-theorem setup_b37_k128_ok : setup_b37_k128.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b37_k128_ok : setup_b37_k128.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch: 16 requests, 2 drafts each (accept 1.0). -/
 def setup_b16_k2_all : Inst := mk 16 2 32
-theorem setup_b16_k2_all_ok : setup_b16_k2_all.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b16_k2_all_ok : setup_b16_k2_all.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch: 16 requests, 0 to 2 drafts (accept 0.0; `S = 2`, 17 drafts). -/
 def setup_b16_k2_none : Inst := mk 16 2 17
-theorem setup_b16_k2_none_ok : setup_b16_k2_none.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b16_k2_none_ok : setup_b16_k2_none.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- Random batch with a mask: 1 request, 1 draft. -/
 def setup_b1_k1_mask : Inst := mk 1 1 1 true
-theorem setup_b1_k1_mask_ok : setup_b1_k1_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b1_k1_mask_ok : setup_b1_k1_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch with a mask: 8 requests, 3 drafts each. -/
 def setup_b8_k3_mask : Inst := mk 8 3 24 true
-theorem setup_b8_k3_mask_ok : setup_b8_k3_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b8_k3_mask_ok : setup_b8_k3_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch with a mask: 64 requests, 0 to 5 drafts. -/
 def setup_b64_k5_mask : Inst := mk 64 5 134 true
-theorem setup_b64_k5_mask_ok : setup_b64_k5_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b64_k5_mask_ok : setup_b64_k5_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch with a mask: 256 requests, 0 to 4 drafts, padded drafts. -/
 def setup_b256_k4_mask : Inst := mk 256 4 500 true
-theorem setup_b256_k4_mask_ok : setup_b256_k4_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b256_k4_mask_ok : setup_b256_k4_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch with a mask: 1024 requests, 0 to 8 drafts. -/
 def setup_b1024_k8_mask : Inst := mk 1024 8 4084 true
-theorem setup_b1024_k8_mask_ok : setup_b1024_k8_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b1024_k8_mask_ok : setup_b1024_k8_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch with a mask: 37 requests, 0 to 128 drafts. -/
 def setup_b37_k128_mask : Inst := mk 37 123 2340 true
-theorem setup_b37_k128_mask_ok : setup_b37_k128_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b37_k128_mask_ok : setup_b37_k128_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch with a mask: 16 requests, 2 drafts each, accept 1.0. -/
 def setup_b16_k2_all_mask : Inst := mk 16 2 32 true
-theorem setup_b16_k2_all_mask_ok : setup_b16_k2_all_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b16_k2_all_mask_ok : setup_b16_k2_all_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Random batch with a mask: 16 requests, 0 to 2 drafts, accept 0.0. -/
 def setup_b16_k2_none_mask : Inst := mk 16 2 17 true
-theorem setup_b16_k2_none_mask_ok : setup_b16_k2_none_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_b16_k2_none_mask_ok : setup_b16_k2_none_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- SETUP.md's serving sizes: `MAX_SPEC_LEN = 128` drafts per request (every one used) and a
 batch of 1024 requests. -/
 def setup_serving_max : Inst := mk 1024 128 (1024 * 128)
-theorem setup_serving_max_ok : setup_serving_max.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_serving_max_ok : setup_serving_max.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- SETUP.md's serving sizes on a mixed batch (an `is_greedy` mask). -/
 def setup_serving_max_mask : Inst := mk 1024 128 (1024 * 128) true
-theorem setup_serving_max_mask_ok : setup_serving_max_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
-
-/-- The edge of `Inst.ok`: `B * (S + 1) = 2^31` (here `S = 127`, `2^24` requests). -/
-def edge_offsets : Inst := mk (2 ^ 24) 127 0
-theorem edge_offsets_ok : edge_offsets.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num)
+theorem setup_serving_max_mask_ok : setup_serving_max_mask.ok := mk_ok _ _ _ _ (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 end Claims.RejectionGreedy

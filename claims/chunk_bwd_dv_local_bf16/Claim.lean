@@ -254,6 +254,10 @@ structure Inst.ok (d : Inst) : Prop where
   varlen_B : d.varlen = true → d.B = 1
   /-- `T` is an `int32` argument (`do_not_specialize`: a runtime `int32` below `2^31`). -/
   T_lt : d.T < 2 ^ 31
+  /-- `T` is a context length (the tokens of a row, or of the packed batch): at most `2^22`. -/
+  T_ctx : d.T ≤ 2 ^ 22
+  /-- `B`, the batch rows, is a batch size: at most `8192`. -/
+  B_le : d.B ≤ 8192
   /-- The grid `(NT, B·HV)` within CUDA's limits: `NT < 2^31` and, **a limit of the kernel**, `B·HV`
   on the grid's `y` axis below `2^16` (README, Exclusions); fewer than `2^31` programs. -/
   grid0_lt : nChunks d < 2 ^ 31
@@ -276,6 +280,8 @@ structure Inst.ok (d : Inst) : Prop where
   line 102's `.to(tl.int32)`), the tables' lengths, and `dv` sharing no byte with them. -/
   idx_ok : d.varlen = true → d.idxD = .i32 ∨ d.idxD = .i64
   N_lt : d.varlen = true → d.N < 2 ^ 31
+  /-- Variable length: `N`, the number of sequences, is a batch size: at most `8192`. -/
+  N_le : d.varlen = true → d.N ≤ 8192
   cu_len : d.varlen = true → d.N + 1 ≤ d.cu.len
   ci_len : d.varlen = true → 2 * d.NT ≤ d.ci.len
   dv_cu : d.varlen = true → Disjoint d.dv.bytes d.cu.bytes
@@ -576,8 +582,8 @@ theorem bytes_disj {d1 d2 : DType} (b : Buf d1) (c : Buf d2)
 
 /-- **The host's launches are covered** at every size within the bounds: `chunk_size` 16, 32
 or 64, the host's `BK`, `BV`, head dims `K ≤ 256`, grouped value heads, `B·HV < 2^16`, fewer than
-`2^31` programs, a `scale` in `[2^-32, 2^32]`, `V ≤ 2^16`, `HV·V < 2^31`, tensors of at most `2^38`
-elements and tables of `int32` or `int64`. -/
+`2^31` programs, a `scale` in `[2^-32, 2^32]`, `V ≤ 2^16`, `HV·V < 2^31`, at most `2^22` tokens,
+at most `8192` rows or sequences, tensors of at most `2^38` elements and tables of `int32` or `int64`. -/
 theorem canon_ok {vl G : Bool} {B T H HV K V BT BK BV : Nat} {sc : F64} {dt : DType} {N NT : Nat}
     {cuv civ : Nat → dt.Val}
     (hbt : BT = 16 ∨ BT = 32 ∨ BT = 64) (hbk : ∃ a, BK = 2 ^ a) (hbk1 : 16 ≤ BK) (hbk2 : BK ≤ 128)
@@ -590,7 +596,8 @@ theorem canon_ok {vl G : Bool} {B T H HV K V BT BK BV : Nat} {sc : F64} {dt : DT
     (hsc : sc.isFinite = true ∧ (1 / 2 ^ 32 : ℚ) ≤ sc.toRat ∧ sc.toRat ≤ 2 ^ 32)
     (hq : B * T * H * K ≤ 2 ^ 38) (hd : B * T * HV * V ≤ 2 ^ 38)
     (hdt : dt = .i32 ∨ dt = .i64) (hN : N < 2 ^ 31) (hNT : 2 * NT ≤ 2 ^ 36)
-    (hVle : V ≤ 2 ^ 16) (hHVV : HV * V < 2 ^ 31) :
+    (hVle : V ≤ 2 ^ 16) (hHVV : HV * V < 2 ^ 31) (hTc : T ≤ 2 ^ 22) (hB13 : B ≤ 8192)
+    (hN13 : N ≤ 8192) :
     (canon vl G B T H HV K V BT BK BV sc dt N NT cuv civ).ok := by
   have hbytes : dt.bytes ≤ 8 := by rcases hdt with h | h <;> subst h <;> decide
   have h1 : ((B * T * H * K : Nat) : Int) ≤ 2 ^ 38 := by exact_mod_cast hq
@@ -602,8 +609,8 @@ theorem canon_ok {vl G : Bool} {B T H HV K V BT BK BV : Nat} {sc : F64} {dt : DT
     have : 2 * NT * dt.bytes ≤ 2 * NT * 8 := Nat.mul_le_mul_left _ hbytes
     exact_mod_cast le_trans this (by omega : 2 * NT * 8 ≤ 2 ^ 39)
   refine ⟨hbt, hbk, hbk1, hbk2, hbv, hbv1, hbv2, hK0, hK, hV0, hVle, hHVV, hH0, hHV0, hdvd,
-    hB0, hvB, hT, hg0, hg1, hg, hsc, le_refl _, le_refl _, le_refl _, le_refl _, fun _ => le_refl _, ?_, ?_, ?_,
-    fun _ => ?_, fun _ => hdt, fun _ => hN, fun _ => le_refl _, fun _ => le_refl _, fun _ => ?_,
+    hB0, hvB, hT, hTc, hB13, hg0, hg1, hg, hsc, le_refl _, le_refl _, le_refl _, le_refl _, fun _ => le_refl _, ?_, ?_, ?_,
+    fun _ => ?_, fun _ => hdt, fun _ => hN, fun _ => hN13, fun _ => le_refl _, fun _ => le_refl _, fun _ => ?_,
     fun _ => ?_⟩
   · exact bytes_disj _ _ (Or.inr (by simp only [canon, DType.bytes]; push_cast at h1 h2 ⊢; omega))
   · exact bytes_disj _ _ (Or.inr (by simp only [canon, DType.bytes]; push_cast at h1 h2 ⊢; omega))
@@ -704,61 +711,71 @@ theorem setup_t63_ok (G : Bool) : (setup_t63 G).ok :=
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s64_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_t500_ok (G : Bool) : (setup_t500 G).ok :=
   canon_ok (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s60_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_t1000_ok (G : Bool) : (setup_t1000 G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s128_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_t1024_ok (G : Bool) : (setup_t1024 G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s100_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_bt16_ok (G : Bool) : (setup_bt16 G).ok :=
   canon_ok (by norm_num) ⟨5, pow5⟩ (by norm_num) (by norm_num) ⟨5, pow5⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s32_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_bt32_ok (G : Bool) : (setup_bt32 G).ok :=
   canon_ok (by norm_num) ⟨5, pow5⟩ (by norm_num) (by norm_num) ⟨5, pow5⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s32_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_gdn_ok (G : Bool) : (setup_gdn G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s256_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_qwen_ok (G : Bool) : (setup_qwen G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s128_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_var1_ok (G : Bool) : (setup_var1 G).ok :=
   canon_ok (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s60_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_var3_ok (G : Bool) : (setup_var3 G).ok :=
   canon_ok (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s64_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 /-- `setup_var3`'s real tables are `TablesOk` (`Pre`'s table clause on the host's tables). -/
 theorem setup_var3_tables (G : Bool) : TablesOk (setup_var3 G) := by
   have hcu : ∀ i, i ≤ 3 → cuAt (setup_var3 G) i = (var3cu.getD i 0 : Int) := by
@@ -819,74 +836,86 @@ theorem setup_var5_ok (G : Bool) : (setup_var5 G).ok :=
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s100_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_var3g_ok (G : Bool) : (setup_var3g G).ok :=
   canon_ok (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s64_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_var6_ok (G : Bool) : (setup_var6 G).ok :=
   canon_ok (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s64_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_b1_ok (G : Bool) : (setup_b1 G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s128_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_b2_ok (G : Bool) : (setup_b2 G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s128_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_b3_ok (G : Bool) : (setup_b3 G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s128_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_b4_ok (G : Bool) : (setup_b4 G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s128_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_b5_ok (G : Bool) : (setup_b5 G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s256_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_b6_ok (G : Bool) : (setup_b6 G).ok :=
   canon_ok (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num) ⟨6, pow6⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s64_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_gdn_default_ok (G : Bool) : (setup_gdn_default G).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s256_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_train_ok (G : Bool) {dt : DType} (hdt : dt = .i32 ∨ dt = .i64) :
     (setup_train G dt).ok :=
   canon_ok (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num) ⟨7, pow7⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s128_ok (by norm_num) (by norm_num) hdt
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 theorem setup_rows_ok (G : Bool) : (setup_rows G).ok :=
   canon_ok (by norm_num) ⟨4, pow4⟩ (by norm_num) (by norm_num) ⟨4, pow4⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s16_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 
 /-! ## Satisfiable
 
@@ -900,7 +929,8 @@ theorem satInst_ok : satInst.ok :=
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by simp) (by norm_num) (by norm_num [nChunks, canon]) (by norm_num)
     (by norm_num [nChunks, canon]) s16_ok (by norm_num) (by norm_num) (Or.inr rfl)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num) (by norm_num)
 
 /-- A memory in which every byte is present (and `0`). -/
 def zeroMem : Mem := fun _ => some 0

@@ -628,6 +628,11 @@ structure Inst.ok (d : Inst) : Prop where
   request) `≤ 2^12`. -/
   maxExt_le : d.maxExt ≤ 2 ^ 18
   cm_maxExt : d.cm = true → d.maxExt ≤ 2 ^ 12
+  /-- `q_extend.shape[0]`, the new tokens of the batch, is a context length: at most `2^22`
+  tokens. -/
+  T_le : d.T ≤ 2 ^ 22
+  /-- `qo_indptr.shape[0] - 1`, the number of requests, is a batch size: at most `8192`. -/
+  batch_le : d.batch ≤ 8192
   /-- A window of at most `2^18` positions (`SLIDING_WINDOW_SIZE`, an `int32` constant). -/
   sw_le : d.sw ≤ 2 ^ 18
   /-- `sm_scale` is a finite double in `[2^-64, 2^64]` (by default `1/sqrt(D) ∈ [1/16, 1]`). -/
@@ -1055,7 +1060,7 @@ theorem last_idx (t a l : Nat) (ht : 0 < t) (ha : 0 < a) :
   ring
 
 /-- **Every host launch at the code base's sizes is covered**: an extend batch or a target
-verification (`cm`), with or without a window of up to `2^18` positions (`sw`), any number of
+verification (`cm`), with or without a window of up to `2^18` positions (`sw`), up to `8192`
 requests whose grid has fewer than `2^31` programs, `2^20` new tokens, a cache of `2^22` slots, any
 number of prefix indices and of mask elements, `1 … 128` heads with any
 `num_kv_heads` dividing them, head dims up to `256` other than `192` with the H200's `BLOCK_M`,
@@ -1069,7 +1074,7 @@ theorem canon_ok (cm : Bool) (sw batch T S NI NM H HKV D BD BM maxExt a : Nat) (
     (hcm : cm = true → maxExt ≤ 2 ^ 12 ∧ T * H * D ≤ 2 ^ 31)
     (hgrid : batch * H * ((maxExt + BM - 1) / BM) < 2 ^ 31)
     (hsm : sm.isFinite = true ∧ (1 / 2 ^ 64 : ℚ) ≤ sm.toRat ∧ sm.toRat ≤ 2 ^ 64)
-    (hD192 : D ≠ 192) :
+    (hD192 : D ≠ 192) (hbat : batch ≤ 8192) :
     (canon cm sw batch T S NI NM H HKV D BD BM maxExt sm).ok := by
   have hkvH : HKV ≤ H := Nat.le_of_dvd hH0 hkv
   have hD256 : D ≤ 256 := le_trans hD hbd256
@@ -1102,6 +1107,8 @@ theorem canon_ok (cm : Bool) (sw batch T S NI NM H HKV D BD BM maxExt a : Nat) (
       bm := hbm
       maxExt_le := hm
       cm_maxExt := fun h => (hcm h).1
+      T_le := by simp only [canon]; omega
+      batch_le := hbat
       sw_le := hsw
       scale := hsm
       strides_lt := by simp only [canon]; omega
@@ -1179,7 +1186,7 @@ theorem setup_test256_ok : setup_test256.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm256_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- The same at head dim 128 (`BLOCK_M = 128`). -/
 def setup_test128 : Inst := canon false 0 19 117116 234232 117116 0 12 4 128 128 128 6164 sm128
@@ -1188,7 +1195,7 @@ theorem setup_test128_ok : setup_test128.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- The same at head dim 96 (`BLOCK_DMODEL = 128`). -/
 def setup_test96 : Inst := canon false 0 19 117116 234232 117116 0 12 4 96 128 128 6164 sm96
@@ -1197,7 +1204,7 @@ theorem setup_test96_ok : setup_test96.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm96_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- The same at head dim 80 (`BLOCK_DMODEL = 128`). -/
 def setup_test80 : Inst := canon false 0 19 117116 234232 117116 0 12 4 80 128 128 6164 sm80
@@ -1206,7 +1213,7 @@ theorem setup_test80_ok : setup_test80.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm80_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- The same at head dim 13 (`BLOCK_DMODEL = 16`). -/
 def setup_test13 : Inst := canon false 0 19 117116 234232 117116 0 12 4 13 16 128 6164 sm13
@@ -1215,7 +1222,7 @@ theorem setup_test13_ok : setup_test13.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm13_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Llama-3-8B's heads (32 on 8 KV heads, head dim 128), a chunked-prefill batch of 8 requests,
 8192 new tokens, a cache of `2^20` slots. -/
@@ -1225,7 +1232,7 @@ theorem setup_llama_ok : setup_llama.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Qwen2.5-7B's heads (28 on 4, head dim 128), 4 requests, 16384 new tokens. -/
 def setup_qwen : Inst := canon false 0 4 16384 2097152 1048576 0 28 4 128 128 128 16384 sm128
@@ -1234,7 +1241,7 @@ theorem setup_qwen_ok : setup_qwen.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Qwen2.5-0.5B's heads (14 on 2, head dim 64), 64 requests, 4096 new tokens. -/
 def setup_h64 : Inst := canon false 0 64 4096 1048576 1048576 0 14 2 64 64 128 512 sm64
@@ -1243,7 +1250,7 @@ theorem setup_h64_ok : setup_h64.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm64_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Gemma-3-12B's global layers (16 heads on 8, head dim 256), 8 requests, 8192 new tokens. -/
 def setup_gemma : Inst := canon false 0 8 8192 1048576 1048576 0 16 8 256 256 64 8192 sm256
@@ -1252,7 +1259,7 @@ theorem setup_gemma_ok : setup_gemma.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm256_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- One KV head per rank (Llama-3-70B at tensor parallelism 8: 8 heads on 1, head dim 128), 128
 requests. -/
@@ -1262,7 +1269,7 @@ theorem setup_mqa_ok : setup_mqa.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- A 128K context: a prefix of `2^17 − 8192` cached tokens and a chunk of 8192 new ones
 (Llama-3-8B's heads). -/
@@ -1272,7 +1279,7 @@ theorem setup_long_ok : setup_long.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- The longest covered request: a prefix of `2^18 − 8192` cached tokens and a chunk of 8192 new
 ones (32 heads on 4, head dim 128: a 256K context of the Qwen3 family). -/
@@ -1282,7 +1289,7 @@ theorem setup_long256_ok : setup_long256.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- The code base's sliding-window test (`test_triton_attention_kernels.py:533-643`) at its largest
 draw: window 127, 19 requests, 64 heads on 8, head dim 128, prefix and extend lengths up to
@@ -1293,7 +1300,7 @@ theorem setup_test_swa_ok : setup_test_swa.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Gemma-3-12B's local layers (window `sliding_window - 1 = 1023`, 16 heads on 8, head dim 256):
 8 requests, 8192 new tokens, each request's window prefix (`window_kv_indices`) up to 1023
@@ -1304,7 +1311,7 @@ theorem setup_gemma_local_ok : setup_gemma_local.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm256_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Target verification of Llama-3-8B (32 heads on 8, head dim 128) with EAGLE's 64 draft tokens
 per request (`--speculative-num-draft-tokens 64`): 32 requests, `int32` `qo_indptr`, prefixes up
@@ -1315,7 +1322,7 @@ theorem setup_verify_ok : setup_verify.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Target verification of a chain of 3 draft steps (4 tokens per request, EAGLE with top-k 1),
 256 requests, Qwen2.5-7B's heads (28 on 4). -/
@@ -1325,7 +1332,7 @@ theorem setup_verify_chain_ok : setup_verify_chain.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm128_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Target verification on Gemma-3-12B's local layers: window 1023, 8 draft tokens per request,
 16 requests, the windows' offsets in the tree mask. -/
@@ -1335,7 +1342,7 @@ theorem setup_verify_swa_ok : setup_verify_swa.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm256_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-! ## Satisfiable
 
@@ -1350,7 +1357,7 @@ theorem satInst_ok : satInst.ok :=
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac)
     (by canon_tac) (by canon_tac) (by canon_tac) (by canon_tac) sm16_ok
-    (by canon_tac)
+    (by canon_tac) (by canon_tac)
 
 /-- Every byte `0`, except the low byte of `qo_indptr[1]`, which is `1`. -/
 def satMem : Mem := fun x => if x = 7 * 2 ^ 40 + 8 then some 1 else some 0

@@ -116,6 +116,9 @@ structure Inst.ok (d : Inst) : Prop where
   block_le : d.BLOCK_SIZE ≤ 2 ^ 14
   /-- Each row fits in one block (the host's `BLOCK_SIZE` is the next power of two). -/
   cols_le : d.n_cols ≤ d.BLOCK_SIZE
+  /-- `n_cols` is a model dimension (the width of the row-wise softmax): a positive multiple of
+  `128`, at most `2^17` (README, Exclusions). -/
+  cols_dim : 0 < d.n_cols ∧ d.n_cols % 128 = 0 ∧ d.n_cols ≤ 2 ^ 17
   /-- With a row to process, there is a program (the host's `min(NUM_SM * occupancy, n_rows)`
   is positive then). -/
   grid_pos : d.n_rows ≠ 0 → 0 < d.num_programs
@@ -283,15 +286,19 @@ theorem idx_lt {R C r j : Nat} (hr : r < R) (hj : j < C) : r * C + j < R * C := 
   rw [Nat.add_mul, Nat.one_mul] at this
   omega
 
-/-- Every such launch is covered when the block holds the row, there are between `1` and `R`
-programs (and `R + np ≤ 2^31`), the last row starts below element `2^31`, and the matrix fits below `2^34` bytes. -/
+/-- Every such launch is covered when the block holds the row, the row is a positive multiple of
+`128` columns, there are between `1` and `R` programs (and `R + np ≤ 2^31`), the last row starts
+below element `2^31`, and the matrix fits below `2^34` bytes. -/
 theorem mk_ok {R C e ns np : Nat} (he : e ≤ 14) (hC : C ≤ 2 ^ e) (hnp : 0 < np) (hnpR : np ≤ R)
-    (hRnp : R + np ≤ 2 ^ 31) (hoff : (R - 1) * C < 2 ^ 31) (hsz : R * C * 4 ≤ 2 ^ 34) :
+    (hRnp : R + np ≤ 2 ^ 31) (hoff : (R - 1) * C < 2 ^ 31) (hsz : R * C * 4 ≤ 2 ^ 34)
+    (hCd : 0 < C ∧ C % 128 = 0) :
     (mk R C e ns np).ok := by
-  have hC31 : C < 2 ^ 31 := by
+  have hC14 : C ≤ 2 ^ 14 := by
     have : 2 ^ e ≤ 2 ^ 14 := Nat.pow_le_pow_right (by norm_num) he
     omega
-  refine ⟨⟨e, rfl⟩, Nat.pow_le_pow_right (by norm_num) he, hC, fun _ => hnp, by simp only [mk]; omega,
+  have hC31 : C < 2 ^ 31 := by omega
+  refine ⟨⟨e, rfl⟩, Nat.pow_le_pow_right (by norm_num) he, hC, ⟨hCd.1, hCd.2, by simp only [mk]; omega⟩,
+    fun _ => hnp, by simp only [mk]; omega,
     hRnp, hC31, hC31, hoff, hoff, fun r j hr hj => idx_lt hr hj, fun r j hr hj => idx_lt hr hj,
     Or.inr (le_refl _), ?_⟩
   refine Buf.elems_disjoint_of _ _ ?_ ?_ ?_
@@ -308,9 +315,9 @@ theorem mk_ok {R C e ns np : Nat} (he : e ≤ 14) (hC : C ≤ 2 ^ e) (hnp : 0 < 
 def testMem : Mem := fun _ => some 0
 
 theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
-  refine ⟨mk 1823 781 10 4 1056, testMem,
+  refine ⟨mk 4096 256 8 4 1056, testMem,
     mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num), ?_, ?_⟩
+      (by norm_num) (by norm_num), ?_, ?_⟩
   all_goals
     exact ⟨by norm_num [mk], by norm_num [mk, DType.bytes], by norm_num [mk, DType.bytes],
       fun _ _ => by simp [testMem]⟩
@@ -323,302 +330,299 @@ min(NUM_SM · occupancy, n_rows)`, which depends on the compiled kernel's regist
 take the H200's values (`check_gpu.py` prints them), and `mk_ok` covers every `num_programs` from
 `1` to `n_rows`. -/
 
-def setup_test_1823x781 : Inst := mk 1823 781 10 4 1056
-theorem setup_test_1823x781_ok : setup_test_1823x781.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x256 : Inst := mk 4096 256 8 4 1056
 theorem setup_bench_4096x256_ok : setup_bench_4096x256.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x384 : Inst := mk 4096 384 9 4 1056
 theorem setup_bench_4096x384_ok : setup_bench_4096x384.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x512 : Inst := mk 4096 512 9 4 1056
 theorem setup_bench_4096x512_ok : setup_bench_4096x512.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x640 : Inst := mk 4096 640 10 4 1056
 theorem setup_bench_4096x640_ok : setup_bench_4096x640.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x768 : Inst := mk 4096 768 10 4 1056
 theorem setup_bench_4096x768_ok : setup_bench_4096x768.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x896 : Inst := mk 4096 896 10 4 1056
 theorem setup_bench_4096x896_ok : setup_bench_4096x896.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x1024 : Inst := mk 4096 1024 10 4 1056
 theorem setup_bench_4096x1024_ok : setup_bench_4096x1024.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x1152 : Inst := mk 4096 1152 11 4 1056
 theorem setup_bench_4096x1152_ok : setup_bench_4096x1152.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x1280 : Inst := mk 4096 1280 11 4 1056
 theorem setup_bench_4096x1280_ok : setup_bench_4096x1280.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x1408 : Inst := mk 4096 1408 11 4 1056
 theorem setup_bench_4096x1408_ok : setup_bench_4096x1408.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x1536 : Inst := mk 4096 1536 11 4 1056
 theorem setup_bench_4096x1536_ok : setup_bench_4096x1536.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x1664 : Inst := mk 4096 1664 11 4 1056
 theorem setup_bench_4096x1664_ok : setup_bench_4096x1664.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x1792 : Inst := mk 4096 1792 11 4 1056
 theorem setup_bench_4096x1792_ok : setup_bench_4096x1792.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x1920 : Inst := mk 4096 1920 11 4 1056
 theorem setup_bench_4096x1920_ok : setup_bench_4096x1920.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x2048 : Inst := mk 4096 2048 11 4 1056
 theorem setup_bench_4096x2048_ok : setup_bench_4096x2048.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x2176 : Inst := mk 4096 2176 12 4 528
 theorem setup_bench_4096x2176_ok : setup_bench_4096x2176.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x2304 : Inst := mk 4096 2304 12 4 528
 theorem setup_bench_4096x2304_ok : setup_bench_4096x2304.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x2432 : Inst := mk 4096 2432 12 4 528
 theorem setup_bench_4096x2432_ok : setup_bench_4096x2432.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x2560 : Inst := mk 4096 2560 12 4 528
 theorem setup_bench_4096x2560_ok : setup_bench_4096x2560.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x2688 : Inst := mk 4096 2688 12 4 528
 theorem setup_bench_4096x2688_ok : setup_bench_4096x2688.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x2816 : Inst := mk 4096 2816 12 4 528
 theorem setup_bench_4096x2816_ok : setup_bench_4096x2816.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x2944 : Inst := mk 4096 2944 12 4 528
 theorem setup_bench_4096x2944_ok : setup_bench_4096x2944.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x3072 : Inst := mk 4096 3072 12 4 528
 theorem setup_bench_4096x3072_ok : setup_bench_4096x3072.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x3200 : Inst := mk 4096 3200 12 4 528
 theorem setup_bench_4096x3200_ok : setup_bench_4096x3200.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x3328 : Inst := mk 4096 3328 12 4 528
 theorem setup_bench_4096x3328_ok : setup_bench_4096x3328.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x3456 : Inst := mk 4096 3456 12 4 528
 theorem setup_bench_4096x3456_ok : setup_bench_4096x3456.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x3584 : Inst := mk 4096 3584 12 4 528
 theorem setup_bench_4096x3584_ok : setup_bench_4096x3584.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x3712 : Inst := mk 4096 3712 12 4 528
 theorem setup_bench_4096x3712_ok : setup_bench_4096x3712.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x3840 : Inst := mk 4096 3840 12 4 528
 theorem setup_bench_4096x3840_ok : setup_bench_4096x3840.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x3968 : Inst := mk 4096 3968 12 4 528
 theorem setup_bench_4096x3968_ok : setup_bench_4096x3968.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x4096 : Inst := mk 4096 4096 12 4 528
 theorem setup_bench_4096x4096_ok : setup_bench_4096x4096.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x4224 : Inst := mk 4096 4224 13 4 264
 theorem setup_bench_4096x4224_ok : setup_bench_4096x4224.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x4352 : Inst := mk 4096 4352 13 4 264
 theorem setup_bench_4096x4352_ok : setup_bench_4096x4352.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x4480 : Inst := mk 4096 4480 13 4 264
 theorem setup_bench_4096x4480_ok : setup_bench_4096x4480.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x4608 : Inst := mk 4096 4608 13 4 264
 theorem setup_bench_4096x4608_ok : setup_bench_4096x4608.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x4736 : Inst := mk 4096 4736 13 4 264
 theorem setup_bench_4096x4736_ok : setup_bench_4096x4736.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x4864 : Inst := mk 4096 4864 13 4 264
 theorem setup_bench_4096x4864_ok : setup_bench_4096x4864.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x4992 : Inst := mk 4096 4992 13 4 264
 theorem setup_bench_4096x4992_ok : setup_bench_4096x4992.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x5120 : Inst := mk 4096 5120 13 4 264
 theorem setup_bench_4096x5120_ok : setup_bench_4096x5120.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x5248 : Inst := mk 4096 5248 13 4 264
 theorem setup_bench_4096x5248_ok : setup_bench_4096x5248.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x5376 : Inst := mk 4096 5376 13 4 264
 theorem setup_bench_4096x5376_ok : setup_bench_4096x5376.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x5504 : Inst := mk 4096 5504 13 4 264
 theorem setup_bench_4096x5504_ok : setup_bench_4096x5504.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x5632 : Inst := mk 4096 5632 13 4 264
 theorem setup_bench_4096x5632_ok : setup_bench_4096x5632.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x5760 : Inst := mk 4096 5760 13 4 264
 theorem setup_bench_4096x5760_ok : setup_bench_4096x5760.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x5888 : Inst := mk 4096 5888 13 4 264
 theorem setup_bench_4096x5888_ok : setup_bench_4096x5888.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x6016 : Inst := mk 4096 6016 13 4 264
 theorem setup_bench_4096x6016_ok : setup_bench_4096x6016.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x6144 : Inst := mk 4096 6144 13 4 264
 theorem setup_bench_4096x6144_ok : setup_bench_4096x6144.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x6272 : Inst := mk 4096 6272 13 4 264
 theorem setup_bench_4096x6272_ok : setup_bench_4096x6272.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x6400 : Inst := mk 4096 6400 13 4 264
 theorem setup_bench_4096x6400_ok : setup_bench_4096x6400.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x6528 : Inst := mk 4096 6528 13 4 264
 theorem setup_bench_4096x6528_ok : setup_bench_4096x6528.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x6656 : Inst := mk 4096 6656 13 4 264
 theorem setup_bench_4096x6656_ok : setup_bench_4096x6656.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x6784 : Inst := mk 4096 6784 13 4 264
 theorem setup_bench_4096x6784_ok : setup_bench_4096x6784.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x6912 : Inst := mk 4096 6912 13 4 264
 theorem setup_bench_4096x6912_ok : setup_bench_4096x6912.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x7040 : Inst := mk 4096 7040 13 4 264
 theorem setup_bench_4096x7040_ok : setup_bench_4096x7040.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x7168 : Inst := mk 4096 7168 13 4 264
 theorem setup_bench_4096x7168_ok : setup_bench_4096x7168.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x7296 : Inst := mk 4096 7296 13 4 264
 theorem setup_bench_4096x7296_ok : setup_bench_4096x7296.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x7424 : Inst := mk 4096 7424 13 4 264
 theorem setup_bench_4096x7424_ok : setup_bench_4096x7424.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x7552 : Inst := mk 4096 7552 13 4 264
 theorem setup_bench_4096x7552_ok : setup_bench_4096x7552.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x7680 : Inst := mk 4096 7680 13 4 264
 theorem setup_bench_4096x7680_ok : setup_bench_4096x7680.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x7808 : Inst := mk 4096 7808 13 4 264
 theorem setup_bench_4096x7808_ok : setup_bench_4096x7808.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x7936 : Inst := mk 4096 7936 13 4 264
 theorem setup_bench_4096x7936_ok : setup_bench_4096x7936.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x8064 : Inst := mk 4096 8064 13 4 264
 theorem setup_bench_4096x8064_ok : setup_bench_4096x8064.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x8192 : Inst := mk 4096 8192 13 4 264
 theorem setup_bench_4096x8192_ok : setup_bench_4096x8192.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x8320 : Inst := mk 4096 8320 14 4 132
 theorem setup_bench_4096x8320_ok : setup_bench_4096x8320.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x8448 : Inst := mk 4096 8448 14 4 132
 theorem setup_bench_4096x8448_ok : setup_bench_4096x8448.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x8576 : Inst := mk 4096 8576 14 4 132
 theorem setup_bench_4096x8576_ok : setup_bench_4096x8576.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x8704 : Inst := mk 4096 8704 14 4 132
 theorem setup_bench_4096x8704_ok : setup_bench_4096x8704.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x8832 : Inst := mk 4096 8832 14 4 132
 theorem setup_bench_4096x8832_ok : setup_bench_4096x8832.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x8960 : Inst := mk 4096 8960 14 4 132
 theorem setup_bench_4096x8960_ok : setup_bench_4096x8960.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x9088 : Inst := mk 4096 9088 14 4 132
 theorem setup_bench_4096x9088_ok : setup_bench_4096x9088.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x9216 : Inst := mk 4096 9216 14 4 132
 theorem setup_bench_4096x9216_ok : setup_bench_4096x9216.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x9344 : Inst := mk 4096 9344 14 4 132
 theorem setup_bench_4096x9344_ok : setup_bench_4096x9344.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x9472 : Inst := mk 4096 9472 14 4 132
 theorem setup_bench_4096x9472_ok : setup_bench_4096x9472.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x9600 : Inst := mk 4096 9600 14 4 132
 theorem setup_bench_4096x9600_ok : setup_bench_4096x9600.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x9728 : Inst := mk 4096 9728 14 4 132
 theorem setup_bench_4096x9728_ok : setup_bench_4096x9728.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x9856 : Inst := mk 4096 9856 14 4 132
 theorem setup_bench_4096x9856_ok : setup_bench_4096x9856.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x9984 : Inst := mk 4096 9984 14 4 132
 theorem setup_bench_4096x9984_ok : setup_bench_4096x9984.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x10112 : Inst := mk 4096 10112 14 4 132
 theorem setup_bench_4096x10112_ok : setup_bench_4096x10112.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x10240 : Inst := mk 4096 10240 14 4 132
 theorem setup_bench_4096x10240_ok : setup_bench_4096x10240.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x10368 : Inst := mk 4096 10368 14 4 132
 theorem setup_bench_4096x10368_ok : setup_bench_4096x10368.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x10496 : Inst := mk 4096 10496 14 4 132
 theorem setup_bench_4096x10496_ok : setup_bench_4096x10496.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x10624 : Inst := mk 4096 10624 14 4 132
 theorem setup_bench_4096x10624_ok : setup_bench_4096x10624.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x10752 : Inst := mk 4096 10752 14 4 132
 theorem setup_bench_4096x10752_ok : setup_bench_4096x10752.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x10880 : Inst := mk 4096 10880 14 4 132
 theorem setup_bench_4096x10880_ok : setup_bench_4096x10880.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x11008 : Inst := mk 4096 11008 14 4 132
 theorem setup_bench_4096x11008_ok : setup_bench_4096x11008.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x11136 : Inst := mk 4096 11136 14 4 132
 theorem setup_bench_4096x11136_ok : setup_bench_4096x11136.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x11264 : Inst := mk 4096 11264 14 4 132
 theorem setup_bench_4096x11264_ok : setup_bench_4096x11264.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x11392 : Inst := mk 4096 11392 14 4 132
 theorem setup_bench_4096x11392_ok : setup_bench_4096x11392.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x11520 : Inst := mk 4096 11520 14 4 132
 theorem setup_bench_4096x11520_ok : setup_bench_4096x11520.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x11648 : Inst := mk 4096 11648 14 4 132
 theorem setup_bench_4096x11648_ok : setup_bench_4096x11648.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x11776 : Inst := mk 4096 11776 14 4 132
 theorem setup_bench_4096x11776_ok : setup_bench_4096x11776.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x11904 : Inst := mk 4096 11904 14 4 132
 theorem setup_bench_4096x11904_ok : setup_bench_4096x11904.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x12032 : Inst := mk 4096 12032 14 4 132
 theorem setup_bench_4096x12032_ok : setup_bench_4096x12032.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x12160 : Inst := mk 4096 12160 14 4 132
 theorem setup_bench_4096x12160_ok : setup_bench_4096x12160.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x12288 : Inst := mk 4096 12288 14 4 132
 theorem setup_bench_4096x12288_ok : setup_bench_4096x12288.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x12416 : Inst := mk 4096 12416 14 4 132
 theorem setup_bench_4096x12416_ok : setup_bench_4096x12416.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x12544 : Inst := mk 4096 12544 14 4 132
 theorem setup_bench_4096x12544_ok : setup_bench_4096x12544.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_bench_4096x12672 : Inst := mk 4096 12672 14 4 132
 theorem setup_bench_4096x12672_ok : setup_bench_4096x12672.ok := mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 end Claims.Softmax

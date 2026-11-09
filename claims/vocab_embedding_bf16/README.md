@@ -15,7 +15,7 @@ an `int1` tensor.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.VocabEmbedding.main : Statement` (`Statement`:
-`Claim.lean` line 243). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 251). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -23,13 +23,13 @@ an `int1` tensor.
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 133), and every initial memory `init` that `Pre` accepts (line 183), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 210).
+(`Inst.ok`, line 133), and every initial memory `init` that `Pre` accepts (line 191), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 218).
 
-**What `Post` asks** (line 210), two parts:
+**What `Post` asks** (line 218), two parts:
 1. for every `r < n_tokens` and `col < hidden_dim`: element `r` of `input_` reads in `init` as an id
    `v` (`tokAt`, line 126: the signed value `ivOf`, line 119), element `r * hidden_dim + col` of
-   `output` reads in `fin` as some `c`, and `outVal d init v col c` holds (line 196):
+   `output` reads in `fin` as some `c`, and `outVal d init v col c` holds (line 204):
    - if `org_vocab_start_index ≤ v < org_vocab_end_index`: `init` reads the weight's element
      `(v - org_vocab_start_index) * weight_stride0 + col` as `c`;
    - else, if `added_vocab_start_index ≤ v < added_vocab_end_index`: `init` reads the weight's
@@ -38,16 +38,16 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 
    It is bit-exact: a copy, no tolerance, no NaN equivalence;
 2. the frame: every byte outside the output's first `n_tokens * hidden_dim` elements
-   (`outElems`, line 190) is unchanged.
+   (`outElems`, line 198) is unchanged.
 
-**What you are given** (`Assumptions`, line 234): one field, `faithful` (`Compiler.Faithful`): the
+**What you are given** (`Assumptions`, line 242): one field, `faithful` (`Compiler.Faithful`): the
 device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
 `debug = false`, and the model's launch is well behaved from `init` (no out-of-bounds access, no race).
 No numeric fact: the kernel only moves values (the one conversion is the `float32` `+0` to
 `bfloat16`, exact).
 
-**The kernel, as the model runs it** (`vocab_parallel_embedding_kernel`, line 31; `model` line 221,
-`launch` line 229): a 2-D grid `(n_tokens, nColBlocks d, 1)` (`nColBlocks`, line 130), block shape
+**The kernel, as the model runs it** (`vocab_parallel_embedding_kernel`, line 31; `model` line 229,
+`launch` line 237): a 2-D grid `(n_tokens, nColBlocks d, 1)` (`nColBlocks`, line 130), block shape
 `[BLOCK_H]`. Program `(row, col_block)` loads one id (`tl.load1` of `input_` element `row`), converts
 it to `int64`, forms the two range masks and `local_id` (`int64` subtractions, `tl.where`), then does
 one masked `tl.load` of the weight at `local_id * weight_stride0 + cols` (mask
@@ -61,7 +61,7 @@ which is only read. The route is `TVA.meets_independent` (PROVER_GUIDE §4).
   `Launch.Valid` is proved directly: `x < 2^31` from `tokens_lt`, `y < 2^16` from `cols_lt`, the
   program count from `grid_lt`, the shape `[BLOCK_H]` from `block` (`Shape.TritonOk`);
 - each program is `Safe`: the id load is in bounds (`input_len`, `safe_load1`); `int32` columns
-  do not wrap (`hidden_lt`), and `ltS` against `hidden_dim` is the integer comparison; the
+  do not wrap (`hidden_lt`; with `hidden_le`, every column is below `2^17 + 1024`), and `ltS` against `hidden_dim` is the integer comparison; the
   `int64` subtractions and `local_id * weight_stride0 + col` do not wrap (`org_start` … `offset`,
   `stride_lt`, and `TokOk`'s `< 2^63`, through `Pre`'s last conjunct); the enabled weight lanes
   are in bounds (`TokOk`'s `≤ weight.len`; the added range also needs `0 ≤ v - addedOffset d`);
@@ -70,13 +70,16 @@ which is only read. The route is `TVA.meets_independent` (PROVER_GUIDE §4).
 - footprints: program `(row, col_block)` writes output elements `row * hidden_dim + col` for its
   columns; these are disjoint across programs, and disjoint from every read (`out_input`,
   `out_weight`);
+- column tiles: `128 ∣ hidden_dim` (`hidden_dvd`), so at `BLOCK_H ≤ 128` every column tile is
+  full (`BLOCK_H ∣ 128`); a larger block is full on every tile exactly when `BLOCK_H ∣ hidden_dim`
+  (every setup's: 2048 to 8192 at 1024), so `col_mask` stays in the proof in general;
 - the stored lanes give part 1: an enabled lane holds the weight's element as `init` reads it; a
   lane disabled by `valid` holds `other`, the `bfloat16` `+0`. The `tl.where` order matches
   `outVal`'s: the original range wins;
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `bytes_disjoint_of_le` (line 252) and `zeroMem_read` (line 275) can be
+`setup_*_ok` theorems; `bytes_disjoint_of_le` (line 260) and `zeroMem_read` (line 283) can be
 reused.
 
 ## Specification
@@ -115,14 +118,17 @@ payloads, infinities and `-0` are copied as they are.
   (a limit of the kernel, Exclusions);
 - the grid `(n_tokens, cdiv(hidden_dim, BLOCK_H))` within CUDA's limits (`n_tokens < 2^31`,
   `cdiv < 2^16`) with fewer than `2^31` programs (`Launch.Valid`; Exclusions);
+- `hidden_dim` a model dimension (`hidden_pos`, `hidden_dvd`, `hidden_le`): positive, a multiple
+  of 128, at most `2^17` (the embedding width; real model shapes, Exclusions);
+- `n_tokens ≤ 2^22` (`tokens_le`): the batch's total number of tokens is a context length of at
+  most `2^22` (real model shapes, Exclusions);
 - `n_tokens ≤ input_.len`, `n_tokens * hidden_dim ≤ output.len`;
 - the five vocabulary values in `[0, 2^63)` and `added_offset` in `[-2^63, 2^63)` (a rank's
   indices and counts; each constexpr is then an `int32` or `int64` constant and the model's `int64`
   constants are exact); `weight_stride0 < 2^63`;
 - the output shares no byte with `input_` or `weight` (`torch.empty`).
 
-`hidden_dim = 0` and `weight_stride0 = 0` are covered (the kernel is right at both: an empty grid,
-or rows that alias, which are only read).
+`weight_stride0 = 0` is covered (rows that alias, which are only read).
 
 `Pre d init`: the three buffers valid; every id the launch reads that lies in a range names a
 local row whose `hidden_dim` columns are inside the weight's storage (below `2^63`): the shard's
@@ -147,7 +153,8 @@ operation, no `Rules.Num` fact (`Platform.any`), no `[kernel]` field.
 ## Coverage
 
 Each launch of the host's test (source lines 199-226; ranges from `shard_indices`, weight
-contiguous) has an instance with `Inst.ok` proved:
+contiguous) whose `hidden_dim` is a model dimension has an instance with `Inst.ok` proved; the two
+whose `hidden_dim` is not (257 and 7) are outside the claim (Exclusions):
 
 | Launch | `dI`, ids, hidden, `BLOCK_H`, rows, ranges | Instance |
 |---|---|---|
@@ -155,16 +162,16 @@ contiguous) has an instance with `Inst.ok` proved:
 | vocab 129280, TP 8 rank 7 | `int64`, 1, 7168, 1024, 16160, org `[113120, 129280)` | `setup_v129280_tp8` |
 | vocab 151936, TP 4 rank 0, ids `(3, 77)` | `int64`, 231, 2048, 1024, 37984, org `[0, 37984)` | `setup_v151936_tp4` |
 | vocab 152064, TP 2 rank 1 | `int32`, 513, 5120, 1024, 76032, org `[76032, 152064)` | `setup_v152064_tp2_i32` |
-| vocab 32000 + 256, TP 2 rank 1 | `int64`, 1000, 257, 512, 16128, org `[16000, 32000)`, added `[32128, 32256)` | `setup_v32000_added_tp2` |
+| vocab 32000 + 256, TP 2 rank 1 | `int64`, 1000, 257, 512, 16128, org `[16000, 32000)`, added `[32128, 32256)` | not covered: hidden 257 is not a multiple of 128 |
 | vocab 50257 + 3, TP 8 rank 7 | `int64`, 300, 6144, 1024, 6296, org `[44016, 50257)`, 47 padding rows | `setup_v50257_added_tp8` |
-| vocab 1000, TP 2 rank 0 | `int32`, 64, 7, 8, 512, org `[0, 512)` | `setup_v1000_tp2_i32` |
+| vocab 1000, TP 2 rank 0 | `int32`, 64, 7, 8, 512, org `[0, 512)` | not covered: hidden 7 is not a multiple of 128 |
 | empty input `(0,)` | no launch (the host returns first) | (none needed) |
 | a column slice (row stride above `hidden_dim`, the code base's test) | `int64`, 64, 128, 128, stride 256 | `setup_column_slice` |
 | serving: hidden 8192, vocab 151936 over TP 2 | `int64`, 65536, 8192, 1024, 75968 | `setup_serving_h8192` |
 
-`Inst.ok` bounds no size beyond the `int32` column limit and the grid, so every vocabulary,
-tensor-parallel split, hidden size (7 to 8192, any value) and number of ids SETUP.md names is
-covered, with ids of any value.
+Every vocabulary, tensor-parallel split and model hidden size SETUP.md names (2048 to 8192, each a
+multiple of 128) is covered, with any number of ids up to `2^22` and ids of any value; the code
+base's test sizes hidden 7 and 257 are not (Exclusions). The empty input makes no launch.
 
 ## Tolerances
 
@@ -188,6 +195,13 @@ None: `Post` is bit-exact.
 - **An id of a range whose local row is not in the weight** (`Pre`): outside real use (the layer
   allocates the rows of its ranges); the kernel would read outside the weight.
 - **An output that overlaps an input**: outside real use (fresh allocation).
+- **Dimensions and contexts beyond real model shapes** (out of scope): dimensions that are not
+  multiples of 128 or exceed `2^17`, and contexts longer than `2^22` tokens: the claim covers real
+  model shapes only. Fields: `hidden_dim` (a dimension: `hidden_pos`, `hidden_dvd`, `hidden_le`;
+  `hidden_dim = 0` is outside too) and `n_tokens` (a context length: `tokens_le`). The code base's
+  test sizes hidden 7 and 257 (setup launches "vocab 1000, TP 2 rank 0" and "vocab 32000 + 256,
+  TP 2 rank 1") are outside. Not bounded: vocabulary values and `weight_stride0` (table indices
+  and a stride, not dimensions), `BLOCK_H` (a block size).
 
 ## Library requests
 
@@ -197,9 +211,9 @@ None.
 
 - **Builds**: `Claim.lean` builds with no error or warning, no
   `sorry`, no `axiom`; the theorems use only `propext`, `Classical.choice`, `Quot.sound`.
-- **Not vacuous**: `consistent` (`Platform.any`); `satisfiable` (one `int64` id `0`, hidden 7, on
+- **Not vacuous**: `consistent` (`Platform.any`); `satisfiable` (one `int64` id `0`, hidden 128, on
   the all-zero memory).
-- **Coverage**: the 9 instances above (`setup_*_ok`).
+- **Coverage**: the 7 instances above (`setup_*_ok`).
 - **GPU** (`check_gpu.py`, H200, Triton 3.8.0): 42 host calls: the 8 setup cases (same
   generator and ids) and edges: every rank of 8 shardings (with added vocabularies and padding
   rows, row strides above `hidden_dim`, hidden 1, 7, 257, 1000, 1025, 6144, 7168, 8192, `int32`
@@ -209,3 +223,5 @@ None.
   direct launches with the host's launch line on an output inside a random-filled guarded pool.
   377,579,531 output elements: every one bit-exact as `Post` states (error 0, no tolerance);
   every input and every guard unchanged.
+  The launches at hidden 1, 7, 257, 1000, 1025 and at 64 columns lie outside `Inst.ok` (not
+  multiples of 128); they pass all the same.

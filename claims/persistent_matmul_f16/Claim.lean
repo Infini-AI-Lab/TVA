@@ -224,6 +224,14 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `K ≤ 2^13`: the tolerance of `Post` grows with `K`; up to `2^13` it is below `0.21%` of the
   products' lifted magnitudes (`tol_rel_lt`). The setup's largest `K` is `1024`. -/
   K_le : d.K ≤ 2 ^ 13
+  /-- `N` is a model dimension (the output features): a positive multiple of `128`, at most `2^17`
+  (README, Exclusions). -/
+  N_dim : 0 < d.N ∧ d.N % 128 = 0 ∧ d.N ≤ 2 ^ 17
+  /-- `K` is a model dimension (the inner features): a positive multiple of `128`, at most `2^17`
+  (README, Exclusions). -/
+  K_dim : 0 < d.K ∧ d.K % 128 = 0 ∧ d.K ≤ 2 ^ 17
+  /-- `M` counts tokens: at most `2^22` (README, Exclusions). -/
+  M_ctx : d.M ≤ 2 ^ 22
   /-- Each stride is an `int32`. -/
   am : d.stride_am < 2 ^ 31
   /-- As `am`. -/
@@ -474,9 +482,9 @@ theorem hostInst_ok {M N K S : Nat}
     (h : 0 < M ∧ 0 < N ∧ 0 < K ∧ M % 128 = 0 ∧ N % 256 = 0 ∧ M + 128 ≤ 2 ^ 31 ∧ N + 256 ≤ 2 ^ 31 ∧
       0 < S ∧ S < 2 ^ 31 ∧ (M + 128 - 1) / 128 * ((N + 256 - 1) / 256) + S ≤ 2 ^ 31 ∧ K ≤ 2 ^ 13 ∧
       (M - 1) * K + (K - 1) < 2 ^ 31 ∧ (K - 1) + (N - 1) * K < 2 ^ 31 ∧ (M - 1) * N < 2 ^ 31 ∧
-      M * K ≤ 2 ^ 31 ∧ N * K ≤ 2 ^ 31 ∧ M * N ≤ 2 ^ 31) :
+      M * K ≤ 2 ^ 31 ∧ N * K ≤ 2 ^ 31 ∧ M * N ≤ 2 ^ 31 ∧ N ≤ 2 ^ 17 ∧ K % 128 = 0 ∧ M ≤ 2 ^ 22) :
     (hostInst M N K S).ok := by
-  obtain ⟨hM, hN, hK, hMt, hNt, h1, h2, hS, hS', ht, h4, h5, h6, h7, hA, hB, hC⟩ := h
+  obtain ⟨hM, hN, hK, hMt, hNt, h1, h2, hS, hS', ht, h4, h5, h6, h7, hA, hB, hC, hNd, hKd, hMc⟩ := h
   have hal : ∀ i k, i < M → k < K → i * K + k * 1 < M * K := fun i k hi hk => by
     rw [Nat.mul_one]; exact row_lt hi hk
   have hbl : ∀ k j, k < K → j < N → k * 1 + j * K < N * K := fun k j hk hj => by
@@ -490,6 +498,7 @@ theorem hostInst_ok {M N K S : Nat}
   have hbS : (hostInst M N K S).b.elems (bIdx (hostInst M N K S)) ⊆ (hostInst M N K S).b.bytes :=
     Buf.elems_sub_bytes _ (by rintro _ ⟨k, j, hk, hj, rfl⟩; exact hbl k j hk hj)
   refine ⟨hMt, hNt, h1, h2, ⟨hS, hS'⟩, by simp only [tiles, hostInst]; omega, h4,
+    by simp only [hostInst]; omega, by simp only [hostInst]; omega, hMc,
     by simp only [hostInst]; omega, by simp only [hostInst]; omega, by simp only [hostInst]; omega,
     by simp only [hostInst]; omega, by simp only [hostInst]; omega, by simp only [hostInst]; omega,
     by simp only [hostInst, Nat.mul_one]; omega, by simp only [hostInst, Nat.mul_one]; omega,

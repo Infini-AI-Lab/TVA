@@ -440,6 +440,9 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `K ≤ 2^15`: the largest `K` of real use (Grok-1's second GEMM at TP1); the tolerance of
   `Post` grows with `K` (README, Tolerances). -/
   K_le15 : d.K ≤ 2 ^ 15
+  /-- `N` is a model dimension (the output features: twice the intermediate size per rank for the
+  first GEMM, the hidden size for the second): at most `2^17`. -/
+  N_le17 : d.N ≤ 2 ^ 17
   /-- `N + BLOCK_SIZE_N ≤ 2^31`: `N` is an `int32`, and `tl.cdiv(N, BLOCK_SIZE_N)` computes
   `N + BLOCK_SIZE_N − 1` in `int32`. -/
   N_le : d.N + d.BN ≤ 2 ^ 31
@@ -894,9 +897,9 @@ theorem hostInst_ok {Ar top_k E N K EM slen elen wcols : Nat} {rw naive : Bool}
       (EM + cfg.1 - 1) / cfg.1 * ((N + cfg.2.1 - 1) / cfg.2.1) < 2 ^ 31 ∧ EM + cfg.1 ≤ 2 ^ 31 ∧
       Ar * top_k < 2 ^ 31 ∧ N * K < 2 ^ 31 ∧ (naive = false → EM ≤ slen) ∧
       Ar * K * 2 ≤ 2 ^ 35 ∧ E * N * K * 2 ≤ 2 ^ 39 ∧ Ar * top_k * N * 2 ≤ 2 ^ 43 ∧
-      Ar * top_k * 4 ≤ 2 ^ 44 ∧ slen * 4 ≤ 2 ^ 45 ∧ elen * 4 ≤ 2 ^ 46) :
+      Ar * top_k * 4 ≤ 2 ^ 44 ∧ slen * 4 ≤ 2 ^ 45 ∧ elen * 4 ≤ 2 ^ 46 ∧ N ≤ 2 ^ 17) :
     (hostInst Ar top_k E N K EM slen elen rw naive cfg wcols).ok := by
-  obtain ⟨hc, h1, h2, h3, h4, h5, h6, hK, hN, hG, h9, h10, h11, h12, h13, hA, hB, hC, hW, hS, hE⟩ := h
+  obtain ⟨hc, h1, h2, h3, h4, h5, h6, hK, hN, hG, h9, h10, h11, h12, h13, hA, hB, hC, hW, hS, hE, hN17⟩ := h
   have hcl : ∀ j ∈ cIdx (hostInst Ar top_k E N K EM slen elen rw naive cfg wcols),
       j < (hostInst Ar top_k E N K EM slen elen rw naive cfg wcols).c.len := by
     rintro j ⟨f, c, hf, hc, rfl⟩
@@ -927,7 +930,7 @@ theorem hostInst_ok {Ar top_k E N K EM slen elen wcols : Nat} {rw naive : Bool}
     have h1 : e * (N * K) + N * K ≤ E * (N * K) := succ_mul_le he
     have h3 : E * (N * K) = E * N * K := (Nat.mul_assoc _ _ _).symm
     omega
-  refine ⟨hc, h1, h2, h3, h4, h5, hK, h6, hN, hG, h9, h10, h11,
+  refine ⟨hc, h1, h2, h3, h4, h5, hK, h6, hN17, hN, hG, h9, h10, h11,
     by simp only [hostInst]; omega, by simp only [hostInst]; omega,
     by simp only [stride_cm, hostInst]; omega,
     hboff, fun t k ht hk => row_lt ht hk, hblen, fun f c hf hc => row_lt hf hc, fun f hf => hf, rfl,

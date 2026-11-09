@@ -175,7 +175,8 @@ def cIdx (d : Inst) : Set Nat :=
   {e | ∃ i j, i < d.M ∧ j < d.N ∧ e = i * d.stride_cm + j * d.stride_cn}
 
 /-- The instances covered. Shapes, strides and layouts are variables; the bounds keep the kernel's
-`int32` arithmetic from wrapping, the grid within CUDA's limit, `K ≤ 2048`, and the elements of `c` apart. -/
+`int32` arithmetic from wrapping, the grid within CUDA's limit, `K ≤ 2048`, the shapes real model
+shapes (`M_ctx`, `N_dim`, `K_dim`), and the elements of `c` apart. -/
 structure Inst.ok (d : Inst) : Prop where
   /-- `M + 128 ≤ 2^31`: `M` is an `int32`, and `tl.cdiv(M, 128)` computes `M + 127` in `int32`. -/
   M_le : d.M + 128 ≤ 2 ^ 31
@@ -189,6 +190,14 @@ structure Inst.ok (d : Inst) : Prop where
   output, and beyond it `Post` no longer rejects typical wrong results (a result `0.9` times the
   exact one passes at `K = 3072`; README, Exclusions). -/
   K_le : d.K ≤ 2 ^ 11
+  /-- `M` counts tokens (the rows of `a`): a context length, at most `2^22`. -/
+  M_ctx : d.M ≤ 2 ^ 22
+  /-- `N` is a model dimension (the output features): a positive multiple of `128`, at most
+  `2^17`. -/
+  N_dim : 0 < d.N ∧ d.N % 128 = 0 ∧ d.N ≤ 2 ^ 17
+  /-- `K` is a model dimension (the inner features): a positive multiple of `128`, at most
+  `2^17`. -/
+  K_dim : 0 < d.K ∧ d.K % 128 = 0 ∧ d.K ≤ 2 ^ 17
   /-- Each stride is positive (`tl.assume(stride_… > 0)`, lines 268–273) and an `int32`. -/
   am : 0 < d.stride_am ∧ d.stride_am < 2 ^ 31
   /-- As `am`. -/
@@ -605,9 +614,10 @@ theorem hostInst_ok {M N K : Nat}
     (h : 0 < N ∧ 0 < K ∧ M + 128 ≤ 2 ^ 31 ∧ N + 256 ≤ 2 ^ 31 ∧
       (M + 127) / 128 * ((N + 255) / 256) < 2 ^ 31 ∧ K ≤ 2 ^ 11 ∧
       (M - 1) * K + 64 < 2 ^ 31 ∧ 64 + (N - 1) * K < 2 ^ 31 ∧ (M - 1) * N < 2 ^ 31 ∧
-      M * K ≤ 2 ^ 31 ∧ N * K ≤ 2 ^ 31 ∧ M * N ≤ 2 ^ 31) :
+      M * K ≤ 2 ^ 31 ∧ N * K ≤ 2 ^ 31 ∧ M * N ≤ 2 ^ 31 ∧
+      M ≤ 2 ^ 22 ∧ N % 128 = 0 ∧ N ≤ 2 ^ 17 ∧ K % 128 = 0 ∧ K ≤ 2 ^ 17) :
     (hostInst M N K).ok := by
-  obtain ⟨hN, hK, h1, h2, h3, h4, h5, h6, h7, hA, hB, hC⟩ := h
+  obtain ⟨hN, hK, h1, h2, h3, h4, h5, h6, h7, hA, hB, hC, hM, hN1, hN2, hK1, hK2⟩ := h
   have hal : ∀ i k, i < M → k < K → i * K + k * 1 < M * K := fun i k hi hk => by
     rw [Nat.mul_one]; exact row_lt hi hk
   have hbl : ∀ k j, k < K → j < N → k * 1 + j * K < N * K := fun k j hk hj => by
@@ -620,7 +630,7 @@ theorem hostInst_ok {M N K : Nat}
     Buf.elems_sub_bytes _ (by rintro _ ⟨i, k, hi, hk, rfl⟩; exact hal i k hi hk)
   have hbS : (hostInst M N K).b.elems (bIdx (hostInst M N K)) ⊆ (hostInst M N K).b.bytes :=
     Buf.elems_sub_bytes _ (by rintro _ ⟨k, j, hk, hj, rfl⟩; exact hbl k j hk hj)
-  refine ⟨h1, h2, h3, h4, ⟨hK, by simp only [hostInst]; omega⟩, ⟨by simp [hostInst], by simp [hostInst]⟩,
+  refine ⟨h1, h2, h3, h4, hM, ⟨hN, hN1, hN2⟩, ⟨hK, hK1, hK2⟩, ⟨hK, by simp only [hostInst]; omega⟩, ⟨by simp [hostInst], by simp [hostInst]⟩,
     ⟨by simp [hostInst], by simp [hostInst]⟩, ⟨hK, by simp only [hostInst]; omega⟩,
     ⟨hN, by simp only [hostInst]; omega⟩, ⟨by simp [hostInst], by simp [hostInst]⟩,
     by simp only [hostInst]; omega, by simp only [hostInst]; omega, by simp only [hostInst]; omega,

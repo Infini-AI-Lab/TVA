@@ -143,6 +143,14 @@ structure Inst.ok (d : Inst) : Prop where
   tokens_lt : d.n_tokens < 2 ^ 31
   cols_lt : nColBlocks d < 2 ^ 16
   grid_lt : d.n_tokens * nColBlocks d < 2 ^ 31
+  /-- `hidden_dim` is a model dimension (the embedding width): positive, a multiple of 128, at
+  most `2^17` (real model shapes, README, Exclusions). -/
+  hidden_pos : 0 < d.hidden_dim
+  hidden_dvd : d.hidden_dim % 128 = 0
+  hidden_le : d.hidden_dim ≤ 2 ^ 17
+  /-- `n_tokens` (the batch's total number of tokens) is a context length: at most `2^22` (real
+  model shapes, README, Exclusions). -/
+  tokens_le : d.n_tokens ≤ 2 ^ 22
   /-- Every token row has an id. -/
   input_len : d.n_tokens ≤ d.input_.len
   /-- The vocabulary values are a rank's indices and counts: in `[0, 2^63)`, so each is an
@@ -299,19 +307,21 @@ theorem mk_ok (dI : DType) (n hidden BLOCK stride rows : Nat) (os oe pad as ae :
     (h4 : n * ((hidden + BLOCK - 1) / BLOCK) < 2 ^ 31)
     (h5 : 0 ≤ os ∧ os < 2 ^ 63) (h6 : 0 ≤ oe ∧ oe < 2 ^ 63) (h7 : 0 ≤ pad ∧ pad < 2 ^ 63)
     (h8 : 0 ≤ as ∧ as < 2 ^ 63) (h9 : 0 ≤ ae ∧ ae < 2 ^ 63)
-    (h10 : -(2 ^ 63 : Int) ≤ as - (oe - os) - pad ∧ as - (oe - os) - pad < 2 ^ 63) (h11 : stride < 2 ^ 63) :
+    (h10 : -(2 ^ 63 : Int) ≤ as - (oe - os) - pad ∧ as - (oe - os) - pad < 2 ^ 63) (h11 : stride < 2 ^ 63)
+    (h12 : 0 < hidden := by norm_num) (h13 : hidden % 128 = 0 := by norm_num)
+    (h14 : hidden ≤ 2 ^ 17 := by norm_num) (h15 : n ≤ 2 ^ 22 := by norm_num) :
     (mk dI n hidden BLOCK stride rows os oe pad as ae).ok := by
-  refine ⟨hd, hb, h1, h2, h3, h4, le_refl _, h5, h6, h7, h8, h9, h10, h11, le_refl _, ?_, ?_⟩
+  refine ⟨hd, hb, h1, h2, h3, h4, h12, h13, h14, h15, le_refl _, h5, h6, h7, h8, h9, h10, h11, le_refl _, ?_, ?_⟩
   · refine (bytes_disjoint_of_le ?_).symm
     rcases hd with rfl | rfl <;> simp only [mk, DType.bytes] <;> push_cast <;> nlinarith
   · refine (bytes_disjoint_of_le ?_).symm
     simp only [mk, DType.bytes]; push_cast; nlinarith
 
 /-- A covered instance and memory: one `int64` id (`0`, in the original range `[0, 512)`),
-`hidden_dim = 7`, on the all-zero memory. -/
+`hidden_dim = 128`, on the all-zero memory. -/
 theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
-  refine ⟨mk .i64 1 7 8 7 512 0 512 0 1000 1000, zeroMem,
-    mk_ok _ _ _ _ _ _ _ _ _ _ _ (Or.inl rfl) ⟨3, by norm_num, rfl⟩ (by norm_num) (by norm_num)
+  refine ⟨mk .i64 1 128 128 128 512 0 512 0 1000 1000, zeroMem,
+    mk_ok _ _ _ _ _ _ _ _ _ _ _ (Or.inl rfl) ⟨7, by norm_num, rfl⟩ (by norm_num) (by norm_num)
       (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
       (by norm_num) (by norm_num) (by norm_num), ?_⟩
   refine ⟨⟨?_, ?_, ?_, fun _ _ => by simp [zeroMem]⟩, ⟨?_, ?_, ?_, fun _ _ => by simp [zeroMem]⟩,
@@ -334,7 +344,8 @@ theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
 
 /-! ## The setup's launches
 
-The host's test cases (source lines 199-226), with the ranges `shard_indices` computes, the weight
+The host's test cases (source lines 199-226) whose `hidden_dim` is a model dimension (README,
+Coverage: hidden 257 and 7 are not), with the ranges `shard_indices` computes, the weight
 `[rows, hidden_dim]` contiguous (`randn`), and `BLOCK_H = min(1024, next_power_of_2(hidden_dim))`.
 The empty input (`(0,)`, line 207) makes no launch (the host returns at line 124). -/
 
@@ -362,22 +373,10 @@ theorem setup_v152064_tp2_i32_ok : setup_v152064_tp2_i32.ok :=
   mk_ok _ _ _ _ _ _ _ _ _ _ _ (Or.inr rfl) ⟨10, le_refl _, rfl⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num)
-/-- Vocabulary 32000 plus 256 added, TP 2 rank 1, hidden 257, 1000 `int64` ids. -/
-def setup_v32000_added_tp2 : Inst := mk .i64 1000 257 512 257 16128 16000 32000 0 32128 32256
-theorem setup_v32000_added_tp2_ok : setup_v32000_added_tp2.ok :=
-  mk_ok _ _ _ _ _ _ _ _ _ _ _ (Or.inl rfl) ⟨9, by norm_num, rfl⟩ (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num)
 /-- Vocabulary 50257 plus 3 added, TP 8 rank 7 (47 padding rows), hidden 6144, 300 `int64` ids. -/
 def setup_v50257_added_tp8 : Inst := mk .i64 300 6144 1024 6144 6296 44016 50257 47 50260 50260
 theorem setup_v50257_added_tp8_ok : setup_v50257_added_tp8.ok :=
   mk_ok _ _ _ _ _ _ _ _ _ _ _ (Or.inl rfl) ⟨10, le_refl _, rfl⟩ (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num)
-/-- Vocabulary 1000, TP 2 rank 0, hidden 7, 64 `int32` ids. -/
-def setup_v1000_tp2_i32 : Inst := mk .i32 64 7 8 7 512 0 512 0 1000 1000
-theorem setup_v1000_tp2_i32_ok : setup_v1000_tp2_i32.ok :=
-  mk_ok _ _ _ _ _ _ _ _ _ _ _ (Or.inr rfl) ⟨3, by norm_num, rfl⟩ (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num)
 

@@ -27,7 +27,7 @@ benchmark and `__main__`.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.PersistentMatmul.main : Statement` (`Statement`:
-`Claim.lean` line 409). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 417). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -35,11 +35,11 @@ benchmark and `__main__`.
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 209), and every initial memory `init` that `Pre` accepts (line 293), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 379).
+(`Inst.ok`, line 209), and every initial memory `init` that `Pre` accepts (line 301), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 387).
 
-**What `Post` asks** (line 379), two parts:
-1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 362). Element
+**What `Post` asks** (line 387), two parts:
+1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 370). Element
    `i·stride_cm + j·stride_cn` of `c` reads in `fin` as some `float16` `c`. This holds for every
    element. Only when row `i` of `a` and column `j` of `b` read in `init` as finite values `va k`,
    `vb k` (`k < K`) it also asks for a finite `float32` `v` with
@@ -47,14 +47,14 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    - if `|dotSum va vb d.K| + tol va vb d.K ≤ Format.binary16.maxVal`: `c` is finite and
      `|c.toRat - dotSum …| ≤ tol … + (|dotSum …| + tol …) * Format.binary16.u + Format.binary16.eta`.
 
-   `dotSum` (line 321) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 354) is
-   `errAt (prodV …) (liftV …) (steps K)`: the recursion `errAt` (line 347) over the
-   `steps K = cdiv(K, 64)` inner steps (line 299), with `rho = relDot16 64`, `alpha = absDot16 64`
-   (lines 303, 306), the exact partial sums `partSum` (line 335) and the steps' lifted magnitudes
-   `stepMag` of `liftV` (lines 338, 331);
+   `dotSum` (line 329) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 362) is
+   `errAt (prodV …) (liftV …) (steps K)`: the recursion `errAt` (line 355) over the
+   `steps K = cdiv(K, 64)` inner steps (line 307), with `rho = relDot16 64`, `alpha = absDot16 64`
+   (lines 311, 314), the exact partial sums `partSum` (line 343) and the steps' lifted magnitudes
+   `stepMag` of `liftV` (lines 346, 339);
 2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 202) is unchanged.
 
-**What you are given** (`Assumptions`, line 387):
+**What you are given** (`Assumptions`, line 395):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 345, on a finite row, column and
@@ -63,7 +63,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `dot_total` (`Rules.Num.DotTotal`): that `tl.dot` always has a result.
 
 **The kernel, as the model runs it** (`matmul_kernel_persistent` line 57, `compute_pid` line 31,
-`model` line 275, `launch` line 286): a 1-D grid of `min(NUM_SMS, tiles d)` programs (`tiles`,
+`model` line 283, `launch` line 294): a 1-D grid of `min(NUM_SMS, tiles d)` programs (`tiles`,
 line 191). Program `start_pid` runs an outer `tl.forRange` over the tiles
 `tile_id = start_pid, start_pid + NUM_SMS, … < num_tiles`. Each trip maps `tile_id` to
 `(pid_m, pid_n)` by `compute_pid`, forms `offs_am`, `offs_bn` (a `where` to `0` outside `M`, `N`),
@@ -91,14 +91,17 @@ disjoint across trips; the inner loop is `safe_forRange` with an invariant on th
 - the tiles of different trips and of different programs are distinct (the residues of
   `tile_id` modulo `NUM_SMS`, and the tile map one-to-one), so the write footprints are disjoint
   (`c_inj`), and no program reads what another writes (`c_a`, `c_b`);
+- every `K` tile is full: `128 ∣ K` (`K_dim`) and `BLOCK_SIZE_K = 64 ∣ 128`, so the masks of
+  source lines 343–344 enable every lane on every step (`K - ki·64 ≥ 64`), `steps K = K/64`, and
+  no lane loads `other`; with `M_tile`, `N_tile`, every tile is whole in all three dimensions;
 - the value part of part 1: per inner trip, `safe_dot` with `dot` (and `dot_total`) moves the
   invariant from `errAt … t` to `errAt … (t + 1)`; `K_le` keeps the room condition; the final
   rounding is `FloatV.cvt_err`. `## Tolerances` gives the derivation;
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok`
-(line 473) and the `setup_*_ok` theorems; reusable: `tol_rel_lt` (line 311), `row_lt` (line 442),
-`rm_inj` (line 448), `bytes_disjoint` (line 463).
+(line 481) and the `setup_*_ok` theorems; reusable: `tol_rel_lt` (line 319), `row_lt` (line 450),
+`rm_inj` (line 456), `bytes_disjoint` (line 471).
 
 ## Specification
 
@@ -144,6 +147,8 @@ likewise for `b` and `c` (`aIdx`, `bIdx`, `cIdx`). `tiles d = cdiv(M, 128)·cdiv
 | `sms` | `0 < NUM_SMS < 2^31` | the tile loop's step (line 326) is positive (`tl.RangeOk`), and the constexpr is built as an `int32` (lines 321, 326, 347) |
 | `tiles_le` | `tiles + NUM_SMS ≤ 2^31` | the `int32` `num_tiles` (line 317) does not wrap, and `num_tiles + NUM_SMS − 1`, the tile loop's bound (`tl.RangeOk`), is an `int32` |
 | `K_le` | `K ≤ 2^13` | keeps the tolerance meaningful (Tolerances); the setup's largest `K` is `1024` |
+| `N_dim`, `K_dim` | `0 < N`, `0 < K`, each a multiple of `128`, at most `2^17` | `N` and `K` are model dimensions (the output and inner features): real model shapes only (Exclusions) |
+| `M_ctx` | `M ≤ 2^22` | `M` counts tokens: real model shapes only (Exclusions) |
 | `am`, `ak`, `bk`, `bn`, `cm`, `cn` | each stride is below `2^31` | each stride is an `int32` argument (any value from `0`; the kernel has no `tl.assume` on them) |
 | `a_fit` | `(M − 1)·stride_am + (K − 1)·stride_ak < 2^31` | the `int32` offsets of `a_ptrs` (line 340) do not wrap on the lanes the mask of line 343 enables (`offs_am < M` on a whole tile, `offs_k < K`); a disabled lane's offset may wrap and is not accessed |
 | `b_fit` | `(K − 1)·stride_bk + (N − 1)·stride_bn < 2^31` | the same for `b_ptrs` (line 341) and the mask of line 344 |
@@ -159,8 +164,8 @@ constrain them; `Compiler.Faithful`'s point 11 assumes that the launch runs the 
 compiles for these values. The conditions allow any strides within `int32` (a transposed `b`, as
 the setup's, a non-contiguous `a`, any layout of `c` whose elements do not overlap), any `NUM_SMS`
 within the bounds (the grid is the host's `min(NUM_SMS, tiles)`), any `M`, `N`, `K` within the
-bounds, `M = 0` or `N = 0` (no tile: an empty grid, memory unchanged) and `K = 0` (no trip of the
-inner loop: `c = 0`); `a` and `b` may overlap each other in any way (both are only read).
+bounds, and `M = 0` (no tile: an empty grid, memory unchanged); `a` and `b` may overlap each other
+in any way (both are only read).
 
 `Pre d init`: the three buffers are valid in the initial memory (`Buf.Valid`: base address
 non-negative and aligned to 2 bytes, the buffer inside `[0, 2^64)`, every byte present). Every
@@ -239,7 +244,8 @@ Every launch of `SETUP.md` ("The launches"): `a` contiguous `[8192, K]` (strides
 of strides `(1, K)`, the fresh `c` (strides `(8192, 1)`), `M = N = 8192`, `K = 128, 256, …, 1024`,
 `NUM_SMS = 132`. `Inst.ok` covers them: `8192` is a multiple of `128` and of `256`, `tiles = 2048`
 and `2048 + 132 ≤ 2^31`, `a_fit` reads `8191·K + K − 1 < 2^31`, `b_fit` `K − 1 + 8191·K < 2^31`,
-`cm_fit` `8191·8192 < 2^31`, `c_inj` holds for a row-major `c`, and `K ≤ 1024 ≤ 2^13`.
+`cm_fit` `8191·8192 < 2^31`, `c_inj` holds for a row-major `c`, `K ≤ 1024 ≤ 2^13`, `K` and
+`N = 8192` are positive multiples of `128` below `2^17`, and `M = 8192 ≤ 2^22`.
 
 Proved instances (`hostInst M N K S`: the host's strides, `NUM_SMS = S`, the three buffers at fixed
 aligned addresses; `hostInst_ok`):
@@ -309,6 +315,11 @@ Launches `SETUP.md` names that the claim leaves out:
   false there).
 Conditions that exclude launches outside `SETUP.md`'s launches:
 
+- **Dimensions that are not multiples of 128 or exceed 2^17, and contexts longer than 2^22
+  tokens** — out of scope: the claim covers real model shapes only. The fields: `N` and `K`
+  (`N_dim`, `K_dim`: positive multiples of `128`, at most `2^17`) and `M`, a token count (`M_ctx`:
+  at most `2^22`). Every launch of `SETUP.md` is covered (`M = N = 8192`, `K = 128·i`); this also
+  leaves out `K = 0` and `N = 0`.
 - `K > 2^13` (outside real use: the setup's largest `K` is `1024`): the tolerance grows with `K`
   and the room argument of Tolerances is stated for `K ≤ 2^13`. The kernel is believed correct
   there.
@@ -356,4 +367,6 @@ None.
    is far below every `E` here): largest error / tolerance **0.977** (margin 0.023, subnormal
    operands); `0.92` down to `0.74` on the setup's sizes. Negative tests at `K = 128, 512, 1024`: a
    `bfloat16`-rounded result, a `float16` accumulator and a missing step each break `Post`
-   (Tolerances). Inputs unchanged; no byte outside the matrix `c` written. PASS.
+   (Tolerances). Inputs unchanged; no byte outside the matrix `c` written. PASS. The launches with
+   `K = 4095, 1000, 777, 700, 300, 65, 1, 0` are outside `K_dim`: they check `Post` beyond the
+   claim.

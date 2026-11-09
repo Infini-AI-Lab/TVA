@@ -189,6 +189,11 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `(M − 1)·N < 2^31`: line 63's `row * stride` is an `int32` product, which wraps beyond
   (README, Exclusions: a limit of the kernel); it also keeps the grid `M` below `2^31`. -/
   rows_lt : (d.M - 1) * d.N < 2 ^ 31
+  /-- `N` is a model dimension (the hidden size, the row length): a multiple of `128`, at most
+  `2^17` (README, Exclusions). -/
+  n_dim : d.N % 128 = 0 ∧ d.N ≤ 2 ^ 17
+  /-- `M` is a token count (one row per token of the batch): at most `2^22` (README, Exclusions). -/
+  m_ctx : d.M ≤ 2 ^ 22
   /-- `eps` is finite. -/
   eps_fin : d.eps.isFinite = true
   /-- `eps ≥ 2^-125` (README, Exclusions). -/
@@ -452,10 +457,11 @@ theorem elems_disj {d1 d2 : DType} (b : Buf d1) (c : Buf d2) {S S' : Set Nat}
     Disjoint (b.elems S) (c.elems S') :=
   Buf.elems_disjoint_of b c (bytes_disj b c hbc) hS hS'
 
-/-- **Every host launch at these sizes is covered**: `2 ≤ N ≤ 32768`, `BLOCK_SIZE` its next power of
-two, `1 ≤ M`, `M·N ≤ 2^30`, `eps = 1e-5`. -/
+/-- **Every host launch at these sizes is covered**: `2 ≤ N ≤ 32768`, `N` a multiple of `128`,
+`BLOCK_SIZE` its next power of two, `1 ≤ M ≤ 2^22`, `M·N ≤ 2^30`, `eps = 1e-5`. -/
 theorem mkInst_ok {M N BLOCK : Nat} (hn : 2 ≤ N) (hn' : N ≤ 32768) (hbd : ∃ e, BLOCK = 2 ^ e)
-    (hnb : N ≤ BLOCK) (hb2 : BLOCK < 2 * N) (hm : 1 ≤ M) (hmn : M * N ≤ 2 ^ 30) :
+    (hnb : N ≤ BLOCK) (hb2 : BLOCK < 2 * N) (hm : 1 ≤ M) (hmn : M * N ≤ 2 ^ 30)
+    (hdim : N % 128 = 0) (hmc : M ≤ 2 ^ 22) :
     (mkInst M N BLOCK).ok := by
   have hM : M ≤ 2 ^ 30 := le_trans (Nat.le_mul_of_pos_right M (by omega)) hmn
   have hMNZ : ((M * N : Nat) : ℤ) ≤ 2 ^ 30 := by exact_mod_cast hmn
@@ -466,7 +472,7 @@ theorem mkInst_ok {M N BLOCK : Nat} (hn : 2 ≤ N) (hn' : N ≤ 32768) (hbd : �
   have mat : ∀ j ∈ matSet (mkInst M N BLOCK), j < M * N := fun j hj => hj
   have row : ∀ j ∈ rowSet (mkInst M N BLOCK), j < M := fun j hj => hj
   have vec : ∀ j ∈ vecSet (mkInst M N BLOCK), j < N := fun j hj => hj
-  refine ⟨hn, hn', hbd, hnb, hb2, hm, hrows, eps1e5_facts.1, eps1e5_facts.2.1,
+  refine ⟨hn, hn', hbd, hnb, hb2, hm, hrows, ⟨hdim, by simp only [mkInst]; omega⟩, hmc, eps1e5_facts.1, eps1e5_facts.2.1,
     eps1e5_facts.2.2, le_rfl, le_rfl, le_rfl, le_rfl, le_rfl, le_rfl, ?_, ?_, ?_, ?_⟩
   · simp only [outBytes, inBytes]
     refine Disjoint.union_left (Disjoint.union_left ?_ ?_) ?_ <;>
@@ -486,7 +492,7 @@ theorem mkInst_ok {M N BLOCK : Nat} (hn : 2 ≤ N) (hn' : N ≤ 32768) (hbd : �
 def setup_test : Inst := mkInst 1151 8192 8192
 theorem setup_test_ok : setup_test.ok :=
   mkInst_ok (by norm_num) (by norm_num) ⟨13, rfl⟩ (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num)
+    (by norm_num) (by norm_num) (by norm_num)
 
 /-- `next_power_of_2(512·i)` for `2 ≤ i ≤ 31`. -/
 def benchBlock (i : Nat) : Nat :=
@@ -504,7 +510,7 @@ theorem setup_bench_ok (i : Nat) (hi : 2 ≤ i ∧ i ≤ 31) : (setup_bench i).o
     unfold benchBlock
     split_ifs
     exacts [⟨10, rfl⟩, ⟨11, rfl⟩, ⟨12, rfl⟩, ⟨13, rfl⟩, ⟨14, rfl⟩]
-  refine mkInst_ok (by omega) (by omega) hpow ?_ ?_ (by norm_num) (by omega)
+  refine mkInst_ok (by omega) (by omega) hpow ?_ ?_ (by norm_num) (by omega) (by omega) (by norm_num)
   · unfold benchBlock; split_ifs <;> omega
   · unfold benchBlock; split_ifs <;> omega
 

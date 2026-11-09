@@ -396,6 +396,12 @@ structure Inst.ok (d : Inst) : Prop where
   disj : Disjoint d.states.bytes d.x.bytes ∧ Disjoint d.states.bytes d.b.bytes ∧
     Disjoint d.states.bytes d.dt.bytes ∧ Disjoint d.states.bytes d.dA.bytes ∧
     Disjoint d.states.bytes d.seqIdx.bytes
+  /-- `seqlen` is the number of tokens of the packed prefill batch: a context length, at most
+  `2^22` (so is every request's length, `qsl (r + 1) - qsl r ≤ seqlen`). -/
+  seqlen_ctx : d.seqlen ≤ 2 ^ 22
+  /-- `num_requests` is the number of requests packed into the batch: a batch size, at most
+  `8192`. -/
+  nreq_le : d.nreq ≤ 8192
 
 /-- The model on an instance: the launch of lines 253–302, with the strides the host passes and
 `BLOCK_SIZE_M = 64`, `BLOCK_SIZE_N = 128`, `BLOCK_SIZE_K = 64`. An integer argument equal to `1`

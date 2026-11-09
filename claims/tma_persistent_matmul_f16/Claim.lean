@@ -214,6 +214,14 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `K ≤ 2^13`: the tolerance of `Post` grows with `K`; up to `2^13` it is below `0.21%` of the
   products' lifted magnitudes (`tol_rel_lt`). The setup's largest `K` is `1024`. -/
   K_le : d.K ≤ 2 ^ 13
+  /-- `N` is a model dimension (the output features): a multiple of `128`, at most `2^17` (README,
+  Exclusions). -/
+  N_dim : d.N % 128 = 0 ∧ d.N ≤ 2 ^ 17
+  /-- `K` is a model dimension (the input features): a multiple of `128`, at most `2^17` (README,
+  Exclusions). -/
+  K_dim : d.K % 128 = 0 ∧ d.K ≤ 2 ^ 17
+  /-- `M`, the rows of `a` (the tokens), is a context length: at most `2^22` (README, Exclusions). -/
+  M_ctx : d.M ≤ 2 ^ 22
   /-- Each row stride is a multiple of `8` elements (`16` bytes, `TensorDesc.Valid`; the host's
   `TensorDescriptor` asserts it). -/
   ld8 : d.lda % 8 = 0 ∧ d.ldb % 8 = 0 ∧ d.ldc % 8 = 0
@@ -437,9 +445,10 @@ layout of `hostInst`. -/
 theorem hostInst_ok {M N K S : Nat}
     (h : 0 < M ∧ 0 < N ∧ 0 < K ∧ M + 128 ≤ 2 ^ 31 ∧ N + 256 ≤ 2 ^ 31 ∧
       0 < S ∧ S < 2 ^ 31 ∧ (M + 128 - 1) / 128 * ((N + 256 - 1) / 256) + S ≤ 2 ^ 31 ∧ K ≤ 2 ^ 13 ∧
-      K % 8 = 0 ∧ N % 8 = 0 ∧ M * K ≤ 2 ^ 31 ∧ N * K ≤ 2 ^ 31 ∧ M * N ≤ 2 ^ 31) :
+      K % 8 = 0 ∧ N % 8 = 0 ∧ M * K ≤ 2 ^ 31 ∧ N * K ≤ 2 ^ 31 ∧ M * N ≤ 2 ^ 31 ∧
+      N % 128 = 0 ∧ N ≤ 2 ^ 17 ∧ K % 128 = 0 ∧ M ≤ 2 ^ 22) :
     (hostInst M N K S).ok := by
-  obtain ⟨hM, hN, hK, h1, h2, hS, hS', ht, h4, hK8, hN8, hA, hB, hC⟩ := h
+  obtain ⟨hM, hN, hK, h1, h2, hS, hS', ht, h4, hK8, hN8, hA, hB, hC, hNd, hNd', hKd, hMc⟩ := h
   have hal : ∀ i k, i < M → k < K → i * K + k < M * K := fun i k hi hk => row_lt hi hk
   have hbl : ∀ j k, j < N → k < K → j * K + k < N * K := fun j k hj hk => row_lt hj hk
   have hcl : ∀ i j, i < M → j < N → i * N + j < M * N := fun i j hi hj => row_lt hi hj
@@ -450,6 +459,7 @@ theorem hostInst_ok {M N K S : Nat}
   have hbS : (hostInst M N K S).b.elems (bIdx (hostInst M N K S)) ⊆ (hostInst M N K S).b.bytes :=
     Buf.elems_sub_bytes _ (by rintro _ ⟨j, k, hj, hk, rfl⟩; exact hbl j k hj hk)
   refine ⟨⟨hM, hN, hK⟩, h1, h2, ⟨hS, hS'⟩, by simp only [tiles, hostInst]; omega, h4,
+    ⟨hNd, hNd'⟩, show K % 128 = 0 ∧ K ≤ 2 ^ 17 from ⟨hKd, by omega⟩, hMc,
     ⟨hK8, hK8, hN8⟩, le_refl N, by simp only [hostInst]; norm_num, hal, hbl, hcl, ?_, ?_⟩
   · refine Disjoint.mono hcS haS (bytes_disjoint ?_)
     simp only [hostInst, DType.bytes]
@@ -457,11 +467,6 @@ theorem hostInst_ok {M N K S : Nat}
   · refine Disjoint.mono hcS hbS (bytes_disjoint ?_)
     simp only [hostInst, DType.bytes]
     omega
-
-/-- The test's first call, `validate(32, 32, 32)` (line 770; the call of line 735), with
-`NUM_SMS = 132` (the H200): one partial tile in each of `M`, `N` and `K`. -/
-def setup_v32 : Inst := hostInst 32 32 32 132
-theorem setup_v32_ok : setup_v32.ok := hostInst_ok (by norm_num)
 
 /-- `K = 128`: the test `validate(8192, 8192, 128)` (line 771, with the module docstring's
 `--K_range 128 1024 --K_step 128`, line 35; the call of line 735) and the benchmark's `bench(128)`

@@ -169,6 +169,10 @@ structure Inst.ok (d : Inst) : Prop where
   BH_lt : d.B * d.H < 2 ^ 31
   /-- `T` is an `int32` (`do_not_specialize`: a runtime `int32` below `2^31`). -/
   T_lt : d.T < 2 ^ 31
+  /-- `T` is a context length (the tokens of a row, or of the packed batch): at most `2^22`. -/
+  T_le : d.T ≤ 2 ^ 22
+  /-- `B`, the batch rows, is a batch size: at most `8192`. -/
+  B_le : d.B ≤ 8192
   /-- Variable length: `B = 1` (the entry point asserts it). -/
   varlen_B : d.varlen = true → d.B = 1
   /-- The grid has fewer than `2^31` programs (CUDA's limit: README, Exclusions). -/
@@ -182,6 +186,8 @@ structure Inst.ok (d : Inst) : Prop where
   after line 99's `.to(tl.int32)`), the tables' lengths, and `o` sharing no byte with them. -/
   idx_ok : d.varlen = true → d.idxD = .i32 ∨ d.idxD = .i64
   N_lt : d.varlen = true → d.N < 2 ^ 31
+  /-- Variable length: `N`, the number of sequences, is a batch size: at most `8192`. -/
+  N_le : d.varlen = true → d.N ≤ 8192
   cu_len : d.varlen = true → d.N + 1 ≤ d.cu.len
   ci_len : d.varlen = true → 2 * d.NT ≤ d.ci.len
   o_cu : d.varlen = true → Disjoint d.o.bytes d.cu.bytes
@@ -353,7 +359,8 @@ theorem mk_ok {vl : Bool} {B T H e : Nat} {rev hs : Bool} {sbits : Nat} {dt : DT
     (he : e ≤ 20) (hB : 0 < B) (hH : 0 < H) (hBH : B * H < 2 ^ 31) (hT : T < 2 ^ 31) (hvB : vl = true → B = 1)
     (hg : gridSize (mk vl B T H e rev hs sbits dt N NT) < 2 ^ 31)
     (hsz : B * T * H * 4 ≤ 2 ^ 35) (hdt : dt = .i32 ∨ dt = .i64) (hN : N < 2 ^ 31)
-    (hNsz : (N + 1) * 8 ≤ 2 ^ 39) (hNT : 2 * NT * 8 ≤ 2 ^ 39) :
+    (hNsz : (N + 1) * 8 ≤ 2 ^ 39) (hNT : 2 * NT * 8 ≤ 2 ^ 39) (hT22 : T ≤ 2 ^ 22)
+    (hB13 : B ≤ 8192) (hN13 : N ≤ 8192) :
     (mk vl B T H e rev hs sbits dt N NT).ok := by
   have hbytes : dt.bytes ≤ 8 := by rcases hdt with h | h <;> subst h <;> decide
   have h1 : ((B * T * H : Nat) : Int) * 4 ≤ 2 ^ 35 := by exact_mod_cast hsz
@@ -363,8 +370,8 @@ theorem mk_ok {vl : Bool} {B T H e : Nat} {rev hs : Bool} {sbits : Nat} {dt : DT
   have h3 : ((2 * NT : Nat) : Int) * dt.bytes ≤ 2 ^ 39 := by
     have : 2 * NT * dt.bytes ≤ 2 * NT * 8 := Nat.mul_le_mul_left _ hbytes
     exact_mod_cast le_trans this hNT
-  refine ⟨⟨e, rfl⟩, Nat.pow_le_pow_right (by norm_num) he, hB, hH, hBH, hT, hvB, hg, le_refl _,
-    le_refl _, ?_, fun _ => hdt, fun _ => hN, fun _ => le_refl _, fun _ => le_refl _, fun _ => ?_,
+  refine ⟨⟨e, rfl⟩, Nat.pow_le_pow_right (by norm_num) he, hB, hH, hBH, hT, hT22, hB13, hvB, hg, le_refl _,
+    le_refl _, ?_, fun _ => hdt, fun _ => hN, fun _ => hN13, fun _ => le_refl _, fun _ => le_refl _, fun _ => ?_,
     fun _ => ?_⟩
   · exact bytes_disj _ _ (Or.inr (by simp only [mk, DType.bytes]; push_cast at h1 ⊢; omega))
   · exact bytes_disj _ _ (Or.inl (by simp only [mk, DType.bytes]; push_cast at h1 ⊢; omega))
@@ -376,7 +383,8 @@ def zeroMem : Mem := fun _ => some 0
 theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
   refine ⟨mk false 1 1 1 4 false false 0 .i32 0 0, zeroMem,
     mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide)
-      (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num), ?_⟩
+      (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+      (by norm_num), ?_⟩
   have hb4 : (DType.f32.bytes : Int) = 4 := rfl
   refine ⟨⟨?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_⟩, ?_, ?_⟩
   · simp [mk]
@@ -407,231 +415,231 @@ host's tables are checked against `TablesOk` on the GPU (`check_gpu.py`). Names:
 
 def setup_fixed_1x63x1_bt16_fwd_noscale : Inst := mk false 1 63 1 4 false false 0 .i32 0 0
 theorem setup_fixed_1x63x1_bt16_fwd_noscale_ok : setup_fixed_1x63x1_bt16_fwd_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_1x63x1_bt16_fwd_scale : Inst := mk false 1 63 1 4 false true 4609176139934333942 .i32 0 0
 theorem setup_fixed_1x63x1_bt16_fwd_scale_ok : setup_fixed_1x63x1_bt16_fwd_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_1x63x1_bt16_rev_noscale : Inst := mk false 1 63 1 4 true false 0 .i32 0 0
 theorem setup_fixed_1x63x1_bt16_rev_noscale_ok : setup_fixed_1x63x1_bt16_rev_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_1x63x1_bt16_rev_scale : Inst := mk false 1 63 1 4 true true 4609176139934333942 .i32 0 0
 theorem setup_fixed_1x63x1_bt16_rev_scale_ok : setup_fixed_1x63x1_bt16_rev_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_2x500x4_bt32_fwd_noscale : Inst := mk false 2 500 4 5 false false 0 .i32 0 0
 theorem setup_fixed_2x500x4_bt32_fwd_noscale_ok : setup_fixed_2x500x4_bt32_fwd_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_2x500x4_bt32_fwd_scale : Inst := mk false 2 500 4 5 false true 4609176139934333942 .i32 0 0
 theorem setup_fixed_2x500x4_bt32_fwd_scale_ok : setup_fixed_2x500x4_bt32_fwd_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_2x500x4_bt32_rev_noscale : Inst := mk false 2 500 4 5 true false 0 .i32 0 0
 theorem setup_fixed_2x500x4_bt32_rev_noscale_ok : setup_fixed_2x500x4_bt32_rev_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_2x500x4_bt32_rev_scale : Inst := mk false 2 500 4 5 true true 4609176139934333942 .i32 0 0
 theorem setup_fixed_2x500x4_bt32_rev_scale_ok : setup_fixed_2x500x4_bt32_rev_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_2x1000x5_bt64_fwd_noscale : Inst := mk false 2 1000 5 6 false false 0 .i32 0 0
 theorem setup_fixed_2x1000x5_bt64_fwd_noscale_ok : setup_fixed_2x1000x5_bt64_fwd_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_2x1000x5_bt64_fwd_scale : Inst := mk false 2 1000 5 6 false true 4609176139934333942 .i32 0 0
 theorem setup_fixed_2x1000x5_bt64_fwd_scale_ok : setup_fixed_2x1000x5_bt64_fwd_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_2x1000x5_bt64_rev_noscale : Inst := mk false 2 1000 5 6 true false 0 .i32 0 0
 theorem setup_fixed_2x1000x5_bt64_rev_noscale_ok : setup_fixed_2x1000x5_bt64_rev_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_2x1000x5_bt64_rev_scale : Inst := mk false 2 1000 5 6 true true 4609176139934333942 .i32 0 0
 theorem setup_fixed_2x1000x5_bt64_rev_scale_ok : setup_fixed_2x1000x5_bt64_rev_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_3x1024x6_bt64_fwd_noscale : Inst := mk false 3 1024 6 6 false false 0 .i32 0 0
 theorem setup_fixed_3x1024x6_bt64_fwd_noscale_ok : setup_fixed_3x1024x6_bt64_fwd_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_3x1024x6_bt64_fwd_scale : Inst := mk false 3 1024 6 6 false true 4609176139934333942 .i32 0 0
 theorem setup_fixed_3x1024x6_bt64_fwd_scale_ok : setup_fixed_3x1024x6_bt64_fwd_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_3x1024x6_bt64_rev_noscale : Inst := mk false 3 1024 6 6 true false 0 .i32 0 0
 theorem setup_fixed_3x1024x6_bt64_rev_noscale_ok : setup_fixed_3x1024x6_bt64_rev_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_3x1024x6_bt64_rev_scale : Inst := mk false 3 1024 6 6 true true 4609176139934333942 .i32 0 0
 theorem setup_fixed_3x1024x6_bt64_rev_scale_ok : setup_fixed_3x1024x6_bt64_rev_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_4x2048x8_bt128_fwd_noscale : Inst := mk false 4 2048 8 7 false false 0 .i32 0 0
 theorem setup_fixed_4x2048x8_bt128_fwd_noscale_ok : setup_fixed_4x2048x8_bt128_fwd_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_4x2048x8_bt128_fwd_scale : Inst := mk false 4 2048 8 7 false true 4609176139934333942 .i32 0 0
 theorem setup_fixed_4x2048x8_bt128_fwd_scale_ok : setup_fixed_4x2048x8_bt128_fwd_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_4x2048x8_bt128_rev_noscale : Inst := mk false 4 2048 8 7 true false 0 .i32 0 0
 theorem setup_fixed_4x2048x8_bt128_rev_noscale_ok : setup_fixed_4x2048x8_bt128_rev_noscale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_fixed_4x2048x8_bt128_rev_scale : Inst := mk false 4 2048 8 7 true true 4609176139934333942 .i32 0 0
 theorem setup_fixed_4x2048x8_bt128_rev_scale_ok : setup_fixed_4x2048x8_bt128_rev_scale.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt16_n1_fwd_noscale_i32 : Inst := mk true 1 15 2 4 false false 0 .i32 1 1
 theorem setup_varlen_15x2_bt16_n1_fwd_noscale_i32_ok : setup_varlen_15x2_bt16_n1_fwd_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt16_n1_fwd_noscale_i64 : Inst := mk true 1 15 2 4 false false 0 .i64 1 1
 theorem setup_varlen_15x2_bt16_n1_fwd_noscale_i64_ok : setup_varlen_15x2_bt16_n1_fwd_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt16_n1_fwd_scale_i32 : Inst := mk true 1 15 2 4 false true 4609176139934333942 .i32 1 1
 theorem setup_varlen_15x2_bt16_n1_fwd_scale_i32_ok : setup_varlen_15x2_bt16_n1_fwd_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt16_n1_fwd_scale_i64 : Inst := mk true 1 15 2 4 false true 4609176139934333942 .i64 1 1
 theorem setup_varlen_15x2_bt16_n1_fwd_scale_i64_ok : setup_varlen_15x2_bt16_n1_fwd_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt16_n1_rev_noscale_i32 : Inst := mk true 1 15 2 4 true false 0 .i32 1 1
 theorem setup_varlen_15x2_bt16_n1_rev_noscale_i32_ok : setup_varlen_15x2_bt16_n1_rev_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt16_n1_rev_noscale_i64 : Inst := mk true 1 15 2 4 true false 0 .i64 1 1
 theorem setup_varlen_15x2_bt16_n1_rev_noscale_i64_ok : setup_varlen_15x2_bt16_n1_rev_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt16_n1_rev_scale_i32 : Inst := mk true 1 15 2 4 true true 4609176139934333942 .i32 1 1
 theorem setup_varlen_15x2_bt16_n1_rev_scale_i32_ok : setup_varlen_15x2_bt16_n1_rev_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt16_n1_rev_scale_i64 : Inst := mk true 1 15 2 4 true true 4609176139934333942 .i64 1 1
 theorem setup_varlen_15x2_bt16_n1_rev_scale_i64_ok : setup_varlen_15x2_bt16_n1_rev_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt32_n1_fwd_noscale_i32 : Inst := mk true 1 15 2 5 false false 0 .i32 1 1
 theorem setup_varlen_15x2_bt32_n1_fwd_noscale_i32_ok : setup_varlen_15x2_bt32_n1_fwd_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt32_n1_fwd_noscale_i64 : Inst := mk true 1 15 2 5 false false 0 .i64 1 1
 theorem setup_varlen_15x2_bt32_n1_fwd_noscale_i64_ok : setup_varlen_15x2_bt32_n1_fwd_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt32_n1_fwd_scale_i32 : Inst := mk true 1 15 2 5 false true 4609176139934333942 .i32 1 1
 theorem setup_varlen_15x2_bt32_n1_fwd_scale_i32_ok : setup_varlen_15x2_bt32_n1_fwd_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt32_n1_fwd_scale_i64 : Inst := mk true 1 15 2 5 false true 4609176139934333942 .i64 1 1
 theorem setup_varlen_15x2_bt32_n1_fwd_scale_i64_ok : setup_varlen_15x2_bt32_n1_fwd_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt32_n1_rev_noscale_i32 : Inst := mk true 1 15 2 5 true false 0 .i32 1 1
 theorem setup_varlen_15x2_bt32_n1_rev_noscale_i32_ok : setup_varlen_15x2_bt32_n1_rev_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt32_n1_rev_noscale_i64 : Inst := mk true 1 15 2 5 true false 0 .i64 1 1
 theorem setup_varlen_15x2_bt32_n1_rev_noscale_i64_ok : setup_varlen_15x2_bt32_n1_rev_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt32_n1_rev_scale_i32 : Inst := mk true 1 15 2 5 true true 4609176139934333942 .i32 1 1
 theorem setup_varlen_15x2_bt32_n1_rev_scale_i32_ok : setup_varlen_15x2_bt32_n1_rev_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_15x2_bt32_n1_rev_scale_i64 : Inst := mk true 1 15 2 5 true true 4609176139934333942 .i64 1 1
 theorem setup_varlen_15x2_bt32_n1_rev_scale_i64_ok : setup_varlen_15x2_bt32_n1_rev_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1000x3_bt64_n3_fwd_noscale_i32 : Inst := mk true 1 1000 3 6 false false 0 .i32 3 16
 theorem setup_varlen_1000x3_bt64_n3_fwd_noscale_i32_ok : setup_varlen_1000x3_bt64_n3_fwd_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1000x3_bt64_n3_fwd_noscale_i64 : Inst := mk true 1 1000 3 6 false false 0 .i64 3 16
 theorem setup_varlen_1000x3_bt64_n3_fwd_noscale_i64_ok : setup_varlen_1000x3_bt64_n3_fwd_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1000x3_bt64_n3_fwd_scale_i32 : Inst := mk true 1 1000 3 6 false true 4609176139934333942 .i32 3 16
 theorem setup_varlen_1000x3_bt64_n3_fwd_scale_i32_ok : setup_varlen_1000x3_bt64_n3_fwd_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1000x3_bt64_n3_fwd_scale_i64 : Inst := mk true 1 1000 3 6 false true 4609176139934333942 .i64 3 16
 theorem setup_varlen_1000x3_bt64_n3_fwd_scale_i64_ok : setup_varlen_1000x3_bt64_n3_fwd_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1000x3_bt64_n3_rev_noscale_i32 : Inst := mk true 1 1000 3 6 true false 0 .i32 3 16
 theorem setup_varlen_1000x3_bt64_n3_rev_noscale_i32_ok : setup_varlen_1000x3_bt64_n3_rev_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1000x3_bt64_n3_rev_noscale_i64 : Inst := mk true 1 1000 3 6 true false 0 .i64 3 16
 theorem setup_varlen_1000x3_bt64_n3_rev_noscale_i64_ok : setup_varlen_1000x3_bt64_n3_rev_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1000x3_bt64_n3_rev_scale_i32 : Inst := mk true 1 1000 3 6 true true 4609176139934333942 .i32 3 16
 theorem setup_varlen_1000x3_bt64_n3_rev_scale_i32_ok : setup_varlen_1000x3_bt64_n3_rev_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1000x3_bt64_n3_rev_scale_i64 : Inst := mk true 1 1000 3 6 true true 4609176139934333942 .i64 3 16
 theorem setup_varlen_1000x3_bt64_n3_rev_scale_i64_ok : setup_varlen_1000x3_bt64_n3_rev_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2000x4_bt64_n5_fwd_noscale_i32 : Inst := mk true 1 2000 4 6 false false 0 .i32 5 35
 theorem setup_varlen_2000x4_bt64_n5_fwd_noscale_i32_ok : setup_varlen_2000x4_bt64_n5_fwd_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2000x4_bt64_n5_fwd_noscale_i64 : Inst := mk true 1 2000 4 6 false false 0 .i64 5 35
 theorem setup_varlen_2000x4_bt64_n5_fwd_noscale_i64_ok : setup_varlen_2000x4_bt64_n5_fwd_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2000x4_bt64_n5_fwd_scale_i32 : Inst := mk true 1 2000 4 6 false true 4609176139934333942 .i32 5 35
 theorem setup_varlen_2000x4_bt64_n5_fwd_scale_i32_ok : setup_varlen_2000x4_bt64_n5_fwd_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2000x4_bt64_n5_fwd_scale_i64 : Inst := mk true 1 2000 4 6 false true 4609176139934333942 .i64 5 35
 theorem setup_varlen_2000x4_bt64_n5_fwd_scale_i64_ok : setup_varlen_2000x4_bt64_n5_fwd_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2000x4_bt64_n5_rev_noscale_i32 : Inst := mk true 1 2000 4 6 true false 0 .i32 5 35
 theorem setup_varlen_2000x4_bt64_n5_rev_noscale_i32_ok : setup_varlen_2000x4_bt64_n5_rev_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2000x4_bt64_n5_rev_noscale_i64 : Inst := mk true 1 2000 4 6 true false 0 .i64 5 35
 theorem setup_varlen_2000x4_bt64_n5_rev_noscale_i64_ok : setup_varlen_2000x4_bt64_n5_rev_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2000x4_bt64_n5_rev_scale_i32 : Inst := mk true 1 2000 4 6 true true 4609176139934333942 .i32 5 35
 theorem setup_varlen_2000x4_bt64_n5_rev_scale_i32_ok : setup_varlen_2000x4_bt64_n5_rev_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2000x4_bt64_n5_rev_scale_i64 : Inst := mk true 1 2000 4 6 true true 4609176139934333942 .i64 5 35
 theorem setup_varlen_2000x4_bt64_n5_rev_scale_i64_ok : setup_varlen_2000x4_bt64_n5_rev_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2048x4_bt128_n5_fwd_noscale_i32 : Inst := mk true 1 2048 4 7 false false 0 .i32 5 19
 theorem setup_varlen_2048x4_bt128_n5_fwd_noscale_i32_ok : setup_varlen_2048x4_bt128_n5_fwd_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2048x4_bt128_n5_fwd_noscale_i64 : Inst := mk true 1 2048 4 7 false false 0 .i64 5 19
 theorem setup_varlen_2048x4_bt128_n5_fwd_noscale_i64_ok : setup_varlen_2048x4_bt128_n5_fwd_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2048x4_bt128_n5_fwd_scale_i32 : Inst := mk true 1 2048 4 7 false true 4609176139934333942 .i32 5 19
 theorem setup_varlen_2048x4_bt128_n5_fwd_scale_i32_ok : setup_varlen_2048x4_bt128_n5_fwd_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2048x4_bt128_n5_fwd_scale_i64 : Inst := mk true 1 2048 4 7 false true 4609176139934333942 .i64 5 19
 theorem setup_varlen_2048x4_bt128_n5_fwd_scale_i64_ok : setup_varlen_2048x4_bt128_n5_fwd_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2048x4_bt128_n5_rev_noscale_i32 : Inst := mk true 1 2048 4 7 true false 0 .i32 5 19
 theorem setup_varlen_2048x4_bt128_n5_rev_noscale_i32_ok : setup_varlen_2048x4_bt128_n5_rev_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2048x4_bt128_n5_rev_noscale_i64 : Inst := mk true 1 2048 4 7 true false 0 .i64 5 19
 theorem setup_varlen_2048x4_bt128_n5_rev_noscale_i64_ok : setup_varlen_2048x4_bt128_n5_rev_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2048x4_bt128_n5_rev_scale_i32 : Inst := mk true 1 2048 4 7 true true 4609176139934333942 .i32 5 19
 theorem setup_varlen_2048x4_bt128_n5_rev_scale_i32_ok : setup_varlen_2048x4_bt128_n5_rev_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_2048x4_bt128_n5_rev_scale_i64 : Inst := mk true 1 2048 4 7 true true 4609176139934333942 .i64 5 19
 theorem setup_varlen_2048x4_bt128_n5_rev_scale_i64_ok : setup_varlen_2048x4_bt128_n5_rev_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1x32_bt64_n1_fwd_noscale_i32 : Inst := mk true 1 1 32 6 false false 0 .i32 1 1
 theorem setup_varlen_1x32_bt64_n1_fwd_noscale_i32_ok : setup_varlen_1x32_bt64_n1_fwd_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1x32_bt64_n1_fwd_noscale_i64 : Inst := mk true 1 1 32 6 false false 0 .i64 1 1
 theorem setup_varlen_1x32_bt64_n1_fwd_noscale_i64_ok : setup_varlen_1x32_bt64_n1_fwd_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1x32_bt64_n1_fwd_scale_i32 : Inst := mk true 1 1 32 6 false true 4609176139934333942 .i32 1 1
 theorem setup_varlen_1x32_bt64_n1_fwd_scale_i32_ok : setup_varlen_1x32_bt64_n1_fwd_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1x32_bt64_n1_fwd_scale_i64 : Inst := mk true 1 1 32 6 false true 4609176139934333942 .i64 1 1
 theorem setup_varlen_1x32_bt64_n1_fwd_scale_i64_ok : setup_varlen_1x32_bt64_n1_fwd_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1x32_bt64_n1_rev_noscale_i32 : Inst := mk true 1 1 32 6 true false 0 .i32 1 1
 theorem setup_varlen_1x32_bt64_n1_rev_noscale_i32_ok : setup_varlen_1x32_bt64_n1_rev_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1x32_bt64_n1_rev_noscale_i64 : Inst := mk true 1 1 32 6 true false 0 .i64 1 1
 theorem setup_varlen_1x32_bt64_n1_rev_noscale_i64_ok : setup_varlen_1x32_bt64_n1_rev_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1x32_bt64_n1_rev_scale_i32 : Inst := mk true 1 1 32 6 true true 4609176139934333942 .i32 1 1
 theorem setup_varlen_1x32_bt64_n1_rev_scale_i32_ok : setup_varlen_1x32_bt64_n1_rev_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_1x32_bt64_n1_rev_scale_i64 : Inst := mk true 1 1 32 6 true true 4609176139934333942 .i64 1 1
 theorem setup_varlen_1x32_bt64_n1_rev_scale_i64_ok : setup_varlen_1x32_bt64_n1_rev_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_65536x32_bt64_n6_fwd_noscale_i32 : Inst := mk true 1 65536 32 6 false false 0 .i32 6 1027
 theorem setup_varlen_65536x32_bt64_n6_fwd_noscale_i32_ok : setup_varlen_65536x32_bt64_n6_fwd_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_65536x32_bt64_n6_fwd_noscale_i64 : Inst := mk true 1 65536 32 6 false false 0 .i64 6 1027
 theorem setup_varlen_65536x32_bt64_n6_fwd_noscale_i64_ok : setup_varlen_65536x32_bt64_n6_fwd_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_65536x32_bt64_n6_fwd_scale_i32 : Inst := mk true 1 65536 32 6 false true 4609176139934333942 .i32 6 1027
 theorem setup_varlen_65536x32_bt64_n6_fwd_scale_i32_ok : setup_varlen_65536x32_bt64_n6_fwd_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_65536x32_bt64_n6_fwd_scale_i64 : Inst := mk true 1 65536 32 6 false true 4609176139934333942 .i64 6 1027
 theorem setup_varlen_65536x32_bt64_n6_fwd_scale_i64_ok : setup_varlen_65536x32_bt64_n6_fwd_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_65536x32_bt64_n6_rev_noscale_i32 : Inst := mk true 1 65536 32 6 true false 0 .i32 6 1027
 theorem setup_varlen_65536x32_bt64_n6_rev_noscale_i32_ok : setup_varlen_65536x32_bt64_n6_rev_noscale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_65536x32_bt64_n6_rev_noscale_i64 : Inst := mk true 1 65536 32 6 true false 0 .i64 6 1027
 theorem setup_varlen_65536x32_bt64_n6_rev_noscale_i64_ok : setup_varlen_65536x32_bt64_n6_rev_noscale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_65536x32_bt64_n6_rev_scale_i32 : Inst := mk true 1 65536 32 6 true true 4609176139934333942 .i32 6 1027
 theorem setup_varlen_65536x32_bt64_n6_rev_scale_i32_ok : setup_varlen_65536x32_bt64_n6_rev_scale_i32.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 def setup_varlen_65536x32_bt64_n6_rev_scale_i64 : Inst := mk true 1 65536 32 6 true true 4609176139934333942 .i64 6 1027
 theorem setup_varlen_65536x32_bt64_n6_rev_scale_i64_ok : setup_varlen_65536x32_bt64_n6_rev_scale_i64.ok :=
-  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num)
+  mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by simp) (by decide) (by norm_num) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 end Claims.ChunkCumsum

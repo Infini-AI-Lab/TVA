@@ -8,7 +8,7 @@ check: [`check_gpu.py`](check_gpu.py). The launches to cover: [`SETUP.md`](SETUP
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.AttnBwdPre.main : Statement` (`Statement`:
-`Claim.lean` line 279). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 283). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -16,29 +16,29 @@ check: [`check_gpu.py`](check_gpu.py). The launches to cover: [`SETUP.md`](SETUP
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 109), and every initial memory `init` that `Pre` accepts (line 171), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 213).
+(`Inst.ok`, line 109), and every initial memory `init` that `Pre` accepts (line 175), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 217).
 
-**What `Post` asks** (line 213), two parts:
-1. for every `bh < Z·H` and `m < N_CTX`, `OutSpec d init fin (bh·N_CTX + m)` (line 200): element
+**What `Post` asks** (line 217), two parts:
+1. for every `bh < Z·H` and `m < N_CTX`, `OutSpec d init fin (bh·N_CTX + m)` (line 204): element
    `r = bh·N_CTX + m` of `Delta` reads in `fin` as a `float32` `c`, for every such `r`. Only when
    row `r` of `O` and of `DO` (elements `r·HEAD_DIM + k`, `k < HEAD_DIM`) read in `init` as finite
    `float16` values `vo k`, `vdo k` is more asked: `c` is finite and
    `|c.toRat − dotSum vo vdo HEAD_DIM| ≤ tol HEAD_DIM (dotAbs vo vdo HEAD_DIM)`. `dotSum` and
-   `dotAbs` (lines 177, 180) are the exact sums, in the rationals, of `vo k · vdo k` and of their
-   magnitudes; `tol` is defined at line 191. With a non-finite input in the row only "holds a
+   `dotAbs` (lines 181, 184) are the exact sums, in the rationals, of `vo k · vdo k` and of their
+   magnitudes; `tol` is defined at line 195. With a non-finite input in the row only "holds a
    `float32` value" is asked;
 2. the frame: every byte outside `Delta.elems (outSet d)` (line 100) is unchanged.
 
-**What you are given** (`Assumptions`, line 221), two fields:
+**What you are given** (`Assumptions`, line 225), two fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `sum_depth` (`Rules.Num.SumDepth P`): every `tl.sum` tree over `n` positions has depth at most
   `⌈log₂ n⌉`; it is used for the `tl.sum1c` of line 70 (source line 260), with
   `SumDepth.depth_le` and `clog_two_pow`.
 
-**The kernel, as the model runs it** (`_attn_bwd_preprocess` line 42, `model` line 150, `launch`
-line 161): a 2-D grid `(N_CTX / BLOCK_M, Z·H, 1)`. Program `(pm, bh)` loads, with no mask, the
+**The kernel, as the model runs it** (`_attn_bwd_preprocess` line 42, `model` line 154, `launch`
+line 165): a 2-D grid `(N_CTX / BLOCK_M, Z·H, 1)`. Program `(pm, bh)` loads, with no mask, the
 `[BLOCK_M, HEAD_DIM]` blocks of `O` and `DO` at rows `bh·N_CTX + pm·BLOCK_M + [0, BLOCK_M)`
 (`int32` offsets), widens `do` with `tl.cvt` and `o` with `tl.convert .f16 .f32`, multiplies
 (`tl.mul`), sums each row with `tl.sum1c`, and stores the `BLOCK_M` sums to `Delta` at
@@ -62,8 +62,8 @@ is `TVA.meets_independent` (PROVER_GUIDE §4).
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok` and the
-`setup_*_ok` theorems; `tol_le_bcast` (line 236), `tol_mono` (line 251), `tol_le` (line 267) and
-`elems_disjoint_of_lt` (line 288) can be reused.
+`setup_*_ok` theorems; `tol_le_bcast` (line 240), `tol_mono` (line 255), `tol_le` (line 271) and
+`elems_disjoint_of_lt` (line 292) can be reused.
 
 ## Specification
 
@@ -112,6 +112,10 @@ host passes (`(b·H + h)·N_CTX + m` rows of `HEAD_DIM`). `Inst.ok`:
 * `BLOCK_M` and `HEAD_DIM` powers of two, `HEAD_DIM ≤ 256`, `BLOCK_M·HEAD_DIM ≤ 2^20` (Triton's
   blocks; the host's `128` and `16 … 256`);
 * `BLOCK_M ∣ N_CTX` (the host asserts `N_CTX % 128 == 0`, line 599); `N_CTX < 2^31` (an `int32`);
+* `N_CTX ≤ 2^22`: `N_CTX` is a context length, at most `2^22` tokens (real model shapes, see
+  Exclusions);
+* `Z ≤ 8192`: `Z` (`BATCH`) is a batch size, at most `8192` sequences (real model shapes, see
+  Exclusions);
 * the grid `(N_CTX // BLOCK_M, Z·H)` within CUDA's limits (`Z·H < 2^16`, fewer than `2^31`
   programs);
 * `(N_CTX − 1)·HEAD_DIM < 2^31` and `(Z·H − 1)·HEAD_DIM·N_CTX < 2^31`: the kernel's `int32`
@@ -175,6 +179,12 @@ roundings; on the host's inputs the kernel's error reaches `8%` of it (`14%` at 
   `float8e5` is not run (the test skips it, line 643; the benchmark's `triton-fp8` provider runs the
   `float16` backward).
 * **The grid** beyond CUDA's limits (`Z·H ≥ 2^16`, `2^31` programs): no launch.
+* **Contexts longer than `2^22` tokens, batches of more than `8192` (out of scope).** Dimensions
+  that are not multiples of 128 or exceed `2^17`, contexts longer than `2^22` tokens, and batches of
+  more than `8192` requests: the claim covers real model shapes only. The fields are `N_CTX ≤ 2^22`
+  (`ctx_le`) and `Z ≤ 8192` (`batch_le`, `Z` the batch size); the kernel has no model dimension
+  (`HEAD_DIM` is a head dimension, `H` a head count). Every launch of `SETUP.md` meets them
+  (`N_CTX ≤ 2^14`, `Z ≤ 4`).
 * **`delta` overlapping `o` or `do`**: the host allocates a fresh `delta`.
 * **Non-finite inputs** stay covered, with a weaker `Post`: a row with a NaN or `∞` in `o` or `do`
   has no exact finite sum, and `Post` says only that a `float32` value is stored there.

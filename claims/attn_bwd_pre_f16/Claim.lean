@@ -121,6 +121,10 @@ structure Inst.ok (d : Inst) : Prop where
   ctx_dvd : d.BLOCK_M ∣ d.N_CTX
   /-- `N_CTX < 2^31`: Triton passes it as an `int32`. -/
   ctx_lt : d.N_CTX < 2 ^ 31
+  /-- `N_CTX` is a context length: at most `2^22` tokens. -/
+  ctx_le : d.N_CTX ≤ 2 ^ 22
+  /-- `Z` is a batch size (the number of sequences, `BATCH`): at most `8192`. -/
+  batch_le : d.Z ≤ 8192
   /-- `Z·H < 2^16`: CUDA's limit on the grid's axis 1, `BATCH * N_HEAD` (`Launch.Valid`). -/
   bh_lt : d.Z * d.H < 2 ^ 16
   /-- The grid has fewer than `2^31` programs (`Launch.Valid`). -/
@@ -318,7 +322,8 @@ hypotheses, which `norm_num` checks on each launch). -/
 theorem canon_ok (Z H N D a : Nat) (hD : D = 2 ^ a) (ha : a ≤ 8) (hN : 128 ∣ N)
     (hN31 : N < 2 ^ 31) (hbh : Z * H < 2 ^ 16) (hgrid : N / 128 * (Z * H) < 2 ^ 31)
     (hrow : (N - 1) * D < 2 ^ 31) (hhead : (Z * H - 1) * D * N < 2 ^ 31)
-    (hsize : Z * H * N * D < 2 ^ 39) : (canon Z H N D).ok := by
+    (hsize : Z * H * N * D < 2 ^ 39) (hN22 : N ≤ 2 ^ 22) (hZ13 : Z ≤ 8192) :
+    (canon Z H N D).ok := by
   have hD256 : D ≤ 256 := by
     rw [hD]; calc 2 ^ a ≤ 2 ^ 8 := Nat.pow_le_pow_right (by norm_num) ha
       _ = 256 := by norm_num
@@ -333,6 +338,8 @@ theorem canon_ok (Z H N D a : Nat) (hD : D = 2 ^ a) (ha : a ≤ 8) (hN : 128 ∣
       block_le := by simp only [canon]; omega
       ctx_dvd := hN
       ctx_lt := hN31
+      ctx_le := hN22
+      batch_le := hZ13
       bh_lt := hbh
       grid_lt := hgrid
       row_fit := hrow
@@ -367,10 +374,10 @@ theorem setup_test_ok : ∀ Z ∈ [1, 4], ∀ H ∈ [2, 48], ∀ N ∈ [128, 102
   rcases hD with rfl | rfl
   · rcases hZ with rfl | rfl <;> rcases hH with rfl | rfl <;> rcases hN with rfl | rfl | rfl <;>
       exact canon_ok _ _ _ _ 6 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-        (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+        (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
   · rcases hZ with rfl | rfl <;> rcases hH with rfl | rfl <;> rcases hN with rfl | rfl | rfl <;>
       exact canon_ok _ _ _ _ 7 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-        (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+        (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- One launch of the benchmark: `BATCH = 4`, `N_HEADS = 32`, `N_CTX = 2^e`. -/
 def setup_bench (e D : Nat) : Inst := canon 4 32 (2 ^ e) D
@@ -381,10 +388,10 @@ theorem setup_bench_ok : ∀ e ∈ [10, 11, 12, 13, 14], ∀ D ∈ [64, 128], (s
   rcases hD with rfl | rfl
   · rcases he with rfl | rfl | rfl | rfl | rfl <;>
       exact canon_ok _ _ _ _ 6 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-        (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+        (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
   · rcases he with rfl | rfl | rfl | rfl | rfl <;>
       exact canon_ok _ _ _ _ 7 (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-        (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+        (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- The test's largest launch: `Z = 4`, `H = 48`, `N_CTX = 4096`, `HEAD_DIM = 128`. -/
 def setup_test_large : Inst := setup_test 4 48 4096 128
@@ -403,9 +410,9 @@ theorem setup_headdims_ok : ∀ a ∈ [4, 5, 8], (canon 4 48 4096 (2 ^ a)).ok �
   simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
   rcases ha with rfl | rfl | rfl <;>
     exact ⟨canon_ok _ _ _ _ _ rfl (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-        (by norm_num) (by norm_num) (by norm_num),
+        (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num),
       canon_ok _ _ _ _ _ rfl (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-        (by norm_num) (by norm_num) (by norm_num)⟩
+        (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)⟩
 
 /-! ## Satisfiable -/
 

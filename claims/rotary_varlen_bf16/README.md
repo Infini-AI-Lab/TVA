@@ -10,7 +10,7 @@ proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok`; it does 
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.RotaryVarlen.main : Statement` (`Statement`:
-`Claim.lean` line 521). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 533). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -18,32 +18,32 @@ proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok`; it does 
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 281), and every initial memory `init` that `Pre` accepts (line 428), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 500).
+(`Inst.ok`, line 281), and every initial memory `init` that `Pre` accepts (line 437), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 512).
 
-**What `Post` asks** (line 500). For every sequence `n < nSeq d` (line 274), token `l < lenAt d init n`
-(line 398), head `h < H` and rotated channel `c < 2 * R`, with flat token `t = bosAt d init n + l`
-(line 401) and position `p = (l : Int) + offAt d init n` (line 394; all read from `init`):
-1. if `0 ≤ p`: `CellOk d init fin t h c p.toNat` (line 479). It asks for `bfloat16` values `a`
-   (`x` at `tokIdx d t h c`, line 452), `b` (`x` at `tokIdx d t h (partner d c)`, line 459), `cs`, `sn`
-   (`cos`, `sin` at `p·R + pairOf d c`, line 455), all in `init`, and `v` (`y` at `tokIdx d t h c`) in
+**What `Post` asks** (line 512). For every sequence `n < nSeq d` (line 274), token `l < lenAt d init n`
+(line 407), head `h < H` and rotated channel `c < 2 * R`, with flat token `t = bosAt d init n + l`
+(line 410) and position `p = (l : Int) + offAt d init n` (line 403; all read from `init`):
+1. if `0 ≤ p`: `CellOk d init fin t h c p.toNat` (line 491). It asks for `bfloat16` values `a`
+   (`x` at `tokIdx d t h c`, line 464), `b` (`x` at `tokIdx d t h (partner d c)`, line 471), `cs`, `sn`
+   (`cos`, `sin` at `p·R + pairOf d c`, line 467), all in `init`, and `v` (`y` at `tokIdx d t h c`) in
    `fin`, with `v` finite and
    `|v.toRat − rotRef (isFirst d c) …| ≤ tol (isFirst d c) …` on `a.toRat b.toRat cs.toRat sn.toRat`.
-   `rotRef` (line 470) is the exact rotation in `ℚ`: `a·cs − b·sn` for the first channel of a pair,
-   `a·cs + b·sn` for the second (`isFirst`, line 465). `tol` (line 474) is
+   `rotRef` (line 482) is the exact rotation in `ℚ`: `a·cs − b·sn` for the first channel of a pair,
+   `a·cs + b·sn` for the second (`isFirst`, line 477). `tol` (line 486) is
    $2^{-8}|ref| + 2^{-22}(|a\,cs| + |b\,sn|) + 2^{-132}$;
 2. if `p < 0` (a left-padding token under a tensor of offsets): every byte of element
    `tokIdx d t h c` of `y` is unchanged (`fin z = init z`);
-3. the frame: every byte outside `d.y.elems (outSet d)` (line 491: the rotated channels of every token
+3. the frame: every byte outside `d.y.elems (outSet d)` (line 503: the rotated channels of every token
    and head of `y`) is unchanged.
 
-**What you are given** (`Assumptions`, line 512): one field, `faithful` (`Compiler.Faithful`): the
+**What you are given** (`Assumptions`, line 524): one field, `faithful` (`Compiler.Faithful`): the
 device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
 `debug = false`, and the model's launch is well behaved from `init`. No numeric fact: `tl.mul`,
 `tl.addc`, `tl.subc`, `tl.cvt` and `tl.convert` are exact up to NaN payload in the library.
 
-**The kernel, as the model runs it** (`rotary_embedding_kernel`, line 49; `model` line 350; `launch`
-line 365): a 3-D grid `(g0 d, B, H)` (`g0`, line 277: `NT` packed, `cdiv(T, BT)` padded), no loop.
+**The kernel, as the model runs it** (`rotary_embedding_kernel`, line 49; `model` line 359; `launch`
+line 374): a 3-D grid `(g0 d, B, H)` (`g0`, line 277: `NT` packed, `cdiv(T, BT)` padded), no loop.
 Program `(i_t0, i_b, i_h)`, packed, loads `chunk_indices[2·i_t0]`, `[2·i_t0 + 1]` (its sequence `i_n`
 and chunk `i_t`) and `cu_seqlens[i_n]`, `[i_n + 1]` (`bos`, `eos`); padded, `i_t = i_t0` and
 `bos = i_b·T`. It returns if `T_n ≤ i_t·BT` (line 95). Its tokens are `o_t = i_t·BT + [0, BT)`, their
@@ -59,7 +59,7 @@ route is `TVA.meets_independent`; no loop rule is needed (PROVER_GUIDE §4).
 
 **What the proof must establish.**
 - each launch has `debug = false` (the `Launch` default) and is `Launch.Valid`: `grid_t`, `grid_b`,
-  `grid_h`, `grid_size`, and `Shape.TritonOk` for each of `blockShapes` (line 358) from `bt_pow2`,
+  `grid_h`, `grid_size`, and `Shape.TritonOk` for each of `blockShapes` (line 367) from `bt_pow2`,
   `bd_pow2`, `block_le` (`BD/2` a power of two by `r_pos`, `r_bd`). `Launch.valid_grid1` does not apply
   (3-D grid);
 - each program is `Safe`: scalar loads by `safe_load1` (present and in bounds by `SeqOk`'s `cu_some`,
@@ -69,7 +69,8 @@ route is `TVA.meets_independent`; no loop rule is needed (PROVER_GUIDE §4).
   hit distinct channels; float steps by `safe_mul`, `safe_subc`, `safe_addc`, `safe_cvt`,
   `safe_convert`; `safe_irem`, `safe_idiv`; the early return by `safe_ret`. Integer offsets do not
   wrap: `int32` parts below `2^24` (`grid_h`, `d_le`), `int64` sums below `2^62` (`size_lt`,
-  `tr_lt`, `t_lt`, `off_lt`, `offs_vals`' `−2^31`, `n_lt`), via `IntV.toInt_add`, `IntV.toInt_mul`,
+  `tr_lt`, `t_lt`, `off_lt`, `offs_vals`' `−2^31`, `n_lt`; with `t_ctx`, `off_ctx`, `offs_ctx` every
+  position `o_t + offset` lies in `[−2^31, 2^24)`), via `IntV.toInt_add`, `IntV.toInt_mul`,
   `IntV.toInt_cast`, `IntV.lt_eq`, `IntV.le_eq`;
 - footprints: `W i` is the rotated channels of head `i_h` of the program's tokens with `0 ≤ p`, `R i`
   the `x` elements, table rows and metadata it reads. Distinct programs write disjoint `W`
@@ -90,8 +91,8 @@ route is `TVA.meets_independent`; no loop rule is needed (PROVER_GUIDE §4).
 - parts 2 and 3: bytes no program writes are unchanged; the tokens with `p < 0` and everything
   outside `outSet` are in no `W`.
 
-**Already in `Claim.lean`** (do not prove again): `consistent` (line 525), `satisfiable` (line 2740)
-and the 35 `setup_*_ok` theorems; `bytes_disj` (line 530) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 537), `satisfiable` (line 2892)
+and the 35 `setup_*_ok` theorems; `bytes_disj` (line 542) can be reused.
 
 ## Specification
 
@@ -130,6 +131,10 @@ path, where the host passes `None`; `offs` empty with an `int` offset). `Inst.ok
   buffers holding their tensors; `y` fresh (disjoint from every input, the offsets included);
 - bounds outside real use: `T < 2^31` and `off < 2^31` (`int32` arguments), `TR·R < 2^62` and
   `B·T·H·D < 2^62`;
+- context lengths: **`T ≤ 2^22`** (`t_ctx`: a padded row's tokens, or the packed batch's) and an `int`
+  offset **`off ≤ 2^22`** (`off_ctx`: the cache's length in decoding, a prefix length);
+- batch sizes: **`B ≤ 8192`** (`b_le`: a padded batch's sequences) and, packed, **`N ≤ 8192`** (`n_le`: the
+  packed sequences);
 - kernel limits (Exclusions): `B < 2^16`, `H < 2^16`, fewer than `2^31` programs, `N < 2^31`.
 
 The integer arguments: `T` is in `do_not_specialize`, so a runtime `int32` even at `T = 1`; the offset `1` is a
@@ -140,7 +145,8 @@ compile-time constant, whose only use gives the same `int64` value (`model`'s do
 anything, NaN included), and every entry of the table rows the launch reads, the positions `l + offAt n ≥ 0` of
 the tokens `l` of every sequence `n`, of `cos` and `sin` finite with `|·| ≤ 1` (they are cosine and sine tables, `cos_sin_cache`; other rows may hold
 anything); a tensor of offsets: `offs_vals`, valid, every sequence's offset `v` with `len + v ≤ TR` (the
-host's `torch._assert_async`, lines 228–232) and `v ≥ −2^31`; packed: `SeqOk`, i.e.
+host's `torch._assert_async`, lines 228–232) and `v ≥ −2^31`; `offs_ctx`: every such offset, a prefix
+length, is **at most `2^22`**; packed: `SeqOk`, i.e.
 `cu_seqlens` valid, non-negative, non-decreasing from `0` to `T`, and `chunk_indices` listing each (sequence,
 chunk of `BT` tokens) pair exactly once, as `prepare_chunk_indices` builds it (any order is covered).
 
@@ -196,7 +202,8 @@ The model is the source line by line (`model-map.json` maps every line 1–354).
   packed sequences with `int64` offsets (`T = 777`, `N = 3`).
 
 All flag combinations (padded/packed × GPT-NeoX/GPT-J × `int`/tensor offsets), both index dtypes, both offset
-dtypes, negative offsets, partial rotary, and `T` from 1 to 32768 are covered. Every padded batch SETUP.md asks for (`1 ≤ B < 65536`) is inside `Inst.ok` (`grid_b : B < 2^16`); `check_gpu.py` runs the largest, `B = 65535`. `satisfiable` uses the one-token instance with a zero memory.
+dtypes, negative offsets, partial rotary, and `T` from 1 to 32768 are covered (every instance has `T ≤ 2^22` and an offset `≤ 2^22`; none is
+dropped). Every setup instance has `B ≤ 8` and `N ≤ 16`. Padded batches of `8192 < B < 65536`, which SETUP.md's range `1 ≤ B < 65536` admits, are outside `Inst.ok` (`b_le`, out of scope, see Exclusions); `check_gpu.py` runs the largest batch inside, `B = 8192`, and, not counted, `B = 65535`. `satisfiable` uses the one-token instance with a zero memory.
 
 ## Tolerances
 
@@ -232,7 +239,8 @@ Launches SETUP.md allows that `Inst.ok` / `Pre` leave out:
   65535 there. First launch that hits it: `B = 65536, T = 1, H = 1, D = 64` (an 8 MB `x`): on the H200 the launch
   fails (`Triton Error [CUDA]: invalid argument`, `check_gpu.py`); `B = 65535` runs and passes. SETUP.md asks
   for padded batches `1 ≤ B < 65536` only, so none of its launches reaches this limit;
-  `Inst.ok.grid_b` (`B < 2^16`) is exactly SETUP's bound. The packed path (`B = 1`) does not have the limit.
+  `Inst.ok.grid_b` (`B < 2^16`) is exactly SETUP's bound (`b_le`, `B ≤ 8192`, is tighter: out of scope beyond,
+  below). The packed path (`B = 1`) does not have the limit.
 - **`H ≥ 65536`: a limit of the kernel** (grid axis 2). First launch: `H = 65536, B = T = 1, D = 64`. Not
   reached by real use (heads ≤ 128).
 - **`NT·B·H ≥ 2^31` programs: a limit of the kernel** (Triton's launcher runs no program). Each program covers
@@ -249,9 +257,15 @@ Launches SETUP.md allows that `Inst.ok` / `Pre` leave out:
   beyond these bounds a rotated value exceeds `bfloat16`'s range (`x0 = x1 = 2^127`, a 45° angle), where no
   tolerance holds; the bounds are a sufficient no-overflow condition (the `float32` products sum to about
   `2^126` at most, below the addition's room `maxVal/2 − 2η`), not the exact frontier.
+- **Out of scope: dimensions that are not multiples of 128 or exceed `2^17`, contexts longer than `2^22`
+  tokens, and batches of more than `8192` requests: the claim covers real model shapes only.** The context
+  lengths: `T` (`t_ctx`), the `int` offset `off` (`off_ctx`) and every entry of a tensor of offsets
+  (`Pre.offs_ctx`), prefix lengths. The batch sizes: `B` (`b_le`, a padded batch's sequences) and, packed, `N`
+  (`n_le`). No field is a model dimension: `D` is a head dim, `R` a rotary dim, `H` a head count, `TR` a
+  table's rows; they keep their bounds above. Every launch of `SETUP.md` meets them (`B ≤ 8`, `N ≤ 16`).
 - Not SETUP's launches: `conjugate = True` (the backward), the in-place path, a negative `int` offset.
 
-No condition is there only to ease a proof: both values of `isVarlen` and `interleaved`, both metadata dtypes
+Besides the real-shape scope above, no condition is there only to ease a proof: both values of `isVarlen` and `interleaved`, both metadata dtypes
 and inputs up to `2^125` are covered.
 
 ## Checks
@@ -264,15 +278,15 @@ and inputs up to `2^125` are covered.
 - **GPU** (`check_gpu.py`, H200, Triton 3.8.0): 63 launches (the 22 host cases with their own inputs, the 13
   other setup configurations, 28 edges: with a tensor of offsets, `BT = 128` with padding across chunks and a
   whole row padded, offsets `−2^31` (`int32` and `int64`) and `TR − len`, packed with empty sequences, 132
-  one-token sequences; NaN in `x`'s channels from `2R` on and in the unread table rows, `B = 65535`, `R = 1` (`BD = 2`), `R = 3` (`BD = 8 > 2R`), offset `2^20`
+  one-token sequences; NaN in `x`'s channels from `2R` on and in the unread table rows, `B = 8192`, `R = 1` (`BD = 2`), `R = 3` (`BD = 8 > 2R`), offset `2^20`
   with `BT = 128`, packed with empty sequences, 132 one-token sequences (`BT = 1`), `|x| = 2^125` with unit
   tables, subnormal inputs, exact cancellation; each in both layouts). All pass: worst `|y − ref|/tol = 0.9960`
   (margin 0.0040, the structural one above); every rotated value at a non-negative position finite; the frame holds (inputs unchanged,
   `y`'s channels from `2R` on equal `x`'s, the left-padding tokens' rotated channels and the guard bytes around
   `y` unchanged; with the host's own `torch.zeros_like` those tokens' channels are `0`). Five wrong outputs
   fail `Post`: the kernel run with the tensor offsets ignored, with `conjugate = True`, with offset `1` for
-  `0`, all-zero rotated channels, and the left-padding tokens written. `B = 65536` fails to launch, as stated
-  in Exclusions.
+  `0`, all-zero rotated channels, and the left-padding tokens written. Beyond `Inst.ok` (not counted):
+  `B = 65535` runs and passes; `B = 65536` fails to launch, as stated in Exclusions.
 
 ## Library requests
 

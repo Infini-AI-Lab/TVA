@@ -13,7 +13,7 @@ The covered path is `SETUP.md`'s: `USE_G = True` (`g` given), `bfloat16` `k`, `v
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.RecomputeWU.main : Statement` (`Statement`:
-`Claim.lean` line 751). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 758). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -21,40 +21,40 @@ The covered path is `SETUP.md`'s: `USE_G = True` (`g` given), `bfloat16` `k`, `v
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 407), and every initial memory `init` that `Pre` accepts (line 591), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 721).
+(`Inst.ok`, line 407), and every initial memory `init` that `Pre` accepts (line 598), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 728).
 
-**What `Post` asks** (line 721), three parts:
+**What `Post` asks** (line 728), three parts:
 1. padded (`isVarlen = false`): for every `b < B`, `t < T`, `h < HV`,
    `TokOk d init fin (b * T) T t h`: the sequence starts at flat token `b·T` and has length `T`;
 2. packed (`isVarlen = true`): for every `n < N`, `t < seqLen d init n`, `h < HV`,
    `TokOk d init fin (cuN d init n) (seqLen d init n) t h`: the sequence starts at `cu_seqlens[n]`
-   (`cuN`, line 530) and has length `cu_seqlens[n+1] − cu_seqlens[n]` (`seqLen`, line 533), both
+   (`cuN`, line 537) and has length `cu_seqlens[n+1] − cu_seqlens[n]` (`seqLen`, line 540), both
    read from `init`;
-3. the frame: every byte outside `u.elems (uSet d)` and `w.elems (wSet d)` (lines 713, 716: the first
+3. the frame: every byte outside `u.elems (uSet d)` and `w.elems (wSet d)` (lines 720, 723: the first
    `nTok·HV·V` elements of `u`, the first `nTok·HV·K` of `w`) is unchanged.
 
-`TokOk d init fin s0 len t h` (line 709) asks, for token `t` of the sequence at `s0`, head `h`:
-- `CellU` (line 652) for every `c < V`: element `vIdx (s0 + t) h c` of `u` reads in `fin` as a
-  finite `bfloat16` `o` with `|o.toRat − uRef| ≤ tolU uRef uMag`. `uRef` (line 634) is, in `ℚ`,
-  `Σ_{j<64, inSeq len t j} (aV (s0+t) h j).toRat · (vbV (colTok s0 t j) h c).toRat`: `aV` (line 624)
-  is `A`'s column `j`, `colTok` (line 621) the column's flat token, `inSeq` (line 618) whether it is
-  inside the sequence; `vbV` (line 628) is source line 115's operand, an exact IEEE function of `init`
+`TokOk d init fin s0 len t h` (line 716) asks, for token `t` of the sequence at `s0`, head `h`:
+- `CellU` (line 659) for every `c < V`: element `vIdx (s0 + t) h c` of `u` reads in `fin` as a
+  finite `bfloat16` `o` with `|o.toRat − uRef| ≤ tolU uRef uMag`. `uRef` (line 641) is, in `ℚ`,
+  `Σ_{j<64, inSeq len t j} (aV (s0+t) h j).toRat · (vbV (colTok s0 t j) h c).toRat`: `aV` (line 631)
+  is `A`'s column `j`, `colTok` (line 628) the column's flat token, `inSeq` (line 625) whether it is
+  inside the sequence; `vbV` (line 635) is source line 115's operand, an exact IEEE function of `init`
   (`bf16(fl32(v·beta))` for a `float32` `beta`, the `bfloat16` product for a `bfloat16` one).
-  `uMag` (line 640) is the same sum of `liftMag .bf16 A_j · liftMag .bf16 vb_j`;
-  `tolU ref L = 2^-8·|ref| + (1 + 2^-8)·(relDot16 64·L + absDot16 64) + 2^-134` (line 647);
-- `CellW` (line 703) for every `c < K`: element `wIdx (s0 + t) h c` of `w` reads in `fin` as a
-  finite `bfloat16` `o` with `|o.toReal − wRef| ≤ tolW (cW d) wRef wMag wFloor`. `wRef` (line 672)
-  is exact, in `ℝ`: `Σ_{j<64, inSeq} A_j · kbX · gE`, with `kbX` (line 664) `k[f, kHead h, c] · beta[f, h]`
-  (`kHead`, line 657: `h / (HV / H)`; `betaR`, line 660) and `gE` (line 668) `2^(g[f, h])`;
-  `wMag` (line 678) and `wFloor` (line 685) the sums of `liftMag A_j · |kbX| · gE` and
-  `liftMag A_j · (|kbX| + 1)`; `tolW c ref M F = 2^-8·|ref| + c·M + 2^-124·F + 2^-119` (line 699),
-  `cW d` (line 694) `2^-8 + 2^-14` (`float32` `beta`) or `2^-7 + 2^-13` (`bfloat16` `beta`).
+  `uMag` (line 647) is the same sum of `liftMag .bf16 A_j · liftMag .bf16 vb_j`;
+  `tolU ref L = 2^-8·|ref| + (1 + 2^-8)·(relDot16 64·L + absDot16 64) + 2^-134` (line 654);
+- `CellW` (line 710) for every `c < K`: element `wIdx (s0 + t) h c` of `w` reads in `fin` as a
+  finite `bfloat16` `o` with `|o.toReal − wRef| ≤ tolW (cW d) wRef wMag wFloor`. `wRef` (line 679)
+  is exact, in `ℝ`: `Σ_{j<64, inSeq} A_j · kbX · gE`, with `kbX` (line 671) `k[f, kHead h, c] · beta[f, h]`
+  (`kHead`, line 664: `h / (HV / H)`; `betaR`, line 667) and `gE` (line 675) `2^(g[f, h])`;
+  `wMag` (line 685) and `wFloor` (line 692) the sums of `liftMag A_j · |kbX| · gE` and
+  `liftMag A_j · (|kbX| + 1)`; `tolW c ref M F = 2^-8·|ref| + c·M + 2^-124·F + 2^-119` (line 706),
+  `cW d` (line 701) `2^-8 + 2^-14` (`float32` `beta`) or `2^-7 + 2^-13` (`bfloat16` `beta`).
 
 Every element of every sequence's rows is constrained (no guard). Columns `j` outside the sequence
 add nothing to the sums.
 
-**What you are given** (`Assumptions`, line 732):
+**What you are given** (`Assumptions`, line 739):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`): every `bfloat16` `tl.dot` into `float32`, at any input precision, is a
@@ -66,8 +66,8 @@ add nothing to the sums.
   given room (source line 121);
 - `exp2_total` (`Rules.Num.MathTotal P .exp2 .binary32`): it has a result for every input.
 
-**The kernel, as the model runs it** (`model` line 486 picks `recompute_w_u_fwd_kernel_b16`, line 212,
-when `bbf`, else `recompute_w_u_fwd_kernel_b32`, line 62; `launch` line 504): the grid
+**The kernel, as the model runs it** (`model` line 493 picks `recompute_w_u_fwd_kernel_b16`, line 212,
+when `bbf`, else `recompute_w_u_fwd_kernel_b32`, line 62; `launch` line 511): the grid
 `(g0 d, B·HV, 1)` (`g0`, line 403: `NT` packed, `cdiv(T, 64)` padded). Program `(i_t, i_bh)` takes
 `i_b = i_bh / HV`, `i_h = i_bh % HV` (source line 92). Packed, it loads `chunk_indices[2·i_t]` (its
 sequence `i_n`) and `[2·i_t + 1]` (its chunk), then `cu_seqlens[i_n]`, `[i_n + 1]` (`bos`, `eos`);
@@ -84,14 +84,15 @@ a program's footprints depend on `init` (its sequence and chunk come from `chunk
 
 **What the proof must establish.**
 - each launch has `debug = false` and is `Launch.Valid`: axis 0 below `2^31` (`grid_t`), axis 1 below
-  `2^16` (`grid_bh`), fewer than `2^31` programs (`grid_size`), and `blockShapes` (line 499) accepted;
+  `2^16` (`grid_bh`), fewer than `2^31` programs (`grid_size`), and `blockShapes` (line 506) accepted;
 - each program is `Safe`: `i_b`, `i_h` (`safe_idiv`, `safe_irem`; `hv_pos`, `h_pos`, `hv_div`);
   packed, the four scalar loads (`safe_load1`) in bounds (`ci_len`, `cu_len`, `SeqOk.ci_ok`) with
   non-negative values (`ci_some`, `cu_some`) that the conversions keep (`safe_convert`; `n_lt`), and
   `bos + len ≤ T` (`cu_mono`, `cu_last`); every tile load and store in bounds
   (`safe_load_buf`, `safe_store_buf`; `k_len`, `v_len`, `beta_len` / `betab_len`, `A_len`, `g_len`,
   `w_len`, `u_len`; `Pre`'s `*v` fields), the `int32` `o_v`, `o_k` and comparisons not wrapping
-  (`V_lt`, `K_lt`, `t_lt`), the `int64` offsets not wrapping (`size_lt`; `TVA.Lemmas.Int`); the
+  (`V_lt`, `K_lt`, `t_lt`; `t_ctx` gives `T ≤ 2^22`, so every token index is far below `2^31`, and
+  `b_batch`, `n_batch` keep the sequence indices `≤ 8192`), the `int64` offsets not wrapping (`size_lt`; `TVA.Lemmas.Int`); the
   operations by `safe_cvt`, `safe_mul`, `safe_math` (`exp2_total`), `safe_dot` (`dot_total_u`,
   `dot_total_w`);
 - the programs' write footprints are disjoint (padded: distinct `(i_t, i_bh)`; packed: `ci_once`,
@@ -107,8 +108,8 @@ a program's footprints depend on `init` (its sequence and chunk come from `chunk
 - the frame: every written element lies in `uSet d` or `wSet d`, and bytes no program writes are
   unchanged.
 
-**Already in `Claim.lean`** (do not prove again): `consistent` (line 755), `satisfiable` (line 1125)
-and the 34 `setup_*_ok` theorems; `bytes_disj` (line 762) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 762), `satisfiable` (line 1124)
+and the 33 `setup_*_ok` theorems; `bytes_disj` (line 769) can be reused.
 
 ## Specification
 
@@ -158,7 +159,10 @@ documented in `Claim.lean`):
   `int32` column offsets and comparisons, lines 110–111, 124–125), and
   `(B·T + 64)·HV·(K + V + 64) < 2^62` (every element offset, masked lanes included, far inside `int64`);
 - kernel limits (Exclusions): `B·HV < 2^16` (grid axis 1), the grid's axis 0 below `2^31` and fewer
-  than `2^31` programs, `N < 2^31`.
+  than `2^31` programs, `N < 2^31`;
+- real model shapes (Exclusions): `T ≤ 2^22` (`t_ctx`: `T` is a context length, the sequence length,
+  or the packed batch's total tokens); `B ≤ 8192` (`b_batch`) and, packed, `N ≤ 8192` (`n_batch`):
+  batch sizes, the sequences of the batch.
 
 `Pre`: the seven tensors' buffers valid; every element of `k`, `v` finite with `|·| ≤ 2^32`, of `A`
 finite with `|·| ≤ 2^64` (all 64 columns of every token's row: the kernel reads them all), of `beta` (of
@@ -223,8 +227,10 @@ ten storages `2^40` bytes apart). Each launch of `SETUP.md` is a `setup_*` insta
 `setup_doc_b4_t2048_h4_hv8_d512`, `setup_doc_varlen_h4_hv8_d512`, `setup_gdp_b2_t4096_h6_k256_v512`,
 `setup_gdp_varlen_h6_k256_v512`, `setup_precond_b2_t2048_h6_k256_v512`, `setup_mom_varlen_h4_k256_v512`
 (the docstring, `GatedDeltaProduct`, `PrecondGatedDeltaNet`, `MoM`: `bfloat16` `beta`);
-`setup_edge_t1_k1_v1`, `setup_edge_bhv65535`, `setup_edge_varlen_empty`, `setup_edge_varlen_132x1`
-(edges). `satisfiable` uses `setup_edge_t1_k1_v1` with every byte `0`.
+`setup_edge_t1_k1_v1`, `setup_edge_varlen_empty`, `setup_edge_varlen_132x1` (edges). Every one has
+`T ≤ 16384 ≤ 2^22` (`t_ctx`) and at most `132` sequences (`b_batch`, `n_batch`). `SETUP.md`'s edge
+`B·HV = 65535` (`B = 13107`, `HV = 5`) has more than `8192` sequences and is not covered (Exclusions);
+`check_gpu.py` runs it outside `Inst.ok`. `satisfiable` uses `setup_edge_t1_k1_v1` with every byte `0`.
 
 ## Tolerances
 
@@ -293,6 +299,12 @@ element and `w` scaled by `1 + 2^-6` (`check_gpu.py`).
   lower-triangular matrix with entries of order 1); they keep the `float32` products, the dots and
   the outputs inside their formats.
 * **`T ≥ 2^31`, `K` or `V` above `2^31 − 64`, tensors of `2^62` elements:** outside real use.
+* **Out of scope: dimensions that are not multiples of `128` or exceed `2^17`, contexts longer than
+  `2^22` tokens, and batches of more than `8192` requests: the claim covers real model shapes
+  only.** The fields are `T` (`t_ctx`: the sequence length, or the packed batch's total tokens),
+  `B` (`b_batch`) and, packed, `N` (`n_batch`), the batch's sequences. `SETUP.md`'s edge
+  `B·HV = 65535` at `B = 13107` is outside. `K` and `V` are head dimensions (`60`, `100` in the
+  setup), not model dimensions, and stay as they are.
 * **`g = None` (`USE_G = False`), `float16` `beta`, `float16`/`float32` `k`, `v`, `A`, chunk sizes 16 and
   32:** not part of `SETUP.md`'s launches (the gated callers pass `g`; this claim is the `bfloat16`
   kernel at chunk size 64).
@@ -305,9 +317,10 @@ None.
 
 ## Checks
 
-* `Claim.lean` builds with no output (no `sorry`, no `axiom`); `consistent`, `satisfiable` and the 34
+* `Claim.lean` builds with no output (no `sorry`, no `axiom`); `consistent`, `satisfiable` and the 33
   `setup_*_ok` are proved.
-* `check_gpu.py` on the H200: 47 launches through the host (`beta` `float32` and `bfloat16`) and one
+* `check_gpu.py` on the H200: 47 launches through the host (`beta` `float32` and `bfloat16`; one,
+  `B = 13107`, outside `Inst.ok`'s `b_batch`) and one
   direct launch with guard regions, all passing; largest measured error / tolerance `0.9921` (`u`),
   `0.9676` (`w`, `float32` `beta`) and `0.9483` (`w`, `bfloat16` `beta`); every output finite, the
   inputs and the guards unchanged; every negative test rejected; `B·HV = 65536` fails to launch.

@@ -9,7 +9,7 @@ map: [`model-map.json`](model-map.json). GPU check: [`check_gpu.py`](check_gpu.p
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.MoeRouter.main : Statement` (`Statement`:
-`Claim.lean` line 302). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 307). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,28 +17,28 @@ map: [`model-map.json`](model-map.json). GPU check: [`check_gpu.py`](check_gpu.p
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 135), and every initial memory `init` that `Pre` accepts (line 240), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 274).
+(`Inst.ok`, line 135), and every initial memory `init` that `Pre` accepts (line 245), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 279).
 
-**What `Post` asks** (line 274), two parts:
-1. for every token `t < bs`, `TokenPost d init fin t` (line 257): there are reals `C e` and indices
+**What `Post` asks** (line 279), two parts:
+1. for every token `t < bs`, `TokenPost d init fin t` (line 262): there are reals `C e` and indices
    `i0`, `i1` with
    - for every expert `e < 8`, `|C e - capRef (mu init d t e)| ≤ capTol d (mu init d t e) (absS init d t e)`.
-     `mu` (line 187) is the exact logit `Σ_h x[t,h]·W[e,h]` in the reals from `init`, `absS`
-     (line 191) its magnitude sum, `capRef` (line 196) the exact `30·tanh(l/30)`; `capTol` is
-     line 217, built on `tolL` (line 208);
+     `mu` (line 192) is the exact logit `Σ_h x[t,h]·W[e,h]` in the reals from `init`, `absS`
+     (line 196) its magnitude sum, `capRef` (line 201) the exact `30·tanh(l/30)`; `capTol` is
+     line 222, built on `tolL` (line 213);
    - `i0 < 8` is the first index of the largest `C` (`C e ≤ C i0` for all `e`, `C e < C i0` for
      `e < i0`), and `i1 < 8`, `i1 ≠ i0`, is the first index of the largest `C` among the others;
    - `topk_ids` elements `2t` and `2t+1` read in `fin` as `IntV.ofNat i0` and `IntV.ofNat i1`;
    - `topk_weights` elements `2t` and `2t+1` read in `fin` as finite `a0`, `a1` with
      `|a0.toReal - softRef C i0 i0| ≤ wRel0 * softRef C i0 i0 + wFloor` and the same for `a1`
-     at `i1` with `wRel1`. `softRef` (line 232) is the exact softmax of `C` over the 8 experts;
-     `wRel0`, `wRel1`, `wFloor` are lines 221, 225, 228. Every token is asked all of this: `Pre`
+     at `i1` with `wRel1`. `softRef` (line 237) is the exact softmax of `C` over the 8 experts;
+     `wRel0`, `wRel1`, `wFloor` are lines 226, 230, 233. Every token is asked all of this: `Pre`
      makes every input finite and in range;
 2. the frame: every byte outside `d.outw.elems {j | j < 2 * d.bs} ∪ d.outi.elems {j | j < 2 * d.bs}`
    is unchanged.
 
-**What you are given** (`Assumptions`, line 282):
+**What you are given** (`Assumptions`, line 287):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): `tl.exp` has a result (source lines 90, 109, 127);
@@ -48,8 +48,8 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `sum_depth` (`Rules.Num.SumDepth`): each float `tl.sum` (source lines 83, 109, 124) is a tree of depth
   at most `⌈log₂ n⌉`.
 
-**The kernel, as the model runs it** (`moe_router_kernel` line 42, `model` line 161, `launch`
-line 168): a 1-D grid of `bs` programs, one token each. Program `t` loads the masked
+**The kernel, as the model runs it** (`moe_router_kernel` line 42, `model` line 166, `launch`
+line 173): a 1-D grid of `bs` programs, one token each. Program `t` loads the masked
 `[8, BLOCK]` tile of `router_weight` and the masked `BLOCK` row `t` of `x`, widens `x` to `float32`,
 multiplies, and row-sums (`tl.sum1c`) to 8 logits. It soft-caps them (`/ 30`, `2·`, `tl.exp`,
 `− 1`, `+ 1`, `/`, `· 30`), takes `tl.argmaxAll` (stores `topk_ids[2t]`) and `tl.maxAll`, then
@@ -61,7 +61,7 @@ atomic. Programs write disjoint elements and only read `x` and `router_weight`: 
 
 **What the proof must establish.**
 - each launch is valid and has `debug = false` (`Launch.valid_grid1`: fewer than `2^31`
-  programs from `out_off`, the block shapes `[8, BLOCK]`, `[BLOCK]`, `[8]` from `block_pow2`,
+  programs from `out_off` or `bs_le`, the block shapes `[8, BLOCK]`, `[BLOCK]`, `[8]` from `block_pow2`,
   `block_le`);
 - each program is `Safe`: the `int32` values `pid·hidden` (`x_off`), `e·hidden + h` (`block_le`,
   `hidden_le`) and `pid·2 + 1` (`out_off`) do not wrap; every enabled lane reads inside `x`
@@ -79,8 +79,8 @@ atomic. Programs write disjoint elements and only read `x` and `router_weight`: 
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; reusable: `growth_le` (line 379, `(1+3u)^n ≤ 3` for `n ≤ 8192`),
-`tolL_nonneg` (line 411), `xVal_eq` (line 483), `disj_far` (line 321).
+`setup_*_ok` theorems; reusable: `growth_le` (line 386, `(1+3u)^n ≤ 3` for `n ≤ 8192`),
+`tolL_nonneg` (line 418), `xVal_eq` (line 490), `disj_far` (line 326).
 
 ## Specification
 
@@ -120,7 +120,9 @@ The tolerances (`Claim.lean`, "The tolerances"; `u = 2^-24`, `η = 2^-150`, `B =
 performance-only.
 
 `Inst.ok`: `1 ≤ hidden_dim ≤ BLOCK_SIZE ≤ 2^13`, `BLOCK_SIZE` a power of two (the host passes
-`next_power_of_2(hidden_dim)`; any larger power of two is covered too); `bs ≥ 1`,
+`next_power_of_2(hidden_dim)`; any larger power of two is covered too); `hidden_dim` a model
+dimension, a multiple of 128 and at most `2^17` (`hidden_mul`, `hidden_le17`); `bs ≥ 1` and
+`bs ≤ 2^22` (`bs_le`: `bs` counts tokens, a context length),
 `(bs − 1)·hidden_dim < 2^31` and `2·bs ≤ 2^31` (the `int32` products and offsets: line 80 is
 `(input_ptr + pid * hidden_dim) + offsets`, so only `pid * hidden_dim` is computed in `int32`); the buffers
 hold their tensors; the outputs share no byte with the inputs or each other.
@@ -149,7 +151,8 @@ reduction of a loaded tile).
 (`BLOCK_SIZE = 8192`), `bs` 1 to 511. The source's eight Grok test cases (line 215: `bs` 1, 7, 128,
 511 × `hidden_dim` 6144, 8192) are `setup_<bs>_<hidden>`, each with `setup_<bs>_<hidden>_ok`
 proved; `satisfiable` uses `setup_1_6144` in a zero memory. `Inst.ok` also covers every
-`hidden_dim ≤ 8192` and every `bs` up to the `int32` limit (262,144 tokens at 8192).
+multiple of 128 up to `hidden_dim = 8192` and every `bs` up to the `int32` limit (262,144 tokens
+at 8192).
 
 ## Tolerances
 
@@ -213,6 +216,10 @@ on no token, and swapped ids on `76`–`83%` of them.
 
 What `SETUP.md` allows and the claim leaves out:
 
+* **Dimensions that are not multiples of 128 or exceed 2^17, and contexts longer than 2^22
+  tokens** — out of scope: the claim covers real model shapes only. The fields: `hidden_dim` (a
+  model dimension: `hidden_mul`, `hidden_le17`) and `bs` (a number of tokens: `bs_le`).
+  `BLOCK_SIZE` (a block size) and the 8 experts are not model dimensions.
 * **Logits above `1320 − capTol`** (`Pre`: `mu + capTol ≤ 1320`): a limit of the kernel's soft cap.
   The source computes `30·tanh(l/30)` as `(e^{2l/30} − 1)/(e^{2l/30} + 1)·30`; for a computed logit
   above about `1330.8` (`= 88.72·15`, about `44.4·cap`) `exp` overflows to `inf` and `inf/inf` is a
@@ -242,7 +249,8 @@ What `SETUP.md` allows and the claim leaves out:
   memory) are proved.
 * **Coverage**: the eight `setup_<bs>_<hidden>_ok` are proved.
 * **GPU** (`check_gpu.py`, H200, Triton 3.8.0): all 27 launches
-  hold: the eight Grok cases; `hidden_dim` 1, 3, 5, 64, 257, 4097, 8191 and 1024; `bs` 2048, 32,768
+  hold: the eight Grok cases; `hidden_dim` 1, 3, 5, 64, 257, 4097, 8191 (outside `Inst.ok`: not
+  multiples of 128) and 1024; `bs` 2048, 32,768
   and 262,144; all-zero inputs (every expert tied); two identical gate rows; a logit near `1300`
   and one near `−98,000`; `x` at `2^-126` with `W` near `2^120`; hidden states scaled by 64 (logits
   up to 86); four launches at `bs = 511`, hidden 6144 and 8192, with the test's data and with

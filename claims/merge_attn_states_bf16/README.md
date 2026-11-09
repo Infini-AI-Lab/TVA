@@ -12,7 +12,7 @@ output, no `output_scale`).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.MergeAttnStates.main : Statement` (`Statement`:
-`Claim.lean` line 447). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 449). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -20,30 +20,30 @@ output, no `output_scale`).
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 237), and every initial memory `init` that `Pre` accepts (line 331), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 413).
+(`Inst.ok`, line 237), and every initial memory `init` that `Pre` accepts (line 333), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 415).
 
-**What `Post` asks** (line 413), three parts:
-1. for every merged `(t, h)`, `t < ptwc`, `h < H`: `MergeOk d init fin t h` (line 385). With `p`,
+**What `Post` asks** (line 415), three parts:
+1. for every merged `(t, h)`, `t < ptwc`, `h < H`: `MergeOk d init fin t h` (line 387). With `p`,
    `s` the initial `prefix_lse`, `suffix_lse` elements (`rdF`, `plIdx`, `slIdx`) and `corr`
-   (line 321) mapping `+∞` to `-∞`:
+   (line 323) mapping `+∞` to `-∞`:
    - when `d.outLse`, element `olIdx d t h` of `output_lse` reads as some `cl`; if
-     `bothEmpty p s` (line 325) then `cl = negInfC`; otherwise `cl` is finite and
+     `bothEmpty p s` (line 327) then `cl = negInfC`; otherwise `cl` is finite and
      `|cl.toReal - refLse (corr p) (corr s)| ≤ lseTol * (1 + |refLse (corr p) (corr s)|)`;
    - for every `j < head_size`, element `oIdx d t h j` of `output` reads as some `w`; if
-     `bothEmpty p s` then `w = zeroB` (`+0`, line 377); otherwise, with `pv`, `sv` the initial
+     `bothEmpty p s` then `w = zeroB` (`+0`, line 379); otherwise, with `pv`, `sv` the initial
      `prefix_output`, `suffix_output` elements (`poIdx`, `soIdx`), `w` is finite and
      `|w.toReal - refOut …| ≤ bf16Round * |refOut …| + outTol * (|pv.toReal| + |sv.toReal|) + absTol`;
-   - `refMax`, `side`, `refSum`, `refLse`, `refOut` (lines 346–361) are exact, in the reals, from
-     `init`; the constants `lseTol`, `bf16Round`, `outTol`, `absTol` are lines 365–374;
-2. for every copied `(t, h)`, `ptwc ≤ t < T`, `h < H`: `CopyOk d init fin t h` (line 405): when
+   - `refMax`, `side`, `refSum`, `refLse`, `refOut` (lines 348–363) are exact, in the reals, from
+     `init`; the constants `lseTol`, `bf16Round`, `outTol`, `absTol` are lines 367–376;
+2. for every copied `(t, h)`, `ptwc ≤ t < T`, `h < H`: `CopyOk d init fin t h` (line 407): when
    `d.outLse` the `output_lse` element is the initial `suffix_lse` element, and every output
    element `j < head_size` is the initial `suffix_output` element, bit for bit. No condition on
    the values;
 3. the frame: every byte outside `writeSet d` (line 233: `output.elems (outSet d)`, and
    `output_lse.elems (outLseSet d)` when `d.outLse`) is unchanged.
 
-**What you are given** (`Assumptions`, line 422):
+**What you are given** (`Assumptions`, line 424):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `exp_total`, `log_total` (`Rules.Num.MathTotal`): `tl.exp` (source lines 163–164) and `tl.log`
@@ -54,8 +54,8 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `div_total`, `div_full` (`Rules.Num.DivTotal`, `Rules.Num.DivFull`): `/` (source lines 197–198) has a
   result, within `2^-22` relative and `2^-148` absolute.
 
-**The kernel, as the model runs it** (`merge_attn_states_kernel` line 51, `model` line 300,
-`launch` line 310): a 2-D grid of `T × H` programs, one per `(t, h)`. The `int32` test
+**The kernel, as the model runs it** (`merge_attn_states_kernel` line 51, `model` line 302,
+`launch` line 312): a 2-D grid of `T × H` programs, one per `(t, h)`. The `int32` test
 `t < ptwc` picks the branch. Copy branch: load `suffix_lse[h, t]`, store it to `output_lse` when
 passed, load the masked `[PADDED_HEAD_SIZE]` suffix row and store it to `output`. Merge branch:
 two scalar loads, `corr`, `tl.maximum`, two `tl.sub`, two `tl.exp`, `tl.add`; when `output_lse` is
@@ -66,7 +66,8 @@ the four inputs: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
 
 **What the proof must establish.**
 - each launch is valid and has `debug = false`: `Launch.Valid` directly (2-D grid): `T_lt`,
-  `H_lt`, `grid_lt`, and the block `[padded]` from `padded_pow2`, `padded_le`;
+  `H_lt`, `grid_lt`, and the block `[padded]` from `padded_pow2`, `padded_le` (`T_ctx` gives
+  `T ≤ 2^22`; the `int32` products still need `out_i32`, `in_i32`, `lse_i32`);
 - each program is `Safe`: the `int32` products do not wrap (`out_i32`, `in_i32`, `lse_i32`,
   `strides_lt`); the kernel's offsets `t·H·phs + h·phs + j` and `t·H·ohs + h·ohs + j` are the
   reference's `poIdx`, `soIdx`, `oIdx` (`pots_eq`, `sots_eq`, `shs_eq`, `ots_eq`); every access is
@@ -83,7 +84,7 @@ the four inputs: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
 - the bytes no program writes give part 3.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`
-(line 507) and the `setup_*_ok` theorems; `bytes_disj` (line 495) can be reused.
+(line 509) and the `setup_*_ok` theorems; `bytes_disj` (line 497) can be reused.
 
 ## Specification
 
@@ -120,6 +121,7 @@ passes `None` and the strides `0`, `0`, and the model's `output_lse` is `none`).
 
 * `padded` a power of two, `≤ 2^20`, `≥ head_size`; `ptwc ≤ T`;
 * the grid: `T < 2^31`, `H < 2^16`, `T·H < 2^31` (`Launch.Valid`);
+* `num_tokens`, the tokens of the batch, is a context length: **`T ≤ 2^22`** (`T_ctx`);
 * the layout the kernel indexes (SETUP.md): one head stride for both inputs, each output-like
   tensor's token stride `H` times its head stride; `head_size ≤ output.stride(1)`; `output_lse`,
   when passed, row-major in one order or the other (the host's fresh tensors);
@@ -235,6 +237,11 @@ magnitudes; the H200 run reaches `0.978` of it (the rounding itself), and the ls
   `prefix_lse[h, t]` and then writes the same bytes. A program reading then writing the same bytes
   is out of scope (the library gives no meaning to a program that reads and then writes the same bytes), so the claim does not cover that call; `Inst.ok` keeps the outputs
   disjoint from the inputs (`output_disj`, `output_lse_in_disj`), as the host's fresh outputs are.
+* **Out of scope: dimensions that are not multiples of 128 or exceed `2^17`, and contexts longer
+  than `2^22` tokens: the claim covers real model shapes only.** The context length: `num_tokens`
+  (`T`, `T_ctx`; `prefill_tokens_with_context ≤ T` follows). No field is a model dimension:
+  `num_heads` is a head count and `head_size`, `padded` a head dim (real values include 48, 80,
+  96); they keep their bounds above.
 * **The fp8 output (`USE_FP8 = True`, an `output_scale`)**: not part of the setup (`SETUP.md`).
 * **Where the kernel runs.** vLLM's dispatcher (`vllm/v1/attention/ops/merge_attn_states.py:153-166`)
   sends `bfloat16` inputs whose head size is divisible by `8` to its CUDA op on CUDA platforms, so
@@ -251,7 +258,8 @@ None.
   no `sorry`, no `axiom`.
 * **Not vacuous**: `consistent` (`Platform.sm90ref`) and `satisfiable` (`setup_t1` with every
   byte `0`) are proved.
-* **Covers the setup**: `canon_ok` and the fourteen `setup_*_ok` above.
+* **Covers the setup**: `canon_ok` (at most `2^16` tokens, inside `T ≤ 2^22`) and the fourteen
+  `setup_*_ok` above; none is dropped.
 * **GPU** (`check_gpu.py`, H200, Triton 3.8.0), each launch with and without `output_lse`: the
   host's nine test cases, the code base's largest shape, four `Inst.ok` edge launches (one token, one head of size
   1; 3 tokens, 2 heads of size 1 padded by 1; head size 3 padded by 5; 64 heads of 256 padded by 64) and four `Pre` edges (lse of every bit pattern but NaN, huge,

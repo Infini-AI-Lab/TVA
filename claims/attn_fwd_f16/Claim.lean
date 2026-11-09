@@ -261,6 +261,8 @@ structure Inst.ok (d : Inst) : Prop where
   n_le : d.N_CTX ≤ 2 ^ 16
   /-- At least one batch and head. -/
   zh_pos : 0 < d.Z ∧ 0 < d.H
+  /-- `Z` is a batch size (the batch's sequences): at most `8192`. -/
+  z_batch : d.Z ≤ 8192
   /-- `Z·H < 2^16`: the grid's `y` is `Z·H` (line 549), below CUDA's limit. -/
   zh_lt : d.Z * d.H < 2 ^ 16
   /-- `Z·H·N_CTX < 2^31`: `y_dim` (line 194) and every row offset are `int32` values that do not
@@ -606,11 +608,11 @@ def canon (Z H N D : Nat) (sm : F64) (causal : Bool) : Inst where
   M := ⟨5 * 2 ^ 40, Z * H * N⟩
 
 /-- **Every host launch at these sizes is covered**: `HEAD_DIM ∈ {64, 128, 256}`, `N_CTX` a positive
-multiple of `128` up to `2^16`, `1 ≤ Z·H < 2^16` with `Z·H·N_CTX < 2^31`, `sm_scale` finite in
+multiple of `128` up to `2^16`, `Z ≤ 8192`, `1 ≤ Z·H < 2^16` with `Z·H·N_CTX < 2^31`, `sm_scale` finite in
 `[2^-64, 2^64]`, both values of `causal`. -/
 theorem canon_ok (Z H N D : Nat) (sm : F64) (causal : Bool)
     (hD : D = 64 ∨ D = 128 ∨ D = 256) (hN0 : 0 < N) (hN : N % 128 = 0) (hNle : N ≤ 2 ^ 16)
-    (hZ : 0 < Z) (hH : 0 < H) (hZH : Z * H < 2 ^ 16) (hrows : Z * H * N < 2 ^ 31)
+    (hZ : 0 < Z) (hZb : Z ≤ 8192) (hH : 0 < H) (hZH : Z * H < 2 ^ 16) (hrows : Z * H * N < 2 ^ 31)
     (hsm : sm.isFinite = true ∧ (1 / 2 ^ 64 : ℚ) ≤ sm.toRat ∧ sm.toRat ≤ 2 ^ 64) :
     (canon Z H N D sm causal).ok := by
   have hD256 : D ≤ 256 := by omega
@@ -621,6 +623,7 @@ theorem canon_ok (Z H N D : Nat) (sm : F64) (causal : Bool)
       n_mul := ⟨hN0, hN⟩
       n_le := hNle
       zh_pos := ⟨hZ, hH⟩
+      z_batch := hZb
       zh_lt := hZH
       rows_lt := hrows
       scale := hsm
@@ -651,7 +654,7 @@ theorem setup_test_ok (Z H N D : Nat) (causal : Bool) (hZ : Z = 1 ∨ Z = 4) (hH
     (hN : N = 128 ∨ N = 1024 ∨ N = 4096) (hD : D = 64 ∨ D = 128) :
     (canon Z H N D smTest causal).ok := by
   refine canon_ok Z H N D smTest causal (by omega) (by omega) (by omega) (by omega)
-    (by omega) (by omega) ?_ ?_ smTest_ok
+    (by omega) (by omega) (by omega) ?_ ?_ smTest_ok
   · rcases hZ with rfl | rfl <;> rcases hH with rfl | rfl <;> norm_num
   · rcases hZ with rfl | rfl <;> rcases hH with rfl | rfl <;> rcases hN with rfl | rfl | rfl <;>
       norm_num
@@ -667,7 +670,7 @@ theorem setup_bench_ok (i D : Nat) (causal : Bool) (hi : 10 ≤ i ∧ i ≤ 14) 
     obtain ⟨j, rfl⟩ : ∃ j, i = j + 7 := ⟨i - 7, by omega⟩
     rw [pow_add]; simp
   exact canon_ok 4 32 (2 ^ i) D smBench causal (by omega) (by omega) h128 (by omega)
-    (by norm_num) (by norm_num) (by norm_num) (by omega) smBench_ok
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by omega) smBench_ok
 
 /-- The test's smallest launch: `Z = 1`, `H = 2`, `N_CTX = 128`, `HEAD_DIM = 64`, causal. -/
 def setup_test_small : Inst := canon 1 2 128 64 smTest true

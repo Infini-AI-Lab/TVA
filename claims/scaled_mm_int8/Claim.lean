@@ -345,6 +345,11 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `K < 2^17`: each product of two `int8` values is at most `2^14` in magnitude, so every
   partial sum of the `int32` accumulator stays below `2^31` (a kernel limit beyond: README). -/
   K_lt : d.K < 2 ^ 17
+  /-- `K` is a model dimension (the layer's input features): a multiple of `128`, at most `2^17`
+  (README, Exclusions). -/
+  K_dim : d.K % 128 = 0 ∧ d.K ≤ 2 ^ 17
+  /-- `M`, the batch's tokens, is a context length: at most `2^22` (README, Exclusions). -/
+  M_ctx : d.M ≤ 2 ^ 22
   /-- `M + BLOCK_SIZE_M ≤ 2^31`: `M` is an `int32`; the rows `pid_m·BLOCK_SIZE_M + i` and the
   `int32` products `pid_m * BLOCK_SIZE_M` (lines 96, 111, 199) stay below `2^31`. -/
   M_le : d.M + d.BM ≤ 2 ^ 31
@@ -653,11 +658,11 @@ theorem cdiv_le {M B : Nat} (hM : M ≤ 2 ^ 20) (hB : 32 ≤ B) (hB' : B ≤ 128
   omega
 
 /-- The host's instance is covered when its sizes are within these bounds: `K` a multiple of the
-tile's `BLOCK_SIZE_K` and below `2^17`, `M`, `N ≤ 2^20` (which bound the grid and fit the address
-layout of `hostInst`), and a `bfloat16` or `float16` output. -/
+tile's `BLOCK_SIZE_K` and of `128` and below `2^17`, `M`, `N ≤ 2^20` (which bound the grid and fit
+the address layout of `hostInst`), and a `bfloat16` or `float16` output. -/
 theorem hostInst_ok {M N K : Nat} {od : DType} {hasBias saVec sbVec bT heur : Bool}
     (hod : od = .bf16 ∨ od = .f16) (hM : 0 < M ∧ M ≤ 2 ^ 20) (hN : 0 < N ∧ N ≤ 2 ^ 20)
-    (hK : 0 < K ∧ K < 2 ^ 17) (hdiv : K % (tileOf heur M N).2.2 = 0) :
+    (hK : 0 < K ∧ K < 2 ^ 17) (hdiv : K % (tileOf heur M N).2.2 = 0) (hKd : K % 128 = 0) :
     (hostInst M N K od hasBias saVec sbVec bT heur).ok := by
   obtain ⟨hM0, hM1⟩ := hM
   obtain ⟨hN0, hN1⟩ := hN
@@ -711,6 +716,8 @@ theorem hostInst_ok {M N K : Nat} {od : DType} {hasBias saVec sbVec bT heur : Bo
       K_pos := hK0
       K_div := hdiv
       K_lt := hK1
+      K_dim := show K % 128 = 0 ∧ K ≤ 2 ^ 17 from ⟨hKd, by omega⟩
+      M_ctx := show M ≤ 2 ^ 22 by omega
       M_le := by simp only [hd, hostInst]; omega
       N_le := by simp only [hd, hostInst]; omega
       grid_lt := by simp only [hd, hostInst]; omega
@@ -795,7 +802,7 @@ theorem setup_llama_ok {M K N : Nat} {od : DType} {hasBias saVec sbVec bT : Bool
   have hall : ∀ p ∈ llamaShapes, p.1 % 256 = 0 ∧ 0 < p.1 ∧ p.1 < 2 ^ 17 ∧ 0 < p.2 ∧ p.2 ≤ 2 ^ 20 := by
     decide
   obtain ⟨h1, h2, h3, h4, h5⟩ := hall _ hs
-  refine hostInst_ok hod ⟨by omega, by omega⟩ ⟨h4, h5⟩ ⟨h2, h3⟩ ?_
+  refine hostInst_ok hod ⟨by omega, by omega⟩ ⟨h4, h5⟩ ⟨h2, h3⟩ ?_ (by omega)
   rcases tileOf_cases true M N with h | h | h | h | ⟨h, -⟩
   all_goals first | (rw [h]; simp only; omega) | cases h
 
@@ -806,7 +813,7 @@ theorem setup_llama128_ok {M K N : Nat} {od : DType} {hasBias saVec sbVec bT : B
   have hall : ∀ p ∈ llamaShapes128, p.1 % 128 = 0 ∧ 0 < p.1 ∧ p.1 < 2 ^ 17 ∧ 0 < p.2 ∧ p.2 ≤ 2 ^ 20 := by
     decide
   obtain ⟨h1, h2, h3, h4, h5⟩ := hall _ hs
-  refine hostInst_ok hod ⟨by omega, by omega⟩ ⟨h4, h5⟩ ⟨h2, h3⟩ ?_
+  refine hostInst_ok hod ⟨by omega, by omega⟩ ⟨h4, h5⟩ ⟨h2, h3⟩ ?_ h1
   have : (tileOf true M N).2.2 = 128 := by
     simp only [tileOf, heurTile, ite_true]
     split_ifs <;> first | omega | rfl
@@ -820,8 +827,8 @@ theorem setup_vllm_test_ok {M N K : Nat} {od : DType} {hasBias saVec sbVec bT : 
     (hostInst M N K od hasBias saVec sbVec bT true).ok := by
   simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at hs
   rcases hs with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩
-  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide)
-  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide)
+  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide) (by decide)
+  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide) (by decide)
 
 /-- **vLLM's descriptor test, plain path** (`test_triton_scaled_mm.py:150-178`, `use_td=False`):
 `(M, N, K) = (1, 4096, 4096)`, `(64, 4096, 4096)`, `(256, 2048, 4096)`. -/
@@ -831,18 +838,17 @@ theorem setup_vllm_plain_ok {M N K : Nat} {od : DType} {hasBias saVec sbVec bT :
     (hostInst M N K od hasBias saVec sbVec bT true).ok := by
   simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at hs
   rcases hs with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩
-  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide)
-  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide)
-  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide)
-
-/-- **vLLM's rounding test with `use_heuristic=False`** (`test_triton_scaled_mm.py:126-142`):
-`(M, N, K) = (1, 16, 32)`, tile `(32, 32, 32)`, per-tensor scales, a `bfloat16` bias and output,
-the contiguous `B` of `expand(...).contiguous()`. -/
-def setup_bias_rounding : Inst := hostInst 1 16 32 .bf16 true false false false false
-theorem setup_bias_rounding_ok : setup_bias_rounding.ok :=
-  hostInst_ok (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by decide)
+  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide) (by decide)
+  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide) (by decide)
+  · exact hostInst_ok hod (by norm_num) (by norm_num) (by norm_num) (by decide) (by decide)
 
 /-! ## Not vacuous: a covered instance and memory -/
+
+/-- A small covered instance: `(M, N, K) = (1, 16, 128)`, tile `(32, 32, 32)`, per-tensor scales,
+a `bfloat16` bias and output, a contiguous `B`. -/
+def minInst : Inst := hostInst 1 16 128 .bf16 true false false false false
+theorem minInst_ok : minInst.ok :=
+  hostInst_ok (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by decide) (by decide)
 
 /-- The all-zero memory: every byte present and `0`. -/
 def zeroMem : Mem := fun _ => some (0 : TVA.Math.Bytes.Byte)
@@ -863,10 +869,10 @@ theorem zeroValid {d : DType} (b : Buf d) (hbase : ∃ k, 3 ≤ k ∧ b.base = 2
   refine ⟨by rw [hb]; positivity, hbound, hdiv _ hbytes, fun x _ => by simp [zeroMem]⟩
 
 theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
-  refine ⟨setup_bias_rounding, zeroMem, setup_bias_rounding_ok, ?_, ?_, ?_, ?_, ?_, fun _ => ?_⟩
+  refine ⟨minInst, zeroMem, minInst_ok, ?_, ?_, ?_, ?_, ?_, fun _ => ?_⟩
   all_goals
     refine zeroValid _ ⟨_, ?_, rfl⟩ ?_
-    all_goals norm_num [setup_bias_rounding, hostInst, DType.bytes]
+    all_goals norm_num [minInst, hostInst, DType.bytes]
   · change (2 : Int) ^ 42 + ((1 * 16 : Nat) : Int) * 2 ≤ 2 ^ 64
     norm_num
   · change (2 : Int) ^ 45 + ((16 : Nat) : Int) * 2 ≤ 2 ^ 64

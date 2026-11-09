@@ -399,6 +399,8 @@ structure Inst.ok (d : Inst) : Prop where
   n_le : d.N_CTX ≤ 2 ^ 14
   /-- `BATCH · N_HEAD < 2^16`: the grid's axis 2 (`Launch.Valid`). -/
   g_lt : G d < 2 ^ 16
+  /-- `BATCH ≤ 8192`: `BATCH` is a batch size, the number of sequences (README, Exclusions). -/
+  z_le : d.Z ≤ 8192
   /-- The kernel's `int32` arithmetic does not wrap: `(BATCH · N_HEAD − 1) · N_CTX · HEAD_DIM <
   2^31` bounds the offset `adj` of line 385 (`stride_h·(bhid % H) + stride_z·(bhid // H)`, at most
   the last head's first element) and `bhid * N_CTX` (line 384), a limit of the kernel;
@@ -803,12 +805,12 @@ theorem elems_bytes {dt : DType} {B : Buf dt} {S : Set Nat} {x : Int} (hx : x �
 
 /-- **The host's launches are covered**: `HEAD_DIM ∈ {16, …, 256}` (line 512), `N_CTX % 128 == 0`
 (line 599) up to `2^14`, `BATCH·N_HEAD < 2^16` within the kernel's `int32` offsets (and below
-`2^38` elements per tensor, for the layout's spacing), either
+`2^38` elements per tensor, for the layout's spacing), `BATCH ≤ 8192`, either
 `causal`, and an `sm_scale` whose `float32` is finite and at most `2^16`. -/
 theorem canon_ok (Z H N D : Nat) (c : Bool) (sm : F64)
     (hd : D = 16 ∨ D = 32 ∨ D = 64 ∨ D = 128 ∨ D = 256) (hn : N % 128 = 0) (hnle : N ≤ 2 ^ 14)
     (hg : Z * H < 2 ^ 16) (hsz : (Z * H - 1) * N * D < 2 ^ 31 ∧ H * N * D < 2 ^ 31)
-    (hbig : Z * H * N * D < 2 ^ 38)
+    (hbig : Z * H * N * D < 2 ^ 38) (hz : Z ≤ 8192)
     (hsm : (FloatV.hostF32 sm).isFinite = true ∧ |(FloatV.hostF32 sm).toRat| ≤ 2 ^ 16) :
     (canon Z H N D c sm).ok := by
   have ht : ∀ j ∈ tSet (canon Z H N D c sm), j < Z * H * N * D := by
@@ -838,6 +840,7 @@ theorem canon_ok (Z H N D : Nat) (c : Bool) (sm : F64)
       n_mod := hn
       n_le := hnle
       g_lt := by simp only [G, canon]; exact hg
+      z_le := hz
       size_lt := by simp only [G, canon]; exact hsz
       sm := hsm
       q_len := by simp only [G, canon]; exact le_rfl
@@ -887,7 +890,7 @@ theorem setup_test_ok : ∀ Z ∈ [1, 4], ∀ H ∈ [2, 48], ∀ N ∈ [128, 102
   rcases hZ with rfl | rfl <;> rcases hH with rfl | rfl <;> rcases hN with rfl | rfl | rfl <;>
     rcases hD with rfl | rfl <;>
     exact canon_ok _ _ _ _ c smTest (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) smTest_ok
+      (by norm_num) (by norm_num) (by norm_num) smTest_ok
 
 /-- One launch of the benchmark: `BATCH = 4`, `N_HEADS = 32`, `N_CTX = 2^e`. -/
 def setup_bench (e D : Nat) (c : Bool) : Inst := canon 4 32 (2 ^ e) D c smBench
@@ -898,7 +901,7 @@ theorem setup_bench_ok : ∀ e ∈ [10, 11, 12, 13, 14], ∀ D ∈ [64, 128], �
   simp only [List.mem_cons, List.not_mem_nil, or_false] at he hD
   rcases he with rfl | rfl | rfl | rfl | rfl <;> rcases hD with rfl | rfl <;>
     exact canon_ok _ _ _ _ c smBench (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) smBench_ok
+      (by norm_num) (by norm_num) (by norm_num) smBench_ok
 
 /-- The test's largest launch, causal: `Z = 4`, `H = 48`, `N_CTX = 4096`, `HEAD_DIM = 128`. -/
 def setup_test_large : Inst := setup_test 4 48 4096 128 true
@@ -916,7 +919,7 @@ theorem setup_headdims_ok : ∀ D ∈ [16, 32, 256], ∀ c : Bool, (canon 4 32 1
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hD
   rcases hD with rfl | rfl | rfl <;>
     exact canon_ok _ _ _ _ c smBench (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-      (by norm_num) (by norm_num) smBench_ok
+      (by norm_num) (by norm_num) (by norm_num) smBench_ok
 
 /-! ## Satisfiable
 

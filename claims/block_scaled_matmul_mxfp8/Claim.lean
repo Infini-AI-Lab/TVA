@@ -274,6 +274,11 @@ structure Inst.ok (d : Inst) : Prop where
   c_len : d.M * d.N ≤ d.c.len
   /-- The output shares no byte with an input (`torch.empty` of line 244 is a fresh tensor). -/
   c_in : Disjoint (cEl d) (inEl d)
+  /-- `M` counts tokens (the rows of the activations `a`): a context length, at most `2^22`. -/
+  M_ctx : d.M ≤ 2 ^ 22
+  /-- `N` is a model dimension (the output features): a positive multiple of `128` (`N_ok`), at
+  most `2^17`. (`K`, the input features, is one by `K_ok`.) -/
+  N_dim : d.N ≤ 2 ^ 17
 
 /-- The model on an instance: the host's descriptors and the constexprs `block_scaled_matmul`
 passes (lines 259–280) for `"mxfp8"` or `"mixed"` on the H200 (`SETUP.md`): `M`, `K`,
@@ -541,13 +546,13 @@ theorem hostInst_ok {mixed : Bool} {M N K : Nat}
     (h : 0 < M ∧ M % 128 = 0 ∧ M < 2 ^ 31 ∧ 0 < N ∧ N % 128 = 0 ∧ N < 2 ^ 31 ∧
       0 < K ∧ K % 128 = 0 ∧ K ≤ 2 ^ 17 ∧ (M + 127) / 128 * ((N + 255) / 256) < 2 ^ 31 ∧
       M * K ≤ 2 ^ 40 ∧ N * K ≤ 2 ^ 40 ∧ M / 128 * (K / 128) * 512 ≤ 2 ^ 40 ∧
-      N / 128 * (K / 128) * 512 ≤ 2 ^ 40 ∧ M * N * 2 ≤ 2 ^ 40) :
+      N / 128 * (K / 128) * 512 ≤ 2 ^ 40 ∧ M * N * 2 ≤ 2 ^ 40 ∧ M ≤ 2 ^ 22 ∧ N ≤ 2 ^ 17) :
     (hostInst mixed M N K).ok := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hA, hB, hSA, hSB, hC⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hA, hB, hSA, hSB, hC, hM22, hN17⟩ := h
   have hb : N * (K / epbB mixed) ≤ 2 ^ 40 :=
     le_trans (Nat.mul_le_mul_left N (div_epbB_le mixed K)) hB
   refine ⟨⟨h1, h2, h3⟩, ⟨h4, h5, h6⟩, ⟨h7, h8, h9⟩, h10, ?_, le_refl _, le_refl _, le_refl _,
-    le_refl _, le_refl _, ?_⟩
+    le_refl _, le_refl _, ?_, hM22, hN17⟩
   · simp only [hostInst_b_base]; simp only [hostInst]; omega
   · have hc : cEl (hostInst mixed M N K) ⊆ (hostInst mixed M N K).c.bytes :=
       elems_lt_sub _ (le_refl _)
@@ -638,7 +643,7 @@ theorem satInst_ok : satInst.ok := by
   refine ⟨by norm_num [satInst], by norm_num [satInst], by norm_num [satInst], by norm_num [satInst],
     by norm_num [satInst, satInst_b_base], by norm_num [satInst],
     by norm_num [satInst, satInst_b_len, epbB], by norm_num [satInst],
-    by norm_num [satInst], by norm_num [satInst], ?_⟩
+    by norm_num [satInst], by norm_num [satInst], ?_, by norm_num [satInst], by norm_num [satInst]⟩
   have hc : cEl satInst ⊆ satInst.c.bytes := elems_lt_sub _ (by norm_num [satInst])
   simp only [inEl]
   refine Disjoint.union_right (Disjoint.union_right (Disjoint.union_right ?_ ?_) ?_) ?_

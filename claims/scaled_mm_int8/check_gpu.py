@@ -2,7 +2,8 @@
 
 Runs the kernel's own host, `triton_scaled_mm` of `source/triton_scaled_mm.py` (imported by path;
 its test under `__main__` does not run), on the launches SETUP.md lists and on launches at the
-edges of `Inst.ok`, and checks `Post` element by element in float64, from the host's inputs, as
+edges of `Inst.ok` (vLLM's rounding test, `K = 32`, is outside `Inst.ok`, `K_dim`, and checked as
+an extra), and checks `Post` element by element in float64, from the host's inputs, as
 `Post` states it:
 
 * for each element `(i, j)` of `C`: `S = sum_k A[i, k] * B[k, j]` (an integer; every partial sum is
@@ -212,7 +213,8 @@ def main():
                 run_host(f"plain M {M} N {N} K {K} scalar a {sa_s} bias {ub}",
                          a, b, scale_a, scale_b, torch.bfloat16, bias)
 
-    print("vLLM's rounding test with use_heuristic=False (test_triton_scaled_mm.py:126-142)")
+    print("vLLM's rounding test with use_heuristic=False (test_triton_scaled_mm.py:126-142; "
+          "outside Inst.ok: K = 32 is not a multiple of 128, checked as an extra)")
     a = torch.ones((1, 32), device=DEV).to(torch.int8)
     col = torch.tensor([64.0] * 16 + [2.0, 1.0] + [0.0] * 14, device=DEV)
     b = col[:, None].expand(32, 16).to(torch.int8).contiguous()
@@ -318,7 +320,7 @@ def main():
         print(f"  M {M} N {N} K {K}: max |C - R| / (|R| + 2^-126) = "
               f"{((out.double() - ref).abs() / (ref.abs() + 2.0 ** -126)).max().item():.3g}")
 
-    print(f"largest error / tolerance over the covered launches: {WORST[0]:.4f} ({WORST[1]})")
+    print(f"largest error / tolerance over the launches checked: {WORST[0]:.4f} ({WORST[1]})")
     print(f"peak device memory: {torch.cuda.max_memory_allocated() / 2 ** 30:.2f} GiB")
     if FAILS:
         print("FAIL:", FAILS)

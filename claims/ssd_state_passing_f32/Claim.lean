@@ -410,6 +410,10 @@ structure Inst.ok (d : Inst) : Prop where
   qsl_zero : d.qsl 0 = 0
   qsl_lt : ∀ r, r < d.nreq → d.qsl r < d.qsl (r + 1)
   qsl_end : d.qsl d.nreq = d.seqlen
+  /-- `seqlen`, the packed batch's tokens, is a context length: at most `2^22`. -/
+  seqlen_ctx : d.seqlen ≤ 2 ^ 22
+  /-- `num_requests`, the requests of the batch, is a batch size: at most `8192`. -/
+  nreq_le : d.nreq ≤ 8192
   /-- `nchunks` is the host's `cdiv(seqlen, chunk_size)` (`states.shape[1]`). -/
   nchunks_eq : d.nchunks = (d.seqlen + d.chunk - 1) / d.chunk
   /-- `len(chunk_offsets)` is the host's `N` (`0` without initial states), an `int32`. -/
@@ -721,7 +725,8 @@ theorem disj_far {d1 d2 : DType} (b : Buf d1) (c : Buf d2) (i j : Nat)
       have := Nat.mul_le_mul_right 17179869184 (Nat.succ_le_of_lt h); simpa [Nat.succ_mul] using this
     rw [hb, hc]; omega
 
-/-- The instances `mk` builds are covered when their sizes are (each condition decided). -/
+/-- The instances `mk` builds are covered when their sizes are (each condition decided; at most
+`2^22` tokens and `8192` requests). -/
 theorem mk_ok (hi : Bool) (lens : List Nat) (H D C k : Nat) (hC : C = 2 ^ k)
     (h1 : 0 < H ∧ H < 2 ^ 16 ∧ 0 < D ∧ D + 1023 < 2 ^ 31 ∧ gx (mk hi lens H D C) * H < 2 ^ 31)
     (h2 : 0 < lens.length ∧ ∀ r, r < lens.length → qslOf lens r < qslOf lens (r + 1))
@@ -735,7 +740,8 @@ theorem mk_ok (hi : Bool) (lens : List Nat) (H D C k : Nat) (hC : C = 2 ^ k)
       (mk hi lens H D C).seqIdx.len * 4 ≤ 17179869184 ∧
       (mk hi lens H D C).chunkOffs.len * 4 ≤ 17179869184 ∧
       (mk hi lens H D C).out.len * 4 ≤ 17179869184 ∧
-      (mk hi lens H D C).finalst.len * 4 ≤ 17179869184) :
+      (mk hi lens H D C).finalst.len * 4 ≤ 17179869184) (h5 : lens.sum ≤ 2 ^ 22)
+    (h6 : lens.length ≤ 8192) :
     (mk hi lens H D C).ok := by
   obtain ⟨h1a, h1b, h1c, h1d, h1e⟩ := h1
   obtain ⟨h2a, h2b⟩ := h2
@@ -744,7 +750,7 @@ theorem mk_ok (hi : Bool) (lens : List Nat) (H D C k : Nat) (hC : C = 2 ^ k)
   refine
     { heads_pos := h1a, heads_lt := h1b, dim_pos := h1c, dim_lt := h1d, grid_lt := h1e,
       chunk_pow2 := ⟨k, hC⟩, nreq_pos := h2a, qsl_zero := by simp [mk, qslOf],
-      qsl_lt := h2b, qsl_end := by simp [mk, qslOf], nchunks_eq := rfl,
+      qsl_lt := h2b, qsl_end := by simp [mk, qslOf], seqlen_ctx := h5, nreq_le := h6, nchunks_eq := rfl,
       nmeta_eq := by cases hi <;> rfl,
       nmeta_lt := h3a, tok_lt := h3b, dA_lt := h3c, st_lt := h3d, init_lt := h3e,
       states_len := le_refl _, dA_len := le_refl _,
@@ -780,40 +786,58 @@ def setup_18 : Inst := mk false (List.replicate 40 3 ++ [500]) 8 8192 64
 
 theorem setup_1_ok : setup_1.ok :=
   mk_ok _ _ _ _ _ 8 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_2_ok : setup_2.ok :=
   mk_ok _ _ _ _ _ 8 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_3_ok : setup_3.ok :=
   mk_ok _ _ _ _ _ 3 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_4_ok : setup_4.ok :=
   mk_ok _ _ _ _ _ 3 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_5_ok : setup_5.ok :=
   mk_ok _ _ _ _ _ 8 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_6_ok : setup_6.ok :=
   mk_ok _ _ _ _ _ 7 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_7_ok : setup_7.ok :=
   mk_ok _ _ _ _ _ 7 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_8_ok : setup_8.ok :=
   mk_ok _ _ _ _ _ 8 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_9_ok : setup_9.ok :=
   mk_ok _ _ _ _ _ 6 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_10_ok : setup_10.ok :=
   mk_ok _ _ _ _ _ 8 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_11_ok : setup_11.ok :=
   mk_ok _ _ _ _ _ 8 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_12_ok : setup_12.ok :=
   mk_ok _ _ _ _ _ 3 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_13_ok : setup_13.ok :=
   mk_ok _ _ _ _ _ 3 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_14_ok : setup_14.ok :=
   mk_ok _ _ _ _ _ 8 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_15_ok : setup_15.ok :=
   mk_ok _ _ _ _ _ 7 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_16_ok : setup_16.ok :=
   mk_ok _ _ _ _ _ 7 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_17_ok : setup_17.ok :=
   mk_ok _ _ _ _ _ 8 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 theorem setup_18_ok : setup_18.ok :=
   mk_ok _ _ _ _ _ 6 rfl (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
 
 /-- A memory in which every byte is present (and `0`). -/
 def zeroMem : Mem := fun _ => some 0

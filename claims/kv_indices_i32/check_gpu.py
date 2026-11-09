@@ -196,8 +196,8 @@ if __name__ == "__main__":
     run_host("edge 2^20-token rows", tl_, torch.tensor([2, 0, 3, 1]).to(DEV),
              torch.tensor([2 ** 20, 2 ** 20 - 1, 2 ** 19 + 1, 1]).to(DEV))
     tb = rand_table(70000, 40)
-    run_host("edge 65536 requests", tb, torch.randperm(70000, generator=g)[:65536].to(DEV),
-             torch.randint(0, 41, (65536,), generator=g).to(DEV))
+    run_host("edge 8192 requests (bs_le)", tb, torch.randperm(70000, generator=g)[:8192].to(DEV),
+             torch.randint(0, 41, (8192,), generator=g).to(DEV))
     # FlashInfer's planners with kv_start_idx (flashinfer_backend.py:1687-1697, 2045-2071):
     # sliding-window decode, kv_start_idx = seq_lens - min(seq_lens, window + 1); the prefill's
     # full-attention wrapper, kv_start_idx = seq_lens - seq_lens (all 0); the ragged prefill's

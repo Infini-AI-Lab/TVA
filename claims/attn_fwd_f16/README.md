@@ -14,7 +14,7 @@ The kernel lines are 20–21, 47–110, 168–173 and 176–245; the host lines,
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.AttnFwd.main : Statement` (`Statement`:
-`Claim.lean` line 569). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 571). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -22,30 +22,30 @@ The kernel lines are 20–21, 47–110, 168–173 and 176–245; the host lines,
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 253), and every initial memory `init` that `Pre` accepts (line 315), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 518).
+(`Inst.ok`, line 253), and every initial memory `init` that `Pre` accepts (line 317), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 520).
 
-**What `Post` asks** (line 518), three parts:
+**What `Post` asks** (line 520), three parts:
 1. `o`: for every `bh < Z·H`, `n < N_CTX`, `e < HEAD_DIM`, element `idx d bh n e` (line 247) of `o`
    reads in `fin` as a `float16` `c`, for every such element. Only when `HeadOk d init bh` holds
-   (line 364: the head's `q`, `k`, `v` finite, `|v| ≤ 2^15`, `sigma d * scoreMag ≤ 2^10`) is more
+   (line 366: the head's `q`, `k`, `v` finite, `|v| ≤ 2^15`, `sigma d * scoreMag ≤ 2^10`) is more
    asked: `c` is finite and, for every `X ≤ 2^10` with `sigma d * scoreMag d init bh n j ≤ X` for
-   every `j ∈ keys d n` (line 334),
+   every `j ∈ keys d n` (line 336),
    `|c.toReal − attnRef| ≤ tolO D N X · attnAbs + tolS D N X · vAbsSum + tolF D N X`
-   (`D = HEAD_DIM`, `N = N_CTX`). `attnRef` (line 375) is the exact attention in the reals, with
-   weights `weight` (line 371) `= exp(σ·score)` from the values in `init` (`score` line 338, `val16`
-   line 321); `attnAbs` (line 380) and `vAbsSum` (line 385) are the scales. `tolO`, `tolS`, `tolF`
-   are defined at lines 487, 493, 498;
+   (`D = HEAD_DIM`, `N = N_CTX`). `attnRef` (line 377) is the exact attention in the reals, with
+   weights `weight` (line 373) `= exp(σ·score)` from the values in `init` (`score` line 340, `val16`
+   line 323); `attnAbs` (line 382) and `vAbsSum` (line 387) are the scales. `tolO`, `tolS`, `tolF`
+   are defined at lines 489, 495, 500;
 2. `M`: for every `bh < Z·H`, `n < N_CTX`, element `bh·N_CTX + n` of `M` reads in `fin` as a
    `float32` `c`. Under `HeadOk d init bh` only: `c` is finite and, for every such `X`,
-   `|c.toReal − lseRef| ≤ tolM D N X + u32·|lseRef|`, `lseRef` (line 389) `= log₂ Σ_j weight`,
-   `tolM` at line 504, `u32` at line 400;
-3. the frame: every byte outside `outBytes d` (line 508: the first `rows d · HEAD_DIM` elements of
+   `|c.toReal − lseRef| ≤ tolM D N X + u32·|lseRef|`, `lseRef` (line 391) `= log₂ Σ_j weight`,
+   `tolM` at line 506, `u32` at line 402;
+3. the frame: every byte outside `outBytes d` (line 510: the first `rows d · HEAD_DIM` elements of
    `o` and the first `rows d` of `M`) is unchanged.
 
 Outside `HeadOk` only "holds a value" is asked, in parts 1 and 2.
 
-**What you are given** (`Assumptions`, line 538), ten fields:
+**What you are given** (`Assumptions`, line 540), ten fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`): each `tl.dot` (model lines 93, 129) is within `relDot16 K` times
@@ -61,9 +61,9 @@ Outside `HeadOk` only "holds a value" is asked, in parts 1 and 2.
   model line 202; `div_total` (`Rules.Num.DivTotal`): `/` has a result.
 
 **The kernel, as the model runs it** (`attn_fwd` line 149, `attn_fwd_inner` line 61, `model`
-line 299, `launch` line 308): a 2-D grid `((N_CTX + 127)/128, Z·H, 1)`, `BLOCK_M = 128`,
+line 301, `launch` line 310): a 2-D grid `((N_CTX + 127)/128, Z·H, 1)`, `BLOCK_M = 128`,
 `BLOCK_N = 64`, `STAGE = 3` when causal and `1` otherwise. The descriptors are host descriptors
-(`hostDesc`, line 291). Program `(start_m, off_hz)` splits `off_hz` by `H` (`tl.idiv`, `tl.irem`),
+(`hostDesc`, line 293). Program `(start_m, off_hz)` splits `off_hz` by `H` (`tl.idiv`, `tl.irem`),
 loads its `[128, HEAD_DIM]` query tile at row `qo_offset_y = off_hz·N_CTX + start_m·128`
 (`tl.desc_load`), and runs `attn_fwd_inner`, a `tl.forRange lo hi 64` loop: non-causal one call over
 `[0, N_CTX)`; causal two calls, over `[0, start_m·128)` (STAGE 1) and then the diagonal block
@@ -94,7 +94,7 @@ a key and a value tile (`tl.desc_load`), computes `qk` (`tl.dot`), the running m
 - the bytes no program writes give part 3.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`,
-`smTest_ok`, `smBench_ok` and the `setup_*_ok` theorems; `disj_of_le` (line 580) can be reused.
+`smTest_ok`, `smBench_ok` and the `setup_*_ok` theorems; `disj_of_le` (line 582) can be reused.
 
 ## Specification
 
@@ -152,6 +152,7 @@ storages of `q`, `k`, `v`, `o` (`Buf .f16`) and `M` (`Buf .f32`). `Inst.ok`:
 | `n_mul` | `0 < N_CTX`, `N_CTX % 128 = 0` | a ragged last tile is a kernel limit (Exclusions); every file size is a multiple of `128` |
 | `n_le` | `N_CTX ≤ 2^16` | keeps the tolerance below `1`; the file's largest is `2^14` |
 | `zh_pos`, `zh_lt` | `0 < Z`, `0 < H`, `Z·H < 2^16` | `off_hz // H`; the grid's `y` limit; the file's largest is `192` |
+| `z_batch` | `Z ≤ 8192` | `Z` is a batch size (the batch's sequences): real model shapes (Exclusions); the file's largest is `4` |
 | `rows_lt` | `Z·H·N_CTX < 2^31` | `y_dim` (line 194) and the row offsets (lines 208–209, 243) are `int32`: a kernel limit; the file's largest is `2^21` |
 | `scale` | `sm_scale` finite in `[2^-64, 2^64]` | `qk_scale` (line 219) a finite positive `float32`; the file passes `0.5`, `1.3` |
 | `lens`, `align`, `disj` | the buffers hold their tensors, 16-byte aligned (TMA), `o` and `M` disjoint from each other and the inputs | fresh PyTorch tensors |
@@ -186,7 +187,7 @@ the rule states it.
 
 Every launch of [`SETUP.md`](SETUP.md) is `canon Z H N D sm causal` (contiguous `q`, `k`, `v`,
 fresh `o`, `M`, at fixed aligned addresses). `canon_ok` proves `Inst.ok` for every
-`D ∈ {64, 128, 256}`, `N` a positive multiple of `128` up to `2^16`, `1 ≤ Z·H < 2^16` with
+`D ∈ {64, 128, 256}`, `N` a positive multiple of `128` up to `2^16`, `Z ≤ 8192`, `1 ≤ Z·H < 2^16` with
 `Z·H·N < 2^31`, every `sm_scale` in range, both `causal`. Then:
 
 - `setup_test_ok Z H N D causal`: every test launch (`Z ∈ {1, 4}`, `H ∈ {2, 48}`,
@@ -253,6 +254,11 @@ bounds each score's error relative to `scoreMag`.
   any useful `HEAD_DIM`).
 - **`N_CTX > 2^16`.** The kernel is correct there (up to the `int32` limit), but the bound grows
   with the blocks (`stepAcc^(N/64)`) and `X`; the file's largest is `2^14`. Not a kernel limit.
+- **Out of scope: dimensions that are not multiples of `128` or exceed `2^17`, contexts longer than
+  `2^22` tokens, and batches of more than `8192` requests: the claim covers real model shapes
+  only.** The field is `Z` (`z_batch`: `Z ≤ 8192`). `N_CTX` is a context length already bounded by
+  `n_le` (`N_CTX ≤ 2^16`) and a multiple of `128` (`n_mul`); `HEAD_DIM` is a head dimension and `H`
+  a head count, not model dimensions.
 - **`Z·H ≥ 2^16`**: the grid's `y` limit, no launch. `HEAD_DIM ∈ {16, 32}`: rejected on the host by
   line 188 (no outcome); other head dims are rejected by the wrapper's assert.
 - **Input values** outside `HeadOk` (non-finite values, `|v| > 2^15`, `σ·scoreMag > 2^10`): `Post`

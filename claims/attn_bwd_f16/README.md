@@ -10,7 +10,7 @@ launches to cover: [`SETUP.md`](SETUP.md).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.AttnBwd.main : Statement` (`Statement`:
-`Claim.lean` line 767). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 769). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -18,24 +18,24 @@ launches to cover: [`SETUP.md`](SETUP.md).
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 393), and every initial memory `init` that `Pre` accepts (line 472), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 733).
+(`Inst.ok`, line 393), and every initial memory `init` that `Pre` accepts (line 474), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 735).
 
-**What `Post` asks** (line 733), two parts:
+**What `Post` asks** (line 735), two parts:
 1. for every head `b < G d` (line 364), row `r < N_CTX` and column `j < HEAD_DIM`, three
-   `OutSpec` clauses (line 724), for `DV` (`dVE`, `dVTol`, lines 674, 680), `DK` (`dKE`, `dKTol`,
-   lines 694, 698) and `DQ` (`dQE`, `dQTol`, lines 712, 716). Each says: element `eIdx d b r j`
+   `OutSpec` clauses (line 726), for `DV` (`dVE`, `dVTol`, lines 676, 682), `DK` (`dKE`, `dKTol`,
+   lines 696, 700) and `DQ` (`dQE`, `dQTol`, lines 714, 718). Each says: element `eIdx d b r j`
    (line 367) of the output reads in `fin` as a `float16` `c`, for every element. Then, for every
-   `hv : HeadV` (line 517) that `HeadV.Holds d init b hv` (line 532: the head's values in `init`)
-   and `HeadV.Ok d hv` (line 644: values finite, `|L|, |Δ| ≤ 2^126`, and `fits` for every
+   `hv : HeadV` (line 519) that `HeadV.Holds d init b hv` (line 534: the head's values in `init`)
+   and `HeadV.Ok d hv` (line 646: values finite, `|L|, |Δ| ≤ 2^126`, and `fits` for every
    `Allowed` pair): there is a finite `float32` `v` with `|v.toReal − E hv| ≤ T hv` and
    `FloatV.NaNEq (FloatV.cvt v) c`; and when `|E hv| + T hv ≤ 65504`, `c` is finite and
    `|c.toReal − E hv| ≤ T hv + (|E hv| + T hv)·u16 + eta16`. The exact values `E` are in the reals
-   (`pE`, `dsE`, lines 600, 604, from `hv`); the tolerances use `accB` (line 509), `stepsKV`,
-   `stepsQ` (lines 665, 670). Outside `HeadV.Ok` only "holds a `float16` value" is asked;
+   (`pE`, `dsE`, lines 602, 606, from `hv`); the tolerances use `accB` (line 511), `stepsKV`,
+   `stepsQ` (lines 667, 672). Outside `HeadV.Ok` only "holds a `float16` value" is asked;
 2. the frame: every byte outside `outBytes d` (line 384) is unchanged.
 
-**What you are given** (`Assumptions`, line 744), four fields:
+**What you are given** (`Assumptions`, line 746), four fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): each `tl.dot` and `tl.dot_add` (model lines 94, 113,
@@ -46,7 +46,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
   `exp2_total` (`Rules.Num.MathTotal`): it has a result.
 
 **The kernel, as the model runs it** (`attn_bwd` line 208, helpers `attn_bwd_dkdv` line 62 and
-`attn_bwd_dq` line 142, `model` line 447, `launch` line 467): a grid `(N_CTX/128, 1, G d)`.
+`attn_bwd_dq` line 142, `model` line 449, `launch` line 469): a grid `(N_CTX/128, 1, G d)`.
 Program `(pid, bhid)` offsets every pointer by its head (`adj`, `off_chz`, with `tl.irem`,
 `tl.idiv` by `H`). It loads the key and value tiles of rows `pid·128 + [0, 128)`, runs
 `attn_bwd_dkdv` (with `CAUSAL`, first 8 masked steps of 16 query rows from `start_n`, then the
@@ -60,7 +60,7 @@ route is `TVA.meets_independent`; each loop is `safe_forRange` with an invariant
 
 **What the proof must establish.**
 - each launch is valid and has `debug = false` (the `Launch` default; `Launch.Valid` from `g_lt`,
-  `n_le`, `n_mod`, and the block shapes `blocks d`, line 458, from `hd`);
+  `n_le`, `n_mod`, and the block shapes `blocks d`, line 460, from `hd`);
 - each program is `Safe`: the divisor `H` is nonzero (a program exists only when `G d = Z·H > 0`),
   and so are the block sizes; the `int32` values (`bhid·N_CTX`, `adj`, the pointer offsets, `curr_m`,
   `curr_n`, `num_steps`) do not wrap (`size_lt`; `TVA.Lemmas.Int`); every lane of every load and
@@ -70,14 +70,17 @@ route is `TVA.meets_independent`; each loop is `safe_forRange` with an invariant
 - the programs' write tiles of `DV`, `DK`, `DQ` are disjoint (distinct `(pid, bhid)`; `dq_dk`,
   `dq_dv`, `dk_dv`), and no program writes what any program reads (`out_in`);
 - the value part of part 1, from `HeadV.Holds` and `HeadV.Ok`: per pair, the computed exponent and
-  `dP − Δ` within `eX`, `eY` (`eSub`, line 574), `P` and `dS` in `float16` within `p16Err`,
+  `dP − Δ` within `eX`, `eY` (`eSub`, line 576), `P` and `dS` in `float16` within `p16Err`,
   `ds16Err`; over the steps, the accumulators within `accB` (`dot` with `DotLoop.dotAdd_step`, one
   step of `K = 32` or `16` products); the masked lanes exactly `0`; then the products by `smF` or
-  `ln2F` (line 512) and the rounding to `float16` (`FloatV.cvt_err`; README `## Tolerances`);
+  `ln2F` (line 514) and the rounding to `float16` (`FloatV.cvt_err`; README `## Tolerances`);
 - the bytes no program writes give part 2.
 
+`z_le` (`BATCH ≤ 8192`, real batch sizes) is not needed by the derivation: `g_lt` and `size_lt`
+already bound the heads and the offsets.
+
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`,
-`smTest_ok`, `smBench_ok` and the `setup_*_ok` theorems; `elems_bytes` (line 800) can be reused.
+`smTest_ok`, `smBench_ok` and the `setup_*_ok` theorems; `elems_bytes` (line 802) can be reused.
 
 ## Specification
 
@@ -120,6 +123,8 @@ buffers, in the contiguous layout (element `(z, h, r, c)` is `((z·H + h)·N_CTX
 
 - `hd`: `HEAD_DIM ∈ {16, 32, 64, 128, 256}` (the forward's assertion, line 512);
 - `n_mod`: `N_CTX % 128 = 0` (line 599); `n_le`: `N_CTX ≤ 2^14` (the benchmark's largest);
+- `z_le`: `BATCH ≤ 8192` (`BATCH` is a batch size, the number of sequences): real model shapes only
+  (Exclusions);
 - `g_lt`: `BATCH·N_HEAD < 2^16` (the grid's axis 2); `size_lt`:
   `(BATCH·N_HEAD − 1)·N_CTX·HEAD_DIM < 2^31` (the kernel's `int32` offsets, a limit of the kernel)
   and `N_HEAD·N_CTX·HEAD_DIM < 2^31` (the model's `int32` argument `stride_z`; outside real use
@@ -198,6 +203,11 @@ up to `0.73` of `T`: the bound is within a factor `1.4` of the kernel's worst er
 
 ## Exclusions
 
+* **Batches of more than 8192 requests** — out of scope: the claim covers real model shapes only.
+  The field: `Z` (`BATCH`, `z_le`: at most `8192`). Every launch of the file is covered
+  (`BATCH ≤ 4`). No other field takes these bounds: `N_CTX`, the context length, is at most `2^14`
+  (`n_le`), within `2^22`; `HEAD_DIM` is a head dimension and `N_HEAD` a number of heads, not
+  model dimensions.
 * **`int32` offsets (a kernel limit).** `bhid * N_CTX` and `adj = stride_h·(bhid % H) +
   stride_z·(bhid // H)` (lines 384–385) are `int32`; `adj` reaches the last head's first element,
   `(BATCH·N_HEAD − 1)·N_CTX·HEAD_DIM`, and wraps once that is `2^31` or more (`size_lt`). The first

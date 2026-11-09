@@ -19,7 +19,7 @@ the source's order (`(ptr + start_idx) + pos`, `(ptr + req_idx * (max_spec_len +
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.RejectionGreedy.main : Statement` (`Statement`:
-`Claim.lean` line 291). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 295). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -27,10 +27,10 @@ the source's order (`(ptr + start_idx) + pos`, `(ptr + req_idx * (max_spec_len +
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 209), and every initial memory `init` that `Pre` accepts (line 255), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 269).
+(`Inst.ok`, line 209), and every initial memory `init` that `Pre` accepts (line 258), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 273).
 
-**What `Post` asks** (line 269), two parts:
+**What `Post` asks** (line 273), two parts:
 1. for every request `r < B` and column `j < S + 1`, output element `oidx d r j = r * (S + 1) + j`
    (line 190) is decided by `expect d init r j` (line 196):
    - `some v`: the element reads in `fin` as an `int32` `w` with `w.toInt = v`;
@@ -46,13 +46,13 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    Exact: integers only, no tolerance. The reference reads the host's inputs in `init`;
 2. the frame: every byte outside the output's first `B * (S + 1)` elements is unchanged.
 
-**What you are given** (`Assumptions`, line 282): one field, `faithful` (`Compiler.Faithful`): the
+**What you are given** (`Assumptions`, line 286): one field, `faithful` (`Compiler.Faithful`): the
 device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
 `debug = false`, and the model's launch is well behaved from `init`. No numeric fact: the kernel
 uses integers only.
 
-**The kernel, as the model runs it** (`rejection_greedy_sample_kernel`, line 43; `model`, line 238;
-`launch`, line 246): a 1-D grid of `B` programs, no block shape (every access is a scalar
+**The kernel, as the model runs it** (`rejection_greedy_sample_kernel`, line 43; `model`, line 240;
+`launch`, line 248): a 1-D grid of `B` programs, no block shape (every access is a scalar
 `tl.load1` / `tl.store1`). Program `r` loads its mask byte (with a mask) and returns at once if it is
 not greedy. Otherwise it loads `start_idx` (`0` for `r = 0`, else `cu[r-1]`, through the pointer
 minus `1`) and `end_idx = cu[r]`, and runs the `int32` loop `tl.forRange 0 num_draft_tokens 1`
@@ -79,9 +79,14 @@ stores it at column `num_draft_tokens`. Programs write disjoint rows and share n
   their initial value;
 - the bytes no program writes give part 2.
 
-**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok`,
-`edge_offsets_ok` and the `setup_*_ok` theorems; `bytes_disjoint_of_le` (line 300),
-`bytes_disjoint_of_ge` (line 307) can be reused.
+The real-shape conditions (`hB_le`: `B ≤ 8192`; `Pre`'s last conjunct: `cu`'s last entry at most
+`2^22`) give the grid's limit (`hgrid`) at once and bound every packed draft position,
+`start_idx + pos < 2^22`; the row offsets still take their bound from `hmul` (`S` is not bounded
+by them).
+
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `bytes_disjoint_of_le` (line 304),
+`bytes_disjoint_of_ge` (line 311) can be reused.
 
 ## Specification
 
@@ -124,7 +129,10 @@ tokens, the mask and the initial output), with SETUP.md's packing (request `r`'s
   (a limit of the kernel, see Exclusions); it also gives `S < 2^31`, so `max_spec_len` is an
   `int32`;
 - `B ≤ cu.len`, `B ≤ bonus.len`, `B * (S + 1) ≤ out.len`, and `B ≤ greedy.len` for a mask;
-- the output shares no byte with any input (the host allocates it fresh). The inputs may overlap.
+- the output shares no byte with any input (the host allocates it fresh). The inputs may overlap;
+- `B ≤ 8192` (`hB_le`): `batch_size` is the number of requests, a batch size (out of scope beyond,
+  Exclusions). `S = max_spec_len` is a draft length per request, not a context length, and is not
+  bounded by it.
 
 Not required: `S + 1 < 2^31` (at `B = 1`, `S = 2^31 - 1` the wrapped `max_spec_len + 1` is
 multiplied by `req_idx = 0`, and the kernel is right), `num_tokens < 2^31` (every index is below an
@@ -134,7 +142,9 @@ read from memory, not fixed in `Inst`.
 `Pre d init`: the five buffers, and the mask when given, are valid; `cu` holds the inclusive running sums of the draft
 counts (`cu[0] ≥ 0`, nondecreasing), its last entry at most the lengths of `draft` and `target`;
 every `n_r ≤ S` (the host passes `max_r n_r`), for every request, greedy or not (vLLM's
-`cu_num_draft_tokens` counts every request). Draft, target, bonus and mask values are arbitrary
+`cu_num_draft_tokens` counts every request); `cu`'s last entry, the number of packed drafts (the
+tokens of the batch's draft sequences, a context length), at most `2^22` (out of scope beyond,
+Exclusions). Draft, target, bonus and mask values are arbitrary
 (`-1` drafts, any `int64` target, any mask byte, any initial output).
 
 `launch d = Launch.grid1 B [] (fusion := true)`: the host's grid, no block shape, Triton's default
@@ -178,12 +188,14 @@ has an instance in `Claim.lean` with `Inst.ok` proved (`mk B S N true` places a 
 | each random batch above with its mask | as above | `setup_<batch>_mask` (8 instances) |
 | serving: `MAX_SPEC_LEN = 128`, 1024 requests | 1024, 128, 131072 | `setup_serving_max` |
 | serving, mixed batch (`is_greedy = temperature == 0`) | 1024, 128, 131072 | `setup_serving_max_mask` |
-| edge of `Inst.ok`: `B * (S + 1) = 2^31` | `2^24`, 127, 0 | `edge_offsets` |
 
 `Inst.ok` puts no bound on the values (any vocabulary, any `int64` target, `-1` drafts, any mask),
-and none on `B` or `S` beyond the offset limit, so every serving size SETUP.md names (batches up to
-a thousand or more, 1 to 128 drafts, vocabularies 32000 to 151936), all-greedy or mixed, is
-covered. Synthetic mode is not part of the setup.
+none on `S` beyond the offset limit, and on `B` only the real-shape `B ≤ 8192`, so every serving
+size SETUP.md names (batches up to a thousand or more, 1 to 128 drafts, vocabularies 32000 to
+151936), all-greedy or mixed, is covered. No launch of SETUP.md is left out. The instance of
+`2^24` requests at `B * (S + 1) = 2^31` (`S = 127`, no drafts), the edge of `hmul`, is not an
+instance of `Inst.ok` (`hB_le`); within it `hmul` excludes a launch only from `S ≥ 262,144`.
+Synthetic mode is not part of the setup.
 
 ## Tolerances
 
@@ -200,6 +212,11 @@ None: `Post` is exact (integers only).
   also leaves out the few launches just above `2^31` whose last rows write no slot past `2^31`.
   Each needs an output of at least 8 GiB; real use (batches of at most a few thousand requests,
   `S ≤ 128`) is below `2^22` and never reaches it.
+- **out of scope**: dimensions that are not multiples of 128 or exceed 2^17, contexts longer
+  than 2^22 tokens, and batches of more than 8192 requests: the claim covers real model shapes
+  only. The fields: `B`, the number of requests (`hB_le`), and `cu`'s last entry, the number of
+  packed draft tokens (`Pre`); the kernel has no model-dimension field. Within `B ≤ 8192` the
+  offset limit above takes `S ≥ 262,144`.
 - **An empty batch (`B = 0`)** and **an output overlapping an input** are outside real use (the
   host's batch is never empty; it allocates the output fresh).
 
@@ -214,14 +231,15 @@ None. The `is_greedy` load is a `torch.bool` argument: SEMANTICS.md states that 
   `propext`, `Classical.choice`, `Quot.sound`.
 - **Not vacuous**: `consistent` (`Platform.any`, `exists_total_faithful`); `satisfiable` (vLLM's
   "no drafts" case on the all-zero memory).
-- **Coverage**: the 24 instances above, `Inst.ok` proved for each.
+- **Coverage**: the 23 instances above, `Inst.ok` proved for each.
 - **GPU** (`check_gpu.py`, H200, Triton 3.8.0): 34 launches, the 22 setup launches through the
   host (the random batches with and without their mask) plus edges (`S = 128` all accepted; `S`
   above every `n_r` with zero-draft requests; `int64` targets with high bits, where the kernel
-  compares the truncation; `S = 0` with 70000 requests; `2^21` requests with `int32` extreme
-  drafts; a 1024-request `S = 128` mixed batch with `is_greedy = temperature == 0` and vLLM's
+  compares the truncation; a 1024-request `S = 128` mixed batch with `is_greedy = temperature == 0` and vLLM's
   `uniform_probs`; masks all true, all false and of bytes `0..255`; three direct launches with the
-  host's launch line on an output carved from a random-filled pool with guards, one with a mask).
+  host's launch line on an output carved from a random-filled pool with guards, one with a mask)
+  and two launches beyond `Inst.ok` (out of scope; checks of the kernel past the claim): `S = 0`
+  with 70000 requests, and `2^21` requests (8,391,331 packed drafts) with `int32` extreme drafts.
   19,327,627 output cells: every cell exactly as `Post` states (error 0, no tolerance), every input
   unchanged, every guard unchanged; the host-launched cases also equal the host's own `reference`.
   Negative tests: 123 of 123 wrong outputs rejected (the mask ignored, a dropped bonus token, an

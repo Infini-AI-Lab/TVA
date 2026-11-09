@@ -7,7 +7,7 @@ imports of lines 22–23; host `streamk_matmul` 70–93). `Claim.lean`, namespac
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.StreamKMatmul.main : Statement` (`Statement`:
-`Claim.lean` line 399). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 407). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -15,29 +15,29 @@ imports of lines 22–23; host `streamk_matmul` 70–93). `Claim.lean`, namespac
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 191), and every initial memory `init` that `Pre` accepts (line 285: the buffers
+(`Inst.ok`, line 191), and every initial memory `init` that `Pre` accepts (line 293: the buffers
 valid, every element of the matrix `c` a finite zero), every outcome of the launch is a normal end
-(no fault, no hang) whose final memory `fin` satisfies `Post` (line 366).
+(no fault, no hang) whose final memory `fin` satisfies `Post` (line 374).
 
-**What `Post` asks** (line 366), two parts:
-1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 355): element
+**What `Post` asks** (line 374), two parts:
+1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 363): element
    `i * stride_cm + j * stride_cn` of `c` reads in `fin` as some `float32` `c` (on every input);
    and for all `va vb : Nat → F16` such that, for every `k < K`, `init` reads `a`'s element
    `i * stride_am + k * stride_ak` as a finite `va k` and `b`'s element
    `k * stride_bk + j * stride_bn` as a finite `vb k`: `c` is finite and
    `|c.toRat - dotSum va vb d.K| ≤ tol va vb d.K`.
-   The reference `dotSum` (line 305) is the exact sum `Σ_{k<K} va k · vb k` in the rationals.
-   `tol` (line 347) is `tolDot` (line 339) plus `DotLoop.bound 2^-23 2^-124 (steps K)
+   The reference `dotSum` (line 313) is the exact sum `Σ_{k<K} va k · vb k` in the rationals.
+   `tol` (line 355) is `tolDot` (line 347) plus `DotLoop.bound 2^-23 2^-124 (steps K)
    (C + tolDot)`, with `C = Σ_{t < steps K} |chunkSum t|`. `tolDot` sums, over the chunks
-   `t < steps K` (`steps`, line 168; `chunk`, line 314: `k ∈ [64t, min(64t + 64, K))`),
+   `t < steps K` (`steps`, line 168; `chunk`, line 322: `k ∈ [64t, min(64t + 64, K))`),
    `(1 + rho)^(steps K − 1 − t) · (rho · (dev t + chunkMag t) + alpha)`. The helpers are `rho`,
-   `alpha` (lines 299, 302: `relDot16 64`, `absDot16 64`), `chunkSum`, `chunkMag`, `mag16`, `pre`
-   and `dev` (lines 317, 322, 311, 326, 332). The bound holds whatever order the atomic additions
+   `alpha` (lines 307, 310: `relDot16 64`, `absDot16 64`), `chunkSum`, `chunkMag`, `mag16`, `pre`
+   and `dev` (lines 325, 330, 319, 334, 340). The bound holds whatever order the atomic additions
    ran in. With a non-finite input, only "holds a value" is asked;
 2. the frame: every byte outside the matrix `c` (`c.elems (cIdx d)`, `cIdx` line 185) is
    unchanged: `a`, `b`, and the elements of `c`'s storage outside the matrix.
 
-**What you are given** (`Assumptions`, line 374):
+**What you are given** (`Assumptions`, line 382):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 57 is within
@@ -48,8 +48,8 @@ valid, every element of the matrix `c` a finite zero), every outcome of the laun
   `2^-23·|o + v| + 2^-124` of `o + v` when `o`, `v` are finite and the sum is in range;
 - `atomic_total` (`Rules.Num.AtomicAddTotal P Format.binary32`): that atomic has a result.
 
-**The kernel, as the model runs it** (`streamk_matmul_kernel`, line 49; `model` line 267, `launch`
-line 277): a 1-D grid of `num_programs` programs with `BLOCK_M = BLOCK_N = 128`, `BLOCK_K = 64`.
+**The kernel, as the model runs it** (`streamk_matmul_kernel`, line 49; `model` line 275, `launch`
+line 285): a 1-D grid of `num_programs` programs with `BLOCK_M = BLOCK_N = 128`, `BLOCK_K = 64`.
 Program `pid` owns the iterations `[pid · iters_per_program, end)`, `end = min(…, total_iters)`, and
 runs a `while it < end` loop. Each trip takes one tile (`tile = it / iters_per_tile`), runs a
 `for kk in [k_first, k_last)` loop of two masked loads and one `tl.dot` per step into a zero
@@ -73,7 +73,9 @@ with the `SafeA.loop` constructor, by induction on `end − it`, which each trip
   products by `am_fit` … `cm_fit`, `c_rows`); the enabled lanes of the loads are in bounds
   (`a_len`, `b_len`) and the store's and atomic's lanes are in `c` (`c_len`), distinct
   (`cn`, `c_rows`); `safe_idiv`, `safe_irem`, `safe_convert`, `safe_dot` (`dot_total`) for the
-  steps; the `while` loop ends;
+  steps; the `while` loop ends; every column tile is full (`N_mul`: `128 ∣ N`, and `BLOCK_N = 128`)
+  and every `K` chunk is a full 64 (`K_mul`: `128 ∣ K`, and `BLOCK_K = 64`), so the column and `k`
+  masks are all true; only the row tiles may be partial (`M_le22` bounds `M`, not its remainder);
 - the footprints: the owned tiles of different programs are disjoint, a split tile is owned by no
   program, the cells of `C` are equal or disjoint and present, and `c`'s matrix is disjoint from
   the reads (`c_a`, `c_b`); the postcondition `Q i log m` is `PermInv`, pairing the log with the
@@ -86,7 +88,7 @@ with the `SafeA.loop` constructor, by induction on `end − it`, which each trip
 - the frame: the bytes outside `W i` and `C` keep their initial value (`shared`'s last part).
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `idx_lt` (line 430) and `cdiv_cover` (line 435) can be reused.
+`setup_*_ok` theorems; `idx_lt` (line 438) and `cdiv_cover` (line 443) can be reused.
 
 ## Specification
 
@@ -143,6 +145,9 @@ With a NaN or an infinity in row `i` of `a` or column `j` of `b`, `Post` says on
 | `M_le` | `M + 127 ≤ 2^31` | `M` is an `int32`; the tile rows `pid_m·128 + i` (line 48) stay below `cdiv(M, 128)·128 ≤ M + 127` |
 | `N_le` | `N + 128 ≤ 2^31` | `N` is an `int32`; `tl.cdiv(N, 128)` computes `N + 127` in `int32` (line 37), and the tile columns stay below `2^31` |
 | `K_le` | `K ≤ 2^13` | keeps the tolerance below `0.21%` of `A = Σ mag16·mag16` on every input; also `K + 63 < 2^31` (line 38) |
+| `N_mul`, `N_le17` | `N % 128 = 0`, `N ≤ 2^17` | `N` is a model dimension (the GEMM's output features) |
+| `K_mul`, `K_le17` | `K % 128 = 0`, `K ≤ 2^17` | `K` is a model dimension (the GEMM's inner features) |
+| `M_le22` | `M ≤ 2^22` | `M` counts tokens, a context length |
 | `am`, `ak`, `bk`, `bn`, `cm` | strides `< 2^31` | `int32` arguments (zero allowed) |
 | `cn` | `0 < stride_cn < 2^31` | with `c_rows`, distinct elements of `c` are distinct storage elements |
 | `am_fit` … `cm_fit` | `(M−1)·stride_am`, `(K−1)·stride_ak`, `(K−1)·stride_bk`, `(N−1)·stride_bn`, `(M−1)·stride_cm` `< 2^31` | the `int32` products of the lanes inside the matrices (lines 53, 55, 58) do not wrap |
@@ -184,11 +189,12 @@ IEEE conversion the library defines. No `[kernel]` field.
 
 ## Coverage
 
-`setup_512_512_512_p132`, `setup_1000_1000_1000_p132`, `setup_3072_4096_1024_p132`,
-`setup_257_129_4097_p7`, `setup_64_64_64_p3`, `setup_8192_8192_4096_p132`, with `setup_*_ok`: the six
-test launches of `SETUP.md` (contiguous `a`, `b`, a fresh `c`, the host's `total_iters` and
-`iters_per_program`; `mk`). `mk_ok` covers the host's launch for every shape and program count within
-the bounds.
+`setup_512_512_512_p132`, `setup_3072_4096_1024_p132`, `setup_8192_8192_4096_p132`, with
+`setup_*_ok`: the test launches of `SETUP.md` whose `N` and `K` are multiples of 128 (contiguous `a`,
+`b`, a fresh `c`, the host's `total_iters` and `iters_per_program`; `mk`). `mk_ok` covers the host's
+launch for every shape and program count within the bounds. The test's `1000³` (132 programs),
+`257 × 129 × 4097` (7 programs) and `64³` (3 programs) are not covered: their `N` and `K` are not
+multiples of 128 (Exclusions).
 
 ## Tolerances
 
@@ -223,6 +229,10 @@ the library's `DotF16` constant, `66·2^-22` per 64-long `tl.dot` relative to `|
 
 ## Exclusions
 
+- **Dimensions that are not multiples of 128 or exceed 2^17, and contexts longer than 2^22
+  tokens** — out of scope: the claim covers real model shapes only. The fields: `N` and `K` (model
+  dimensions: `N_mul`, `N_le17`, `K_mul`, `K_le17`) and `M` (a number of tokens: `M_le22`). This
+  leaves out three of the test's launches: `1000³`, `257 × 129 × 4097` and `64³`.
 - **`K > 2^13`** — outside the file's launches (largest `4097`); the tolerance grows with `K`.
 - **`int32` bounds** (`M_le`, `N_le`, the fits, `progs_lt`, the strides) — a kernel limit: Triton
   passes an integer `≥ 2^31` as an `int64`, and with `int32` arguments the offsets of lines 53, 55
@@ -253,4 +263,7 @@ None needed for this claim. The claim cites `DotF16`; the library also states `D
   infinities, all-positive inputs, transposed `a` and `b`, `1` to `2048` programs. Worst error /
   tolerance over every element with finite inputs: `0.0024`–`0.0100` on the test, `0.036` overall;
   every such element finite; `a`, `b` unchanged; frame holds. Negative tests at `K = 64 … 8192`
-  (Specification) all fail `Post` as they must. 44 of 44 cases pass.
+  (Specification) all fail `Post` as they must. 44 of 44 cases pass. Outside `Inst.ok` (`N` or
+  `K` not a multiple of 128) and passing as well: the test's `1000³`, `257 × 129 × 4097` and `64³`,
+  and the edges `1 × 1 × 1`, `129 × 257 × 4100`, `K = 2^13` (`N = 130`), magnitude `~2000`
+  (`K = 700`), subnormal operands (`K = 2000`) and transposed `a`, `b` (`K = 1000`, `N = 200`).

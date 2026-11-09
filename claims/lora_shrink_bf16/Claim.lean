@@ -346,6 +346,8 @@ structure Inst.ok (d : Inst) : Prop where
   K_pos : 0 < d.K
   /-- `K ≤ 2^17 = 131072`: every hidden size `SETUP.md` names (2 to 128256). -/
   K_top : d.K ≤ 2 ^ 17
+  /-- `M`, the step's tokens, is a context length: at most `2^22` tokens. -/
+  M_le : d.M ≤ 2 ^ 22
   /-- `R·K < 2^31`: the host's `lora_d0_stride = R·K` is an `int32` argument (`R ≤ 256` and
   `K ≤ 128256` in `SETUP.md` give `R·K < 2^25`). -/
   RK_lt : d.R * d.K < 2 ^ 31
@@ -842,6 +844,7 @@ structure CovShape (M K R maxL S G : Nat) (sc : F64) : Prop where
   R_pos : 0 < R
   K_pos : 0 < K
   K_top : K ≤ 2 ^ 17
+  M_le : M ≤ 2 ^ 22
   RK_lt : R * K < 2 ^ 31
   out_wrap : (M - 1) * R < 2 ^ 31
   S_pos : 0 < S
@@ -861,6 +864,7 @@ theorem oneInst_ok {M K R maxL S G a : Nat} {sc : F64} (hs : CovShape M K R maxL
   R_pos := hs.R_pos
   K_pos := hs.K_pos
   K_top := hs.K_top
+  M_le := hs.M_le
   RK_lt := hs.RK_lt
   out_wrap := hs.out_wrap
   lora_wrap := fun _ _ _ => hw
@@ -940,6 +944,7 @@ theorem twoInst_ok {M K R maxL S G nm a : Nat} {sc : F64} (hs : CovShape M K R m
   R_pos := hs.R_pos
   K_pos := hs.K_pos
   K_top := hs.K_top
+  M_le := hs.M_le
   RK_lt := hs.RK_lt
   out_wrap := hs.out_wrap
   lora_wrap := fun t _ h0 => by

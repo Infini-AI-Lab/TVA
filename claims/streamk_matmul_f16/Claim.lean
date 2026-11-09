@@ -205,6 +205,14 @@ structure Inst.ok (d : Inst) : Prop where
   `A = Σ_k mag16 (a[i,k]) · mag16 (b[k,j])` (`Σ|a·b|` when no operand is subnormal) on every input.
   The test's largest `K` is `4097`. It also makes `K + 63 < 2^31` for `tl.cdiv(K, 64)` (line 38). -/
   K_le : d.K ≤ 2 ^ 13
+  /-- `N` is a model dimension (the GEMM's output features): a multiple of 128, at most `2^17`. -/
+  N_mul : d.N % 128 = 0
+  N_le17 : d.N ≤ 2 ^ 17
+  /-- `K` is a model dimension (the GEMM's inner features): a multiple of 128, at most `2^17`. -/
+  K_mul : d.K % 128 = 0
+  K_le17 : d.K ≤ 2 ^ 17
+  /-- `M` counts tokens, a context length: at most `2^22`. -/
+  M_le22 : d.M ≤ 2 ^ 22
   /-- Each stride is an `int32` (below `2^31`). -/
   am : d.stride_am < 2 ^ 31
   /-- As `am`. -/
@@ -438,15 +446,17 @@ theorem cdiv_cover {t np : Nat} (hnp : 0 < np) : t ≤ np * ((t + np - 1) / np) 
   omega
 
 /-- Every such launch is covered when the shapes are positive, the `int32` bounds hold, `K ≤ 2^13`,
-there is a program and `num_programs · iters_per_program < 2^31`, and each matrix fits in `2^36`
-bytes. -/
+there is a program and `num_programs · iters_per_program < 2^31`, each matrix fits in `2^36`
+bytes, `N` and `K` are multiples of 128 up to `2^17`, and `M ≤ 2^22`. -/
 theorem mk_ok {M N K np : Nat} (hM : 0 < M) (hN : 0 < N) (hK : 0 < K) (hMle : M + 127 ≤ 2 ^ 31)
     (hNle : N + 128 ≤ 2 ^ 31) (hKle : K ≤ 2 ^ 13) (ham : (M - 1) * K < 2 ^ 31)
     (hbk : (K - 1) * N < 2 ^ 31) (hcm : (M - 1) * N < 2 ^ 31) (hnp : 0 < np)
     (hprog : np * (((M + 127) / 128 * ((N + 127) / 128) * ((K + 63) / 64) + np - 1) / np) < 2 ^ 31)
-    (hsa : M * K * 2 ≤ 2 ^ 36) (hsb : K * N * 2 ≤ 2 ^ 36) (hsc : M * N * 4 ≤ 2 ^ 36) :
+    (hsa : M * K * 2 ≤ 2 ^ 36) (hsb : K * N * 2 ≤ 2 ^ 36) (hsc : M * N * 4 ≤ 2 ^ 36)
+    (hNm : N % 128 = 0) (hN17 : N ≤ 2 ^ 17) (hKm : K % 128 = 0) (hK17 : K ≤ 2 ^ 17)
+    (hM22 : M ≤ 2 ^ 22) :
     (mk M N K np).ok := by
-  refine ⟨hM, hN, hK, hMle, hNle, hKle, by simp only [mk]; omega, by simp only [mk]; omega,
+  refine ⟨hM, hN, hK, hMle, hNle, hKle, hNm, hN17, hKm, hK17, hM22, by simp only [mk]; omega, by simp only [mk]; omega,
     by simp only [mk]; omega, by simp only [mk]; omega, by simp only [mk]; omega,
     by simp only [mk]; omega, ham, by simp only [mk]; omega, hbk, by simp only [mk]; omega, hcm,
     by simp only [mk]; omega, rfl, cdiv_cover hnp, hprog,
@@ -491,7 +501,8 @@ theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
     fun b h1 h2 h3 => ⟨h1, h2, h3, fun _ _ => by simp [testMem]⟩
   refine ⟨mk 512 512 512 132, testMem, mk_ok (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num),
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+    (by norm_num),
     hvalid _ (by norm_num [mk]) (by norm_num [mk, DType.bytes]) (by norm_num [mk, DType.bytes]),
     hvalid _ (by norm_num [mk]) (by norm_num [mk, DType.bytes]) (by norm_num [mk, DType.bytes]),
     hvalid _ (by norm_num [mk]) (by norm_num [mk, DType.bytes]) (by norm_num [mk, DType.bytes]),
@@ -503,30 +514,21 @@ theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
 /-! ## Coverage of the test's launches (`SETUP.md`)
 
 `(M, N, K, num_programs)` of the test (lines 99–106), with the H200's 132 SMs for
-`num_programs=None`. -/
+`num_programs=None`, whose `N` and `K` are multiples of 128 (README, Coverage). -/
 def setup_512_512_512_p132 : Inst := mk 512 512 512 132
 theorem setup_512_512_512_p132_ok : setup_512_512_512_p132.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-def setup_1000_1000_1000_p132 : Inst := mk 1000 1000 1000 132
-theorem setup_1000_1000_1000_p132_ok : setup_1000_1000_1000_p132.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num)
 def setup_3072_4096_1024_p132 : Inst := mk 3072 4096 1024 132
 theorem setup_3072_4096_1024_p132_ok : setup_3072_4096_1024_p132.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-def setup_257_129_4097_p7 : Inst := mk 257 129 4097 7
-theorem setup_257_129_4097_p7_ok : setup_257_129_4097_p7.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-def setup_64_64_64_p3 : Inst := mk 64 64 64 3
-theorem setup_64_64_64_p3_ok : setup_64_64_64_p3.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num)
 def setup_8192_8192_4096_p132 : Inst := mk 8192 8192 4096 132
 theorem setup_8192_8192_4096_p132_ok : setup_8192_8192_4096_p132.ok := mk_ok (by norm_num) (by norm_num) (by norm_num)
   (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  (by norm_num) (by norm_num)
 
 end Claims.StreamKMatmul

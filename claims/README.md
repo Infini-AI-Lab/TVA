@@ -92,6 +92,14 @@ for TVA (`streamk_matmul_f16`, `paged_attention_f16`), each with the launches it
    preconditions of the library fact or lemma it cites. A claim is narrowed (or its tolerance or guard weakened)
    where an obstacle is found, keeping the real launches covered.
 
+**Real model shapes.** The claims cover the shapes real LLM serving uses, which keeps the proofs free of
+corner cases no model reaches: a model dimension (hidden or intermediate size, a GEMM's `N` and `K`, the
+columns of a row-wise op) is a multiple of 128 and at most `2^17`; a context (a sequence length, the tokens of a
+batch) is at most `2^22` tokens; a batch has at most 8192 requests. Each claim applies a bound only where its
+field is such a quantity and its real values meet it (head dimensions, head counts, tile sizes and
+tensor-parallel shards that are not multiples of 128 keep their own bounds), and lists the launches outside
+them in its Exclusions.
+
 Each claim's README opens with **What you prove**: the goal unfolded, each part of `Post`, the assumptions, the
 kernel as the model runs it, and the obligations a proof must discharge, with `Claim.lean` line numbers ("line N";
 a line of the kernel's source is "source line N").

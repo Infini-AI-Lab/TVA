@@ -170,6 +170,8 @@ structure Inst.ok (d : Inst) : Prop where
     (d.A_log.bytes ∪ d.a.bytes ∪ d.b.bytes ∪ d.dt_bias.bytes ∪ d.bout.bytes)
   /-- `beta_output` shares no byte with the inputs (the wrapper allocates it). -/
   bout_disj : Disjoint d.bout.bytes (d.A_log.bytes ∪ d.a.bytes ∪ d.b.bytes ∪ d.dt_bias.bytes)
+  /-- `batch` is the number of tokens of the extend batch: a context length, at most `2^22`. -/
+  batch_ctx : d.batch ≤ 2 ^ 22
 
 /-- The model on an instance: the buffers' first elements, `seq_len = 1`, the strides as `int32`,
 `NUM_HEADS = num_heads`, `BLK_HEADS = 8`. -/
@@ -338,7 +340,7 @@ theorem rows_fit {batch s H len : Nat} (h : (batch - 1) * s + H ≤ len) :
   have : i * s ≤ (batch - 1) * s := Nat.mul_le_mul_right _ (by omega)
   omega
 
-theorem mk_ok (batch H : Nat) (split : Bool) (hB : 1 ≤ batch) (hb : batch ≤ 2 ^ 26)
+theorem mk_ok (batch H : Nat) (split : Bool) (hB : 1 ≤ batch) (hb : batch ≤ 2 ^ 22)
     (hH : H ≤ 2 ^ 16) (hBH : batch * H ≤ 2 ^ 26) : (mk batch H split).ok := by
   have hBH2 : (batch - 1) * (2 * H) + H ≤ 2 * (batch * H) := by
     have : (batch - 1) * (2 * H) + 2 * H = 2 * (batch * H) := by
@@ -351,7 +353,7 @@ theorem mk_ok (batch H : Nat) (split : Bool) (hB : 1 ≤ batch) (hb : batch ≤ 
   have bf : DType.bytes DType.bf16 = 2 := rfl
   have b4 : DType.bytes DType.f32 = 4 := rfl
   cases split <;>
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, rows_fit ?_, rows_fit ?_, ?_, ?_, ?_, ?_⟩ <;>
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, rows_fit ?_, rows_fit ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
   simp only [mk, Bn, Bool.false_eq_true, ↓reduceIte] <;>
   try omega
   all_goals

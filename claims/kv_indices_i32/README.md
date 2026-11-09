@@ -15,7 +15,7 @@ for: `ENTRY_PAGE_SIZE = 1`, `TOKEN_BLOCK_PARALLEL = False`, `token_mapping = Non
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.KvIndices.main : Statement` (`Statement`: `Claim.lean`
-line 265). Unfolded (`Claim.Meets`), it says:
+line 275). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -23,10 +23,10 @@ line 265). Unfolded (`Claim.Meets`), it says:
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 177), and every initial memory `init` that `Pre` accepts (line 223), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 244).
+(`Inst.ok`, line 182), and every initial memory `init` that `Pre` accepts (line 232), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 254).
 
-**What `Post` asks** (line 244), two parts. The initial values `rpi d init b` (line 153),
+**What `Post` asks** (line 254), two parts. The initial values `rpi d init b` (line 153),
 `slen d init b` (line 156), `ind d init b` (line 159) and `sidx d init b` (line 162) are
 `req_pool_indices[b]`, `seq_lens[b]`, `kv_indptr[b]` and the start `kv_start_idx[b]` (`0` when
 `hasStart = false`), read through `valOf` (line 147) as integers.
@@ -34,15 +34,15 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    `rpi·max_context_len + sidx + j` of `req_to_token` reads in `init` as some `v : I32`, and element
    `ind + j` of `kv_indices` reads `v` in `fin`. It is exact: an `int32` copy, no tolerance;
 2. the frame: every byte outside `kv_indices.elems (kvOut d init)` is unchanged; `kvOut`
-   (line 235) is the set of output elements `ind d init b + p` with `b < bs`, `p < slen d init b`.
+   (line 245) is the set of output elements `ind d init b + p` with `b < bs`, `p < slen d init b`.
 
-**What you are given** (`Assumptions`, line 256): one field, `faithful` (`Compiler.Faithful`): the
+**What you are given** (`Assumptions`, line 266): one field, `faithful` (`Compiler.Faithful`): the
 device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
 `debug = false`, and the model's launch is well behaved from `init` (no out-of-bounds access, no race).
 No numeric fact: the kernel moves integers.
 
 **The kernel, as the model runs it** (`create_flashinfer_kv_indices_triton` line 41, `model`
-line 207, `launch` line 216): a 1-D grid of `bs` programs. Program `b` loads four scalars
+line 216, `launch` line 225): a 1-D grid of `bs` programs. Program `b` loads four scalars
 (`tl.load1`): `req_pool_indices[b]` (converted to `int64`), `kv_indptr[b]`, `seq_lens[b]` (converted
 to `int32`) and, when `kv_start_idx` is `some p` and `p.addr ≠ 0`, `kv_start_idx[b]` (converted to
 `int32`). It computes `num_loop = (kv_end - kv_start + 511) / 512` (`tl.idiv`, `int32`) and runs
@@ -60,8 +60,8 @@ it to `kv_indices` at `ind + 512·i + [0, 512)` under the same mask. Programs wr
   buffers valid from `Pre`), and the branch on `kv_start_idx` takes the load (`start_nz`); the
   conversions are exact and the `int32` arithmetic gives `kv_end - kv_start = slen` and
   `num_loop = ceil(slen / 512)` without a bad lane (`ReqOk`, line 170: `0 ≤ slen`,
-  `slen + 511 < 2^31`, `0 ≤ sidx < 2^31`; `kv_end = sidx + slen` may wrap, the difference does
-  not), `tl.RangeOk` holds, and `i·512` does not wrap;
+  `slen + 511 < 2^31`, `0 ≤ sidx < 2^31`; `CtxOk`, line 178: `slen ≤ 2^22` and `sidx ≤ 2^22`, so
+  `kv_end = sidx + slen ≤ 2^23` does not wrap either), `tl.RangeOk` holds, and `i·512` does not wrap;
 - in each trip, the enabled lanes' table addresses lie in `req_to_token` (`ReqOk`'s last part)
   and their output addresses in `kv_indices` (`Pre`: `0 ≤ ind b` and `ind (b + 1) ≤ kv_indices.len`,
   with `ind (b + 1) = ind b + slen b`); the trips' write footprints are disjoint;
@@ -72,7 +72,7 @@ it to `kv_indices` at `ind + 512·i + [0, 512)` under the same mask. Programs wr
   writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `bytes_disjoint_of_le` (line 274) can be reused.
+`setup_*_ok` theorems; `bytes_disjoint_of_le` (line 284) can be reused.
 
 ## Specification
 
@@ -100,6 +100,8 @@ of the contiguous tensors; `kv_start_idx`'s is unused without it).
   a CUDA tensor of `bs ≥ 1` elements never has the null data pointer; an empty tensor's, `0`,
   would skip the branch), and it shares no byte with the output;
 - `bs < 2^31` (a valid grid); `max_context_len < 2^31` (the stride is an `int32` argument);
+- `max_context_len ≤ 2^22` (`mcl_le`: the row length is a context length);
+- `bs ≤ 8192` (`bs_le`: the number of requests is a batch size);
 - `kv_indptr` has `bs + 1` elements, the index buffers `bs`;
 - the output shares no byte with an input (`torch.empty`).
 
@@ -110,7 +112,9 @@ not bounded separately: `Pre`'s in-storage condition is what the kernel needs.
 `0 ≤ len[b]`, `len[b] + 511 < 2^31` (a limit of the kernel, Exclusions), `0 ≤ s[b] < 2^31` (its
 `.to(tl.int32)` is exact; real starts are `seq_lens - paged_kernel_lens ≥ 0`), and the row's
 `len[b]` entries from `s[b]` in the table's storage
-(`0 ≤ rpi[b] * max_context_len + s[b] + j < req_to_token.numel()`); `kv_indptr` the
+(`0 ≤ rpi[b] * max_context_len + s[b] + j < req_to_token.numel()`); `len[b] ≤ 2^22` and
+`s[b] ≤ 2^22` (`CtxOk`: the request's length and the prefix before its window are context
+lengths); `kv_indptr` the
 running sums `ind[b + 1] = ind[b] + len[b]`, all in `[0, kv_indices.len]` (the host's start is
 `0`; any nonnegative start is covered). Any table entries; rows may be shared between requests.
 
@@ -148,7 +152,7 @@ instances with `Inst.ok` proved (`Inst.ok` does not depend on the lengths and st
 | `int32` lengths and `kv_start_idx`, `int64` rows | 128 × 8192, 32 | `setup_start_i32` |
 
 Every batch size, any length from 0 to the row (and beyond it, within the table), not a multiple
-of 512 or one, and contexts to `2^31 - 512` tokens are covered.
+of 512 or one, and contexts to `2^22` tokens are covered.
 
 ## Tolerances
 
@@ -156,6 +160,12 @@ None: `Post` is exact.
 
 ## Exclusions
 
+- **Dimensions that are not multiples of 128 or exceed 2^17, contexts longer than 2^22 tokens, and
+  batches of more than 8192 requests** — out of scope: the claim covers real model shapes only. The
+  fields: `max_context_len` (`mcl_le`), each `seq_lens[b]` and `kv_start_idx[b]` (`Pre`'s
+  `CtxOk`), all at most `2^22`, and the batch size `bs` (`bs_le`), at most `8192` (`SETUP.md`'s
+  launches: at most `1786` requests). The claim has no model dimension; the batch's total length (`kv_indptr[bs]`, the sum of the
+  requests' contexts) is not bounded by `2^22`.
 - **`seq_lens[b] + 511 ≥ 2^31`: a limit of the kernel.** `tl.cdiv(kv_end - kv_start, 512)` is
   `(x + 511) // 512` in `int32`; at `x ≥ 2^31 - 511` the addition wraps, `num_loop` is negative,
   and the program copies nothing. The first launch that hits it has one request of
@@ -199,9 +209,9 @@ None.
   prefill's window over the prefix, `int32` lengths and starts with either row dtype, windows past
   the end of their row); edges: mixed index dtypes both ways with lengths 0, 1, 511, 512, 513,
   1023, 1024; one row shared by several requests; `max_context_len = 1` (the stride a
-  compile-time constant) and `16`; all lengths 0; `2^20`-token rows; 65536 requests; three direct
+  compile-time constant) and `16`; all lengths 0; `2^20`-token rows; 8192 requests (`bs_le`); three direct
   launches with the host's launch line, `kv_indptr` starting at 0, 1234 and 99 (the last with
   `kv_start_idx`), into an output longer than needed inside a random-filled guarded pool.
-  15,093,146 written elements: every one exact as `Post` states, every other output element,
+  14,167,929 written elements: every one exact as `Post` states, every other output element,
   every input and every guard unchanged. Negative tests: 33 wrong outputs (the start ignored, the
   start off by one, each request's last block of 512 dropped) all fail `Post`.

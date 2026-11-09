@@ -21,7 +21,7 @@ views of one allocation whose byte ranges overlap, in three configurations (`Mod
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.KvCacheWrite.main : Statement` (`Statement`:
-`Claim.lean` line 416). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 418). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -29,16 +29,16 @@ views of one allocation whose byte ranges overlap, in three configurations (`Mod
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 258), and every initial memory `init` that `Pre` accepts (line 343), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 381).
+(`Inst.ok`, line 258), and every initial memory `init` that `Pre` accepts (line 345), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 383).
 
-**What `Post` asks** (line 381), for every token `t < num_tokens` whose slot `slotAt d init t`
+**What `Post` asks** (line 383), for every token `t < num_tokens` whose slot `slotAt d init t`
 (line 235) is `≥ 0`, every head `h < num_heads` and component `e < head_size`; the destination is
 `dstIdx d init t h e` (line 242): block `slot / block_size`, row `slot % block_size`, head `h`,
 component `e` of the cache view (`kvIdx`, line 231):
 1. element `keyIdx d t (h·head_size + e)` (line 225) of `key` reads in `init` as `x`, element
    `dstIdx` of `key_cache` reads in `fin` as `v`, and `Stored d.mode (scaleAt init d.k_scale) x v`
-   (`Stored`, line 366; `scaleAt`, line 354):
+   (`Stored`, line 368; `scaleAt`, line 356):
    - `Mode.bf16`, `Mode.fp8in`: `v = x`, bit for bit;
    - `Mode.fp8`: only when `x` and the scale `s` are finite, `s ≠ 0` and `|x/s| ≤ 2^126`: there is a
      finite `float32` `r` with `|r - x/s| ≤ 2^-22·|x/s| + 2^-148` (exact `x/s` in the rationals) and
@@ -47,7 +47,7 @@ component `e` of the cache view (`kvIdx`, line 231):
 3. the frame: every byte outside `writeSet d init` (line 251: the elements `dstSet d init`, line
    246, of both caches) is unchanged. Padding tokens (negative slot) write nothing.
 
-**What you are given** (`Assumptions`, line 395):
+**What you are given** (`Assumptions`, line 397):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `div_total` (`Num.DivTotal .binary32`): `/` has a result on every pair (source lines 167, 181,
@@ -58,8 +58,8 @@ component `e` of the cache view (`kvIdx`, line 231):
   stores (source lines 185-194, `Mode.fp8`) has a result on every input;
 - `cvt_sat` (`Num.CvtSatF32E4m3`): that conversion is `FloatV.cvtSat .rn`, up to NaN payload.
 
-**The kernel, as the model runs it** (`reshape_and_cache_kernel_flash` line 75, `model` line 325,
-`launch` line 335): a grid `(num_tokens, numTiles d, 1)` (`numTiles`, line 222). Program
+**The kernel, as the model runs it** (`reshape_and_cache_kernel_flash` line 75, `model` line 327,
+`launch` line 337): a grid `(num_tokens, numTiles d, 1)` (`numTiles`, line 222). Program
 `(t, i)` loads `slot_mapping[t]` (`tl.load1`); a negative slot returns at once. Otherwise it
 computes `slot / block_size` and `slot % block_size` (`int64`), the tile positions
 `i·TILE_SIZE + [0, TILE_SIZE)` (`int32`, mask `< numVals d`), their head and component (`int32`
@@ -72,7 +72,8 @@ offsets are not the 1-D block pattern), and for `Mode.fp8` `safe_cvt`, `safe_div
 
 **What the proof must establish.**
 - each launch is valid and has `debug = false` (`Launch.Valid` unfolded: `tokens_lt`, `tiles_lt`,
-  `programs_lt`, the block `[TILE_SIZE]` from `tile_pow2`, `tile_le`);
+  `programs_lt`, the block `[TILE_SIZE]` from `tile_pow2`, `tile_le`; `tokens_ctx` gives
+  `num_tokens ≤ 2^22`, far inside the grid's `x` limit);
 - each program is `Safe`: `slot_len` for the scalar load; `block_size > 0` and `head_size > 0`
   where a division runs (a nonnegative slot is below `numSlots d` by `Pre`, and a program exists
   only when `numVals d > 0`); the enabled lanes' offsets do not wrap (`vals_lt`, `hs_lt`,
@@ -92,8 +93,8 @@ offsets are not the 1-D block pattern), and for `Mode.fp8` `safe_cvt`, `safe_div
 - the bytes no program writes give part 3.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `mr` (line 441), `mr_lt` (line 455), `span_disj` (line 460),
-`span_disj_idx` (line 484) and `bytes_disjoint_of_le` (line 467) can be reused.
+`setup_*_ok` theorems; `mr` (line 443), `mr_lt` (line 457), `span_disj` (line 462),
+`span_disj_idx` (line 486) and `bytes_disjoint_of_le` (line 469) can be reused.
 
 ## Specification
 
@@ -132,6 +133,8 @@ storage of `key`, `value`, both caches, `slot_mapping`, `k_scale`, `v_scale`.
 `Inst.ok`:
 - `TILE_SIZE` a power of two `≤ 2^20` (the host's `min(2048, next_power_of_2(n))` is one);
 - the grid `(num_tokens, cdiv(n, TILE_SIZE))` within CUDA's limits, fewer than `2^31` programs;
+- `num_tokens`, the tokens of the batch, is a context length: **`num_tokens ≤ 2^22`**
+  (`tokens_ctx`);
 - `n < 2^31` (the mask's constant is an `int32`, the tile positions do not wrap; a limit of the
   kernel, Exclusions); `head_size < 2^31` (the divisor of lines 150-151 is an `int32` constant,
   also when `num_heads = 0`); `block_size < 2^63`; the strides `< 2^63`; `key`, `value` and
@@ -187,9 +190,8 @@ unspecified values included), `div_full` (`Rules.Num.DivFull`), `cvt_total`
 
 `Claim.lean` builds vLLM's buffers (`mk m L T nh hs bs nb TILE`: configuration `m`; `key`,
 `value` as `qkv[:, 1]`, `qkv[:, 2]` of a `[T, 3, nh, hs]` tensor; the caches as `make_caches` lays
-them out, layout `L`) and proves `mk_ok`: every such instance is covered in each configuration and
-both layouts, the non-overlap (`kv_inj`) and
-the element-wise disjointness of the two caches (`disj_caches`) proved for any sizes (mixed-radix
+them out, layout `L`) and proves `mk_ok`: every such instance of at most `2^22` tokens is covered
+in each configuration and both layouts, the non-overlap (`kv_inj`) and the element-wise disjointness of the two caches (`disj_caches`) proved for any sizes (mixed-radix
 uniqueness, `mr`). The host's test cases and SETUP.md's serving shapes:
 
 | Launch (tokens, heads × size, block, blocks, layout) | `TILE_SIZE` | Instance |
@@ -244,6 +246,10 @@ fails `Post` (Checks).
   two; Triton 3.8.0's launcher runs no program for the third without an error (a limit of the
   launch). At `n = 8192` (four tiles) the third needs `2^29` tokens; real batches have thousands.
   Never reached.
+- **Out of scope: dimensions that are not multiples of 128 or exceed `2^17`, and contexts longer
+  than `2^22` tokens: the claim covers real model shapes only.** The context length: `num_tokens`
+  (`tokens_ctx`). No field is a model dimension: `num_heads` (KV heads), `head_size` (a head dim),
+  `block_size`, `num_blocks` (cache rows) and `TILE_SIZE` keep their bounds above.
 - **Strides or `block_size` of `2^63` or more**: outside real use.
 - **`key`, `value` or a cache with `2^63` elements or more**: outside real use (such a tensor
   needs at least `2^63` bytes, far beyond any GPU's memory). The kernel computes `token_idx *
@@ -285,7 +291,8 @@ None.
   `axiom`; the theorems use only `propext`, `Classical.choice`, `Quot.sound`.
 - **Not vacuous**: `consistent` (`Platform.sm90ref`); `satisfiable` (the one-token flash case on
   the all-zero memory, slot `0`).
-- **Coverage**: the 18 instances above (`setup_*_ok`), from `mk_ok`.
+- **Coverage**: the 18 instances above (`setup_*_ok`), from `mk_ok`; each has at most 8192 tokens
+  (`num_tokens ≤ 2^22`), none is dropped.
 - **GPU** (`check_gpu.py`, H200, Triton 3.8.0): 33 launches through the host, each with the
   caches carved from one random-bit allocation between guard regions. `bfloat16` caches (19
   launches): the 8 setup shapes in their layouts, and edges (two and four tiles in both layouts,

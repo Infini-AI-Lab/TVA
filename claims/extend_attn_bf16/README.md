@@ -19,7 +19,7 @@ output, `int64` `kv_indices`, `mask_indptr`, `window_kv_offsets`, `int32` `kv_in
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.ExtendAttn.main : Statement` (`Statement`:
-`Claim.lean` line 982). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 987). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -27,26 +27,26 @@ output, `int64` `kv_indices`, `mask_indptr`, `window_kv_offsets`, `int32` `kv_in
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 605), and every initial memory `init` that `Pre` accepts (line 865), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 944).
+(`Inst.ok`, line 605), and every initial memory `init` that `Pre` accepts (line 870), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 949).
 
-**What `Post` asks** (line 944), two parts:
+**What `Post` asks** (line 949), two parts:
 1. for every request `b < batch`, new token `i < extOf d init b`, head `h < H` and component
    `e < D`: element `oIdx d (qsOf d init b + i) h e` of `o` (line 588) reads in `fin` as a finite
-   `bfloat16` `c` (`rdB`, line 702), and
+   `bfloat16` `c` (`rdB`, line 707), and
    `|c.toReal - attnRef d init b h i e| ≤ tolRel d.BD (tripsPre d init b) (tripsExt d init b i)
    (Xrow d init b h i) * attnAbs d init b h i e + tolAbs (vSum d init b h i e)`.
-   The reference `attnRef` (line 875) is the exact softmax in the reals over `keys` (line 807: the
-   positions `attends`, line 801, allows), from the initial `q`, `keyK`, `keyV` (lines 772–781; the
-   prefix through `kv_indices`, the new tokens from `k`, `v`) and `score` (line 787). `attnAbs` (line
-   880) is the same mean of `|v|`, `vSum` (line 885) the sum of `|v|`, `Xrow` (line 812) the row's
-   largest `scoreMag` (line 793), `tripsPre`, `tripsExt` (lines 889, 893) the row's trip counts. The
-   tolerance is `tolRel` (line 928), built from `dlt`, `rho`, `gam`, `errE` (lines 904–921), and
-   `tolAbs` (line 932). Every element in part 1 must be finite and within the bound; there is no
+   The reference `attnRef` (line 880) is the exact softmax in the reals over `keys` (line 812: the
+   positions `attends`, line 806, allows), from the initial `q`, `keyK`, `keyV` (lines 777–786; the
+   prefix through `kv_indices`, the new tokens from `k`, `v`) and `score` (line 792). `attnAbs` (line
+   885) is the same mean of `|v|`, `vSum` (line 890) the sum of `|v|`, `Xrow` (line 817) the row's
+   largest `scoreMag` (line 798), `tripsPre`, `tripsExt` (lines 894, 898) the row's trip counts. The
+   tolerance is `tolRel` (line 933), built from `dlt`, `rho`, `gam`, `errE` (lines 909–926), and
+   `tolAbs` (line 937). Every element in part 1 must be finite and within the bound; there is no
    guard beyond the ranges of `b`, `i`, `h`, `e`;
-2. the frame: every byte outside `d.o.elems (outElems d init)` (line 936) is unchanged.
+2. the frame: every byte outside `d.o.elems (outElems d init)` (line 941) is unchanged.
 
-**What you are given** (`Assumptions`, line 957):
+**What you are given** (`Assumptions`, line 962):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `dot` (`Num.DotBF16`): each `bfloat16` `tl.dot` into `float32` is within `relDot16 K` of
@@ -59,7 +59,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `div_full` (`Num.DivFull`): `/` on `float32` within `2^-22` relative, `2^-148` absolute (source line 636);
 - `div_total` (`Num.DivTotal P .binary32`): `/` has a result.
 
-**The kernel, as the model runs it** (`fwd_kernel` line 130, `model` line 679, `launch` line 696):
+**The kernel, as the model runs it** (`fwd_kernel` line 130, `model` line 684, `launch` line 701):
 a grid `(batch, H, nBlocks d)`; program `(b, h, blk)` reads `qo_indptr`, `kv_indptr` (and, with
 the custom mask, `mask_indptr`, `window_kv_offsets`) by scalar loads, and returns at once when
 `ext_b ≤ blk·BM`. Otherwise it loads its `[BM, BD]` block of `q` (rows `blk·BM + [0, BM)` of
@@ -96,8 +96,8 @@ with `safe_forRange` (body footprint `fun _ => ∅`, `iterW_empty`) and an invar
 - the frame: programs that return early and the masked lanes write nothing, so every byte outside
   `outElems` keeps its initial value.
 
-**Already in `Claim.lean`** (do not prove again): `consistent` (line 986), `satisfiable` (line
-1408), `canon_ok` (line 1064) and the `setup_*_ok` theorems; `bytes_disj` (line 1042) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 991), `satisfiable` (line
+1415), `canon_ok` (line 1069) and the `setup_*_ok` theorems; `bytes_disj` (line 1047) can be reused.
 
 ## Specification
 
@@ -179,6 +179,10 @@ twelve storages (`qo_indptr`'s of dtype `qoD cm`). `Inst.ok`:
   two; `BM = 128` for `D ≤ 128`, else `64` (the H200's choice);
 * `maxExt ≤ 2^18` (see Exclusions), and `≤ 2^12` with the custom mask (the draft tokens of a
   request; the mask's row offsets are then `int32` products, below `2^12·2^18`);
+* `T ≤ 2^22`: the batch's new tokens (`q_extend.shape[0]`) are a context length, at most `2^22`
+  tokens (real model shapes, see Exclusions);
+* `batch ≤ 8192`: the number of requests (`qo_indptr.shape[0] - 1`) is a batch size, at most `8192`
+  (real model shapes, see Exclusions);
 * `sw ≤ 2^18`;
 * `sm_scale` finite in `[2^-64, 2^64]` (the default is `1/sqrt(D) ∈ [1/16, 1]`);
 * the twelve strides are `int32` arguments (`< 2^31`);
@@ -267,7 +271,7 @@ rule states it.
 `canon cm sw batch T S NI NM H HKV D BD BM maxExt sm` is the host's launch (contiguous `q_extend`,
 `k_extend`, `v_extend`, cache, `o_extend = empty_like(q_extend)`). `canon_ok` proves `Inst.ok` for
 an extend batch or a target verification (`cm`), with or without a window `sw ≤ 2^18`, every grid
-of fewer than `2^31` programs (any number of requests, so also batches of many short extends),
+of fewer than `2^31` programs with up to `8192` requests (so also batches of many short extends),
 `T ≤ 2^20`, `S ≤ 2^22`, any `NI` and `NM`, `1 ≤ H ≤ 128`, `HKV ∣ H`, `1 ≤ D ≤ BD ≤ 256`,
 `D ≠ 192` (`BD` a power of two) with the H200's `BM`, `maxExt ≤ 2^18` (with the custom mask
 `maxExt ≤ 2^12` and `T·H·D ≤ 2^31`) and every `sm_scale` in range. The code base's test at its
@@ -398,6 +402,13 @@ differ (shifted by `0.25`).
   and `72·2^-22` per new-token trip from the `tl.dot` fact, which charges the accumulator), and the
   absolute floor's derivation assumes `T ≤ 2^12 + 2`. At `2^18` it is `0.016` with a prefix and an 8K
   chunk, `0.087` for `2^18` new tokens with no prefix.
+* **Contexts longer than `2^22` tokens, batches of more than `8192` (out of scope).** Dimensions
+  that are not multiples of 128 or exceed `2^17`, contexts longer than `2^22` tokens, and batches of
+  more than `8192` requests: the claim covers real model shapes only. The fields are `T ≤ 2^22`
+  (`T_le`, the batch's new tokens) and `batch ≤ 8192` (`batch_le`, the requests); each request is
+  already within `2^18` positions (`ReqOk`, `maxExt_le`). The kernel has no model dimension (`D` is
+  a head dimension; `H`, `HKV` head counts; `S`, `NI` table sizes). Every launch of `SETUP.md`
+  meets them (`T ≤ 2^17`, at most `256` requests).
 * **Scores near the cap.** At `X = 2^12` the bound is `0.36` (head dim 128) to `0.88` (256) of
   `attnAbs`: close to vacuous. Real scores are around `X ≈ 7`; inputs that reach the cap are covered
   only in this weak sense.

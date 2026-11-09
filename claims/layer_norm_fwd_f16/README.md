@@ -13,7 +13,7 @@ the model map.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.LayerNormFwdF16.main : Statement` (`Statement`:
-`Claim.lean` line 399). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 404). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -21,28 +21,28 @@ the model map.
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 173), and every initial memory `init` that `Pre` accepts (line 348), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 369).
+(`Inst.ok`, line 173), and every initial memory `init` that `Pre` accepts (line 353), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 374).
 
-**What `Post` asks** (line 369): for every row `t < M`, `RowDone d init fin t` (line 359), and the
+**What `Post` asks** (line 374): for every row `t < M`, `RowDone d init fin t` (line 364), and the
 frame. The reference is the exact real LayerNorm of row `t` of `x`, read from `init` as reals
-(`meanRef` line 266, `varRef` 274, `rstdRef` 281, `zRef` 285, `yRef` 289, with `weight[j]` and
+(`meanRef` line 271, `varRef` 279, `rstdRef` 286, `zRef` 290, `yRef` 294, with `weight[j]` and
 `bias[j]`); element `(t, j)` of `x` and `y` is `idx d t j = t·N + j` (line 153). `RowDone` has three
 parts:
 1. `mean[t]` reads in `fin` as a finite `float32` `c` with
-   `|c.toReal - meanRef d init t| ≤ meanTol d init t` (`meanTol`, line 297);
+   `|c.toReal - meanRef d init t| ≤ meanTol d init t` (`meanTol`, line 302);
 2. `rstd[t]` reads as a finite `float32` `c` with `|c.toReal - rstdRef d init t| ≤ rstdTol d init t`
-   (`rstdTol`, line 317, built from `cond` 302, `gam` 306, `mTerm` 312): relative when
+   (`rstdTol`, line 322, built from `cond` 307, `gam` 311, `mTerm` 317): relative when
    `cond ≤ 1/2`, and `(1 + gam)/sqrt(eps) + 2^-140` otherwise;
 3. for every `j < N`: `y[idx t j]` reads as a finite `float16` `c` with
-   `|c.toReal - yRef d init t j| ≤ yTol d init t j` (`yTol`, line 333, built from `zTol` 323, which
+   `|c.toReal - yRef d init t j| ≤ yTol d init t j` (`yTol`, line 338, built from `zTol` 328, which
    has the same two cases).
 
 These hold on every row; the two cases are inside the tolerances, not guards on what is asked.
-`depth` (line 294) is `Nat.clog 2 BLOCK`. The frame: every byte outside `outBytes d` (line 169:
+`depth` (line 299) is `Nat.clog 2 BLOCK`. The frame: every byte outside `outBytes d` (line 169:
 the `M·N` elements of `y`, the `M` elements of `mean` and `rstd`) is unchanged.
 
-**What you are given** (`Assumptions`, line 376):
+**What you are given** (`Assumptions`, line 381):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `sqrt_total` (`Num.MathTotal P .sqrt .binary32`): `tl.sqrt` (source line 81, `Claim.lean`
@@ -56,8 +56,8 @@ the `M·N` elements of `y`, the `M` elements of `mean` and `rstd`) is unchanged.
   lines 69, 88) over their `BLOCK_SIZE` positions have depth at most `Nat.clog 2 BLOCK`
   (`SumDepth.depth_le`).
 
-**The kernel, as the model runs it** (`layer_norm_fwd_fused` line 42, `model` line 221, `launch`
-line 228): a 1-D grid of `M` programs, one per row. Program `row` advances `X` and `Y` by the `int32`
+**The kernel, as the model runs it** (`layer_norm_fwd_fused` line 42, `model` line 226, `launch`
+line 233): a 1-D grid of `M` programs, one per row. Program `row` advances `X` and `Y` by the `int32`
 product `row * stride` (`stride = N`), then runs three `tl.forRange` loops over `[0, N)` with step
 `BLOCK_SIZE`; since `N ≤ BLOCK_SIZE` each makes one trip (`off = 0`, `cols = [0, BLOCK_SIZE)`, mask
 `cols < N`). Loop 1 loads `x` (`other = 0`) and adds it to a zero block; `tl.sum`, then `/` by
@@ -83,13 +83,16 @@ one trip writes row `row` of `y` (PROVER_GUIDE §4).
 - parts 1–3: the rounding of each step, the sums by `sum_err_depth` with `SumDepth.depth_le`, `N`
   exact through `tl.ItofRel` (`safe_itof`), `safe_mul_add`, `div_full`, `sqrt_acc` (its input is at
   least `2^-126` from `eps_ge`), the conversion of the host's `eps` (`FloatV.hostF32`), and `Pre`'s
-  `YRoom` (line 341), which keeps `y`'s `float32` value below `2^15·(1 + 3·2^-24)` so the `float16`
+  `YRoom` (line 346), which keeps `y`'s `float32` value below `2^15·(1 + 3·2^-24)` so the `float16`
   conversion does not overflow; README `## Tolerances` gives the derivation, steps 1–5;
 - the frame: the bytes no program writes are `init`'s.
 
+`n_dim` and `m_ctx` (real model shapes) are not needed by the derivation; they give `N ≥ 128`
+(so `D ≥ 7`) and at most `2^22` programs.
+
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mkInst_ok`,
-`eps1e5_facts`, `setup_test_ok` and `setup_bench_ok`; `bytes_disj` (line 441) and `elems_disj`
-(line 449) can be reused.
+`eps1e5_facts`, `setup_test_ok` and `setup_bench_ok`; `bytes_disj` (line 446) and `elems_disj`
+(line 454) can be reused.
 
 ## Specification
 
@@ -138,6 +141,8 @@ is at most about `(|x − meanRef| + meanTol)/sqrt(eps)`. Such a row has its val
 - `2 ≤ N ≤ 32768` (the host raises for `N > 32768`; `N = 1`: Exclusions); `BLOCK` a power of two
   with `N ≤ BLOCK < 2N` (`next_power_of_2(N)`, line 246);
 - `1 ≤ M`, `(M − 1)·N < 2^31` (line 63's `int32` product `row * stride`: Exclusions);
+- `N % 128 = 0`, `N ≤ 2^17` (`n_dim`: `N` is a model dimension, the hidden size) and `M ≤ 2^22`
+  (`m_ctx`: `M` counts the batch's tokens, one row each): real model shapes only (Exclusions);
 - `eps` finite, `2^-125 ≤ eps ≤ 2^126` (Exclusions);
 - every tensor holds what the launch touches (`M·N`, `N`, `M` elements); the outputs share no byte
   with the inputs or with each other (fresh `torch.empty` tensors).
@@ -178,8 +183,9 @@ each of the three loops makes one trip on every covered launch; the model keeps 
 ## Coverage
 
 `mkInst M N BLOCK` is the host's launch (contiguous `x`, fresh `y`, `mean`, `rstd`, `eps = 1e-5`,
-the six tensors at `k·2^36`). `mkInst_ok` proves `Inst.ok` for every `2 ≤ N ≤ 32768`, `BLOCK` its
-next power of two, `1 ≤ M` with `M·N ≤ 2^30`. The launches of [`SETUP.md`](SETUP.md):
+the six tensors at `k·2^36`). `mkInst_ok` proves `Inst.ok` for every `2 ≤ N ≤ 32768` that is a
+multiple of `128`, `BLOCK` its next power of two, `1 ≤ M ≤ 2^22` with `M·N ≤ 2^30`. The launches
+of [`SETUP.md`](SETUP.md):
 
 | Launch | Instance |
 |---|---|
@@ -272,6 +278,10 @@ worst, where the device's partly cancel.
 
 ## Exclusions
 
+- **Dimensions that are not multiples of 128 or exceed 2^17, and contexts longer than 2^22
+  tokens** — out of scope: the claim covers real model shapes only. The fields: `N` (`n_dim`: a
+  multiple of `128`, at most `2^17`) and `M`, the batch's tokens (`m_ctx`: at most `2^22`). Every
+  launch of the file is covered (`N = 8192` and `N = 512·i`; `M = 1151`, `4096`).
 - **`(M − 1)·N ≥ 2^31` (a limit of the kernel).** `row * stride` (lines 63–64) is the product of two
   `int32` values and wraps, so the last rows read and write the wrong elements. The first launch is
   `M = 65537`, `N = 32768` (`2^31` elements, `4 GiB` per tensor); the file's largest is `2^26`
@@ -330,4 +340,5 @@ worst, where the device's partly cancel.
    (wrong outputs at the test's shape and at `N = 15872`): a mean that drops one term, a variance
    that drops one term, the variance divided by `N − 1`, an all-zero `y`, `y` with the weights
    shifted by one column; `Post` rejects each (error / tolerance at least `8`).
+   The edges `N = 2, 3, 1000, 32767` are outside `n_dim`: they check `Post` beyond the claim.
    The two launches outside `Inst.ok` behave as Exclusions says. PASS.

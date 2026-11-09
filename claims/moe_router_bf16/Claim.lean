@@ -139,12 +139,17 @@ structure Inst.ok (d : Inst) : Prop where
   hidden_le : d.hidden ≤ d.BLOCK
   block_pow2 : ∃ k, d.BLOCK = 2 ^ k
   block_le : d.BLOCK ≤ 2 ^ 13
+  /-- `hidden_dim` is a model dimension: a multiple of 128, at most `2^17`. -/
+  hidden_mul : d.hidden % 128 = 0
+  hidden_le17 : d.hidden ≤ 2 ^ 17
   /-- At least one token; the `int32` products `pid·hidden_dim` (line 80 adds it to the pointer
   before `offsets`, so only the product is `int32`) and the offset `pid·2 + 1` do not wrap (a limit
   of the kernel, README, Exclusions), and fewer than `2^31` programs. -/
   bs_pos : 0 < d.bs
   x_off : (d.bs - 1) * d.hidden < 2 ^ 31
   out_off : 2 * d.bs ≤ 2 ^ 31
+  /-- `bs` is a number of tokens, a context length: at most `2^22`. -/
+  bs_le : d.bs ≤ 2 ^ 22
   /-- The buffers hold their tensors. -/
   x_len : d.bs * d.hidden ≤ d.x.len
   w_len : 8 * d.hidden ≤ d.w.len
@@ -334,12 +339,14 @@ theorem disj_far {d1 d2 : DType} (b : Buf d1) (c : Buf d2) (i j : Nat)
 
 theorem mk_ok (bs hidden B k : Nat) (hB : B = 2 ^ k)
     (h : 0 < hidden ∧ hidden ≤ B ∧ B ≤ 2 ^ 13 ∧ 0 < bs ∧ (bs - 1) * hidden < 2 ^ 31 ∧
-      2 * bs ≤ 2 ^ 31 ∧ bs * hidden * 2 ≤ 17179869184 ∧ 2 * bs * 4 ≤ 17179869184) :
+      2 * bs ≤ 2 ^ 31 ∧ bs * hidden * 2 ≤ 17179869184 ∧ 2 * bs * 4 ≤ 17179869184)
+    (h' : hidden % 128 = 0 ∧ hidden ≤ 2 ^ 17 ∧ bs ≤ 2 ^ 22) :
     (mk bs hidden B).ok := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩ := h
   have hw : 8 * hidden * 4 ≤ 17179869184 := by omega
   exact
     { hidden_pos := h1, hidden_le := h2, block_pow2 := ⟨k, hB⟩, block_le := h3, bs_pos := h4,
+      hidden_mul := h'.1, hidden_le17 := h'.2.1, bs_le := h'.2.2,
       x_off := h5, out_off := h6, x_len := le_refl _, w_len := le_refl _, outw_len := le_refl _,
       outi_len := le_refl _,
       outw_x := disj_far _ _ 3 1 rfl rfl h8 h7 (by decide),
@@ -359,14 +366,14 @@ def setup_128_8192 : Inst := mk 128 8192 8192
 def setup_511_6144 : Inst := mk 511 6144 8192
 def setup_511_8192 : Inst := mk 511 8192 8192
 
-theorem setup_1_6144_ok : setup_1_6144.ok := mk_ok _ _ _ 13 rfl (by decide)
-theorem setup_1_8192_ok : setup_1_8192.ok := mk_ok _ _ _ 13 rfl (by decide)
-theorem setup_7_6144_ok : setup_7_6144.ok := mk_ok _ _ _ 13 rfl (by decide)
-theorem setup_7_8192_ok : setup_7_8192.ok := mk_ok _ _ _ 13 rfl (by decide)
-theorem setup_128_6144_ok : setup_128_6144.ok := mk_ok _ _ _ 13 rfl (by decide)
-theorem setup_128_8192_ok : setup_128_8192.ok := mk_ok _ _ _ 13 rfl (by decide)
-theorem setup_511_6144_ok : setup_511_6144.ok := mk_ok _ _ _ 13 rfl (by decide)
-theorem setup_511_8192_ok : setup_511_8192.ok := mk_ok _ _ _ 13 rfl (by decide)
+theorem setup_1_6144_ok : setup_1_6144.ok := mk_ok _ _ _ 13 rfl (by decide) (by decide)
+theorem setup_1_8192_ok : setup_1_8192.ok := mk_ok _ _ _ 13 rfl (by decide) (by decide)
+theorem setup_7_6144_ok : setup_7_6144.ok := mk_ok _ _ _ 13 rfl (by decide) (by decide)
+theorem setup_7_8192_ok : setup_7_8192.ok := mk_ok _ _ _ 13 rfl (by decide) (by decide)
+theorem setup_128_6144_ok : setup_128_6144.ok := mk_ok _ _ _ 13 rfl (by decide) (by decide)
+theorem setup_128_8192_ok : setup_128_8192.ok := mk_ok _ _ _ 13 rfl (by decide) (by decide)
+theorem setup_511_6144_ok : setup_511_6144.ok := mk_ok _ _ _ 13 rfl (by decide) (by decide)
+theorem setup_511_8192_ok : setup_511_8192.ok := mk_ok _ _ _ 13 rfl (by decide) (by decide)
 
 /-- A memory in which every byte is present (and `0`). -/
 def zeroMem : Mem := fun _ => some 0

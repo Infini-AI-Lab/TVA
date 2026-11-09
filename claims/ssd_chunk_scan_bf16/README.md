@@ -9,7 +9,7 @@ check: [`check_gpu.py`](check_gpu.py).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.SsdChunkScan.main : Statement` (`Statement`:
-`Claim.lean` line 1237). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 1241). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,28 +17,28 @@ check: [`check_gpu.py`](check_gpu.py).
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 738), and every initial memory `init` that `Pre` accepts (line 927: the twelve
-buffers valid, the metadata the host's, `MetaOk` line 906, and without initial states `cb` zero
-across requests, `CbZero` line 917), every outcome of the launch is a normal end (no fault, no
-hang) whose final memory `fin` satisfies `Post` (line 1210).
+(`Inst.ok`, line 738), and every initial memory `init` that `Pre` accepts (line 931: the twelve
+buffers valid, the metadata the host's, `MetaOk` line 910, and without initial states `cb` zero
+across requests, `CbZero` line 921), every outcome of the launch is a normal end (no fault, no
+hang) whose final memory `fin` satisfies `Post` (line 1214).
 
-**What `Post` asks** (line 1210), two parts:
+**What `Post` asks** (line 1214), two parts:
 1. for every token `t < T`, head `h < H`, channel `p < P`: element `outIdx d t h p` (line 681) of
-   `out` reads in `fin` as some `bfloat16` `v` (`rdB`, line 887), on every input; and when
-   `Vals init d` holds (line 1183), `v` is finite and
+   `out` reads in `fin` as some `bfloat16` `v` (`rdB`, line 891), on every input; and when
+   `Vals init d` holds (line 1187), `v` is finite and
    `|v.toReal - yRef init d t h p| ≤ tol init d t h p`. Without `Vals`, only "holds a value" is
-   asked. The reference `yRef` (line 1029) is exact, in the reals, from the host's inputs:
+   asked. The reference `yRef` (line 1033) is exact, in the reals, from the host's inputs:
    `exp(dSt t h) · sig t h p + Σ_{s ∈ toks d t} wTS t h s · xv s h p + Dv h · xv t h p`, with the
-   entering state `Sv` (line 979: the request's initial state, or `0` without, when `fromInit`;
-   else `states[0, chk t]`), `sig` (line 1020), `wTS` (line 1024, `cb · exp(dS) · dt`), `dSt`,
-   `dS` (lines 995, 1000), and the logical chunk `toks d t = [lTok t, t]` (lines 1012, 942)
-   computed from `qsl`, not from the metadata. `tol` (line 1166) is
-   `(1 + uB) · errPre + uB · |yRef| + etaB`: the error before the store, `errPre` (line 1161,
-   the sum of `errSig`, `errW`, `errDot`, `errMA`, lines 1104–1157), and the store's `bfloat16`
+   entering state `Sv` (line 983: the request's initial state, or `0` without, when `fromInit`;
+   else `states[0, chk t]`), `sig` (line 1024), `wTS` (line 1028, `cb · exp(dS) · dt`), `dSt`,
+   `dS` (lines 999, 1004), and the logical chunk `toks d t = [lTok t, t]` (lines 1016, 946)
+   computed from `qsl`, not from the metadata. `tol` (line 1170) is
+   `(1 + uB) · errPre + uB · |yRef| + etaB`: the error before the store, `errPre` (line 1165,
+   the sum of `errSig`, `errW`, `errDot`, `errMA`, lines 1108–1161), and the store's `bfloat16`
    rounding;
 2. the frame: every byte outside `out`'s first `T · (H · P)` elements is unchanged.
 
-**What you are given** (`Assumptions`, line 1220):
+**What you are given** (`Assumptions`, line 1224):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot`s of source lines 361 and 420 are within
@@ -48,8 +48,8 @@ hang) whose final memory `fin` satisfies `Post` (line 1210).
   `[−X, X]` is within relative `2^-22 + 2^-23·X`, absolute `2^-140`;
 - `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): that `tl.exp` has a result.
 
-**The kernel, as the model runs it** (`model` line 827: `chunk_scan_kernel`, line 72, when
-`hasInit`, else `chunk_scan_kernel_noinit`, line 384; `launch` line 869): a 3-D grid
+**The kernel, as the model runs it** (`model` line 831: `chunk_scan_kernel`, line 72, when
+`hasInit`, else `chunk_scan_kernel_noinit`, line 384; `launch` line 873): a 3-D grid
 `(gx d, nmeta, H)` (`gx`, line 669). With initial states, `pid_c` names a logical chunk: the
 program reads `chunk_indices[pid_c]`, `chunk_offsets[pid_c]` (and those of `pid_c + 1`) and owns
 rows `pid_m·64 + c_off + [0, 64)` of physical chunk `c_idx`, below `chunk_size_limit`, and 64
@@ -57,7 +57,7 @@ channels (`pid_n`). Without, `pid_c` is the physical chunk and `c_off = 0`. One 
 choose the entering state (`states[0, c_idx]` or, with `hasInit`, the request's initial state,
 source lines 245–259), load `dA_cs_m` and the boundary entry, `scale_m = tl.exp(dA_cs_m −
 boundary)` (without `hasInit`: `tl.where` on `seq_idx`, source line 340, zeroing gated rows,
-`gated` line 986), load `C` and the state, `tl.cvt` it to `bfloat16`, `tl.dot` then `tl.mul` by `scale_m`; then
+`gated` line 990), load `C` and the state, `tl.cvt` it to `bfloat16`, `tl.dot` then `tl.mul` by `scale_m`; then
 `tl.forRange 0 K_MAX 32` of masked loads of `cb`, `dA_cs_k`, `dt_k`, `x`, `tl.sub`, `tl.exp`, two
 `tl.mul`, the causal `tl.where`, `tl.cvt` to `bfloat16`, `tl.dot_add`; then `D`, the residual
 `x`, `tl.mul_add`, `tl.cvt` to `bfloat16` and one masked store. Programs write disjoint row
@@ -70,7 +70,8 @@ loop writes nothing (`safe_forRange` with an invariant and `fun _ => ∅`).
   `bsd_pow2`, `bsd_le`);
 - each program is `Safe`: no `int32` or `int64` offset wraps (`x_arg`, `c_arg`, `out_arg`,
   `x_off`, the field `c_off` of `Inst.ok`, `out_off`, `cb_i32`, `dt_i32`, `st_i32`, `init_i32`,
-  `cs_le`); every enabled
+  `cs_le`; `T_ctx` bounds every token index by `2^22`, `nreq_batch` every request index by `8192`);
+  every enabled
   load is in bounds (`cb_len` … `offs_len`, with `MetaOk` for the metadata values; the unmasked
   `seq_idx_m` and `D` loads too); the store is in bounds (`out_len`) on distinct lanes;
   `safe_idiv`, `safe_irem`, `safe_sub`, `safe_math` (`exp_total`), `safe_mul`, `safe_cvt`,
@@ -80,7 +81,7 @@ loop writes nothing (`safe_forRange` with an invariant and `fun _ => ∅`).
   stored rows of different programs are disjoint and cover every token; `out` is disjoint from
   every read (`disj`);
 - the kernel's choices match the reference: the entering state is `Sv` (or `SvL` with the
-  `tl.where` gate), the boundary entry gives `dSt`, the loop's tokens are `kToks d t` (line 1016),
+  `tl.where` gate), the boundary entry gives `dSt`, the loop's tokens are `kToks d t` (line 1020),
   and without `hasInit` the extra tokens add nothing (`CbZero`);
 - the value part of `Post`: the step bounds of README `## Tolerances` (`FloatV.sub_err`,
   `exp_acc`, `FloatV.mul_err`, `FloatV.cvt_err`, `DotLift.dotAdd_step` with `dot`, `FloatV.add_err`,
@@ -88,8 +89,8 @@ loop writes nothing (`safe_forRange` with an invariant and `fun _ => ∅`).
 - the frame: the bytes no program writes.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `bytes_disj` (line 1278), `disj_far` (line 1287), `zero_i32` (line 1456)
-and `valid_zero` (line 1463) can be reused.
+`setup_*_ok` theorems; `bytes_disj` (line 1282), `disj_far` (line 1291), `zero_i32` (line 1462)
+and `valid_zero` (line 1469) can be reused.
 
 ## Specification
 
@@ -162,8 +163,10 @@ note the launch passes `dt.stride(0), stride(2), stride(1), stride(3)`, and the 
 * `1 ≤ H < 2^16` (the grid's `z`), `P ≥ 1`, `N ≥ 1`, `G ≥ 1` dividing `H` (asserted);
   `BSD = max(next_power_of_2(N), 16) ≤ 128` (stated as: a power of two, `16 ≤ BSD ≤ 128`,
   `N ≤ BSD`, `BSD = 16` or `BSD < 2N`); `cs` a power of two (asserted), `cs ≤ 2^14`;
-* the packed batch: `num_requests ≥ 1`, `qsl 0 = 0`, every request at least one token,
-  `qsl num_requests = T`; `nmeta` the host's `hostN` (`nchunks` without initial states), `< 2^16`
+* the packed batch: `1 ≤ num_requests ≤ 8192` (`nreq_batch`: a batch size, real model shapes,
+  Exclusions), `qsl 0 = 0`, every request at least one token,
+  `qsl num_requests = T`; `T ≤ 2^22` (`T_ctx`: `seqlen` is a context length, the packed batch's
+  total tokens; real model shapes, Exclusions); `nmeta` the host's `hostN` (`nchunks` without initial states), `< 2^16`
   (the grid's `y`); fewer than `2^31` programs;
 * `H·P ≤ xT`, `G·N ≤ cT` (the slices of a wider row);
 * the `int32` arguments and arithmetic: `x.stride(0) = T·xT`, `C.stride(0) = T·cT` and
@@ -230,7 +233,9 @@ ranks the GPU check runs at 128 heads and 8192 tokens, Nemotron-H (`headdim` 64)
 from the flag, its request lengths, heads, `headdim`, `dstate`, groups, `chunk_size` and
 `BLOCK_SIZE_DSTATE` (the host's shapes, `x` and `C` with the token stride `conv_dim` of
 `make_inputs`, the grid's `y`, the tensors at distinct aligned addresses), with
-`setup_i_ok : setup_i.ok` proved by `decide`. `satisfiable` uses `setup_1` in a memory of zeros.
+`setup_i_ok : setup_i.ok` proved by `decide`; every one has at most 8192 tokens and 41 requests,
+inside `T_ctx` and `nreq_batch`.
+`satisfiable` uses `setup_1` in a memory of zeros.
 The SETUP sizes beyond the tests are inside `Inst.ok`: for example a Nemotron Nano 2 rank (128
 heads × 80, `dstate` 128, 8 groups, `conv_dim` 12288, chunks of 128) up to 174,762 tokens, a
 Nemotron-H rank (`conv_dim` 10240) up to 209,715 tokens.
@@ -357,6 +362,11 @@ What `SETUP.md` allows and the claim leaves out:
   decay exponent above `64` or an intermediate above `2^120` (Tolerances, step 7), where a
   rounding, `exp`, a product or the accumulator would overflow. Real use (activations and states
   of order 1 to `10^3`, decays `≤ 0`, `dA_cumsum` non-increasing along a chunk) is far inside.
+* **Out of scope: dimensions that are not multiples of `128` or exceed `2^17`, contexts longer than
+  `2^22` tokens, and batches of more than `8192` requests: the claim covers real model shapes
+  only.** The fields are `seqlen` (`T_ctx`: `T ≤ 2^22`, the packed batch's total tokens; the request
+  lengths `qsl (r + 1) − qsl r` are below it) and `num_requests` (`nreq_batch`: at most `8192`). `headdim`, `dstate`, `nheads`, `ngroups` and `chunk_size` are per-head sizes, counts and
+  tile sizes, not model dimensions, and stay as they are.
 * **`dstate > 128`** (`BLOCK_SIZE_DSTATE > 128`, e.g. the larger Falcon-H1 models' `dstate` 256):
   the other compile-time branch (lines 362–381, a loop over `dstate`), not part of the setup.
 * **`z` given, `D` absent or `[nheads, headdim]`, `batch > 1`**: other specialisations, not part of

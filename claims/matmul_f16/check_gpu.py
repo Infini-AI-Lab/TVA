@@ -3,9 +3,10 @@
 Runs the kernel's own host, `matmul(a, b)` of `source/03-matrix-multiplication.py` (imported by path;
 the file's module-level test and benchmark are not executed on import, only its imports, its
 `DEVICE` and its functions), on the launches SETUP.md lists (the test, `512 x 512 x 512`, and the
-benchmark's `fp16` line, `M = N = K = 256, 384, ..., 4096`, with the file's own input draws) and on
-launches at the edges of `Inst.ok`, and checks `Post` element by element in float64, from the
-host's inputs, exactly as `Post` states it:
+benchmark's `fp16` line, `M = N = K = 256, 384, ..., 4096`, with the file's own input draws), on
+launches at the edges of `Inst.ok`, and on launches beyond it (`beyond_*`: `N` or `K` not a positive
+multiple of 128, which `Inst.ok` leaves out of scope; they check the kernel past the claim), and
+checks `Post` element by element in float64, from the host's inputs, exactly as `Post` states it:
 
 * for each element `(i, j)` of `c`: `S = sum_k a[i, k] * b[k, j]` (exact products, float64 sum) and
   `E = tol = errAt` over the loop's `T = cdiv(K, 64)` steps: `E_0 = 0`,
@@ -26,7 +27,8 @@ host's inputs, exactly as `Post` states it:
   `matmul_kernel` with the host's launch parameters into a `c` placed inside a guarded buffer
   (padded rows, and a column-major layout) leave every byte outside the matrix `c` unchanged.
 
-Prints, per case, the largest error / tolerance over both clauses (below 1, with its margin) and the frame results.
+Prints, per case, the largest error / tolerance over both clauses (below 1, with its margin) and the frame results,
+then the largest over the launches `Inst.ok` covers and over all launches.
 Usage: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
 """
 import sys; sys.dont_write_bytecode = True  # keep source/ free of __pycache__ (python -I ignores PYTHONDONTWRITEBYTECODE)
@@ -256,26 +258,37 @@ def main():
     cases += [(f"setup_bench_{n}", n, n, n, "randn", 0, 1.0, n in neg)
               for n in [128 * i for i in range(2, 33)]]
     cases += [
-        # edges of Inst.ok: the largest covered K (2^13), K not a multiple of 64, M and N not
-        # multiples of the blocks, one row / one column, K = 1, larger and subnormal inputs
+        # edges of Inst.ok: the largest covered K (2^13), M not a multiple of the block, N half a
+        # column tile, larger and subnormal inputs, non-finite inputs, M = 0
         ("edge_k8192", 640, 768, 8192, "randn"),
-        ("edge_m1000_n777_k4095", 1000, 777, 4095, "randn"),
-        ("edge_m1_n1_k65", 1, 1, 65, "randn"),
-        ("edge_m129_n257_k1", 129, 257, 1, "randn"),
         ("edge_scale8", 512, 512, 2048, "randn", 3, 8.0),
         ("edge_subnormal", 384, 512, 1024, "randn", 4, 2.0 ** -12),
-        ("edge_nonfinite", 300, 500, 700, "randn", 5, 1.0, False, True),
-        ("edge_k0", 200, 300, 0, "randn"),
-        ("edge_m0", 0, 300, 256, "randn"),
+        ("edge_nonfinite", 300, 640, 768, "randn", 5, 1.0, False, True),
+        ("edge_m0", 0, 384, 256, "randn"),
+        # beyond Inst.ok (N or K not a positive multiple of 128): K not a multiple of 64, N not a
+        # multiple of 128, one row / one column, K = 1, K = 0
+        ("beyond_m1000_n777_k4095", 1000, 777, 4095, "randn"),
+        ("beyond_m1_n1_k65", 1, 1, 65, "randn"),
+        ("beyond_m129_n257_k1", 129, 257, 1, "randn"),
+        ("beyond_nonfinite", 300, 500, 700, "randn", 5, 1.0, False, True),
+        ("beyond_k0", 200, 300, 0, "randn"),
     ]
+    worst_in = 0.0
     for c in cases:
         r, w = host_case(*c)
         ok &= r
         worst = max(worst, w)
-    for c in [("direct_padded_c", 300, 1000, 777, "padded"), ("direct_colmajor_c", 513, 259, 1000, "colmajor")]:
+        if not c[0].startswith("beyond_"):
+            worst_in = max(worst_in, w)
+    for c in [("direct_padded_c", 300, 1024, 768, "padded"), ("direct_colmajor_c", 513, 384, 1024, "colmajor"),
+              ("beyond_direct_padded_c", 300, 1000, 777, "padded"),
+              ("beyond_direct_colmajor_c", 513, 259, 1000, "colmajor")]:
         r, w = direct_case(*c)
         ok &= r
         worst = max(worst, w)
+        if not c[0].startswith("beyond_"):
+            worst_in = max(worst_in, w)
+    print(f"covered launches (Inst.ok): max err/tol {worst_in:.4f} (margin {1 - worst_in:.4f})")
     print(f"overall: max err/tol {worst:.4f} (margin {1 - worst:.4f}); {'PASS' if ok else 'FAIL'}")
     sys.exit(0 if ok else 1)
 

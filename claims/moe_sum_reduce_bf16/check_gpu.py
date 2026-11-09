@@ -3,7 +3,8 @@
 Runs the kernel's own host, `moe_sum_reduce` of
 `source/moe_sum_reduce.py` (imported by path), on the host's test
 launches and on launches at the edges of `Inst.ok`, and checks `Post` as it is stated, for every
-output element `(t, j)`:
+output element `(t, j)`; the launches whose `hidden_dim` is not a multiple of 128 are outside
+`Inst.ok` (`D_dim`) and checked as extras:
 
 * `InRange`: the `topk_num` inputs and the scale (the double and its `float32` constant) are
   finite, `A = Σ|x| ≤ 2^126` and `|σ₃₂|·A ≤ 2^126`;
@@ -141,9 +142,11 @@ def randn(T, K, D):
 for T, K, D, s in [(1, 8, 7168, 2.5), (7, 9, 4096, 0.3), (32, 8, 2048, 1.0), (33, 6, 5120, 1.0),
                    (17, 8, 2880, 1.0), (1, 1, 1, 1.0), (300, 3, 100, 2.5), (1024, 9, 4096, 0.3),
                    (8192, 8, 7168, 2.5)]:
-    check("host", randn(T, K, D), s, blocks=((1, 2048), (4, 256)) if T * D < 2**24 else ((1, 2048),))
+    name = "host" if D % 128 == 0 else "host, outside Inst.ok (hidden_dim % 128 != 0)"
+    check(name, randn(T, K, D), s, blocks=((1, 2048), (4, 256)) if T * D < 2**24 else ((1, 2048),))
 
-# Edges of Inst.ok and of InRange.
+# Edges of Inst.ok and of InRange; the hidden sizes not a multiple of 128 (3000, 1000, 777, 2049,
+# 513, 100, 300, 1) are outside Inst.ok (D_dim), checked as extras.
 x = randn(64, 9, 3000)
 x[:, 1::2] = -x[:, 0::2][:, :4]  # cancellation: pairs that sum to zero
 check("edge cancellation", x, 2.5, blocks=((1, 2048), (2, 1024)))

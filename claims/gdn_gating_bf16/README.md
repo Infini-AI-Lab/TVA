@@ -12,7 +12,7 @@ One program per (token, block of 8 heads): it loads `A_log`, `a`, `b`, `dt_bias`
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.GdnGating.main : Statement` (`Statement`: `Claim.lean`
-line 297). Unfolded (`Claim.Meets`), it says:
+line 299). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -20,26 +20,26 @@ line 297). Unfolded (`Claim.Meets`), it says:
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 139), and every initial memory `init` that `Pre` accepts (line 214), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 249).
+(`Inst.ok`, line 139), and every initial memory `init` that `Pre` accepts (line 216), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 251).
 
-**What `Post` asks** (line 249), three parts, for every token `i < batch` and head `h < H`, with
+**What `Post` asks** (line 251), three parts, for every token `i < batch` and head `h < H`, with
 `A = A_log[h]`, `av = a[i·stride_a + h]`, `bv = dt_bias[h]`, `bb = b[i·stride_b + h]` read in `init`,
 and `x = av.toReal + bv.toReal` (the exact sum):
 1. element `i·H + h` of `g` reads in `fin` as `c`, and either `c` is finite with
    `|c.toReal - gRef A.toReal x| ≤ gTol A.toReal x`, or `c = FloatV.negInf` and
    `maxVal ≤ |gRef A.toReal x| + gTol A.toReal x` (the exact value is at the edge of `float32`'s
-   range). `gRef A x = -(e^A · spRef x)` (line 224) is the exact decay in the reals, with
-   `spRef x = log(1 + e^x)` for `x ≤ 20` and `x` above (line 221); `gTol` (line 234) is relative
+   range). `gRef A x = -(e^A · spRef x)` (line 226) is the exact decay in the reals, with
+   `spRef x = log(1 + e^x)` for `x ≤ 20` and `x` above (line 223); `gTol` (line 236) is relative
    `2^-19 + 2^-23·(|A| + 2·min(max(-x, 0), 20))` of `|gRef|`, plus `2^-23·e^A`, `2^-139·spRef x`
    and `2^-148`;
 2. element `i·H + h` of `beta_output` reads in `fin` as a finite `c` with
-   `|c.toReal - sigRef bb.toReal| ≤ bTol bb.toReal`: `sigRef b = 1 / (1 + e^(-b))` (line 227),
-   exact in the reals; `bTol b = 2^-7·|sigRef b| + 2^-133` (line 240);
+   `|c.toReal - sigRef bb.toReal| ≤ bTol bb.toReal`: `sigRef b = 1 / (1 + e^(-b))` (line 229),
+   exact in the reals; `bTol b = 2^-7·|sigRef b| + 2^-133` (line 242);
 3. the frame: every byte outside the first `batch·H` elements of `g` and of `beta_output` is
    unchanged.
 
-**What you are given** (`Assumptions`, line 272):
+**What you are given** (`Assumptions`, line 274):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `exp_total` (`Num.MathTotal P .exp .binary32`): `tl.exp` has a result on every input (source
@@ -52,8 +52,8 @@ and `x = av.toReal + bv.toReal` (the exact sum):
 - `div_total` (`Num.DivTotal .binary32`) and `div_full` (`Num.DivFull`, `2^-22` relative,
   `2^-148`): the `/` of source line 83 (`tl.sigmoid`).
 
-**The kernel, as the model runs it** (`fused_gdn_gating_kernel` line 47, `model` line 176,
-`launch` line 184): a 3-D grid `(batch, 1, Bn d)`, `Bn d = (H + 7) / 8` (line 133). Program
+**The kernel, as the model runs it** (`fused_gdn_gating_kernel` line 47, `model` line 178,
+`launch` line 186): a 3-D grid `(batch, 1, Bn d)`, `Bn d = (H + 7) / 8` (line 133). Program
 `(i, 0, k)` takes the heads `8k + [0, 8)` masked by `< H`: it loads (masked, `tl.load`) `A_log`,
 `a` and `b` at row `i`, and `dt_bias`; widens `a`, `dt_bias` to `float32` and adds; computes the
 softplus as `tl.where (1·x ≤ 20) (1·log(1 + exp(1·x))) x`; stores `g = (-exp(A_log))·softplus`
@@ -73,15 +73,19 @@ The offsets are not the 1-D block pattern: use `safe_load` and `safe_store`.
   elements), and no program reads what any program writes (`g_disj`, `bout_disj`);
 - the value of `g` gives part 1: the IEEE steps by `FloatV.add_err`, `mul_err`, `cvt_err` (the
   products by `1.0` and the negation are exact), `exp_acc` at `X = |x_f|` and at `X = |A|` (room
-  from `ExpRoom`, line 190, and `InOk`, line 200), `exp_ninf` when the sum is `-∞`, `log_acc`,
+  from `ExpRoom`, line 192, and `InOk`, line 202), `exp_ninf` when the sum is `-∞`, `log_acc`,
   with the two branches `x_f ≤ 20` and `x_f > 20`; README, Tolerances gives the derivation and the
   overflow case;
 - the value of `beta_output` gives part 2: `exp_acc` at `X = |b|` (room from `InOk`), the `1 +`
   rounding, `div_full`, then the `bfloat16` rounding (`cvt_err`) and the exact widening;
 - the bytes no program writes give part 3.
 
+The real-shape condition `batch_ctx` (`batch ≤ 2^22`) gives the grid's first axis (`batch_lt`) at
+once; the `int32` offsets still take their bounds from `flat_le`, `arow_le` and `brow_le` (the
+head count is not bounded by it).
+
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `bytes_disj` (line 327), `rows_fit` (line 335) and `maxVal_ge` (line 392)
+`setup_*_ok` theorems; `bytes_disj` (line 329), `rows_fit` (line 337) and `maxVal_ge` (line 394)
 can be reused.
 
 ## Specification
@@ -120,7 +124,10 @@ and inside `tl.exp`).
   `i < batch`; any stride, so contiguous rows and the views split from one `[batch, 2H]` projection);
   `g`, `beta_output` hold `batch * H`;
 - `g` shares no byte with the inputs or `beta_output`, and `beta_output` none with the inputs (the
-  wrapper allocates both fresh). `a` and `b` may overlap (they are only read).
+  wrapper allocates both fresh). `a` and `b` may overlap (they are only read);
+- `batch ≤ 2^22` (`batch_ctx`): `batch` is the number of tokens of the extend batch, a context
+  length (out of scope beyond, Exclusions). `num_heads` is a number of heads, not a model
+  dimension, and is not bounded by it.
 
 `Pre`: the six buffers valid, and every input element read is finite with
 - `ExpRoom A_log[h]`: `(1 + 2^-22 + 2^-23·|A|)·e^A + 2^-140 ≤ maxVal`, i.e. `A_log ≤ 88.72282`;
@@ -147,7 +154,8 @@ facts named as `docs/rules/num.md` lists them; `consistent` witnesses them with 
 
 `mk batch H split` builds the host's tensors at fixed disjoint addresses (contiguous: stride `H`;
 split: `b`, `a` the halves of one `[batch, 2H]` tensor, stride `2H`); `mk_ok` proves `Inst.ok` for
-every `1 ≤ batch ≤ 2^26`, `H ≤ 2^16`, `batch * H ≤ 2^26`.
+every `1 ≤ batch ≤ 2^22`, `H ≤ 2^16`, `batch * H ≤ 2^26`. Every launch of `SETUP.md` has at most
+65,536 tokens, so none is left out.
 
 | SETUP launch | Instance |
 |---|---|
@@ -234,15 +242,22 @@ The GPU reaches `0.498` of it.
 - **`batch * num_heads > 2^31`: a limit of the kernel.** The `int32` output offset
   `i_b * num_heads + h` wraps and the store goes below `g`: first at `num_heads = 32`,
   `batch = 2^26 + 1` (67,108,865 tokens; 8 GiB per output). Real use (tens of thousands of tokens,
-  at most 48 heads) is below `2^22`.
+  at most 48 heads) is below `2^22`. Within `batch_ctx` (`batch ≤ 2^22`) it takes
+  `num_heads ≥ 513`.
 - **`(batch - 1) * stride + num_heads > 2^31`: a limit of the kernel.** The `int32` row offset of
   `a` (`b`) wraps, reading below the buffer: split views with `num_heads = 32` (stride 64), from
-  `batch = 33,554,433`. Never reached in real use.
+  `batch = 33,554,433`. Never reached in real use. Within `batch_ctx` it takes split views with
+  `num_heads ≥ 257`.
 - **`batch ≥ 2^31` or `cdiv(num_heads, 8) ≥ 2^16`: the CUDA grid limit** (a launch error); from
   `num_heads = 524,281`. Never reached.
 - **Strides `≥ 2^31`**: Triton would pass them as `int64` (another model); outside real use
   (strides are `num_heads` or `2·num_heads`).
 - **Non-finite inputs** are outside SETUP.md ("any finite values").
+- **out of scope**: dimensions that are not multiples of 128 or exceed 2^17, contexts longer
+  than 2^22 tokens, and batches of more than 8192 requests: the claim covers real model shapes
+  only. The field: `batch`, the number of tokens (`batch_ctx`: a context length, not a batch
+  size). The kernel has no model-dimension field (`num_heads` is a head count) and no field that
+  counts requests.
 
 ## Library requests
 

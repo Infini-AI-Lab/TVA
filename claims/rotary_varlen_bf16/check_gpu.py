@@ -206,7 +206,7 @@ def main():
     for il in (False, True):
         tag = "gptj" if il else "neox"
         cos, sin = tables(1, 64)
-        results.append(check(f"edge B=65535 (largest grid axis 1) T1 H1 D64 {tag}", rnd(65535, 1, 1, 64), cos, sin, 0, None, il))
+        results.append(check(f"edge B=8192 (largest batch, b_le) T1 H1 D64 {tag}", rnd(8192, 1, 1, 64), cos, sin, 0, None, il))
         cos, sin = tables(300, 2)
         results.append(check(f"edge R=1 (BD=2) D256 B2 T300 H3 {tag}", rnd(2, 300, 3, 256), cos, sin, 0, None, il))
         cos, sin = tables(500, 6)
@@ -319,8 +319,13 @@ def main():
     results.append(check("int offset 1 instead of 0", rnd(2, 256, 4, 128), cos, sin, 0, None, True,
                          run=lambda x, c, s, o, cu, il: run_host(x, c, s, 1, cu, il), expect=False))
 
-    # 6. The kernel limit (excluded by Inst.ok.grid_b): a padded batch of 65536 fails to launch.
+    # 6. Beyond Inst.ok (not counted): B = 65535 (above b_le, the largest grid axis 1) still runs;
+    # the kernel limit (excluded by Inst.ok.grid_b): a padded batch of 65536 fails to launch.
     cos, sin = tables(1, 64)
+    for il in (False, True):
+        ok, _ = check(f"beyond Inst.ok (b_le) B=65535 (largest grid axis 1) T1 H1 D64 {'gptj' if il else 'neox'}",
+                      rnd(65535, 1, 1, 64), cos, sin, 0, None, il)
+        print(f"NOTE B=65535 (outside Inst.ok: b_le, not counted): {'passes' if ok else 'fails'}")
     try:
         run_host(rnd(65536, 1, 1, 64), cos, sin, 0, None, False)
         print("NOTE B=65536: launched (unexpected)")

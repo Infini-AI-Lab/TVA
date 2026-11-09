@@ -48,7 +48,8 @@ spec.loader.exec_module(wy)
 DEV = "cuda"
 BT = 64
 
-# SETUP.md's launches (the `setup_*` instances of Claim.lean): name, cu_seqlens dtype, beta bfloat16
+# SETUP.md's launches (the `setup_*` instances of Claim.lean, except `edge_bhv65535`, outside Inst.ok:
+# B = 13107 > 8192, `b_batch`; Post is checked there as well): name, cu_seqlens dtype, beta bfloat16
 # (else float32), B, T, H, HV, K, V, cu_seqlens (None: padded).
 SETUPS = [
     ("chunk_b4_t1024_h4_d128", torch.int64, False, 4, 1024, 4, 4, 128, 128, None),

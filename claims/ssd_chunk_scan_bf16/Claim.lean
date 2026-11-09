@@ -763,6 +763,10 @@ structure Inst.ok (d : Inst) : Prop where
   qsl_zero : d.qsl 0 = 0
   qsl_lt : ∀ r, r < d.nreq → d.qsl r < d.qsl (r + 1)
   qsl_end : d.qsl d.nreq = d.T
+  /-- `seqlen` is a context length (the packed batch's total tokens): at most `2^22`. -/
+  T_ctx : d.T ≤ 2 ^ 22
+  /-- `num_requests` is a batch size (the packed batch's requests): at most `8192`. -/
+  nreq_batch : d.nreq ≤ 8192
   /-- The grid's `y`: the host's `N = len(chunk_offsets)` with initial states, `nchunks` without
   (lines 545–549), within CUDA's limit. -/
   nmeta_eq : d.nmeta = if d.hasInit then hostN d else nc d
@@ -1307,7 +1311,8 @@ theorem mk_ok (hi : Bool) (lens : List Nat) (H P N G C BSD a b : Nat) (hB : BSD 
     (hC : C = 2 ^ b)
     (h1 : 0 < H ∧ H < 2 ^ 16 ∧ 0 < P ∧ 0 < N ∧ 0 < G ∧ G ∣ H ∧ 16 ≤ BSD ∧ BSD ≤ 128 ∧ N ≤ BSD ∧
       (BSD = 16 ∨ BSD < 2 * N) ∧ C ≤ 2 ^ 14)
-    (h2 : 0 < lens.length ∧ ∀ r, r < lens.length → qslOf lens r < qslOf lens (r + 1))
+    (h2 : 0 < lens.length ∧ lens.sum ≤ 2 ^ 22 ∧ lens.length ≤ 8192 ∧
+      ∀ r, r < lens.length → qslOf lens r < qslOf lens (r + 1))
     (h3 : (mk hi lens H P N G C BSD).nmeta < 2 ^ 16 ∧
       gx (mk hi lens H P N G C BSD) * (mk hi lens H P N G C BSD).nmeta * H < 2 ^ 31 ∧
       H * P ≤ (mk hi lens H P N G C BSD).xT ∧ G * N ≤ (mk hi lens H P N G C BSD).cT ∧
@@ -1338,7 +1343,7 @@ theorem mk_ok (hi : Bool) (lens : List Nat) (H P N G C BSD a b : Nat) (hB : BSD 
       (hi = true → (mk hi lens H P N G C BSD).nmeta ≤ (mk hi lens H P N G C BSD).chunkOffs.len)) :
     (mk hi lens H P N G C BSD).ok := by
   obtain ⟨h1a, h1b, h1c, h1d, h1e, h1f, h1g, h1h, h1i, h1j, h1k⟩ := h1
-  obtain ⟨h2a, h2b⟩ := h2
+  obtain ⟨h2a, h2t, h2n, h2b⟩ := h2
   obtain ⟨h3a, h3b, h3c, h3d, h3e, h3f, h3g, h3h, h3i, h3j, h3k, h3l, h3m, h3n⟩ := h3
   obtain ⟨h4a, h4b, h4c, h4d, h4e, h4f, h4g, h4h, h4i, h4j, h4k, h4l⟩ := h4
   obtain ⟨h5a, h5b, h5c⟩ := h5
@@ -1346,7 +1351,8 @@ theorem mk_ok (hi : Bool) (lens : List Nat) (H P N G C BSD a b : Nat) (hB : BSD 
     { H_pos := h1a, H_lt := h1b, P_pos := h1c, N_pos := h1d, G_pos := h1e, G_dvd := h1f,
       bsd_pow2 := ⟨a, hB⟩, bsd_ge := h1g, bsd_le := h1h, N_le := h1i, bsd_min := h1j,
       cs_pow2 := ⟨b, hC⟩, cs_le := h1k, nreq_pos := h2a, qsl_zero := by simp [mk, qslOf],
-      qsl_lt := h2b, qsl_end := by simp [mk, qslOf], nmeta_eq := ?_, nmeta_lt := h3a,
+      qsl_lt := h2b, qsl_end := by simp [mk, qslOf], T_ctx := h2t, nreq_batch := h2n,
+      nmeta_eq := ?_, nmeta_lt := h3a,
       grid_lt := h3b, xT_ge := h3c, cT_ge := h3d, x_arg := h3e, c_arg := h3f, out_arg := h3g,
       x_off := h3h, c_off := h3i, out_off := h3j,
       cb_i32 := h3k, dt_i32 := h3l, st_i32 := h3m, init_i32 := h3n,

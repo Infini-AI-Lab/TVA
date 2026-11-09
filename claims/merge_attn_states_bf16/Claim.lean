@@ -244,6 +244,8 @@ structure Inst.ok (d : Inst) : Prop where
   ptwc_le : d.ptwc ≤ d.T
   /-- The grid `(num_tokens, num_heads)` within CUDA's limits, fewer than `2^31` programs. -/
   T_lt : d.T < 2 ^ 31
+  /-- `num_tokens`, the tokens of the batch, is a context length: at most `2^22`. -/
+  T_ctx : d.T ≤ 2 ^ 22
   H_lt : d.H < 2 ^ 16
   grid_lt : d.T * d.H < 2 ^ 31
   /-- The layouts the kernel indexes (SETUP.md): `prefix_output` and `suffix_output` share one
@@ -529,6 +531,7 @@ theorem canon_ok (T H hs padded ptwc pad e : Nat) (lseT outLse : Bool)
       head_le := hhs
       ptwc_le := hptwc
       T_lt := by simp only [canon]; omega
+      T_ctx := by simp only [canon]; omega
       H_lt := by simp only [canon]; omega
       grid_lt := by simp only [canon]; omega
       shs_eq := rfl

@@ -9,7 +9,7 @@ check: [`check_gpu.py`](check_gpu.py).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.SsdStatePassing.main : Statement` (`Statement`:
-`Claim.lean` line 669). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 673). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,38 +17,38 @@ check: [`check_gpu.py`](check_gpu.py).
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 395), and every initial memory `init` that `Pre` accepts (line 505: the seven
-buffers valid, the metadata the host's, `MetaOk` line 498), every outcome of the launch is a normal
-end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 638).
+(`Inst.ok`, line 395), and every initial memory `init` that `Pre` accepts (line 509: the seven
+buffers valid, the metadata the host's, `MetaOk` line 502), every outcome of the launch is a normal
+end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 642).
 
-**What `Post` asks** (line 638), for every head `h < nheads` and element `m < dim`:
+**What `Post` asks** (line 642), for every head `h < nheads` and element `m < dim`:
 1. `out[0, 0, h, m]` (element `stIdx d 0 h m`, line 357) holds a value `v`, on every input: with
    `hasInit`, `init` reads `initst`'s element `inIdx d 0 h m` as some `a` and `FloatV.NaNEq a v`
    (a copy up to NaN payload); without, `v = FloatV.ofPat 0` (the `float32` `+0`);
 2. for every `1 ≤ c < nchunks`, `out[0, c, h, m]` holds some `v` with `OutO init d h m c v`
-   (line 628): when `Vals init d` holds (line 614), `v` is finite and
+   (line 632): when `Vals init d` holds (line 618), `v` is finite and
    `|v.toReal - sRef init d h m c| ≤ tol init d h m c`. Without `Vals`, only "holds a value" is
-   asked. `sRef` (line 554) is the exact recurrence in the reals from the host's inputs:
-   `sRef (c+1) = exp(dRef c) · xRef c + newV c`, with `dRef`, `xRef`, `startV`, `newV` (lines 541,
-   562, 546, 535) and the request structure `eReq`, `isReset`, `offR`, `hasSub` (lines 517–528)
-   computed from `qsl`, not from the metadata. `tol` (line 597) is a recursion: `tol 0 = 0`,
+   asked. `sRef` (line 558) is the exact recurrence in the reals from the host's inputs:
+   `sRef (c+1) = exp(dRef c) · xRef c + newV c`, with `dRef`, `xRef`, `startV`, `newV` (lines 545,
+   566, 550, 539) and the request structure `eReq`, `isReset`, `offR`, `hasSub` (lines 521–532)
+   computed from `qsl`, not from the metadata. `tol` (line 601) is a recursion: `tol 0 = 0`,
    `tol (c+1) = eHat c · tc + errE c · |xRef c| + rho · (eHat c · (|xRef c| + tc) + |newV c|) +
-   3·2^-150`, `tc = 0` on a reset chunk (`tolIn`, line 606), with `dErr`, `expRel`, `errE`,
-   `eHat`, `rho` (lines 573–591);
+   3·2^-150`, `tc = 0` on a reset chunk (`tolIn`, line 610), with `dErr`, `expRel`, `errE`,
+   `eHat`, `rho` (lines 577–595);
 3. `final_states[0, h, m]` (element `finIdx d h m`, line 366) holds some `v` with
    `OutO init d h m nchunks v`;
 4. the frame: every byte outside `out`'s first `nchunks·nheads·dim` elements and `finalst`'s first
    `nheads·dim` elements is unchanged.
 
-**What you are given** (`Assumptions`, line 656):
+**What you are given** (`Assumptions`, line 660):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `exp_acc` (`Rules.Num.ExpF32`): for every `X ≥ 0`, `tl.exp` on `float32` (source line 223) on
   `[−X, X]` is within relative `2^-22 + 2^-23·X`, absolute `2^-140` (a `MathAcc`);
 - `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): that `tl.exp` has a result.
 
-**The kernel, as the model runs it** (`model` line 454: `ssd_state_passing_kernel`, line 46, when
-`hasInit`, else `ssd_state_passing_kernel_noinit`, line 206; `launch` line 480): a 3-D grid
+**The kernel, as the model runs it** (`model` line 458: `ssd_state_passing_kernel`, line 46, when
+`hasInit`, else `ssd_state_passing_kernel_noinit`, line 206; `launch` line 484): a 3-D grid
 `(gx d, 1, nheads)` (`gx`, line 334), block shape `[1024]`. Program `(pid_m, ·, pid_h)` owns lanes
 `pid_m·1024 + [0, 1024)` below `dim` of head `pid_h`. It stores the start state (the loaded
 `initst` row `0`, or zeros) to `out[0, 0]`, then runs `tl.forRange 0 nchunks 1` with seven (or
@@ -66,7 +66,8 @@ footprint the lanes of `out[0, c+1]` or of `final_states`, disjoint across trips
   directly (`x < 2^31` from `dim_lt`, `z < 2^16` from `heads_lt`, the count from `grid_lt`, the
   shape `[1024]`);
 - each program is `Safe`: no `int32` offset wraps (`dim_lt`, `tok_lt`, `dA_lt`, `st_lt`,
-  `init_lt`, `nmeta_lt`); every enabled load is in bounds (`states_len`, `dA_len`, `init_len`,
+  `init_lt`, `nmeta_lt`; `seqlen_ctx` keeps every token index and the requests' starts at most
+  `2^22`); every enabled load is in bounds (`states_len`, `dA_len`, `init_len`,
   `seq_len`, `offs_len`, using `MetaOk` for the `seq_idx` and `chunk_offsets` values, and
   `qsl_*`, `nchunks_eq`, `nmeta_eq` for their range); the stores are in bounds (`out_len`,
   `fin_len`) on distinct lanes;
@@ -84,8 +85,8 @@ footprint the lanes of `out[0, c+1]` or of `final_states`, disjoint across trips
 - the frame: the bytes no program writes.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `bytes_disj` (line 700), `disj_far` (line 709), `zero_i32` (line 822) and
-`valid_zero` (line 829) can be reused.
+`setup_*_ok` theorems; `bytes_disj` (line 704), `disj_far` (line 713), `zero_i32` (line 846) and
+`valid_zero` (line 853) can be reused.
 
 ## Specification
 
@@ -158,6 +159,8 @@ default.
 * the packed batch: `num_requests ≥ 1`, `qsl 0 = 0`, every request at least one token
   (`qsl r < qsl (r+1)`), `qsl num_requests = seqlen`; `nchunks = cdiv(seqlen, chunk_size)`; `N` the
   host's `hostN` with initial states, `0` without (and `< 2^31`);
+* `seqlen`, the packed batch's tokens, is a context length: **`seqlen ≤ 2^22`** (`seqlen_ctx`);
+* `num_requests`, the batch's requests, is a batch size: **`num_requests ≤ 8192`** (`nreq_le`);
 * the `int32` arguments and arithmetic: `nchunks·chunk_size < 2^31`, `nheads·nchunks·chunk_size <
   2^31` (`dA_cumsum.stride(0)`), `nchunks·nheads·dim < 2^31` (`states.stride(0)`, `out.stride(0)`),
   with initial states `(num_requests − 1)·nheads·dim < 2^31` (line 181's product, a kernel limit:
@@ -205,7 +208,8 @@ and `chunk_size` (the host's shapes, `N = hostN` or `0`, the tensors at distinct
 `setup_1 … setup_9` with initial states, `setup_10 … setup_18` without, with `setup_i_ok :
 setup_i.ok` proved by `decide`. `satisfiable` uses `setup_1` in a memory of zeros. The SETUP sizes beyond the tests (`dim` up to 10240, `nheads` up to 128, chunk
 sizes 8 to 256, tens of thousands of tokens) are inside `Inst.ok` (for example 128 heads × 10240
-with 128-token chunks up to 210,000 tokens), in both modes.
+with 128-token chunks up to 210,000 tokens), in both modes. Every setup has at most 8192 tokens
+(`seqlen ≤ 2^22`); none is dropped.
 
 ## Tolerances
 
@@ -276,6 +280,12 @@ What `SETUP.md` allows and the claim leaves out:
   a limit of the kernel's `float32` arithmetic, a chunk decay exponent above `64` or an update above
   `2^126`, where `exp` or the state would overflow. Real use (states of order 1 to 10^3, decays
   `≤ 0`) is far inside.
+* **Out of scope: dimensions that are not multiples of 128 or exceed `2^17`, contexts longer than
+  `2^22` tokens, and batches of more than `8192` requests: the claim covers real model shapes
+  only.** The context length: `seqlen` (`seqlen_ctx`; the request starts `qsl` follow). The batch
+  size: `num_requests` (`nreq_le`). No field is a model dimension: `dim` is a per-head state
+  (`headdim × dstate`, flattened), `nheads` a head count, `chunk_size` a block size; they keep
+  their bounds above. Every launch of `SETUP.md` meets them (at most `41` requests).
 * The other flag combinations (no `seq_idx`, not continuous batching) and `batch > 1`: not part
   of the setup (`SETUP.md`).
 

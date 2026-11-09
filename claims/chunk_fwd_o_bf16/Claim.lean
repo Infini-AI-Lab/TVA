@@ -341,6 +341,12 @@ structure Inst.ok (d : Inst) : Prop where
   `tl.cdiv` (**a limit of the kernel**, README, Exclusions; with one row `i_b = 0` makes `NT`
   unused, and a variable-length launch does not run line 119). -/
   T_wrap : d.varlen = false → 2 ≤ d.B → d.T + (BT - 1) < 2 ^ 31
+  /-- `T` (a row's length, or the packed batch's total number of tokens) is a context length:
+  at most `2^22` tokens (real model shapes, README, Exclusions). -/
+  T_le : d.T ≤ 2 ^ 22
+  /-- `B`, the batch rows, is a batch size: at most `8192` (real model shapes, README,
+  Exclusions). -/
+  B_le : d.B ≤ 8192
   /-- At most one kind of gate (fla's simple GLA: "Only one of `g` or `g_gamma` should be
   provided"). -/
   one_gate : ¬ (d.useG = true ∧ d.useGamma = true)
@@ -370,6 +376,9 @@ structure Inst.ok (d : Inst) : Prop where
   after line 114's `.to(tl.int32)`), the tables' lengths, and `o` sharing no byte with them. -/
   idx_ok : d.varlen = true → d.idxD = .i32 ∨ d.idxD = .i64
   N_lt : d.varlen = true → d.N < 2 ^ 31
+  /-- Variable length: `N`, the number of sequences, is a batch size: at most `8192` (real model
+  shapes, README, Exclusions). -/
+  N_le : d.varlen = true → d.N ≤ 8192
   cu_len : d.varlen = true → d.N + 1 ≤ d.cu.len
   ci_len : d.varlen = true → 2 * d.NT ≤ d.ci.len
   o_cu : d.varlen = true → Disjoint d.o.bytes d.cu.bytes
@@ -647,8 +656,8 @@ def ScaleOk (sbits : Nat) : Prop :=
     (FloatV.ofPat sbits : F64).toRat ≤ 2 ^ 64
 
 /-- **Every host launch at these sizes is covered**: `B ≥ 1` rows, `H ≥ 1` query/key heads and a
-multiple `HV` of them, `K ≤ 256`, `V ≤ 512`, `T + 63 < 2^31`, the grid within its limits, each
-tensor at most `2^40` bytes, `int32` or `int64` tables of fewer than `2^31` sequences, a scale in
+multiple `HV` of them, `K ≤ 256`, `V ≤ 512`, `T + 63 < 2^31`, `T ≤ 2^22`, `B ≤ 8192`, the grid within its
+limits, each tensor at most `2^40` bytes, `int32` or `int64` tables of at most `8192` sequences, a scale in
 `[2^-64, 2^64]`, and each configuration `BK = BV ∈ {32, 64, 128}`. -/
 theorem mk_ok {vl useG useGm svf : Bool} {B T H HV K V sbits : Nat} {dt : DType} {N NT bk : Nat}
     (hB : 0 < B) (hH : 0 < H) (hHV : 0 < HV) (hdvd : H ∣ HV) (hK0 : 0 < K) (hK : K ≤ 256)
@@ -660,7 +669,9 @@ theorem mk_ok {vl useG useGm svf : Bool} {B T H HV K V sbits : Nat} {dt : DType}
     (hgb : B * T * HV * 4 ≤ 2 ^ 40)
     (hh : rowsOf vl B T NT * HV * K * V * 2 ≤ 2 ^ 40) (hdt : dt = .i32 ∨ dt = .i64)
     (hN : N < 2 ^ 31) (hNsz : (N + 1) * 8 ≤ 2 ^ 39) (hNT : 2 * NT * 8 ≤ 2 ^ 39)
-    (hsc : ScaleOk sbits) (hbk : bk = 32 ∨ bk = 64 ∨ bk = 128 := by decide) :
+    (hsc : ScaleOk sbits) (hbk : bk = 32 ∨ bk = 64 ∨ bk = 128 := by decide)
+    (hT22 : T ≤ 2 ^ 22 := by norm_num) (hB13 : B ≤ 8192 := by norm_num)
+    (hN13 : N ≤ 8192 := by norm_num) :
     (mk vl useG useGm svf B T H HV K V sbits dt N NT bk).ok := by
   have hbytes : dt.bytes ≤ 8 := by rcases hdt with h | h <;> subst h <;> decide
   have hcu : ((N + 1 : Nat) : Int) * dt.bytes ≤ 2 ^ 39 := by
@@ -677,7 +688,7 @@ theorem mk_ok {vl useG useGm svf : Bool} {B T H HV K V sbits : Nat} {dt : DType}
   have hb4 : DType.f32.bytes = 4 := rfl
   refine
     { B_pos := hB, H_pos := hH, HV_pos := hHV, hv_dvd := hdvd, bk_ok := hbk, K_pos := hK0, K_le := hK,
-      V_pos := hV0, V_le := hV, T_lt := by simp only [mk]; omega, T_wrap := fun _ _ => hT, one_gate := hone,
+      V_pos := hV0, V_le := hV, T_lt := by simp only [mk]; omega, T_wrap := fun _ _ => hT, T_le := hT22, B_le := hB13, one_gate := hone,
       varlen_B := hvB, grid0_lt := hg0, grid1_lt := hg1,
       size_lt := hsz, q_len := le_rfl, k_len := le_rfl, v_len := le_rfl, o_len := le_rfl,
       h_len := ?_, g_len := fun _ => le_rfl, gg_len := fun _ => le_rfl,
@@ -687,7 +698,7 @@ theorem mk_ok {vl useG useGm svf : Bool} {B T H HV K V sbits : Nat} {dt : DType}
       o_h := bytes_disj _ _ (Or.inr (by simp only [mk, hb2]; push_cast at hh' ⊢; omega)),
       o_gg := fun _ => bytes_disj _ _ (Or.inl (by simp only [mk, hb2]; push_cast at hv' ⊢; omega)),
       o_g := fun _ => bytes_disj _ _ (Or.inr (by simp only [mk, hb4]; push_cast at hg' ⊢; omega)),
-      idx_ok := fun _ => hdt, N_lt := fun _ => hN, cu_len := fun _ => le_rfl,
+      idx_ok := fun _ => hdt, N_lt := fun _ => hN, N_le := fun _ => hN13, cu_len := fun _ => le_rfl,
       ci_len := fun _ => le_rfl,
       o_cu := fun _ => bytes_disj _ _ (Or.inl (by simp only [mk, hb2]; push_cast at hv' hcu ⊢; omega)),
       o_ci := fun _ => bytes_disj _ _ (Or.inl (by simp only [mk, hb2]; push_cast at hv' hci ⊢; omega)),

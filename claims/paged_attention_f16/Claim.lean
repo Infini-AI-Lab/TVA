@@ -188,6 +188,8 @@ structure Inst.ok (d : Inst) : Prop where
   heads_lt : d.num_heads < 2 ^ 16
   grid_lt : d.num_seqs * d.num_heads < 2 ^ 31
   seqs_lt : d.num_seqs < 2 ^ 31
+  /-- `num_seqs`, the decode batch's sequences, is a batch size: at most `8192`. -/
+  seqs_le : d.num_seqs ≤ 8192
   /-- `HEAD_DIM` and `PAGE_SIZE` are powers of two (`tl.arange` rejects anything else on the host),
   at most `256`. -/
   head_dim : ∃ a, a ≤ 8 ∧ d.HEAD_DIM = 2 ^ a
@@ -243,12 +245,13 @@ def launch (d : Inst) : Launch :=
       [d.PAGE_SIZE, d.HEAD_DIM]] }
 
 /-- Sequence `s`'s entries in memory `m`: its length `n` (`seq_lens[s]`) is in
-`[0, max_pages·PAGE_SIZE]`, and each block-table entry `block_tables[s, j]` the kernel reads
+`[0, max_pages·PAGE_SIZE]` and is a context length, at most `2^22` tokens (real model shapes,
+README, Exclusions), and each block-table entry `block_tables[s, j]` the kernel reads
 (`j < cdiv(n, PAGE_SIZE)`, that is `j·PAGE_SIZE < n`) is a page number below `num_pages`. Pages
 need not be distinct, and entries the kernel does not read may hold anything. -/
 def SeqOk (d : Inst) (m : Mem) (s : Nat) : Prop :=
   ∃ n : I32, m.read .i32 (d.seq_lens.ptr (s : Int)).addr = some n ∧ 0 ≤ n.toInt ∧
-    n.toInt ≤ ((d.max_pages * d.PAGE_SIZE : Nat) : Int) ∧
+    n.toInt ≤ ((d.max_pages * d.PAGE_SIZE : Nat) : Int) ∧ n.toInt ≤ 2 ^ 22 ∧
     ∀ j : Nat, ((j * d.PAGE_SIZE : Nat) : Int) < n.toInt →
       ∃ b : I32, m.read .i32 (d.block_tables.ptr (btIdx d s j : Int)).addr = some b ∧
         0 ≤ b.toInt ∧ b.toInt < (d.num_pages : Int)
@@ -540,7 +543,8 @@ theorem bytes_disj {d1 d2 : DType} (b : Buf d1) (c : Buf d2)
 
 /-- **The host's launches are covered**: any shapes the wrapper admits (`num_kv_heads ≥ 1`
 dividing `num_heads`, head dims and pages powers of two up to `256`),
-within CUDA's grid limits, the kernel's `int32` products and up to `2^16` pages per sequence, with
+within CUDA's grid limits, the kernel's `int32` products, up to `8192` sequences and up to `2^16`
+pages per sequence, with
 contiguous tensors of fewer than `2^38` elements each (the cache may hold more than `2^31`), and a
 `scale` in `[2^-64, 2^64]`. The numeric hypotheses are checked by `norm_num` on each launch. -/
 theorem canon_ok (S H KV D P NP MP : Nat) (sc : F64)
@@ -553,7 +557,7 @@ theorem canon_ok (S H KV D P NP MP : Nat) (sc : F64)
       (H - 1) * D < 2 ^ 31 ∧ (S - 1) * MP < 2 ^ 31 ∧ (P - 1) * (KV * D) < 2 ^ 31 ∧
       (KV - 1) * D < 2 ^ 31)
     (hsz : S * H * D ≤ 2 ^ 38 ∧ NP * P * KV * D ≤ 2 ^ 38 ∧ S * MP ≤ 2 ^ 38 ∧ S ≤ 2 ^ 38)
-    (hsc : sc.isFinite = true ∧ 1 / 2 ^ 64 ≤ sc.toRat ∧ sc.toRat ≤ 2 ^ 64) :
+    (hsc : sc.isFinite = true ∧ 1 / 2 ^ 64 ≤ sc.toRat ∧ sc.toRat ≤ 2 ^ 64) (hS13 : S ≤ 8192) :
     (canon S H KV D P NP MP sc).ok := by
   obtain ⟨hs1, hs2, hs3, hs4⟩ := hsz
   have hqi : ∀ s h e, s < S → h < H → e < D → s * (H * D) + h * D + e < S * H * D := by
@@ -566,6 +570,7 @@ theorem canon_ok (S H KV D P NP MP : Nat) (sc : F64)
       heads_lt := hH
       grid_lt := hgrid
       seqs_lt := hS
+      seqs_le := hS13
       head_dim := hD
       page_size := hP
       max_pages_le := hMP
@@ -624,7 +629,7 @@ theorem setup_t1_ok : setup_t1.ok :=
   canon_ok 7 32 8 128 16 395 256 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨4, by norm_num, by norm_num⟩ (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) sc128_ok
+    (by norm_num) (by norm_num) (by norm_num) sc128_ok (by norm_num)
 
 /-- The second: 3 sequences, 8/8 heads, head dim 64, pages of 16 (`1 + 4 + 129 = 134` pages,
 `max_pages = 129`, `num_pages = 184`). -/
@@ -633,7 +638,7 @@ theorem setup_t2_ok : setup_t2.ok :=
   canon_ok 3 8 8 64 16 184 129 sc64 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num)
     ⟨6, by norm_num, by norm_num⟩ ⟨4, by norm_num, by norm_num⟩ (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) sc64_ok
+    (by norm_num) (by norm_num) (by norm_num) sc64_ok (by norm_num)
 
 /-- The third: 4 sequences, 16/2 heads, head dim 128, pages of 32 (`1 + 1 + 2 + 256 = 260` pages,
 `max_pages = 256`, `num_pages = 310`). -/
@@ -642,7 +647,7 @@ theorem setup_t3_ok : setup_t3.ok :=
   canon_ok 4 16 2 128 32 310 256 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨5, by norm_num, by norm_num⟩ (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) sc128_ok
+    (by norm_num) (by norm_num) (by norm_num) sc128_ok (by norm_num)
 
 /-- A cache of more than `2^31` elements (`2^17 + 64` pages of `16·8·128`), read through `int64`
 page offsets, at the first configuration's heads. -/
@@ -651,7 +656,7 @@ theorem setup_bigcache_ok : setup_bigcache.ok :=
   canon_ok 7 32 8 128 16 (2 ^ 17 + 64) 256 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨4, by norm_num, by norm_num⟩ (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) sc128_ok
+    (by norm_num) (by norm_num) (by norm_num) sc128_ok (by norm_num)
 
 /-- Pages of one token (`2^b` with `b = 0`): 4 sequences of `[1, 2, 1000, 4097]` tokens, 8/2
 heads, head dim 128 (`5100` pages plus `50`, `max_pages = 4097`). -/
@@ -660,7 +665,7 @@ theorem setup_page1_ok : setup_page1.ok :=
   canon_ok 4 8 2 128 1 5150 4097 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨0, by norm_num, by norm_num⟩ (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) sc128_ok
+    (by norm_num) (by norm_num) (by norm_num) sc128_ok (by norm_num)
 
 /-! ## Satisfiable
 
@@ -674,7 +679,7 @@ theorem testInst_ok : testInst.ok :=
   canon_ok 1 1 1 128 16 1 1 sc128 (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (by norm_num)
     ⟨7, by norm_num, by norm_num⟩ ⟨4, by norm_num, by norm_num⟩ (by norm_num)
-    (by norm_num) (by norm_num) (by norm_num) sc128_ok
+    (by norm_num) (by norm_num) (by norm_num) sc128_ok (by norm_num)
 
 /-- A memory in which every byte is present (and `0`). -/
 def testMem : Mem := fun _ => some 0
@@ -700,7 +705,7 @@ theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
   obtain ⟨v, hrd, hv0⟩ := testMem_read (a := (testInst.seq_lens.ptr ((0 : ℕ) : ℤ)).addr)
     ⟨by simp [testInst, canon, Buf.ptr, DType.bytes], by simp [testInst, canon, Buf.ptr, DType.bytes],
       by simp [testInst, canon, Buf.ptr, DType.bytes]⟩
-  refine ⟨v, hrd, by omega, by rw [hv0]; positivity, fun j hj => ?_⟩
+  refine ⟨v, hrd, by omega, by rw [hv0]; positivity, by rw [hv0]; norm_num, fun j hj => ?_⟩
   rw [hv0] at hj
   omega
 

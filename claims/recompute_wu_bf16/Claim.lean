@@ -425,6 +425,13 @@ structure Inst.ok (d : Inst) : Prop where
   V_lt : d.V + 64 ≤ 2 ^ 31
   /-- `T < 2^31`: `T` is an `int32` argument (beyond: `2^31` tokens, outside real use). -/
   t_lt : d.T < 2 ^ 31
+  /-- `T` is a context length (the sequence length, or the packed batch's total tokens): at most
+  `2^22`. -/
+  t_ctx : d.T ≤ 2 ^ 22
+  /-- `B` is a batch size (the padded batch's sequences; `1` when packed): at most `8192`. -/
+  b_batch : d.B ≤ 8192
+  /-- `N` is a batch size (the packed batch's sequences): at most `8192`. -/
+  n_batch : d.isVarlen = true → d.N ≤ 8192
   /-- The element offsets, masked lanes included, stay far inside `int64` (tensors far below
   `2^62` elements). -/
   size_lt : (nTok d + 64) * d.HV * (d.K + d.V + 64) < 2 ^ 62
@@ -1059,14 +1066,6 @@ theorem setup_qwen3next_varlen_i32_ok : setup_qwen3next_varlen_i32.ok := by
 def setup_edge_t1_k1_v1 : Inst := canon .i64 false 1 1 1 1 1 1 1 1 false
 
 theorem setup_edge_t1_k1_v1_ok : setup_edge_t1_k1_v1.ok := by
-  constructor <;> first
-    | decide
-    | (apply bytes_disj; decide)
-
-/-- `B · HV = 65535`, the largest grid axis 1: `B = 13107`, `T = 1`, `H = 1`, `HV = 5`, `K = 1`, `V = 1`, padded, `float32` `beta`; `NT = 1`. -/
-def setup_edge_bhv65535 : Inst := canon .i64 false 13107 1 1 5 1 1 13107 1 false
-
-theorem setup_edge_bhv65535_ok : setup_edge_bhv65535.ok := by
   constructor <;> first
     | decide
     | (apply bytes_disj; decide)

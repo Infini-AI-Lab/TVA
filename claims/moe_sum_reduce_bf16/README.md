@@ -7,7 +7,7 @@ claim to prove is `Statement`.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.MoeSumReduce.main : Statement` (`Statement`:
-`Claim.lean` line 264). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 269). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -15,27 +15,27 @@ claim to prove is `Statement`.
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 133), and every initial memory `init` that `Pre` accepts (line 168), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 243).
+(`Inst.ok`, line 133), and every initial memory `init` that `Pre` accepts (line 173), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 248).
 
-**What `Post` asks** (line 243), two parts:
+**What `Post` asks** (line 248), two parts:
 1. for every `t < T` and `j < D`: element `t·D + j` of `output` reads in `fin` as some `bfloat16`
-   `c`. This holds for every element. Only when `InRange d t j` (line 217: the `K` inputs
-   `xv d t k j` (line 206) finite, `sigma d` and `sigma32 d` (lines 126, 130) finite,
+   `c`. This holds for every element. Only when `InRange d t j` (line 222: the `K` inputs
+   `xv d t k j` (line 211) finite, `sigma d` and `sigma32 d` (lines 126, 130) finite,
    `absSum d t j ≤ 2^126` and `|σ₃₂|·absSum d t j ≤ 2^126`) it also asks that `c` is finite and
    `|c.toRat - (sigma d).toRat * refSum d t j| ≤ tol d.K (refSum d t j) (absSum d t j) (sigma d).toRat (sigma32 d).toRat`.
-   `refSum` (line 209) is the exact sum `Σ_k input[t, k, j]` in the rationals from `init`'s values,
-   `absSum` (line 212) the sum of magnitudes, `σ` the host's double; `tol` is line 234 (with
-   `accErr`, line 224, and the constants `u32`, `eta32`, `ubf`, `etabf`, lines 194–198);
+   `refSum` (line 214) is the exact sum `Σ_k input[t, k, j]` in the rationals from `init`'s values,
+   `absSum` (line 217) the sum of magnitudes, `σ` the host's double; `tol` is line 239 (with
+   `accErr`, line 229, and the constants `u32`, `eta32`, `ubf`, `etabf`, lines 199–203);
 2. the frame: every byte outside `d.output.elems {e | e < d.T * d.D}` is unchanged.
 
-**What you are given** (`Assumptions`, line 255): one field, `faithful` (`Compiler.Faithful`): the
+**What you are given** (`Assumptions`, line 260): one field, `faithful` (`Compiler.Faithful`): the
 device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
 `debug = false`, and the model's launch is well behaved from `init`. No numeric fact: the float
 operations are IEEE `+`, `*` and conversions.
 
-**The kernel, as the model runs it** (`moe_sum_reduce_kernel` line 47, `model` line 173, `launch`
-line 183): a 2-D grid of `cdiv(T, BLOCK_M) × cdiv(D, BLOCK_DIM)` programs. Program
+**The kernel, as the model runs it** (`moe_sum_reduce_kernel` line 47, `model` line 178, `launch`
+line 188): a 2-D grid of `cdiv(T, BLOCK_M) × cdiv(D, BLOCK_DIM)` programs. Program
 `(pid0, pid1)` takes the token tile `pid0·BLOCK_M + [0, BLOCK_M)` and the column tile
 `pid1·BLOCK_DIM + [0, BLOCK_DIM)`, masked by `T` and `D`. A `tl.forRange` loop over
 `i ∈ [0, K)` (trip count `K`) loads the masked `[BLOCK_M, BLOCK_DIM]` tile of row `i` of `input`
@@ -65,8 +65,12 @@ atomic. Programs write disjoint output tiles and only read `input`: the route is
   (`FloatV.toRat_cvt_of_wider`). `## Tolerances` gives the derivation;
 - the bytes no program writes give part 2.
 
+`D_dim` and `T_ctx` restrict the instances to real model shapes (`128 ∣ D ≤ 2^17`, `T ≤ 2^22`).
+With a `BLOCK_DIM` that divides `128` every column tile is full; the host's `BLOCK_DIM = 2048` does
+not divide every such `D` (`7168 = 3.5·2048`), so the masked last column tile remains.
+
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `u32_eq`, `eta32_eq`, `ubf_eq`, `etabf_eq` (lines 200–203) tie the
+`setup_*_ok` theorems; `u32_eq`, `eta32_eq`, `ubf_eq`, `etabf_eq` (lines 205–208) tie the
 constants to `Format.binary32` and `Format.bfloat16`.
 
 ## Specification
@@ -90,7 +94,9 @@ elements (and their value still exists).
 `Inst.ok`: `BLOCK_M`, `BLOCK_DIM` powers of two with `BLOCK_M·BLOCK_DIM ≤ 2^20` (any, not only
 `1 × 2048`); `1 ≤ T, K, D < 2^31`; `K ≤ 2^20`; `K·D < 2^31`; `cdiv(D, BLOCK_DIM) < 2^16`;
 `cdiv(T, BLOCK_M)·cdiv(D, BLOCK_DIM) < 2^31` (the number of programs); buffer lengths;
-`output` shares no byte with `input`. No bound on the scale.
+`output` shares no byte with `input`; real model shapes (Exclusions): `D % 128 = 0` and
+`D ≤ 2^17` (`D_dim`: `hidden_dim` is a model dimension), `T ≤ 2^22` (`T_ctx`: `token_num` is a
+context length). No bound on the scale.
 
 `Pre`: buffers valid, `input` holds `inVal`. Every `bfloat16` input value is covered.
 
@@ -105,9 +111,12 @@ conversions (exact operations, no device fact). No `[kernel]` field.
 
 ## Coverage
 
-`setup_*` / `setup_*_ok`: the host's nine test launches (`(1,8,7168,2.5)` … `(8192,8,7168,2.5)`,
-`(1,1,1,1.0)` included) with `BLOCK_M = 1`, `BLOCK_DIM = 2048` and the scale's pattern, and
-`(65536, 9, 7168, 2.5)` for the Marlin/LoRA runners' large batches.
+`setup_*` / `setup_*_ok`: the host's six test launches whose `hidden_dim` is a multiple of 128
+(`(1,8,7168,2.5)`, `(7,9,4096,0.3)`, `(32,8,2048,1.0)`, `(33,6,5120,1.0)`, `(1024,9,4096,0.3)`,
+`(8192,8,7168,2.5)`) with `BLOCK_M = 1`, `BLOCK_DIM = 2048` and the scale's pattern, and
+`(65536, 9, 7168, 2.5)` for the Marlin/LoRA runners' large batches. The host's other three test
+launches, `(17,8,2880,1.0)`, `(1,1,1,1.0)` and `(300,3,100,2.5)`, are outside `Inst.ok` (`hidden_dim`
+not a multiple of 128; Exclusions). `satisfiable` uses `(1, 1, 128)` with the all-zero memory.
 
 ## Tolerances
 
@@ -129,6 +138,11 @@ truncating store (error up to `2^-7` relative) violates it.
 
 ## Exclusions
 
+- **Out of scope**: dimensions that are not multiples of 128 or exceed 2^17, contexts longer than
+  2^22 tokens, and batches of more than 8192 requests: the claim covers real model shapes only.
+  Here: `hidden_dim` not a multiple of 128 or above `2^17` (`D_dim`; the host's tests with
+  `hidden_dim` 2880, 1 and 100 among them), and `token_num > 2^22` (`T_ctx`). The claim has no
+  batch-size field (`token_num` counts tokens).
 - **`cdiv(hidden_dim, BLOCK_DIM) ≥ 2^16`** — a limit of the launch (CUDA's grid-y limit): the launch
   is rejected. First launch: `hidden_dim = 2^16·2048 + 1`. Real use (hidden ≤ 7168) does not reach it.
 - **`cdiv(token_num, BLOCK_M)·cdiv(hidden_dim, BLOCK_DIM) ≥ 2^31`** — a kernel limit: a launch of
@@ -170,5 +184,7 @@ None.
 - `check_gpu.py` (H200): 25 cases (the host's 9; cancellation, near `2^126`, `bfloat16` subnormals,
   scales `1e-40`, `±0`, `−7.75`, `1e30`, `1e39`, NaN/±inf in some elements, top-1, top-64, hidden 1
   and 2049, `2^15` tokens; relaunched with `BLOCK` `(4,256)`, `(2,1024)`, `(8,64)`, `(1,4096)`):
-  worst error / tol 0.9961 over every in-range element, all finite; out-of-range elements counted
+  the launches with `hidden_dim` not a multiple of 128 (three host tests and most edges) are outside
+  `Inst.ok` (`D_dim`) and run as extras; worst error / tol 0.9961 over every in-range element, all
+  finite; out-of-range elements counted
   (e.g. 9218 in the `scale 3` near-overflow case); inputs unchanged (bitwise) and guards untouched.

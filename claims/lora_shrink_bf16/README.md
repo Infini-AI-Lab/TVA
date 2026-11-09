@@ -11,7 +11,7 @@ which also proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.LoraShrink.main : Statement` (`Statement`:
-`Claim.lean` line 688). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 690). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -19,28 +19,28 @@ which also proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 336), and every initial memory `init` that `Pre` accepts (line 467), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 653).
+(`Inst.ok`, line 336), and every initial memory `init` that `Pre` accepts (line 469), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 655).
 
-**What `Post` asks** (line 653), two parts:
+**What `Post` asks** (line 655), two parts:
 1. for every slice `s < S`, token `t < M`, rank column `j < R`: `OutSpec d init fin s t j`
-   (line 638). Element `outAt d s t j` (line 327) of `out` reads in `fin` as some `float32` `v`, and
+   (line 640). Element `outAt d s t j` (line 327) of `out` reads in `fin` as some `float32` `v`, and
    - if `d.adapter t < 0` (no adapter): `v = FloatV.ofPat 0`, the `+0.0` the output starts with;
    - if `0 ≤ d.adapter t`: for all `va`, `vb` such that row `t` of `inputs` and row `j` of adapter
      `d.adapter t`'s weights of slice `s` read in `init` as finite `bfloat16` values, and only when
-     `dotMag d va vb ≤ 2^120` (line 594) and `vMag d va vb + atomTol d va vb ≤ binary32.maxVal`
-     (lines 614, 620), `v` is finite and
+     `dotMag d va vb ≤ 2^120` (line 596) and `vMag d va vb + atomTol d va vb ≤ binary32.maxVal`
+     (lines 616, 622), `v` is finite and
      `|v.toRat - d.scaling.toRat * dotSum d va vb| ≤ tol d va vb`. Outside these conditions
      nothing more than the read is asked.
 
-   `dotSum` (line 589) is the exact `Σ_k va k·vb k` in the rationals; `d.scaling` is the host's
-   double. `tol` (line 628) adds `|scaling32 d|·accTol` (the `SPLIT_K` accumulators, each
-   `errPart = min(errChunk, errStep)`, lines 576–599), `mulTol` (line 608, the products by
-   `scaling32 d`, line 304), `atomTol` (line 620, the `SPLIT_K` atomic additions in any order) and
+   `dotSum` (line 591) is the exact `Σ_k va k·vb k` in the rationals; `d.scaling` is the host's
+   double. `tol` (line 630) adds `|scaling32 d|·accTol` (the `SPLIT_K` accumulators, each
+   `errPart = min(errChunk, errStep)`, lines 578–601), `mulTol` (line 610, the products by
+   `scaling32 d`, line 304), `atomTol` (line 622, the `SPLIT_K` atomic additions in any order) and
    `|scaling32 d − scaling|·|dotSum|`;
 2. the frame: every byte outside `d.out.elems (outIdx d)` (line 330) is unchanged.
 
-**What you are given** (`Assumptions`, line 661):
+**What you are given** (`Assumptions`, line 663):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): each `tl.dot` (source lines 152, 166, 177) is within
@@ -52,7 +52,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
   source line 305 is within `2^-23·|o + v| + 2^-124` of the exact sum when in range;
 - `atomic_total` (`Rules.Num.AtomicAddTotal`): that atomic always has a result.
 
-**The kernel, as the model runs it** (`loraShrink` line 69, `model` line 447, `launch` line 457):
+**The kernel, as the model runs it** (`loraShrink` line 69, `model` line 449, `launch` line 459):
 a 3-D grid `(grid0 d, S, G)` (`grid0`, line 314). Program `(x, slice, g)` splits `x` into the part
 `pid_sk = x % SPLIT_K` and the grouped tile `(pid_m, pid_n)`. It loads `lora_ids[g]` and returns
 when it is `-1`; it loads the group's count and returns when the tile starts past it; otherwise it
@@ -94,8 +94,8 @@ the pointers and `Wt := fun _ => ∅` (`iterW_empty`) (PROVER_GUIDE §4).
 - the bytes outside the cells, which no program writes, give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `oneInst_ok`
-(line 857), `twoInst_ok` (line 935) and the `setup_*_ok` theorems; reusable: `idx_mul_add_lt`
-(line 820), `lora_idx_lt` (line 825), `out_idx_lt` (line 832).
+(line 860), `twoInst_ok` (line 939) and the `setup_*_ok` theorems; reusable: `idx_mul_add_lt`
+(line 822), `lora_idx_lt` (line 827), `out_idx_lt` (line 834).
 
 ## Specification
 
@@ -132,6 +132,8 @@ tokens, `bk = 32`, `sk = 8` from 128 (`BLOCK_K`, `SPLIT_K`). `Inst.ok`:
 
 * the shapes: `R % 16 = 0` (a limit of the kernel, Exclusions), `0 < R`, `0 < K`, `K ≤ 2^17`,
   `R·K < 2^31`, `0 < S`;
+* `M ≤ 2^22`: the step's tokens are a context length, at most `2^22` tokens (real model shapes,
+  Exclusions);
 * the kernel's `int32` offsets (limits of the kernel, Exclusions): `(M − 1)·R < 2^31` (line 290);
   for every token's adapter `l ≥ 0`, `l·R·K < 2^31` (line 249); with `S > 1`, `(S − 1)·M·R < 2^31`
   (line 286);
@@ -315,7 +317,7 @@ missing scale, another adapter, swapped slices and an all-zero output pass on at
 ## Exclusions
 
 Launches `Inst.ok` leaves out. `SETUP.md` asks for none of those in 1 and 2 (both are limits of the
-kernel); 3 and 4 are the only ones within `SETUP.md`'s stated ranges, and real use does not reach them.
+kernel); 3, 4 and 10 are the only ones within `SETUP.md`'s stated ranges, and real use does not reach them.
 
 1. **Ranks that are not a multiple of 16 (1, 4, 8, …): a limit of the kernel under the library's
    semantics.** Line 237, `rbn = tl.max_contiguous(tl.multiple_of(offset_n % N, BLOCK_N), BLOCK_N)`,
@@ -353,6 +355,11 @@ kernel); 3 and 4 are the only ones within `SETUP.md`'s stated ranges, and real u
    allocates it fresh with `torch.zeros`). There a plain load would touch bytes the relaxed atomic
    additions of line 305 write, which the library gives no meaning (a race), and with `SPLIT_K = 1`
    the plain stores of line 303 would overwrite an input.
+10. **Contexts longer than `2^22` tokens (out of scope).** Dimensions that are not multiples of 128
+   or exceed `2^17`, and contexts longer than `2^22` tokens: the claim covers real model shapes only.
+   The field is `M ≤ 2^22` (`M_le`, the step's tokens). The hidden size `K` keeps `K ≤ 2^17` and no
+   multiple-of-128 condition: `SETUP.md`'s hidden sizes include tensor-parallel shards that are not
+   multiples of 128 (down to `128 / 64 = 2`). Every launch of `SETUP.md` meets it.
 
 Not exclusions: other configurations (`VLLM_TUNED_CONFIG_FOLDER`'s tuned files), `USE_GDC` and
 `STORE_PARTIALS` (the batch-invariant path) are not part of the setup (`SETUP.md`); `M = 0` and an

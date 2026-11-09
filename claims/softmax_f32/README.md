@@ -7,7 +7,7 @@ to prove is `Statement`. The launches to cover are in `SETUP.md`.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.Softmax.main : Statement` (`Statement`: `Claim.lean`
-line 257). Unfolded (`Claim.Meets`), it says:
+line 260). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -15,30 +15,30 @@ line 257). Unfolded (`Claim.Meets`), it says:
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 112), and every initial memory `init` that `Pre` accepts (line 164), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 218).
+(`Inst.ok`, line 112), and every initial memory `init` that `Pre` accepts (line 167), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 221).
 
-**What `Post` asks** (line 218). For every row `r < n_rows` there are values `xs` with:
+**What `Post` asks** (line 221). For every row `r < n_rows` there are values `xs` with:
 1. for every `k < n_cols`, input element `x[r, k]` (`inIdx d r k`, line 100) reads in `init` as
    `xs k`;
 2. for every `j < n_cols`, output element `y[r, j]` (`outIdx d r j`, line 103) reads in `fin` as some
    `float32` value. This holds for every row, whatever its inputs;
-3. only when `RowOk xs n_cols` holds (line 171: every input finite or `-∞`, and at least one finite
+3. only when `RowOk xs n_cols` holds (line 174: every input finite or `-∞`, and at least one finite
    when the row is not empty): there is one real factor `sc` for the whole row with
    `|sc - 1| ≤ sumTol BLOCK_SIZE`, and for every `j < n_cols` the output `c` of `y[r, j]` is finite
    and
 
    $$|c - sc\cdot\sigma_j| \le (\mathtt{elemTol} + \mathtt{gapTol}\cdot\mathtt{softmaxGap}_j)\cdot\sigma_j + \mathtt{floorTol}\cdot\mathtt{softmaxMax},$$
 
-   with `σ_j = softmaxRef xs n_cols j` (line 180): the exact softmax in the reals,
-   `expIn (xs j) / Σ_{k<n_cols} expIn (xs k)` (`expIn`, line 176, `e^a` with `e^(-∞) = 0`).
-   `softmaxMax` (line 185) is the row's largest `σ`, `softmaxGap` (line 190) is
-   `log(softmaxMax / σ_j)`. The tolerances: `sumTol` (line 197, `(⌈log₂ B⌉ + 56)·2^-24`),
-   `elemTol` (line 201), `gapTol` (line 205), `floorTol` (line 209). Outside `RowOk` only part 2 is
+   with `σ_j = softmaxRef xs n_cols j` (line 183): the exact softmax in the reals,
+   `expIn (xs j) / Σ_{k<n_cols} expIn (xs k)` (`expIn`, line 179, `e^a` with `e^(-∞) = 0`).
+   `softmaxMax` (line 188) is the row's largest `σ`, `softmaxGap` (line 193) is
+   `log(softmaxMax / σ_j)`. The tolerances: `sumTol` (line 200, `(⌈log₂ B⌉ + 56)·2^-24`),
+   `elemTol` (line 204), `gapTol` (line 208), `floorTol` (line 212). Outside `RowOk` only part 2 is
    asked;
 4. the frame: every byte outside the output elements `outSet d` (line 109) is unchanged.
 
-**What you are given** (`Assumptions`, line 234):
+**What you are given** (`Assumptions`, line 237):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `exp_total` (`Num.MathTotal P .exp .binary32`): `tl.exp` has a result on every input (source
@@ -53,8 +53,8 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `sum_depth` (`Num.SumDepth`): the tree of the float `tl.sum` (source line 104) over `BLOCK_SIZE`
   positions has depth at most `⌈log₂ BLOCK_SIZE⌉`.
 
-**The kernel, as the model runs it** (`softmax_kernel`, line 44; `model`, line 149; `launch`,
-line 158): a 1-D grid of `num_programs` programs. Program `p` runs the `int32` loop
+**The kernel, as the model runs it** (`softmax_kernel`, line 44; `model`, line 152; `launch`,
+line 161): a 1-D grid of `num_programs` programs. Program `p` runs the `int32` loop
 `tl.forRange p n_rows num_programs` over rows `p, p + num_programs, …` below `n_rows`. Each trip loads
 row `row_idx` (one block of `BLOCK_SIZE` lanes, masked by `n_cols`, other lanes `-∞`), takes the max
 (`tl.maxAll`), subtracts it (`tl.sub`), applies `tl.exp`, sums (`tl.sum`), divides every lane by the
@@ -72,6 +72,9 @@ invariant over the trips (PROVER_GUIDE §4).
   `safe_store`;
 - the programs' write footprints are disjoint (different rows, `out_rows`), and no program reads
   what another writes (`y_x`);
+- every row has at least `128` columns (`cols_dim`), so a `RowOk` row has a finite value and the
+  row's max is finite; the mask still matters: `BLOCK_SIZE` may exceed `n_cols` (`384` columns in a
+  block of `512`);
 - parts 1 and 2 from the loads and stores of each row's trip (`grid_pos`: every row has a program);
 - part 3 on a `RowOk` row: the max is a finite input; `exp_acc` and `exp_ninf` bound each lane;
   `sum_depth` with `SumDepth.depth_le` and `sum_err_depth` bound the sum and give `sc`; `div_full`
@@ -80,7 +83,7 @@ invariant over the trips (PROVER_GUIDE §4).
 - the bytes no program writes give the frame (part 4).
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `idx_lt` (line 281) can be reused.
+`setup_*_ok` theorems; `idx_lt` (line 284) can be reused.
 
 ## Specification
 
@@ -102,7 +105,7 @@ Element `j` of row `r` is `inIdx d r j = r·input_row_stride + j` of `x` and
 
 | Name | Value | Size |
 |---|---|---|
-| `sumTol B` | `(⌈log₂ B⌉ + 56)·2^-24` | `3.8·10^-6` at `B = 256`, `3.9·10^-6` at `1024` (the test), `4.2·10^-6` at `2^14` |
+| `sumTol B` | `(⌈log₂ B⌉ + 56)·2^-24` | `3.8·10^-6` at `B = 256`, `3.9·10^-6` at `1024`, `4.2·10^-6` at `2^14` |
 | `elemTol` | `2^-21 + 2^-30` | `4.8·10^-7` |
 | `gapTol` | `3·2^-24 + 2^-30` | `1.8·10^-7` per unit of `x_max − x_j` |
 | `floorTol` | `2^-133` | relative to `σ_max ≥ 1/n_cols` |
@@ -134,6 +137,7 @@ buffers `x`, `y`.
 |---|---|---|
 | `block_pow2`, `block_le` | `BLOCK_SIZE` a power of two, `≤ 2^14` | `tl.arange`; `2^14` is the file's largest block (`N = 12672`) |
 | `cols_le` | `n_cols ≤ BLOCK_SIZE` | a row fits in one block (any such `BLOCK_SIZE`, not only `next_power_of_2`) |
+| `cols_dim` | `0 < n_cols`, `n_cols % 128 = 0`, `n_cols ≤ 2^17` | `n_cols` is a model dimension (the softmax's width): real model shapes only (Exclusions) |
 | `grid_pos` | `n_rows ≠ 0 → 0 < num_programs` | with no program nothing is written; the host's `min(NUM_SM·occupancy, n_rows)` is positive |
 | `grid_lt`, `rows_grid` | `num_programs < 2^31`, `n_rows + num_programs ≤ 2^31` | `Launch.Valid`; `n_rows` is an `int32`, and the `int32` loop `tl.range(row_start, n_rows, row_step)` does not overflow its last increment (`tl.RangeOk`) |
 | `in_stride_lt`, `out_stride_lt` | strides `< 2^31` | `int32` arguments |
@@ -144,7 +148,7 @@ buffers `x`, `y`.
 
 The four integers are runtime `int32` arguments, or the compile-time constant `1` when equal to `1`,
 which each use makes an `int32` tensor (the same model). Covered: every shape with these bounds, any
-strides (rows may be slices of larger tensors), `n_rows = 0`, `n_cols = 0`, and any number of
+strides (rows may be slices of larger tensors), `n_rows = 0`, and any number of
 programs from `1` (programs beyond `n_rows` run no trip). For a contiguous input, `in_off` covers
 `16384`-column rows up to `131072` rows and `12672`-column rows up to `169467` rows.
 
@@ -180,9 +184,11 @@ excludes). The subtraction, the max and the sum are IEEE operations. No
 
 ## Coverage
 
-`setup_test_1823x781` and `setup_bench_4096x256` … `setup_bench_4096x12672` (98), with
-`setup_*_ok`: each launch of `SETUP.md` with its `BLOCK_SIZE`, `num_stages = 4` and the H200's
-`num_programs`. `mk_ok` covers a contiguous `R × C` launch for every `num_programs` from `1` to `R`,
+`setup_bench_4096x256` … `setup_bench_4096x12672` (98), with `setup_*_ok`: each benchmark launch
+of `SETUP.md` with its `BLOCK_SIZE`, `num_stages = 4` and the H200's `num_programs`. The test's
+launch (`1823 × 781`) is not covered: `781` columns is not a multiple of `128` (`cols_dim`;
+Exclusions). `mk_ok` covers a contiguous `R × C` launch, `C` a positive multiple of `128`, for every
+`num_programs` from `1` to `R`,
 every `BLOCK_SIZE = 2^e` from `C` to `2^14`, and any `num_stages`.
 
 ## Tolerances
@@ -217,6 +223,11 @@ denominator that drops one column (outputs `e_j/(A − e_last)`, exactly `sc·σ
 
 ## Exclusions
 
+- **Dimensions that are not multiples of 128 or exceed 2^17** — out of scope: the claim covers real
+  model shapes only. The field: `n_cols` (`cols_dim`: a positive multiple of `128`, at most `2^17`).
+  Among the file's launches this leaves out the test (`1823 × 781`); the benchmark's `N = 128·i` are
+  covered. `n_rows` is not bounded as a context length: a softmax's rows are not only tokens (an
+  attention softmax has a row per head and query).
 - **`BLOCK_SIZE > 2^14`** (rows of more than `16384` columns) — outside the file's launches
   (largest `12672` columns); the constants of the derivation (Tolerances) use `B ≤ 2^14`.
 - **Rows that are not `RowOk`** — a limit of the specification, stated per row: with a NaN, a `+∞`,
@@ -246,7 +257,9 @@ None.
 - `check_gpu.py` (H200): the test and all 98 benchmark shapes through the host; edge cases (rows
   with `−∞`, near-overflow rows where `x − m` overflows, gaps up to `1000`, subnormal inputs, rows
   that are not `RowOk`, `1`, `2`, `100`, `16384` columns, larger `BLOCK_SIZE`, `1` to `n_rows`
-  programs, strided rows in a sentinel buffer). Worst error / tolerance over every `RowOk` row:
-  `0.40` on the test, `0.39`–`0.46` on the benchmark, `0.57` overall; every `RowOk` output finite;
-  inputs unchanged; frame holds. The host's output rounded to `float16` / `bfloat16`, and a
-  denominator that drops the row's last column, fail `Post`. 112 of 112 cases pass.
+  programs, strided rows in a sentinel buffer). The test's shape and the edges with `1`, `2`, `8`,
+  `100` or `1000` columns are outside `cols_dim`: they check `Post` beyond the claim. Worst error /
+  tolerance over every `RowOk` row: `0.40` on the test, `0.39`–`0.46` on the benchmark, `0.57`
+  overall; every `RowOk` output finite; inputs unchanged; frame holds. The host's output rounded to
+  `float16` / `bfloat16`, and a denominator that drops the row's last column, fail `Post`. 112 of
+  112 cases pass.

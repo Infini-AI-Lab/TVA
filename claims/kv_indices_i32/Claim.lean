@@ -173,6 +173,11 @@ def ReqOk (d : Inst) (m : Mem) (b : Nat) : Prop :=
       0 ≤ rpi d m b * (d.max_context_len : Int) + sidx d m b + (j : Int) ∧
       rpi d m b * (d.max_context_len : Int) + sidx d m b + (j : Int) < (d.req_to_token.len : Int)
 
+/-- Request `b`'s length and start are context lengths (the request's tokens, and the prefix
+before its window): each at most `2^22`. -/
+def CtxOk (d : Inst) (m : Mem) (b : Nat) : Prop :=
+  slen d m b ≤ 2 ^ 22 ∧ sidx d m b ≤ 2 ^ 22
+
 /-- The instances covered. -/
 structure Inst.ok (d : Inst) : Prop where
   /-- The index dtypes are `int64` (SGLang's serving buffers) or `int32` (the code base's
@@ -185,6 +190,10 @@ structure Inst.ok (d : Inst) : Prop where
   grid_lt : d.bs < 2 ^ 31
   /-- The row length is an `int32` runtime argument. -/
   mcl : d.max_context_len < 2 ^ 31
+  /-- `max_context_len` is a context length (a row holds one request's tokens): at most `2^22`. -/
+  mcl_le : d.max_context_len ≤ 2 ^ 22
+  /-- `bs`, the requests of the batch, is a batch size: at most `8192`. -/
+  bs_le : d.bs ≤ 8192
   /-- `kv_indptr` has the `bs + 1` offsets, the index buffers the batch's entries. -/
   plen : d.bs + 1 ≤ d.kv_indptr.len
   rplen : d.bs ≤ d.req_pool_indices.len
@@ -217,7 +226,7 @@ def launch (d : Inst) : Launch := Launch.grid1 d.bs [[512]] (fusion := true)
 
 /-- The inputs covered: the buffers are valid (aligned, inside `[0, 2^64)`, every byte
 present; `kv_start_idx` when given), every request's row, start and length are in range
-(`ReqOk`), and `kv_indptr` holds the
+(`ReqOk`) and are context lengths (`CtxOk`), and `kv_indptr` holds the
 exclusive running sums of the lengths from a nonnegative start (the host's `0`), all within the
 output's length. Any `int32` table entries. -/
 def Pre (d : Inst) (init : Mem) : Prop :=
@@ -225,6 +234,7 @@ def Pre (d : Inst) (init : Mem) : Prop :=
     d.kv_indptr.Valid init ∧ d.kv_indices.Valid init ∧
     (d.hasStart = true → d.kv_start_idx.Valid init) ∧
     (∀ b, b < d.bs → ReqOk d init b) ∧
+    (∀ b, b < d.bs → CtxOk d init b) ∧
     (∀ b, b < d.bs → ind d init (b + 1) = ind d init b + slen d init b) ∧
     ∀ b, b ≤ d.bs → 0 ≤ ind d init b ∧ ind d init b ≤ (d.kv_indices.len : Int)
 
@@ -294,8 +304,9 @@ def mk (slots ctx bs : Nat) (dp dl ds : DType) (hs : Bool) (total : Nat) : Inst 
 
 theorem mk_ok (slots ctx bs : Nat) (dp dl ds : DType) (hs : Bool) (total : Nat)
     (hp : dp = .i64 ∨ dp = .i32) (hl : dl = .i64 ∨ dl = .i32) (hd : ds = .i64 ∨ ds = .i32)
-    (h1 : bs < 2 ^ 31) (h2 : ctx < 2 ^ 31) : (mk slots ctx bs dp dl ds hs total).ok := by
-  refine ⟨hp, hl, hd, h1, h2, le_refl _, le_refl _, le_refl _, fun _ => le_refl _, fun _ => ?_,
+    (h1 : bs < 2 ^ 31) (h2 : ctx < 2 ^ 31) (h3 : ctx ≤ 2 ^ 22) (h4 : bs ≤ 8192) :
+    (mk slots ctx bs dp dl ds hs total).ok := by
+  refine ⟨hp, hl, hd, h1, h2, h3, h4, le_refl _, le_refl _, le_refl _, fun _ => le_refl _, fun _ => ?_,
     ?_, ?_, ?_, ?_, fun _ => ?_⟩
   · simp only [mk]; positivity
   · refine (bytes_disjoint_of_le ?_).symm
@@ -348,7 +359,8 @@ theorem valOf_zeroMem {dt : DType} (hdt : dt = .i64 ∨ dt = .i32) (b : Buf dt) 
 (`int64` indices and `kv_start_idx`), every buffer `0` (every length and start `0`). -/
 theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
   refine ⟨mk 4096 4096 37 .i64 .i64 .i64 true 0, zeroMem,
-    mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num), ?_⟩
+    mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num)
+      (by norm_num), ?_⟩
   have hs : ∀ b, slen (mk 4096 4096 37 .i64 .i64 .i64 true 0) zeroMem b = 0 :=
     fun b => valOf_zeroMem (Or.inl rfl) _ _
   have hi : ∀ b, ind (mk 4096 4096 37 .i64 .i64 .i64 true 0) zeroMem b = 0 :=
@@ -358,12 +370,15 @@ theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
   refine ⟨⟨?_, ?_, ?_, fun _ _ => by simp [zeroMem]⟩, ⟨?_, ?_, ?_, fun _ _ => by simp [zeroMem]⟩,
     ⟨?_, ?_, ?_, fun _ _ => by simp [zeroMem]⟩, ⟨?_, ?_, ?_, fun _ _ => by simp [zeroMem]⟩,
     ⟨?_, ?_, ?_, fun _ _ => by simp [zeroMem]⟩, fun _ => ⟨?_, ?_, ?_, fun _ _ => by simp [zeroMem]⟩,
-    ?_, ?_, ?_⟩
+    ?_, ?_, ?_, ?_⟩
   rotate_left 18
   · intro b _
     simp only [ReqOk, hs, hst]
     refine ⟨le_refl _, by norm_num, le_refl _, by norm_num, fun j hj => ?_⟩
     omega
+  · intro b _
+    simp only [CtxOk, hs, hst]
+    norm_num
   · intro b _
     simp only [hi, hs]
     norm_num
@@ -381,51 +396,51 @@ random lengths, an upper bound: `Inst.ok` does not depend on it). -/
 /-- Pool 4096 × 4096, 1 request, `int32` indices. -/
 def setup_pool4096_bs1_i32 : Inst := mk 4096 4096 1 .i32 .i32 .i64 false 4096
 theorem setup_pool4096_bs1_i32_ok : setup_pool4096_bs1_i32.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inr rfl) (Or.inr rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inr rfl) (Or.inr rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Pool 4096 × 4096, 37 requests, `int32` indices. -/
 def setup_pool4096_bs37_i32 : Inst := mk 4096 4096 37 .i32 .i32 .i64 false (37 * 4096)
 theorem setup_pool4096_bs37_i32_ok : setup_pool4096_bs37_i32.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inr rfl) (Or.inr rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inr rfl) (Or.inr rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Pool 4096 × 4096, 1786 requests, `int64` indices. -/
 def setup_pool4096_bs1786_i64 : Inst := mk 4096 4096 1786 .i64 .i64 .i64 false (1786 * 4096)
 theorem setup_pool4096_bs1786_i64_ok : setup_pool4096_bs1786_i64.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Pool 513 × 8192, lengths 1, 511, 512, 513, 1025, 8192 (`int64`). -/
 def setup_pool513_lens : Inst := mk 513 8192 6 .i64 .i64 .i64 false 10754
 theorem setup_pool513_lens_ok : setup_pool513_lens.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Pool 9 × 131072, lengths 131072, 1, 70000, 4097, 0, 33, 99999, 512 (`int64`). -/
 def setup_pool9_long : Inst := mk 9 131072 8 .i64 .i64 .i64 false 305714
 theorem setup_pool9_long_ok : setup_pool9_long.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Pool 2049 × 32768, 256 requests (`int64`). -/
 def setup_pool2049_bs256 : Inst := mk 2049 32768 256 .i64 .i64 .i64 false (256 * 32768)
 theorem setup_pool2049_bs256_ok : setup_pool2049_bs256.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Pool 300 × 4096, 100 requests (`int64`), with `kv_start_idx`: the last `window` positions of
 each request. -/
 def setup_pool300_window : Inst := mk 300 4096 100 .i64 .i64 .i64 true (100 * 1023)
 theorem setup_pool300_window_ok : setup_pool300_window.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 /-- Mixed index dtypes (`int64` rows, `int32` lengths), which the host also accepts. -/
 def setup_mixed_dtypes : Inst := mk 64 1024 16 .i64 .i32 .i64 false (16 * 1024)
 theorem setup_mixed_dtypes_ok : setup_mixed_dtypes.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inr rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inr rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- Serving: a 1M-token context row, 4 requests. -/
 def setup_context_1m : Inst := mk 4 (2 ^ 20) 4 .i64 .i64 .i64 false (4 * 2 ^ 20)
 theorem setup_context_1m_ok : setup_context_1m.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- FlashInfer's sliding-window decode: 64 requests of contexts up to 131072 tokens, each copying
 its last `window + 1 = 4097` positions (`kv_start_idx = seq_lens - min(seq_lens, 4097)`,
 `int64`). -/
 def setup_swa_decode : Inst := mk 64 131072 64 .i64 .i64 .i64 true (64 * 4097)
 theorem setup_swa_decode_ok : setup_swa_decode.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inl rfl) (Or.inl rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 /-- `int32` lengths and `kv_start_idx` (FlashInfer's planners pass `seq_lens - paged_kernel_lens`
 in the lengths' dtype), `int64` rows. -/
 def setup_start_i32 : Inst := mk 128 8192 32 .i64 .i32 .i32 true (32 * 8192)
 theorem setup_start_i32_ok : setup_start_i32.ok :=
-  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inr rfl) (Or.inr rfl) (by norm_num) (by norm_num)
+  mk_ok _ _ _ _ _ _ _ _ (Or.inl rfl) (Or.inr rfl) (Or.inr rfl) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
 
 end Claims.KvIndices

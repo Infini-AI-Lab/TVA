@@ -309,6 +309,8 @@ structure Inst.ok (d : Inst) : Prop where
   strides `a.stride(0)`, `b.stride(0)` are `int32` or `int64` arguments (below `2^63`); so is
   `out.stride(0) = nchunks·oC`, below `2^47` by `gz_lt` and `oC_lt`. -/
   T_lt : d.T < 2 ^ 31
+  /-- `seqlen`, the packed prefill tokens, is a context length: at most `2^22` tokens. -/
+  T_le : d.T ≤ 2 ^ 22
   aB_lt : d.aB < 2 ^ 63
   aS_lt : d.aS < 2 ^ 31
   aH_lt : d.aH < 2 ^ 31
@@ -553,7 +555,8 @@ theorem mk_ok {T G K C cd j : Nat} (hC : C = 2 ^ j)
       (C - 1) * cd + 31 < 2 ^ 31 ∧ G * K ≤ cd ∧
       T * cd * 2 ≤ 68719476736 ∧ T * 4 ≤ 68719476736 ∧
       (T + C - 1) / C * (G * (C * C)) * 4 ≤ 68719476736 ∧
-      (C + 64 - 1) / 64 * ((C + 128 - 1) / 128) * ((T + C - 1) / C * G) < 2 ^ 31) :
+      (C + 64 - 1) / 64 * ((C + 128 - 1) / 128) * ((T + C - 1) / C * G) < 2 ^ 31)
+    (hT : T ≤ 2 ^ 22) :
     (mk T G K C cd).ok := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, hA, hS, hO, h14⟩ := h
   have hlen : ∀ t g k, t < T → g < G → k < K → t * cd + g * K + k * 1 < T * cd := by
@@ -563,7 +566,7 @@ theorem mk_ok {T G K C cd j : Nat} (hC : C = 2 ^ j)
     omega
   refine
     { T_pos := h1, G_pos := h2, K_pos := h3, C_pow2 := ⟨j, hC⟩, C_ge := h4, K_le := h5,
-      gz_lt := h6, grid_lt := h14, T_lt := h7, aB_lt := h8, aS_lt := h9, aH_lt := h10, aK_lt := by simp only [mk]; norm_num,
+      gz_lt := h6, grid_lt := h14, T_lt := h7, T_le := hT, aB_lt := h8, aS_lt := h9, aH_lt := h10, aK_lt := by simp only [mk]; norm_num,
       bB_lt := h8, bS_lt := h9, bH_lt := h10, bK_lt := by simp only [mk]; norm_num, oC_lt := h11,
       a_fit := by simp only [mk, BK]; omega, b_fit := by simp only [mk, BK]; omega,
       aK_step := by simp only [mk, BK]; norm_num, bK_step := by simp only [mk, BK]; norm_num,
@@ -577,56 +580,56 @@ theorem mk_ok {T G K C cd j : Nat} (hC : C = 2 ^ j)
 /-- SGLang's single-example test (`test_mamba_ssm_ssd.py:228-286`): 112 tokens, chunks of 16,
 `ngroups = n_heads ∈ {3, 32}`, `dstate = d_head ∈ {5, 128}`, one request, contiguous. -/
 def setup_single_g3_k5 : Inst := mk 112 3 5 16 15
-theorem setup_single_g3_k5_ok : setup_single_g3_k5.ok := mk_ok (j := 4) rfl (by norm_num)
+theorem setup_single_g3_k5_ok : setup_single_g3_k5.ok := mk_ok (j := 4) rfl (by norm_num) (by norm_num)
 
 def setup_single_g32_k128 : Inst := mk 112 32 128 16 4096
-theorem setup_single_g32_k128_ok : setup_single_g32_k128.ok := mk_ok (j := 4) rfl (by norm_num)
+theorem setup_single_g32_k128_ok : setup_single_g32_k128.ok := mk_ok (j := 4) rfl (by norm_num) (by norm_num)
 
 /-- The single-example test's other sizes outside CI (`test_mamba_ssm_ssd.py:219-222`: 128 tokens
 in chunks of 32, `ngroups` up to 32, `dstate` up to 128), and the intermediate-states test
 (`test_mamba_ssm_ssd.py:632-692`: `bfloat16`, 128 tokens in chunks of 32 or 256 in chunks of 64,
 `ngroups ∈ {4, 16}`, `dstate ∈ {32, 64}`). -/
 def setup_single_g11_k19_c32 : Inst := mk 128 11 19 32 209
-theorem setup_single_g11_k19_c32_ok : setup_single_g11_k19_c32.ok := mk_ok (j := 5) rfl (by norm_num)
+theorem setup_single_g11_k19_c32_ok : setup_single_g11_k19_c32.ok := mk_ok (j := 5) rfl (by norm_num) (by norm_num)
 
 def setup_inter_g16_k64_c64 : Inst := mk 256 16 64 64 1024
-theorem setup_inter_g16_k64_c64_ok : setup_inter_g16_k64_c64.ok := mk_ok (j := 6) rfl (by norm_num)
+theorem setup_inter_g16_k64_c64_ok : setup_inter_g16_k64_c64.ok := mk_ok (j := 6) rfl (by norm_num) (by norm_num)
 
 /-- The continuous-batch test (`test_mamba_ssm_ssd.py:289-394`): 64 tokens in chunks of 8 or 256,
 768 tokens in chunks of 128; `ngroups ∈ {4, 13}`, `dstate ∈ {5, 32}`. -/
 def setup_cont_c8_g4_k5 : Inst := mk 64 4 5 8 20
-theorem setup_cont_c8_g4_k5_ok : setup_cont_c8_g4_k5.ok := mk_ok (j := 3) rfl (by norm_num)
+theorem setup_cont_c8_g4_k5_ok : setup_cont_c8_g4_k5.ok := mk_ok (j := 3) rfl (by norm_num) (by norm_num)
 
 def setup_cont_c256_g13_k32 : Inst := mk 64 13 32 256 416
-theorem setup_cont_c256_g13_k32_ok : setup_cont_c256_g13_k32.ok := mk_ok (j := 8) rfl (by norm_num)
+theorem setup_cont_c256_g13_k32_ok : setup_cont_c256_g13_k32.ok := mk_ok (j := 8) rfl (by norm_num) (by norm_num)
 
 def setup_cont_c128_g13_k32 : Inst := mk 768 13 32 128 416
-theorem setup_cont_c128_g13_k32_ok : setup_cont_c128_g13_k32.ok := mk_ok (j := 7) rfl (by norm_num)
+theorem setup_cont_c128_g13_k32_ok : setup_cont_c128_g13_k32.ok := mk_ok (j := 7) rfl (by norm_num) (by norm_num)
 
 /-- The prefill-chunking test (`test_mamba_ssm_ssd.py:397-529`): `ngroups = 16`, `dstate = 64`,
 requests `(270, 88, 212, 203)` (773 tokens), chunks of 8 and 256. -/
 def setup_chunking_c8 : Inst := mk 773 16 64 8 1024
-theorem setup_chunking_c8_ok : setup_chunking_c8.ok := mk_ok (j := 3) rfl (by norm_num)
+theorem setup_chunking_c8_ok : setup_chunking_c8.ok := mk_ok (j := 3) rfl (by norm_num) (by norm_num)
 
 def setup_chunking_c256 : Inst := mk 773 16 64 256 1024
-theorem setup_chunking_c256_ok : setup_chunking_c256.ok := mk_ok (j := 8) rfl (by norm_num)
+theorem setup_chunking_c256_ok : setup_chunking_c256.ok := mk_ok (j := 8) rfl (by norm_num) (by norm_num)
 
 /-- The Mamba-2 mixer at a 32768-token prefill: Codestral-Mamba / Nemotron-H-like layers at TP 1
 (`ngroups = 8`, `dstate = 128`, `intermediate = 8192`, `conv_dim = 10240`), chunks of 256 and 128. -/
 def setup_mamba2_g8_c256 : Inst := mk 32768 8 128 256 10240
-theorem setup_mamba2_g8_c256_ok : setup_mamba2_g8_c256.ok := mk_ok (j := 8) rfl (by norm_num)
+theorem setup_mamba2_g8_c256_ok : setup_mamba2_g8_c256.ok := mk_ok (j := 8) rfl (by norm_num) (by norm_num)
 
 def setup_mamba2_g8_c128 : Inst := mk 32768 8 128 128 10240
-theorem setup_mamba2_g8_c128_ok : setup_mamba2_g8_c128.ok := mk_ok (j := 7) rfl (by norm_num)
+theorem setup_mamba2_g8_c128_ok : setup_mamba2_g8_c128.ok := mk_ok (j := 7) rfl (by norm_num) (by norm_num)
 
 /-- One group per rank (`ngroups = 1`, or groups split across tensor-parallel ranks),
 `dstate = 128` (Granite-4.0-H, Mamba-2 1-group layers) and `dstate = 256` (Falcon-H1), chunks of
 256, 32768 tokens. -/
 def setup_g1_k128 : Inst := mk 32768 1 128 256 4352
-theorem setup_g1_k128_ok : setup_g1_k128.ok := mk_ok (j := 8) rfl (by norm_num)
+theorem setup_g1_k128_ok : setup_g1_k128.ok := mk_ok (j := 8) rfl (by norm_num) (by norm_num)
 
 def setup_g1_k256 : Inst := mk 32768 1 256 256 4608
-theorem setup_g1_k256_ok : setup_g1_k256.ok := mk_ok (j := 8) rfl (by norm_num)
+theorem setup_g1_k256_ok : setup_g1_k256.ok := mk_ok (j := 8) rfl (by norm_num) (by norm_num)
 
 /-- A long prefill with chunked prefill disabled, through the Mamba-2 mixer (`ngroups = 8`,
 `dstate = 128`, `conv_dim = 10240`, chunks of 256): 262,144 tokens, where `a.stride(0) =
@@ -634,10 +637,10 @@ b.stride(0) = seqlen·conv_dim ≈ 2.7·10^9` are `int64` arguments (`out.stride
 `int32`); and 2,096,896 tokens (8191 chunks, the largest grid `z` below `2^16`), where
 `out.stride(0) = nchunks·ngroups·C² ≈ 4.3·10^9` is `int64` too. -/
 def setup_long_g8_c256 : Inst := mk 262144 8 128 256 10240
-theorem setup_long_g8_c256_ok : setup_long_g8_c256.ok := mk_ok (j := 8) rfl (by norm_num)
+theorem setup_long_g8_c256_ok : setup_long_g8_c256.ok := mk_ok (j := 8) rfl (by norm_num) (by norm_num)
 
 def setup_longest_g8_c256 : Inst := mk 2096896 8 128 256 10240
-theorem setup_longest_g8_c256_ok : setup_longest_g8_c256.ok := mk_ok (j := 8) rfl (by norm_num)
+theorem setup_longest_g8_c256_ok : setup_longest_g8_c256.ok := mk_ok (j := 8) rfl (by norm_num) (by norm_num)
 
 /-! ## Not vacuous: a covered instance and memory -/
 

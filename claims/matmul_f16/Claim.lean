@@ -222,6 +222,15 @@ structure Inst.ok (d : Inst) : Prop where
   c_a : Disjoint (d.c.elems (cIdx d)) (d.a.elems (aIdx d))
   /-- The matrix `c` shares no byte with the matrix `b`. -/
   c_b : Disjoint (d.c.elems (cIdx d)) (d.b.elems (bIdx d))
+  /-- `M` counts tokens (the rows of the activations `a`): a context length, at most `2^22`. -/
+  M_ctx : d.M ≤ 2 ^ 22
+  /-- `N` is a model dimension (the output features): a positive multiple of `128`, at most
+  `2^17`. Every column tile of `256` is then full or half full (`128 ∣ N`). -/
+  N_dim : 0 < d.N ∧ d.N % 128 = 0 ∧ d.N ≤ 2 ^ 17
+  /-- `K` is a model dimension (the input features): a positive multiple of `128`, at most `2^17`.
+  Every `k` step of `64` is then full (`64 ∣ K`): the masks `k < K - 64·t` of lines 297–298 hold on
+  every lane. -/
+  K_dim : 0 < d.K ∧ d.K % 128 = 0 ∧ d.K ≤ 2 ^ 17
 
 /-- The model on an instance: the buffers' first elements, `M`, `N`, `K` and the strides as
 `int32`, and the block sizes of the launch (line 346): `BLOCK_SIZE_M = 128`, `BLOCK_SIZE_N = 256`,
@@ -433,9 +442,10 @@ theorem hostInst_ok {M N K : Nat}
     (h : 0 < N ∧ 0 < K ∧ M + 128 ≤ 2 ^ 31 ∧ N + 256 ≤ 2 ^ 31 ∧
       (M + 127) / 128 * ((N + 255) / 256) < 2 ^ 31 ∧ K ≤ 2 ^ 13 ∧
       (M - 1) * K + 64 < 2 ^ 31 ∧ 64 * N + (N - 1) < 2 ^ 31 ∧ (M - 1) * N < 2 ^ 31 ∧
-      M * K ≤ 2 ^ 31 ∧ K * N ≤ 2 ^ 31 ∧ M * N ≤ 2 ^ 31) :
+      M * K ≤ 2 ^ 31 ∧ K * N ≤ 2 ^ 31 ∧ M * N ≤ 2 ^ 31 ∧
+      M ≤ 2 ^ 22 ∧ N % 128 = 0 ∧ N ≤ 2 ^ 17 ∧ K % 128 = 0 ∧ K ≤ 2 ^ 17) :
     (hostInst M N K).ok := by
-  obtain ⟨hN, hK, h1, h2, h3, h4, h5, h6, h7, hA, hB, hC⟩ := h
+  obtain ⟨hN, hK, h1, h2, h3, h4, h5, h6, h7, hA, hB, hC, hM22, hN128, hN17, hK128, hK17⟩ := h
   have hal : ∀ i k, i < M → k < K → i * K + k * 1 < M * K := fun i k hi hk => by
     rw [Nat.mul_one]; exact row_lt hi hk
   have hbl : ∀ k j, k < K → j < N → k * N + j * 1 < K * N := fun k j hk hj => by
@@ -454,7 +464,7 @@ theorem hostInst_ok {M N K : Nat}
     by simp only [hostInst]; omega, by simp only [hostInst]; omega, by simp only [hostInst]; omega,
     by simp only [hostInst]; omega,
     fun i j i' j' _ hj _ hj' he => rm_inj hj hj' (by simpa only [hostInst, Nat.mul_one] using he),
-    hal, hbl, hcl, ?_, ?_⟩
+    hal, hbl, hcl, ?_, ?_, hM22, ⟨hN, hN128, hN17⟩, ⟨hK, hK128, hK17⟩⟩
   · refine Disjoint.mono hcS haS (bytes_disjoint ?_)
     simp only [hostInst, DType.bytes]
     omega

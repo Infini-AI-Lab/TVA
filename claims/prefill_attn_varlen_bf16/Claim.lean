@@ -285,6 +285,11 @@ structure Inst.ok (d : Inst) : Prop where
   bd_le : d.BD ≤ 256
   /-- `max_input_len ≤ 2^17` (prompts of up to 131072 tokens; SETUP.md: 1 to thousands). -/
   maxLen_le : d.maxLen ≤ 2 ^ 17
+  /-- `total_tokens`, the tokens of the packed batch, is a context length: at most `2^22`
+  tokens. -/
+  total_le : d.total ≤ 2 ^ 22
+  /-- `b_seq_len.shape[0]`, the number of sequences, is a batch size: at most `8192`. -/
+  batch_le : d.batch ≤ 8192
   /-- `sm_scale` is a finite double in `[2^-64, 2^64]` (by default `1/sqrt(Lq) ∈ [1/16, 1]`). -/
   scale : d.sm_scale.isFinite = true ∧ (1 / 2 ^ 64 : ℚ) ≤ d.sm_scale.toRat ∧
     d.sm_scale.toRat ≤ 2 ^ 64
@@ -572,11 +577,11 @@ theorem last_idx (t a l : Nat) (ht : 0 < t) (ha : 0 < a) :
   simp only [Nat.add_sub_cancel]
   ring
 
-/-- **Every host launch at the code base's sizes is covered**: up to `2^14` sequences and
+/-- **Every host launch at the code base's sizes is covered**: up to `8192` sequences and
 `2^17` tokens, `1 … 64` heads with any `num_kv_heads` dividing them, head dims up to `256`,
 `max_input_len ≤ 2^17`, an `sm_scale` in `[2^-64, 2^64]`, causal or not. -/
 theorem canon_ok (batch total H HKV Lk BD maxLen a : Nat) (sm : F64) (causal : Bool)
-    (hb : batch ≤ 2 ^ 14) (ht : total ≤ 2 ^ 17) (hH0 : 0 < H) (hH : H ≤ 64) (hkv0 : 0 < HKV)
+    (hb : batch ≤ 8192) (ht : total ≤ 2 ^ 17) (hH0 : 0 < H) (hH : H ≤ 64) (hkv0 : 0 < HKV)
     (hkv : HKV ∣ H) (hl0 : 0 < Lk) (hl : Lk ≤ BD) (hbd : BD = 2 ^ a) (hbd256 : BD ≤ 256)
     (hm : maxLen ≤ 2 ^ 17)
     (hsm : sm.isFinite = true ∧ (1 / 2 ^ 64 : ℚ) ≤ sm.toRat ∧ sm.toRat ≤ 2 ^ 64) :
@@ -590,7 +595,7 @@ theorem canon_ok (batch total H HKV Lk BD maxLen a : Nat) (sm : F64) (causal : B
     Nat.mul_le_mul (Nat.mul_le_mul ht (le_trans hkvH hH)) hl256
   have hnb : (maxLen + BLOCK - 1) / BLOCK ≤ 2 ^ 10 := by
     simp only [BLOCK]; omega
-  have hbH : batch * H ≤ 2 ^ 14 * 64 := Nat.mul_le_mul hb hH
+  have hbH : batch * H ≤ 2 ^ 14 * 64 := Nat.mul_le_mul (le_trans hb (by norm_num)) hH
   have hgrid : batch * H * ((maxLen + BLOCK - 1) / BLOCK) ≤ 2 ^ 14 * 64 * 2 ^ 10 :=
     Nat.mul_le_mul hbH hnb
   refine
@@ -604,6 +609,8 @@ theorem canon_ok (batch total H HKV Lk BD maxLen a : Nat) (sm : F64) (causal : B
       lk_le := hl
       bd_le := hbd256
       maxLen_le := hm
+      total_le := by simp only [canon]; omega
+      batch_le := by simp only [canon]; omega
       scale := hsm
       strides_lt := by simp only [canon]; omega
       q_i32 := fun h0 => by
@@ -753,6 +760,8 @@ theorem setup_fused_ok : setup_fused.ok where
   lk_le := by norm_num [setup_fused]
   bd_le := by norm_num [setup_fused]
   maxLen_le := by norm_num [setup_fused]
+  total_le := by norm_num [setup_fused]
+  batch_le := by norm_num [setup_fused]
   scale := sm128_ok
   strides_lt := by norm_num [setup_fused]
   q_i32 := fun _ => by norm_num [setup_fused]
@@ -817,15 +826,15 @@ theorem head_end (a l : Nat) (ha : 0 < a) : (a - 1) * l + l = a * l := by
   obtain ⟨a', rfl⟩ : ∃ a', a = a' + 1 := ⟨a - 1, by omega⟩
   simp only [Nat.add_sub_cancel, Nat.succ_mul]
 
-/-- **Every vision-encoder launch at the code base's sizes is covered**: up to `2^14` sequences,
+/-- **Every vision-encoder launch at the code base's sizes is covered**: up to `8192` sequences,
 `1 … 64` heads with any `num_kv_heads` dividing them, head dims up to `256`,
 `max_input_len ≤ 2^17`, a fused `qkv` of fewer than `2^31` elements, causal or not. -/
 theorem fusedQKV_ok (batch total H HKV Lk BD maxLen a : Nat) (sm : F64) (causal : Bool)
-    (hb : batch ≤ 2 ^ 14) (hH0 : 0 < H) (hH : H ≤ 64) (hkv0 : 0 < HKV)
+    (hb : batch ≤ 8192) (hH0 : 0 < H) (hH : H ≤ 64) (hkv0 : 0 < HKV)
     (hkv : HKV ∣ H) (hl0 : 0 < Lk) (hl : Lk ≤ BD) (hbd : BD = 2 ^ a) (hbd256 : BD ≤ 256)
     (hm : maxLen ≤ 2 ^ 17)
     (hsm : sm.isFinite = true ∧ (1 / 2 ^ 64 : ℚ) ≤ sm.toRat ∧ sm.toRat ≤ 2 ^ 64)
-    (hW : total * ((H + 2 * HKV) * Lk) ≤ 2 ^ 31) :
+    (hW : total * ((H + 2 * HKV) * Lk) ≤ 2 ^ 31) (ht : total ≤ 2 ^ 22) :
     (fusedQKV batch total H HKV Lk BD maxLen sm causal).ok := by
   have hkvH : HKV ≤ H := Nat.le_of_dvd hH0 hkv
   have hl256 : Lk ≤ 256 := le_trans hl hbd256
@@ -837,7 +846,7 @@ theorem fusedQKV_ok (batch total H HKV Lk BD maxLen a : Nat) (sm : F64) (causal 
   have hoA : total * H * Lk = total * (H * Lk) := Nat.mul_assoc _ _ _
   have hnb : (maxLen + BLOCK - 1) / BLOCK ≤ 2 ^ 10 := by
     simp only [BLOCK]; omega
-  have hbH : batch * H ≤ 2 ^ 14 * 64 := Nat.mul_le_mul hb hH
+  have hbH : batch * H ≤ 2 ^ 14 * 64 := Nat.mul_le_mul (le_trans hb (by norm_num)) hH
   have hgrid : batch * H * ((maxLen + BLOCK - 1) / BLOCK) ≤ 2 ^ 14 * 64 * 2 ^ 10 :=
     Nat.mul_le_mul hbH hnb
   refine
@@ -851,6 +860,8 @@ theorem fusedQKV_ok (batch total H HKV Lk BD maxLen a : Nat) (sm : F64) (causal 
       lk_le := hl
       bd_le := hbd256
       maxLen_le := hm
+      total_le := ht
+      batch_le := by simp only [fusedQKV]; omega
       scale := hsm
       strides_lt := by simp only [fusedQKV]; omega
       q_i32 := fun h0 => by
@@ -906,14 +917,14 @@ def setup_vit_full : Inst := fusedQKV 1 5476 16 16 80 128 5476 sm80 false
 theorem setup_vit_full_ok : setup_vit_full.ok :=
   fusedQKV_ok 1 5476 16 16 80 128 5476 7 sm80 false (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) sm80_ok (by norm_num)
+    (by norm_num) sm80_ok (by norm_num) (by norm_num)
 
 /-- The same image in a window-attention layer: `100` windows of at most `64` patches. -/
 def setup_vit_window : Inst := fusedQKV 100 5476 16 16 80 128 64 sm80 false
 theorem setup_vit_window_ok : setup_vit_window.ok :=
   fusedQKV_ok 100 5476 16 16 80 128 64 7 sm80 false (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) sm80_ok (by norm_num)
+    (by norm_num) sm80_ok (by norm_num) (by norm_num)
 
 /-- The largest image SGLang's Qwen-VL processor admits (`SGLANG_IMAGE_MAX_PIXELS = 16384·28·28`:
 `65536` patches) in a full-attention layer, 16 heads of 80. -/
@@ -921,14 +932,14 @@ def setup_vit_max : Inst := fusedQKV 1 65536 16 16 80 128 65536 sm80 false
 theorem setup_vit_max_ok : setup_vit_max.ok :=
   fusedQKV_ok 1 65536 16 16 80 128 65536 7 sm80 false (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) sm80_ok (by norm_num)
+    (by norm_num) sm80_ok (by norm_num) (by norm_num)
 
 /-- The same image with the heads split over 8 ranks: 2 heads of 80 per rank. -/
 def setup_vit_max_tp8 : Inst := fusedQKV 1 65536 2 2 80 128 65536 sm80 false
 theorem setup_vit_max_tp8_ok : setup_vit_max_tp8.ok :=
   fusedQKV_ok 1 65536 2 2 80 128 65536 7 sm80 false (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) sm80_ok (by norm_num)
+    (by norm_num) sm80_ok (by norm_num) (by norm_num)
 
 /-- A video: 16 frame pairs of `3072` patches each (`VIDEO_MAX_PIXELS = 768·28·28`), one sequence
 per frame pair, 16 heads of 80. -/
@@ -936,7 +947,7 @@ def setup_vit_video : Inst := fusedQKV 16 49152 16 16 80 128 3072 sm80 false
 theorem setup_vit_video_ok : setup_vit_video.ok :=
   fusedQKV_ok 16 49152 16 16 80 128 3072 7 sm80 false (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) sm80_ok (by norm_num)
+    (by norm_num) sm80_ok (by norm_num) (by norm_num)
 
 /-- Qwen3-VL's vision encoder (16 heads of 72, `BLOCK_DMODEL = 128`), two images of `4096` and
 `1024` patches. -/
@@ -944,7 +955,7 @@ def setup_vit_qwen3 : Inst := fusedQKV 2 5120 16 16 72 128 4096 sm72 false
 theorem setup_vit_qwen3_ok : setup_vit_qwen3.ok :=
   fusedQKV_ok 2 5120 16 16 72 128 4096 7 sm72 false (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (by norm_num) sm72_ok (by norm_num)
+    (by norm_num) sm72_ok (by norm_num) (by norm_num)
 
 /-- MiMo-VL's vision encoder (32 heads of 64 on 8 KV heads, `python/sglang/srt/models/mimo_vl.py:40-56`),
 two images of `4096` and `1024` patches. -/
@@ -952,7 +963,7 @@ def setup_vit_mimo : Inst := fusedQKV 2 5120 32 8 64 64 4096 sm64 false
 theorem setup_vit_mimo_ok : setup_vit_mimo.ok :=
   fusedQKV_ok 2 5120 32 8 64 64 4096 6 sm64 false (by norm_num) (by norm_num) (by norm_num)
     (by norm_num) (by norm_num) (by norm_num) le_rfl (by norm_num) (by norm_num)
-    (by norm_num) sm64_ok (by norm_num)
+    (by norm_num) sm64_ok (by norm_num) (by norm_num)
 
 /-- An explicit `sm_scale = 1.0` on contiguous `q`, `k`, `v` (normalised per head before the
 call), 16 heads of 64, two images of `1024` and `256` patches. -/

@@ -686,6 +686,12 @@ structure Inst.ok (d : Inst) : Prop where
   grid_lt : gridN d < 2 ^ 31
   /-- `T` is an `int32` argument, and line 97's `T + 63` does not wrap. -/
   T_lt : d.T + BT < 2 ^ 31
+  /-- `T` is a context length (a row's tokens, or a packed batch's): at most `2^22` (README,
+  Exclusions). -/
+  T_ctx : d.T ≤ 2 ^ 22
+  /-- The number of sequences `N` and of batch rows `B` are batch sizes: at most `8192` (README,
+  Exclusions). -/
+  N_batch : d.N ≤ 8192 ∧ d.B ≤ 8192
   /-- With the gate, line 247's `int32` `last_idx·HV` does not wrap (without it line 247 does not
   run). -/
   THV_lt : d.useG = true → d.T * d.HV < 2 ^ 31
@@ -1180,7 +1186,7 @@ theorem disj_far {d1 d2 : DType} (b : Buf d1) (c : Buf d2) (i j : Nat)
 theorem ok_of (d : Inst)
     (hA : 0 < d.H ∧ 0 < d.HV ∧ d.H ∣ d.HV ∧ d.HV < 2 ^ 16 ∧ 0 < d.K ∧ d.K ≤ 256 ∧ 0 < d.V ∧
       d.V < 2 ^ 16 ∧ d.HV * d.V < 2 ^ 31 ∧ 0 < d.N ∧ gridN d < 2 ^ 31 ∧ d.T + BT < 2 ^ 31 ∧
-      (d.useG = true → d.T * d.HV < 2 ^ 31))
+      (d.useG = true → d.T * d.HV < 2 ^ 31) ∧ d.T ≤ 2 ^ 22 ∧ d.N ≤ 8192 ∧ d.B ≤ 8192)
     (hB : (d.varlen = false → d.N = d.B) ∧ (d.varlen = true → d.B = 1) ∧
       (d.varlen = true → d.cuD = .i32 ∨ d.cuD = .i64) ∧
       (d.varlen = true → entryInt d.cuD (d.cuVal 0) = 0) ∧
@@ -1201,7 +1207,7 @@ theorem ok_of (d : Inst)
       d.g.len * 4 ≤ 2 ^ 40 ∧ d.h.len * 2 ≤ 2 ^ 40 ∧ d.vn.len * 2 ≤ 2 ^ 40 ∧
       d.h0.len * 4 ≤ 2 ^ 40 ∧ d.ht.len * 4 ≤ 2 ^ 40 ∧ d.cu.len * d.cuD.bytes ≤ 2 ^ 40 ∧
       d.co.len * 8 ≤ 2 ^ 40) : d.ok := by
-  obtain ⟨a1, a0, a2, a3, a4, a5, a6, a7, a12, a8, a9, a10, a11⟩ := hA
+  obtain ⟨a1, a0, a2, a3, a4, a5, a6, a7, a12, a8, a9, a10, a11, a13, a14, a15⟩ := hA
   obtain ⟨b1, b2, b3, b4, b5, b6⟩ := hB
   obtain ⟨c1, c2, c3, c4, c5, c6, c7, c8, c9, c10⟩ := hC
   obtain ⟨dk, dw, du, dg, dh, dvn, dh0, dht, dcu, dco⟩ := hD
@@ -1209,7 +1215,8 @@ theorem ok_of (d : Inst)
   exact
     { H_pos := a1, HV_pos := a0, H_dvd := a2, HV_lt := a3, K_pos := a4, K_le := a5, V_pos := a6,
       V_lt := a7, HVV_lt := a12,
-      N_pos := a8, grid_lt := a9, T_lt := a10, THV_lt := a11, fixed_N := b1, var_B := b2,
+      N_pos := a8, grid_lt := a9, T_lt := a10, T_ctx := a13, N_batch := ⟨a14, a15⟩,
+      THV_lt := a11, fixed_N := b1, var_B := b2,
       var_cuD := b3, var_cu0 := b4, var_mono := b5, var_end := b6,
       k_len := c1, w_len := c2, u_len := c3, g_len := c4, h_len := c5, vn_len := c6,
       h0_len := c7, ht_len := c8, cu_len := c9, co_len := c10,

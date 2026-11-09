@@ -19,7 +19,7 @@ module-level lines are host lines: `import math`, `import torch` (53–55), the 
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.SsdBmm.main : Statement` (`Statement`: `Claim.lean`
-line 496). Unfolded (`Claim.Meets`), it says:
+line 498). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -27,30 +27,30 @@ line 496). Unfolded (`Claim.Meets`), it says:
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 290), and every initial memory `init` that `Pre` accepts (line 374: the four
+(`Inst.ok`, line 290), and every initial memory `init` that `Pre` accepts (line 376: the four
 buffers valid, every `seq_idx` entry a non-negative `int32`), every outcome of the launch is a
-normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 467).
+normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 469).
 
-**What `Post` asks** (line 467), two parts:
-1. for every `c < nch d`, `g < G`, `m < C`, `n < C`: `OutElem d init fin c g m n` (line 452).
+**What `Post` asks** (line 469), two parts:
+1. for every `c < nch d`, `g < G`, `m < C`, `n < C`: `OutElem d init fin c g m n` (line 454).
    Element `oIdx d c g m n` (line 286) of `out` reads in `fin` as some `float32` `v`, and:
-   - if `sameReq d init c m n` (line 443: tokens `c·C + m` and `c·C + n` are both below `T` and
+   - if `sameReq d init c m n` (line 445: tokens `c·C + m` and `c·C + n` are both below `T` and
      have equal `seq_idx` in `init`): for all `va vb : Nat → BF16` such that, for every `k < K`,
      `init` reads `a`'s element `aIdx d (c·C + m) g k` as a finite `va k` and `b`'s element
-     `bIdx d (c·C + n) g k` as a finite `vb k`, and `dotMag va vb d.K ≤ 2^120` (line 397): `v` is
+     `bIdx d (c·C + n) g k` as a finite `vb k`, and `dotMag va vb d.K ≤ 2^120` (line 399): `v` is
      finite and `|v.toRat - dotSum va vb d.K| ≤ tol va vb d.K`. With a non-finite input or no
      room, only "holds a value" is asked;
    - otherwise, on every input: `FloatV.NaNEq (FloatV.ofPat 0) v`, the `float32` `+0`.
 
-   The reference `dotSum` (line 392) is the exact `Σ_{k<K} va k · vb k` in the rationals. `tol`
-   (line 425) is `errAt (prodV va vb K) (liftV va vb K) (steps K)`: the recursion `errAt`
-   (line 419), `E (t+1) = (1 + rho)·E t + rho·(|partSum p t| + stepMag q t) + alpha`, over
-   `steps K = cdiv(K, 32)` (line 381), with `prodV`, `liftV`, `partSum`, `stepMag` (lines
-   402–412) and `rho`, `alpha` (lines 386, 389: `DotLoop.stepRel`, `stepAbs` of `relDot16 32`,
+   The reference `dotSum` (line 394) is the exact `Σ_{k<K} va k · vb k` in the rationals. `tol`
+   (line 427) is `errAt (prodV va vb K) (liftV va vb K) (steps K)`: the recursion `errAt`
+   (line 421), `E (t+1) = (1 + rho)·E t + rho·(|partSum p t| + stepMag q t) + alpha`, over
+   `steps K = cdiv(K, 32)` (line 383), with `prodV`, `liftV`, `partSum`, `stepMag` (lines
+   404–414) and `rho`, `alpha` (lines 388, 391: `DotLoop.stepRel`, `stepAbs` of `relDot16 32`,
    `absDot16 32`);
 2. the frame: every byte outside `out`'s first `oB d` elements (line 268) is unchanged.
 
-**What you are given** (`Assumptions`, line 475):
+**What you are given** (`Assumptions`, line 477):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot` of source line 161 is within
@@ -58,8 +58,8 @@ normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 4
   below the `float32` range;
 - `dot_total` (`Rules.Num.DotTotal P cfgBF16`, `cfgBF16` line 36): that `tl.dot` has a result.
 
-**The kernel, as the model runs it** (`bmm_chunk_fwd_kernel`, line 82; `model` line 348, `launch`
-line 361): a 3-D grid `(gx d, 1, gz d)` (lines 275, 278). Program `(pid, ·, pid_ch)` owns one
+**The kernel, as the model runs it** (`bmm_chunk_fwd_kernel`, line 82; `model` line 350, `launch`
+line 363): a 3-D grid `(gx d, 1, gz d)` (lines 275, 278). Program `(pid, ·, pid_ch)` owns one
 `64 × 128` tile (`pid_m`, `pid_n` from `pid`) of chunk `pid_c = pid_ch / G`, group
 `pid_h = pid_ch − pid_c·G`. It runs `tl.forRange 0 (cdiv(K, 32)) 1` of two masked loads (rows and
 columns below `chunk_size_limit`, `k` below `K`; `other` the `bfloat16` `+0`) and `tl.dot_add`
@@ -87,8 +87,8 @@ invariant and `fun _ => ∅`).
 - the frame: the bytes no program writes.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `tol_rel_lt`
-(line 429), `mk_ok` and the `setup_*_ok` theorems; `row_lt` (line 533), `bytes_disjoint`
-(line 539), `zero_i32` (line 648) and `valid_zero` (line 655) can be reused.
+(line 431), `mk_ok` and the `setup_*_ok` theorems; `row_lt` (line 535), `bytes_disjoint`
+(line 541), `zero_i32` (line 651) and `valid_zero` (line 658) can be reused.
 
 ## Specification
 
@@ -156,6 +156,7 @@ fresh contiguous `[1, nchunks, ngroups, C, C]` (strides `oB, oC, oH, C, 1`), `ba
 | `gz_lt` | `nchunks·ngroups < 2^16` | CUDA's grid `z` limit (`Launch.Valid`); a kernel limit (Exclusions) |
 | `grid_lt` | `gx·gz = cdiv(C, 64)·cdiv(C, 128)·nchunks·ngroups < 2^31` | fewer than `2^31` programs (`Launch.Valid`); a kernel limit (Exclusions) |
 | `T_lt`, `aS_lt` … `aK_lt`, `bS_lt` … `bK_lt`, `oC_lt` | `seqlen`, the strides of `a` and `b` other than `stride(0)`, and `out.stride(1) = ngroups·C²` below `2^31` | each is an `int32` argument in the model (`seq_idx.stride(0) = seqlen`; `oC` bounds `out`'s later strides, `C²` and the store offsets `m·C + n`) |
+| `T_le` | `seqlen ≤ 2^22` | `seqlen` is a context length, at most `2^22` tokens: real model shapes (Exclusions) |
 | `aB_lt`, `bB_lt` | `a.stride(0)`, `b.stride(0)` below `2^63` | an `int32` argument below `2^31`, an `int64` one from `2^31` (`intArg`); the kernel only multiplies each by `pid_b` (`batchOff`). `out.stride(0) = nchunks·oC` is below `2^47` by `gz_lt` and `oC_lt`, of either class too |
 | `a_fit`, `b_fit` | `(C − 1)·aS + 31·aK < 2^31`, `31·bK + (C − 1)·bS < 2^31` | the `int32` lane offsets of lines 143–144 on the lanes the loads enable (rows below `C`, `k`-lanes below 32) do not wrap; disabled lanes may wrap and are not accessed |
 | `aK_step`, `bK_step` | `32·aK < 2^31`, `32·bK < 2^31` | the `int32` step of lines 162–163 does not wrap (the pointers themselves are 64-bit) |
@@ -317,6 +318,11 @@ What `SETUP.md` allows and the claim leaves out:
   `chunk_size·conv_dim`; the first launch through the host that hits it has a token-major `a`
   (`stride(1) = 1`, which the host does not copy) with `stride(-1) = seqlen ≥ 2^26` and
   `dstate > 32`, where the step `32·stride(-1)` wraps (a 4.1 GiB `a` at one group, `dstate = 33`). Not reached by real use.
+- **Contexts longer than `2^22` tokens (out of scope).** Dimensions that are not multiples of 128
+  or exceed `2^17`, and contexts longer than `2^22` tokens: the claim covers real model shapes only.
+  The field is `seqlen ≤ 2^22` (`T_le`). The kernel has no model dimension (`dstate` is a per-head
+  state size with real values 16 to 256, `ngroups` a group count, `chunk_size` a block size). Every
+  launch of `SETUP.md` meets it (`seqlen ≤ 2,096,896`).
 - **`dstate > 2^10`** (`K_le`): outside real use (every Mamba-2 model has `dstate ≤ 256`); the
   tolerance grows with `dstate`, and the bound on `E_t` it gives is part of the `float32` room
   argument (Tolerances). The kernel is believed correct there.

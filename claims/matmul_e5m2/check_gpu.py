@@ -5,7 +5,7 @@ the file's module-level test and benchmark are not executed on import, only its 
 `DEVICE` and its functions), on the launches SETUP.md lists (the file's `float8e5` run: the test, `512 x 512 x 512`, and the
 benchmark's `fp8` line at `M = N = K = 256, 384, ..., 2048`, with the file's own input draws: `randn`
 in `float16` cast to `float8_e5m2`, `b` the transpose of a contiguous matrix) and on
-launches at the edges of `Inst.ok`, and checks `Post` element by element in float64, from the
+edge launches (inside `Inst.ok`, and outside its real-shape conditions `N_dim`, `K_dim`), and checks `Post` element by element in float64, from the
 host's inputs, exactly as `Post` states it:
 
 * for each element `(i, j)` of `c`: `S = sum_k a[i, k] * b[k, j]` (exact products, float64 sum) and
@@ -303,9 +303,11 @@ def main():
     cases = [("setup_test_512", 512, 512, 512)]
     cases += [(f"setup_bench_{n}", n, n, n) for n in [128 * i for i in range(2, 17)]]
     cases += [
-        # edges of Inst.ok (K <= 2048): K not a multiple of 64 (a partial last step; K mod 64 <= 32:
-        # the last step's second chunk all disabled lanes), M and N not multiples of the blocks, one
-        # row / column, K = 1, larger inputs
+        # edges (K <= 2048): K not a multiple of 64 (a partial last step; K mod 64 <= 32: the last
+        # step's second chunk all disabled lanes), M and N not multiples of the blocks, one row /
+        # column, K = 1, larger inputs; all but edge_m4096_n384_k2048 and edge_scale16 lie outside
+        # Inst.ok's real-shape conditions (N_dim, K_dim: N and K multiples of 128), where Post is
+        # checked as well
         ("edge_m1000_n777_k2047", 1000, 777, 2047),
         ("edge_m300_n1000_k2000", 300, 1000, 2000),
         ("edge_m4096_n384_k2048", 4096, 384, 2048),

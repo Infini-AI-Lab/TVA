@@ -8,7 +8,7 @@ the claim to prove is `Statement`.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.ChunkCumsum.main : Statement` (`Statement`:
-`Claim.lean` line 312). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 318). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -16,30 +16,30 @@ the claim to prove is `Statement`.
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 160), and every initial memory `init` that `Pre` accepts (line 205), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 292).
+(`Inst.ok`, line 160), and every initial memory `init` that `Pre` accepts (line 211), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 298).
 
-**What `Post` asks** (line 292), two parts:
-1. for every sequence `n < nSeq d` (line 227), position `p` with `lo d n ≤ p < hi d n` (lines
-   230–231) and head `h < H`: element `p·H + h` of `o` reads in `fin` as a `float32` `v`, for every
-   such element. Only when `InRange d n p h` holds (line 268: the summed terms finite,
+**What `Post` asks** (line 298), two parts:
+1. for every sequence `n < nSeq d` (line 233), position `p` with `lo d n ≤ p < hi d n` (lines
+   232–233) and head `h < H`: element `p·H + h` of `o` reads in `fin` as a `float32` `v`, for every
+   such element. Only when `InRange d n p h` holds (line 274: the summed terms finite,
    `absSum ≤ 2^126`, and with a scale the double and `sigma32` finite and `|σ₃₂|·absSum ≤ 2^126`)
    is more asked: `v` is finite and
-   `|v.toRat − sig d * refSum d n p h| ≤ tol d n p h`. `refSum` (line 246) is the exact sum, in the
-   rationals, of `sAt d q h` (line 243, from `sv`) over `rng d n p` (line 238: from `chunkStart`
-   (line 234) to `p` forward; from `p` to `min (chunkStart + BT) (hi n)` reverse); `sig` (line 256)
-   is the host's double scale, or `1`. `tol` is defined at line 278 (`Tree.errBound` at `depth`,
-   line 252, plus the product and scale terms with a scale). Outside `InRange` only "holds a
+   `|v.toRat − sig d * refSum d n p h| ≤ tol d n p h`. `refSum` (line 252) is the exact sum, in the
+   rationals, of `sAt d q h` (line 249, from `sv`) over `rng d n p` (line 244: from `chunkStart`
+   (line 240) to `p` forward; from `p` to `min (chunkStart + BT) (hi n)` reverse); `sig` (line 262)
+   is the host's double scale, or `1`. `tol` is defined at line 284 (`Tree.errBound` at `depth`,
+   line 258, plus the product and scale terms with a scale). Outside `InRange` only "holds a
    `float32` value" is asked;
-2. the frame: every byte outside `o.elems (written d)` (line 286) is unchanged.
+2. the frame: every byte outside `o.elems (written d)` (line 292) is unchanged.
 
-**What you are given** (`Assumptions`, line 303): one field, `faithful` (`Compiler.Faithful`): the
+**What you are given** (`Assumptions`, line 309): one field, `faithful` (`Compiler.Faithful`): the
 device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
 `debug = false`, and the model's launch is well behaved from `init`. No numeric fact: `tl.cumsum`
 (no product feeds it) and `*` are IEEE operations.
 
-**The kernel, as the model runs it** (`chunk_local_cumsum_scalar_kernel` line 48, `model` line 214,
-`launch` line 222): a 1-D grid of `gridSize d` (line 156) programs, block `[BT]`. Program `pid`
+**The kernel, as the model runs it** (`chunk_local_cumsum_scalar_kernel` line 48, `model` line 220,
+`launch` line 228): a 1-D grid of `gridSize d` (line 156) programs, block `[BT]`. Program `pid`
 splits `pid` in `int64` into `i_t = pid / (B·H)`, `i_b`, `i_h` (`tl.idiv`, `tl.irem`). On variable
 length it reads row `i_t` of `chunk_indices` (sequence `i_n`, chunk `i_t`) and `cu_seqlens[i_n]`,
 `cu_seqlens[i_n + 1]` (`tl.load1`, `tl.convert`); on fixed length `bos = i_b·T`. It loads the
@@ -53,7 +53,8 @@ disjoint elements: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
   from `bt_pow2`, `bt_le`);
 - each program is `Safe`: the divisors `B·H` and `H` are nonzero (`B_pos`, `H_pos`, `BH_lt`); the
   table reads are in bounds (`ci_len`, `cu_len`, `N_lt`, `TablesOk`'s `seqAt d r < N`); the `int64`
-  offsets do not wrap and every enabled lane is in bounds of `s` and `o` (`s_len`, `o_len`, `T_lt`,
+  offsets do not wrap and every enabled lane is in bounds of `s` and `o` (`s_len`, `o_len`, `T_lt`;
+  `T_le` keeps every position, and on variable length every `cu_seqlens` entry, at most `2^22`;
   and on variable length `cuAt` nondecreasing and `≤ T`); the masked load and store use distinct
   lanes (`safe_load`, `safe_store`); `safe_cumsum`, then `safe_mul` with a scale;
 - the programs' write footprints are disjoint: on fixed length from the split of `pid`; on
@@ -68,7 +69,7 @@ disjoint elements: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `u32_eq`, `eta32_eq` (lines 263–264) and `bytes_disj` (line 344) can be
+`setup_*_ok` theorems; `u32_eq`, `eta32_eq` (lines 269–270) and `bytes_disj` (line 350) can be
 reused.
 
 ## Specification
@@ -96,7 +97,9 @@ The reference is computed from `cu_seqlens` (or the rows) and `s` alone, never f
 
 `Inst.ok`: `BT` a power of two `≤ 2^20` (not only 16–128); `B, H ≥ 1`; `B·H < 2^31` (the
 compile-time divisor `B * H` of line 96 is an `int32`-range constant, whatever the grid size);
-`T < 2^31`; variable length: `B = 1`, tables `int32` or `int64`, `N < 2^31`, table lengths, `o` disjoint from the tables; the grid
+`T < 2^31`; `T ≤ 2^22` (`T` is a context length: the tokens of a fixed-length row, or of the
+packed batch); `B ≤ 8192` (`B`, the batch rows, is a batch size); variable length: `B = 1`, tables
+`int32` or `int64`, `N < 2^31`, `N ≤ 8192` (the sequences, a batch size), table lengths, `o` disjoint from the tables; the grid
 `NT·B·H` (`NT = cdiv(T, BT)` on fixed length) `< 2^31`; `s`, `o` hold `B·T·H` elements; `o` disjoint
 from `s`.
 
@@ -143,6 +146,11 @@ says the scan is some tree over the leaves, so the depth bound is `m` (see Libra
 
 ## Exclusions
 
+- **Dimensions that are not multiples of 128 or exceed 2^17, contexts longer than 2^22 tokens, and
+  batches of more than 8192 requests** — out of scope: the claim covers real model shapes only. The
+  fields: `T` (a context length, `T ≤ 2^22`), `B` (the batch rows, `B ≤ 8192`) and, on variable
+  length, `N` (the sequences, `N ≤ 8192`); the claim has no model dimension (`H` counts heads, `BT`
+  is a chunk size). Every launch of `SETUP.md` meets them (at most `4` rows, `6` sequences).
 - **A grid of `2^31` programs or more** — a limit of the launch (CUDA): `NT·B·H ≥ 2^31`, e.g.
   `BT = 16`, `H = 64`, `T ≥ 2^29` tokens. Real use does not reach it.
 - **`B·H ≥ 2^31`** — outside real use (batch rows times heads in the thousands at most); the

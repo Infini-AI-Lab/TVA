@@ -9,7 +9,7 @@ check: [`check_gpu.py`](check_gpu.py). The launches to cover: [`SETUP.md`](SETUP
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.PagedAttention.main : Statement` (`Statement`:
-`Claim.lean` line 474). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 477). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,25 +17,25 @@ check: [`check_gpu.py`](check_gpu.py). The launches to cover: [`SETUP.md`](SETUP
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 182), and every initial memory `init` that `Pre` accepts (line 259, with `SeqOk`,
-line 249), every outcome of the launch is a normal end (no fault, no hang) whose final memory `fin`
-satisfies `Post` (line 435).
+(`Inst.ok`, line 182), and every initial memory `init` that `Pre` accepts (line 262, with `SeqOk`,
+line 252), every outcome of the launch is a normal end (no fault, no hang) whose final memory `fin`
+satisfies `Post` (line 438).
 
-**What `Post` asks** (line 435), two parts:
+**What `Post` asks** (line 438), two parts:
 1. for every `s < num_seqs`, `h < num_heads`, `e < HEAD_DIM`: element `outIdx d s h e` of `out`
    reads in `fin` as some `float16` `c`. This holds for every element. Only when
-   `SeqVals d init s h` (line 312: at least one token, `q`'s row and the sequence's keys and values
+   `SeqVals d init s h` (line 315: at least one token, `q`'s row and the sequence's keys and values
    finite, `|v| ≤ 2^15`, `sigma d * scoreAbs ≤ 2^10`) it also asks that `c` is finite and, for
    every rational `X ≤ 2^10` with `sigma d * scoreAbs d init s h t ≤ X` on every token
    `t < seqLen d init s`,
    `|c.toReal - attnRef d init s h e| ≤ tolO D P T X * attnAbs d init s h e + tolR D P T X * |attnRef d init s h e| + tolF D P T X`
-   with `D = HEAD_DIM`, `P = PAGE_SIZE`, `T = nblocks d init s` (line 285). `attnRef` (line 326)
+   with `D = HEAD_DIM`, `P = PAGE_SIZE`, `T = nblocks d init s` (line 288). `attnRef` (line 329)
    is exact attention in the reals over the tokens `t < seq_lens[s]`, read through `block_tables`
-   in `init` (`tokElem`, `pageOf`); `attnAbs` (line 331) the same weighted mean of `|v|`; `tolO`,
-   `tolR`, `tolF` are lines 414, 418, 422, built from the definitions of lines 346–411;
-2. the frame: every byte outside `d.out.elems (outElems d)` (line 426) is unchanged.
+   in `init` (`tokElem`, `pageOf`); `attnAbs` (line 334) the same weighted mean of `|v|`; `tolO`,
+   `tolR`, `tolF` are lines 417, 421, 425, built from the definitions of lines 349–414;
+2. the frame: every byte outside `d.out.elems (outElems d)` (line 429) is unchanged.
 
-**What you are given** (`Assumptions`, line 450):
+**What you are given** (`Assumptions`, line 453):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `exp_acc` (`Rules.Num.ExpF32`): on `[-X, X]`, `tl.exp` (source lines 64, 65) is within
@@ -48,8 +48,8 @@ satisfies `Post` (line 435).
 - `sum_depth` (`Rules.Num.SumDepth`): the reductions of source lines 61, 66, 68 are trees of depth at most
   `⌈log₂ n⌉`.
 
-**The kernel, as the model runs it** (`paged_attention_kernel` line 37, `model` line 230, `launch`
-line 240): a 2-D grid of `num_seqs × num_heads` programs. Program `(s, h)` computes
+**The kernel, as the model runs it** (`paged_attention_kernel` line 37, `model` line 232, `launch`
+line 242): a 2-D grid of `num_seqs × num_heads` programs. Program `(s, h)` computes
 `kv_head = h // qpk`, loads `seq_lens[s]` and the unmasked `q` row (converted to `float32`), and
 runs a `tl.forRange` loop over `j ∈ [0, cdiv(seq_len, PAGE_SIZE))` (the trip count is
 `nblocks`, from the loaded length). Each trip loads one block-table entry, the masked
@@ -68,7 +68,8 @@ nothing; `iterW_empty`) (PROVER_GUIDE §4).
   from `heads_lt`, the five block shapes from `head_dim`, `page_size`;
 - each program is `Safe`: `safe_idiv` (`kv_pos`), the `int32` products do not wrap (`strides_lt`,
   `prods_lt`), the loop bound and the mask `j·PAGE_SIZE + r < seq_len` do not wrap (`SeqOk`:
-  `seq_len ≤ max_pages·PAGE_SIZE`, `max_pages_le`); every load and store is in bounds (`q_len`,
+  `seq_len ≤ max_pages·PAGE_SIZE`, `max_pages_le`, and `seq_len ≤ 2^22`, so at most `2^22` pages
+  are visited and `j·PAGE_SIZE + r < 2^22 + 2^8`); every load and store is in bounds (`q_len`,
   `out_len`, `sl_len`, `bt_len` for `j < max_pages`, `kv_len` with the page from `SeqOk` and
   `h // qpk < num_kv_heads` from `kv_dvd`); the store's lanes are distinct (`out_inj`);
 - the write footprints (the program's `HEAD_DIM` elements of `out`) are disjoint across programs
@@ -80,8 +81,8 @@ nothing; `iterW_empty`) (PROVER_GUIDE §4).
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`
-(line 546) and the `setup_*_ok` theorems; reusable: `mix_lt` (line 516), `mix_inj` (line 522),
-`bytes_disj` (line 534).
+(line 550) and the `setup_*_ok` theorems; reusable: `mix_lt` (line 519), `mix_inj` (line 525),
+`bytes_disj` (line 537).
 
 ## Specification
 
@@ -140,6 +141,7 @@ read as contiguous (the kernel reads element `s` of its storage; the test's `tor
 |---|---|---|
 | `kv_pos`, `kv_dvd` | `num_kv_heads ≥ 1` divides `num_heads` | line 80 asserts it |
 | `heads_lt`, `grid_lt`, `seqs_lt` | `num_heads < 2^16`, `num_seqs·num_heads < 2^31`, `num_seqs < 2^31` | CUDA's grid limits (`Launch.Valid`); `seqs_lt` bounds axis 0 also when `num_heads = 0` |
+| `seqs_le` | `num_seqs ≤ 8192` | `num_seqs`, the decode batch's sequences, is a batch size: real model shapes only (Exclusions) |
 | `head_dim`, `page_size` | powers of two, at most `256` | `tl.arange` |
 | `max_pages_le` | `max_pages ≤ 2^16` | `2^24` tokens per sequence; see Exclusions |
 | `strides_lt`, `prods_lt` | every stride `< 2^31`; the `int32` products of lines 49, 57, 59, 72 below `2^31` | `int32` arguments and products (a kernel limit); the page offset `page·stride_kp` is `int64` |
@@ -147,10 +149,11 @@ read as contiguous (the kernel reads element `s` of its storage; the test's `tor
 | `out_inj`, `disj` | `out`'s elements distinct; `out` shares no byte with the inputs | a fresh `torch.empty_like(q)` |
 | `scale` | finite, in `[2^-64, 2^64]` | the host passes `head_dim**-0.5` |
 
-Empty grids (`num_seqs = 0`, or `num_heads = 0` with `num_seqs < 2^31`) are covered: no program runs and nothing changes.
+Empty grids (`num_seqs = 0`, or `num_heads = 0` with `num_seqs ≤ 8192`) are covered: no program runs and nothing changes.
 
 `Pre`: the six buffers valid, and for every sequence `s` (`SeqOk`) `seq_lens[s] ∈ [0,
-max_pages·PAGE_SIZE]` and each block-table entry the kernel reads (`j·PAGE_SIZE < seq_lens[s]`) a
+max_pages·PAGE_SIZE]`, `seq_lens[s] ≤ 2^22` (a context length: at most `2^22` tokens, real model
+shapes, Exclusions), and each block-table entry the kernel reads (`j·PAGE_SIZE < seq_lens[s]`) a
 page in `[0, num_pages)`. Pages need not be distinct; entries the kernel does not read may hold
 anything; any `float16` values.
 
@@ -189,7 +192,8 @@ pages, 129), `setup_t3_ok` (`16/2`, 128, 32, 4 sequences, 310 pages, 256), each 
 `head_dim**-0.5` (`sc128`, `sc64`); `setup_bigcache_ok`: a cache of more than `2^31` elements;
 `setup_page1_ok`: pages of one token (`8/2` heads, head dim 128, sequences up to 4097 tokens).
 `Pre` holds for the test's caches: `make_cache` gives each sequence distinct pages below
-`num_pages` and fills the rest of the table with `0`, and `seq_lens[s] ≤ max_pages·PAGE_SIZE`.
+`num_pages` and fills the rest of the table with `0`, and `seq_lens[s] ≤ max_pages·PAGE_SIZE`;
+its longest sequence, 8191 tokens, is below `2^22`.
 
 ## Tolerances
 
@@ -252,13 +256,20 @@ tokens, and at 64K an all-zero output meets `Post`. With values of mean `0.3` it
 * **`HEAD_DIM`, `PAGE_SIZE > 256`, `max_pages > 2^16`** (more than `2^24` tokens per sequence at
   pages of 256): outside real use (the test's head dims are 64 and 128, its pages 16 and 32, its
   longest sequence 8191 tokens); the tolerance grows with the pages.
+* **Contexts longer than `2^22` tokens, batches of more than `8192`** (out of scope): dimensions
+  that are not multiples of 128 or exceed `2^17`, contexts longer than `2^22` tokens, and batches
+  of more than `8192` requests: the claim covers real model shapes only. Fields: `seq_lens[s]`
+  (`SeqOk`, `seq_lens[s] ≤ 2^22`) and `num_seqs` (`seqs_le`, the batch size, `≤ 8192`). No field of
+  this kernel is a model dimension (`HEAD_DIM` is a head dim, `num_heads`, `num_kv_heads` head
+  counts, `PAGE_SIZE` a page size), so none is bounded by the first rule. Every launch of
+  `SETUP.md` meets them (at most `7` sequences).
 * **Values outside `SeqVals`** (an empty sequence, which gives `0/0`; non-finite inputs; `|v| >
   2^15`; `scale·scoreAbs > 2^10`): covered with a weaker `Post` (a `float16` value is stored,
   nothing else changes); outside real use.
 * **`num_seqs ≥ 2^31`** (with `num_heads ≥ 1` already outside `grid_lt`, so only with
-  `num_heads = 0`): outside real use (a model has heads; the host's `num_seqs` is a decode batch).
-  The grid `(num_seqs, 0, 1)` runs no program, but its axis 0 is beyond CUDA's `2^31 − 1` limit, so
-  it is not a launch the claim covers.
+  `num_heads = 0`; beyond `seqs_le` too): outside real use (a model has heads; the host's
+  `num_seqs` is a decode batch). The grid `(num_seqs, 0, 1)` runs no program, but its axis 0 is
+  beyond CUDA's `2^31 − 1` limit, so it is not a launch the claim covers.
 * **A non-contiguous `seq_lens`**: the kernel reads element `s` of its storage; outside real use.
 * **`out` overlapping an input**: the wrapper allocates a fresh `out`.
 

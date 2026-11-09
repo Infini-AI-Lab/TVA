@@ -5,7 +5,8 @@ Runs the kernel's own host, `matmul_tma_persistent(a, b, False)` of `source/09-p
 module-level definitions), on the launches SETUP.md lists (`M = N = K = 32`; `M = N = 8192`,
 `K = 128, 256, ..., 1024`, with the file's own input draws and layout: `a` contiguous `M x K`, `b` the
 contiguous `N x K` `b.T.contiguous()`, the device's `NUM_SMS`) and on launches at the edges of
-`Inst.ok`, and checks `Post` element by element in float64, from the host's inputs, exactly as
+`Inst.ok` (the launches with `N` or `K` not a multiple of 128, `M = N = K = 32` among them, are
+outside `Inst.ok`, `N_dim`/`K_dim`, and checked as extras), and checks `Post` element by element in float64, from the host's inputs, exactly as
 `Post` states it:
 
 * for each element `(i, j)` of `c`: `S = sum_k a[i, k] * b[j, k]` (exact products, float64 sum) and
@@ -254,12 +255,13 @@ def direct_case(name, M, N, K, num_sms, pad_a=24, pad_c=40, seed=1):
 def main():
     ok, worst = True, 0.0
     neg = {128, 512, 1024}
-    cases = [("setup_v32", 32, 32, 32, 0, 1.0, True)]
+    cases = [("v32_outside_Inst.ok", 32, 32, 32, 0, 1.0, True)]  # N, K not multiples of 128
     cases += [(f"setup_k{k}", 8192, 8192, k, 0, 1.0, k in neg) for k in range(128, 1025, 128)]
     cases += [
         # edges of Inst.ok: the largest covered K (2^13), the smallest sizes, partial tiles in every
         # dimension, a second 128-column half wholly past N, larger and subnormal inputs, non-finite
-        # inputs
+        # inputs; the cases with N or K not a multiple of 128 are outside Inst.ok (N_dim, K_dim),
+        # checked as extras
         ("edge_k8192", 256, 512, 8192),
         ("edge_m1_n8_k8", 1, 8, 8),
         ("edge_partial_1000", 1000, 1000, 1000, 2, 1.0, True),
@@ -273,7 +275,7 @@ def main():
         r, w = host_case(*c)
         ok &= r
         worst = max(worst, w)
-    directs = [
+    directs = [  # those with K not a multiple of 128 are outside Inst.ok (K_dim), checked as extras
         ("direct_sms1", 384, 768, 776, 1),        # one program, 9 tiles
         ("direct_sms7", 1408, 760, 1000, 7),      # 33 tiles over 7 programs
         ("direct_sms132", 2816, 2560, 304, 132),  # 220 tiles over 132

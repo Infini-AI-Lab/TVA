@@ -22,7 +22,7 @@ code line of the kernel lines `[85, 86], [89, 106], [109, 420]`).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.FusedMoe.main : Statement` (`Statement`: `Claim.lean`
-line 760). Unfolded (`Claim.Meets`), it says:
+line 763). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -30,11 +30,11 @@ line 760). Unfolded (`Claim.Meets`), it says:
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 423), and every initial memory `init` that `Pre` accepts (line 554, which is `PreC`,
-line 510), every outcome of the launch is a normal end (no fault, no hang) whose final memory `fin`
-satisfies `Post` (line 701).
+(`Inst.ok`, line 423), and every initial memory `init` that `Pre` accepts (line 557, which is `PreC`,
+line 513), every outcome of the launch is a normal end (no fault, no hang) whose final memory `fin`
+satisfies `Post` (line 704).
 
-**What `Post` asks** (line 701). Write `ntp = ntpOf d init` (line 376), `entryOf d init pos` (line
+**What `Post` asks** (line 704). Write `ntp = ntpOf d init` (line 376), `entryOf d init pos` (line
 386) for the flat index at position `pos`, `eOf d init pid_m` (line 396) for the expert of block
 `pid_m`, `nv d = M·top_k` (line 363), and `stride_cm d = N` (line 367). For every flat index
 `f < nv d` and column `c < N`, the element `f·N + c` of `C`:
@@ -42,22 +42,22 @@ satisfies `Post` (line 701).
    both of its bytes (`fin z = init z` for every `z ∈ d.c.elems {f·N + c}`, `Buf.elems`, the bytes of
    that one element);
 2. **routed**: for every position `pos < ntp` with `entryOf d init pos = f`, `outElem d init fin pos f c`
-   holds (line 679): the element reads in `fin` as some `bfloat16` `cv`, and
+   holds (line 682): the element reads in `fin` as some `bfloat16` `cv`, and
    - if the block's expert `eOf d init (pos / BM)` is `-1`: `cv` is `+0.0` up to NaN payload
      (`FloatV.NaNEq (FloatV.ofPat 0) cv`; exact);
    - otherwise the expert is some `e < E`, and for all `va vb : Nat → BF16` such that row `f / top_k`
      of `A` (elements `f / top_k · K + k`) reads as finite `va k` and column `(e, c)` of `B` (elements
      `e·stride_be + c·stride_bn + k`) reads as finite `vb k` for every `k < K`, and
-     `dotMag va vb K ≤ 2^120` (line 566, the sum of `Rules.Num.liftMag .bf16` products): there is a
+     `dotMag va vb K ≤ 2^120` (line 569, the sum of `Rules.Num.liftMag .bf16` products): there is a
      finite `float32` `u` with `|u.toRat − dotSum va vb K| ≤ tol BK K va vb` and `outFin d init f cv u S E`
-     (line 654), where `S = dotSum va vb K` (line 637) is the exact dot product in the rationals and
-     `E = tol BK K va vb` (line 634; the recursion `accErr`, `tripErr`, `chainE`, `chunkStep`, lines
-     597–626). `outFin` says:
+     (line 657), where `S = dotSum va vb K` (line 640) is the exact dot product in the rationals and
+     `E = tol BK K va vb` (line 637; the recursion `accErr`, `tripErr`, `chainE`, `chunkStep`, lines
+     600–629). `outFin` says:
      - without `rw`: `cv` is `FloatV.cvt u` up to NaN payload, and if `|S| + E ≤ bfloat16.maxVal`,
        `cv` is finite with `|cv − S| ≤ E + (|S| + E)·2^-8 + 2^-134` (`bfloat16.u`, `bfloat16.eta`);
      - with `rw`: the weight `wv` at element `f` of `w` reads as finite, some `r` is
        `FloatV.mul u wv` up to NaN payload, `cv` is `FloatV.cvt r` up to NaN payload, and if
-       `(|S| + E)·|wv| ≤ 2^126`, `r` is finite with `|r − S·wv| ≤ tolW wv S E` (line 645), and if moreover
+       `(|S| + E)·|wv| ≤ 2^126`, `r` is finite with `|r − S·wv| ≤ tolW wv S E` (line 648), and if moreover
        `|S·wv| + tolW ≤ bfloat16.maxVal`, `cv` is finite with
        `|cv − S·wv| ≤ tolW + (|S·wv| + tolW)·2^-8 + 2^-134`.
 
@@ -65,17 +65,17 @@ satisfies `Post` (line 701).
    asked;
 3. the frame: every byte outside `d.c.elems (cIdx d)` (line 370, the matrix `C`) is unchanged.
 
-**What you are given** (`Assumptions`, line 738):
-- `faithful` (line 744, `Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's
+**What you are given** (`Assumptions`, line 741):
+- `faithful` (line 747, `Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's
   launch, when the launch is valid, has `debug = false`, and the model's launch is well behaved from
   `init`;
-- `dot` (line 751, `Rules.Num.DotBF16Chunk`, a `Dot16BitChunk`): the `tl.dot` of source line 373
+- `dot` (line 754, `Rules.Num.DotBF16Chunk`, a `Dot16BitChunk`): the `tl.dot` of source line 373
   (line 238), chunk by chunk of 64 `k`: chunk `j` within
   `min (2^-13·Mj) (2·A_j + 2^-22·Mj) + 2^-20·|s j + c_j| + 2^-143` of `s j + c_j`, with room;
-- `dot_total` (line 753, `Rules.Num.DotTotal`): that `tl.dot` always has a result.
+- `dot_total` (line 756, `Rules.Num.DotTotal`): that `tl.dot` always has a result.
 
-**The kernel, as the model runs it** (`fused_moe_kernel`, line 92; `model` line 721; `launch` line
-733): a 1-D grid of `cdiv(EM, BM)·cdiv(N, BN)` programs. Program `pid` maps to a block `pid_m` and a
+**The kernel, as the model runs it** (`fused_moe_kernel`, line 92; `model` line 724; `launch` line
+736): a 1-D grid of `cdiv(EM, BM)·cdiv(N, BN)` programs. Program `pid` maps to a block `pid_m` and a
 column tile `pid_n` by the grouped ordering (lines 101–125). It loads `ntp` (line 129) and
 returns if `pid_m·BM ≥ ntp` (line 132). Otherwise it builds `offs_token` (line 137: loaded from
 `sorted_token_ids`, or with `naive` built from `pid_m`), masks lanes with `offs_token < nv`, and loads
@@ -95,7 +95,7 @@ elements and use no atomics: the route is `TVA.meets_independent`; the loop is `
   `sorted_token_ids` load without `naive` (`s_len`, `ntpEM`), the `A`, `B` and weight loads and the store of `C`
   (`safe_load`, `safe_store`; `a_len`, `b_len`, `w_len`, `c_len`, `PreC.s1`, `erange`, the masks),
   no division by zero (`safe_idiv`, `safe_irem`; `cfg`, `topk_pos`, `N_pos`), `int32` arithmetic
-  that does not wrap (`K_le`, `N_le`, `EM_le`, `N_group`, `nv_le`, `be`, `bn`, `cm`) and `int64`
+  that does not wrap (`K_le`, `N_le` (also from `N_le17`), `EM_le`, `N_group`, `nv_le`, `be`, `bn`, `cm`) and `int64`
   sums of `b_ptrs` that do not wrap (`b_off`), and the loop's `tl.RangeOk`;
 - footprints disjoint: two programs write different elements of `C`, from the grouped ordering being
   injective, the column tiles of `pid_n`, `PreC.s2` (each valid flat index once) and `ntpBM` (every
@@ -109,9 +109,9 @@ elements and use no atomics: the route is `TVA.meets_independent`; the loop is `
   give `outFin`; the room from `dotMag ≤ 2^120` (README, `## Tolerances`);
 - the frame: no program writes outside `cIdx d`, and unrouted elements are written by no program.
 
-**Already in `Claim.lean`** (do not prove again): `consistent` (line 764), `satisfiable` (line 1297),
-`hostInst_ok` and the `setup_*_ok` theorems; `row_lt` (line 868), `succ_mul_le` (line 874) and
-`bytes_disjoint` (line 879) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 767), `satisfiable` (line 1300),
+`hostInst_ok` and the `setup_*_ok` theorems; `row_lt` (line 871), `succ_mul_le` (line 877) and
+`bytes_disjoint` (line 882) can be reused.
 
 ## Specification
 
@@ -180,6 +180,7 @@ assignment), `B`'s strides `stride_be`, `stride_bn`, the flags `MUL_ROUTED_WEIGH
 | `topk_pos`, `E_pos`, `N_pos`, `K_pos` | positive | the kernel divides by `top_k` (line 283) and by `N` (line 252) |
 | `topk_le` | `top_k < 2^31` | the constexpr built in `int64` for `//` |
 | `K_le`, `N_le`, `EM_le` | `K + BK`, `N + BN`, `EM + BM ≤ 2^31` | `int32` arguments; `tl.cdiv` adds `B − 1` in `int32` (lines 199, 200, 330) |
+| `N_le17` | `N ≤ 2^17` | `N` is a model dimension (twice the intermediate size per rank for the first GEMM, the hidden size for the second): real model shapes (Exclusions); the largest real `N` is `65536` (Grok-1's first GEMM at TP1) |
 | `K_le15` | `K ≤ 2^15` | outside real use beyond it (the largest real `K` is `32768`, Grok-1's second GEMM at TP1); the tolerance grows with `K`, to a median `0.05` of the output at `2^15` (Tolerances) |
 | `N_group` | `cdiv(N, BN)·GM < 2^31` | `num_pid_in_group` (line 201); implied by `N_le` |
 | `grid_lt` | `cdiv(EM, BM)·cdiv(N, BN) < 2^31` | `Launch.Valid` |
@@ -344,6 +345,16 @@ trip rounded to `bfloat16` (on 1–23% of the elements). One rejected element re
 ## Exclusions
 
 Nothing `SETUP.md` asks for is left out. Conditions that exclude launches outside SETUP's use:
+
+- **Out of scope: dimensions that are not multiples of `128` or exceed `2^17`, contexts longer than
+  `2^22` tokens, and batches of more than `8192` requests: the claim covers real model shapes
+  only.** The field is `N` (`N_le17`: `N ≤ 2^17`); `K` is already at most `2^15` (`K_le15`). `N`
+  and `K` are not required to be multiples of `128`: one `Inst` covers both GEMMs, and the second
+  GEMM's `K` and the first's `N` are the intermediate size per tensor-parallel rank, which vLLM's
+  own tuned H200 files take below or off multiples of `128` (`N=96`, `N=320`, `N=64`:
+  Qwen3-30B-A3B at TP 8, …). `M` (the tokens for the first GEMM, tokens times `top_k` for the
+  second) and `EM` are not bounded by `2^22` for the same reason (`nv_le` bounds `M·top_k`); no
+  field counts requests.
 
 - `K > 2^15`: outside real use (the largest `K` of the models above is `32768`); the tolerance's
   relative part grows with `K`. The kernel is believed correct there.

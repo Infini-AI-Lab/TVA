@@ -22,7 +22,7 @@ line is a host line: `import torch` (41), `is_weak_contiguous` (47–52), `trito
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.ScaledMmInt8.main : Statement` (`Statement`:
-`Claim.lean` line 556). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 561). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -30,29 +30,29 @@ line is a host line: `import torch` (41), `is_weak_contiguous` (47–52), `trito
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 327), and every initial memory `init` that `Pre` accepts (line 427), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 530).
+(`Inst.ok`, line 327), and every initial memory `init` that `Pre` accepts (line 432), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 535).
 
-**What `Post` asks** (line 530), two parts:
-1. for every `i < M` and `j < N`, `OutSpec d init fin i j` (line 507). Unconditionally: element
+**What `Post` asks** (line 535), two parts:
+1. for every `i < M` and `j < N`, `OutSpec d init fin i j` (line 512). Unconditionally: element
    `i * stride_cm + j * stride_cn` of `c` reads in `fin` as some `c` of dtype `od`. Then, for all
    `va vb : Nat → I8`, `sa sb : F32` and `β : ℚ` such that row `i` of `A` reads in `init` as `va k`
    and column `j` of `B` as `vb k` (`k < K`, by the strides), `sa` is element `saIdx d i` (line 301)
    of `sa` and finite, `sb` is element `sbIdx d j` (line 304) of `sb` and finite, `BiasIs d init j β`
-   (line 492: the finite value of element `j * stride_bias` of `bias`, or `β = 0` without a bias),
-   and `Room32` (line 464) holds: with `S = dotSum va vb K` (line 434, the exact integer
-   `Σ_{k<K} va k · vb k`), `R = sa·sb·S + β` and `E = tol hasBias sa sb S β` (line 458),
-   - there is a finite `v : F32` with `|v.toRat − R| ≤ E` and `OutIs od v c` (line 485: `c` is
+   (line 497: the finite value of element `j * stride_bias` of `bias`, or `β = 0` without a bias),
+   and `Room32` (line 469) holds: with `S = dotSum va vb K` (line 439, the exact integer
+   `Σ_{k<K} va k · vb k`), `R = sa·sb·S + β` and `E = tol hasBias sa sb S β` (line 463),
+   - there is a finite `v : F32` with `|v.toRat − R| ≤ E` and `OutIs od v c` (line 490: `c` is
      `FloatV.cvt v` up to NaN payload, `FloatV.NaNEq`);
-   - if `|R| + E ≤ outMax od` (line 479), then `c` is finite with value `q` and
-     `|q − R| ≤ E + (|R| + E)·outU od + outEta od` (lines 469, 474).
+   - if `|R| + E ≤ outMax od` (line 484), then `c` is finite with value `q` and
+     `|q − R| ≤ E + (|R| + E)·outU od + outEta od` (lines 474, 479).
 
-   `R` is exact, in the rationals, from `init`. `E` is built from `e1`, `e2`, `e3` (lines 446–453)
-   with `u32`, `eta32` (lines 437, 440). Without finite scales and bias, or without `Room32`, only
+   `R` is exact, in the rationals, from `init`. `E` is built from `e1`, `e2`, `e3` (lines 451–458)
+   with `u32`, `eta32` (lines 442, 445). Without finite scales and bias, or without `Room32`, only
    "holds a value" is asked;
 2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 321) is unchanged.
 
-**What you are given** (`Assumptions`, line 538):
+**What you are given** (`Assumptions`, line 543):
 - `faithful` (`Rules.Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's
   launch, when the launch is valid, has `debug = false`, and the model's launch is well behaved
   from `init`;
@@ -64,7 +64,7 @@ No other fact: `tl.itof`, the `float32` products, the contractible addition and 
 exact or IEEE in the library.
 
 **The kernel, as the model runs it** (line numbers are `Claim.lean`'s; `scaled_mm_kernel` line 40,
-`model` line 407, `launch` line 418): a 1-D grid of `cdiv(M, BM)·cdiv(N, BN)` programs. Program
+`model` line 412, `launch` line 423): a 1-D grid of `cdiv(M, BM)·cdiv(N, BN)` programs. Program
 `pid` takes the tile `pid_m = pid / cdiv(N, BN)`, `pid_n = pid % cdiv(N, BN)`; it runs the
 `tl.forRange` loop (line 114) for `cdiv(K, BK) = K / BK` trips, each loading a masked `BM × BK`
 block of `A` and `BK × BN` block of `B` and adding their `tl.dot` into the `int32` accumulator.
@@ -99,9 +99,12 @@ accumulator (PROVER_GUIDE §4).
   ranges (README, Tolerances);
 - the frame: no program writes outside its tile of the matrix `C`.
 
+`K_dim` and `M_ctx` restrict the instances to real model shapes (`128 ∣ K ≤ 2^17`, `M ≤ 2^22`);
+`K_div` already makes every `K` trip full, and `N` keeps partial column tiles (no condition on it).
+
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok` and the
-`setup_*_ok` theorems. The helpers `row_lt` (line 619), `rm_inj` (line 625) and `bytes_disjoint`
-(line 640) serve coverage; the main proof gets its facts from `Inst.ok`.
+`setup_*_ok` theorems. The helpers `row_lt` (line 624), `rm_inj` (line 630) and `bytes_disjoint`
+(line 645) serve coverage; the main proof gets its facts from `Inst.ok`.
 
 ## Specification
 
@@ -152,6 +155,8 @@ of `od`).
 | `M_pos`, `N_pos`, `K_pos` | positive | the host's assertion (line 226) |
 | `K_div` | `K % BK = 0` | **kernel limit**: the masked loads of lines 161 and 164 have no `other`, so a partial last `K` block feeds unspecified values into every output's `tl.dot` (Exclusions) |
 | `K_lt` | `K < 2^17` | **kernel limit**: with `|a|, |b| ≤ 128`, `K·2^14 < 2^31` keeps every partial sum of the `int32` accumulator in range (Exclusions) |
+| `K_dim` | `K % 128 = 0`, `K ≤ 2^17` | real model shapes: `K` (the layer's input features) is a model dimension (Exclusions) |
+| `M_ctx` | `M ≤ 2^22` | real model shapes: `M` (the batch's tokens) is a context length (Exclusions) |
 | `M_le`, `N_le` | `M + BM`, `N + BN ≤ 2^31` | `int32` arguments; `tl.cdiv(N, BN)` adds `BN − 1` in `int32` (line 83); `pid_m·BM` (lines 96, 111, 199) |
 | `grid_lt` | `cdiv(M, BM)·cdiv(N, BN) < 2^31` | `Launch.Valid` |
 | `strides` | each stride `< 2^31` | `int32` arguments |
@@ -206,7 +211,7 @@ the library and need no fact. `consistent` uses `Platform.sm90ref` (`Platform.sm
 `hostInst M N K od hasBias saVec sbVec bT heur` is the host's instance (contiguous `A`; `B`
 contiguous or, with `bT`, the transposed view of a contiguous `[N, K]` weight; contiguous scales and
 bias; the fresh contiguous `C`; the tile of `tileOf heur M N`); `hostInst_ok` proves it covered when
-`0 < M, N ≤ 2^20`, `0 < K < 2^17` and `K % BK = 0`.
+`0 < M, N ≤ 2^20`, `0 < K < 2^17`, `K % BK = 0` and `K % 128 = 0`.
 
 | Theorem | Launches | Source |
 |---|---|---|
@@ -214,9 +219,11 @@ bias; the fresh contiguous `C`; the tile of `tileOf heur M N`); `hostInst_ok` pr
 | `setup_llama128_ok` | `64 < M ≤ 16384`, the 4 shapes of `llamaShapes128` (`K` a multiple of 128 only) | SETUP: Llama-2-7B down TP2, Llama-2-13B down TP4 and attention output TP8, TinyLlama down TP4 |
 | `setup_vllm_test_ok` | `(64, 971, 1024)`, `(512, 20486, 1024)`, every flag, either dtype and layout | `test_triton_scaled_mm.py:66-123` |
 | `setup_vllm_plain_ok` | `(1, 4096, 4096)`, `(64, 4096, 4096)`, `(256, 2048, 4096)` | `test_triton_scaled_mm.py:150-178` (`use_td=False`) |
-| `setup_bias_rounding_ok` | `(1, 16, 32)`, tile `(32, 32, 32)`, per-tensor scales, a bias | `test_triton_scaled_mm.py:126-142` (`use_heuristic=False`) |
 
-`satisfiable` uses `setup_bias_rounding` with the all-zero memory.
+vLLM's rounding test with `use_heuristic=False` (`test_triton_scaled_mm.py:126-142`,
+`(M, N, K) = (1, 16, 32)`, tile `(32, 32, 32)`) is outside `Inst.ok`: its `K = 32` is not a multiple
+of 128 (`K_dim`; Exclusions). `satisfiable` uses `minInst`, `(1, 16, 128)` with the same tile,
+per-tensor scales and a bias, with the all-zero memory.
 
 ## Tolerances
 
@@ -250,6 +257,13 @@ scaled product rounded to `bfloat16` before the bias is added (vLLM's rounding t
 library's lemma for its operation.
 
 ## Exclusions
+
+**Out of scope**: dimensions that are not multiples of 128 or exceed 2^17, contexts longer than
+2^22 tokens, and batches of more than 8192 requests: the claim covers real model shapes only. Here:
+`K` not a multiple of 128 (`K_dim`; vLLM's rounding test, `K = 32`, among them; `K ≥ 2^17` is
+already a kernel limit, below), and `M > 2^22` tokens (`M_ctx`). `N` keeps no such condition: the
+Llama-class shapes of `SETUP.md` include `N = 320` (TinyLlama's `qkv` projection, `2560`, at TP8),
+not a multiple of 128. The claim has no batch-size field (`M` counts tokens).
 
 Kernel limits (the kernel is wrong there under the library's semantics):
 
@@ -303,9 +317,10 @@ None.
    no `axiom`; `consistent`, `satisfiable` and every `setup_*_ok` depend only on `propext`,
    `Classical.choice`, `Quot.sound`.
 2. **Not vacuous**: `consistent` (`Platform.sm90ref`), `satisfiable` (above).
-3. **Coverage**: five `setup_*_ok` theorems, each over a family of launches (table above).
+3. **Coverage**: four `setup_*_ok` theorems, each over a family of launches (table above).
 4. **GPU** (`check_gpu.py`, H200 NVL, Triton 3.8.0): 94 host launches and two guarded direct
-   launches (`SETUP.md`, Checked on the H200). Both clauses of `OutSpec` checked (the first as: some
+   launches (`SETUP.md`, Checked on the H200; vLLM's rounding test, `K = 32`, is outside `Inst.ok`
+   and run as an extra). Both clauses of `OutSpec` checked (the first as: some
    real `v` within `E` of `R` rounds to `c`); largest error / tolerance **0.9993** (margin 0.0007,
    Llama-3.1-405B's down projection at TP8, `float16`); four wrong results each break `Post`; inputs
    unchanged; no byte outside the matrix `C` written. PASS.

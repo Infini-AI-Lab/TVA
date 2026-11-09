@@ -297,8 +297,13 @@ structure Inst.ok (d : Inst) : Prop where
   d_le : d.D ≤ 256
   /-- `T < 2^31`: `T` is an `int32` argument (beyond: a `[B, 2^31, H, D]` tensor, outside real use). -/
   t_lt : d.T < 2 ^ 31
+  /-- `T` is a context length (a padded row's tokens, or the packed batch's): at most `2^22`. -/
+  t_ctx : d.T ≤ 2 ^ 22
   /-- `seqlen_offsets < 2^31`: an `int32` argument (beyond: tables of `2^31` positions). -/
   off_lt : d.off < 2 ^ 31
+  /-- An `int` `seqlen_offsets` (the cache's length in decoding) is a prefix length, a context
+  length: at most `2^22`. -/
+  off_ctx : d.off ≤ 2 ^ 22
   /-- `seqlen_offsets + T ≤ TR` for an `int` offset (the host's assert, line 234; a tensor of
   offsets is bounded in `Pre.offs_vals`, the host's `torch._assert_async`, lines 228–232). -/
   off_tr : d.offT = false → d.off + d.T ≤ d.TR
@@ -345,6 +350,10 @@ structure Inst.ok (d : Inst) : Prop where
   /-- The tensor `seqlen_offsets` holds one offset per sequence (the host's assert, line 226). -/
   offs_len : d.offT = true → nSeq d ≤ d.offs.len
   y_offs : Disjoint d.y.bytes d.offs.bytes
+  /-- `B`, a padded batch's sequences, is a batch size: at most `8192`. -/
+  b_le : d.B ≤ 8192
+  /-- `N`, a packed batch's sequences, is a batch size: at most `8192`. -/
+  n_le : d.isVarlen = true → d.N ≤ 8192
 
 /-- The model on an instance. -/
 def model (d : Inst) : Kernel :=
@@ -445,6 +454,9 @@ structure Pre (d : Inst) (init : Mem) : Prop where
   more than `2^31` padding tokens, outside real use). -/
   offs_vals : d.offT = true → d.offs.Valid init ∧ ∀ n, n < nSeq d →
     ∃ v, idxAt d.offs init n = some v ∧ -2 ^ 31 ≤ v ∧ (lenAt d init n : Int) + v ≤ d.TR
+  /-- A tensor of offsets: every sequence's offset (the cache's length minus its left padding) is a
+  prefix length, a context length: at most `2^22`. -/
+  offs_ctx : d.offT = true → ∀ n, n < nSeq d → ∀ v, idxAt d.offs init n = some v → v ≤ 2 ^ 22
 
 /-! ## The specification -/
 
@@ -617,6 +629,8 @@ theorem setup_neox_padded_b2_t2048_h4_d128_r128_ok : setup_neox_padded_b2_t2048_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -625,7 +639,9 @@ theorem setup_neox_padded_b2_t2048_h4_d128_r128_ok : setup_neox_padded_b2_t2048_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 2`, `T = 4096`, `H = 4`, `D = 256`, rotary_dim `256`, offset `0`, padded, GPT-NeoX; `BT = 32`, `BD = 256` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b2_t4096_h4_d256_r256 : Inst where
@@ -679,6 +695,8 @@ theorem setup_neox_padded_b2_t4096_h4_d256_r256_ok : setup_neox_padded_b2_t4096_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -687,7 +705,9 @@ theorem setup_neox_padded_b2_t4096_h4_d256_r256_ok : setup_neox_padded_b2_t4096_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 1`, `H = 1`, `D = 64`, rotary_dim `64`, offset `0`, padded, GPT-NeoX; `BT = 1`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b1_t1_h1_d64_r64 : Inst where
@@ -741,6 +761,8 @@ theorem setup_neox_padded_b1_t1_h1_d64_r64_ok : setup_neox_padded_b1_t1_h1_d64_r
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -749,7 +771,9 @@ theorem setup_neox_padded_b1_t1_h1_d64_r64_ok : setup_neox_padded_b1_t1_h1_d64_r
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 3`, `T = 1000`, `H = 8`, `D = 64`, rotary_dim `64`, offset `7`, padded, GPT-NeoX; `BT = 8`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b3_t1000_h8_d64_r64_off7 : Inst where
@@ -803,6 +827,8 @@ theorem setup_neox_padded_b3_t1000_h8_d64_r64_off7_ok : setup_neox_padded_b3_t10
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -811,7 +837,9 @@ theorem setup_neox_padded_b3_t1000_h8_d64_r64_off7_ok : setup_neox_padded_b3_t10
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 2`, `T = 256`, `H = 4`, `D = 128`, rotary_dim `64`, offset `0`, padded, GPT-NeoX; `BT = 2`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b2_t256_h4_d128_r64 : Inst where
@@ -865,6 +893,8 @@ theorem setup_neox_padded_b2_t256_h4_d128_r64_ok : setup_neox_padded_b2_t256_h4_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -873,7 +903,9 @@ theorem setup_neox_padded_b2_t256_h4_d128_r64_ok : setup_neox_padded_b2_t256_h4_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 2048`, `H = 4`, `D = 128`, rotary_dim `128`, offset `0`, packed, `N = 4` sequences (`cu_seqlens` i64), `NT = 130` chunks, GPT-NeoX; `BT = 16`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_neox_packed_b1_t2048_h4_d128_r128_n4_i64 : Inst where
@@ -927,6 +959,8 @@ theorem setup_neox_packed_b1_t2048_h4_d128_r128_n4_i64_ok : setup_neox_packed_b1
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -935,7 +969,9 @@ theorem setup_neox_packed_b1_t2048_h4_d128_r128_n4_i64_ok : setup_neox_packed_b1
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 4096`, `H = 4`, `D = 256`, rotary_dim `256`, offset `0`, packed, `N = 4` sequences (`cu_seqlens` i32), `NT = 130` chunks, GPT-NeoX; `BT = 32`, `BD = 256` (the host's formulas, 132 SMs). -/
 def setup_neox_packed_b1_t4096_h4_d256_r256_n4_i32 : Inst where
@@ -989,6 +1025,8 @@ theorem setup_neox_packed_b1_t4096_h4_d256_r256_n4_i32_ok : setup_neox_packed_b1
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -997,7 +1035,9 @@ theorem setup_neox_packed_b1_t4096_h4_d256_r256_n4_i32_ok : setup_neox_packed_b1
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 777`, `H = 2`, `D = 64`, rotary_dim `32`, offset `0`, packed, `N = 9` sequences (`cu_seqlens` i32), `NT = 101` chunks, GPT-NeoX; `BT = 8`, `BD = 32` (the host's formulas, 132 SMs). -/
 def setup_neox_packed_b1_t777_h2_d64_r32_n9_i32 : Inst where
@@ -1051,6 +1091,8 @@ theorem setup_neox_packed_b1_t777_h2_d64_r32_n9_i32_ok : setup_neox_packed_b1_t7
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1059,7 +1101,9 @@ theorem setup_neox_packed_b1_t777_h2_d64_r32_n9_i32_ok : setup_neox_packed_b1_t7
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 5`, `H = 2`, `D = 128`, rotary_dim `128`, offset `0`, packed, `N = 5` sequences (`cu_seqlens` i64), `NT = 5` chunks, GPT-NeoX; `BT = 1`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_neox_packed_b1_t5_h2_d128_r128_n5_i64 : Inst where
@@ -1113,6 +1157,8 @@ theorem setup_neox_packed_b1_t5_h2_d128_r128_n5_i64_ok : setup_neox_packed_b1_t5
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1121,7 +1167,9 @@ theorem setup_neox_packed_b1_t5_h2_d128_r128_n5_i64_ok : setup_neox_packed_b1_t5
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 4`, `T = 8192`, `H = 32`, `D = 128`, rotary_dim `128`, offset `0`, padded, GPT-NeoX; `BT = 64`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b4_t8192_h32_d128_r128 : Inst where
@@ -1175,6 +1223,8 @@ theorem setup_neox_padded_b4_t8192_h32_d128_r128_ok : setup_neox_padded_b4_t8192
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1183,7 +1233,9 @@ theorem setup_neox_padded_b4_t8192_h32_d128_r128_ok : setup_neox_padded_b4_t8192
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 32768`, `H = 32`, `D = 128`, rotary_dim `128`, offset `0`, packed, `N = 16` sequences (`cu_seqlens` i32), `NT = 263` chunks, GPT-NeoX; `BT = 128`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_neox_packed_b1_t32768_h32_d128_r128_n16_i32 : Inst where
@@ -1237,6 +1289,8 @@ theorem setup_neox_packed_b1_t32768_h32_d128_r128_n16_i32_ok : setup_neox_packed
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1245,7 +1299,9 @@ theorem setup_neox_packed_b1_t32768_h32_d128_r128_n16_i32_ok : setup_neox_packed
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 2`, `T = 2048`, `H = 4`, `D = 128`, rotary_dim `128`, offset `0`, padded, GPT-J; `BT = 16`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b2_t2048_h4_d128_r128 : Inst where
@@ -1299,6 +1355,8 @@ theorem setup_gptj_padded_b2_t2048_h4_d128_r128_ok : setup_gptj_padded_b2_t2048_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1307,7 +1365,9 @@ theorem setup_gptj_padded_b2_t2048_h4_d128_r128_ok : setup_gptj_padded_b2_t2048_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 2`, `T = 4096`, `H = 4`, `D = 256`, rotary_dim `256`, offset `0`, padded, GPT-J; `BT = 32`, `BD = 256` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b2_t4096_h4_d256_r256 : Inst where
@@ -1361,6 +1421,8 @@ theorem setup_gptj_padded_b2_t4096_h4_d256_r256_ok : setup_gptj_padded_b2_t4096_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1369,7 +1431,9 @@ theorem setup_gptj_padded_b2_t4096_h4_d256_r256_ok : setup_gptj_padded_b2_t4096_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 1`, `H = 1`, `D = 64`, rotary_dim `64`, offset `0`, padded, GPT-J; `BT = 1`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b1_t1_h1_d64_r64 : Inst where
@@ -1423,6 +1487,8 @@ theorem setup_gptj_padded_b1_t1_h1_d64_r64_ok : setup_gptj_padded_b1_t1_h1_d64_r
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1431,7 +1497,9 @@ theorem setup_gptj_padded_b1_t1_h1_d64_r64_ok : setup_gptj_padded_b1_t1_h1_d64_r
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 3`, `T = 1000`, `H = 8`, `D = 64`, rotary_dim `64`, offset `7`, padded, GPT-J; `BT = 8`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b3_t1000_h8_d64_r64_off7 : Inst where
@@ -1485,6 +1553,8 @@ theorem setup_gptj_padded_b3_t1000_h8_d64_r64_off7_ok : setup_gptj_padded_b3_t10
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1493,7 +1563,9 @@ theorem setup_gptj_padded_b3_t1000_h8_d64_r64_off7_ok : setup_gptj_padded_b3_t10
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 2`, `T = 256`, `H = 4`, `D = 128`, rotary_dim `64`, offset `0`, padded, GPT-J; `BT = 2`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b2_t256_h4_d128_r64 : Inst where
@@ -1547,6 +1619,8 @@ theorem setup_gptj_padded_b2_t256_h4_d128_r64_ok : setup_gptj_padded_b2_t256_h4_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1555,7 +1629,9 @@ theorem setup_gptj_padded_b2_t256_h4_d128_r64_ok : setup_gptj_padded_b2_t256_h4_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 2048`, `H = 4`, `D = 128`, rotary_dim `128`, offset `0`, packed, `N = 4` sequences (`cu_seqlens` i64), `NT = 130` chunks, GPT-J; `BT = 16`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_gptj_packed_b1_t2048_h4_d128_r128_n4_i64 : Inst where
@@ -1609,6 +1685,8 @@ theorem setup_gptj_packed_b1_t2048_h4_d128_r128_n4_i64_ok : setup_gptj_packed_b1
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1617,7 +1695,9 @@ theorem setup_gptj_packed_b1_t2048_h4_d128_r128_n4_i64_ok : setup_gptj_packed_b1
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 4096`, `H = 4`, `D = 256`, rotary_dim `256`, offset `0`, packed, `N = 4` sequences (`cu_seqlens` i32), `NT = 129` chunks, GPT-J; `BT = 32`, `BD = 256` (the host's formulas, 132 SMs). -/
 def setup_gptj_packed_b1_t4096_h4_d256_r256_n4_i32 : Inst where
@@ -1671,6 +1751,8 @@ theorem setup_gptj_packed_b1_t4096_h4_d256_r256_n4_i32_ok : setup_gptj_packed_b1
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1679,7 +1761,9 @@ theorem setup_gptj_packed_b1_t4096_h4_d256_r256_n4_i32_ok : setup_gptj_packed_b1
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 777`, `H = 2`, `D = 64`, rotary_dim `32`, offset `0`, packed, `N = 9` sequences (`cu_seqlens` i32), `NT = 103` chunks, GPT-J; `BT = 8`, `BD = 32` (the host's formulas, 132 SMs). -/
 def setup_gptj_packed_b1_t777_h2_d64_r32_n9_i32 : Inst where
@@ -1733,6 +1817,8 @@ theorem setup_gptj_packed_b1_t777_h2_d64_r32_n9_i32_ok : setup_gptj_packed_b1_t7
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1741,7 +1827,9 @@ theorem setup_gptj_packed_b1_t777_h2_d64_r32_n9_i32_ok : setup_gptj_packed_b1_t7
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 5`, `H = 2`, `D = 128`, rotary_dim `128`, offset `0`, packed, `N = 5` sequences (`cu_seqlens` i64), `NT = 5` chunks, GPT-J; `BT = 1`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_gptj_packed_b1_t5_h2_d128_r128_n5_i64 : Inst where
@@ -1795,6 +1883,8 @@ theorem setup_gptj_packed_b1_t5_h2_d128_r128_n5_i64_ok : setup_gptj_packed_b1_t5
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1803,7 +1893,9 @@ theorem setup_gptj_packed_b1_t5_h2_d128_r128_n5_i64_ok : setup_gptj_packed_b1_t5
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 4`, `T = 8192`, `H = 32`, `D = 128`, rotary_dim `128`, offset `0`, padded, GPT-J; `BT = 64`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b4_t8192_h32_d128_r128 : Inst where
@@ -1857,6 +1949,8 @@ theorem setup_gptj_padded_b4_t8192_h32_d128_r128_ok : setup_gptj_padded_b4_t8192
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1865,7 +1959,9 @@ theorem setup_gptj_padded_b4_t8192_h32_d128_r128_ok : setup_gptj_padded_b4_t8192
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- the host test case (source lines 323-337): `B = 1`, `T = 32768`, `H = 32`, `D = 128`, rotary_dim `128`, offset `0`, packed, `N = 16` sequences (`cu_seqlens` i32), `NT = 262` chunks, GPT-J; `BT = 128`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_gptj_packed_b1_t32768_h32_d128_r128_n16_i32 : Inst where
@@ -1919,6 +2015,8 @@ theorem setup_gptj_packed_b1_t32768_h32_d128_r128_n16_i32_ok : setup_gptj_packed
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1927,7 +2025,9 @@ theorem setup_gptj_packed_b1_t32768_h32_d128_r128_n16_i32_ok : setup_gptj_packed
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- decoding: one token per sequence at the cache length 4095 (fla/layers/attn.py:113-115): `B = 8`, `T = 1`, `H = 32`, `D = 128`, rotary_dim `128`, offset `4095`, padded, GPT-NeoX; `BT = 1`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b8_t1_h32_d128_r128_off4095 : Inst where
@@ -1981,6 +2081,8 @@ theorem setup_neox_padded_b8_t1_h32_d128_r128_off4095_ok : setup_neox_padded_b8_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -1989,7 +2091,9 @@ theorem setup_neox_padded_b8_t1_h32_d128_r128_off4095_ok : setup_neox_padded_b8_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- decoding, GPT-J: `B = 8`, `T = 1`, `H = 32`, `D = 128`, rotary_dim `128`, offset `4095`, padded, GPT-J; `BT = 1`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b8_t1_h32_d128_r128_off4095 : Inst where
@@ -2043,6 +2147,8 @@ theorem setup_gptj_padded_b8_t1_h32_d128_r128_off4095_ok : setup_gptj_padded_b8_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2051,7 +2157,9 @@ theorem setup_gptj_padded_b8_t1_h32_d128_r128_off4095_ok : setup_gptj_padded_b8_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- fla's Transformer config: hidden 2048, 32 heads, head dim 64: `B = 4`, `T = 2048`, `H = 32`, `D = 64`, rotary_dim `64`, offset `0`, padded, GPT-NeoX; `BT = 16`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b4_t2048_h32_d64_r64 : Inst where
@@ -2105,6 +2213,8 @@ theorem setup_neox_padded_b4_t2048_h32_d64_r64_ok : setup_neox_padded_b4_t2048_h
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2113,7 +2223,9 @@ theorem setup_neox_padded_b4_t2048_h32_d64_r64_ok : setup_neox_padded_b4_t2048_h
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- one key head (tests: 1 key head): `B = 2`, `T = 2048`, `H = 1`, `D = 128`, rotary_dim `128`, offset `0`, padded, GPT-J; `BT = 16`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b2_t2048_h1_d128_r128 : Inst where
@@ -2167,6 +2279,8 @@ theorem setup_gptj_padded_b2_t2048_h1_d128_r128_ok : setup_gptj_padded_b2_t2048_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2175,7 +2289,9 @@ theorem setup_gptj_padded_b2_t2048_h1_d128_r128_ok : setup_gptj_padded_b2_t2048_
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- partial rotary, rotary_dim 64 of D 256 (tests/modules/test_rotary.py:165-172): `B = 2`, `T = 2048`, `H = 4`, `D = 256`, rotary_dim `64`, offset `0`, padded, GPT-NeoX; `BT = 16`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b2_t2048_h4_d256_r64 : Inst where
@@ -2229,6 +2345,8 @@ theorem setup_neox_padded_b2_t2048_h4_d256_r64_ok : setup_neox_padded_b2_t2048_h
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2237,7 +2355,9 @@ theorem setup_neox_padded_b2_t2048_h4_d256_r64_ok : setup_neox_padded_b2_t2048_h
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- partial rotary, GPT-J: `B = 2`, `T = 2048`, `H = 4`, `D = 256`, rotary_dim `64`, offset `0`, padded, GPT-J; `BT = 16`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b2_t2048_h4_d256_r64 : Inst where
@@ -2291,6 +2411,8 @@ theorem setup_gptj_padded_b2_t2048_h4_d256_r64_ok : setup_gptj_padded_b2_t2048_h
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2299,7 +2421,9 @@ theorem setup_gptj_padded_b2_t2048_h4_d256_r64_ok : setup_gptj_padded_b2_t2048_h
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- one packed sequence, int64 cu_seqlens: `B = 1`, `T = 4096`, `H = 4`, `D = 128`, rotary_dim `128`, offset `0`, packed, `N = 1` sequences (`cu_seqlens` i64), `NT = 128` chunks, GPT-NeoX; `BT = 32`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_neox_packed_b1_t4096_h4_d128_r128_n1_i64 : Inst where
@@ -2353,6 +2477,8 @@ theorem setup_neox_packed_b1_t4096_h4_d128_r128_n1_i64_ok : setup_neox_packed_b1
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2361,7 +2487,9 @@ theorem setup_neox_packed_b1_t4096_h4_d128_r128_n1_i64_ok : setup_neox_packed_b1
     by decide,
     fun h => absurd h (by decide),
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 /-- batched generation's prefill under left padding (`fla/layers/attn.py:117-119`): `B = 4`, `T = 512`, `H = 32`, `D = 64`, rotary_dim `64`, a tensor of `int32` offsets (`-pad`, negative), `TR = 2048`, padded, GPT-NeoX; `BT = 4`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b4_t512_h32_d64_r64_offt_i32 : Inst where
   idx := .i32
@@ -2414,6 +2542,8 @@ theorem setup_neox_padded_b4_t512_h32_d64_r64_offt_i32_ok : setup_neox_padded_b4
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2422,7 +2552,9 @@ theorem setup_neox_padded_b4_t512_h32_d64_r64_offt_i32_ok : setup_neox_padded_b4
     by decide,
     fun _ => Or.inl rfl,
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- batched generation's decoding step under left padding (`fla/layers/attn.py:117-119`): `B = 8`, `T = 1`, `H = 32`, `D = 64`, rotary_dim `64`, a tensor of `int32` offsets (the cache's length minus the padding), `TR = 2048`, padded, GPT-NeoX; `BT = 1`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b8_t1_h32_d64_r64_offt_i32 : Inst where
@@ -2476,6 +2608,8 @@ theorem setup_neox_padded_b8_t1_h32_d64_r64_offt_i32_ok : setup_neox_padded_b8_t
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2484,7 +2618,9 @@ theorem setup_neox_padded_b8_t1_h32_d64_r64_offt_i32_ok : setup_neox_padded_b8_t
     by decide,
     fun _ => Or.inl rfl,
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- batched generation's prefill under left padding (`fla/layers/attn.py:117-119`): `B = 4`, `T = 512`, `H = 32`, `D = 64`, rotary_dim `64`, a tensor of `int32` offsets (`-pad`, negative), `TR = 2048`, padded, GPT-J; `BT = 4`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b4_t512_h32_d64_r64_offt_i32 : Inst where
@@ -2538,6 +2674,8 @@ theorem setup_gptj_padded_b4_t512_h32_d64_r64_offt_i32_ok : setup_gptj_padded_b4
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2546,7 +2684,9 @@ theorem setup_gptj_padded_b4_t512_h32_d64_r64_offt_i32_ok : setup_gptj_padded_b4
     by decide,
     fun _ => Or.inl rfl,
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- batched generation's decoding step under left padding (`fla/layers/attn.py:117-119`): `B = 8`, `T = 1`, `H = 32`, `D = 64`, rotary_dim `64`, a tensor of `int32` offsets (the cache's length minus the padding), `TR = 2048`, padded, GPT-J; `BT = 1`, `BD = 64` (the host's formulas, 132 SMs). -/
 def setup_gptj_padded_b8_t1_h32_d64_r64_offt_i32 : Inst where
@@ -2600,6 +2740,8 @@ theorem setup_gptj_padded_b8_t1_h32_d64_r64_offt_i32_ok : setup_gptj_padded_b8_t
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2608,7 +2750,9 @@ theorem setup_gptj_padded_b8_t1_h32_d64_r64_offt_i32_ok : setup_gptj_padded_b8_t
     by decide,
     fun _ => Or.inl rfl,
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- a tensor of `int64` offsets (the host's other dtype, line 227): `B = 2`, `T = 2048`, `H = 4`, `D = 128`, rotary_dim `128`, `TR = 4096`, padded, GPT-NeoX; `BT = 16`, `BD = 128` (the host's formulas, 132 SMs). -/
 def setup_neox_padded_b2_t2048_h4_d128_r128_offt_i64 : Inst where
@@ -2662,6 +2806,8 @@ theorem setup_neox_padded_b2_t2048_h4_d128_r128_offt_i64_ok : setup_neox_padded_
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2670,7 +2816,9 @@ theorem setup_neox_padded_b2_t2048_h4_d128_r128_offt_i64_ok : setup_neox_padded_
     by decide,
     fun _ => Or.inr rfl,
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-- packed sequences with a tensor of `int64` offsets: `T = 777`, `H = 2`, `D = 64`, rotary_dim `32`, `cu_seqlens = [0, 100, 300, 777]` `int32`, `TR = 1024`, GPT-NeoX; `BT = 8`, `BD = 32` (the host's formulas, 132 SMs). -/
 def setup_neox_packed_b1_t777_h2_d64_r32_n3_i32_offt_i64 : Inst where
@@ -2724,6 +2872,8 @@ theorem setup_neox_packed_b1_t777_h2_d64_r32_n3_i32_offt_i64_ok : setup_neox_pac
     by decide,
     by decide,
     by decide,
+    by decide,
+    by decide,
     bytes_disj (by decide),
     bytes_disj (by decide),
     bytes_disj (by decide),
@@ -2732,7 +2882,9 @@ theorem setup_neox_packed_b1_t777_h2_d64_r32_n3_i32_offt_i64_ok : setup_neox_pac
     by decide,
     fun _ => Or.inr rfl,
     by decide,
-    bytes_disj (by decide)⟩
+    bytes_disj (by decide),
+    by decide,
+    by decide⟩
 
 /-! ## Satisfiable -/
 
@@ -2755,7 +2907,8 @@ theorem satisfiable : Claim.Satisfiable Inst.ok Pre := by
       (by norm_num [setup_neox_padded_b1_t1_h1_d64_r64, DType.bytes])
       (by norm_num [setup_neox_padded_b1_t1_h1_d64_r64, DType.bytes])
   refine ⟨setup_neox_padded_b1_t1_h1_d64_r64, zeroMem, setup_neox_padded_b1_t1_h1_d64_r64_ok,
-    ⟨hx, hy, hc, hs, ?_, ?_, ?_, fun h => absurd h (by decide), fun h => absurd h (by decide)⟩⟩
+    ⟨hx, hy, hc, hs, ?_, ?_, ?_, fun h => absurd h (by decide), fun h => absurd h (by decide),
+      fun h => absurd h (by decide)⟩⟩
   · intro j hj _
     exact ⟨_, zeroMem_bfAt hx (lt_of_lt_of_le hj setup_neox_padded_b1_t1_h1_d64_r64_ok.x_len), zero_xok⟩
   · intro n l k hn hl _ hk

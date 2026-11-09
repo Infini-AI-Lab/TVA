@@ -9,7 +9,7 @@ GPU check: [`check_gpu.py`](check_gpu.py). Setup: [`SETUP.md`](SETUP.md).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.ChunkDeltaH.main : Statement` (`Statement`:
-`Claim.lean` line 1078). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 1084). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,25 +17,25 @@ GPU check: [`check_gpu.py`](check_gpu.py). Setup: [`SETUP.md`](SETUP.md).
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 669), and every initial memory `init` that `Pre` accepts (line 748), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 1034).
+(`Inst.ok`, line 669), and every initial memory `init` that `Pre` accepts (line 754), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 1040).
 
-**What `Post` asks** (line 1034). For every sequence `n < N`, value head `hv < HV` and column
+**What `Post` asks** (line 1040). For every sequence `n < N`, value head `hv < HV` and column
 `j < V`:
 1. `v_new`: for every token `s < lenOf d n` (line 638), element
    `uIdx d (rowOf d n) (startOf d n + s) hv j` of `vn` reads in `fin` as a `bfloat16` `x`; only
-   under `Vals init d` (line 996) and `StOk fin d n hv j t'` for every `t' ≤ s / 64` (line 1013;
+   under `Vals init d` (line 1002) and `StOk fin d n hv j t'` for every `t' ≤ s / 64` (line 1019;
    the stored states of the token's chunk and of every earlier chunk) is more asked: `x` is
-   finite and `|x.toReal − vrefS …| ≤ tolV …` (`vrefS` line 825, exact in the reals from `init` and
-   the stored `h[t]` in `fin`; `tolV` line 906);
+   finite and `|x.toReal − vrefS …| ≤ tolV …` (`vrefS` line 831, exact in the reals from `init` and
+   the stored `h[t]` in `fin`; `tolV` line 912);
 2. `h`: for every chunk `t < nch d n` (line 641) and row `c < K`, element
    `hIdx d (cbase d n + t) hv c j` (lines 645, 663) of `h` holds a `bfloat16` value;
 3. the states: there is `Y : Nat → Nat → F32` with
-   - under `Vals`, `Y 0 c` finite and equal to `h0v init d n hv j c` (line 818; `0` without `h0`);
+   - under `Vals`, `Y 0 c` finite and equal to `h0v init d n hv j c` (line 824; `0` without `h0`);
    - for `t < nch d n` and `c < K`, a finite `Y t c` gives `h[t][c] = FloatV.cvt (Y t c)` exactly;
    - for `t < nch d n`, under `Vals` and `StOk … t'` for every `t' ≤ t`, `Y t`, `Y (t + 1)`
-     finite and `colNorm K (Y (t + 1) − Step … (Y t)) ≤ errStep …` (`Step` line 833, exact;
-     `colNorm` line 840; `errStep` line 972);
+     finite and `colNorm K (Y (t + 1) − Step … (Y t)) ≤ errStep …` (`Step` line 839, exact;
+     `colNorm` line 846; `errStep` line 978);
    - with `storeHt`, `ht[sIdx d n hv c j]` (line 665) reads as `Y (nch d n) c` exactly;
 4. the frame: every byte outside the first `B·NTt·HV·K·V` elements of `h`, the first
    `B·T·HV·V` of `vn` and (with `storeHt`) the first `N·HV·K·V` of `ht` is unchanged.
@@ -43,7 +43,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 Outside `Vals` and these `StOk` guards only the presence clauses, the rounding link and
 `ht = Y (nch n)` are asked.
 
-**What you are given** (`Assumptions`, line 1060), five fields:
+**What you are given** (`Assumptions`, line 1066), five fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`, `relDot16 64`, `absDot16 64`): every `tl.dot` of
@@ -52,7 +52,7 @@ Outside `Vals` and these `StOk` guards only the presence clauses, the rounding l
 - `exp2_acc` (`Rules.Num.Exp2F32`, `2^-22` relative, `2^-126` absolute): the gate's two `tl.exp2`
   (model lines 141, 144, and their `vf` twins); `exp2_total` (`Rules.Num.MathTotal`): a result.
 
-**The kernel, as the model runs it** (`fwd_kernel_h` line 528, `model` line 729, `launch` line
+**The kernel, as the model runs it** (`fwd_kernel_h` line 528, `model` line 735, `launch` line
 740): a 1-D grid of `gridN d` (line 653) programs. Program `pid` splits it in `int64` into the
 column tile `i_v` (32 columns), the sequence `i_n` and the head `i_h` (`tl.irem`, `tl.idiv`). On
 variable length it reads `cu_seqlens[i_n]`, `cu_seqlens[i_n + 1]` and `chunk_offsets[i_n]`
@@ -72,7 +72,8 @@ rows), disjoint across trips (PROVER_GUIDE §4).
 - each program is `Safe`: the divisors `cdiv(V, 32)`, `HV`, `HV / H`, `64` are nonzero (`V_pos`,
   `HV_pos`, `H_dvd`); the table reads are in bounds (`cu_len`, `co_len`) and give `cbase`
   (`Pre`); the `int32` values (`T + 63`, `last_idx·HV`, `o_k*`) and the `int64` offsets do not
-  wrap (`T_lt`, `THV_lt`, `HVV_lt`, `K_le`); every enabled lane of every load and store is in
+  wrap (`T_lt`, `THV_lt`, `HVV_lt`, `K_le`; with `T_ctx` and `N_batch`, `T ≤ 2^22` and
+  `N, B ≤ 8192` keep every token and sequence index below `2^35`); every enabled lane of every load and store is in
   bounds (`k_len` … `co_len`, `var_*`); `safe_dot` (with `dot_total`), `safe_math` (with
   `exp2_total`), `safe_subc`, `safe_sub`, `safe_mul`, `safe_add`, `safe_cvt`, `safe_convert`,
   `safe_load`, `safe_store`;
@@ -81,7 +82,7 @@ rows), disjoint across trips (PROVER_GUIDE §4).
   program reads (`disj_h`, `disj_vn`, `disj_ht`);
 - the loop invariant: the state blocks after `t` trips are `Y t`, the values the trip stored to
   `h[t]` are their rounding, and, under `Vals` and while `StOk t'` holds for every `t' < t`, the
-  padded rows `K ≤ c < 64·cdiv(K, 64)` stay within `padB t` (line 986; `StOk t'` keeps chunk
+  padded rows `K ≤ c < 64·cdiv(K, 64)` stay within `padB t` (line 992; `StOk t'` keeps chunk
   `t'`'s gated values finite, so the `k` dot's fact bounds what it adds to the padded rows); then
   the value parts under `Vals` and `StOk`: `tolV` and `errStep` from `dot` chained
   over the `K` blocks (`DotLoop.bound`), `exp2_acc`, `FloatV.mul_err`, `FloatV.sub_err`,
@@ -89,8 +90,8 @@ rows), disjoint across trips (PROVER_GUIDE §4).
 - the bytes no program writes give part 4.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `ok_of` and the
-`setup_*_ok` theorems; `bytes_disj` (line 1154), `disj_far` (line 1163) and `valid_zero`
-(line 1434) can be reused.
+`setup_*_ok` theorems; `bytes_disj` (line 1160), `disj_far` (line 1169) and `valid_zero`
+(line 1441) can be reused.
 
 ## Specification
 
@@ -174,6 +175,10 @@ state) or skips them. `launch` is the grid
 * `T + 64 < 2^31` (`T` is an `int32` argument; line 97's `T + 63`) and, with the gate,
   `T·HV < 2^31` (line 247's `int32` `last_idx·HV` on a fixed-length launch; without the gate
   line 247 does not run);
+* real model shapes (Exclusions): `T ≤ 2^22` (`T_ctx`: a row's tokens, or a packed batch's, is a
+  context length); `N ≤ 8192` and `B ≤ 8192` (`N_batch`: the sequences and the batch rows are batch
+  sizes). `K` and `V` are per-head state widths (head dims, real values 32 to 512), not model
+  dimensions: they keep the bounds above;
 * fixed length: `N = B`; variable length: `B = 1`, `cu_seqlens` `int32` or `int64`, from `0`,
   nondecreasing, ending at `T`;
 * the storages hold their tensors (`g` when given); `h`, `v_new`, `ht` share no byte with each other or the inputs.
@@ -395,6 +400,11 @@ decay (larger gates) its error exceeds `errStep`, as `check_gpu.py` shows.
 
 What `SETUP.md` allows and the claim leaves out:
 
+* **Out of scope**: dimensions that are not multiples of 128 or exceed 2^17, contexts longer than
+  2^22 tokens, and batches of more than 8192 requests: the claim covers real model shapes only.
+  Here: `T > 2^22` (`T_ctx`; a row's tokens on fixed length, the packed batch's on variable length),
+  and more than `8192` sequences `N` or batch rows `B` (`N_batch`). The claim has no model dimension
+  (`K`, `V` are head dims).
 * **`T + 64 ≥ 2^31`, `T·HV ≥ 2^31` with the gate, `HV ≥ 2^16`, `V ≥ 2^16`, `HV·V ≥ 2^31`, `2^31` programs or
   more**: `int32` arguments, index products and compile-time constants, CUDA's grid; outside real
   use (`T·HV ≥ 2^31` is 67 million tokens at 32 value heads; real heads have `HV·V ≤ 2^12`).

@@ -14,7 +14,7 @@ packed variable-length batches.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.ChunkFwdO.main : Statement` (`Statement`:
-`Claim.lean` line 581). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 590). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -22,22 +22,22 @@ packed variable-length batches.
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 324), and every initial memory `init` that `Pre` accepts (line 396), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 553).
+(`Inst.ok`, line 324), and every initial memory `init` that `Pre` accepts (line 405), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 562).
 
-**What `Post` asks** (line 553), two parts:
+**What `Post` asks** (line 562), two parts:
 1. for every chunk `r < nRows d` (line 317), token `t` with `rowLo d r ≤ t < rowHi d r` (lines
-   426–431), value head `j < HV` and column `e < V`: element `oIdx d t j e` (line 449) of `o` reads
+   426–431), value head `j < HV` and column `e < V`: element `oIdx d t j e` (line 458) of `o` reads
    in `fin` as a `bfloat16` `c`, for every such element. Only when `InRange d r t j e` holds (line
    532: the values the element reads finite, the gates bounded, the magnitudes below `2^100`) is
-   more asked: `c` is finite and `|c.toReal − ref d r t j e| ≤ tol d r t j e`. `ref` (line 488) is
+   more asked: `c` is finite and `|c.toReal − ref d r t j e| ≤ tol d r t j e`. `ref` (line 497) is
    exact, in the reals, from `Inst`'s contents (`qv`, `kv`, `vv`, `hv`, `gv`, `ggv`, tied to memory
    by `Pre`'s `Buf.Holds`): `sig·(gate·QS + Σ_{s ∈ upTo} Aqk·wgt·v)` (`QS`, `Aqk`, `gate`, `wgt`,
-   `upTo`, lines 455, 461, 473, 476, 484). `tol` is defined at line 520 (with `Mabs`, `Mag`, `Flo`,
-   `gamErr`, lines 494–512). Outside `InRange` only "holds a `bfloat16` value" is asked;
-2. the frame: every byte outside `o.elems (written d)` (line 546) is unchanged.
+   `upTo`, lines 464, 470, 482, 485, 493). `tol` is defined at line 529 (with `Mabs`, `Mag`, `Flo`,
+   `gamErr`, lines 503–521). Outside `InRange` only "holds a `bfloat16` value" is asked;
+2. the frame: every byte outside `o.elems (written d)` (line 555) is unchanged.
 
-**What you are given** (`Assumptions`, line 563), five fields:
+**What you are given** (`Assumptions`, line 572), five fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`, `relDot16 K`, `absDot16 K` relative to the lifted
@@ -46,8 +46,8 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `exp2_acc` (`Rules.Num.Exp2F32`, `2^-22` relative, `2^-126` absolute): the gates' `tl.exp2`
   (model lines 198, 200, 212, 215); `exp2_total` (`Rules.Num.MathTotal`): a result.
 
-**The kernel, as the model runs it** (`chunk_fwd_kernel_o` line 74, `model` line 405, `launch`
-line 416): a 2-D grid `(grid0 d, B·HV, 1)` (line 320). Program `(pid, i_bh)` splits `pid` into the
+**The kernel, as the model runs it** (`chunk_fwd_kernel_o` line 74, `model` line 414, `launch`
+line 425): a 2-D grid `(grid0 d, B·HV, 1)` (line 320). Program `(pid, i_bh)` splits `pid` into the
 column tile `i_v` and the chunk `i_t`, and `i_bh` into `i_b`, `i_h` (`int64` `tl.irem`,
 `tl.idiv`). On variable length it reads row `i_t` of `chunk_indices` and `cu_seqlens[i_n]`,
 `cu_seqlens[i_n + 1]` (`tl.load1`); on fixed length `i_tg = i_b·NT + i_t`, `bos = i_b·T`. A
@@ -66,7 +66,8 @@ write footprints (PROVER_GUIDE §4).
 - each program is `Safe`: the divisors `cdiv(V, BV)`, `HV`, `HV / H`, `64` are nonzero (`V_pos`,
   `HV_pos`, `hv_dvd`); the table reads are in bounds (`ci_len`, `cu_len`, `N_lt`, `TablesOk`); the
   `int32` values (`T + 63` with `T_wrap`, `o_k`, `o_k·V`) and the `int64` offsets do not wrap
-  (`T_lt`, `K_le`, `V_le`); every enabled lane of every load and store is in bounds (`q_len` …
+  (`T_lt`, `K_le`, `V_le`; `T_le` bounds every token count by `2^22`, so `B·T·HV·V < 2^22·2^16·512`
+  and every token offset is far below `2^63`); every enabled lane of every load and store is in bounds (`q_len` …
   `gg_len`; on variable length `cu_seqlens` nondecreasing and `≤ T`); `safe_dot` (with
   `dot_total`), `safe_math` (with `exp2_total`), `safe_mul`, `safe_sub`, `safe_subc`, `safe_addc`,
   `safe_convert`, `safe_cvt`, `safe_load`, `safe_load1`, `safe_store`;
@@ -80,8 +81,8 @@ write footprints (PROVER_GUIDE §4).
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok`,
-`satInst_ok`, the `sc*_ok` facts and the `setup_*_ok` theorems; `bytes_disj` (line 637),
-`zero_valid` (line 729) and `zero_holds_bf16` (line 733) can be reused.
+`satInst_ok`, the `sc*_ok` facts and the `setup_*_ok` theorems; `bytes_disj` (line 646),
+`zero_valid` (line 740) and `zero_holds_bf16` (line 744) can be reused.
 
 ## Specification
 
@@ -141,6 +142,11 @@ storages of `q`, `k`, `v`, `h`, `g`, `g_gamma`, `o` and their contents, and on a
   `T + 63 < 2^31`, so line 119's `int32` `tl.cdiv(T, 64)` does not wrap (a limit of the kernel,
   Exclusions; with one row `i_b = 0` makes `NT` unused, and a variable-length launch does not run
   line 119);
+* `T ≤ 2^22` (`T_le`): `T`, a row's length or a packed batch's total number of tokens, is a
+  context length of at most `2^22` tokens (real model shapes, Exclusions); on variable length every
+  sequence then has at most `2^22` tokens too (`cu_seqlens[N] ≤ T`);
+* `B ≤ 8192` (`B_le`) and, on variable length, `N ≤ 8192` (`N_le`): the batch rows and the
+  sequences are batch sizes (real model shapes, Exclusions);
 * at most one of `g`, `g_gamma` (`one_gate`);
 * variable length: `B = 1`;
 * the grid `(cdiv(V, BV)·NT, B·HV)` within CUDA's limits (`B·HV < 2^16`: a limit of the kernel on
@@ -202,7 +208,7 @@ out-of-range elements. `consistent` uses `Platform.sm90ref`.
 `mk vl useG useGm svf B T H HV K V sbits dt N NT bk` is the host's launch (contiguous tensors,
 `o = empty_like(v)`, `bk = 64` by default); `mk_ok` proves `Inst.ok` for every `bk ∈ {32, 64, 128}`,
 `B, H, HV ≥ 1` with `H ∣ HV`,
-`1 ≤ K ≤ 256`, `1 ≤ V ≤ 512`, `T + 63 < 2^31`, at most one gate, `B = 1` on variable length, the grid within its
+`1 ≤ K ≤ 256`, `1 ≤ V ≤ 512`, `T + 63 < 2^31`, `T ≤ 2^22` (an argument with a default), at most one gate, `B = 1` on variable length, the grid within its
 limits, each tensor at most `2^40` bytes, `int32` or `int64` tables and a scale in range.
 SETUP.md's launches:
 
@@ -322,6 +328,13 @@ launches.
   (Triton's launcher skips it): e.g. `2^22` chunks (`2^28` tokens) at 64 value heads,
   `V = 512` and `BV = 64` (`2^21` chunks at `BV = 32`). Real use does not reach it
   (`setup_qwen3next_1m` has `2^20` programs, `2^21` at `BV = 32`).
+- **Contexts longer than `2^22` tokens, batches of more than `8192`** — out of scope: dimensions
+  that are not multiples of 128 or exceed `2^17`, contexts longer than `2^22` tokens, and batches
+  of more than `8192` requests: the claim covers real model shapes only. Fields: `T` (`T_le`), `B`
+  (`B_le`, the batch rows) and, on variable length, `N` (`N_le`, the sequences). No field of this
+  kernel is a model dimension (`K`, `V` are head dims, `H`, `HV` head counts), so none is bounded
+  by the first rule. Every setup launch is inside (the largest, `setup_qwen3next_1m`, has `2^20`
+  tokens and `256` sequences; `setup_grid_edge` has `2047` rows).
 - **Elements not `InRange`** — per element: non-finite inputs among those it reads, gates beyond
   the bounds, or magnitudes above `2^100` (`float32` overflows near `2^128`). Such an element is
   still a `bfloat16` value; real use (normalised `q`, `k`, nonpositive cumulative gates) is far

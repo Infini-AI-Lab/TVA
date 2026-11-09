@@ -2,8 +2,10 @@
 
 Runs the kernel's own host (`source/rejection_greedy.py`) on the
 setup's launches (the host's test cases, the random batches both with `is_greedy = None` and with
-an `is_greedy` mask) and on launches at the edges of `Inst.ok` and `Pre`, and checks `Post`
-exactly as `Claim.lean` states it:
+an `is_greedy` mask), on launches at the edges of `Inst.ok` and `Pre`, and on two launches beyond
+them ("beyond Inst.ok": more than 8192 requests, and more than 2^22 packed drafts, which the claim
+leaves out of scope; they check the kernel past the claim), and checks `Post` exactly as
+`Claim.lean` states it:
 
 * for every request `r < B` and column `j < S + 1`, the output holds `expect d init r j`
   (for a greedy request, the target's `int32` truncation for `j < min(k_r + 1, n_r)`, the bonus
@@ -227,12 +229,13 @@ if __name__ == "__main__":
     # Draft ids -1 and int32 extremes; S = 0 (every request has no draft: only the bonus).
     n = [0] * 70000
     draft, cu, target, bonus = mod.make_batch(n, 10, 0.5, g)
-    run_case("edge S=0, 70000 requests", draft, n, 0, cu, target, bonus)
-    # A large batch: 2^21 requests of up to 8 drafts.
+    run_case("beyond Inst.ok: S=0, 70000 requests", draft, n, 0, cu, target, bonus)
+    # A large batch: 2^21 requests of up to 8 drafts (beyond Inst.ok and Pre: B > 8192, and about
+    # 2^23 packed drafts).
     n = torch.randint(0, 9, (2 ** 21,), generator=g).tolist()
     draft, cu, target, bonus = mod.make_batch(n, 151936, 0.9, g, pad_drafts=True)
     draft[::1001] = 2 ** 31 - 1
-    run_case("edge 2^21 requests, k 8", draft, n, 8, cu, target, bonus, compare_host_reference=False)
+    run_case("beyond Inst.ok: 2^21 requests, k 8", draft, n, 8, cu, target, bonus, compare_host_reference=False)
     # Frame and arbitrary initial output values (guarded direct launch).
     n = torch.randint(0, 6, (777,), generator=g).tolist()
     draft, cu, target, bonus = mod.make_batch(n, 32000, 0.7, g, pad_drafts=True)

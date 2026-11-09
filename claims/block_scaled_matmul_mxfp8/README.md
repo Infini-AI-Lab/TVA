@@ -19,7 +19,7 @@ descriptor; `BLOCK_M = 128`, `BLOCK_N = 256`, `BLOCK_K = 128`, `b`'s block `[256
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.BlockScaledMxfp8.main : Statement` (`Statement`:
-`Claim.lean` line 481). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 486). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -27,22 +27,22 @@ descriptor; `BLOCK_M = 128`, `BLOCK_N = 256`, `BLOCK_K = 128`, `b`'s block `[256
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 245), and every initial memory `init` that `Pre` accepts (line 422), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 445).
+(`Inst.ok`, line 245), and every initial memory `init` that `Pre` accepts (line 427), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 450).
 
-**What `Post` asks** (line 445), two parts:
-1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 433): element `i·N + j` of `c` reads
+**What `Post` asks** (line 450), two parts:
+1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 438): element `i·N + j` of `c` reads
    in `fin` as a `float16` `c`, and there is a finite `float32` `v` with
    `|v.toRat − ref d init i j| ≤ tolOut d init i j` and `FloatV.NaNEq (FloatV.cvt v) c`; and when
    `|ref| + tolOut ≤ binary16.maxVal`, `c` is finite and
-   `|c.toRat − ref| ≤ tolOut + (|ref| + tolOut)·binary16.u + binary16.eta`. `ref` (line 403) is the
-   exact sum, in the rationals, of the `K` scaled products `prods` (line 399: `xa`, `bVal`, the
-   scale bytes `sa`, `sb` at `sIdx` (line 321), all read from `init`); `tolOut` (line 406) is the
-   recursion `tol` (line 354) over the `K / 128` steps, with `rho`, `alpha` (lines 345, 348). This
-   holds for every element: `Pre`'s `ValsOk` (line 412) puts every input in the domain;
+   `|c.toRat − ref| ≤ tolOut + (|ref| + tolOut)·binary16.u + binary16.eta`. `ref` (line 408) is the
+   exact sum, in the rationals, of the `K` scaled products `prods` (line 404: `xa`, `bVal`, the
+   scale bytes `sa`, `sb` at `sIdx` (line 326), all read from `init`); `tolOut` (line 411) is the
+   recursion `tol` (line 359) over the `K / 128` steps, with `rho`, `alpha` (lines 350, 353). This
+   holds for every element: `Pre`'s `ValsOk` (line 417) puts every input in the domain;
 2. the frame: every byte outside `cEl d` (line 240, the first `M·N` elements of `c`) is unchanged.
 
-**What you are given** (`Assumptions`, line 452), five fields:
+**What you are given** (`Assumptions`, line 457), five fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotScaledE4m3`, a `DotScaledAcc`): the `tl.dot_scaled` of model line 146
@@ -53,8 +53,8 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `dot_total`, `dot_total_mixed` (`Rules.Num.DotScaledTotal` at `cfgMx`, `cfgMixed`): those
   `tl.dot_scaled` always have a result. The `cfgFp4` branch (line 143) is never reached.
 
-**The kernel, as the model runs it** (`block_scaled_matmul_kernel` line 72, `model` line 282,
-`launch` line 295): a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs. Program `pid` takes
+**The kernel, as the model runs it** (`block_scaled_matmul_kernel` line 72, `model` line 287,
+`launch` line 300): a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs. Program `pid` takes
 `pid_m = pid % num_pid_m`, `pid_n = pid / num_pid_m` (`tl.irem`, `tl.idiv`), then runs
 `tl.forRange 0 (K/128) 1`: each trip loads (`tl.desc_load`, host descriptors `aDesc`, `bDesc`,
 `aScaleDesc`, `bScaleDesc`, lines 209–227) the `a` tile `[128, 128]`, the `b` tile
@@ -81,9 +81,14 @@ Programs write disjoint tiles and use no atomics: the route is `TVA.meets_indepe
   stored; then `FloatV.cvt_err` for the store (README `## Tolerances`);
 - the bytes no program writes give part 2.
 
+The real-shape conditions (`M_ctx`: `M ≤ 2^22`; `N_dim`: `N ≤ 2^17`; with `K_ok`, `K ≤ 2^17`) keep
+every `int32` offset and descriptor shape entry far below `2^31`: `offs_am < M ≤ 2^22`,
+`offs_bn < N + 128 ≤ 2^17 + 128`, `offs_k < K ≤ 2^17`, and the grid below `2^15 · 2^9 = 2^24`
+programs.
+
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `satInst_ok`,
-`hostInst_ok` and the `setup_*_ok` theorems; `bytes_disjoint` (line 513), `elems_lt_sub` (line 522),
-`bDT_bytes` (line 527) and `div_epbB_le` (line 536) can be reused.
+`hostInst_ok` and the `setup_*_ok` theorems; `bytes_disjoint` (line 518), `elems_lt_sub` (line 527),
+`bDT_bytes` (line 532) and `div_epbB_le` (line 541) can be reused.
 
 ## Specification
 
@@ -126,7 +131,11 @@ shapes and strides, block shapes `[128, 128]`, `[256, 128 / ELEM_PER_BYTE_B]`, `
 * `M`, `N` positive multiples of `128` below `2^31` (the host's scale layout has `M // 128` and
   `N // 128` blocks; descriptor shape entries are `int32`); the last column of tiles may be half
   outside `c` (`N % 256 = 128`), whose lanes read the padding and are not stored;
-* `K` a positive multiple of `128` (the benchmark asserts it), `K ≤ 2^17` (Exclusions);
+* `K` a positive multiple of `128` (the benchmark asserts it), `K ≤ 2^17` (Exclusions): a model
+  dimension (the input features);
+* `M ≤ 2^22` (`M_ctx`): `M` counts tokens (the rows of the activations `a`), a context length;
+* `N ≤ 2^17` (`N_dim`): `N` is a model dimension (the output features), with `N_ok` a positive
+  multiple of `128` at most `2^17`;
 * the grid has fewer than `2^31` programs;
 * every storage 16-byte aligned (TMA) and long enough for its tensor (`b`: `N·K` or `N·K / 2`
   bytes);
@@ -168,7 +177,8 @@ proves `Inst.ok` for either format and every size meeting `Inst.ok`'s bounds (ea
 `setup_bench_k131072` (the largest covered `K`, `M = N = 8192`); for `mixed`,
 `setup_mixed_test_8192`, `setup_mixed_bench_k512` and `setup_mixed_bench_k131072`; each with its
 `_ok`. Every other `-K` the benchmark accepts (a multiple of `128`) up to `2^17` is covered by
-`hostInst_ok`, in both formats. The host's values meet `Pre` (above).
+`hostInst_ok`, in both formats. The host's values meet `Pre` (above). Every launch meets the
+real-shape conditions (`M = N = 8192`, `K ≤ 2^17`), so none is left out.
 
 ## Tolerances
 
@@ -216,6 +226,10 @@ element (`check_gpu.py`'s negative tests: each breaks `Post` on `85%` or more of
   tensors have `M // 128`, `N // 128`, `K // 128` blocks (a ragged `M` or `N` would leave rows
   without scales), the benchmark asserts `K % 128 == 0`, and a zero size gives a zero descriptor
   shape entry, which the host rejects.
+* **out of scope**: dimensions that are not multiples of 128 or exceed 2^17, contexts longer
+  than 2^22 tokens, and batches of more than 8192 requests: the claim covers real model shapes
+  only. The fields: `N` (`N_dim`, with `N_ok`) and `K` (`K_ok`), model dimensions, and `M`
+  (`M_ctx`), a token count; the kernel has no batch-size field.
 * **Sizes at or above `2^31`** (descriptor shape entries and the `int32` offsets `pid_m * 128`,
   `pid_n * 256`, `offs_k_a`) and grids of `2^31` programs or more: a limit of the kernel and of
   TMA; real use (`8192`) is far below.
