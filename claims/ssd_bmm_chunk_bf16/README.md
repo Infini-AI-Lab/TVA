@@ -7,7 +7,7 @@ zero), on `bfloat16` inputs into a `float32` output, with the configuration of `
 `num_warps = 4`; `IS_CAUSAL = False`, `HAS_SEQ_IDX = True`), launched by the host `bmm_chunk_fwd`
 (`source/ssd_bmm.py`, lines 193–282). Claim: [`Claim.lean`](Claim.lean), namespace
 `Claims.SsdBmm`; the statement to prove is `Statement : ∀ K P, Assumptions K P → Spec K`.
-`Claim.lean` proves `consistent`, `satisfiable`, `tol_rel_lt` and the coverage facts `setup_*_ok`;
+`Claim.lean` proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok`;
 it does not prove `Statement`. Model map: [`model-map.json`](model-map.json) (every code line of
 the kernel lines `[57, 190]`). GPU check: [`check_gpu.py`](check_gpu.py).
 
@@ -19,7 +19,7 @@ module-level lines are host lines: `import math`, `import torch` (53–55), the 
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.SsdBmm.main : Statement` (`Statement`: `Claim.lean`
-line 498). Unfolded (`Claim.Meets`), it says:
+line 456). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -29,28 +29,26 @@ line 498). Unfolded (`Claim.Meets`), it says:
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 290), and every initial memory `init` that `Pre` accepts (line 376: the four
 buffers valid, every `seq_idx` entry a non-negative `int32`), every outcome of the launch is a
-normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 469).
+normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 427).
 
-**What `Post` asks** (line 469), two parts:
-1. for every `c < nch d`, `g < G`, `m < C`, `n < C`: `OutElem d init fin c g m n` (line 454).
+**What `Post` asks** (line 427), two parts:
+1. for every `c < nch d`, `g < G`, `m < C`, `n < C`: `OutElem d init fin c g m n` (line 412).
    Element `oIdx d c g m n` (line 286) of `out` reads in `fin` as some `float32` `v`, and:
-   - if `sameReq d init c m n` (line 445: tokens `c·C + m` and `c·C + n` are both below `T` and
+   - if `sameReq d init c m n` (line 403: tokens `c·C + m` and `c·C + n` are both below `T` and
      have equal `seq_idx` in `init`): for all `va vb : Nat → BF16` such that, for every `k < K`,
      `init` reads `a`'s element `aIdx d (c·C + m) g k` as a finite `va k` and `b`'s element
-     `bIdx d (c·C + n) g k` as a finite `vb k`, and `dotMag va vb d.K ≤ 2^120` (line 399): `v` is
+     `bIdx d (c·C + n) g k` as a finite `vb k`, and `dotMag va vb d.K ≤ 2^120` (line 391): `v` is
      finite and `|v.toRat - dotSum va vb d.K| ≤ tol va vb d.K`. With a non-finite input or no
      room, only "holds a value" is asked;
    - otherwise, on every input: `FloatV.NaNEq (FloatV.ofPat 0) v`, the `float32` `+0`.
 
-   The reference `dotSum` (line 394) is the exact `Σ_{k<K} va k · vb k` in the rationals. `tol`
-   (line 427) is `errAt (prodV va vb K) (liftV va vb K) (steps K)`: the recursion `errAt`
-   (line 421), `E (t+1) = (1 + rho)·E t + rho·(|partSum p t| + stepMag q t) + alpha`, over
-   `steps K = cdiv(K, 32)` (line 383), with `prodV`, `liftV`, `partSum`, `stepMag` (lines
-   404–414) and `rho`, `alpha` (lines 388, 391: `DotLoop.stepRel`, `stepAbs` of `relDot16 32`,
-   `absDot16 32`);
+   The reference `dotSum` (line 386) is the exact `Σ_{k<K} va k · vb k` in the rationals. `tol`
+   (line 399) is `steps K · 2^-16 · dotMag va vb K + 2^-112`, with `steps K = cdiv(K, 32)`
+   (line 383) the loop's steps and `dotMag` (line 391) the sum of the products' lifted
+   magnitudes;
 2. the frame: every byte outside `out`'s first `oB d` elements (line 268) is unchanged.
 
-**What you are given** (`Assumptions`, line 477):
+**What you are given** (`Assumptions`, line 435):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot` of source line 161 is within
@@ -82,13 +80,14 @@ invariant and `fun _ => ∅`).
   (`out_a`, `out_b`, `out_s`; `a` and `b` may overlap, both only read);
 - the value part of `Post`: the `tl.where` gives `+0` exactly when `sameReq` fails (`Pre`'s
   non-negative `seq_idx`, so `-1`, `-2` never match a token); on `sameReq` the loop is within
-  `errAt` of `dotSum`, step by step (`DotLift.dotAdd_step` with `dot`, by induction on the
-  recursion; room from `dotMag ≤ 2^120`; README `## Tolerances`);
+  `tol` of `dotSum`: derive the fine bound of README `## Tolerances`, the recursion `E_T` step by
+  step (`DotLift.dotAdd_step` with `dot`, by induction on the steps; room from
+  `dotMag ≤ 2^120`), then relax it by `(1 + ρ)^T − 1 ≤ T·2^-16` and `T·(1 + ρ)^T·α ≤ 2^-112`;
 - the frame: the bytes no program writes.
 
-**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `tol_rel_lt`
-(line 431), `mk_ok` and the `setup_*_ok` theorems; `row_lt` (line 535), `bytes_disjoint`
-(line 541), `zero_i32` (line 651) and `valid_zero` (line 658) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
+`setup_*_ok` theorems; `row_lt` (line 493), `bytes_disjoint` (line 499), `zero_i32` (line 609)
+and `valid_zero` (line 616) can be reused.
 
 ## Specification
 
@@ -125,16 +124,14 @@ padding values of the masked `seq_idx` loads, `chunk_size_limit` or the pointer 
 that drops the zeroing, uses the wrong chunk's rows, misses a `tl.dot` step or leaves a tile
 unwritten fails `Post` (Checks).
 
-**The tolerance** `tol va vb K = errAt (prodV va vb K) (liftV va vb K) (steps K)`: with `T =
-steps K = cdiv(K, 32)` loop steps, `p e = va e · vb e` for `e < K` and `0` from `K` on (`prodV`),
-`l e = liftMag(va e)·liftMag(vb e)` likewise (`liftV`; `liftMag q` is `|q|` for zero and normal
-values and `2^-126` for a nonzero subnormal one), `S_t = Σ_{e < 32t} p e` (`partSum`) and
-`L_t = Σ_{32t ≤ e < 32t+32} l e` (`stepMag`):
+**The tolerance** is relative to the products' magnitudes and grows with the loop's steps:
 
-`E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + L_t) + α`, `tol = E_T`,
+`|v − S| ≤ tol = T·2^-16·dotMag + 2^-112`,
 
-with `ρ = DotLoop.stepRel relDot16 32 = 34·2^-22 + 3·2^-24·(1 + 34·2^-22)` and
-`α = DotLoop.stepAbs absDot16 32 = 34·2^-126·(1 + 3·2^-24) + 4·2^-150` (Tolerances).
+with `T = steps K = cdiv(K, 32)` the loop's steps and `dotMag = Σ_{k<K} liftMag(va k)·liftMag(vb k)`
+(`liftMag q` is `|q|` for zero and normal values and `2^-126` for a nonzero subnormal one; so
+`dotMag ≥ Σ|va k·vb k| ≥ |S|`). At `dstate = 128` (`T = 4`) it is `2^-14` of `dotMag`; at the
+largest covered `dstate = 2^10` (`T = 32`), `2^-11`.
 
 ## Conditions
 
@@ -152,7 +149,7 @@ fresh contiguous `[1, nchunks, ngroups, C, C]` (strides `oB, oC, oH, C, 1`), `ba
 |---|---|---|
 | `T_pos`, `G_pos`, `K_pos` | `seqlen, ngroups, dstate ≥ 1` | real use; `ngroups` is a divisor (line 117) |
 | `C_pow2`, `C_ge` | `chunk_size` a power of two, `≥ 2` | the code base asserts a power of two (`ssd_combined.py:77`); `1` is outside real use (Exclusions) |
-| `K_le` | `dstate ≤ 2^10` | keeps the tolerance below `2.7·10^-4` of the products' magnitudes (`tol_rel_lt`), which also bounds the accumulator for the `float32` room condition (Tolerances); every Mamba-2 model's `dstate` is at most `256` |
+| `K_le` | `dstate ≤ 2^10` | at most `32` steps: keeps the tolerance below `2^-11` of the products' magnitudes, which also bounds the accumulator for the `float32` room condition (Tolerances); every Mamba-2 model's `dstate` is at most `256` |
 | `gz_lt` | `nchunks·ngroups < 2^16` | CUDA's grid `z` limit (`Launch.Valid`); a kernel limit (Exclusions) |
 | `grid_lt` | `gx·gz = cdiv(C, 64)·cdiv(C, 128)·nchunks·ngroups < 2^31` | fewer than `2^31` programs (`Launch.Valid`); a kernel limit (Exclusions) |
 | `T_lt`, `aS_lt` … `aK_lt`, `bS_lt` … `bK_lt`, `oC_lt` | `seqlen`, the strides of `a` and `b` other than `stride(0)`, and `out.stride(1) = ngroups·C²` below `2^31` | each is an `int32` argument in the model (`seq_idx.stride(0) = seqlen`; `oC` bounds `out`'s later strides, `C²` and the store offsets `m·C + n`) |
@@ -258,7 +255,10 @@ argument, covered (`intArg`).
 
 ## Tolerances
 
-From the library's facts only. Step `t` of the loop (line 161) is `acc ← tl.dot_add(a, b, acc)`, a
+From the library's facts only. Notation: `T = steps K`; `p e = va e · vb e` for `e < K` and `0`
+from `K` on, `l e = liftMag(va e)·liftMag(vb e)` likewise; `S_t = Σ_{e < 32t} p e` (the exact
+partial sum before step `t`), `L_t = Σ_{32t ≤ e < 32t+32} l e` (step `t`'s lifted magnitude);
+`A = dotMag = Σ_e l e`. Step `t` of the loop (line 161) is `acc ← tl.dot_add(a, b, acc)`, a
 `bfloat16` dot of 32 products followed by the addition of `acc`, or, after the combine pass,
 `tl.dot(a, b, acc)`. `DotLift.dotAdd_step` (`lean/TVA/Lemmas/DotLift.lean`) turns
 `Rules.Num.DotBF16` (`DotLiftAcc` with `relDot16 32 = 34·2^-22`, `absDot16 32 = 34·2^-126`) into a
@@ -266,8 +266,8 @@ bound for either form: from a finite `acc`, the result is finite and within
 `ρ·(|acc| + L_t) + α` of `acc + c_t`, `c_t = S_{t+1} − S_t` the step's exact sum, with
 `ρ = stepRel relDot16 32` and `α = stepAbs absDot16 32` (the separate `float32` addition's room
 included). For a same-request element both rows are below `seqlen`, so the loads' masks disable
-only the `k`-lanes past `dstate`, which hold `+0`: they add nothing to `c_t` or `L_t` (`prodV`,
-`liftV`). If `acc` is within `E_t` of `S_t` then `|acc| ≤ |S_t| + E_t`, so the new accumulator is
+only the `k`-lanes past `dstate`, which hold `+0`: they add nothing to `c_t` or `L_t` (`p e = l e = 0`
+there). If `acc` is within `E_t` of `S_t` then `|acc| ≤ |S_t| + E_t`, so the new accumulator is
 within `E_t + ρ·(|S_t| + E_t + L_t) + α = E_{t+1}` of `S_{t+1}`; by induction from `acc = +0`
 (`E_0 = 0`) the loop leaves a finite `float32` within `E_T` of `S`. The room condition of
 `dotAdd_step` holds at every step: `|S_t| ≤ dotMag ≤ 2^120` and `E_t ≤ 3·10^-4·dotMag + 10^-34`, far
@@ -277,18 +277,25 @@ For any other element the two loaded `seq_idx` values differ (a real entry `≥ 
 padding `-1` or `-2`, the two paddings against each other, or two different entries), and
 `tl.where` gives the constant `+0.0`.
 
-Since `|S_t| + L_t ≤ A = dotMag`, `tol ≤ ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`, with
-`(1 + ρ)^T − 1 < 2.7·10^-4` for `dstate ≤ 2^10` (`tol_rel_lt`), `8.3·10^-6` at `dstate = 32`,
-`3.3·10^-5` at `128` and `6.6·10^-5` at `256`.
+Since `|S_t| + L_t ≤ A = dotMag` (`|S_t| ≤ Σ_{e<32t} l e`, the partial sums of `l` add up to
+`A` over the `T` steps, and the masked lanes past `dstate` add nothing), unrolling the recursion
+gives `E_T ≤ ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`.
 
-**Meaningful.** The bound follows the exact partial sums, so on zero-mean data it is far below
-`Σ|a·b|` and far below the outputs: on `randn` inputs its median is `8.2·10^-4` against a median
-`|S|` of `7.6` at `dstate = 128` (`1.1·10^-4` of `|S|`; `1.6·10^-4` at `dstate = 256`).
-`check_gpu.py` measures the device's error at up to `0.016` of the tolerance (`0` where a single
-product is exact, `dstate = 1`): the library's 16-bit dot fact allows `(K + 2)·2^-22` per step of 32
-products, about 60 times what the tensor core loses here (Library requests). It still separates
-wrong results: the exact product rounded to `bfloat16` breaks it by a factor up to `162`, a missing
-`tl.dot` step by `4·10^4`.
+**The relaxation to `tol`.** `ρ = 34·2^-22 + 3·2^-24·(1 + 34·2^-22) = 34.750006·2^-22 =
+0.543·2^-16`, and `T ≤ 32` (`K_le`), so `(1 + ρ)^T − 1 ≤ T·ρ·(1 + ρ)^(T−1) ≤ T·ρ·1.0003 ≤
+0.544·T·2^-16` (exactly, `max_{T ≤ 32} ((1 + ρ)^T − 1)/(T·2^-16) = 0.5430`); and
+`T·(1 + ρ)^T·α ≤ 32·1.0003·(34·2^-126·1.0000002 + 2^-148) = 2^-115.9 ≤ 2^-112`. So
+`E_T ≤ T·2^-16·dotMag + 2^-112 = tol`.
+
+**Meaningful.** On `randn` inputs `tol / |S|` has median `5.9·10^-4` over `check_gpu.py`'s
+SETUP.md launches (the fine bound `E_T`, which follows the exact partial sums, has `1.0·10^-4`):
+`T·2^-16·dotMag` charges every step with the whole magnitude, as an input whose partial sums all
+reach `dotMag` needs. The largest ratios are at outputs near zero (`|S|` of order `10^-4`), where
+`tol / |S|` reaches `3.9·10^4` (`5.9·10^3` for `E_T`). `check_gpu.py` measures the device's
+error at up to `0.0087` of `tol` (`0` where a single product is exact, `dstate = 1`): the
+library's 16-bit dot fact allows `(K + 2)·2^-22` per step of 32 products, far more than what the
+tensor core loses here (Library requests). It still separates wrong results: the exact product
+rounded to `bfloat16` breaks it by a factor up to `30`, a missing `tl.dot` step by `6·10^3`.
 
 ## Exclusions
 
@@ -356,7 +363,8 @@ What `SETUP.md` allows and the claim leaves out:
    requests; 2^20 tokens; a grid `z` of 65535; a random non-monotone `seq_idx`; token-major `a`,
    `b`; `int64` batch strides `a.stride(0) = b.stride(0)` of `2^31 + 7` and `262144·10240`; values
    near `2^54`; subnormal operands; NaN and infinities, where the zeros stay exact).
-   Largest error / tolerance **0.0160**; every element outside a same-request pair is `+0.0` bit
+   Largest error / tolerance **0.0087**; `tol / |S|` on SETUP.md's launches has median
+   `5.9·10^-4`; every element outside a same-request pair is `+0.0` bit
    for bit; the inputs (and the whole `xBC` storage) unchanged and guard bands of 4096 elements on
    each side of `out` unchanged. Negative tests: the exact product rounded to `bfloat16`, the
    result missing the last `tl.dot` step, a launch without the cross-request zeroing (`seq_idx` all
@@ -364,6 +372,6 @@ What `SETUP.md` allows and the claim leaves out:
 
 ## Library requests
 
-None needed for this claim. The tolerance is about 60 times the device's error here because the claim
+None needed for this claim. The tolerance is more than 100 times the device's error here because the claim
 cites `DotBF16` (`relDot16 K = (K + 2)·2^-22` per step); the library also states `DotBF16Chunk` (64
 consecutive `k` per chunk), with which it could be tighter.

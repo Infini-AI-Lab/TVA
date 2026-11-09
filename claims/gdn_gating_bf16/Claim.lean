@@ -228,14 +228,18 @@ noncomputable def gRef (A x : ℝ) : ℝ := -(Real.exp A * spRef x)
 /-- The exact write strength `sigmoid(b) = 1 / (1 + e^(-b))`. -/
 noncomputable def sigRef (b : ℝ) : ℝ := 1 / (1 + Real.exp (-b))
 
-/-- The tolerance of `g` at `A = A_log[h]` and `x = a[i, h] + dt_bias[h]` (exact): relative
-`2^-19 + 2^-23·(|A| + 2·min(max(-x, 0), 20))` (`tl.exp`'s card at `X = |A|` and at `X = |x|`, the
-other roundings, README, Tolerances), plus `2^-23·e^A` (the rounding of `1 + exp(x)` to
-`float32`, which `log` turns into an absolute error of `2^-24` in `softplus`), `2^-139·softplus(x)`
-(`tl.exp(A)`'s absolute `2^-140`) and `2^-148`. -/
-noncomputable def gTol (A x : ℝ) : ℝ :=
-  (2 ^ (-19 : ℤ) + 2 ^ (-23 : ℤ) * (|A| + 2 * min (max (-x) 0) 20)) * |gRef A x| +
-    2 ^ (-23 : ℤ) * Real.exp A + 2 ^ (-139 : ℤ) * spRef x + 2 ^ (-148 : ℤ)
+/-- The scale of `g`'s tolerance: the magnitudes of its two factors, `e^A` (with a floor `2^-121`
+for `tl.exp`'s absolute error `2^-140`) times `softplus(x)` (with a floor `2^-6` for the rounding of
+`1 + exp(x)`, an absolute error of `2^-24` in `softplus`). -/
+noncomputable def gMag (A x : ℝ) : ℝ := (Real.exp A + 2 ^ (-121 : ℤ)) * (spRef x + 2 ^ (-6 : ℤ))
+
+/-- The relative tolerance of `g`: `2^-23·(64 + |A|)`, `|A|` capped at `128` (`tl.exp(A)`'s card at
+`X = |A|` grows with `|A|`; below `A = -128` every term is far below the floors). -/
+noncomputable def gEps (A : ℝ) : ℝ := 2 ^ (-23 : ℤ) * (64 + min |A| 128)
+
+/-- The tolerance of `g` at `A = A_log[h]` and `x = a[i, h] + dt_bias[h]` (exact):
+`gEps A · gMag A x` (README, Tolerances). -/
+noncomputable def gTol (A x : ℝ) : ℝ := gEps A * gMag A x
 
 /-- The tolerance of `beta_output`: twice the `bfloat16` rounding (`2^-8` relative) and `2^-133`
 (the `bfloat16` grid below its normal range is `2^-133`). -/

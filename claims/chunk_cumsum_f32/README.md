@@ -8,7 +8,7 @@ the claim to prove is `Statement`.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.ChunkCumsum.main : Statement` (`Statement`:
-`Claim.lean` line 318). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 307). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,23 +17,25 @@ the claim to prove is `Statement`.
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 160), and every initial memory `init` that `Pre` accepts (line 211), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 298).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 287).
 
-**What `Post` asks** (line 298), two parts:
+**What `Post` asks** (line 287), two parts:
 1. for every sequence `n < nSeq d` (line 233), position `p` with `lo d n ≤ p < hi d n` (lines
    232–233) and head `h < H`: element `p·H + h` of `o` reads in `fin` as a `float32` `v`, for every
-   such element. Only when `InRange d n p h` holds (line 274: the summed terms finite,
+   such element. Only when `InRange d n p h` holds (line 267: the summed terms finite,
    `absSum ≤ 2^126`, and with a scale the double and `sigma32` finite and `|σ₃₂|·absSum ≤ 2^126`)
    is more asked: `v` is finite and
    `|v.toRat − sig d * refSum d n p h| ≤ tol d n p h`. `refSum` (line 252) is the exact sum, in the
    rationals, of `sAt d q h` (line 249, from `sv`) over `rng d n p` (line 244: from `chunkStart`
    (line 240) to `p` forward; from `p` to `min (chunkStart + BT) (hi n)` reverse); `sig` (line 262)
-   is the host's double scale, or `1`. `tol` is defined at line 284 (`Tree.errBound` at `depth`,
-   line 258, plus the product and scale terms with a scale). Outside `InRange` only "holds a
-   `float32` value" is asked;
-2. the frame: every byte outside `o.elems (written d)` (line 292) is unchanged.
+   is the host's double scale, or `1`. `tol` (line 276) is
+   `(depth + 1)·2^-23·|σ₃₂|·A + |σ − σ₃₂|·A + 2^-128·(1 + |σ₃₂|)` with `A = absSum` (line 253),
+   `depth` (line 258) and `σ₃₂` (`sig32`, line 263) the kernel's `float32` scale (`σ = σ₃₂ = 1`
+   without a scale: `(depth + 1)·2^-23·A + 2^-127`). Outside `InRange` only "holds a `float32`
+   value" is asked;
+2. the frame: every byte outside `o.elems (written d)` (line 281) is unchanged.
 
-**What you are given** (`Assumptions`, line 309): one field, `faithful` (`Compiler.Faithful`): the
+**What you are given** (`Assumptions`, line 298): one field, `faithful` (`Compiler.Faithful`): the
 device's outcomes `K d` are outcomes of the model's launch, when the launch is valid, has
 `debug = false`, and the model's launch is well behaved from `init`. No numeric fact: `tl.cumsum`
 (no product feeds it) and `*` are IEEE operations.
@@ -62,15 +64,16 @@ disjoint elements: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
   (`o_s`, `o_cu`, `o_ci`);
 - every element of `written d` is written by some program: on variable length every chunk with
   `c·BT < len n` has a row (`TablesOk`); on fixed length `gridSize` covers `cdiv(T, BT)` chunks;
-- the value part of part 1: lane `p − chunkStart` holds a tree over its `ScanLeaves` (with
-  `ScanLeaves.perm`), the lanes outside the sequence add `+0`, and `sum_err_list` (with `u32_eq`,
-  `eta32_eq`) bounds the scan by `Tree.errBound`; with a scale, `FloatV.mul_err` and the difference
-  `σ − σ₃₂` give the rest of `tol` (README `## Tolerances`);
+- the value part of part 1, `|v − σ·S| ≤ (depth + 1)·2^-23·|σ₃₂|·A + |σ − σ₃₂|·A +
+  2^-128·(1 + |σ₃₂|)`: derive the fine bound of README `## Tolerances` (lane `p − chunkStart` holds
+  a tree over its `ScanLeaves`, with `ScanLeaves.perm`; the lanes outside the sequence add `+0`;
+  `sum_err_list`, with `Format.binary32_u`, `Format.binary32_eta`, bounds the scan by
+  `Tree.errBound`; with a scale, `FloatV.mul_err` and the difference `σ − σ₃₂`), then relax it by
+  `(1 + u)^m − 1 ≤ 1.07·m·u` (`m·u ≤ 2^-4`) as `## Tolerances` shows;
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `u32_eq`, `eta32_eq` (lines 269–270) and `bytes_disj` (line 350) can be
-reused.
+`setup_*_ok` theorems; `bytes_disj` (line 339) can be reused.
 
 ## Specification
 
@@ -79,10 +82,12 @@ Sequences (`nSeq`, `lo`, `hi`) are the rows `[b·T, b·T + T)` of a fixed-length
 sequence `n`, position `p` in it and head `h < H`, `Post` says:
 - `o[p, h]` holds a `float32` value `v`;
 - if the element is `InRange` (every term of `rng n p` finite, `A = Σ|s| ≤ 2^126`, and with a scale
-  the double and its `float32` value finite and `|σ₃₂|·A ≤ 2^126`), `v` is finite and
-  `|v − σ·S| ≤ tol`, where `S = Σ_{q ∈ rng n p} s[q, h]`, `rng n p` running from the start of `p`'s
+  the double and its `float32` value `σ₃₂` finite and `|σ₃₂|·A ≤ 2^126`), `v` is finite and
+  `|v − σ·S| ≤ (depth + 1)·2^-23·|σ₃₂|·A + |σ − σ₃₂|·A + 2^-128·(1 + |σ₃₂|)` (`tol`), where `S = Σ_{q ∈ rng n p} s[q, h]`, `rng n p` running from the start of `p`'s
   chunk (`lo + ⌊(p − lo)/BT⌋·BT`) to `p` (forward) or from `p` to the chunk's end
-  `min(start + BT, hi)` (reverse), and `σ` the host's double scale (`1` without one);
+  `min(start + BT, hi)` (reverse), `σ` the host's double scale (`σ = σ₃₂ = 1` without one, so
+  `tol = (depth + 1)·2^-23·A + 2^-127`), and `depth + 1` the lanes the scan combines at `p`
+  (`p − start + 1` forward, `start + BT − p` reverse);
 - frame: every byte outside the written elements (`written`: the sequences' positions × heads) is
   unchanged.
 
@@ -127,21 +132,34 @@ it. `Pre`'s `TablesOk` is about contents, so it is checked on the host's tables 
 
 ## Tolerances
 
-`u = 2^-24`, `η = 2^-150` (`Format.binary32`; `u32_eq`, `eta32_eq`). `depth n p = p − start`
+`u = 2^-24`, `η = 2^-150` (`Format.binary32_u`, `Format.binary32_eta`). `depth n p = m = p − start`
 (forward) or `start + BT − 1 − p` (reverse): one less than the number of lanes the scan combines at
 `p`'s lane (lanes past the sequence's end hold the load's `+0`, of magnitude `0`, so the magnitude
-sum of the leaves is `A`).
-- Without a scale, `tol = E = Tree.errBound u η m m A = ((1+u)^m − 1)·A + η·m·(1+u)^m`: by
+sum of the leaves is `A`); `m ≤ BT − 1 < 2^20`.
+
+The fine bound, from the library facts:
+- Without a scale, `E = Tree.errBound u η m m A = ((1+u)^m − 1)·A + η·m·(1+u)^m`: by
   `safe_cumsum` each lane is a tree over its `ScanLeaves` with IEEE additions, and `sum_err_list`
   bounds it by exactly this (`L.length − 1 = m`), in range since `A + E ≤ 1.07·2^126`.
-- With a scale, `tol = |σ₃₂|·E + (u·|σ₃₂|·(|S| + E) + η) + |σ − σ₃₂|·|S|`: the scan's error scaled,
+- With a scale, `|σ₃₂|·E + (u·|σ₃₂|·(|S| + E) + η) + |σ − σ₃₂|·|S|`: the scan's error scaled,
   `FloatV.mul_err` for `b_o·σ₃₂` (in range: `|σ₃₂|·(A + E) < 2^127`), and the scale's `float32`
-  conversion, written exactly so that the reference uses the host's double.
+  conversion, kept exact so that the reference uses the host's double.
+
+The relaxation to `tol = (m + 1)·2^-23·|σ₃₂|·A + |σ − σ₃₂|·A + 2^-128·(1 + |σ₃₂|)`: since
+`m·u ≤ 2^-4`, `(1+u)^m ≤ e^(m·u) ≤ 1.0646` and `(1+u)^m − 1 ≤ m·u·(1+u)^m ≤ 1.0646·m·u`, so
+`E ≤ 1.0646·m·u·A + 1.0646·m·η`, with `1.0646·m·η ≤ 1.0646·2^-130 < 2^-129`.
+- Without a scale (`σ = σ₃₂ = 1`): `E ≤ 1.0646·m·u·A + 2^-129 ≤ (m + 1)·2^-23·A + 2^-127 = tol`.
+- With a scale, using `|S| ≤ A` and `u·E ≤ 1.0646·m·u·(u·A + η)`: the `A`-terms are at most
+  `|σ₃₂|·A·u·(1.0646·m·(1 + u) + 1) ≤ (m + 1)·2·u·|σ₃₂|·A`; the absolute terms
+  `|σ₃₂|·1.0646·m·η·(1 + u) + η ≤ 2^-128·|σ₃₂| + 2^-128`; and `|σ − σ₃₂|·|S| ≤ |σ − σ₃₂|·A`.
+  The sum is at most `tol`.
 
 Meaningful: the bound is per position (`m` from `0` to `BT − 1`), relative to the magnitudes summed
-(for log-decay gates, `A = |S|`). At depth `0` the tolerance is `0` (one term, exact). Measured on the
-H200: worst error / tol 1.0000 (just below 1, at shallow depths where the bound is one rounding);
-at depth 64–127 the measured error is at most about `3.2u·A` against `≈ 127u·A` — the library only
+(for log-decay gates, `A = |S|`), about twice the fine bound (four times at depth `1`). On the
+host's launches (the 12 shapes, forward and reverse, without a scale and with `RCP_LN2`),
+`tol/|σ·S|` has median `3.9·10^-6` and worst `1.5·10^-5` (`2^-16`, at depth `127`; the fine
+bound: median `1.9·10^-6`, worst `7.6·10^-6`). Measured on the H200: worst error / tol `0.51`; at
+depth 64–127 the measured error is at most about `3.2u·A` against `≈ 256u·A` — the library only
 says the scan is some tree over the leaves, so the depth bound is `m` (see Library requests).
 
 ## Exclusions
@@ -197,5 +215,7 @@ says the scan is some tree over the leaves, so the depth bound is `m` (see Libra
   and `int64` tables, and edges (empty and length-1 sequences, sequences not covering `[0, T)`, a
   permuted `chunk_indices`, `BT` 512 and 2048, gates near `2^118`, NaN/±inf gates, scales `−2.5`,
   `±0`, `1e-45`, `1e-40`, `1e30`, `1e39`, `2^20` tokens × 64 heads, 64 fixed rows). Every host table
-  is `TablesOk`; worst error / tol 1.0000 (below 1) over every in-range element, all finite;
-  inputs unchanged; every unwritten element keeps the sentinel.
+  is `TablesOk`; worst error / tol `0.506` over every in-range element, all finite; inputs
+  unchanged; every unwritten element keeps the sentinel. Negatives (`B = 2`, `T = 1000`, `H = 5`,
+  `BT = 64`, each direction and scale): the outputs times `1 + 2^-18`, an exclusive scan and a sign
+  flip fail `Post` (error / tol at least `32`).

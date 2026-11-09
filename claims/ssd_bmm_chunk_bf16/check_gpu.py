@@ -10,15 +10,16 @@ and checks `Pre` and `Post` exactly as the claim states them:
   `c*C + m`, `c*C + n` below `seqlen`, equal `seq_idx`) and the two rows are finite with
   `dotMag <= 2^120`, the value is finite and within `tol` of the exact dot product; when not
   `sameReq`, the value is the float32 `+0.0` bit for bit (whatever the inputs); `tol` is the
-  claim's recursion `errAt` over the `cdiv(K, 32)` steps (`rho`, `alpha` as `Claim.lean` defines
-  them), from the exact partial sums at multiples of 32 and the steps' lifted magnitudes;
+  claim's `steps·2^-16·dotMag + 2^-112`, `steps = cdiv(K, 32)` and `dotMag` the sum of the
+  products' lifted magnitudes;
 * the byte frame: the inputs' storage unchanged, and guard bands of 4096 elements on each side of
   `out` (the host's `torch.empty` allocation is placed inside a sentinel-filled buffer during the
   call) unchanged.
 
 The reference is computed in float64 from the inputs: each bf16 product is exact in float64, and
-the float64 sums err by about 1e-16 relative to the magnitudes, far below the tolerance (about
-1e-5 relative). Each line reports the largest |error| / tol over the constrained elements.
+the float64 sums err by about 1e-16 relative to the magnitudes, far below the tolerance (at least
+1.5e-5 relative). Each line reports the largest |error| / tol over the constrained elements; the
+end reports tol / |S| (median and worst) over SETUP.md's launches.
 
 Negative tests: wrong outputs that `Post` must reject (the exact result rounded to bfloat16; the
 result missing the last `tl.dot` step; no zeroing across requests; the causal variant, which leaves
@@ -42,17 +43,15 @@ spec.loader.exec_module(mod)
 
 DEV = torch.device("cuda")
 BK = 32
-U32 = 2.0 ** -24
-ETA32 = 2.0 ** -150
-REL = (BK + 2) * 2.0 ** -22                 # relDot16 32
-ABS = (BK + 2) * 2.0 ** -126                # absDot16 32
-RHO = REL + 3 * U32 * (1 + REL)             # DotLoop.stepRel relDot16 32
-ALPHA = ABS * (1 + 3 * U32) + 4 * ETA32     # DotLoop.stepAbs absDot16 32
+EPS = 2.0 ** -16                            # tol = steps * EPS * dotMag + DELTA
+DELTA = 2.0 ** -112
 MIN_NORMAL_BF16 = 2.0 ** -126
 GUARD = 4096
 SENTINEL = 0x7FC0DEAD                       # a NaN pattern; the kernel stores no such value
 worst = [0.0]
 failures = []
+rel_samples = []                            # tol / |S| on SETUP.md's launches (subsampled)
+rel_worst = [0.0]
 
 
 def lift(x):
@@ -61,9 +60,9 @@ def lift(x):
     return torch.where(ax == 0, ax, ax.clamp(min=MIN_NORMAL_BF16))
 
 
-def post(out, a, b, seq_idx, C):
+def post(out, a, b, seq_idx, C, stats=False):
     """Post's element clauses on `out` (float32 [1, nch, G, C, C]). Returns (holds, worst ratio,
-    constrained count)."""
+    constrained count). With `stats`, records tol / |S| over the constrained elements."""
     _, T, G, K = a.shape
     nch = (T + C - 1) // C
     assert tuple(out.shape) == (1, nch, G, C, C)
@@ -87,15 +86,9 @@ def post(out, a, b, seq_idx, C):
         finB = torch.isfinite(Bm).all(-1)
         A0 = torch.where(torch.isfinite(A), A, 0.0)
         B0 = torch.where(torch.isfinite(Bm), Bm, 0.0)
-        S = torch.zeros((c1 - c0, G, C, C), dtype=torch.float64, device=DEV)
-        E = torch.zeros_like(S)
-        mag = torch.zeros_like(S)
-        for t in range(steps):
-            sl = slice(BK * t, BK * t + BK)
-            L = lift(A0[..., sl]) @ lift(B0[..., sl]).transpose(-1, -2)
-            E = (1 + RHO) * E + RHO * (S.abs() + L) + ALPHA
-            S = S + A0[..., sl] @ B0[..., sl].transpose(-1, -2)
-            mag = mag + L
+        S = A0 @ B0.transpose(-1, -2)
+        mag = lift(A0) @ lift(B0).transpose(-1, -2)
+        E = steps * EPS * mag + DELTA
         pos = torch.arange(c0 * C, c1 * C, device=DEV).view(c1 - c0, C)
         valid = pos < T
         sp = torch.full((npos,), -1, dtype=torch.long, device=DEV)
@@ -112,6 +105,11 @@ def post(out, a, b, seq_idx, C):
             ok = ok and fin and r <= 1
             rmax = max(rmax, r)
             count += int(cons.sum().item())
+            if stats:
+                q = (E / S.abs())[cons]
+                rel_worst[0] = max(rel_worst[0], q.max().item())
+                idx = torch.randint(0, q.numel(), (min(q.numel(), 200000),), device=DEV)
+                rel_samples.append(q[idx].float().cpu())
         zero_ok = bool((got.view(torch.int32)[~same] == 0).all().item())
         ok = ok and zero_ok
     return ok, rmax, count
@@ -158,11 +156,11 @@ def run_host(a, b, seq_idx, C, causal=False):
     return out, frame
 
 
-def check(name, a, b, seq_idx, C):
+def check(name, a, b, seq_idx, C, stats=False):
     _, T, G, K = a.shape
     pre = bool((seq_idx >= 0).all().item())
     out, frame = run_host(a, b, seq_idx, C)
-    ok, r, n = post(out, a, b, seq_idx, C)
+    ok, r, n = post(out, a, b, seq_idx, C, stats)
     worst[0] = max(worst[0], r)
     good = pre and ok and frame
     nreq = int(seq_idx.max().item()) + 1 if T else 0
@@ -222,7 +220,7 @@ if __name__ == "__main__":
     ]
     for name, sl, G, K, C, cd in cases:
         a, b, s = inputs(sl, G, K, gen, conv_dim=cd)
-        check(name, a, b, s, C)
+        check(name, a, b, s, C, stats=True)
     # edges of Inst.ok
     edge = [
         ("dstate 1", [7, 30, 2], 2, 1, 16),
@@ -279,6 +277,9 @@ if __name__ == "__main__":
     out_causal, _ = run_host(a, b, s, 256, causal=True)
     negative("causal launch (tiles left unwritten)", out_causal, a, b, s, 256)
     print(f"worst err/tol: {worst[0]:.4f}")
+    allq = torch.cat(rel_samples)
+    print(f"tol/|S| on SETUP.md's launches: median {allq.median().item():.3e}, "
+          f"worst {rel_worst[0]:.3e}")
     if failures:
         print("FAILED:", ", ".join(failures))
         raise SystemExit(1)

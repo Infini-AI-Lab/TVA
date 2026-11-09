@@ -11,15 +11,14 @@ variable-length ones with `int32` and with `int64` tables) and on launches at th
   its `float32` value finite and `|σ₃₂|·A ≤ 2^126`;
 * if so, the output is finite and `|o[p, h] − σ·S| ≤ tol`, with `S = Σ s[q, h]` over `rng n p`
   (from the chunk's start to `p`, or from `p` to the chunk's end), `depth` (`p − start`, or
-  `start + BT − 1 − p`) and `tol` exactly as `Post` defines them (`Tree.errBound u η m m A`, and
-  with a scale `|σ₃₂|·E + u·|σ₃₂|·(|S| + E) + η + |σ − σ₃₂|·|S|`), computed in `float64` from the
-  host's inputs: positions are grouped by chunk from `cu_seqlens` (or the rows) alone, never from
-  `chunk_indices`, and each chunk is summed on its own (`float64`, at most `BT` terms: an error
-  below `2^-40·A`, far below `tol`'s `u·A` term wherever that term is not `0`; where `depth` is `0`
-  the sum is one term, exact).
+  `start + BT − 1 − p`) and `tol` exactly as `Post` defines them
+  (`(depth + 1)·2^-23·|σ₃₂|·A + |σ − σ₃₂|·A + 2^-128·(1 + |σ₃₂|)`, `σ = σ₃₂ = 1` without a scale),
+  computed in `float64` from the host's inputs: positions are grouped by chunk from `cu_seqlens`
+  (or the rows) alone, never from `chunk_indices`, and each chunk is summed on its own (`float64`,
+  at most `BT` terms: an error below `2^-40·A`, far below `tol`'s `2^-23·A` term).
 
 It reports the largest error / tolerance over the elements in range and counts those out of
-range. Also checked: the host's tables satisfy `TablesOk` (`Pre`); the inputs are unchanged; and
+range, and checks that outputs perturbed by `2^-18` relative (or a sign flip) fail `Post`. Also checked: the host's tables satisfy `TablesOk` (`Pre`); the inputs are unchanged; and
 a direct launch of the module's kernel with the host's own arguments and `o` prefilled with a
 sentinel leaves every element outside the written set (`written`: the sequences' positions)
 unchanged, on tables whose sequences do not cover `[0, T)` and on a permuted `chunk_indices`.
@@ -44,7 +43,6 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 DEVICE = triton.runtime.driver.active.get_active_torch_device()
-U32, ETA32 = 2.0**-24, 2.0**-150
 RCP_LN2 = 1.4426950216
 SENT = 7.0e30
 
@@ -103,18 +101,15 @@ def post_check(g, o, BT, reverse, scale, cu):
         depth = torch.arange(BT, device=s.device).double()
     S, A, nbad = cs(xz), cs(xz.abs()), cs(bad)
     depth = depth[None, :, None]
-    g1 = (1 + U32) ** depth
-    E = (g1 - 1) * A + ETA32 * depth * g1
     in_range = (nbad == 0) & (A <= 2.0**126)
     if scale is None:
         sig = sig32 = 1.0
-        tol = E
     else:
         sig, sig32 = float(scale), f32(scale)
         if not (math.isfinite(sig) and math.isfinite(sig32)):
             in_range &= False
         in_range &= abs(sig32) * A <= 2.0**126
-        tol = abs(sig32) * E + (U32 * (abs(sig32) * (S.abs() + E)) + ETA32) + abs(sig - sig32) * S.abs()
+    tol = (depth + 1) * 2.0**-23 * (abs(sig32) * A) + abs(sig - sig32) * A + 2.0**-128 * (1 + abs(sig32))
     got = out[pos.clamp(max=B * T - 1)]
     v = valid[..., None].expand_as(got)
     m = v & in_range
@@ -215,6 +210,20 @@ for B, T, H, BT, cu in [(1, 63, 1, 16, None), (2, 500, 4, 32, None), (2, 1000, 5
     g = gate(B, T, H)
     for idx in ((torch.int32, torch.int64) if cu is not None else (torch.int32,)):
         check("host", g, BT, cu, idx)
+
+# Negatives: wrong outputs must fail Post (worst error / tol above 1).
+g = gate(2, 1000, 5)
+for reverse in (False, True):
+    for scale in (None, RCP_LN2):
+        o = mod.chunk_local_cumsum(g, 64, reverse=reverse, scale=scale)
+        sg = 1.0 if scale is None else scale
+        for what, bad in (("x(1+2^-18)", o * (1 + 2.0**-18)), ("exclusive scan", o - sg * g),
+                          ("sign flip", -o)):
+            w, _, _ = post_check_sliced(g, bad, 64, reverse, scale, None)
+            rej = w > 1.0
+            results.append(rej)
+            print(f"{'ok ' if rej else 'BAD'} negative {what} {'rev' if reverse else 'fwd'}/"
+                  f"{'-' if scale is None else scale}: worst error / tol {w:.3g} (rejected {rej})")
 
 # Edges of Inst.ok and of InRange.
 g = gate(1, 70001, 6)

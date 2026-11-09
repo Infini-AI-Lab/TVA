@@ -55,7 +55,7 @@ them).
 `check_gpu.py` (Triton 3.8.0) runs the 48 test launches through the host's
 `attention(...).backward(dout)`, and the benchmark's 10 sizes, the head dims 16, 32 and 256 and the
 edges of the claim through the launch line of lines 600–607. Against `Post`'s exact reference, the
-worst error / tolerance is `0.079` on the test's launches, `0.084` on the benchmark's sizes and
-`0.138` overall (`HEAD_DIM = 16`); every row with finite inputs is finite, and the inputs and the
+worst error / tolerance is `0.053` on the test's launches, `0.065` on the benchmark's sizes and
+`0.063` at `HEAD_DIM = 16`; every row with finite inputs is finite, and the inputs and the
 bytes past `delta` are unchanged. Wrong outputs (`delta` rounded to `float16`, a column dropped or
 doubled, the next row of `do`) fail `Post`.

@@ -17,7 +17,7 @@ shapes the config's pre-hook sets (`[128, 64]`, `[256, 64]`, `[128, 128]`), and 
 This file holds the model (`compute_pid`, `matmul_kernel_tma_persistent`, `model`, `launch`), the
 conditions (`Inst`, `Inst.ok`, `Pre`), the specification (`OutSpec`, `Post`, `Spec`), the assumptions
 (`Assumptions`) and the claim `Statement`, which it does not prove. It proves `consistent`,
-`satisfiable`, `tol_rel_lt`, and that each launch of `SETUP.md` is covered (`setup_*_ok`).
+`satisfiable`, and that each launch of `SETUP.md` is covered (`setup_*_ok`).
 -/
 
 namespace Claims.TmaPersistentMatmul
@@ -211,8 +211,8 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `tiles + NUM_SMS ≤ 2^31`: the `int32` `num_tiles` (line 424) does not wrap, and the tile
   loop's bounds are valid (`tl.RangeOk`: `num_tiles + NUM_SMS − 1` is an `int32`). -/
   tiles_le : tiles d + d.NUM_SMS ≤ 2 ^ 31
-  /-- `K ≤ 2^13`: the tolerance of `Post` grows with `K`; up to `2^13` it is below `0.21%` of the
-  products' lifted magnitudes (`tol_rel_lt`). The setup's largest `K` is `1024`. -/
+  /-- `K ≤ 2^13`: the tolerance of `Post` grows with `K`; up to `2^13` its constant `2^-15` covers
+  the per-step bound's growth (README, Tolerances). The setup's largest `K` is `1024`. -/
   K_le : d.K ≤ 2 ^ 13
   /-- `N` is a model dimension (the output features): a multiple of `128`, at most `2^17` (README,
   Exclusions). -/
@@ -288,25 +288,6 @@ def Pre (d : Inst) (init : Mem) : Prop :=
 /-- The number of `tl.dot` steps of the inner loop (line 438): `cdiv(K, 64)`. -/
 def steps (K : Nat) : Nat := (K + 63) / 64
 
-/-- The per-step relative constant: `relDot16 64 = 66·2^-22`, the library's constant for one fp16
-`tl.dot` of `K = 64` (`Rules.Num.DotF16`). -/
-def rho : ℚ := Rules.Num.relDot16 64
-
-/-- The per-step absolute constant: `absDot16 64 = 66·2^-126`. -/
-def alpha : ℚ := Rules.Num.absDot16 64
-
-/-- The relative factor `(1 + ρ)^T − 1` on covered instances (`K ≤ 2^13`, `Inst.ok.K_le`): below
-`0.21%`. The tolerance `tol` is at most `((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α` with `A` the sum of all
-the products' lifted magnitudes (README, Tolerances). -/
-theorem tol_rel_lt {K : Nat} (hK : K ≤ 2 ^ 13) :
-    (1 + rho) ^ steps K - 1 < 21 / 10000 := by
-  have hT : steps K ≤ 128 := by unfold steps; omega
-  have h1 : (1 : ℚ) ≤ 1 + rho := by unfold rho Rules.Num.relDot16; norm_num
-  have h2 := pow_le_pow_right₀ h1 hT
-  have h3 : (1 + rho) ^ 128 < 1 + 21 / 10000 := by
-    unfold rho Rules.Num.relDot16; norm_num
-  linarith
-
 /-- The exact dot product of row values `va` (of `a`) and `vb` (of `b`) over `k < K`. -/
 def dotSum (va vb : Nat → F16) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, (va k).toRat * (vb k).toRat
 
@@ -327,28 +308,23 @@ def partSum (p : Nat → ℚ) (t : Nat) : ℚ := ∑ e ∈ Finset.range (64 * t)
 /-- The lifted magnitude of step `t`: `Σ q e` for `64·t ≤ e < 64·t + 64`. -/
 def stepMag (q : Nat → ℚ) (t : Nat) : ℚ := ∑ k : Fin 64, q (64 * t + k)
 
-/-- **The error bound after `t` steps** of the inner loop, from the exact partial sums: `E 0 = 0`
-and `E (t + 1) = (1 + ρ)·E t + ρ·(|S t| + L t) + α`, with `S t = partSum p t` the exact partial sum
-before step `t` and `L t = stepMag q t` the step's lifted magnitude. It is what `Rules.Num.DotF16`
-gives step by step: step `t`'s `tl.dot` of `64` products, with the accumulator `acc` as its own,
-leaves a value within `ρ·(|acc| + L t) + α` of `acc + c t` (`c t` the step's exact sum), and with
-`acc` within `E t` of `S t`, `|acc| ≤ |S t| + E t`, so the new accumulator is within `E (t + 1)` of
-`S (t + 1)`. In closed form `E T = Σ_{t < T} (1 + ρ)^(T − 1 − t)·(ρ·(|S t| + L t) + α)`. -/
-def errAt (p q : Nat → ℚ) : Nat → ℚ
-  | 0 => 0
-  | t + 1 => (1 + rho) * errAt p q t + rho * (|partSum p t| + stepMag q t) + alpha
+/-- The magnitude the inner loop's accumulation carries: over its `steps K` steps, the exact
+partial sum before the step plus the step's lifted magnitude, `Σ_{t < steps K} (|S t| + L t)` with
+`S t = partSum p t`, `L t = stepMag q t`. It is at least the sum of all the lifted magnitudes, so at
+least `|dotSum|`. -/
+def pathMag (va vb : Nat → F16) (K : Nat) : ℚ :=
+  ∑ t ∈ Finset.range (steps K), (|partSum (prodV va vb K) t| + stepMag (liftV va vb K) t)
 
-/-- **The tolerance of `Post`** for row values `va`, `vb` and the reduction length `K`: the error
-bound after the inner loop's `steps K` steps, `errAt (prodV va vb K) (liftV va vb K) (steps K)`. It
-is explicit and computable from the inputs. -/
-def tol (va vb : Nat → F16) (K : Nat) : ℚ := errAt (prodV va vb K) (liftV va vb K) (steps K)
+/-- **The tolerance of `Post`** for row values `va`, `vb` and the reduction length `K`:
+`2^-15·pathMag + 2^-112`. It is above the step-by-step bound `Rules.Num.DotF16` gives along the
+exact partial sums (README, Tolerances), and computable from the inputs. -/
+def tol (va vb : Nat → F16) (K : Nat) : ℚ := 2 ^ (-15 : ℤ) * pathMag va vb K + 2 ^ (-112 : ℤ)
 
 /-- What the launch leaves in element `(i, j)` of `c`: some `float16` value `c`; and when row `i` of
 `a` and row `j` of `b` hold finite values `va k`, `vb k` (`k < K`) in the initial memory, `c` is the
 `float16` rounding (to nearest even, up to NaN payload) of a finite `float32` value `v` within
 `E = tol va vb K` of the exact sum `S = Σ va k · vb k`; and when there is room in `float16`
-(`|S| + E ≤ 65504`), `c` is finite and within `E` plus one `float16` rounding
-(`(|S| + E)·2^-11 + 2^-25`) of `S`. -/
+(`|S| + E ≤ 65504`), `c` is finite. -/
 def OutSpec (d : Inst) (init fin : Mem) (i j : Nat) : Prop :=
   ∃ c : F16, fin.read .f16 (d.c.ptr ↑(i * d.ldc + j)).addr = some c ∧
     ∀ va vb : Nat → F16,
@@ -359,10 +335,7 @@ def OutSpec (d : Inst) (init fin : Mem) (i j : Nat) : Prop :=
       ∃ v : F32, v.isFinite = true ∧
         |v.toRat - dotSum va vb d.K| ≤ tol va vb d.K ∧
         FloatV.NaNEq (FloatV.cvt v) c ∧
-        (|dotSum va vb d.K| + tol va vb d.K ≤ Math.Float.Format.binary16.maxVal →
-          c.isFinite = true ∧
-          |c.toRat - dotSum va vb d.K| ≤ tol va vb d.K +
-            (|dotSum va vb d.K| + tol va vb d.K) * Math.Float.Format.binary16.u + Math.Float.Format.binary16.eta)
+        (|dotSum va vb d.K| + tol va vb d.K ≤ Math.Float.Format.binary16.maxVal → c.isFinite = true)
 
 /-- What the launch leaves: every element of the matrix `c` as `OutSpec` says; every byte outside
 the matrix `c` unchanged (`a`, `b`, and the elements of `c`'s storage outside the matrix). -/

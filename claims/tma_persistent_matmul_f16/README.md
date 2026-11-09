@@ -14,7 +14,7 @@ of `c = a · bᵀ` and storing each tile as two `128 × 128` halves. The claim i
 def Statement : Prop := ∀ K P, Assumptions K P → Spec K
 ```
 
-`Claim.lean` proves `consistent`, `satisfiable`, `tol_rel_lt` and the coverage facts `setup_*_ok`;
+`Claim.lean` proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok`;
 it does not prove `Statement`. The model map is `model-map.json` (every code line of the kernel
 lines `[44, 45], [291, 298], [407, 463]`).
 
@@ -29,7 +29,7 @@ and their hosts, `matmul_tma_persistent`, the test, the benchmark and `__main__`
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.TmaPersistentMatmul.main : Statement` (`Statement`:
-`Claim.lean` line 399). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 372). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -39,27 +39,26 @@ and their hosts, `matmul_tma_persistent`, the test, the benchmark and `__main__`
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 199), and every initial memory `init` that `Pre` accepts (line 283: the three
 buffers valid, any values), every outcome of the launch is a normal end (no fault, no hang) whose
-final memory `fin` satisfies `Post` (line 369).
+final memory `fin` satisfies `Post` (line 342).
 
-**What `Post` asks** (line 369), two parts:
-1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 352): element `i * ldc + j` of `c`
+**What `Post` asks** (line 342), two parts:
+1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 328): element `i * ldc + j` of `c`
    reads in `fin` as some `float16` `c` (on every input); and for all `va vb : Nat → F16` such that,
    for every `k < K`, `init` reads `a`'s element `i * lda + k` as a finite `va k` and `b`'s element
    `j * ldb + k` as a finite `vb k`, there is a finite `float32` `v` with
    - `|v.toRat - dotSum va vb d.K| ≤ tol va vb d.K`, and
    - `FloatV.NaNEq (FloatV.cvt v) c`: `c` is `v` rounded to `float16`, up to NaN payload;
-   - and, when `|dotSum| + tol ≤ binary16.maxVal`: `c` is finite and
-     `|c.toRat - dotSum| ≤ tol + (|dotSum| + tol) · binary16.u + binary16.eta`.
+   - and, when `|dotSum| + tol ≤ binary16.maxVal`: `c` is finite.
 
-   The reference `dotSum` (line 311) is the exact `Σ_{k<K} va k · vb k` in the rationals. The
-   tolerance `tol` (line 344) is `errAt (prodV va vb K) (liftV va vb K) (steps K)`: the recursion
-   `errAt` (line 337) runs `E (t+1) = (1 + rho)·E t + rho·(|partSum p t| + stepMag q t) + alpha`
-   over `steps K` (line 289) steps; the helpers are `prodV` (line 315), `liftV` (line 321),
-   `partSum` (line 325), `stepMag` (line 328), and `rho`, `alpha` (lines 293, 296: `relDot16 64`,
-   `absDot16 64`). With a non-finite input, only "holds a value" is asked;
+   The reference `dotSum` (line 292) is the exact `Σ_{k<K} va k · vb k` in the rationals. The
+   tolerance `tol` (line 321) is `2^-15·pathMag va vb K + 2^-112`, with `pathMag` (line 315) the
+   sum over the inner loop's `steps K` (line 289) steps of `|partSum p t| + stepMag q t`, the
+   exact partial sum before step `t` plus the step's lifted magnitude; the helpers are `prodV`
+   (line 296), `liftV` (line 302), `partSum` (line 306), `stepMag` (line 309). With a non-finite
+   input, only "holds a value" is asked;
 2. the frame: every byte outside the matrix `c` (`c.elems (cIdx d)`, `cIdx` line 193) is unchanged.
 
-**What you are given** (`Assumptions`, line 377):
+**What you are given** (`Assumptions`, line 350):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 442 is within
@@ -93,11 +92,12 @@ disjoint across trips), the inner one with `fun _ => ∅`.
   the tiles of different programs (ids `≡ start_pid` mod `NUM_SMS`) and of different trips are
   disjoint; the two halves of a tile are disjoint columns; `c`'s matrix is disjoint from the
   reads (`c_a`, `c_b`);
-- the value part of `Post`: the inner loop leaves a finite `float32` within `errAt … (steps K)` of
-  `dotSum` (`dot`, step by step, by induction on the recursion; README `## Tolerances`); the
+- the value part of `Post`, `|v − dotSum| ≤ 2^-15·pathMag + 2^-112`: derive the fine bound of
+  README `## Tolerances` (the inner loop leaves a finite `float32` within `E_T` of `dotSum`: `dot`,
+  step by step, by induction on the recursion), then relax it (Tolerances, Relaxation); the
   reshape, permute and split move each element unchanged to its column (`Tensor.get_reshape`,
-  `Tensor.get_permute`, `Tensor.join_split` with `Tensor.get_join_snoc`); one
-  rounding gives the last clause (`FloatV.cvt_err`, `u = 2^-11`, `eta = 2^-25`);
+  `Tensor.get_permute`, `Tensor.join_split` with `Tensor.get_join_snoc`); the conversion is
+  `FloatV.cvt`, finite with room (`|v| ≤ |S| + tol ≤ 65504`);
 - the frame: the bytes no program writes.
 
 `N_dim`, `K_dim` and `M_ctx` restrict the instances to real model shapes. With `128 ∣ K` every
@@ -106,9 +106,8 @@ inner step loads a full `64`-column block (`64·steps K = K`: `prodV` has no pad
 (any `M`) remains, and the last column tile's second half lies past `N` when `N` is an odd
 multiple of `128`.
 
-**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `tol_rel_lt`
-(line 301), `hostInst_ok` and the `setup_*_ok` theorems; `row_lt` (line 429) and
-`bytes_disjoint` (line 435) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok` and
+the `setup_*_ok` theorems; `row_lt` (line 402) and `bytes_disjoint` (line 408) can be reused.
 
 ## Specification
 
@@ -119,11 +118,15 @@ multiple of `128`.
   row `i` of `a` and row `j` of `b` hold finite `float16` values `va k` and `vb k` (`k < K`) in the
   initial memory:
   - `c` is the `float16` rounding (to nearest even, `FloatV.cvt`, up to NaN payload) of a finite
-    `float32` value `v` with `|v − S| ≤ E`, where `S = Σ_k va k · vb k` is the exact dot product
-    and `E = tol va vb K` the tolerance of Tolerances below, computed from the inputs;
-  - when `|S| + E ≤ 65504` (the largest `float16`), `c` is finite and
-    `|c − S| ≤ E + (|S| + E)·2^-11 + 2^-25` (one more `float16` rounding:
-    `Format.binary16.u = 2^-11`, `Format.binary16.eta = 2^-25`).
+    `float32` value `v` with
+
+    `|v − S| ≤ E = 2^-15·pathMag + 2^-112`,
+
+    where `S = Σ_k va k · vb k` is the exact dot product and `pathMag = Σ_{t<T} (|S_t| + L_t)` the
+    magnitude the inner loop carries over its `T = cdiv(K, 64)` steps: the exact partial sum
+    `S_t` before step `t` plus the step's lifted magnitude `L_t` (`Σ liftMag(va k)·liftMag(vb k)`
+    over the step's 64 `k`); `pathMag ≥ Σ_k |va k·vb k| ≥ |S|`;
+  - when `|S| + E ≤ 65504` (the largest `float16`), `c` is finite.
 
   With a NaN or an infinity in row `i` of `a` or row `j` of `b`, the claim says only that element
   `(i, j)` holds some `float16` value.
@@ -282,14 +285,14 @@ aligned addresses; `hostInst_ok`):
 
 ## Tolerances
 
-`tol va vb K = errAt (prodV va vb K) (liftV va vb K) (steps K)` (`Claim.lean`), the error bound of
-the inner loop's `T = steps K = cdiv(K, 64)` steps against the exact partial sums. With
-`p e = va e · vb e` for `e < K` and `0` from `K` on (`prodV`: the lanes past the tensors' last
-column load the padding `+0`), `l e` its lifted magnitude `liftMag(va e)·liftMag(vb e)` (`liftV`;
-`liftMag q` is `|q|` for zero and normal values, `2^-14` for a nonzero subnormal one),
-`S_t = Σ_{e < 64t} p e` (`partSum`) and `L_t = Σ_{64t ≤ e < 64t+64} l e` (`stepMag`):
+The fine bound is `E_T`, the error bound of the inner loop's `T = steps K = cdiv(K, 64)` steps
+against the exact partial sums. With `p e = va e · vb e` for `e < K` and `0` from `K` on (`prodV`:
+the lanes past the tensors' last column load the padding `+0`), `l e` its lifted magnitude
+`liftMag(va e)·liftMag(vb e)` (`liftV`; `liftMag q` is `|q|` for zero and normal values, `2^-14`
+for a nonzero subnormal one), `S_t = Σ_{e < 64t} p e` (`partSum`) and
+`L_t = Σ_{64t ≤ e < 64t+64} l e` (`stepMag`):
 
-`E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + L_t) + α`, `tol = E_T`,
+`E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + L_t) + α`,
 
 that is `E_T = Σ_{t<T} (1 + ρ)^(T−1−t)·(ρ·(|S_t| + L_t) + α)`, with the library's constants for one
 fp16 `tl.dot` of `K = 64`: `ρ = relDot16 64 = 66·2^-22`, `α = absDot16 64 = 66·2^-126`.
@@ -309,27 +312,31 @@ condition holds at every step: finite `float16` products are below `2^32`, so wi
 `|acc| + L_t` and its bound stay far inside the `float32` range. The epilogue's reshape, permute and
 split (lines 454–456) move element `(m, n)` of the accumulator to `acc0[m, n]` for `n < 128` and to
 `acc1[m, n − 128]` otherwise, unchanged, and the two stores (lines 458, 460) put them at columns
-`pid_n·256 + n`; each `.to(tl.float16)` (lines 457, 459) is one rounding (`FloatV.cvt_err`,
-`u = 2^-11`, `η = 2^-25`), which gives the second clause. The tile loop only chooses which program
+`pid_n·256 + n`; each `.to(tl.float16)` (lines 457, 459) is one rounding (`FloatV.cvt`), which
+`Post` states exactly. The tile loop only chooses which program
 computes which tile (`tile_id_c` equals `tile_id` on each iteration, so the stores go to the tile
 the loads read), and each tile's computation is the same, so the bound holds for every element
-whatever `NUM_SMS`. Since `|S_t| + L_t ≤ A` (`A` the sum of all lifted magnitudes),
-`tol ≤ ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`, whose relative factor is below `0.21%` at every covered
-`K` (`tol_rel_lt`).
+whatever `NUM_SMS`.
+
+**Relaxation: `E_T ≤ tol`.** From the closed form, `E_T ≤ (1 + ρ)^T·(ρ·Σ_{t<T}(|S_t| + L_t) + T·α)
+= (1 + ρ)^T·(ρ·pathMag + T·α)`. On a covered instance `K ≤ 2^13`, so `T ≤ 128` and
+`(1 + ρ)^128 ≤ 1.0021` (`ρ = 1.574·10^-5`). So `(1 + ρ)^T·ρ ≤ 1.0021·66·2^-22 = 66.14·2^-22 ≤
+128·2^-22 = 2^-15`, and `(1 + ρ)^T·T·α ≤ 1.0021·128·66·2^-126 ≤ 8466·2^-126 ≤ 2^14·2^-126 = 2^-112`:
+`E_T ≤ 2^-15·pathMag + 2^-112 = tol`.
 
 **Meaningful.** The bound follows the exact partial sums, so on zero-mean data it is far below
-`Σ|a·b|`: on the setup's `torch.randn` inputs (`M = N = 8192`, the first 1024 rows) its median is
-`0.0014` at `K = 128` (at most `0.0025`) against a median `|S|` of `7.6` (tol/|S| median `1.8·10^-4`,
-90th percentile `9.5·10^-4`), and `0.014` at `K = 1024` (at most `0.035`) against `21.6` (tol/|S|
-median `6.4·10^-4`, 90th percentile `3.2·10^-3`); against `A` it is at most `2.4·10^-5` and
-`5.3·10^-5`. `check_gpu.py` measures the device's error at `0.73–0.92` of the tolerance on the
-setup's `8192` launches and `0.89` at `M = N = K = 32` (`0.977` with subnormal operands, where the
-output's rounding is the whole error), and it checks that four wrong results break `Post` at
+`Σ|a·b|`. It is `1.94×` the fine bound `E_T` on every element of the setup's launches (`E_T` is
+`(1 + ρ)^T·ρ·pathMag` up to `0.2%`). On the setup's `torch.randn` inputs (`M = N = 8192`, `K = 128`
+to `1024`), `tol/|S|` has median `8.3·10^-4` and 90th percentile `4.2·10^-3` (`E_T/|S|`:
+`4.3·10^-4`, `2.2·10^-3`); per `K`, about `3.5·10^-4` (median) at `K = 128` and `1.2·10^-3` at
+`K = 1024`. Its worst, `189`, is at an element whose sum cancels (`|S|` near `0`). `check_gpu.py`
+measures, as the error, the distance from `S` to the reals that round to the output, at most
+`0.0042` of the tolerance (the device's `float32` value is not observed; its rounding to `float16`
+covers `S` on most elements), and it checks that four wrong results break `Post` at
 `K = 32, 128, 512, 1024` and on partial tiles: the exact result rounded to `bfloat16` (largest
-ratio `16` to `121`), a result missing the last `K` block's products (`2950` and more), two row
+ratio `8` to `62`), a result missing the last `K` block's products (`1500` and more), two row
 blocks of 128 swapped (a wrong tile mapping), and the two `128`-column halves of each tile swapped
-(a wrong epilogue; both `13000` and more). All-positive (`torch.rand`) and constant inputs, whose
-roundings are coherent, stay below `0.97` of the tolerance.
+(a wrong epilogue; both `6900` and more).
 
 ## Exclusions
 
@@ -377,7 +384,7 @@ None.
 ## Checks
 
 1. **Builds**: `lake env lean ../claims/tma_persistent_matmul_f16/Claim.lean`: no errors or
-   warnings, no `sorry`, no `axiom`; `consistent`, `satisfiable`, `tol_rel_lt` and every
+   warnings, no `sorry`, no `axiom`; `consistent`, `satisfiable` and every
    `setup_*_ok` depend only on `propext`, `Classical.choice`, `Quot.sound`.
 2. **Not vacuous**: `consistent` (`Platform.sm90ref`), `satisfiable` (the `K = 512` instance, the
    all-zero memory).
@@ -390,10 +397,10 @@ None.
    second half wholly past `N`; `M = 129`, `N = 136`, `K = 72`; inputs scaled by 8 and by `2^-12`,
    the last with subnormal operands; NaN and infinities in `a` and `b`, the other elements checked);
    four direct launches with `NUM_SMS = 1, 7, 132, 1000` (grids `1`, `7`, `132`, `40`), `a` and `c`
-   with padded rows, `c` in a guarded buffer. Both clauses of `OutSpec` checked (the first as: some
-   real `v` within `E` of `S` rounds to `c` in `float16`; the check does not snap `v` to the
-   `float32` grid, whose spacing is far below every `E` here): largest error / tolerance **0.977**
-   (margin 0.023, subnormal operands); `0.89` at `M = N = K = 32` and `0.92` down to `0.73` on the
-   setup's `8192` sizes. Negative tests at `K = 32, 128, 512, 1024` and on `M = N = K = 1000`: a
+   with padded rows, `c` in a guarded buffer. `OutSpec` checked as: some real `v` within `E` of
+   `S` rounds to `c` in `float16` (the error is the distance from `S` to the reals rounding to
+   `c`; the check does not snap `v` to the `float32` grid, whose spacing is far below every `E`
+   here): largest error / tolerance **0.0042** (`K = 1024`); `0.0035–0.0042` on the setup's
+   `8192` sizes, `0.0019` with subnormal operands. Negative tests at `K = 32, 128, 512, 1024` and on `M = N = K = 1000`: a
    `bfloat16`-rounded result, a missing `K` block, two swapped row blocks and swapped tile halves
    each break `Post` (Tolerances). Inputs unchanged; no byte outside the matrix `c` written. PASS.

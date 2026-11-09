@@ -124,9 +124,7 @@ Nemotron Nano 2 rank at 8192 tokens and 128 heads; 24 heads in one group at 8192
 tokens; strong and no decay; a non-monotone `dA_cumsum`; values near `10^15`; states at `2^120`;
 subnormal `x` and `C`; states whose `bfloat16` roundings all go one way; `cb` at the `float32`
 maximum and NaN above the diagonal; `dt` at the `float32` maximum where `cb` is `0`). The worst
-error / tolerance is `0.984`, a sample (the margin is the store's half-ulp, about `0.996` at
-worst); the median tolerance is 0.4% to 5% of `|yRef|` (on the subnormal
-edge the absolute floor dominates); `Pre`, `Vals` and the frame hold. Eight launches outside
+error / tolerance is `0.480`, a sample (the store's half-ulp allows about `0.5`); `Pre`, `Vals` and the frame hold. Eight launches outside
 `Vals` (the `float32` range: states or `cb` at the `float32` maximum, decays above `64`, a state
 read-out above the `float32` range, `x` near the `bfloat16` maximum) fail `Vals` and give
 non-finite outputs. `Post` rejects seven wrong outputs (wrong `chunk_offsets`, an output moved by

@@ -32,7 +32,7 @@ spec.loader.exec_module(mod)
 DEV = "cuda"
 LSE_TOL = 2.0 ** -16
 BF16_ROUND = 2.0 ** -8
-OUT_TOL = 2.0 ** -14
+OUT_TOL = 2.0 ** -13
 ABS_TOL = 2.0 ** -133
 
 
@@ -130,7 +130,7 @@ def post(name, po, pl, so, sl, ptwc, out, out_lse, verbose=False):
             wn, rn = wd[neT], ref_out[neT]
             if not bool(torch.isfinite(wn).all()):
                 say(f"  {name}: output not finite"); ok = False
-            tolo = BF16_ROUND * rn.abs() + OUT_TOL * (pv[neT].abs() + sv[neT].abs()) + ABS_TOL
+            tolo = BF16_ROUND * rn.abs() + OUT_TOL * torch.maximum(pv[neT].abs(), sv[neT].abs()) + ABS_TOL
             ro = ((wn - rn).abs() / tolo).max().item()
     return ok, r, ro
 

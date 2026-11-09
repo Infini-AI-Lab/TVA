@@ -73,7 +73,6 @@ with `K = 65`; `K = 1`; `K = 0`, where `c = 0` exactly; `M = 0`; inputs scaled b
 `NUM_SMS = 1, 7, 132, 1000` (one program looping over 9 tiles; 33 tiles over 7 programs; 220 tiles
 over 132; a grid of 40 for 40 tiles), a padded or column-major `c` inside a guarded buffer and a
 transposed `a`. Every element of `c` meets both clauses of `Post`: the largest error / tolerance is
-0.977 (subnormal operands, where the output's rounding is all the error); 0.92 at `K = 128` down
-to 0.74 at `K = 1024` on the setup's sizes. Three wrong results (rounded to `bfloat16`, accumulated
+0.957 (subnormal operands); 0.86 down to 0.59 on the setup's sizes. Three wrong results (rounded to `bfloat16`, accumulated
 in `float16` step by step, the last step's products left out) each break `Post` at `K = 128, 512,
 1024`. The inputs are unchanged and no byte outside the matrix `c` is written.

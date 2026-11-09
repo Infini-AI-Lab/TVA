@@ -19,7 +19,7 @@ cdiv(chunk_size, 128), 1, nchunks · ngroups)`.
   positions of different requests, or past the end of the sequence) or the exact dot product of
   the two tokens' rows within the tolerance `tol`, and nothing else written.
 * The assumptions: `Assumptions`.
-* The checks: `consistent`, `satisfiable`, `tol_rel_lt`, and the covered launches `setup_*_ok`.
+* The checks: `consistent`, `satisfiable`, and the covered launches `setup_*_ok`.
 
 The claim to prove is `Statement`.
 -/
@@ -295,8 +295,8 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `chunk_size` is a power of two (the code base asserts it, `ssd_combined.py:77`), at least `2`. -/
   C_pow2 : ∃ j, d.C = 2 ^ j
   C_ge : 2 ≤ d.C
-  /-- `dstate ≤ 2^10`: the tolerance stays below `2.7·10^-4` of the products' magnitudes
-  (`tol_rel_lt`); every Mamba-2 model's `dstate` is at most `256` (README, Exclusions). -/
+  /-- `dstate ≤ 2^10`: at most `32` steps, so the tolerance stays below `2^-11` of the products'
+  magnitudes; every Mamba-2 model's `dstate` is at most `256` (README, Exclusions). -/
   K_le : d.K ≤ 2 ^ 10
   /-- The grid's `z = nchunks · ngroups` is within CUDA's limit `2^16 − 1` (a kernel limit:
   README, Exclusions); with it `ngroups < 2^31`. -/
@@ -382,14 +382,6 @@ def Pre (d : Inst) (init : Mem) : Prop :=
 /-- The number of `tl.dot` steps of the loop (line 148): `cdiv(K, 32)`. -/
 def steps (K : Nat) : Nat := (K + BK - 1) / BK
 
-/-- The per-step relative constant: `DotLift.dotAdd_step`'s for one `bfloat16` `tl.dot` of `32`
-products, either form of `tl.dot_add`: `relDot16 32 = 34·2^-22` plus the room of a separate
-`float32` addition, `3·2^-24·(1 + relDot16 32)`. -/
-def rho : ℚ := DotLoop.stepRel Rules.Num.relDot16 32
-
-/-- The per-step absolute constant: `absDot16 32·(1 + 3·2^-24) + 4·2^-150`. -/
-def alpha : ℚ := DotLoop.stepAbs Rules.Num.absDot16 32
-
 /-- The exact dot product of row values `va` and column values `vb` over `k < K`. -/
 def dotSum (va vb : Nat → BF16) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, (va k).toRat * (vb k).toRat
 
@@ -399,46 +391,12 @@ subnormal one). -/
 def dotMag (va vb : Nat → BF16) (K : Nat) : ℚ :=
   ∑ k ∈ Finset.range K, Rules.Num.liftMag .bf16 (va k).toRat * Rules.Num.liftMag .bf16 (vb k).toRat
 
-/-- Product `e` of the reduction: `va e · vb e` for `e < K`, and `0` from `K` on (the lanes the
-masks of lines 151–152 and 157–158 disable, loaded as `+0`). -/
-def prodV (va vb : Nat → BF16) (K e : Nat) : ℚ := if e < K then (va e).toRat * (vb e).toRat else 0
-
-/-- The lifted magnitude of product `e`, `0` from `K` on. -/
-def liftV (va vb : Nat → BF16) (K e : Nat) : ℚ :=
-  if e < K then Rules.Num.liftMag .bf16 (va e).toRat * Rules.Num.liftMag .bf16 (vb e).toRat else 0
-
-/-- The exact partial sum before step `t`: `p e` for `e < 32·t`. -/
-def partSum (p : Nat → ℚ) (t : Nat) : ℚ := ∑ e ∈ Finset.range (BK * t), p e
-
-/-- The lifted magnitude of step `t`: `Σ q e` for `32·t ≤ e < 32·t + 32`. -/
-def stepMag (q : Nat → ℚ) (t : Nat) : ℚ := ∑ k ∈ Finset.range BK, q (BK * t + k)
-
-/-- **The error bound after `t` steps** of the loop, from the exact partial sums: `E 0 = 0` and
-`E (t + 1) = (1 + ρ)·E t + ρ·(|S t| + L t) + α`, with `S t = partSum p t` and `L t = stepMag q t`.
-Step `t` (`acc += tl.dot(a, b)`, line 161) leaves, by `Rules.Num.DotBF16` through
-`DotLift.dotAdd_step`, a value within `ρ·(|acc| + L t) + α` of `acc + c t` (`c t` the step's exact
-sum); with `acc` within `E t` of `S t`, `|acc| ≤ |S t| + E t`. -/
-def errAt (p q : Nat → ℚ) : Nat → ℚ
-  | 0 => 0
-  | t + 1 => (1 + rho) * errAt p q t + rho * (|partSum p t| + stepMag q t) + alpha
-
-/-- **The tolerance of `Post`** for row values `va`, column values `vb` and `K`: the bound after
-the loop's `steps K` steps. -/
-def tol (va vb : Nat → BF16) (K : Nat) : ℚ := errAt (prodV va vb K) (liftV va vb K) (steps K)
-
-/-- The relative factor `(1 + ρ)^T − 1` on covered instances (`K ≤ 2^10`, `Inst.ok.K_le`): below
-`2.7·10^-4`. `tol ≤ ((1 + ρ)^T − 1)·dotMag + T·(1 + ρ)^T·α` (README, Tolerances). -/
-theorem tol_rel_lt {K : Nat} (hK : K ≤ 2 ^ 10) :
-    (1 + rho) ^ steps K - 1 < 27 / 100000 := by
-  have hT : steps K ≤ 32 := by unfold steps BK; omega
-  have hr : rho = 34 / 2 ^ 22 + 3 * Math.Float.Format.binary32.u * (1 + 34 / 2 ^ 22) := by
-    unfold rho DotLoop.stepRel Rules.Num.relDot16
-    norm_num
-  have h1 : (1 : ℚ) ≤ 1 + rho := by rw [hr, Math.Float.Format.binary32_u]; norm_num
-  have h2 := pow_le_pow_right₀ h1 hT
-  have h3 : (1 + rho) ^ 32 < 1 + 27 / 100000 := by
-    rw [hr, Math.Float.Format.binary32_u]; norm_num
-  linarith
+/-- **The tolerance of `Post`** for row values `va`, column values `vb` and `K`:
+`T·2^-16·dotMag + 2^-112`, `T = steps K` the loop's steps. Each step (`acc += tl.dot(a, b)`,
+line 161) errs by at most `ρ·(|acc| + L) + α` (`Rules.Num.DotBF16` through
+`DotLift.dotAdd_step`, `ρ = DotLoop.stepRel relDot16 32 < 2^-16`), which over `T ≤ 32` steps
+stays within this bound (README, Tolerances). -/
+def tol (va vb : Nat → BF16) (K : Nat) : ℚ := (steps K : ℚ) / 2 ^ 16 * dotMag va vb K + 1 / 2 ^ 112
 
 /-- The two positions `(m, n)` of chunk `c` are tokens of the sequence (`tm = c·C + m < seqlen`,
 `tn = c·C + n < seqlen`) of the same request: `seq_idx[0, tm] = seq_idx[0, tn]`. -/

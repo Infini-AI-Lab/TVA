@@ -7,14 +7,15 @@ output element `(t, j)`:
 
 * `InRange`: the `topk_num` inputs and the scale (the double and its `float32` constant) are
   finite, `A = Σ|x| ≤ 2^126` and `|σ₃₂|·A ≤ 2^126`;
-* if so, the output is finite and `|out − σ·S| ≤ tol K S A σ σ₃₂`, with `S = Σx`, `σ` the host's
-  double and `tol` exactly as `Post` defines it (`accErr`, `Em`, `Q`, the `bfloat16` rounding and
-  the scale's conversion), all computed here in `float64` from the host's inputs. (`S` and `A` are
-  sums of at most a few hundred `bfloat16` values in `float64`; their own error, below
-  `2^-45·A`, is far below the `A`-term of `tol`, `|σ₃₂|·accErr ≥ K·2^-24·|σ₃₂|·A`.)
+* if so, the output is finite and `|out − σ·S| ≤ tol K S A σ`, with `S = Σx`, `σ` the host's
+  double and `tol = 2^-8·|σ·S| + K·2^-22·(|σ| + 2^-126)·(A + 2^-126) + 2^-133` exactly as `Post`
+  defines it, computed here in `float64` from the host's inputs. (`S` and `A` are sums of at most
+  a few hundred `bfloat16` values in `float64`; their own error, below `2^-45·A`, is far below the
+  `A`-term of `tol`, `K·2^-22·|σ|·A`.)
 
 It reports, over the elements in range, the largest error / tolerance, and counts the elements
-out of range. The frame: the input is unchanged, and a second launch of the module's kernel with
+out of range, and the median and largest `tol / |σ·S|` over the host's launches. A wrong output
+(the sum of all but the first expert row) must fail `Post`. The frame: the input is unchanged, and a second launch of the module's kernel with
 the host's own arguments but the output a slice of a larger sentinel-filled buffer leaves every
 element outside the `token_num·hidden_dim` outputs unchanged; the same launch is run with other
 `BLOCK_M`, `BLOCK_DIM` (covered by `Inst.ok`).
@@ -39,7 +40,7 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 DEVICE = triton.runtime.driver.active.get_active_torch_device()
-U32, ETA32, UBF, ETABF = 2.0**-24, 2.0**-150, 2.0**-8, 2.0**-134
+TINY = 2.0**-126
 
 
 def sigma32(s):
@@ -49,13 +50,13 @@ def sigma32(s):
     return 0.0 if v == 0.0 else v
 
 
-def post_check(x, out, scale):
+def post_check(x, out, scale, rel=None):
     """Post's value clause on every element: (worst error / tol over InRange, number out of range).
-    Computed in row chunks, so that no large float64 copy of the input is held at once."""
+    Computed in row chunks, so that no large float64 copy of the input is held at once. With `rel`
+    (a list), appends the tensor of `tol / |σ·S|` over the in-range elements with `S ≠ 0`."""
     T, K, D = x.shape
     s, s32 = float(scale), sigma32(scale)
     scale_ok = math.isfinite(s) and math.isfinite(s32)
-    g = (1 + U32) ** K
     worst, ok_fin, nout = 0.0, True, 0
     rows = max(1, (2 ** 25) // max(1, K * D))          # at most 256 MiB of float64 per chunk
     for r in range(0, T, rows):
@@ -67,17 +68,17 @@ def post_check(x, out, scale):
         in_range = fin & (A <= 2.0**126) & (abs(s32) * A <= 2.0**126)
         if not scale_ok:
             in_range &= False
-        E1 = (g - 1) * A + ETA32 * K * g
-        Em = U32 * (abs(s32) * (S.abs() + E1)) + ETA32
-        Q = abs(s32) * S.abs() + abs(s32) * E1 + Em
-        tol = (UBF * Q + ETABF) + Em + abs(s32) * E1 + abs(s - s32) * S.abs()
+        tol = 2.0**-8 * (s * S).abs() + K * 2.0**-22 * ((abs(s) + TINY) * (A + TINY)) + 2.0**-133
+        if rel is not None:
+            nz = in_range & (S != 0)
+            rel.append((tol[nz] / (s * S[nz]).abs()).float().cpu())
         o = out[r:r + rows].double()
         ok_fin = ok_fin and torch.isfinite(o)[in_range].all().item()
         ratio = ((o - s * S).abs() / tol)[in_range]
         if ratio.numel():
             worst = max(worst, ratio.max().item())
         nout += int((~in_range).sum().item())
-        del S, A, fin, in_range, E1, Em, Q, tol, o, ratio
+        del S, A, fin, in_range, tol, o, ratio
     return worst, ok_fin, nout
 
 
@@ -100,9 +101,10 @@ def direct(x, scale, bm, bd, guard=4096):
 
 results = []
 worst_all = 0.0
+rel_host = []
 
 
-def check(name, x, scale, blocks=((1, 2048),), host=True):
+def check(name, x, scale, blocks=((1, 2048),), host=True, rel=None):
     global worst_all
     before = x.clone()
     lines = []
@@ -110,7 +112,7 @@ def check(name, x, scale, blocks=((1, 2048),), host=True):
     if host:
         out = mod.moe_sum_reduce(x, scale)
         torch.cuda.synchronize()
-        w, f, nout = post_check(x, out, scale)
+        w, f, nout = post_check(x, out, scale, rel)
         del out
         ok &= w <= 1.0 and f
         worst_all = max(worst_all, w)
@@ -141,7 +143,12 @@ def randn(T, K, D):
 for T, K, D, s in [(1, 8, 7168, 2.5), (7, 9, 4096, 0.3), (32, 8, 2048, 1.0), (33, 6, 5120, 1.0),
                    (17, 8, 2880, 1.0), (1, 1, 1, 1.0), (300, 3, 100, 2.5), (1024, 9, 4096, 0.3),
                    (8192, 8, 7168, 2.5)]:
-    check("host", randn(T, K, D), s, blocks=((1, 2048), (4, 256)) if T * D < 2**24 else ((1, 2048),))
+    check("host", randn(T, K, D), s, blocks=((1, 2048), (4, 256)) if T * D < 2**24 else ((1, 2048),),
+          rel=rel_host)
+rel = torch.cat(rel_host)
+print(f"tol / |σ·S| over the host's launches: median {rel.median().item():.3e}, "
+      f"largest {rel.max().item():.3e}")
+del rel, rel_host
 
 # Edges of Inst.ok and of InRange.
 x = randn(64, 9, 3000)
@@ -166,6 +173,15 @@ check("edge topk 64", randn(16, 64, 2048), 0.5)
 check("edge hidden 1", randn(1000, 9, 1), 2.5, blocks=((1, 2048), (8, 64)))
 check("edge hidden 2049", randn(10, 9, 2049), 2.5, blocks=((1, 2048), (1, 4096)))
 check("edge 2^15 tokens", randn(2**15, 9, 1024), 2.5)
+
+# A wrong output must fail Post: the sum of all but the first expert row (the host on x[:, 1:]).
+x = randn(32, 8, 2048)
+wrong = mod.moe_sum_reduce(x[:, 1:].contiguous(), 2.5)
+torch.cuda.synchronize()
+w, _, _ = post_check(x, wrong, 2.5)
+results.append(w > 1.0)
+print(f"{'ok ' if w > 1.0 else 'BAD'} negative: first expert row left out: worst err/tol {w:.1f} (must exceed 1)")
+del wrong
 
 del x
 torch.cuda.empty_cache()

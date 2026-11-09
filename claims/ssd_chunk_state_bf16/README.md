@@ -9,7 +9,7 @@ check: [`check_gpu.py`](check_gpu.py).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.SsdChunkState.main : Statement` (`Statement`:
-`Claim.lean` line 643). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 641). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -19,24 +19,24 @@ check: [`check_gpu.py`](check_gpu.py).
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 337), and every initial memory `init` that `Pre` accepts (line 455: the six
 buffers valid, `seq_idx` the host's, `MetaOk` line 449), every outcome of the launch is a normal end
-(no fault, no hang) whose final memory `fin` satisfies `Post` (line 609).
+(no fault, no hang) whose final memory `fin` satisfies `Post` (line 607).
 
-**What `Post` asks** (line 609), two parts:
+**What `Post` asks** (line 607), two parts:
 1. for every `c < nc d`, `h < nheads`, `p < headdim`, `n < dstate`: element `stIdx d c h p n`
    (line 324) of `states` holds some `float32` `v` (on every input); and when `Vals init d` holds
-   (line 590), `v` is finite and `|v.toReal - sRef init d c h p n| ≤ tol init d c h p n`. Without
+   (line 588), `v` is finite and `|v.toReal - sRef init d c h p n| ≤ tol init d c h p n`. Without
    `Vals`, only "holds a value" is asked. The reference `sRef` (line 500) is exact, in the reals:
    `Σ_{t ∈ toks d c} xV t h p · bV t h n · wRef c h t`, over the chunk's tokens of the request at
    its end (`toks`, line 471; `endTok`, `eReq`, lines 464, 467, from `qsl`), with
    `wRef = exp(dRef) · dtV` (lines 494, 490, 485) and `bV` read at group `grp d h` (lines 481, 475).
-   `tol` (line 581) is `Σ_{t ∈ toks d c} |xV t h p| · errB c h t n + dotTol (steps d c)
-   (dotMag c h p n)`: the per-token operand error `errB` (line 548, built from `dErr`, `expRel`,
-   `errE`, `eHat`, `errS`, `sHat`, `errP`, `pHat`, lines 512–543) and the accumulation's
-   `dotTol` (line 576, with `rhod`, `alphad`, lines 570–572; `dotMag`, line 561; `steps`, line
-   566);
+   `tol` (line 578) is `2^-8·(1 + steps d c·2^-6)·dotMag c h p n + 2^-100·inMag c h p n`:
+   `dotMag` (line 561) the products' lifted magnitudes `Σ_{t ∈ toks d c} magB(x)·max(bHat,
+   2^-126)`, built from the per-token operand bounds (`dErr`, `expRel`, `errE`, `eHat`, `errS`,
+   `sHat`, `errP`, `pHat`, `errB`, `bHat`, lines 512–553); `steps` (line 566) the loop's `tl.dot`
+   steps; `inMag` (line 571) `Σ_{t ∈ toks d c} (1 + |xV|)·(1 + |bV|)·(1 + |dtV|)`;
 2. the frame: every byte outside `states`' first `sSb d` elements (line 304) is unchanged.
 
-**What you are given** (`Assumptions`, line 622):
+**What you are given** (`Assumptions`, line 620):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `exp_acc` (`Rules.Num.ExpF32`): for every `X ≥ 0`, `tl.exp` on `float32` (source line 200) on
@@ -44,7 +44,7 @@ buffers valid, `seq_idx` the host's, `MetaOk` line 449), every outcome of the la
 - `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): that `tl.exp` has a result;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot` of source line 204 is within
   `relDot16 K · (|acc| + Σ liftMag a · liftMag b) + absDot16 K` of `acc + Σ a·b`, with room;
-- `dot_total` (`Rules.Num.DotTotal P dotCfg`, `dotCfg` line 620): that `tl.dot` has a result.
+- `dot_total` (`Rules.Num.DotTotal P dotCfg`, `dotCfg` line 618): that `tl.dot` has a result.
 
 **The kernel, as the model runs it** (`ssd_chunk_state_kernel`, line 50; `model` line 413,
 `launch` line 431): a 3-D grid `(gx d, nc d, nheads)` (`gx`, `nc`, lines 293, 290). Program
@@ -72,9 +72,11 @@ loop writes nothing (`safe_forRange` with an invariant and `fun _ => ∅`).
   chunk's tokens of request `eReq d c` (`MetaOk`, `reqOf`), and the masked lanes load `-1`;
 - the value part of `Post`: each token's operand `b` is within `errB` of `B·wRef` (`FloatV.sub_err`,
   `exp_acc` at `X = |dRef| + dErr`, `FloatV.mul_err`, `FloatV.cvt_err`, room from `Vals`); the
-  loop is within `dotTol` of the computed products' sum (`DotLift.dotAdd_step` with `dot`, then
-  `DotLoop.accum`; each step's room from `dotMag ≤ 2^120` in `Vals` and `steps d c ≤ 1024` from
-  `chunk_le`, via `DotLoop.bound_le`); README `## Tolerances` gives the composition;
+  loop is within `DotLoop.bound ρ α (steps d c) dotMag` of the computed products' sum
+  (`DotLift.dotAdd_step` with `dot`, then `DotLoop.accum`; each step's room from `dotMag ≤ 2^120`
+  in `Vals` and `steps d c ≤ 1024` from `chunk_le`, via `DotLoop.bound_le`). This gives the fine
+  bound `F` of README `## Tolerances`; then relax it by the inequality chain there, `F ≤ tol`
+  (`2^-8·(1 + steps·2^-6)·dotMag + 2^-100·inMag`) for every covered element;
 - the frame: the bytes no program writes.
 
 The real-shape conditions (`seqlen_ctx`: `seqlen ≤ 2^22`; `nreq_le`: `num_requests ≤ 8192`) bound
@@ -84,7 +86,7 @@ the conditions above (`dt_lt`, `xhead_lt`, …), since `nheads`, `headdim` and `
 bounded by them.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable` and the `setup_*_ok`
-theorems; `bytes_disj` (line 682), `zero_i32` (line 810) and `valid_zero` (line 817) can be
+theorems; `bytes_disj` (line 680), `zero_i32` (line 808) and `valid_zero` (line 815) can be
 reused.
 
 ## Specification
@@ -123,13 +125,14 @@ is rejected.
 
 **The tolerance** (`Claim.lean`, "The tolerance"; derivation under Tolerances), per element:
 
-`tol = Σ_{t ∈ toks c} |x[0, t, h, p]| · errB t n + dotTol (steps c) (dotMag)`
+`|states[0, c, h, p, n] − sRef| ≤ tol = 2^-8·(1 + steps c·2^-6)·dotMag + 2^-100·inMag`
 
-where `errB t n` bounds the error of the kernel's `bfloat16` operand `b` against `B·exp(dRef)·dt`
-(the subtraction, `tl.exp`, the two `float32` products and the rounding to `bfloat16`), `dotMag =
-Σ_{t ∈ toks c} liftMag(x) · max(bHat, 2^-126)` the products' lifted magnitudes, `steps c =
-cdiv(chunk_size_limit, 64)` the loop's `tl.dot` steps, and `dotTol T A = ((1 + ρ)^T − 1)·A +
-T·(1 + ρ)^T·α` with `ρ = DotLoop.stepRel relDot16 64`, `α = DotLoop.stepAbs absDot16 64`.
+where `dotMag = Σ_{t ∈ toks c} liftMag(x)·max(bHat, 2^-126)` is the products' lifted magnitudes
+(`bHat ≥ |B·exp(dRef)·dt|` the bound on the kernel's `bfloat16` operand `b`, about `(1 + 2^-8)`
+times `|B·exp(dRef)·dt|` on real inputs, so `dotMag ≈ Σ|x·B·exp(dRef)·dt|`), `steps c =
+cdiv(chunk_size_limit, 64)` the loop's `tl.dot` steps (`4` at `chunk_size` 256), and `inMag =
+Σ_{t ∈ toks c} (1 + |x|)·(1 + |B|)·(1 + |dt|)` the scale of the absolute floor: one `bfloat16`
+rounding of each term, `2^-6` of it more per `tl.dot` step, and a floor far below real outputs.
 
 ## Conditions
 
@@ -217,7 +220,7 @@ For one token `t ∈ toks c` and one output element, from the library's facts (`
 `FloatV.sub_err`, `Rules.Num.ExpF32`, `FloatV.mul_err`, `FloatV.cvt_err`, `DotLift.dotAdd_step`,
 `DotLoop.accum`):
 
-1. The decay exponent (line 200): `dA_cs_last` and `dA_cs_k` are loaded exactly; their IEEE `-`
+1. The decay exponent (source line 200): `dA_cs_last` and `dA_cs_k` are loaded exactly; their IEEE `-`
    (two finite non-positive values: no overflow) errs by at most `dErr = 2^-24·|dRef| + 2^-150`.
 2. `tl.exp`: the computed input `d̃` lies in `[−X, X]` for `X = |dRef| + dErr`; `ExpF32` at that
    `X` gives the result `ẽ` within `rel·e^{d̃} + 2^-140`, `rel = 2^-22 + 2^-23·X` (`expRel`), with
@@ -229,20 +232,20 @@ For one token `t ∈ toks c` and one output element, from the library's facts (`
    rel·e^{dRef} + 2^-140`, below `errE`. In every case `|ẽ| ≤ eHat = e^{dRef} + errE`. `ExpF32` is
    instantiated per token at its `X`, so very negative exponents (strong decay) are covered: there
    `rel` grows but `rel·e^{dRef}` vanishes.
-3. `scale = ẽ·dt` (line 200, the IEEE product; `tl.where` picks it since `seq_idx[t]` is the
+3. `scale = ẽ·dt` (source line 200, the IEEE product; `tl.where` picks it since `seq_idx[t]` is the
    request of the chunk's last token, `MetaOk`): within `|dt|·errE + 2^-24·eHat·|dt| + 2^-150 =
    errS` of `wRef = e^{dRef}·dt`, and `|scale| ≤ sHat = |wRef| + errS` (room: `eHat·|dt| ≤ 2^126`).
-4. `B·scale` (line 202, the IEEE product of the exactly widened `B`): within `|B|·errS +
+4. `B·scale` (source line 202, the IEEE product of the exactly widened `B`): within `|B|·errS +
    2^-24·|B|·sHat + 2^-150 = errP` of `B·wRef` (room: `|B|·sHat ≤ 2^126`), magnitude at most
    `pHat = |B·wRef| + errP`.
-5. The rounding to `bfloat16` (line 203; `pHat` is below `bfloat16`'s range): within `2^-8·pHat +
+5. The rounding to `bfloat16` (source line 203; `pHat` is below `bfloat16`'s range): within `2^-8·pHat +
    2^-134` more; so the operand `b̃` is within `errB = errP + 2^-8·pHat + 2^-134` of `B·wRef`, and
    `|b̃| ≤ bHat = |B·wRef| + errB`, its lifted magnitude at most `max(bHat, 2^-126)`.
 6. The other lanes of each `tl.dot` hold exact zeros: a token of another request gets `scale = 0`
    (`tl.where`; `B` finite, so `b̃ = ±0`), a lane past `chunk_size_limit` loads `B = 0`, `x = 0` and
    `seq_idx = −1` (`≠ seq_idx_last ≥ 0`), and `x` is finite. So the exact sum of the dot products
    over the loop is `Σ_{t ∈ toks c} x·b̃`, within `Σ |x|·errB` of `sRef`.
-7. The loop (line 204): each step is `tl.dot_add` of `64` products; `DotLift.dotAdd_step` (from
+7. The loop (source line 204): each step is `tl.dot_add` of `64` products; `DotLift.dotAdd_step` (from
    `Num.DotBF16`, `relDot16 64 = 66·2^-22`, `absDot16 64 = 66·2^-126`, whichever form the combine
    pass gives) bounds a step by `ρ·(|acc| + A_j) + α` with `A_j` the step's lifted magnitudes, and
    `DotLoop.accum` gives `|acc − Σ x·b̃| ≤ DotLoop.bound ρ α T (Σ A_j) ≤ dotTol T dotMag` after the
@@ -254,17 +257,46 @@ For one token `t ∈ toks c` and one output element, from the library's facts (`
    A_j) + absDot16 64 + 2η) ≤ 2·1.0001·2.04·2^120 + 2^-90 < 2^123 ≤ maxVal`: the condition of
    `DotLift.dotAdd_step` holds at every step, and each step's result is finite. (Without a bound on
    `T`, `(1 + ρ)^T` grows without limit and `dotMag ≤ 2^120` no longer gives this room.) The store
-   (line 224) writes the `float32` accumulator unchanged.
+   (source line 224) writes the `float32` accumulator unchanged.
 
-Together: `|states − sRef| ≤ Σ |x|·errB + dotTol = tol`.
+Together: `|states − sRef| ≤ F = Σ |x|·errB + dotTol (steps c) dotMag`, with
+`dotTol T A = ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`, `ρ = DotLoop.stepRel relDot16 64`,
+`α = DotLoop.stepAbs absDot16 64`.
+
+**The relaxation `F ≤ tol`.** Write `E = e^{dRef}`, `w = E·|dt|`, `q = |B|·w = |B·wRef|`, `T = steps c ≤
+1024`, `u = 2^-24`.
+1. `errE ≤ 2^-16·E + 2^-134`: `errE = E·((1 + rel)·e^{dErr} − 1) + 2^-140`, and the factor
+   `(1 + rel)·e^{dErr} − 1 = (1 + 2^-22 + 2^-23·(|dRef| + dErr))·e^{u·|dRef| + 2^-150} − 1` is at most
+   `1.508·10^-5 < 2^-16` for `−83 ≤ dRef ≤ 64` (its largest value is at `|dRef| = 83`); for
+   `dRef < −83` the product `E·((1 + rel)·e^{dErr} − 1)` decreases as `dRef` decreases (its
+   logarithmic derivative is `1 − u − 2^-23/(1 + rel) > 0`), so it is below its value at `−83`,
+   `1.3·10^-41 < 2^-135`.
+2. Then `eHat ≤ (1 + 2^-16)·E + 2^-134`; `errS ≤ (2^-16 + u·(1 + 2^-16))·w + (1 + u)·2^-134·|dt| +
+   2^-150`; `errP = (1 + u)·|B|·errS + u·q + 2^-150 ≤ 1.538·10^-5·q + 2^-133.9·|B|·|dt| +
+   2^-149.9·|B| + 2^-150`; `errB = (1 + 2^-8)·errP + 2^-8·q + 2^-134 ≤ k·q + 2^-133·(1 + |B|)·(1 + |dt|)`
+   with `k = 2^-8 + 1.0039·1.538·10^-5 ≤ 2^-8 + 1.545·10^-5`.
+3. `|x|·q ≤ liftMag(x)·max(bHat, 2^-126)` (`liftMag x ≥ |x|`, `bHat ≥ q`), so `Σ|x|·errB ≤ k·dotMag +
+   2^-133·inMag`.
+4. `(1 + ρ)^T − 1 ≤ e^{Tρ} − 1 ≤ 1.0083·T·ρ ≤ T·1.605·10^-5` (`ρ ≤ 1.5915·10^-5`, `Tρ ≤ 0.0163`, and
+   `(e^x − 1)/x ≤ 1.0083` for `x ≤ 0.0163`), and
+   `T·(1 + ρ)^T·α ≤ 1024·1.017·2^-119.9 ≤ 2^-109`.
+5. So `F ≤ (2^-8 + 1.545·10^-5 + T·1.605·10^-5)·dotMag + 2^-133·inMag + 2^-109`, and
+   `1.545·10^-5 + T·1.605·10^-5 ≤ T·2^-14 = 2^-8·T·2^-6` for every `T ≥ 1`
+   (`2^-14 = 6.10·10^-5`); `inMag ≥ 1` (the chunk's last token is in `toks c`) gives
+   `2^-133·inMag + 2^-109 ≤ 2^-100·inMag`. Hence `F ≤ tol` on every covered element.
+
+At `chunk_size` 256 (`T = 4`) `tol`'s factor is `2^-8·1.0625`, about `1.06×` `F`'s leading
+`2^-8·(1 + 2^-8)`; it grows faster than `F`'s accumulation term with `T` (`2^-14` against
+`1.6·10^-5` per step), `3.3×` `F` at `T = 1024`. A single `2^-7` factor would be twice `F` at
+real sizes and would accept a kernel that drops a middle token of each chunk (`check_gpu.py`).
 
 **Meaningful at the covered sizes.** The leading term is one `bfloat16` rounding of each scaled
-`B`, `2^-8·Σ|x·B·wRef|`; the `tl.dot` part is about `66·2^-22·T` of `dotMag` (below `10^-4` of it
-at 256 tokens) and the exponential's part `2^-22` relative. On the GPU (`check_gpu.py`) the error
-reaches `0.992` of `tol` on the coherent worst case (every scaled `B` rounded down by just under
-half an ulp) and `0.98` on random inputs, at elements dominated by one token; over all elements of
-the 8192-token launches the median error is `0.10` of `tol` (the 99th percentile `0.44`), and the
-median `tol` is `1.4%` of `|sRef|`. The bound is the worst case of the kernel's own roundings: a
+`B`, `2^-8·Σ|x·B·wRef|`; the `tl.dot` part of `F` is about `66·2^-22·T` of `dotMag` (below `10^-4`
+of it at 256 tokens) and the exponential's part `2^-22` relative. On the GPU (`check_gpu.py`) the
+error reaches `0.977` of `tol` on the coherent worst case (every scaled `B` rounded down by just
+under half an ulp) and `0.95` on random inputs, at elements dominated by one token; the median
+`tol` is `0.7%` to `1.5%` of `|sRef|` on the source's ten test cases (`1.5%` on the 8192-token
+launch), `1.02–1.06×` `F`'s. The bound is the worst case of the kernel's own roundings: a
 sum of random-sign roundings over many tokens stays below it by about the square root of their
 count. At values near `10^-20` (products below `float32`'s normal range) the absolute terms
 dominate and `tol` exceeds the outputs, as any `float32` result does there.
@@ -327,17 +359,17 @@ What `SETUP.md` allows and the claim leaves out:
   of `Inst.ok`, one with `int64` `x.stride(0)` and `B.stride(0)`, and seven of `Vals` (strong
   decay `dA × 200`; no decay; `dt × 1000`; a non-monotone
   `dA_cumsum` with decay exponents up to `+3`; values near `10^15`; near `10^-20`; the coherent
-  `bfloat16` worst case). Worst error / tolerance: `0.992`. Every element is finite, `Vals` holds,
+  `bfloat16` worst case). Worst error / tolerance: `0.977`. Every element is finite, `Vals` holds,
   the byte frame holds (the inputs unchanged, and guard bands of 4096 elements on each side of
   `states`, in which the check places the host's allocation, unchanged), and the host's `seq_idx`
   equals `reqOf` on every launch. The negative tests are rejected: one element moved by `1.01 × tol`
-  (error / tolerance `1.01`), the launch without `seq_idx` (`271`), `B`'s groups swapped (`6590`),
+  (error / tolerance `1.01`), the launch without `seq_idx` (`267`), `B`'s groups swapped (`6490`),
   and, on a launch of 768 tokens in chunks of 256, the states of kernels that drop the last token of
-  each chunk (`202`), decay to position `chunk_size − 2` (`76.7`), read `dt` one position off
-  (`1190`), drop a middle token of each chunk (`1.43`), or drop the first token of each chunk's
-  request segment under a weak decay `dA × 0.01` (`36.4`). Dropping that token under the inputs'
+  each chunk (`192`), decay to position `chunk_size − 2` (`73.1`), read `dt` one position off
+  (`1130`), drop a middle token of each chunk (`1.36`), or drop the first token of each chunk's
+  request segment under a weak decay `dA × 0.01` (`34.7`). Dropping that token under the inputs'
   own decay (weight `e^-20.1` to `e^-9.5` in chunks 0 and 1, `e^-12.8` to `e^-7.5` in chunk 2,
-  where it is token 600 at position 88) is accepted (`0.040`).
+  where it is token 600 at position 88) is accepted (`0.038`).
 
 ## Library requests
 

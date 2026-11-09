@@ -17,14 +17,16 @@ kernel reads), exactly as `Post` states it:
   `a`'s element `(i, k)` at `sIdx K i k` of `a_scale` (and of `b`'s at `sIdx K j k` of `b_scale`),
   `sIdx K r k = (r // 128·(K // 128) + k // 128)·512 + 16·(r % 32) + 4·((r % 128) // 32)
   + (k % 128) // 32`; the scaled values `x·2^(s − 127)`;
-* the products' partial sums step by step (`partSum`, `chunkAbs`), the tolerance by the recursion
+* the products' partial sums step by step (`partSum`, `chunkAbs`), the magnitude
+  `μ = stepMag = Σ_t (|partSum(t)| + chunkAbs(t))`, the step recursion (`tolOut`)
   `tol(t + 1) = tol(t) + ρ·(|partSum(t)| + tol(t) + chunkAbs(t)) + α`, `ρ = 130·2^-22`,
   `α = 130·2^-126`, and `S = partSum(K / 128)`;
 * `Pre`'s value conditions (`InDom` for every element, the room `Σ|p| + tol ≤ 2^127`), which every
   case must meet;
-* `Post`: when `|S| + tol ≤ 65504`, `c` finite and `|c − S| ≤ tol + (|S| + tol)·2^-11 + 2^-25`
-  (the ratio reported); always, `c` the `float16` rounding of some `v` with `|v − S| ≤ tol` (for a
-  finite `c`: `|c − S| ≤ tol + ulp16(c)/2`; for `±∞`: `±(S ± tol) ≥ 65520`).
+* `Post`: when `|S| + tol ≤ 65504`, `c` finite and `|c − S| ≤ cTol = 2^-11·|S| + 2^-14·μ + 2^-24`
+  (the ratio reported); always, `c` the `float16` rounding of some `v` with
+  `|v − S| ≤ vTol = 2^-14·μ + 2^-108` (for a finite `c`: `|c − S| ≤ vTol + ulp16(c)/2`; for `±∞`:
+  `±(S ± vTol) ≥ 65520`).
 The frame: the inputs are compared byte for byte (`torch.equal`) with full copies taken before the
 launch, and `c` (the host's `torch.empty((M, N))`) is placed between two guard regions filled with
 a sentinel, which must keep their bits; `c` itself starts as the sentinel (a NaN), so every element
@@ -56,8 +58,6 @@ spec.loader.exec_module(bsm)
 DEV = "cuda"
 RHO = 130.0 / 2 ** 22          # Rules.Num.relDot16 128
 ALPHA = 130.0 / 2 ** 126       # Rules.Num.absDot16 128
-U16 = 2.0 ** -11               # Format.binary16.u
-ETA16 = 2.0 ** -25             # Format.binary16.eta
 MAX16 = 65504.0
 BF16_MAX = float(torch.finfo(torch.bfloat16).max)
 SENT = 0x7E5A                  # a float16 NaN pattern
@@ -122,7 +122,8 @@ def ulp16(c):
 
 
 def reference(a8, sa, b, sb, mixed, K, i0, i1, N, wrong=None):
-    """S, tol and Σ|p| for rows i0..i1-1 (float64), by the claim's recursion; with `wrong`, only S
+    """S, tol (the step recursion), Σ|p| and M (`stepMag`) for rows i0..i1-1 (float64); with
+    `wrong`, only S
     for a wrong computation: "drop" (products 0..31 left out), "scale2" (the scale of a's first
     group doubled), "layout" (the scale layout's
     indices `(r % 128) // 32` and `(k % 128) // 32` exchanged), "nibble" (mixed: the two
@@ -131,6 +132,7 @@ def reference(a8, sa, b, sb, mixed, K, i0, i1, N, wrong=None):
     S = torch.zeros(i1 - i0, N, device=DEV, dtype=torch.float64)
     tol = torch.zeros_like(S)
     absum = torch.zeros_like(S)
+    mag = torch.zeros_like(S)
     sw = wrong == "layout"
     for t in range(T):
         k0, k1 = 128 * t, 128 * t + 128
@@ -139,19 +141,22 @@ def reference(a8, sa, b, sb, mixed, K, i0, i1, N, wrong=None):
         if wrong is None:
             ch = A.abs() @ B.abs().T
             tol = tol + RHO * (S.abs() + tol + ch) + ALPHA
+            mag = mag + S.abs() + ch
             absum += ch
         elif t == 0 and wrong == "drop":
             A = A.clone(); A[:, :32] = 0
         elif t == 0 and wrong == "scale2":
             A = A.clone(); A[:, :32] *= 2
         S = S + A @ B.T
-    return S, tol, absum
+    return S, tol, absum, mag
 
 
-def post_ok(c, S, tol):
-    """Post's two clauses per element: (ok, finite-clause ratio or 0 where the clause is void)."""
+def post_ok(c, S, tol, mag):
+    """Post's two clauses per element: (ok, finite-clause ratio or 0 where the clause is void).
+    `tol` (the step recursion) enters only the float16 range condition."""
     fin_cl = (S.abs() + tol) <= MAX16
-    bound = tol + (S.abs() + tol) * U16 + ETA16
+    vtol = 2.0 ** -14 * mag + 2.0 ** -108
+    bound = 2.0 ** -11 * S.abs() + 2.0 ** -14 * mag + 2.0 ** -24
     err = (c - S).abs()
     finite = torch.isfinite(c)
     ratio = torch.where(fin_cl, torch.where(finite, err / bound, torch.full_like(err, math.inf)),
@@ -161,8 +166,8 @@ def post_ok(c, S, tol):
     mant, _ = torch.frexp(cz.abs())
     below = (mant == 0.5) & (cz.abs() >= 2.0 ** -13) & (S.abs() < cz.abs())
     half = torch.where(below, half / 2, half)   # below a power of two the spacing halves
-    c1 = torch.where(finite, err <= tol + half,
-                     torch.where(c > 0, S + tol >= 65520.0, S - tol <= -65520.0))
+    c1 = torch.where(finite, err <= vtol + half,
+                     torch.where(c > 0, S + vtol >= 65520.0, S - vtol <= -65520.0))
     c1 &= ~torch.isnan(c)
     ok = c1 & (~fin_cl | (finite & (err <= bound)))
     return ok, ratio, fin_cl
@@ -170,26 +175,32 @@ def post_ok(c, S, tol):
 
 def check_output(a8, sa, b, sb, mixed, c16, M, N, K):
     """Post on every element; returns (worst ratio of the finite clause, #finite-clause elements,
-    all elements ok, room ok, largest per-block median of tol/|S|)."""
+    all elements ok, room ok, the largest per-block medians of vTol/|S|, cTol/|S| and of the step
+    recursion's tol/|S|)."""
     worst = 0.0
     nfin = 0
     allok = True
     room_ok = True
     rel_tol = []
+    rel_v, rel_c = [], []
     RB = 1024
     for i0 in range(0, M, RB):
         i1 = min(M, i0 + RB)
-        S, tol, absum = reference(a8, sa, b, sb, mixed, K, i0, i1, N)
+        S, tol, absum, mag = reference(a8, sa, b, sb, mixed, K, i0, i1, N)
         room_ok &= bool((absum + tol <= 2.0 ** 127).all())
         c = c16[i0:i1].to(torch.float64)
-        ok, ratio, fin_cl = post_ok(c, S, tol)
+        ok, ratio, fin_cl = post_ok(c, S, tol, mag)
         allok &= bool(ok.all())
         worst = max(worst, float(ratio.max()))
         nfin += int(fin_cl.sum())
         nz = S.abs() > 0
         if nz.any():
             rel_tol.append((tol[nz] / S.abs()[nz]).median().item())
-    return worst, nfin, allok, room_ok, (max(rel_tol) if rel_tol else 0.0)
+            rel_v.append(((2.0 ** -14 * mag[nz] + 2.0 ** -108) / S.abs()[nz]).median().item())
+            rel_c.append(((2.0 ** -11 * S.abs()[nz] + 2.0 ** -14 * mag[nz] + 2.0 ** -24) / S.abs()[nz])
+                         .median().item())
+    mx = lambda l: max(l) if l else 0.0
+    return worst, nfin, allok, room_ok, (mx(rel_v), mx(rel_c), mx(rel_tol))
 
 
 class GuardedEmpty:
@@ -306,7 +317,8 @@ def run(name, fmt, M, N, K, mutate=None, seed=0, builder=None):
     margin = (1 / worst) if worst > 0 else math.inf
     print(f"[{fmt:5s}] {name:34s} M={M:5d} N={N:5d} K={K:6d}  Pre={dom and room}  err/tol={worst:.4f} "
           f"(margin {margin:.2f}x, {nfin} elems in f16 range)  Post={allok}  frame={frame}  "
-          f"median tol/|S|={rt:.2e}  peak={peak:.2f}GiB  {status}", flush=True)
+          f"median vTol/|S|={rt[0]:.2e} cTol/|S|={rt[1]:.2e} (step recursion {rt[2]:.2e})  "
+          f"peak={peak:.2f}GiB  {status}", flush=True)
     del out, a8, b, sa, sb, descs, g
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
@@ -322,7 +334,7 @@ def host_reference(fmt, M, N, K, seed=1):
     a8, b = res[9], res[10]
     sa = res[1].base.reshape(-1).view(torch.uint8)
     sb = res[3].base.reshape(-1).view(torch.uint8)
-    S, _, _ = reference(a8, sa, b, sb, fmt == "mixed", K, 0, M, N)
+    S, _, _, _ = reference(a8, sa, b, sb, fmt == "mixed", K, 0, M, N)
     err = float((S - href).abs().max() / href.abs().max())
     ok = err < 1e-6
     print(f"[{fmt:5s}] host reference vs claim's S at {M}x{N}x{K}: max rel diff {err:.2e}  "
@@ -338,7 +350,7 @@ def negatives(fmt, M, N, K, seed=3):
     elements each one breaks."""
     mixed = fmt == "mixed"
     _, _, a8, sa, b, sb = setup(fmt, M, N, K, None, seed, None)
-    S, tol, _ = reference(a8, sa, b, sb, mixed, K, 0, M, N)
+    S, tol, _, mag = reference(a8, sa, b, sb, mixed, K, 0, M, N)
     kinds = ["zero", "drop", "scale2", "layout", "neighbour"] + (["nibble"] if mixed else [])
     ok = True
     for kind in kinds:
@@ -347,9 +359,9 @@ def negatives(fmt, M, N, K, seed=3):
         elif kind == "neighbour":
             c = torch.roll(S, -1, dims=1).to(torch.float16).to(torch.float64)
         else:
-            Sw, _, _ = reference(a8, sa, b, sb, mixed, K, 0, M, N, wrong=kind)
+            Sw, _, _, _ = reference(a8, sa, b, sb, mixed, K, 0, M, N, wrong=kind)
             c = Sw.to(torch.float16).to(torch.float64)
-        good, _, _ = post_ok(c, S, tol)
+        good, _, _ = post_ok(c, S, tol, mag)
         frac = 1 - float(good.double().mean())
         rejected = not bool(good.all())
         ok &= rejected

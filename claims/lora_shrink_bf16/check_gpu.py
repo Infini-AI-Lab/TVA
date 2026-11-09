@@ -4,9 +4,11 @@ Runs the kernel's own host (`source/lora_shrink.py`, imported by path) on the la
 and on launches at the edges of `Inst.ok`, and checks `Post` as Claim.lean states it, in float64:
 
 * a token with an adapter `l >= 0`, slice `s`: |out - scaling * S| <= tol, `scaling` the host's
-  double, S = sum_k x[t,k] * A_s[l,j,k], s32 the kernel's float32 `scaling`, and, with the host's
-  BLOCK_K = bk, SPLIT_K = sk (256, 64 below 128 tokens; 32, 8 from 128) and Claim.lean's chunks
-  (cw = min(64, bk) consecutive k of each block of part p, in order):
+  double, S = sum_k x[t,k] * A_s[l,j,k], dotMag = sum_k liftMag(x) liftMag(w), with the host's
+  BLOCK_K = bk, SPLIT_K = sk (256, 64 below 128 tokens; 32, 8 from 128):
+    tol = bk * cdiv(K, bk * sk) * 2^-21 * |scaling| * dotMag + 2^-100 * (1 + |scaling| + dotMag);
+  the room conditions dotMag <= 2^120 and vMag + atomTol <= maxVal are checked too, with
+  Claim.lean's
     errChunk p = accErr p (T_p): per step (one tl.dot_add of bk products), from the error e
                 after the step before, the larger of the fused form (the step's chunk steps
                 continue the chain from e against the part's exact partial sums) and the
@@ -19,13 +21,10 @@ and on launches at the edges of `Inst.ok`, and checks `Post` as Claim.lean state
                 rho = stepRel relDot16 bk, alpha = stepAbs absDot16 bk, T_p the part's steps,
                 L_p = sum of liftMag(x) liftMag(w) over its k),
     errPart p  = min(errChunk p, errStep p),
-    accTol  = sum_p errPart p,  partMag = sum_p (|partSum p| + errPart p),
-    mulTol  = 2^-24 * |s32| * partMag + sk * 2^-150,
+    partMag = sum_p (|partSum p| + errPart p),
+    mulTol  = 2^-24 * |s32| * partMag + sk * 2^-150   (s32 the kernel's float32 `scaling`),
     vMag    = |s32| * partMag + mulTol,
-    atomTol = ((1 + 2^-23)^sk - 1) * vMag + sk * (1 + 2^-23)^sk * 2^-124,
-    tol     = |s32| * accTol + mulTol + atomTol + |s32 - scaling| * |S|
-  (the room conditions sum_k liftMag(x) liftMag(w) <= 2^120 and vMag + atomTol <= maxVal are
-  checked too);
+    atomTol = ((1 + 2^-23)^sk - 1) * vMag + sk * (1 + 2^-23)^sk * 2^-124;
 * a token without an adapter: the element is exactly +0.0 (bit pattern 0), in every slice;
 * the byte frame: the host's output is allocated inside a larger buffer whose guard bands (4096
   sentinel elements before and after the [S, M, R] output) must keep their bytes, and every buffer
@@ -85,8 +84,8 @@ def lift(q):
 
 
 def chunk_bounds(M, K, xr, wl):
-    """accTol = sum_p errPart p and partMag = sum_p (|partSum p| + errPart p), per element
-    [rows, R], with errPart p = min(errChunk p, errStep p) (Claim.lean): errChunk the accErr
+    """partMag = sum_p (|partSum p| + errPart p), per element [rows, R] (for the room condition),
+    with errPart p = min(errChunk p, errStep p) (Claim.lean): errChunk the accErr
     recursion (tripErr per step: the larger of the fused and the unfused forms of tl.dot_add) over
     the chunks of part p (cw = min(64, bk) consecutive k of each of its blocks b = p, p + sk, ...
     below K, in order), errStep = DotLoop.bound rho alpha T_p L_p (DotBF16 per step; T_p the part's
@@ -96,25 +95,24 @@ def chunk_bounds(M, K, xr, wl):
     blocks = (K + bk - 1) // bk
     n, R = xr.shape[0], wl.shape[0]
     lx, lw = lift(xr), lift(wl)
-    acc = torch.zeros((n, R), dtype=torch.float64, device=DEV)
-    mag = torch.zeros_like(acc)
+    mag = torch.zeros((n, R), dtype=torch.float64, device=DEV)
     rb = max(1, BATCH_BYTES // (R * cw * 8))
     rho, alpha = RHO(bk), ALPHA(bk)
     for p in range(min(sk, blocks)):
-        P = torch.zeros_like(acc)
-        E = torch.zeros_like(acc)
-        L = torch.zeros_like(acc)
+        P = torch.zeros_like(mag)
+        E = torch.zeros_like(mag)
+        L = torch.zeros_like(mag)
         T = len(range(p, blocks, sk))
         for b in range(p, blocks, sk):
             L += lx[:, b * bk:min((b + 1) * bk, K)] @ lw[:, b * bk:min((b + 1) * bk, K)].t()
             P0, E0 = P.clone(), E.clone()
-            Pl = torch.zeros_like(acc)   # the step's own partial sums, from 0
-            Ll = torch.zeros_like(acc)   # the unfused dot's own chain, from 0
+            Pl = torch.zeros_like(mag)   # the step's own partial sums, from 0
+            Ll = torch.zeros_like(mag)   # the unfused dot's own chain, from 0
             for c0 in range(b * bk, (b + 1) * bk, cw):
                 lo, hi = c0, min(c0 + cw, K)
                 if lo >= hi:   # a chunk past K: no product, cSum = cLift = 0
-                    m = torch.zeros_like(acc)
-                    c = torch.zeros_like(acc)
+                    m = torch.zeros_like(mag)
+                    c = torch.zeros_like(mag)
                 else:
                     c = xr[:, lo:hi] @ wl[:, lo:hi].t()
                     m = torch.cat([(lx[i:i + rb, None, lo:hi] * lw[None, :, lo:hi]).amax(-1)
@@ -130,20 +128,21 @@ def chunk_bounds(M, K, xr, wl):
         q = (1 + rho) ** T
         Es = float(q - 1) * L + float(T * q * alpha)
         E = torch.minimum(E, Es)
-        acc += E
         mag += P.abs() + E
-    return acc, mag
+    return mag
 
 
 def tolerance(M, K, s, s32, xr, wl, S):
-    _, sk = config(M)
-    acc, pmag = chunk_bounds(M, K, xr, wl)
+    """Post's tol (Claim.lean `tol`) and whether the room conditions hold, per element."""
+    bk, sk = config(M)
+    pmag = chunk_bounds(M, K, xr, wl)
     mul = float(U) * abs(s32) * pmag + sk * float(ETA)
     vmag = abs(s32) * pmag + mul
     q = (1 + AREL) ** sk
     atom = float(q - 1) * vmag + float(sk * q * AABS)
-    tol = abs(s32) * acc + mul + atom + abs(s32 - s) * S.abs()
-    A = lift(xr) @ lift(wl).t()
+    A = lift(xr) @ lift(wl).t()                       # dotMag
+    plen = bk * ((K + bk * sk - 1) // (bk * sk))      # partLen = bk * stepsOf 0
+    tol = plen * 2.0 ** -21 * abs(s) * A + 2.0 ** -100 * (1 + abs(s) + A)
     room = bool((A <= 2.0 ** 120).all()) and bool((vmag + atom <= MAXVAL).all())
     return tol, room
 

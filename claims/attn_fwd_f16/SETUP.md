@@ -72,7 +72,8 @@ the kernel; README, Exclusions), `HEAD_DIM ∈ {16, 32}` (the wrapper accepts th
 `check_gpu.py` (Triton 3.8.0, torch, an H200) runs every test launch (48) and every `float16`
 benchmark launch with `warp_specialize = False` (20: `N_CTX = 2^10 … 2^14`, both `HEAD_DIM`, both
 modes), with the host's own input distributions, and compares `o` and `M` with the float64
-reference. All are within the claim's tolerance: the largest error / tolerance is `0.52` for `o` and
-`0.005` for `M` on the test's launches, `0.18` and `0.007` on the benchmark's; every element of `o`
+reference. All are within the claim's tolerance: the largest error / tolerance for `o` is `0.459`
+on the test's launches and `0.112` on the benchmark's, and for `M` `0.0053` (on the benchmark's
+launches); every element of `o`
 and `M` is written and finite, the guard bands around them are unchanged, the inputs are unchanged,
 and no other tensor is allocated (the allocator the host sets is never called).

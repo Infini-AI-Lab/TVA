@@ -18,7 +18,7 @@ The kernel computes, for every row `r` of `o` (one `(batch, head, position)`), t
 * The model: `_attn_bwd_preprocess`, `model`, `launch`.
 * The conditions: `Inst`, `Inst.ok`, `Pre`.
 * The specification: `Post`, `Spec`, with `OutSpec`, the exact sums `dotSum`, `dotAbs` and the
-  tolerance `tol` (`tol_le_bcast`: below the library's `bcastTreeBound`; `tol_le`: its size).
+  tolerance `tol` (`fine_le`: above the fine bound of the products' and the sum's roundings).
 * The assumptions: `Assumptions` (`Compiler.Faithful` and the depth of a `tl.sum`'s tree).
 * The claim: `Statement`.
 * Checked here: `consistent`, `satisfiable`, and the coverage facts `canon_ok`, `setup_*_ok`.
@@ -112,7 +112,7 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `HEAD_DIM` is a power of two (Triton requires it of `tl.arange`; the host's `16 … 256`). -/
   head_pow2 : ∃ e, d.HEAD_DIM = 2 ^ e
   /-- `HEAD_DIM ≤ 256`: the largest head dimension the host admits (line 512); the tolerance of
-  `Post` grows with `HEAD_DIM` and is stated up to it (`tol_le`). -/
+  `Post` is stated up to it (`fine_le`). -/
   head_le : d.HEAD_DIM ≤ 256
   /-- The block `[BLOCK_M, HEAD_DIM]` has at most `2^20` elements (Triton's largest block). -/
   block_le : d.BLOCK_M * d.HEAD_DIM ≤ 2 ^ 20
@@ -183,23 +183,15 @@ def dotSum (vo vdo : Nat → F16) (D : Nat) : ℚ := ∑ k ∈ Finset.range D, (
 /-- The sum of the products' magnitudes, `Σ_k |o[k] · do[k]|`. -/
 def dotAbs (vo vdo : Nat → F16) (D : Nat) : ℚ := ∑ k ∈ Finset.range D, |(vo k).toRat * (vdo k).toRat|
 
-/-- The tolerance of one output, for `D = HEAD_DIM` products of absolute sum `B`, with
-`u = 2^-24` and `η = 2^-150` (one `float32` rounding's relative and absolute bounds):
-`errBound(3u, 4η, ⌈log₂ D⌉, D − 1, (1 + u)·B + D·η) + (u·B + D·η)`, where
-`Tree.errBound δ η d N A = ((1 + δ)^d − 1)·A + η·N·(1 + δ)^d`. The second term covers the products'
-roundings (`u·|a·b| + η` each); the first, the sum of the rounded products along a tree of `D`
-leaves of depth at most `⌈log₂ D⌉` (`Rules.Num.SumDepth`) and `D − 1` nodes, whose additions may be
-contracted with the products (`3u` relative and `4η` absolute per addition, `FloatV.AddRel.err`).
-It is `sum_bcast_mul_tree_err`'s bound `bcastTreeBound D B` with the depth `⌈log₂ D⌉` in place of
-`D − 1` (`tol_le_bcast`), and below `2^-19·B + 2^-138` for `D ≤ 256` (`tol_le`). -/
-def tol (D : Nat) (B : ℚ) : ℚ :=
-  Tree.errBound (3 * 2 ^ (-24 : ℤ)) (4 * 2 ^ (-150 : ℤ)) (Nat.clog 2 D) (D - 1)
-      ((1 + 2 ^ (-24 : ℤ)) * B + D * 2 ^ (-150 : ℤ)) +
-    (2 ^ (-24 : ℤ) * B + D * 2 ^ (-150 : ℤ))
+/-- The tolerance of one output whose products have absolute sum `B = Σ_k |o[k]·do[k]|`:
+`2^-19·B + 2^-138`, for every covered `HEAD_DIM ≤ 256`. It is above the bound of the products'
+`float32` roundings summed along a tree of depth `⌈log₂ HEAD_DIM⌉` (`fine_le`, README
+`## Tolerances`). -/
+def tol (B : ℚ) : ℚ := 2 ^ (-19 : ℤ) * B + 2 ^ (-138 : ℤ)
 
 /-- What the launch leaves in element `r` of `Delta`: some `float32` value `c`; and when row `r` of
 `O` and of `DO` (elements `r·HEAD_DIM + k`, `k < HEAD_DIM`) hold finite values `vo k`, `vdo k` in the
-initial memory, `c` is finite and within `tol HEAD_DIM (Σ_k |vo k · vdo k|)` of the exact
+initial memory, `c` is finite and within `tol (Σ_k |vo k · vdo k|)` of the exact
 `Σ_k vo k · vdo k`. -/
 def OutSpec (d : Inst) (init fin : Mem) (r : Nat) : Prop :=
   ∃ c : F32, fin.read .f32 (d.Delta.ptr ↑r).addr = some c ∧
@@ -209,7 +201,7 @@ def OutSpec (d : Inst) (init fin : Mem) (r : Nat) : Prop :=
       (∀ k, k < d.HEAD_DIM → init.read .f16 (d.DO.ptr ↑(r * d.HEAD_DIM + k)).addr = some (vdo k) ∧
         (vdo k).isFinite = true) →
       c.isFinite = true ∧
-        |c.toRat - dotSum vo vdo d.HEAD_DIM| ≤ tol d.HEAD_DIM (dotAbs vo vdo d.HEAD_DIM)
+        |c.toRat - dotSum vo vdo d.HEAD_DIM| ≤ tol (dotAbs vo vdo d.HEAD_DIM)
 
 /-- What the launch leaves: for every `(batch, head)` pair `bh < Z·H` and position `m < N_CTX`,
 element `bh·N_CTX + m` of `Delta` as `OutSpec` says (row `bh·N_CTX + m` of `O` and `DO`); every
@@ -235,47 +227,33 @@ structure Assumptions (K : Claim.Behaviour Inst) (P : Platform) : Prop where
 
 /-! ## The tolerance -/
 
-/-- `tol` is at most the library's bound for rounded products summed along any tree with fusable
-additions (`bcastTreeBound`, depth `D − 1`): the depth `⌈log₂ D⌉` is smaller. -/
-theorem tol_le_bcast (D : Nat) {B : ℚ} (hB : 0 ≤ B) : tol D B ≤ bcastTreeBound D B := by
-  unfold tol bcastTreeBound
-  rw [Format.binary32_u, Format.binary32_eta]
+/-- **The tolerance covers the fine bound** at the covered sizes: for `D ≤ 256`, the bound of
+`D` products rounded once each in `float32` (`u·|a·b| + η`, `u = 2^-24`, `η = 2^-150`) and summed
+along a tree of depth `⌈log₂ D⌉` with `D − 1` fusable additions (`3u`, `4η` each;
+`Tree.errBound δ η d N A = ((1 + δ)^d − 1)·A + η·N·(1 + δ)^d`) is below `tol B`. -/
+theorem fine_le {D : Nat} (hD : D ≤ 256) {B : ℚ} (hB : 0 ≤ B) :
+    Tree.errBound (3 * 2 ^ (-24 : ℤ)) (4 * 2 ^ (-150 : ℤ)) (Nat.clog 2 D) (D - 1)
+        ((1 + 2 ^ (-24 : ℤ)) * B + D * 2 ^ (-150 : ℤ)) + (2 ^ (-24 : ℤ) * B + D * 2 ^ (-150 : ℤ))
+      ≤ tol B := by
   have hδ : (0 : ℚ) ≤ 3 * 2 ^ (-24 : ℤ) := by positivity
   have hη : (0 : ℚ) ≤ 4 * 2 ^ (-150 : ℤ) := by positivity
+  have hDD : (D : ℚ) ≤ 256 := by exact_mod_cast hD
   have hA : 0 ≤ (1 + 2 ^ (-24 : ℤ)) * B + D * 2 ^ (-150 : ℤ) := by positivity
-  have hd : Nat.clog 2 D ≤ D - 1 := by
-    rcases Nat.lt_or_ge D 1 with h | h
-    · rw [Nat.clog_of_right_le_one (by omega)]; omega
-    · refine Nat.clog_le_of_le_pow ?_
-      have := Nat.lt_two_pow_self (n := D - 1)
-      omega
-  exact add_le_add (Tree.errBound_mono hδ hη hd (le_refl (D - 1)) hA le_rfl) le_rfl
-
-/-- The tolerance grows with `D`. -/
-theorem tol_mono {D D' : Nat} (hD : D ≤ D') {B : ℚ} (hB : 0 ≤ B) : tol D B ≤ tol D' B := by
-  unfold tol
-  have hδ : (0 : ℚ) ≤ 3 * 2 ^ (-24 : ℤ) := by positivity
-  have hη : (0 : ℚ) ≤ 4 * 2 ^ (-150 : ℤ) := by positivity
-  have hDD : (D : ℚ) ≤ D' := by exact_mod_cast hD
-  have hA : 0 ≤ (1 + 2 ^ (-24 : ℤ)) * B + D * 2 ^ (-150 : ℤ) := by positivity
-  have hAA : (1 + 2 ^ (-24 : ℤ)) * B + D * 2 ^ (-150 : ℤ) ≤ (1 + 2 ^ (-24 : ℤ)) * B + D' * 2 ^ (-150 : ℤ) := by
-    have : (D : ℚ) * 2 ^ (-150 : ℤ) ≤ D' * 2 ^ (-150 : ℤ) := mul_le_mul_of_nonneg_right hDD (by positivity)
+  have hAA : (1 + 2 ^ (-24 : ℤ)) * B + D * 2 ^ (-150 : ℤ) ≤
+      (1 + 2 ^ (-24 : ℤ)) * B + (256 : ℕ) * 2 ^ (-150 : ℤ) := by
+    have : (D : ℚ) * 2 ^ (-150 : ℤ) ≤ (256 : ℕ) * 2 ^ (-150 : ℤ) :=
+      mul_le_mul_of_nonneg_right (by exact_mod_cast hD) (by positivity)
     linarith
-  have h1 := Tree.errBound_mono hδ hη (d := Nat.clog 2 D) (d' := Nat.clog 2 D') (N := D - 1)
-    (N' := D' - 1) (Nat.clog_mono_right 2 hD) (by omega) hA hAA
-  have h2 : (D : ℚ) * 2 ^ (-150 : ℤ) ≤ D' * 2 ^ (-150 : ℤ) := mul_le_mul_of_nonneg_right hDD (by positivity)
-  linarith
-
-/-- **The tolerance at the covered sizes**: for `HEAD_DIM ≤ 256`, `tol` is below
-`2^-19·B + 2^-138`, where `B = Σ_k |o[k]·do[k]|`. -/
-theorem tol_le {D : Nat} (hD : D ≤ 256) {B : ℚ} (hB : 0 ≤ B) :
-    tol D B ≤ 2 ^ (-19 : ℤ) * B + 2 ^ (-138 : ℤ) := by
-  refine (tol_mono hD hB).trans ?_
   have hc : Nat.clog 2 256 = 8 := by
     rw [show (256 : ℕ) = 2 ^ 8 by norm_num]; exact Nat.clog_pow 2 8 (by norm_num)
-  unfold tol Tree.errBound
-  rw [hc]
-  norm_num
+  have h1 := Tree.errBound_mono hδ hη (d := Nat.clog 2 D) (d' := Nat.clog 2 256) (N := D - 1)
+    (N' := 256 - 1) (Nat.clog_mono_right 2 hD) (by omega) hA hAA
+  have h2 : (D : ℚ) * 2 ^ (-150 : ℤ) ≤ 256 * 2 ^ (-150 : ℤ) :=
+    mul_le_mul_of_nonneg_right hDD (by positivity)
+  rw [hc] at h1
+  unfold Tree.errBound at h1 ⊢
+  unfold tol
+  norm_num at h1 h2 ⊢
   linarith
 
 

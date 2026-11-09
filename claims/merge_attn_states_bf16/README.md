@@ -33,9 +33,10 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    - for every `j < head_size`, element `oIdx d t h j` of `output` reads as some `w`; if
      `bothEmpty p s` then `w = zeroB` (`+0`, line 379); otherwise, with `pv`, `sv` the initial
      `prefix_output`, `suffix_output` elements (`poIdx`, `soIdx`), `w` is finite and
-     `|w.toReal - refOut …| ≤ bf16Round * |refOut …| + outTol * (|pv.toReal| + |sv.toReal|) + absTol`;
+     `|w.toReal - refOut …| ≤ bf16Round * |refOut …| + outTol * max |pv.toReal| |sv.toReal| + absTol`;
    - `refMax`, `side`, `refSum`, `refLse`, `refOut` (lines 348–363) are exact, in the reals, from
-     `init`; the constants `lseTol`, `bf16Round`, `outTol`, `absTol` are lines 367–376;
+     `init`; the constants `lseTol = 2^-16`, `bf16Round = 2^-8`, `outTol = 2^-13`, `absTol = 2^-133` are
+     lines 367–376;
 2. for every copied `(t, h)`, `ptwc ≤ t < T`, `h < H`: `CopyOk d init fin t h` (line 407): when
    `d.outLse` the `output_lse` element is the initial `suffix_lse` element, and every output
    element `j < head_size` is the initial `suffix_output` element, bit for bit. No condition on
@@ -78,9 +79,11 @@ the four inputs: the route is `TVA.meets_independent` (PROVER_GUIDE §4).
   `olse_layout` for `output_lse`), and no program reads what another writes (`output_disj`,
   `output_lse_in_disj`, `output_lse_disj`);
 - the value part of part 1: in the both-empty case the `where`s select the constants; otherwise
-  `exp_acc`, `exp_ninf`, `log_acc`, `div_full`, `FloatV.sub_err`, `add_err`, `mul_err`,
-  `cvt_err`, and `AddRel` for `tl.addc`, under the finiteness `Pre` gives. `## Tolerances` gives
-  the derivation. Part 2 is exact;
+  derive the fine bounds of README `## Tolerances` (`exp_acc`, `exp_ninf`, `log_acc`, `div_full`,
+  `FloatV.sub_err`, `add_err`, `mul_err`, `cvt_err`, and `AddRel` for `tl.addc`, under the
+  finiteness `Pre` gives), then relax them: the lse's `2^-19·(1 + |refLse|)` to `lseTol`'s, the
+  output's `2^-8·|refOut| + (1 + 2^-8)·2^-18·(|pv| + |sv|) + 2^-134 + 2^-137` to
+  `2^-8·|refOut| + 2^-13·max(|pv|, |sv|) + 2^-133` (`|pv| + |sv| ≤ 2·max`). Part 2 is exact;
 - the bytes no program writes give part 3.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`
@@ -99,9 +102,10 @@ One program per `(t, h)` of the grid `(num_tokens, num_heads)`. `Post` states:
     * `output_lse[h, t]` (when `output_lse` is passed) is finite and within
       `2^-16 · (1 + |refLse|)` of `refLse = log(refSum) + m`;
     * each `output[t, h, j]` is finite and within
-      `2^-8 · |refOut| + 2^-14 · (|pv| + |sv|) + 2^-133` of
+      `2^-8 · |refOut| + 2^-13 · max(|pv|, |sv|) + 2^-133` of
       `refOut = (pv · side p + sv · side s) / refSum`, with `pv = prefix_output[t, h, j]`,
-      `sv = suffix_output[t, h, j]` (initial values).
+      `sv = suffix_output[t, h, j]` (initial values): one `bfloat16` rounding of the output, plus
+      `2^-13` of the larger input's magnitude, plus the smallest `bfloat16` subnormal.
 * **Copied tokens** (`t ≥ prefill_tokens_with_context`, `CopyOk`): `output_lse[h, t]` (when
   passed) and every `output[t, h, j]` are the suffix's, bit for bit.
 * **Frame**: every byte outside the written elements (`writeSet`: `output[t, h, j < head_size]`,
@@ -167,9 +171,9 @@ backends' calls, and the host's test's second run of each case): `setup_nolse_t6
 
 ## Tolerances
 
-The constants are `lseTol = 2^-16`, `bf16Round = 2^-8`, `outTol = 2^-14`, `absTol = 2^-133`, on
-every non-NaN lse and every finite `bfloat16` input; the both-empty output is exact (`+0`). Why they
-hold, from the library's facts (`u = 2^-24`):
+The constants are `lseTol = 2^-16`, `bf16Round = 2^-8`, `outTol = 2^-13`, `absTol = 2^-133`, on
+every non-NaN lse and every finite `bfloat16` input; the both-empty output is exact (`+0`). Why they hold, from the
+library's facts (`u = 2^-24`), first the fine bounds:
 
 * `x = fl(side − m) ≤ 0` (IEEE `−`): `x = (side − m)(1+ε)`, `|ε| ≤ u`, or `−∞` when it overflows
   (then `tl.exp` gives `+0` by `ExpF32NegInf`, against a reference weight `e^(x−m) < e^(-2^127)`);
@@ -194,17 +198,26 @@ hold, from the library's facts (`u = 2^-24`):
   `|y − refOut| ≤ 2^-18·(|pv| + |sv|) + 2^-138`.
 * The store's rounding to `bfloat16` (`cvt`, nearest even, `u_bf16 = 2^-8`, `η = 2^-134`):
   `|w − y| ≤ 2^-8·|y| + 2^-134`, and `w` is finite (`|y|` stays below the rounding threshold to
-  `∞`, `(2 − 2^-8)·2^127`). Hence `|w − refOut| ≤ 2^-8·|refOut| + (1+2^-8)·2^-18·(|pv|+|sv|) +
-  2^-134 + 2^-137 ≤ bf16Round·|refOut| + outTol·(|pv|+|sv|) + absTol`.
+  `∞`, `(2 − 2^-8)·2^127`). Hence the fine bound
+  `|w − refOut| ≤ 2^-8·|refOut| + (1+2^-8)·2^-18·(|pv|+|sv|) + 2^-134 + 2^-137`.
 * Both empty: `max_lse = −∞`, the two `tl.where`s select the constants: `cl = −∞`, and
   `out = +0` in `float32`, whose conversion is the `bfloat16` `+0`.
 * Without `output_lse` (`OUTPUT_LSE = False`) the output's computation is the same operations on
   the same values (lines 168–177 only compute and store the lse), so the output bound is the
   same; nothing is stored to an lse.
 
-Meaningful: the output bound is one `bfloat16` rounding (`2^-8`) plus `2^-14` of the inputs'
-magnitudes; the H200 run reaches `0.978` of it (the rounding itself), and the lse bound is about
-`1.5·10^-5` at `|lse| ≈ 1`.
+**Relaxation.** The lse: `2^-19·(1 + |refLse|) ≤ 2^-16·(1 + |refLse|) = lseTol·(1 + |refLse|)`.
+The output: with `V = max(|pv|, |sv|)`, `|pv| + |sv| ≤ 2V`, so the fine bound is at most
+`2^-8·|refOut| + (1 + 2^-8)·2^-17·V + 2^-134 + 2^-137 ≤ 2^-8·|refOut| + 2^-13·V + 2^-133`
+(`(1 + 2^-8)·2^-17 ≤ 2^-13`, `2^-134 + 2^-137 ≤ 2^-133`).
+
+Meaningful: the lse bound is about `1.5·10^-5` at `|lse| ≈ 1`; the H200 run reaches `0.0067` of
+it. The output bound is one `bfloat16` rounding of the output plus `2^-13` of the larger input;
+the H200 run reaches `0.966` of it (the rounding itself). Relative to the output, on the host's
+test cases and the largest shape (`pv`, `sv` independent `randn`, so the two sides often cancel),
+`tol/|refOut|` has median `0.0041` and 90th percentile `0.0048` (the fine bound: median and 90th
+percentile `0.0039`, one rounding); its worst, `83`, is at an element whose sides cancel
+(`|refOut|` near `0`; `3.9` for the fine bound).
 
 ## Exclusions
 
@@ -265,11 +278,11 @@ None.
   1; 3 tokens, 2 heads of size 1 padded by 1; head size 3 padded by 5; 64 heads of 256 padded by 64) and four `Pre` edges (lse of every bit pattern but NaN, huge,
   subnormal and infinite; `bfloat16` of every finite pattern; exact cancellation; both lse at the
   `float32` maximum; any bits, NaN included, in the copied tokens and in both-empty rows). Worst
-  output error / tolerance `0.978` (margin `1.02×`, the bound being one `bfloat16` rounding), worst
-  lse error / tolerance `6.7·10^-3` (margin `149×`); both-empty lse `−∞` and output `+0`, the copied
+  output error / tolerance `0.966` (margin `1.04×`, the bound being one `bfloat16` rounding of the
+  output plus `2^-13` of the larger input), worst lse error / tolerance `6.7·10^-3` (margin
+  `149×`); both-empty lse `−∞` and output `+0`, the copied
   tokens bit for bit, and every input storage unchanged, on every case. Seven wrong outputs on
   the host's case (4096 tokens, 32 heads of 128, `ptwc = 128`) are rejected: all-zero merged
-  output (error / tolerance `252`), the suffix's output alone (`1.6·10^4`), the prefix's output
-  alone (`1.6·10^4`), an unweighted average
-  (`8.2·10^3`), swapped weights (`1.6·10^4`), the lse's log term dropped (`4.5·10^4`), zeroed
-  copied tokens (exactness fails).
+  output (error / tolerance `248`), the suffix's output alone (`8.2·10^3`), the prefix's output
+  alone (`8.2·10^3`), an unweighted average (`4.1·10^3`), swapped weights (`8.2·10^3`), the lse's
+  log term dropped (lse error / tolerance `4.5·10^4`), zeroed copied tokens (exactness fails).

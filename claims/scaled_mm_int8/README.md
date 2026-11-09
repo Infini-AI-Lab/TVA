@@ -34,21 +34,24 @@ for every device behaviour `K` and platform `P` that satisfy `Assumptions`, ever
 the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 535).
 
 **What `Post` asks** (line 535), two parts:
-1. for every `i < M` and `j < N`, `OutSpec d init fin i j` (line 512). Unconditionally: element
+1. for every `i < M` and `j < N`, `OutSpec d init fin i j` (line 514). Unconditionally: element
    `i * stride_cm + j * stride_cn` of `c` reads in `fin` as some `c` of dtype `od`. Then, for all
    `va vb : Nat → I8`, `sa sb : F32` and `β : ℚ` such that row `i` of `A` reads in `init` as `va k`
    and column `j` of `B` as `vb k` (`k < K`, by the strides), `sa` is element `saIdx d i` (line 301)
    of `sa` and finite, `sb` is element `sbIdx d j` (line 304) of `sb` and finite, `BiasIs d init j β`
-   (line 497: the finite value of element `j * stride_bias` of `bias`, or `β = 0` without a bias),
-   and `Room32` (line 469) holds: with `S = dotSum va vb K` (line 439, the exact integer
-   `Σ_{k<K} va k · vb k`), `R = sa·sb·S + β` and `E = tol hasBias sa sb S β` (line 463),
-   - there is a finite `v : F32` with `|v.toRat − R| ≤ E` and `OutIs od v c` (line 490: `c` is
+   (line 499: the finite value of element `j * stride_bias` of `bias`, or `β = 0` without a bias),
+   and `Room32` (line 471) holds: with `S = dotSum va vb K` (line 439, the exact integer
+   `Σ_{k<K} va k · vb k`), `R = sa·sb·S + β`, `mag = |sa·sb|·(|S| + 1) + |β|` (line 462) and
+   `E = tol sa sb S β = 2^-21·mag + 2^-21` (line 467),
+   - there is a finite `v : F32` with `|v.toRat − R| ≤ E` and `OutIs od v c` (line 492: `c` is
      `FloatV.cvt v` up to NaN payload, `FloatV.NaNEq`);
-   - if `|R| + E ≤ outMax od` (line 484), then `c` is finite with value `q` and
-     `|q − R| ≤ E + (|R| + E)·outU od + outEta od` (lines 474, 479).
+   - if `|R| + E ≤ outMax od` (line 481), then `c` is finite with value `q` and
+     `|q − R| ≤ outTol od sa sb S β = 2·outU od·mag + 2^-20` (line 488; `outU` line 476: `2^-8`
+     for `bfloat16`, `2^-11` for `float16`).
 
-   `R` is exact, in the rationals, from `init`. `E` is built from `e1`, `e2`, `e3` (lines 451–458)
-   with `u32`, `eta32` (lines 442, 445). Without finite scales and bias, or without `Room32`, only
+   `R` is exact, in the rationals, from `init`. `Room32` is built from `e1`, `e2`, `e3` (lines
+   451–458) with `u32`, `eta32` (lines 442, 445). Without finite scales and bias, or without
+   `Room32`, only
    "holds a value" is asked;
 2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 321) is unchanged.
 
@@ -94,9 +97,10 @@ accumulator (PROVER_GUIDE §4).
 - the value part of `Post`: the loop invariant gives, for `i < M`, `j < N`, after `t` trips the
   exact partial sum over `k < t·BK` (`dot` at each trip, its room from `K_lt`: `K·2^14 < 2^31 − 1`;
   `K_div` makes every `k` lane of every trip enabled; `TVA.DotLoop.sum_chunks` joins the chunks);
-  then `S`'s error chain: `tl.ItofRel` with `FloatV.ofRat_err` / `FloatV.cvt_err`, `FloatV.mul_err`
-  twice, `FloatV.AddRel.err` for the bias, `FloatV.cvt_err` for the output, with `Room32` for the
-  ranges (README, Tolerances);
+  then derive the fine bounds of README `## Tolerances` (`S`'s error chain: `tl.ItofRel` with
+  `FloatV.ofRat_err` / `FloatV.cvt_err`, `FloatV.mul_err` twice, `FloatV.AddRel.err` for the bias,
+  `FloatV.cvt_err` for the output, with `Room32` for the ranges) and relax them to `tol` and
+  `outTol` (Tolerances, Relaxation);
 - the frame: no program writes outside its tile of the matrix `C`.
 
 `K_dim` and `M_ctx` restrict the instances to real model shapes (`128 ∣ K ≤ 2^17`, `M ≤ 2^22`);
@@ -117,12 +121,12 @@ accumulator (PROVER_GUIDE §4).
   (`sa`: `scale_a[i, 0]` per token, `scale_a[0, 0]` per tensor) and of column `j` (`sb`) are finite
   `float32`s, the bias of column `j` is a finite `β` (`β = 0` without a bias), and `float32` has room
   (`Room32`, below): with `S = Σ_k va k · vb k` (an exact integer), `R = sa·sb·S + β` and
-  `E = tol hasBias sa sb S β` (Tolerances),
+  `mag = |sa·sb|·(|S| + 1) + |β|` (the magnitude of `R`'s terms, at least `|R|`),
   - `c` is the rounding to nearest even (up to NaN payload) of a finite `float32` value `v` with
-    `|v − R| ≤ E` (`OutIs`);
+    `|v − R| ≤ E = 2^-21·mag + 2^-21` (`tol`, `OutIs`);
   - when `|R| + E` is at most the output format's largest value, `c` is finite and
-    `|c − R| ≤ E + (|R| + E)·u + η`, with `u = 2^-8`, `η = 2^-134` for `bfloat16` and
-    `u = 2^-11`, `η = 2^-25` for `float16` (`outU`, `outEta`: one more rounding).
+    `|c − R| ≤ 2·u·mag + 2^-20`, with `u = 2^-8` for `bfloat16` (`2^-7·mag + 2^-20`) and
+    `u = 2^-11` for `float16` (`2^-10·mag + 2^-20`) (`outTol`, `outU`: one more rounding).
 
   With a non-finite scale or bias, or without room, it says only that the element holds some value
   of the output's dtype.
@@ -133,7 +137,7 @@ The reference `R` is computed from the host's tensors: `A[i, k]`, `B[k, j]` by t
 `scale_a[i, 0]` and `scale_b[j, 0]` by theirs (`saIdx`, `sbIdx`), `bias[j]` (`BiasIs`), exactly as
 vLLM's test computes its reference (`torch_scaled_mm`,
 `tests/kernels/quantization/test_triton_scaled_mm.py:24-37`, in exact arithmetic). It pins each
-output within about one rounding of the output format: the `int32` accumulation is exact, so the
+output within about two roundings of the output format: the `int32` accumulation is exact, so the
 tolerance is the `float32` scale products, the bias addition and the output's rounding only.
 
 `Spec K := Claim.Meets Inst.ok Pre Post K`: every launch on a covered instance and input ends
@@ -227,7 +231,7 @@ per-tensor scales and a bias, with the all-zero memory.
 
 ## Tolerances
 
-`tol hasBias sa sb S β` (`Claim.lean`), with `u = 2^-24`, `η = 2^-150` (`float32`):
+The fine bound, from the library's facts, with `u = 2^-24`, `η = 2^-150` (`float32`):
 
 - `e1 = |S|·u + η`: `accumulator.to(tl.float32)` (line 180) of the exact integer `S` (`tl.itof`,
   `ItofRel`: one rounding of `S`, directly or through the exact `float64`; `FloatV.ofRat_err`,
@@ -235,11 +239,13 @@ per-tensor scales and a bias, with the all-zero memory.
 - `e2 = |sa|·e1 + (|sa·S| + |sa|·e1)·u + η`: the product by `scale_a` (line 180, `FloatV.mul_err`;
   `|sa·x| ≤ |sa|·(|S| + e1)`);
 - `e3 = |sb|·e2 + (|sa·sb·S| + |sb|·e2)·u + η`: the product by `scale_b` (line 185);
-- without a bias, `tol = e3`; with one, `tol = e3 + 3u·(|sa·sb·S| + e3 + |β|) + 4η`: the addition
+- without a bias, `F = e3`; with one, `F = e3 + 3u·(|sa·sb·S| + e3 + |β|) + 4η`: the addition
   of line 193, contractible with line 185's product (`tl.addc`, `FloatV.AddRel.err`:
   `3u·(|x| + |β|) + 4η` with `|x| ≤ |sa·sb·S| + e3`; it covers the IEEE sum and the `fma`);
-- the output's rounding (line 196, `tl.convert` to `od`, `FloatV.cvt_err`): `(|R| + tol)·u_o + η_o`
-  in the second clause.
+  so `|v − R| ≤ F`;
+- the output's rounding (line 196, `tl.convert` to `od`, `FloatV.cvt_err`, `u_o = 2^-8`,
+  `η_o = 2^-134` for `bfloat16`, `u_o = 2^-11`, `η_o = 2^-25` for `float16`):
+  `|c − R| ≤ F + (|R| + F)·u_o + η_o`.
 
 `Room32` is what these steps need: `|sa|·(|S| + e1)` and `|sb|·(|sa·S| + e2)` at most `float32`'s
 largest value, and `|sa·sb·S| + e3 + |β| ≤ maxVal/2 − 2η` (`AddRel.err`'s room). The `int32`
@@ -247,14 +253,32 @@ accumulator is exact by `dot` (`DotI8`) at every trip: on a covered instance the
 partial sum and `|acc| + Σ|a·b| ≤ K·2^14 < 2^31 − 1` (`K_lt`), so `DotI8`'s room condition holds,
 and the masked lanes are only rows `≥ M` or columns `≥ N`, which no stored element reads (`K_div`).
 
-**Meaningful.** `tol` is about `3·2^-24` of `|sa·sb·S| + |β|`, so the bound is the output's rounding
-plus a few `float32` roundings: about `2^-8·|R|` for `bfloat16` and `2^-11·|R|` for `float16`, the
-device's own rounding error. `check_gpu.py` measures the device's error at up to `0.9993` of the
-bound (rounding to nearest reaches it near the bottom of a binade), and wrong results break it: the
-scaled product rounded to `bfloat16` before the bias is added (vLLM's rounding test data: ratio
-`1.74`), the last `BLOCK_SIZE_K` products left out, the next row's scale, the bias left out (ratios
-`10^6` and more). The bound is provable: it composes the facts above, each step's error by the
-library's lemma for its operation.
+**Relaxation.** Expanding, `e2 = (2 + u)·u·|sa·S| + (1 + u)·|sa|·η + η` and
+`e3 = (3 + 3u + u²)·u·|sa·sb·S| + (1 + u)²·|sa·sb|·η + (1 + u)·|sb|·η + η`; with a bias,
+`F = (1 + 3u)·e3 + 3u·|sa·sb·S| + 3u·|β| + 4η ≤ 6.000001·u·|sa·sb·S| + 3u·|β| +
+1.000001·|sa·sb|·η + 1.000001·|sb|·η + 5.000001·η` (without one, `F = e3` is below the same). With
+`mag = |sa·sb|·(|S| + 1) + |β|` and `2^-21 = 8u`: `6.000001·u·|sa·sb·S| ≤ 2^-21·|sa·sb·S|`,
+`3u·|β| ≤ 2^-21·|β|`, `1.000001·η·|sa·sb| ≤ 2^-21·|sa·sb|`, and, `sb` being a finite `float32`
+(`|sb| < 2^128`), `1.000001·|sb|·η + 5.000001·η ≤ 2^-22·1.000001 + 2^-147 ≤ 2^-21`. So
+`F ≤ 2^-21·mag + 2^-21 = tol` on every input `Post` covers. For the output, `|R| ≤ mag`, so
+`F + (|R| + F)·u_o + η_o ≤ (u_o + 2^-21·(1 + u_o))·mag + 2^-21·(1 + u_o) + η_o ≤ 2·u_o·mag + 2^-20
+= outTol` (`2^-21·(1 + 2^-8) ≤ 2^-8 = u_o` for `bfloat16`, `≤ 2^-11` for `float16`;
+`2^-21·(1 + 2^-8) + 2^-134 ≤ 2^-20` and `2^-21·(1 + 2^-11) + 2^-25 ≤ 2^-20`).
+
+**Meaningful.** `tol` is `8·2^-24` of `mag`, a few `float32` roundings; `outTol` is two roundings
+of the output format, relative to `mag` (`|R|` up to the `+ 1` and a cancelling bias), plus
+`2^-20`, below one `bfloat16` rounding for `|R| ≥ 2^-12` (one `float16` rounding for
+`|R| ≥ 2^-9`). Over the elements of vLLM's test, its plain-path test and the Llama-class layers,
+`outTol/|R|` has median `9.9·10^-4` and 90th percentile `7.8·10^-3` (the fine output bound:
+`4.9·10^-4`, `3.9·10^-3`), and `tol/|R|` median `7.5·10^-7` (the fine `F`: `1.9·10^-7`); the worst
+values (`1.6·10^3`, `105`) are at elements with `R` near `0` (a bias cancelling the product).
+`outTol` is at least `2×` the fine output bound, `tol` at least `1.33×` `F`. On launches with tiny
+scales (`scale_a` of `2^-60`, outputs below `2^-50`) the `2^-20` floor accepts any small output.
+`check_gpu.py` measures the device's error at up to `0.4998` of `outTol` (one rounding), and wrong
+results break `Post`: the scaled product rounded to `bfloat16` before the bias is added (vLLM's
+rounding test data, by the first clause: no `v` within `tol` of `R` rounds to it), the last
+`BLOCK_SIZE_K` products left out, the next row's scale (ratios `5·10^3` and more), the bias left
+out (`128`).
 
 ## Exclusions
 
@@ -321,6 +345,6 @@ None.
 4. **GPU** (`check_gpu.py`, H200 NVL, Triton 3.8.0): 94 host launches and two guarded direct
    launches (`SETUP.md`, Checked on the H200; vLLM's rounding test, `K = 32`, is outside `Inst.ok`
    and run as an extra). Both clauses of `OutSpec` checked (the first as: some
-   real `v` within `E` of `R` rounds to `c`); largest error / tolerance **0.9993** (margin 0.0007,
-   Llama-3.1-405B's down projection at TP8, `float16`); four wrong results each break `Post`; inputs
+   real `v` within `E` of `R` rounds to `c`); largest error / `outTol` **0.4998** (margin 2×,
+   vLLM's test, `M = 512`, `N = 20486`, `float16`); four wrong results each break `Post`; inputs
    unchanged; no byte outside the matrix `C` written. PASS.

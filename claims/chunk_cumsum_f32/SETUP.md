@@ -78,4 +78,4 @@ variable-length test shapes (the latter with `int32` and `int64` tables, up to a
 `[0, T)`, a permuted `chunk_indices`, `BT` 512 and 2048, gates near `2^126`, NaN/±inf gates,
 scales from `1e-45` to `1e39`, `2^20` tokens × 64 heads, 64 fixed rows). Every table is
 `TablesOk`; over every in-range element the output is finite and the worst error / tolerance is
-1.0000 (at most 1); the inputs are unchanged and every unwritten element keeps the sentinel.
+`0.506`; the inputs are unchanged and every unwritten element keeps the sentinel.

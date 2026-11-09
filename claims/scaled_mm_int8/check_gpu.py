@@ -9,16 +9,15 @@ an extra), and checks `Post` element by element in float64, from the host's inpu
 * for each element `(i, j)` of `C`: `S = sum_k A[i, k] * B[k, j]` (an integer; every partial sum is
   below `2^53`, so the float64 sum is exact), `sa` the scale of row `i` (`scale_a[i]` per token,
   `scale_a[0]` per tensor), `sb` the scale of column `j`, `beta` the bias of column `j` (`0`
-  without one), `R = sa * sb * S + beta`, and `E = tol` from `e1 = |S| u + eta`,
+  without one), `R = sa * sb * S + beta`, `mag = |sa sb| (|S| + 1) + |beta|` and
+  `E = tol = 2^-21 mag + 2^-21`; `Room32` is checked to hold (from `e1 = |S| u + eta`,
   `e2 = |sa| e1 + (|sa S| + |sa| e1) u + eta`, `e3 = |sb| e2 + (|sa sb S| + |sb| e2) u + eta`,
-  `E = e3` (no bias) or `e3 + 3u (|sa sb S| + e3 + |beta|) + 4 eta` (bias), with `u = 2^-24`,
-  `eta = 2^-150`; `Room32` is checked to hold; then `OutSpec`'s first clause, that the reals
-  rounding to `c` in the output format meet `[R - E, R + E]` (some `v` within `E` of `R` rounds to
-  `c`, up to `v`'s `float32` grid); and, with room (`|R| + E` at most the format's largest value,
-  which every case here meets), that `c` is finite and
-  `|c - R| <= E + (|R| + E) u_o + eta_o` (`u_o = 2^-8`, `eta_o = 2^-134` for `bfloat16`;
-  `2^-11`, `2^-25` for `float16`). The float64 evaluation of `R` and `E` rounds at `2^-53`, far
-  below every margin here.
+  `u = 2^-24`, `eta = 2^-150`); then `OutSpec`'s first clause, that the reals rounding to `c` in
+  the output format meet `[R - E, R + E]` (some `v` within `E` of `R` rounds to `c`, up to `v`'s
+  `float32` grid); and, with room (`|R| + E` at most the format's largest value, which every case
+  here meets), that `c` is finite and `|c - R| <= outTol = 2 u_o mag + 2^-20` (`u_o = 2^-8` for
+  `bfloat16`, `2^-11` for `float16`). The float64 evaluation of `R` and the tolerances rounds at
+  `2^-53`, far below every margin here.
 * negative tests: wrong results computed from the same inputs (the scaled product rounded to the
   output format before the bias is added, on vLLM's rounding test; the last `BLOCK_SIZE_K` products
   of the reduction left out; the per-token scale of the next row; the bias left out) must each
@@ -104,9 +103,10 @@ def post_rows(out, a, b, scale_a, scale_b, bias, od):
     assert ((sb.abs() * ((sa * S).abs() + e2) <= MAX32)
             & (sa.abs() * (S.abs() + S.abs() * U32 + ETA32) <= MAX32)
             & (P.abs() + e3 + beta.abs() <= MAX32 / 2 - 2 * ETA32)).all(), "Room32 fails"
-    del e2, S
-    E = e3 + 3 * U32 * (P.abs() + e3 + beta.abs()) + 4 * ETA32 if bias is not None else e3
-    del e3, P
+    del e2, e3
+    mag = (sa * sb).abs() * (S.abs() + 1) + beta.abs()
+    del S, P
+    E = 2.0 ** -21 * mag + 2.0 ** -21
     assert (R.abs() + E <= f["max"]).all(), "output room fails"
     c = out.double()
     lo, hi = neighbours(out)
@@ -114,7 +114,7 @@ def post_rows(out, a, b, scale_a, scale_b, bias, od):
     c1 = (R - E <= (c + hi) / 2) & (R + E >= (c + lo) / 2) & torch.isfinite(c)
     del lo, hi
     # second clause
-    tol2 = E + (R.abs() + E) * f["u"] + f["eta"]
+    tol2 = 2 * f["u"] * mag + 2.0 ** -20
     ratio = torch.where(torch.isfinite(c), (c - R).abs() / tol2, torch.full_like(c, float("inf")))
     return c1, ratio
 

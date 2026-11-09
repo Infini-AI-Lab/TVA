@@ -102,9 +102,9 @@ mixer launches with `C`, `B` as views of a packed `xBC` tensor (`ngroups` 8, 4, 
 256; chunks of 128 and 256; up to 32768 tokens), and 16 edges (`dstate` 1, 33 and 1024; chunks of 2
 and 2048; one token; 200 one-token requests; 2^20 tokens; a grid `z` of 65535; a random
 non-monotone `seq_idx`; token-major `a`, `b`; `a.stride(0) = b.stride(0)` of `2^31 + 7` and
-`262144·10240`, `int64` arguments; values near 2^54; subnormal operands; NaN and infinities). The worst error / tolerance is `0.0160`; every element outside a same-request pair is
+`262144·10240`, `int64` arguments; values near 2^54; subnormal operands; NaN and infinities). The worst error / tolerance is `0.0087`; every element outside a same-request pair is
 `+0.0` bit for bit, the inputs are unchanged and the guard bands around `out` hold. Four wrong
-outputs are rejected: the exact result rounded to `bfloat16` (err/tol up to 162), the result
+outputs are rejected: the exact result rounded to `bfloat16`, the result
 missing the last `tl.dot` step, a launch without the cross-request zeroing, and the causal launch,
 which leaves tiles unwritten. The source's own test (`python -I source/ssd_bmm.py`) passes on its
 nine cases (largest absolute error `3.9e-5`).

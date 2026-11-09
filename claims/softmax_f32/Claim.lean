@@ -11,14 +11,14 @@ of `softmax_kernel.warmup(…)`, on `float32` matrices: `1823 × 781` (the test,
 
 The claim (`Statement`): on every covered instance, every launch that runs ends normally; every
 output element `y[r, j]` holds a `float32` value; for every row whose inputs are finite or `-∞`
-with at least one finite (`RowOk`), there is one factor `sc` for the row, within
-`sumTol BLOCK_SIZE` of `1`, such that each output of the row is finite and within
-`(elemTol + gapTol · gap_j) · σ_j + floorTol · σ_max` of `sc · σ_j`, `σ` the exact softmax of the
-row; every other byte is unchanged.
+with at least one finite (`RowOk`), there is one factor `sc` for the row, within `sumTol = 2^-17`
+of `1`, such that each output of the row is finite and within
+`elemTol · (gap_j + 4) · σ_j + floorTol` (`elemTol = 2^-22`, `floorTol = 2^-133`) of `sc · σ_j`, `σ`
+the exact softmax of the row and `gap_j = x_max − x_j`; every other byte is unchanged.
 
 * The model: `softmax_kernel`, `model`, `launch` (the model map is `model-map.json`).
 * The conditions: `Inst`, `Inst.ok`, `Pre`. The specification: `RowOk`, `softmaxRef`,
-  `softmaxMax`, `softmaxGap`, the tolerances `sumTol`, `elemTol`, `gapTol`, `floorTol`, `Post`,
+  `softmaxMax`, `softmaxGap`, the tolerances `sumTol`, `elemTol`, `floorTol`, `Post`,
   `Spec`.
 * The assumptions: seven `[rule]` fields (`Compiler.Faithful`, the library's facts for
   `tl.exp` and `/` on `float32`, and the depth of a `tl.sum`'s tree).
@@ -193,41 +193,37 @@ noncomputable def softmaxMax (xs : Nat → F32) (n : Nat) : ℝ := ⨆ k : Fin n
 noncomputable def softmaxGap (xs : Nat → F32) (n j : Nat) : ℝ :=
   Real.log (softmaxMax xs n / softmaxRef xs n j)
 
-/-- The tolerance of a row's common factor at block size `B`: `(⌈log₂ B⌉ + 56)·2^-24` (`≈ 4.2·10^-6`
-at `B = 2^14`). It is the row sum's error, along a tree of depth at most `⌈log₂ B⌉`
-(`Rules.Num.SumDepth`: `⌈log₂ B⌉·2^-24` and second-order terms), and the lanes' `tl.exp` errors
-summed over the row (`53·2^-24`); one factor for the whole row. -/
-def sumTol (B : Nat) : ℚ := ((Nat.clog 2 B : ℚ) + 56) * 2 ^ (-24 : ℤ)
+/-- The tolerance of a row's common factor: `2^-17` (`≈ 7.6·10^-6`). It covers the row sum's
+error, along a tree of depth at most `⌈log₂ BLOCK_SIZE⌉ ≤ 14` (`Rules.Num.SumDepth`), and the
+lanes' `tl.exp` errors summed over the row; one factor for the whole row (README, Tolerances). -/
+def sumTol : ℚ := 2 ^ (-17 : ℤ)
 
-/-- The relative tolerance of each output: `2^-21 + 2^-30` (`tl.exp`'s `2^-22` and the division's
-`2^-22`). -/
-def elemTol : ℚ := 2 ^ (-21 : ℤ) + 2 ^ (-30 : ℤ)
+/-- The relative tolerance of each output per unit of `softmaxGap + 4`: `2^-22` (`tl.exp`'s and
+the division's roundings, and the rounding of `x_j − x_max`, which grows with the gap; README,
+Tolerances). -/
+def elemTol : ℚ := 2 ^ (-22 : ℤ)
 
-/-- The relative tolerance per unit of `softmaxGap` (`x_max − x_j`): `3·2^-24 + 2^-30` (the
-rounding of `x_j − x_max` and the part of `tl.exp`'s error that grows with its argument). -/
-def gapTol : ℚ := 3 * 2 ^ (-24 : ℤ) + 2 ^ (-30 : ℤ)
-
-/-- The tolerance relative to the row's largest output: `2^-133` (`tl.exp`'s absolute `2^-140`
-and the division's `2^-148`). -/
+/-- The absolute floor of each output: `2^-133` (`tl.exp`'s absolute `2^-140` and the division's
+`2^-148`). -/
 def floorTol : ℚ := 2 ^ (-133 : ℤ)
 
 /-- What the launch leaves: for each row `r < n_rows`, with `xs` the row's input values as read in
 the initial memory, every output element `y[r, j]`, `j < n_cols`, holds a `float32` value; when the
-row is `RowOk`, there is one factor `sc` for the whole row, within `sumTol BLOCK_SIZE` of `1`, such
+row is `RowOk`, there is one factor `sc` for the whole row, within `sumTol` of `1`, such
 that each output element is a finite `float32` within
-`(elemTol + gapTol · softmaxGap) · σ + floorTol · softmaxMax` of `sc · σ`, where
+`elemTol · (softmaxGap + 4) · σ + floorTol` of `sc · σ`, where
 `σ = softmaxRef xs n_cols j` is the exact softmax; every byte outside the output elements is
 unchanged. -/
 def Post (d : Inst) (init fin : Mem) : Prop :=
   (∀ r, r < d.n_rows → ∃ xs : Nat → F32,
       (∀ k, k < d.n_cols → init.read .f32 (d.x.ptr (inIdx d r k)).addr = some (xs k)) ∧
       (∀ j, j < d.n_cols → ∃ c : F32, fin.read .f32 (d.y.ptr (outIdx d r j)).addr = some c) ∧
-      (RowOk xs d.n_cols → ∃ sc : ℝ, |sc - 1| ≤ (sumTol d.BLOCK_SIZE : ℝ) ∧
+      (RowOk xs d.n_cols → ∃ sc : ℝ, |sc - 1| ≤ (sumTol : ℝ) ∧
         ∀ j, j < d.n_cols → ∃ c : F32, fin.read .f32 (d.y.ptr (outIdx d r j)).addr = some c ∧
           c.isFinite = true ∧
           |c.toReal - sc * softmaxRef xs d.n_cols j| ≤
-            ((elemTol : ℝ) + (gapTol : ℝ) * softmaxGap xs d.n_cols j) * softmaxRef xs d.n_cols j +
-              (floorTol : ℝ) * softmaxMax xs d.n_cols)) ∧
+            (elemTol : ℝ) * (softmaxGap xs d.n_cols j + 4) * softmaxRef xs d.n_cols j +
+              (floorTol : ℝ))) ∧
     ∀ z, z ∉ d.y.elems (outSet d) → fin z = init z
 
 def Spec (K : Claim.Behaviour Inst) : Prop := Claim.Meets Inst.ok Pre Post K

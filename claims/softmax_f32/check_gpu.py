@@ -8,13 +8,13 @@ and on launches at the edges of `Inst.ok`, and checks `Post` as it is stated, ro
 * every output element is readable (the kernel wrote a value);
 * if the row is `RowOk` (every value finite or `-inf`, one finite), with `sigma_j` the exact softmax
   computed in `float64` from the host's input (`e^(x_j - m) / sum_k e^(x_k - m)`, `m` the row's
-  largest value), `sigma_max = 1 / sum_k e^(x_k - m)`, `gap_j = m - x_j` (`0` for `-inf`), and
-  `T_j = (elemTol + gapTol*gap_j)*sigma_j + floorTol*sigma_max`: every output is finite and there is
-  one factor `sc` with `|sc - 1| <= sumTol(BLOCK_SIZE)` and `|c_j - sc*sigma_j| <= T_j` for every
-  `j`. The check computes, per row, the smallest `lam` such that some `sc` in that interval has
+  largest value), `gap_j = m - x_j` (`0` for `-inf`), and
+  `T_j = elemTol*(gap_j + 4)*sigma_j + floorTol` (`elemTol = 2^-22`, `floorTol = 2^-133`): every
+  output is finite and there is one factor `sc` with `|sc - 1| <= sumTol = 2^-17` and
+  `|c_j - sc*sigma_j| <= T_j` for every `j`. The check computes, per row, the smallest `lam` such that some `sc` in that interval has
   `|c_j - sc*sigma_j| <= lam*T_j` for every `j` (bisection), and reports the largest `lam` (the
   error / tolerance; below 1 means `Post` holds). An element whose `sigma_j` underflows `float64`
-  (`gap_j > 745`, or `-inf`) is held to `|c_j| <= floorTol*sigma_max` (stricter than `Post`);
+  (`gap_j > 745`, or `-inf`) is held to `|c_j| <= floorTol` (stricter than `Post`);
 * that the tolerance is meaningful: the host's output rounded to `float16` or `bfloat16`, and the
   exact softmax with a denominator that drops the row's last column, fail it;
 * the frame: the input is unchanged (bitwise), and a direct launch with strided input and output
@@ -41,18 +41,14 @@ spec.loader.exec_module(mod)
 triton.testing.Mark.run = _orig_run
 
 DEVICE = mod.DEVICE
-ELEM = 2.0 ** -21 + 2.0 ** -30
-GAP = 3 * 2.0 ** -24 + 2.0 ** -30
-FLOOR = 2.0 ** -133
-
-
-def sum_tol(B):
-    return ((B - 1).bit_length() + 56) * 2.0 ** -24   # (ceil(log2 B) + 56) * 2^-24 (Claim.lean, `sumTol`)
+ELEM = 2.0 ** -22       # Claim.lean, `elemTol`
+FLOOR = 2.0 ** -133     # `floorTol`
+SUMTOL = 2.0 ** -17     # `sumTol`
 
 
 def post_rows(x, out, B, chunk=256):
     """(worst lam over RowOk rows, all RowOk outputs finite, number of rows not RowOk)."""
-    s = sum_tol(B)
+    s = SUMTOL
     worst, finite, notok = 0.0, True, 0
     for r0 in range(0, x.shape[0], chunk):
         xr = x[r0:r0 + chunk].double()
@@ -69,12 +65,11 @@ def post_rows(x, out, B, chunk=256):
         e = torch.exp(xr - m)                       # -inf gives 0
         A = e.sum(dim=1, keepdim=True)
         sig = e / A
-        smax = 1.0 / A
         gap = torch.where(torch.isfinite(xr), m - xr, torch.zeros_like(xr))
-        T = (ELEM + GAP * gap) * sig + FLOOR * smax
+        T = ELEM * (gap + 4) * sig + FLOOR
         pos = sig > 0
-        # elements with sigma_j = 0 in float64: |c_j| <= lam * FLOOR * sigma_max
-        z = torch.where(pos, torch.zeros_like(c), c.abs() / (FLOOR * smax))
+        # elements with sigma_j = 0 in float64: |c_j| <= lam * FLOOR
+        z = torch.where(pos, torch.zeros_like(c), c.abs() / FLOOR)
         lam_zero = z.max(dim=1).values
         rj = torch.where(pos, c / torch.where(pos, sig, torch.ones_like(sig)), torch.zeros_like(c))
         wj = torch.where(pos, T / torch.where(pos, sig, torch.ones_like(sig)), torch.zeros_like(c))

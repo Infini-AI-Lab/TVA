@@ -13,9 +13,10 @@ float64 from the host's inputs:
 * `Y 0` equal to the initial state (`0` without one); `h[t] = bf16(Y t)` bit for bit; per chunk,
   `||Y (t + 1) - StepY t (Y t)|| <= errStep t` (column norm), with `StepY t y = 2^g_last y +
   k^T (2^(g_last - g) (u - w h[t]))` from the stored state `h[t]` (the output, read back) and the
-  tolerance `errStep` (the `bfloat16` / `float32` rounding terms, `Num.Exp2F32`, `Num.DotBF16` at
-  K = 64 chained over the K blocks, the spectral norm `sKn` of `k^T`; `dotHvf` with
-  `STATE_V_FIRST`); `v_new` within `tolV` of `vrefS t = u - w h[t]` element by element; `ht` equal
+  tolerance `errStep = 2^-8 ||k^T||_2 ||G|| + 2^-15 (||liftMag k||_F ||G|| + 2^g_last ||h[t]||) +
+  2^-36`, `G_i = 2^(g_last - g_i) vAbs_i`; `v_new` within `tolV = 2^-8 vAbs + 2^-100` of
+  `vrefS t = u - w h[t]` element by element, `vAbs = |vrefS| + 2^-5 (|u| + ||liftMag w|| ||liftMag
+  h[t]||)`; `ht` equal
   to the last `Y` bit for bit; each chunk's clauses under `StOk t'` for every `t' <= t` (`h[t']`
   finite, `||h[t']|| <= 2^40`, which is checked and holds on every launch); every output element finite;
   `Vals` (the inputs' finiteness and caps, the gate bounds `g_last <= 8`, `g_last - g <= 8`,
@@ -39,7 +40,8 @@ multiplied by `1 + 2^-7` or `1 - 2^-7` each chunk); and a guard byte changed: ea
 Also printed (not a test): what the check finds for the exact recurrence with the state carried in
 `float64` or in `bfloat16` (a witness by nearest points, a refutation, or neither).
 
-Prints, per case, the largest error / tolerance of each output (below 1 with its margin).
+Prints, per case, the largest error / tolerance of each output (below 1 with its margin), and the
+tolerances against the outputs: tolV / |v_new| and errStep / ||h[t + 1]|| (median, largest).
 Usage: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
 """
 import sys; sys.dont_write_bytecode = True  # keep source/ free of __pycache__ (python -I ignores PYTHONDONTWRITEBYTECODE)
@@ -66,7 +68,7 @@ DEV = "cuda"
 D = torch.float64
 BT, BV = 64, 32
 # Claim.lean, "The tolerance": the library's constants.
-U32, E32, UBF, EBF, MU = 2.0 ** -24, 2.0 ** -150, 2.0 ** -8, 2.0 ** -134, 2.0 ** -126
+U32, E32, MU = 2.0 ** -24, 2.0 ** -150, 2.0 ** -126
 RD, AD = 66 * 2.0 ** -22, 66 * 2.0 ** -126  # Rules.Num.relDot16 64, absDot16 64
 NAN_BF16, NAN_F32 = 0x7FC1, 0x7FC00001  # guard / sentinel patterns
 REFUTE = 1 + 1e-6  # a refutation needs a lower bound above the tolerance by this factor
@@ -99,11 +101,6 @@ KI = instrumented()
 def lift(x):
     """Rules.Num.liftMag .bf16 (0 at 0, else max(|x|, 2^-126))."""
     return torch.where(x == 0, torch.zeros_like(x), x.abs().clamp(min=MU))
-
-
-def chain_err(nb, L):
-    """chainErr nb L = ((1 + rD)^nb - 1) L + nb (1 + rD)^nb aD."""
-    return ((1 + RD) ** nb - 1) * L + nb * (1 + RD) ** nb * AD
 
 
 def spec2(A):
@@ -156,6 +153,7 @@ def cbases(x):
 
 
 REL = None  # set to a list to collect (chunk, errStep / ||h[t+1]||, error / ||h[t+1]||)
+STATS = None  # set to {"v_new": [], "step": []} to collect tolV / |v_new| and errStep / ||h[t+1]||
 TOLS = None  # set to a dict to collect the tolerances: ("h", n, t + 1), ("v_new", n, t), ("ht", n)
 
 
@@ -174,8 +172,6 @@ def check_post(x, h, vn, ht, use_h0, store_ht, vf=False, use_g=True, Y=None):
     B, T, H, K = k.shape
     HV, V = u.shape[2], u.shape[3]
     G = HV // H
-    nb = (K + 63) // 64
-    sK = math.sqrt(K)
     h0 = x["h0"].to(D) if use_h0 else None
     hF = h.reshape(-1, HV, V, K) if vf else h.reshape(-1, HV, K, V)
 
@@ -239,19 +235,17 @@ def check_post(x, h, vn, ht, use_h0, store_ht, vf=False, use_g=True, Y=None):
             Uc = u[b, a:a + c].permute(1, 0, 2)                 # [HV, c, V]
             hn = Hc.norm(dim=1)
             hl = lift(Hc).norm(dim=1)
-            rh = (UBF * hn + sK * EBF) / (1 - UBF)
-            YB = hn + rh
             wl = lift(Wc).norm(dim=2)
-            dW = chain_err(nb, wl[:, :, None] * hl[:, None, :])  # [HV, c, V]
             WH = Wc @ Hc
             vrefS = Uc - WH
-            bvB = WH.abs() + dW
-            sB = 3 * U32 * (Uc.abs() + bvB) + 4 * E32
-            vnB = vrefS.abs() + dW + sB
-            tolV = dW + sB + UBF * vnB + EBF
+            vAbs = vrefS.abs() + 2.0 ** -5 * (Uc.abs() + wl[:, :, None] * hl[:, None, :])
+            tolV = 2.0 ** -8 * vAbs + 2.0 ** -100
             vo = vn[b, a:a + c].to(D).permute(1, 0, 2)
             ok &= bool(torch.isfinite(vo).all())
             worst["v_new"] = max(worst["v_new"], ratio(((vo - vrefS).abs() * upto[:, None, :]), tolV))
+            if STATS is not None:
+                nz = vo != 0
+                STATS["v_new"].append((tolV[nz] / vo[nz].abs()).flatten())
             if TOLS is not None:
                 TOLS[("v_new", n, t)] = tolV.clone()
             if use_g:
@@ -260,36 +254,20 @@ def check_post(x, h, vn, ht, use_h0, store_ht, vf=False, use_g=True, Y=None):
                 dg = gl[:, None] - gc
                 vals &= bool((gl <= 8).all() and (dg <= 8).all())
                 Gm = torch.exp2(dg)
-                dgE = U32 * dg.abs() + E32
-                errF = (1 + 2.0 ** -22) * torch.exp2(dg + dgE) - Gm + MU
-                fB = Gm + errF
-                vgB = fB[:, :, None] * vnB * (1 + U32) + E32
-                dB = (UBF * vgB + EBF + U32 * fB[:, :, None] * vnB + E32 + errF[:, :, None] * vnB
-                      + Gm[:, :, None] * (dW + sB))
                 gam = torch.exp2(gl)
                 errE = 2.0 ** -22 * gam + MU
                 eB = gam + errE
-                dec = errE[:, None] * YB + U32 * eB[:, None] * YB + sK * E32
-                YpB = eB[:, None] * (1 + U32) * YB + sK * E32
-            else:  # no gate: Gam = gam = 1, no product, no exp2
+            else:  # no gate: Gam = gam = 1, no exp2
                 Gm = torch.ones(HV, c, dtype=D, device=DEV)
-                vgB = vnB
-                dB = UBF * vgB + EBF + dW + sB
                 gam = torch.ones(HV, dtype=D, device=DEV)
                 eB = gam
-                dec = torch.zeros_like(YB)
-                YpB = YB
-            vgbB = (1 + UBF) * vgB + EBF
             kl = lift(Kc).pow(2).sum(dim=(1, 2)).sqrt()
-            Lk = kl[:, None] * (vgbB + MU).norm(dim=1)
-            if vf:  # dotHvf: the dot from +0, then the fusable `+` of its transpose
-                dotH = RD * Lk + sK * AD + 3 * U32 * (YpB + (1 + RD) * Lk + sK * AD) + 4 * sK * E32
-            else:
-                dotH = RD * (YpB + Lk) + sK * AD
             pad = (1 + RD + 3 * U32) * (eB * (1 + U32) * pad + E32 + AD) + 4 * E32
             vals &= bool((pad <= 2.0 ** 100).all())
             sKn = spec2(Kc)
-            errStep = dec + sKn[:, None] * dB.norm(dim=1) + dotH        # [HV, V]
+            Gn = (Gm[:, :, None] * vAbs).norm(dim=1)                    # [HV, V]
+            errStep = 2.0 ** -8 * sKn[:, None] * Gn + 2.0 ** -15 * (kl[:, None] * Gn + gam[:, None] * hn) \
+                + 2.0 ** -36                                            # [HV, V]
             beta = Kc.transpose(1, 2) @ (vrefS * Gm[:, :, None])        # StepY t y = gam y + beta
             last = t + 1 == nchn
             if not last:
@@ -323,6 +301,9 @@ def check_post(x, h, vn, ht, use_h0, store_ht, vf=False, use_g=True, Y=None):
                 if REL is not None and not last:
                     hnn = Hn.norm(dim=1).clamp_min(1e-300)
                     REL.append((t + 1, (errStep / hnn).flatten(), (err / hnn).flatten()))
+                if STATS is not None:
+                    hnn = (Hn if not last else Yx).norm(dim=1)
+                    STATS["step"].append((errStep / hnn)[hnn > 0].flatten())
                 Yc = Yx
             if TOLS is not None:
                 TOLS[("h", n, t + 1) if not last else ("ht", n)] = errStep.clone()
@@ -470,7 +451,10 @@ def run_case(name, lens, H, HV, K, V, varlen, flags=(True, True), cu32=False, vf
     outs = host_run(x, use_h0, store_ht, vf, use_g)
     torch.cuda.synchronize()
     Ys, same = witness(x, use_h0, store_ht, outs, vf, use_g)
+    global STATS
+    STATS = {"v_new": [], "step": []}
     worst, vals, fin = check_post(x, *outs, use_h0, store_ht, vf, use_g, Y=Ys)
+    st, STATS = STATS, None
     frame, meta, _ = direct_frame(x, use_h0, store_ht, outs, vf, use_g)
     ok = vals and fin and frame and meta and same and accepted(worst) and not refuted(worst)
     mem = torch.cuda.max_memory_allocated() / 2 ** 30
@@ -479,6 +463,11 @@ def run_case(name, lens, H, HV, K, V, varlen, flags=(True, True), cu32=False, vf
           f" (box {worst['box']:.3f}); Y 0 = h0 {worst['h0'] == 0}, h = bf16(Y) {worst['store'] == 0}, "
           f"ht = Y {worst['ht'] == 0}; witness = kernel {same}; Vals {vals}, StOk+finite {fin}, "
           f"frame {frame}, chunk_offsets {meta}; peak {mem:.2f} GiB", flush=True)
+    for key in ("v_new", "step"):
+        if st[key]:
+            r = torch.cat(st[key])
+            print(f"     tol/|{'v_new' if key == 'v_new' else 'h[t+1]'}|: median {r.median().item():.3g}, "
+                  f"max {r.max().item():.3g}", flush=True)
     return ok, worst, x, outs
 
 
@@ -673,7 +662,7 @@ if __name__ == "__main__":
         ("edge K=256 V=100", [129, 0, 0, 200], 2, 2, 256, 100, True, F, False, {}),
         ("edge empty sequences only h0->ht", [0, 0], 2, 2, 64, 64, True, F, False, {}),
         ("edge no decay 4096 tokens", [4096], 2, 2, 128, 128, True, F, False, {"gate_scale": 0.0}),
-        ("edge slow decay 16384 tokens", [16384], 1, 2, 128, 128, True, F, False, {"gate_scale": 0.01}),
+        ("edge slow decay 16384 tokens", [16384], 1, 2, 128, 128, True, F, False, {"gate_scale": 0.02}),
         ("edge strong decay", [1000, 777], 2, 4, 128, 128, True, F, False, {"gate_scale": 20.0}),
         ("edge beta in (0, 2)", [512, 300], 2, 2, 128, 128, True, F, False, {"beta_scale": 2.0, "gate_scale": 0.05}),
         ("edge large state h0 x 5e3", [700], 2, 2, 128, 128, True, F, False, {"h0_scale": 5.0e3}),

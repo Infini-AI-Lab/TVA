@@ -58,16 +58,10 @@ def reference(x, res, w, b, eps, BD, G):
     e_tol = mean_tol[:, None] + P(-23) * (s.abs() + abs_mean[:, None])
     cond = (mean_tol + P(-23) * (abs_mean + rms_s)) * rstd_ref
     gam = (L + 10) * P(-23) + P(-136) / eps
-    r_eps = 1.0 / math.sqrt(eps)
-    r_up = torch.where(4 * cond <= 1, torch.clamp(rstd_ref * (1 + 2 * cond), max=r_eps),
-                       torch.full_like(cond, r_eps))
-    rstd_tol = (1 + gam) * torch.maximum(r_up - rstd_ref, rstd_ref * torch.clamp(cond, max=1.0)) \
-        + gam * rstd_ref + P(-140)
-    z_tol = (1 + P(-22)) * ((s - mean_ref[:, None]).abs() * rstd_tol[:, None]
-                            + e_tol * (rstd_ref + rstd_tol)[:, None]) \
-        + P(-22) * z_ref.abs() + P(-140) * (1 + rstd_ref + rstd_tol)[:, None]
-    y_tol = P(-7) * y_ref.abs() + (1 + P(-7)) * wd.abs() * z_tol \
-        + P(-21) * (wd.abs() * z_ref.abs() + bd.abs()) + P(-130)
+    rstd_tol = torch.where(4 * cond <= 1, 2 * (cond + gam) * rstd_ref,
+                           torch.full_like(cond, 2.0 / math.sqrt(eps)))
+    z_tol = (s - mean_ref[:, None]).abs() * rstd_tol[:, None] + e_tol * (rstd_ref + rstd_tol)[:, None]
+    y_tol = P(-7) * y_ref.abs() + 4 * wd.abs() * z_tol + P(-21) * bd.abs() + P(-120)
     return dict(s32=s32, mean_ref=mean_ref, rstd_ref=rstd_ref, y_ref=y_ref, mean_tol=mean_tol,
                 rstd_tol=rstd_tol, y_tol=y_tol, cond=cond, z_ref=z_ref)
 

@@ -50,9 +50,9 @@ Not part of the setup: the backward kernels, other dtypes, `N = 1`.
 `check_gpu.py` (Triton 3.8.0, torch, an H200) runs the test's launch and all 30 benchmark forward
 launches with the file's input distributions, and compares `mean`, `rstd` and `y` with the float64
 reference on every row. All are within the claim's tolerances: the largest error / tolerance on
-these launches is `0.499` for `y` (the output's `float16` rounding, against a tolerance of twice that
-rounding), `0.056` for `rstd` and `0.092` for `mean`; over the edge launches of README, Checks, it is
-`0.499`, `0.060` and `0.101`. Every element of `y`, `mean` and `rstd` is written and finite, the
+these launches is `0.250` for `y` (the output's `float16` rounding, against a tolerance of about four
+times that rounding), `0.050` for `rstd` and `0.092` for `mean`; over these and the edge launches of
+README, Checks, it is `0.250`, `0.053` and `0.101`. Every element of `y`, `mean` and `rstd` is written and finite, the
 guard bands around them are unchanged, and the inputs are unchanged. Wrong outputs at the test's
 shape and at `N = 15872` (a mean or a variance with one term dropped, the variance divided by
 `N − 1`, an all-zero `y`, shifted weights) all fail `Post`. The module's own

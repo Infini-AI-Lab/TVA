@@ -89,7 +89,7 @@ ill-conditioned rows); `w = b = 0`;
 with `G = 7`, `T = 5` with `G = 32`, and `G = 1024` at `D = 1`. With a residual `res_out` equals
 the `float32` sum rounded to `bfloat16` bit for bit; without one `res_out` is not written; the
 guard bands around every output and the inputs are unchanged; the worst error / tolerance is
-`0.122` for `mean` and `0.99902` for `rstd`, on the ill-conditioned rows with `eps = 2^-125`
-(`cond ≈ 10^17`; elsewhere at most `0.149` for `rstd`), and `0.498` for `y`. Seven wrong outputs at RWKV-7's shape (`y = 0`, group 0's weight for every row,
+`0.122` for `mean` and `0.500` for `rstd`, on the ill-conditioned rows with `eps = 2^-125`
+(`cond ≈ 10^17`; elsewhere at most `0.075` for `rstd`), and `0.498` for `y`. Seven wrong outputs at RWKV-7's shape (`y = 0`, group 0's weight for every row,
 no bias, `x` for `x − mean`, `mean·(1 + 2^-12)`, `rstd·(1 + 2^-14)`, `rstd` without `eps`) exceed
-their tolerances by factors of 15 to `1.5·10^5`.
+their tolerances by factors of 10 to `5.0·10^4`.

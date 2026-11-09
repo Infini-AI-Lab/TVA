@@ -39,11 +39,11 @@ with atomics); at `8192 × 8192 × 4096` some tiles are stored by one program an
 ## Checked on the H200
 
 `check_gpu.py` (Triton 3.8.0, one H200): on the six test launches, every element of `C` is finite
-and within `Post`'s tolerance, with worst error / tolerance `0.0024`–`0.0100` per shape. On the edges
+and within `Post`'s tolerance, with worst error / tolerance `0.0004`–`0.0051` per shape. On the edges
 of `Inst.ok` (`1 × 1 × 1`, shapes not multiples of the blocks, `K = 2^13`, large and subnormal
 operands, NaN and infinities in some rows and columns, all-positive inputs, inputs whose mass is in
 the last chunk, transposed `A` and `B`, `1` to `2048` programs, `C` padded inside a sentinel
-buffer) the worst is `0.036`; `A` and `B` are unchanged and nothing outside the matrix `C` is
+buffer) the worst over every element with finite inputs is `0.018`; `A` and `B` are unchanged and nothing outside the matrix `C` is
 written. Wrong results fail `Post` at every tested `K` from `64` to `8192`: on `randn` inputs the
 result rounded to `bfloat16`, one 64-chunk left out, and a `float16` accumulation chunk by chunk;
 with the mass in the last chunk, the result rounded to `float16`. 44 of 44 cases pass.

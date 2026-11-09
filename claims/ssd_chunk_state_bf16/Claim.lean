@@ -565,21 +565,19 @@ noncomputable def dotMag (m₀ : Mem) (d : Inst) (c h p n : Nat) : ℝ :=
 `chunk_size_limit = endTok c + 1 − c·chunk_size`. -/
 def steps (d : Inst) (c : Nat) : Nat := (endTok d c + 1 - c * d.chunk + BK - 1) / BK
 
-/-- The per-step constants: `DotLift.dotAdd_step`'s for one `bfloat16` `tl.dot` of `64` products,
-`relDot16 64 = 66·2^-22` and `absDot16 64 = 66·2^-126`, plus the separate `float32` addition. -/
-def rhod : ℚ := DotLoop.stepRel Rules.Num.relDot16 64
+/-- The inputs' magnitudes over the chunk's tokens, the scale of the absolute floor:
+`Σ_{t ∈ toks c} (1 + |x|)·(1 + |B|)·(1 + |dt|)` (at least `1`: the chunk's last token is in
+`toks c`). -/
+noncomputable def inMag (m₀ : Mem) (d : Inst) (c h p n : Nat) : ℝ :=
+  ∑ t ∈ toks d c, (1 + |xV m₀ d t h p|) * (1 + |bV m₀ d t h n|) * (1 + |dtV m₀ d c h t|)
 
-def alphad : ℚ := DotLoop.stepAbs Rules.Num.absDot16 64
-
-/-- The accumulation's tolerance after `T` steps over products of lifted magnitude `A`:
-`DotLoop.bound rhod alphad T A = ((1 + rhod)^T − 1)·A + T·(1 + rhod)^T·alphad`, in `ℝ`. -/
-noncomputable def dotTol (T : Nat) (A : ℝ) : ℝ :=
-  ((1 + (rhod : ℝ)) ^ T - 1) * A + T * (1 + (rhod : ℝ)) ^ T * (alphad : ℝ)
-
-/-- **The tolerance of `states[0, c, h, p, n]`**: each token's operand error times `|x|`, plus the
-`tl.dot` accumulation's error. -/
+/-- **The tolerance of `states[0, c, h, p, n]`**: `2^-8·(1 + steps·2^-6)` of the products' lifted
+magnitudes `dotMag` (the `bfloat16` rounding of each scaled `B`, with `2^-6` of it per `tl.dot` step
+of the loop for the accumulation and the other roundings), and an absolute floor `2^-100·inMag`
+(README, Tolerances). -/
 noncomputable def tol (m₀ : Mem) (d : Inst) (c h p n : Nat) : ℝ :=
-  (∑ t ∈ toks d c, |xV m₀ d t h p| * errB m₀ d c h t n) + dotTol (steps d c) (dotMag m₀ d c h p n)
+  2 ^ (-8 : ℤ) * (1 + (steps d c : ℝ) * 2 ^ (-6 : ℤ)) * dotMag m₀ d c h p n +
+    2 ^ (-100 : ℤ) * inMag m₀ d c h p n
 
 /-- The inputs' values covered: every `x` and `B` entry of the packed tokens is a finite
 `bfloat16`; every `dt` and `dA_cumsum` entry is finite, and every `dA_cumsum` entry is at most `0`

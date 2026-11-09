@@ -9,7 +9,7 @@ map: [`model-map.json`](model-map.json). GPU check: [`check_gpu.py`](check_gpu.p
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.MoeRouter.main : Statement` (`Statement`:
-`Claim.lean` line 307). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 315). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,28 +17,28 @@ map: [`model-map.json`](model-map.json). GPU check: [`check_gpu.py`](check_gpu.p
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 135), and every initial memory `init` that `Pre` accepts (line 245), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 279).
+(`Inst.ok`, line 136), and every initial memory `init` that `Pre` accepts (line 253), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 287).
 
-**What `Post` asks** (line 279), two parts:
-1. for every token `t < bs`, `TokenPost d init fin t` (line 262): there are reals `C e` and indices
+**What `Post` asks** (line 287), two parts:
+1. for every token `t < bs`, `TokenPost d init fin t` (line 270): there are reals `C e` and indices
    `i0`, `i1` with
-   - for every expert `e < 8`, `|C e - capRef (mu init d t e)| ≤ capTol d (mu init d t e) (absS init d t e)`.
-     `mu` (line 192) is the exact logit `Σ_h x[t,h]·W[e,h]` in the reals from `init`, `absS`
-     (line 196) its magnitude sum, `capRef` (line 201) the exact `30·tanh(l/30)`; `capTol` is
-     line 222, built on `tolL` (line 213);
+   - for every expert `e < 8`, `|C e - capRef (mu init d t e)| ≤ capEps (absS init d t e)`.
+     `mu` (line 193) is the exact logit `Σ_h x[t,h]·W[e,h]` in the reals from `init`, `absS`
+     (line 197) its magnitude sum, `capRef` (line 202) the exact `30·tanh(l/30)`;
+     `capEps S = 2^-18·S + 2^-14` (line 231);
    - `i0 < 8` is the first index of the largest `C` (`C e ≤ C i0` for all `e`, `C e < C i0` for
      `e < i0`), and `i1 < 8`, `i1 ≠ i0`, is the first index of the largest `C` among the others;
    - `topk_ids` elements `2t` and `2t+1` read in `fin` as `IntV.ofNat i0` and `IntV.ofNat i1`;
    - `topk_weights` elements `2t` and `2t+1` read in `fin` as finite `a0`, `a1` with
      `|a0.toReal - softRef C i0 i0| ≤ wRel0 * softRef C i0 i0 + wFloor` and the same for `a1`
-     at `i1` with `wRel1`. `softRef` (line 237) is the exact softmax of `C` over the 8 experts;
-     `wRel0`, `wRel1`, `wFloor` are lines 226, 230, 233. Every token is asked all of this: `Pre`
+     at `i1` with `wRel1`. `softRef` (line 245) is the exact softmax of `C` over the 8 experts;
+     `wRel0`, `wRel1`, `wFloor` are lines 234, 238, 241. Every token is asked all of this: `Pre`
      makes every input finite and in range;
 2. the frame: every byte outside `d.outw.elems {j | j < 2 * d.bs} ∪ d.outi.elems {j | j < 2 * d.bs}`
    is unchanged.
 
-**What you are given** (`Assumptions`, line 287):
+**What you are given** (`Assumptions`, line 295):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `exp_total` (`Rules.Num.MathTotal P .exp .binary32`): `tl.exp` has a result (source lines 90, 109, 127);
@@ -48,8 +48,8 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `sum_depth` (`Rules.Num.SumDepth`): each float `tl.sum` (source lines 83, 109, 124) is a tree of depth
   at most `⌈log₂ n⌉`.
 
-**The kernel, as the model runs it** (`moe_router_kernel` line 42, `model` line 166, `launch`
-line 173): a 1-D grid of `bs` programs, one token each. Program `t` loads the masked
+**The kernel, as the model runs it** (`moe_router_kernel` line 43, `model` line 167, `launch`
+line 174): a 1-D grid of `bs` programs, one token each. Program `t` loads the masked
 `[8, BLOCK]` tile of `router_weight` and the masked `BLOCK` row `t` of `x`, widens `x` to `float32`,
 multiplies, and row-sums (`tl.sum1c`) to 8 logits. It soft-caps them (`/ 30`, `2·`, `tl.exp`,
 `− 1`, `+ 1`, `/`, `· 30`), takes `tl.argmaxAll` (stores `topk_ids[2t]`) and `tl.maxAll`, then
@@ -74,13 +74,15 @@ atomic. Programs write disjoint elements and only read `x` and `router_weight`: 
 - the value part of part 1, with `C e` the computed capped logits: the logit bound `tolL` from
   `FloatV.mul_err`, `sumc_err_depth` and `SumDepth.depth_le`; `capTol` from `div_full`, `exp_acc`
   (`MathAcc`, weakened by `MathAcc.mono`), `FloatV.sub_err`, `add_err`, `mul_err`, with the range
-  from `Pre` (`absS ≤ 2^120`, `mu + capTol ≤ 1320`); the ids from `tl.ArgRes`; the weights from
-  `exp_acc`, `sum_err_depth`, `div_full`. `## Tolerances` gives the derivation;
+  from `Pre` (`absS ≤ 2^120`, `mu + capTol ≤ 1320`): derive the fine bound of README Tolerances
+  (`capTol` with the cap formula's error `1.7·10^-5`), then relax it to `capEps` by the chain given
+  there; the ids from `tl.ArgRes`; the weights from `exp_acc`, `sum_err_depth`, `div_full`.
+  `## Tolerances` gives the derivation;
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; reusable: `growth_le` (line 386, `(1+3u)^n ≤ 3` for `n ≤ 8192`),
-`tolL_nonneg` (line 418), `xVal_eq` (line 490), `disj_far` (line 326).
+`setup_*_ok` theorems; reusable: `growth_le` (line 394, `(1+3u)^n ≤ 3` for `n ≤ 8192`),
+`tolL_nonneg` (line 426), `xVal_eq` (line 498), `disj_far` (line 334).
 
 ## Specification
 
@@ -88,7 +90,8 @@ atomic. Programs write disjoint elements and only read `x` and `router_weight`: 
 `mu t e = Σ_h x[t,h]·W[e,h]` (exact, from the initial memory) and `absS t e = Σ_h |x[t,h]·W[e,h]|`:
 there are reals `C 0 … C 7` (the capped logits the run computes) with
 
-* `|C e − 30·tanh(mu t e / 30)| ≤ capTol (mu t e) (absS t e)` for every expert (`capRef`);
+* `|C e − 30·tanh(mu t e / 30)| ≤ capEps (absS t e) = 2^-18·absS t e + 2^-14` for every expert
+  (`capRef`): relative `2^-18` of the logit's magnitude sum, plus the cap formula's `2^-14`;
 * `topk_ids[t, 0] = i0`, the first index of the largest `C` (Triton's `tie_break_left`), and
   `topk_ids[t, 1] = i1 ≠ i0`, the first index of the largest `C` among the other experts;
 * `topk_weights[t, 0]`, `topk_weights[t, 1]` finite, within `wRel0·σ0 + wFloor` and
@@ -96,18 +99,18 @@ there are reals `C 0 … C 7` (the capped logits the run computes) with
   (`softRef`), the softmax of `C` over all 8 experts (no renormalisation, as the kernel);
 
 and every byte outside the `2·bs` elements of each output is unchanged. The reference is the
-host's inputs alone (`mu`, `absS`, `capRef`); `C` is pinned to it by `capTol`, and the ids and
-weights are pinned to `C`. Composed: the ids are a top-2 of the exact capped logits up to `capTol`,
-and each weight is within `wRel·σ + wFloor` of the softmax of logits within `capTol` of the exact
-ones, so within a relative `e^{2·max capTol} − 1` (plus `wRel`) of the exact softmax: at Grok's
+host's inputs alone (`mu`, `absS`, `capRef`); `C` is pinned to it by `capEps`, and the ids and
+weights are pinned to `C`. Composed: the ids are a top-2 of the exact capped logits up to `capEps`,
+and each weight is within `wRel·σ + wFloor` of the softmax of logits within `capEps` of the exact
+ones, so within a relative `e^{2·max capEps} − 1` (plus `wRel`) of the exact softmax: at Grok's
 shape about `10^-3` (Tolerances).
 
-The tolerances (`Claim.lean`, "The tolerances"; `u = 2^-24`, `η = 2^-150`, `B = BLOCK_SIZE`,
-`h = hidden_dim`):
+The tolerances (`Claim.lean`, "The tolerances"): `capEps S = 2^-18·S + 2^-14`,
+`wRel0 = wRel1 = 2^-14`, `wFloor = 2^-130`. `Pre`'s range condition `mu + capTol ≤ 1320` uses the
+fine bound (`u = 2^-24`, `η = 2^-150`, `B = BLOCK_SIZE`, `h = hidden_dim`):
 * `tolL S = ((1+3u)^D − 1)·((1+u)·S + h·η) + 4η·(B−1)·(1+3u)^D + u·S + h·η`, `D = ⌈log₂ B⌉`
   (`Nat.clog 2 B`; `13` at `B = 8192`);
-* `capTol μ S = (1 + 2^-21)·tolL S + 2^-21·|μ| + 2^-14`;
-* `wRel0 = wRel1 = 2^-14`, `wFloor = 2^-130`.
+* `capTol μ S = (1 + 2^-21)·tolL S + 2^-21·|μ| + 2^-14`.
 
 ## Conditions
 
@@ -173,8 +176,18 @@ every sum stays finite) and `mu + capTol ≤ 1320`:
    and `g(y) = (y−1)/(y+1)` moves by `2|ẽ − e^t|/((ẽ+1)(e^t+1))`, at most `60·max_t
    (2^-22 + 2^-23|t|)·e^t/(e^t+1)^2 ≤ 60·7.2e-8 = 4.3e-6` after the factor 30; `ẽ ∓ 1` and the
    division add at most `30·(2.0001u + 2^-22·(1 + 2^-20)) = 1.07e-5`; `·30` adds `30u·1.0001 + η =
-   1.8e-6`. Total formula error `1.7e-5 < 2^-14 = 6.1e-5` (margin 3.6), so
-   `|C − capRef μ| ≤ 15τ + 1.7e-5 ≤ capTol`. On the way, `|C| ≤ 30·(1 + 8e-7)`.
+   1.8e-6`. Total formula error `φ ≤ 1.71e-5 < 2^-14 = 6.1e-5` (margin 3.6, second-order terms
+   included), so `|C − capRef μ| ≤ 15τ + φ ≤ (1 + 2^-21)·tolL + 2^-21·|μ| + φ`, the fine bound
+   (`capTol` is it with `2^-14` for `φ`). On the way, `|C| ≤ 30·(1 + 8e-7)`.
+2'. **Relaxation to `capEps = 2^-18·S + 2^-14`.** `B ≤ 2^13` gives `D ≤ 13`, so
+   `(1+3u)^D − 1 ≤ 3Du·(1 + 3Du) ≤ 39.0001u`, and `tolL ≤ (39.0001u·(1+u) + u)·S + a₀ ≤
+   40.0002u·S + a₀` with `a₀ = 39.0001u·hη + 4η·(B−1)·1.0000024 + hη < 2^-134` (`h ≤ B ≤ 2^13`).
+   With `|μ| ≤ S` (the triangle inequality), the fine bound is at most
+   `(1 + 2^-21)·40.0002u·S + 8u·S + 2^-133.9 + φ ≤ 48.001u·S + 1.72e-5`, below
+   `64u·S + 2^-14 = capEps` (`2^-18 = 64u`; margin `1.33` on the `S` part at `D = 13`, `3.5` on the
+   constant). `capTol ≤ capEps` too whenever `S ≥ 2^-113` (the `S` part's slack `16u·S` covers `a₀`);
+   below that, `capTol` exceeds `capEps` by at most `2^-133`, and the route goes through `φ`, not
+   through `capTol`'s `2^-14`.
 3. **First weight** (`wRel0`). `top1_v = C i0` exactly (`tl.max`). `C k − top1_v` with `tl.subc`
    (each operand may enter unrounded): within `≈ 4u·30 = 120u = 7.2e-6`. `tl.exp` at `X ≤ 60.0001`:
    relative `2^-22 + 2^-23·60.0001 = 7.39e-6`; with the input error, each exponential within a
@@ -192,23 +205,25 @@ every sum stays finite) and `mu + capTol ≤ 1320`:
 **Meaningful at the covered sizes.** `check_gpu.py` measures, at Grok's shape (`bs = 511`,
 `hidden_dim` 6144 and 8192, `BLOCK_SIZE = 8192`):
 
-| data | `capTol / |capRef|` median (p90) | composed weight tolerance, median | tokens rejecting: no soft cap / swapped ids |
+| data | `capEps / |capRef|` median (p90) | composed weight tolerance, median | tokens rejecting: no soft cap / swapped ids |
 |---|---|---|---|
-| logits of std 3, hidden 6144 | `2.1·10^-4` (`1.1·10^-3`) | `9.1·10^-4` | `0.97` / `1.00` |
-| logits of std 3, hidden 8192 | `2.4·10^-4` (`1.2·10^-3`) | `1.0·10^-3` | `0.96` / `0.998` |
-| the source's test data, hidden 6144 | `4.7·10^-4` (`2.5·10^-3`) | `2.6·10^-4` | `0.014` / `1.00` |
-| the source's test data, hidden 8192 | `4.6·10^-4` (`2.6·10^-3`) | `2.8·10^-4` | `0.025` / `1.00` |
+| logits of std 3, hidden 6144 | `3.1·10^-4` (`1.7·10^-3`) | `1.35·10^-3` | `0.94` / `1.00` |
+| logits of std 3, hidden 8192 | `3.7·10^-4` (`1.9·10^-3`) | `1.5·10^-3` | `0.95` / `0.996` |
+| the source's test data, hidden 6144 | `5.8·10^-4` (`3.1·10^-3`) | `3.0·10^-4` | `0.010` / `1.00` |
+| the source's test data, hidden 8192 | `5.8·10^-4` (`3.3·10^-3`) | `3.4·10^-4` | `0.010` / `1.00` |
 
-`capTol` is about `10^-4` absolute there (`tolL ≈ 2.4·10^-6·absS` plus the cap formula's `2^-14`),
-against the kernel's real error of about `10^-6`: the capped logits reach `2·10^-2` of `capTol`, the
-weights `0.017` and `0.036` of theirs. The composed weight tolerance is `e^{2·max capTol} − 1 +
-wRel1`. A kernel without the soft cap (the ids and weights of the raw logits) fails `Post`: on a
-token it is rejected when a weight lies outside the range of the softmax over every `C` within
-`capTol`, which happens on almost every token of logits of standard deviation 3 and on a few tokens
-of the test's small logits (below 2, where the cap changes a logit by less than `3·10^-4`); one
-rejected token rejects the run. Swapped ids are rejected on every token whose two largest logits
-are more than `2·capTol` apart. The bound along any tree (depth `B − 1`), which the library states
-without `SumDepth`, gives at the same data `capTol / |capRef|` median `0.11`–`0.13` (p90
+The fine bound `capTol` gives `2.1`–`4.7·10^-4` (median), so `capEps` is `1.2`–`1.5×` it there
+(worst `tol / |capRef|` is unbounded for both: `capRef` crosses `0`). `capEps` is about `10^-4`
+absolute there (`2^-18·absS` plus the cap formula's `2^-14`), against the kernel's real error of
+about `10^-6`: the capped logits reach `3·10^-2` of `capEps`, the weights `0.017` and `0.035` of
+theirs. The composed weight tolerance is `e^{2·max capEps} − 1 + wRel1`. A kernel without the soft
+cap (the ids and weights of the raw logits) fails `Post`: on a token it is rejected when a weight
+lies outside the range of the softmax over every `C` within `capEps`, which happens on almost every
+token of logits of standard deviation 3 and on a few tokens (about `1%`) of the test's small
+logits (below 2, where the cap changes a logit by less than `3·10^-4`); one rejected token rejects
+the run. Swapped ids are rejected on every token whose two largest logits are more than
+`2·capEps` apart. The fine bound along any tree (depth `B − 1`), which the library
+states without `SumDepth`, gives at the same data `capTol / |capRef|` median `0.11`–`0.13` (p90
 `0.59`–`0.72`), a composed weight tolerance of `0.05`–`0.67`, rejects a kernel without the soft cap
 on no token, and swapped ids on `76`–`83%` of them.
 
@@ -256,7 +271,9 @@ What `SETUP.md` allows and the claim leaves out:
   up to 86); four launches at `bs = 511`, hidden 6144 and 8192, with the test's data and with
   logits of standard deviation 3, which also run the negative tests (Tolerances). The witness `C` is
   the probe kernel's capped logits (the source's lines 66–93, verbatim): worst error / tolerance
-  `3.2e-2` (capped logits), `0.017` (weight 0), `0.036` (weight 1); the ids are the first argmaxes of `C` on every token; `Pre` holds; the byte frame
+  `3.0e-2` (capped logits, against `capEps`), `0.017` (weight 0), `0.035` (weight 1); the bound
+  README Tolerances derives (`capTol` with `2^-15 ≥ φ`) lies below `capEps` on every token of the
+  launches with `BLOCK_SIZE ≥ 128`; the ids are the first argmaxes of `C` on every token; `Pre` holds; the byte frame
   holds (the inputs unchanged, and guard bands of 4096 elements on each side of both outputs, in
   which the check places the host's two allocations, unchanged).
 
@@ -266,7 +283,7 @@ None.
 
 ## Notes
 
-* The cap chain's constant `2^-14` and `wRel0 = wRel1 = 2^-14` are derived above by hand (margins
-  3.6, 4 and 1.4); a proof carries the second-order terms within those margins.
+* The cap chain's constant `2^-14` (of `capEps`) and `wRel0 = wRel1 = 2^-14` are derived above by
+  hand (margins 3.5, 4 and 1.4); a proof carries the second-order terms within those margins.
 * The witness `C` of the GPU check is the probe kernel's output, not the kernel's internal value;
   it is a valid witness because every clause is checked against it.

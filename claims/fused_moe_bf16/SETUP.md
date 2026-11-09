@@ -150,12 +150,11 @@ Mixtral at TP 2; the second GEMM at `K = 14336` (Mixtral, `M = 1` naive, `16`, `
 inputs scaled by 4); and the `-1` expert path. Among the tiles run: `BLOCK_SIZE_K = 256`
 (`(16, 64, 256, 16)`, `(16, 64, 256, 1)`), `GROUP_SIZE_M = 64` (`(32, 128, 128, 64)`,
 `(128, 256, 64, 64)`), `BLOCK_SIZE_N = 32` (`(16, 32, 64, 1)`) and `256`, and every
-`get_default_config` row above runs. The largest error over the tolerance of `Post` is 0.934 (at `K = 64`,
-where the `bfloat16` rounding dominates; 0.18 to 0.47 at `K ≥ 7168`); zeros are exact on the `-1`
+`get_default_config` row above runs. Every output is the `bfloat16` rounding of a value within `Post`'s
+tolerance of the exact sum (the distance from the exact sum to the values that round to the output,
+over the tolerance: largest 0.0006); zeros are exact on the `-1`
 path; unrouted rows keep their initial value; the inputs, the alignment buffers and the guard bytes
-around `C` are unchanged. The tolerance over the reference, `tol / |ref|`, has median (90th
-percentile) 0.005 (0.011) at `K = 128`, 0.009 (0.032) at `K = 2048`, 0.017 (0.063) at `K = 7168`,
-0.027 (0.10) at `K = 14336`, 0.030 (0.11) at `K = 16384` and 0.053 (0.20) at `K = 32768`. The
+around `C` are unchanged. The
 negative tests (a result with the next expert's weights, without or with half the scale, all zero,
 without the last `K` block, or accumulated in `bfloat16`) fail `Post` on every case that runs them,
 from `K = 768` to `K = 32768`.

@@ -8,16 +8,14 @@ launches at the edges of `Inst.ok`, and on launches beyond it (`beyond_*`: `N` o
 multiple of 128, which `Inst.ok` leaves out of scope; they check the kernel past the claim), and
 checks `Post` element by element in float64, from the host's inputs, exactly as `Post` states it:
 
-* for each element `(i, j)` of `c`: `S = sum_k a[i, k] * b[k, j]` (exact products, float64 sum) and
-  `E = tol = errAt` over the loop's `T = cdiv(K, 64)` steps: `E_0 = 0`,
-  `E_{t+1} = (1 + rho) E_t + rho (|S_t| + L_t) + alpha`, with `S_t` the exact partial sum of the
-  products `k < 64 t`, `L_t = sum liftMag(a[i, k]) * liftMag(b[k, j])` over step `t`'s `k`
-  (`liftMag q = 0` at `0`, else `max(|q|, 2^-14)`), `rho = relDot16 64 = 66 * 2^-22`,
-  `alpha = absDot16 64 = 66 * 2^-126`; with
-  `OutSpec`'s first clause, that the reals rounding to `c` in `float16` meet `[S - E, S + E]` (some
-  `v` within `E` of `S` rounds to `c`, up to `v`'s `float32` grid); and, with
+* for each element `(i, j)` of `c`: `S = sum_k a[i, k] * b[k, j]` (exact products, float64 sum),
+  `M = pathMag = sum_{t < T} (|S_t| + L_t)` over the loop's `T = cdiv(K, 64)` steps, with `S_t` the
+  exact partial sum of the products `k < 64 t` and `L_t = sum liftMag(a[i, k]) * liftMag(b[k, j])`
+  over step `t`'s `k` (`liftMag q = 0` at `0`, else `max(|q|, 2^-14)`), and `E = tol =
+  2^-15 M + 2^-100`; with `OutSpec`'s first clause, that the reals rounding to `c` in `float16` meet
+  `[S - E, S + E]` (some `v` within `E` of `S` rounds to `c`, up to `v`'s `float32` grid); and, with
   room (`|S| + E <= 65504`, which every case here meets), `c` is finite and
-  `|c - S| <= E + (|S| + E) * 2^-11 + 2^-25` (`OutSpec`);
+  `|c - S| <= 2^-11 |S| + 2^-15 M + 2^-24` (`OutSpec`);
 * elements whose row of `a` or column of `b` holds a NaN or an infinity need only hold some
   `float16` value; the others are checked as above (one case with non-finite inputs);
 * negative tests: three wrong results computed from the same inputs (the exact result rounded to
@@ -27,8 +25,9 @@ checks `Post` element by element in float64, from the host's inputs, exactly as 
   `matmul_kernel` with the host's launch parameters into a `c` placed inside a guarded buffer
   (padded rows, and a column-major layout) leave every byte outside the matrix `c` unchanged.
 
-Prints, per case, the largest error / tolerance over both clauses (below 1, with its margin) and the frame results,
-then the largest over the launches `Inst.ok` covers and over all launches.
+Prints, per case, the largest error / tolerance over both clauses (below 1, with its margin), the
+median of tol / |S| (elements with S != 0) and the frame results, then the largest over the launches
+`Inst.ok` covers and over all launches.
 Usage: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
 """
 import sys; sys.dont_write_bytecode = True  # keep source/ free of __pycache__ (python -I ignores PYTHONDONTWRITEBYTECODE)
@@ -72,10 +71,10 @@ mm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mm)
 
 DEV = "cuda"
-RHO = 66 * 2.0 ** -22           # rho = Rules.Num.relDot16 64 (exact in float64)
-ALPHA = 66 * 2.0 ** -126         # alpha = Rules.Num.absDot16 64
-U16 = 2.0 ** -11                 # Format.binary16.u
-ETA16 = 2.0 ** -25               # Format.binary16.eta
+EPS = 2.0 ** -15                 # tol = EPS * pathMag + DELTA
+DELTA = 2.0 ** -100
+U16 = 2.0 ** -11                 # the second clause: 2^-11 |S| + 2^-15 M + 2^-24
+DELTA_C = 2.0 ** -24
 MAX16 = 65504.0
 
 
@@ -101,38 +100,37 @@ def rounding_interval(c):
 
 
 def tol_err(ad, bd, want=None):
-    """S and E = errAt(prodV, liftV, steps K) elementwise; with `want`, also the wrong results of
-    the negative tests."""
+    """S, M = pathMag and E = tol = 2^-15 M + 2^-100 elementwise; with `want`, also the wrong
+    results of the negative tests."""
     R, K = ad.shape
     N = bd.shape[1]
     la, lb = lift(ad), lift(bd)
     S = torch.zeros((R, N), dtype=torch.float64, device=ad.device)
-    E = torch.zeros_like(S)
+    Mg = torch.zeros_like(S)
     acc16 = torch.zeros_like(S)
     last = torch.zeros_like(S)
     for t in range((K + 63) // 64):
         lo, hi = 64 * t, min(64 * t + 64, K)
         c = ad[:, lo:hi] @ bd[lo:hi, :]
         L = la[:, lo:hi] @ lb[lo:hi, :]
-        E = (1 + RHO) * E + RHO * (S.abs() + L) + ALPHA
+        Mg = Mg + S.abs() + L
         S = S + c
         if want:
             acc16 = (acc16 + c).half().double()
             last = c
+    E = EPS * Mg + DELTA
     if want:
-        return S, E, {"bf16_output": S.to(torch.bfloat16).double(), "fp16_accumulator": acc16,
+        return S, E, Mg, {"bf16_output": S.to(torch.bfloat16).double(), "fp16_accumulator": acc16,
                       "dropped_last_step": (S - last).half().double()}
-    return S, E
+    return S, E, Mg
 
 
-def ratio(S, E, got):
+def ratio(S, E, Mg, got):
     """The larger of the two clauses' error / tolerance, elementwise (got finite, with room)."""
     lo, hi = rounding_interval(got)
     dist = torch.clamp(torch.maximum(lo - S, S - hi), min=0)
-    bound = E + (S.abs() + E) * U16 + ETA16
-    # E = 0 only at K = 0, where the clause asks for c = 0 exactly (dist = 0)
-    r1 = torch.where(E > 0, dist / E.clamp_min(1e-300),
-                     torch.where(dist > 0, torch.full_like(E, float("inf")), torch.zeros_like(E)))
+    bound = S.abs() * U16 + EPS * Mg + DELTA_C
+    r1 = dist / E
     return torch.maximum(r1, (got - S).abs() / bound)
 
 
@@ -145,27 +143,32 @@ def check_out(a, b, c, rows=1024, negatives=False):
     bd = torch.where(torch.isfinite(bd), bd, torch.zeros_like(bd))
     worst = 0.0
     neg = {}
+    rel = []
     for r in range(0, M, rows):
         ad = a[r:r + rows].double()
         rowfin = torch.isfinite(ad).all(dim=1)
         ad = torch.where(torch.isfinite(ad), ad, torch.zeros_like(ad))
         if negatives:
-            S, E, bad = tol_err(ad, bd, want=True)
+            S, E, Mg, bad = tol_err(ad, bd, want=True)
         else:
-            S, E = tol_err(ad, bd)
+            S, E, Mg = tol_err(ad, bd)
         fin = rowfin[:, None] & colfin[None, :]
         assert ((S.abs() + E)[fin] <= MAX16).all(), "no room in float16"
         got = c[r:r + rows].double()
         assert torch.isfinite(got[fin]).all()
         g = torch.where(fin, got, S)
-        rr = torch.where(fin, ratio(S, E, g), torch.zeros_like(S))
+        rr = torch.where(fin, ratio(S, E, Mg, g), torch.zeros_like(S))
         if fin.any():
             worst = max(worst, rr.max().item())
+        nz = fin & (S != 0)
+        rel.append((E[nz] / S[nz].abs()).float().cpu())
         if negatives:
             for name, x in bad.items():
-                neg[name] = max(neg.get(name, 0.0), ratio(S, E, x).max().item())
-        del ad, S, E, got, g, rr
-    return (worst, neg) if negatives else worst
+                neg[name] = max(neg.get(name, 0.0), ratio(S, E, Mg, x).max().item())
+        del ad, S, E, Mg, got, g, rr
+    rel = torch.cat(rel)
+    med = rel.median().item() if rel.numel() else float("nan")
+    return (worst, med, neg) if negatives else (worst, med)
 
 
 def host_case(name, M, N, K, draw, seed=0, scale=1.0, negatives=False, nonfinite=False):
@@ -192,17 +195,18 @@ def host_case(name, M, N, K, draw, seed=0, scale=1.0, negatives=False, nonfinite
     ok = same
     extra = ""
     if M * N == 0:
-        w = 0.0
+        w, med = 0.0, float("nan")
         extra = f", c has {c.numel()} elements"
     elif negatives:
-        w, neg = check_out(a, b, c, negatives=True)
+        w, med, neg = check_out(a, b, c, negatives=True)
         extra = ", wrong results rejected: " + ", ".join(
             f"{k} {v:.2f} {'yes' if v > 1 else 'NO'}" for k, v in neg.items())
         ok &= all(v > 1 for v in neg.values())
     else:
-        w = check_out(a, b, c)
+        w, med = check_out(a, b, c)
     print(f"{name}: M={M} N={N} K={K} ({draw}{'' if scale == 1.0 else f' x{scale}'}"
           f"{', non-finite inputs' if nonfinite else ''}): max err/tol {w:.4f} (margin {1 - w:.4f}), "
+          f"median tol/|S| {med:.2e}, "
           f"inputs unchanged {same}{extra}")
     del a, b, c, a0, b0
     torch.cuda.empty_cache()
@@ -240,7 +244,7 @@ def direct_case(name, M, N, K, layout, seed=1):
     bits = store.view(torch.int16)
     frame = bool((bits[~inside] == PAT).all().item())
     same = torch.equal(a, a0) and torch.equal(b, b0)
-    w = check_out(a, b, c)
+    w, _ = check_out(a, b, c)
     print(f"{name}: M={M} N={N} K={K} c {layout}, b strides {tuple(b.stride())}: max err/tol "
           f"{w:.4f} (margin {1 - w:.4f}), bytes outside the matrix c unchanged {frame}, "
           f"inputs unchanged {same}")

@@ -22,7 +22,7 @@ code line of the kernel lines `[85, 86], [89, 106], [109, 420]`).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.FusedMoe.main : Statement` (`Statement`: `Claim.lean`
-line 763). Unfolded (`Claim.Meets`), it says:
+line 715). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -32,9 +32,9 @@ line 763). Unfolded (`Claim.Meets`), it says:
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 423), and every initial memory `init` that `Pre` accepts (line 557, which is `PreC`,
 line 513), every outcome of the launch is a normal end (no fault, no hang) whose final memory `fin`
-satisfies `Post` (line 704).
+satisfies `Post` (line 656).
 
-**What `Post` asks** (line 704). Write `ntp = ntpOf d init` (line 376), `entryOf d init pos` (line
+**What `Post` asks** (line 656). Write `ntp = ntpOf d init` (line 376), `entryOf d init pos` (line
 386) for the flat index at position `pos`, `eOf d init pid_m` (line 396) for the expert of block
 `pid_m`, `nv d = M·top_k` (line 363), and `stride_cm d = N` (line 367). For every flat index
 `f < nv d` and column `c < N`, the element `f·N + c` of `C`:
@@ -42,40 +42,40 @@ satisfies `Post` (line 704).
    both of its bytes (`fin z = init z` for every `z ∈ d.c.elems {f·N + c}`, `Buf.elems`, the bytes of
    that one element);
 2. **routed**: for every position `pos < ntp` with `entryOf d init pos = f`, `outElem d init fin pos f c`
-   holds (line 682): the element reads in `fin` as some `bfloat16` `cv`, and
+   holds (line 634): the element reads in `fin` as some `bfloat16` `cv`, and
    - if the block's expert `eOf d init (pos / BM)` is `-1`: `cv` is `+0.0` up to NaN payload
      (`FloatV.NaNEq (FloatV.ofPat 0) cv`; exact);
    - otherwise the expert is some `e < E`, and for all `va vb : Nat → BF16` such that row `f / top_k`
      of `A` (elements `f / top_k · K + k`) reads as finite `va k` and column `(e, c)` of `B` (elements
      `e·stride_be + c·stride_bn + k`) reads as finite `vb k` for every `k < K`, and
      `dotMag va vb K ≤ 2^120` (line 569, the sum of `Rules.Num.liftMag .bf16` products): there is a
-     finite `float32` `u` with `|u.toRat − dotSum va vb K| ≤ tol BK K va vb` and `outFin d init f cv u S E`
-     (line 657), where `S = dotSum va vb K` (line 640) is the exact dot product in the rationals and
-     `E = tol BK K va vb` (line 637; the recursion `accErr`, `tripErr`, `chainE`, `chunkStep`, lines
-     600–629). `outFin` says:
-     - without `rw`: `cv` is `FloatV.cvt u` up to NaN payload, and if `|S| + E ≤ bfloat16.maxVal`,
-       `cv` is finite with `|cv − S| ≤ E + (|S| + E)·2^-8 + 2^-134` (`bfloat16.u`, `bfloat16.eta`);
+     finite `float32` `u` with `|u.toRat − S| ≤ T`, `T = tol BK K va vb = 2^-12·pathMag va vb BK K +
+     2^-133` (lines 608, 599), and `outFin d init f cv u S T` (line 619), where `S = dotSum va vb K`
+     (line 611) is the exact dot product in the rationals. `pathMag` sums, over the chunks of 64
+     positions the loop's `tl.dot`s cover, the largest of the exact partial sum before the chunk
+     (`preSum`), the exact partial sum before the chunk's trip, and the chunk's lifted magnitude
+     (`chunkLift`). `outFin` says:
+     - without `rw`: `cv` is `FloatV.cvt u` up to NaN payload (the `bfloat16` rounding of `u`), and
+       if `|S| + T ≤ bfloat16.maxVal`, `cv` is finite;
      - with `rw`: the weight `wv` at element `f` of `w` reads as finite, some `r` is
        `FloatV.mul u wv` up to NaN payload, `cv` is `FloatV.cvt r` up to NaN payload, and if
-       `(|S| + E)·|wv| ≤ 2^126`, `r` is finite with `|r − S·wv| ≤ tolW wv S E` (line 648), and if moreover
-       `|S·wv| + tolW ≤ bfloat16.maxVal`, `cv` is finite with
-       `|cv − S·wv| ≤ tolW + (|S·wv| + tolW)·2^-8 + 2^-134`.
+       `(|S| + T)·|wv| ≤ 2^126`, `r` and `cv` are finite.
 
    With a non-finite input along the row or column, or `dotMag > 2^120`, only "holds a `bfloat16`" is
    asked;
 3. the frame: every byte outside `d.c.elems (cIdx d)` (line 370, the matrix `C`) is unchanged.
 
-**What you are given** (`Assumptions`, line 741):
-- `faithful` (line 747, `Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's
+**What you are given** (`Assumptions`, line 693):
+- `faithful` (line 699, `Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's
   launch, when the launch is valid, has `debug = false`, and the model's launch is well behaved from
   `init`;
-- `dot` (line 754, `Rules.Num.DotBF16Chunk`, a `Dot16BitChunk`): the `tl.dot` of source line 373
+- `dot` (line 706, `Rules.Num.DotBF16Chunk`, a `Dot16BitChunk`): the `tl.dot` of source line 373
   (line 238), chunk by chunk of 64 `k`: chunk `j` within
   `min (2^-13·Mj) (2·A_j + 2^-22·Mj) + 2^-20·|s j + c_j| + 2^-143` of `s j + c_j`, with room;
-- `dot_total` (line 756, `Rules.Num.DotTotal`): that `tl.dot` always has a result.
+- `dot_total` (line 708, `Rules.Num.DotTotal`): that `tl.dot` always has a result.
 
-**The kernel, as the model runs it** (`fused_moe_kernel`, line 92; `model` line 724; `launch` line
-736): a 1-D grid of `cdiv(EM, BM)·cdiv(N, BN)` programs. Program `pid` maps to a block `pid_m` and a
+**The kernel, as the model runs it** (`fused_moe_kernel`, line 92; `model` line 676; `launch` line
+688): a 1-D grid of `cdiv(EM, BM)·cdiv(N, BN)` programs. Program `pid` maps to a block `pid_m` and a
 column tile `pid_n` by the grouped ordering (lines 101–125). It loads `ntp` (line 129) and
 returns if `pid_m·BM ≥ ntp` (line 132). Otherwise it builds `offs_token` (line 137: loaded from
 `sorted_token_ids`, or with `naive` built from `pid_m`), masks lanes with `offs_token < nv`, and loads
@@ -101,17 +101,20 @@ elements and use no atomics: the route is `TVA.meets_independent`; the loop is `
   injective, the column tiles of `pid_n`, `PreC.s2` (each valid flat index once) and `ntpBM` (every
   lane of a running block is below `ntp`); no program reads `C`'s matrix (`c_a`, `c_b`, `c_w`, `c_s`,
   `c_e`, `c_n`), which also gives `hRW`;
-- the value part: every block below `ntp` and every column tile is run by some program (the ordering
-  covers the grid); the loop invariant bounds the accumulator by `accErr` after each trip
-  (`safe_dot_add` gives either combined form: the chunk steps from `dot`, `Dot16Chunk.DotChunk16Loss.errB`
-  and `Dot8Chunk.chain_err`, or the separate product with `AccAdd`, `FloatV.AddRel.err`); the
-  weight's product (`safe_mul`, `FloatV.mul_err`) and the conversion (`safe_cvt`, `FloatV.cvt_err`)
-  give `outFin`; the room from `dotMag ≤ 2^120` (README, `## Tolerances`);
+- the value part, `|u − S| ≤ 2^-12·pathMag + 2^-133`: every block below `ntp` and every column
+  tile is run by some program (the ordering covers the grid); derive the fine bound of README
+  `## Tolerances`: the loop invariant bounds the accumulator by `accErr` after each trip
+  (`safe_dot_add` gives either combined form: the chunk steps from `dot`,
+  `Dot16Chunk.DotChunk16Loss.errB` and `Dot8Chunk.chain_err`, or the separate product with
+  `AccAdd`, `FloatV.AddRel.err`), the room from `dotMag ≤ 2^120`; then relax `accErr` to
+  `2^-12·pathMag + 2^-133` (README, `## Tolerances`, Relaxation). The weight's product
+  (`safe_mul`) and the conversion (`safe_cvt`) give `outFin`, the finiteness from the room
+  conditions (`|r| ≤ 2^126` with the weight);
 - the frame: no program writes outside `cIdx d`, and unrouted elements are written by no program.
 
-**Already in `Claim.lean`** (do not prove again): `consistent` (line 767), `satisfiable` (line 1300),
-`hostInst_ok` and the `setup_*_ok` theorems; `row_lt` (line 871), `succ_mul_le` (line 877) and
-`bytes_disjoint` (line 882) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 719), `satisfiable` (line 1252),
+`hostInst_ok` and the `setup_*_ok` theorems; `row_lt` (line 823), `succ_mul_le` (line 829) and
+`bytes_disjoint` (line 834) can be reused.
 
 ## Specification
 
@@ -131,17 +134,21 @@ contiguous output, `stride_cm = C.stride(1) = N`). A position `pos` below the pa
   mode): the element is the `bfloat16` `+0.0` (`write_zeros_to_output`).
 - **Routed, block expert `e ∈ [0, E)`**: when row `f / top_k` of `A` and column `(e, c)` of `B` hold
   finite values `va k`, `vb k` (`k < K`) and `dotMag ≤ 2^120`, the element is the `bfloat16` rounding
-  of a `float32` value `u` (times the routing weight with `MUL_ROUTED_WEIGHT`) with
-  - `|u − S| ≤ E := tol BK K va vb` (`BK` the tile's `BLOCK_SIZE_K`; Tolerances), `S = Σ_k va k ·
-    vb k` the exact dot product; `dotMag = Σ_k liftMag(va k)·liftMag(vb k)` (`|q|`, a nonzero
-    subnormal counted as `2^-126`: `Rules.Num.liftMag .bf16`);
-  - without the weight: `C = cvt(u)` and, with room, `|C − S| ≤ E + (|S| + E)·2^-8 + 2^-134`;
-  - with the weight `w = topk_weights` at `f` (finite): `C = cvt(u ⊗ w)`, and, with room,
-    `|u ⊗ w − S·w| ≤ tolW = |w|·E + ((|S| + E)·|w|)·2^-24 + 2^-150` and
-    `|C − S·w| ≤ tolW + (|S·w| + tolW)·2^-8 + 2^-134`.
+  of a `float32` value `u` (of the `float32` product `u ⊗ w` with the routing weight `w =
+  topk_weights` at `f`, finite, with `MUL_ROUTED_WEIGHT`) with
 
-  With a NaN or infinity on the row or the column, or no room, it says only that the element holds
-  some `bfloat16`.
+  `|u − S| ≤ T = 2^-12·pathMag + 2^-133`,
+
+  `S = Σ_k va k · vb k` the exact dot product and `pathMag` the magnitude the chunked
+  accumulation carries: over the chunks of 64 positions of the loop's `tl.dot`s (`BK` the tile's
+  `BLOCK_SIZE_K`, `BK/64` chunks per trip), the largest of the exact partial sum before the chunk,
+  the exact partial sum before the chunk's trip, and the sum of the chunk's lifted products
+  (`liftMag`: `|q|`, a nonzero subnormal counted as `2^-126`), summed (Tolerances). `pathMag ≥
+  dotMag ≥ |S|`; `dotMag = Σ_k liftMag(va k)·liftMag(vb k)`. With room (`|S| + T` within the
+  `bfloat16` range, or `(|S| + T)·|w| ≤ 2^126` with the weight) the output is finite.
+
+  With a NaN or infinity on the row or the column, or `dotMag > 2^120`, it says only that the
+  element holds some `bfloat16`.
 - **Frame:** every byte outside the matrix `C` (`cIdx`) is unchanged: `A`, `B`, `topk_weights`, the
   alignment buffers, and any storage of `C`'s buffer outside the matrix.
 
@@ -181,7 +188,7 @@ assignment), `B`'s strides `stride_be`, `stride_bn`, the flags `MUL_ROUTED_WEIGH
 | `topk_le` | `top_k < 2^31` | the constexpr built in `int64` for `//` |
 | `K_le`, `N_le`, `EM_le` | `K + BK`, `N + BN`, `EM + BM ≤ 2^31` | `int32` arguments; `tl.cdiv` adds `B − 1` in `int32` (lines 199, 200, 330) |
 | `N_le17` | `N ≤ 2^17` | `N` is a model dimension (twice the intermediate size per rank for the first GEMM, the hidden size for the second): real model shapes (Exclusions); the largest real `N` is `65536` (Grok-1's first GEMM at TP1) |
-| `K_le15` | `K ≤ 2^15` | outside real use beyond it (the largest real `K` is `32768`, Grok-1's second GEMM at TP1); the tolerance grows with `K`, to a median `0.05` of the output at `2^15` (Tolerances) |
+| `K_le15` | `K ≤ 2^15` | outside real use beyond it (the largest real `K` is `32768`, Grok-1's second GEMM at TP1); the tolerance grows with `K`, to a median `0.094` of the output at `2^15` (Tolerances) |
 | `N_group` | `cdiv(N, BN)·GM < 2^31` | `num_pid_in_group` (line 201); implied by `N_le` |
 | `grid_lt` | `cdiv(EM, BM)·cdiv(N, BN) < 2^31` | `Launch.Valid` |
 | `nv_le` | `M·top_k < 2^31` | `num_valid_tokens` is an `int32` argument |
@@ -288,59 +295,93 @@ sizes and `EM` as the hosts do for the tile each names, the one the host picks o
 
 ## Tolerances
 
-The tolerance is provable under these conditions. It composes library facts only; `E = tol BK K va
-vb` (`Claim.lean`: `accErr`, `tripErr`, `chainE`, `chunkStep`) is computed from the host's values
-along the exact partial sums of the reduction, chunk by chunk.
+The tolerance is provable under these conditions: the library facts give a fine bound `E`, computed
+from the host's values along the exact partial sums of the reduction, chunk by chunk, and `E` is at
+most `T = 2^-12·pathMag + 2^-133`.
 
 1. **The chunks.** Position `k` of the reduction holds the product `p_k = va k · vb k` (`0` for
    `k ≥ K`: the last trip's lanes past `K` load `other=0.0`, `+0`), lifted `ℓ_k = liftMag(va k)·
-   liftMag(vb k)`. Chunk `g` is the 64 positions from `64·g`; trip `t` of the loop (`q = BK/64`
-   chunks) holds the chunks `t·q … t·q + q − 1`, which are exactly the chunks `Rules.Num.chunk16`
-   of that trip's `tl.dot` (`BK` is `64`, `128` or `256`). `c_g = Σ_chunk p_k` (`chunkSum`),
-   `m_g = Σ_chunk ℓ_k ≥` every lifted product of the chunk (`chunkLift`), `P_g = Σ_{h<g} c_h`
-   (`preSum`).
+   liftMag(vb k) ≥ |p_k|`. Chunk `g` is the 64 positions from `64·g`; trip `t` of the loop
+   (`q = BK/64` chunks) holds the chunks `t·q … t·q + q − 1`, which are exactly the chunks
+   `Rules.Num.chunk16` of that trip's `tl.dot` (`BK` is `64`, `128` or `256`). `c_g = Σ_chunk p_k`
+   (`chunkSum`), `m_g = Σ_chunk ℓ_k ≥` every lifted product of the chunk and `≥ |c_g|`
+   (`chunkLift`), `P_g = Σ_{h<g} c_h` (`preSum`). There are `G = cdiv(K, BK)·q ≤ 512` chunks
+   (`K ≤ 2^15`, and `BK` divides `2^15`).
 2. **One chunk step** (`Rules.Num.DotBF16Chunk`, its first arm: within
    `2^-13·Mj + 2^-20·|s_j + c_j| + 2^-143` of `s_j + c_j`, for `Mj ≥ |s_j|` and every lifted
-   product of the chunk). From a partial value within `e` of `P_g`, take
-   `Mj = max(|P_g| + e, m_g) ≤ max(|P_g|, m_g) + e` and `|s_j + c_j| ≤ |P_{g+1}| + e`: the next one
-   is within `chunkStep e = (1 + 2^-13 + 2^-20)·e + 2^-13·max(|P_g|, m_g) + 2^-20·|P_{g+1}| +
-   2^-143` of `P_{g+1}` (the recursion of `Dot8Chunk.chain_err`, `errB`).
-3. **One trip** (line 373, `tl.dot_add`, `tripErr`): the combine pass may leave either form.
-   `tl.dot(a, b, acc)` continues the accumulator's chain: `q` chunk steps from the error `e` against
-   `P` (`DotChunk16Loss`, `chainE`). `tl.dot(a, b)` and a `float32` addition (`AccAdd`, fusable):
-   the product's own chain from `+0`, within `L` of the trip's exact sum `D` (the same steps against
-   the trip's partial sums, `DotChunk16Loss.errB`), then `AddRel.err`, `3u·(|d| + |acc|) + 4η` with
-   `|d| ≤ |D| + L`, `|acc| ≤ |P_{tq}| + e`. `tripErr` is the larger of the two.
-4. **The K loop**, `T = cdiv(K, BK)` trips from the exact `+0` of `tl.zeros`: `accErr T`; the last
-   partial sum is `P_{Tq} = S`.
-5. **The weight** (line 409): one `float32` rounding, `FloatV.mul_err` (`u = 2^-24`, `η = 2^-150`).
-6. **The store** (line 413): one `bfloat16` rounding, `FloatV.cvt_err` (`u = 2^-8`, `η = 2^-134`).
+   product of the chunk). With `ρ = 2^-13`, `σ = 2^-20`, `α = 2^-143`: from a partial value within
+   `e` of `P_g`, take `Mj = max(|P_g| + e, m_g) ≤ max(|P_g|, m_g) + e` and
+   `|s_j + c_j| ≤ |P_{g+1}| + e`: the next one is within
+   `step(e) = (1 + ρ + σ)·e + ρ·max(|P_g|, m_g) + σ·|P_{g+1}| + α` of `P_{g+1}` (the recursion of
+   `Dot8Chunk.chain_err`, `errB`).
+3. **One trip** (line 373, `tl.dot_add`): the combine pass may leave either form.
+   (i) `tl.dot(a, b, acc)` continues the accumulator's chain: `q` chunk steps from the error `e`
+   against `P`. (ii) `tl.dot(a, b)` and a `float32` addition (`AccAdd`, fusable): the product's own
+   chain from `+0`, within `L` of the trip's exact sum (the same steps against the trip's partial
+   sums `D_j = P_{tq+j} − P_{tq}`, `DotChunk16Loss.errB`), then `AddRel.err`,
+   `3u·(|d| + |acc|) + 4η` with `|d| ≤ |D_q| + L`, `|acc| ≤ |P_{tq}| + e` (`u = 2^-24`,
+   `η = 2^-150`). The trip's error `tripErr(e)` is the larger of the two.
+4. **The K loop**, `T = cdiv(K, BK)` trips from the exact `+0` of `tl.zeros`:
+   `E = accErr(T)`, `accErr(0) = 0`, `accErr(t + 1) = tripErr(accErr(t))`; the last partial sum is
+   `P_{Tq} = S`.
+5. **The weight** (line 409): one `float32` rounding of `u·w` (`FloatV.mul`), **the store** (line
+   413): one `bfloat16` rounding (`FloatV.cvt`); `Post` states both exactly (`outFin`), and the
+   room: `|u| ≤ |S| + T`, so with `(|S| + T)·|w| ≤ 2^126` the product rounds to at most `2^126`
+   (a `float32` and a `bfloat16` value), and without the weight `|u| ≤ |S| + T ≤ bfloat16.maxVal`.
 
-Room: `Post` asks `dotMag ≤ 2^120`, so every partial value and its bound (`E` is below `0.07·dotMag`
-for `T·q ≤ 512` chunks) stays far inside `float32`, as the chunk fact's room and `AddRel.err`'s ask;
-the absolute part is below `10^-39`.
+Room: `Post` asks `dotMag ≤ 2^120`, so every partial value and its bound stays far inside
+`float32`, as the chunk fact's room and `AddRel.err`'s ask.
 
-Size: the bound charges each chunk `2^-13` of the larger of the partial sum and the chunk's
-lifted magnitude, and `2^-20` of the new partial sum, along the exact partial sums, not `Σ|a·b|`.
-`check_gpu.py` measures `tol / |S·w|` (median, 90th percentile) on random data (`|x| ≈ 0.1`), and
-the measured error over the tolerance:
+**Relaxation: `E ≤ T`.** Write `A_g = max(|P_g|, |P_{tq}|, m_g)` for chunk `g` of trip `t`
+(`pathMag = Σ_{g<G} A_g`), `M_t = Σ_{j<q} A_{tq+j}` (so `Σ_t M_t = pathMag`) and `p_t = P_{tq}`.
+- Form (i): each step's added term is `ρ·max(|P_g|, m_g) + σ·|P_{g+1}| + α ≤ (ρ + 2σ)·A_g + α`
+  (`|P_{g+1}| ≤ |P_g| + m_g ≤ 2·A_g`), so after `q` steps the error is at most
+  `(1 + ρ + σ)^q·(e + (ρ + 2σ)·M_t + q·α)`.
+- Form (ii): `D_0 = 0`, so the first step adds `ρ·m_{tq} + …`; for `j ≥ 1`,
+  `max(|D_j|, m_j) ≤ |P_{tq+j}| + |p_t| ≤ A_{tq+j} + |p_t|`; and `|D_{j+1}| ≤ 2·A_{tq+j} + |p_t| ≤
+  3·A_{tq+j}`. Since every `A_{tq+j} ≥ |p_t|`, `(q − 1)·|p_t| ≤ (q − 1)/q·M_t`, so
+  `L ≤ (1 + ρ + σ)^q·((ρ·(2q − 1)/q + 3σ)·M_t + q·α)`; with `|D_q| ≤ Σ_j m_{tq+j} ≤ M_t` and
+  `|p_t| ≤ M_t`, the addition adds `3u·(2·M_t + L + e) + 4η`.
+- Both forms: with `γ = (1 + 3u)·(1 + ρ + σ)^q`, `tripErr(e) ≤ γ·e + γ·(c_q·M_t + q·α) + 4η`,
+  `c_q = ρ·(2q − 1)/q + 3σ + 6u ≤ 1.7763·ρ` (`q ≤ 4`: `(2q − 1)/q ≤ 1.75`, `3σ = 0.0234·ρ`,
+  `6u = 0.0029·ρ`).
+- Unrolling over `T` trips: `E ≤ γ^T·(c_q·pathMag + G·α + 4T·η)`, and
+  `γ^T ≤ (1 + 3u)^512·(1 + ρ + σ)^512 ≤ e^0.0630 ≤ 1.0651` (`T ≤ G ≤ 512`). So
+  `E ≤ 1.0651·1.7763·ρ·pathMag + 1.0651·(512·2^-143 + 2048·2^-150) ≤ 1.892·2^-13·pathMag + 2^-133
+  ≤ 2^-12·pathMag + 2^-133 = T`.
 
-| `K` | median | p90 | measured error / tol (worst) |
+The weight's product and the `bfloat16` rounding have no tolerance of their own in `Post`: it
+states them exactly (`FloatV.mul`, `FloatV.cvt`, up to NaN payload), so the output is pinned by
+`u`; to first order the output is within `|w|·T` plus half a `bfloat16` gap (`2^-9` relative) of
+`S·w`.
+
+Size: the bound charges `2^-12` of the larger of the running partial sums and each chunk's lifted
+magnitude, along the exact partial sums, not `K·Σ|a·b|`. On the GPU check's launches (random data,
+`|x| ≈ 0.1`), `T/|S|` against the fine bound `E/|S|` (medians; the `bfloat16` output adds its
+rounding, at most `2^-9` relative), and the elements of the check where `T < E` (none: `T/E` lies
+in `[1.91, 2.15]` on every element):
+
+| `K` | `E/|S|` median | `T/|S|` median | `(E + (|S| + E)·2^-8)/|S|` median (with the output's rounding) |
 |---|---|---|---|
-| 128 (test cases) | 0.0052 | 0.011 | 0.93 |
-| 2048 (Qwen3) | 0.0093 | 0.032 | 0.72 |
-| 7168 (DeepSeek-V3) | 0.0167 | 0.063 | 0.47 |
-| 14336 (Mixtral-8x7B, second GEMM) | 0.027 | 0.10 | 0.35 |
-| 16384 (Mixtral-8x22B, second GEMM) | 0.030 | 0.11 | 0.29 |
-| 32768 (Grok-1, second GEMM) | 0.053 | 0.20 | 0.20 |
+| 64 | 0.00092 | 0.0018 | 0.0048 |
+| 128 (test cases) | 0.0013 | 0.0026 | 0.0052 |
+| 2048 (Qwen3) | 0.0054 | 0.011 | 0.0093 |
+| 7168 (DeepSeek-V3) | 0.0128 | 0.025 | 0.0167 |
+| 14336 (Mixtral-8x7B, second GEMM) | 0.023 | 0.045 | 0.027 |
+| 16384 (Mixtral-8x22B, second GEMM) | 0.026 | 0.050 | 0.030 |
+| 32768 (Grok-1, second GEMM) | 0.048 | 0.094 | 0.052 |
 
-At small `K` the `bfloat16` rounding dominates and the measured error reaches 0.93 of the tolerance
-(the kernel's rounding to nearest meets its bound). What `Post` rejects (`check_gpu.py`, negative
-tests, each on some element of every case that runs them, from `K = 768` to `K = 32768`): the next
-expert's weights, a missing or wrong scale (the routing weight, or half the result), an all-zero
-output (on almost every element); a result that drops the last `K` block (on 41% of the elements
-at `K = 32768`, 72% at `16384`, 76–89% at `14336` and `7168`); and a `bfloat16` accumulator, each
-trip rounded to `bfloat16` (on 1–23% of the elements). One rejected element rejects the output.
+Over every sampled element of the check, `T/|S|` has median `0.013` (`E/|S|`: `0.0065`); its
+worst, `3.8·10^5` (`1.9·10^5` for `E`), is at an element whose sum cancels (`|S|` near `0`). The
+bound is about `2×` the fine bound at every size.
+
+What `Post` rejects (`check_gpu.py`, negative tests, each on some element of every case that runs
+them, from `K = 768` to `K = 32768`; an output is rejected when no value within `T` of `S` rounds
+to it): the next expert's weights, a missing or wrong scale (the routing weight, or half the
+result), an all-zero output (on almost every element); a result that drops the last `K` block (on
+18% of the elements at `K = 32768`, 54% at `16384`, 60–85% at `14336` and `7168`); and a
+`bfloat16` accumulator, each trip rounded to `bfloat16` (on 0.0008–5.4% of the elements). One
+rejected element rejects the output.
 
 ## Exclusions
 
@@ -401,6 +442,8 @@ None.
    tiles with `BLOCK_SIZE_K = 256`, `GROUP_SIZE_M = 64`, `BLOCK_SIZE_N = 32` and `256`, edges
    (`K = 32767` with `N = 1000` and the weight, `E = 1`/`top_k = 1` with `GROUP_SIZE_M = 16`,
    `K = 64` with `N = 129`, inputs scaled by 4), the `-1` expert path (vLLM's expert map applied to
-   `expert_ids`), and a guarded `C`. Largest error / tolerance **0.934** (`K = 64`); zeros exact on
-   the `-1` path; unrouted rows unchanged; inputs, alignment buffers and the guard bytes around `C`
-   unchanged; the negative tests as in Tolerances. PASS.
+   `expert_ids`), and a guarded `C`. Every output is the `bfloat16` rounding of a value within `T`
+   of `S` (the check's `err`, the distance from `S` to the values that round to the output, over
+   `T`: largest **0.0006**); zeros exact on the `-1` path; unrouted rows unchanged; inputs,
+   alignment buffers and the guard bytes around `C` unchanged; the negative tests as in Tolerances.
+   PASS.

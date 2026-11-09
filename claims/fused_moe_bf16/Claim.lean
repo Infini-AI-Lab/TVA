@@ -592,86 +592,38 @@ def chunkLift (va vb : Nat → BF16) (K g : Nat) : ℚ :=
 /-- The exact partial sum of the first `g` chunks, `Σ_{k < 64·g} va k · vb k`. -/
 def preSum (va vb : Nat → BF16) (K g : Nat) : ℚ := ∑ h ∈ Finset.range g, chunkSum va vb K h
 
-/-- One chunk step of `Rules.Num.DotBF16Chunk`, carried from a partial value within `e` of the
-exact partial sum `Pg`: the next partial value is within `chunkStep e Pg mg Pg'` of the next exact
-partial sum `Pg'`. The chunk's step is within `2^-13·Mj + 2^-20·|s j + c_j| + 2^-143` (the
-fact's first arm) with `Mj = max (|Pg| + e) mg`, at most `max |Pg| mg + e`, and
-`|s j + c_j| ≤ |Pg'| + e` (as `Dot8Chunk.chain_err`, whose `errB` is this recursion). -/
-def chunkStep (e Pg mg Pg' : ℚ) : ℚ :=
-  (1 + Rules.Num.rhoChunk16 + Rules.Num.sigmaChunk16) * e + Rules.Num.rhoChunk16 * max |Pg| mg +
-    Rules.Num.sigmaChunk16 * |Pg'| + Rules.Num.alphaChunk16
+/-- The magnitude the chunked accumulation carries: over the `steps BK K · (BK / 64)` chunks of
+64 positions that the loop's `tl.dot`s cover (positions past `K` are zeros; chunk `g` is in the
+trip that starts at chunk `g − g % (BK / 64)`), the largest of the exact partial sum before the
+chunk, the exact partial sum before the chunk's trip, and the chunk's lifted magnitude, summed. It
+is at least `dotMag` (each term is at least the chunk's lifted magnitude), so at least
+`|dotSum|`. -/
+def pathMag (va vb : Nat → BF16) (BK K : Nat) : ℚ :=
+  ∑ g ∈ Finset.range (steps BK K * (BK / 64)),
+    max (max |preSum va vb K g| |preSum va vb K (g - g % (BK / 64))|) (chunkLift va vb K g)
 
-/-- `n` chunk steps from chunk `g0`, starting within `e`, against the partial sums `P g`
-(`P` the exact partial sums, or a trip's own from `0`). -/
-def chainE (va vb : Nat → BF16) (K g0 : Nat) (P : Nat → ℚ) (e : ℚ) : Nat → ℚ
-  | 0 => e
-  | n + 1 => chunkStep (chainE va vb K g0 P e n) (P (g0 + n)) (chunkLift va vb K (g0 + n))
-      (P (g0 + n + 1))
-
-/-- The error after trip `t + 1` of the loop (line 373, `accumulator += tl.dot(a, b)`, a
-`tl.dot_add` of `BK` products, `q = BK / 64` chunks), from the error `e` after trip `t`, under
-either form the combine pass may leave:
-* `tl.dot(a, b, acc)`: the trip's `q` chunk steps continue the accumulator's chain
-  (`chainE` from `e` against the exact partial sums);
-* `tl.dot(a, b)` then the `float32` addition (`AccAdd`, fusable): the product's own chain from `0`
-  (within `L` of the trip's exact sum `D`), then `AddRel.err`: `3u·(|d| + |acc|) + 4η` with
-  `|d| ≤ |D| + L` and `|acc| ≤ |P| + e`.
-The larger of the two covers both. -/
-def tripErr (va vb : Nat → BF16) (BK K t : Nat) (e : ℚ) : ℚ :=
-  let q := BK / 64
-  let P := preSum va vb K
-  let L := chainE va vb K (t * q) (fun g => P g - P (t * q)) 0 q
-  max (chainE va vb K (t * q) P e q)
-    (e + L + 3 * Math.Float.Format.binary32.u *
-      (|P (t * q + q) - P (t * q)| + L + |P (t * q)| + e) + 4 * Math.Float.Format.binary32.eta)
-
-/-- The error after `t` trips, from the exact `+0` of `tl.zeros` (line 329). -/
-def accErr (va vb : Nat → BF16) (BK K : Nat) : Nat → ℚ
-  | 0 => 0
-  | t + 1 => tripErr va vb BK K t (accErr va vb BK K t)
-
-/-- The tolerance of the `float32` accumulation of row values `va` and column values `vb`: the
-error after the loop's `steps BK K` trips (`Rules.Num.DotBF16Chunk`, chunk by chunk, against the
-exact partial sums of the host's values). On zero-mean data it is about `1.7%` of `|S|` (median)
-at `K = 7168` and `5%` at `K = 2^15`. -/
-def tol (BK K : Nat) (va vb : Nat → BF16) : ℚ := accErr va vb BK K (steps BK K)
+/-- The tolerance of the `float32` accumulation of row values `va` and column values `vb`:
+`2^-12·pathMag + 2^-133`. It is above the chunk-by-chunk bound of `Rules.Num.DotBF16Chunk` along
+the exact partial sums, under either form of each trip's `tl.dot_add` (README, Tolerances). -/
+def tol (BK K : Nat) (va vb : Nat → BF16) : ℚ := 2 ^ (-12 : ℤ) * pathMag va vb BK K + 2 ^ (-133 : ℤ)
 
 /-- The exact dot product of row values `va` and column values `vb` over `k < K`. -/
 def dotSum (va vb : Nat → BF16) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, (va k).toRat * (vb k).toRat
 
-/-- The error of one `float32` rounding of a value of magnitude at most `x`. -/
-def err32 (x : ℚ) : ℚ := x * Math.Float.Format.binary32.u + Math.Float.Format.binary32.eta
-
-/-- The tolerance after the routing weight (line 409) and the `float32` product's rounding:
-`|w|·E` for the scaled dot, plus one `float32` rounding of a product of magnitude at most
-`(|S| + E)·|w|`. -/
-def tolW (w S E : ℚ) : ℚ := |w| * E + err32 ((|S| + E) * |w|)
-
-/-- The final conversion (lines 403–413) and store of the GEMM's accumulator `u`, for the exact
-dot product `S` and its tolerance `E`: the routing weight's `float32` product when
-`MUL_ROUTED_WEIGHT`, then the `bfloat16` rounding (line 413), stored (line 420). When the
-`float32` product cannot overflow, the result `r` is finite and within `tolW` of the reference
-`S·w`; when that leaves room below the `bfloat16` range, the output is finite and within
-`tolW` plus one `bfloat16` rounding of it. Without the weight: the `bfloat16` rounding of `u`
-itself, as `out_f16`-style. -/
-def outFin (d : Inst) (init : Mem) (f : Nat) (cv : BF16) (u : F32) (S E : ℚ) : Prop :=
+/-- The final conversion (lines 403–413) and store of the GEMM's accumulator `u`, whose distance
+to the exact dot product `S` is at most `T`: with `MUL_ROUTED_WEIGHT`, the routing weight's
+`float32` product `r` (line 409), then the `bfloat16` rounding of `r` (line 413), stored (line
+420); without it, the `bfloat16` rounding of `u` itself. When the product cannot overflow, `r`
+and the output are finite; without the weight, when `|S| + T` is within the `bfloat16` range, the
+output is finite. -/
+def outFin (d : Inst) (init : Mem) (f : Nat) (cv : BF16) (u : F32) (S T : ℚ) : Prop :=
   if d.rw then
     ∃ wv : F32, init.read .f32 (d.w.ptr (f : Int)).addr = some wv ∧ wv.isFinite = true ∧
       ∃ r : F32, FloatV.NaNEq (FloatV.mul u wv) r ∧ FloatV.NaNEq (FloatV.cvt r) cv ∧
-        ((|S| + E) * |wv.toRat| ≤ 2 ^ 126 →
-          r.isFinite = true ∧
-          |r.toRat - S * wv.toRat| ≤ tolW wv.toRat S E ∧
-          (|S * wv.toRat| + tolW wv.toRat S E ≤ Math.Float.Format.bfloat16.maxVal →
-            cv.isFinite = true ∧
-            |cv.toRat - S * wv.toRat| ≤ tolW wv.toRat S E +
-              (|S * wv.toRat| + tolW wv.toRat S E) * Math.Float.Format.bfloat16.u +
-              Math.Float.Format.bfloat16.eta))
+        ((|S| + T) * |wv.toRat| ≤ 2 ^ 126 → r.isFinite = true ∧ cv.isFinite = true)
   else
     FloatV.NaNEq (FloatV.cvt u) cv ∧
-    (|S| + E ≤ Math.Float.Format.bfloat16.maxVal →
-      cv.isFinite = true ∧
-      |cv.toRat - S| ≤ E + (|S| + E) * Math.Float.Format.bfloat16.u +
-        Math.Float.Format.bfloat16.eta)
+    (|S| + T ≤ Math.Float.Format.bfloat16.maxVal → cv.isFinite = true)
 
 /-- What the launch leaves in the element of `C` that position `pos`'s entry `f` and column `c`
 have (`f * stride_cm + c`), when program `pos / BLOCK_SIZE_M` owns it. With expert `-1` (lines 234–250):

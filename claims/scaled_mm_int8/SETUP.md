@@ -121,8 +121,7 @@ its down projection at TP8, Llama-3.2-1B's gate-up, Llama-2-70B's down, Llama-3.
 `N = 53248`), and edges (`K = 2^17 − 256` with every value `−128`, the largest accumulator;
 `M = N = 1`; `M`, `N` not multiples of the tile; the scales multiplied by `2^20` and `2^10`, or `scale_a` by `2^-60`; a bias
 cancelling the product). Every element meets both clauses of `Post`: the largest error / tolerance
-is 0.9993 (the output's rounding is nearly all of the error, and rounding to nearest reaches the
-bound near the bottom of a binade). Four wrong results (the scaled product rounded before the bias
+is 0.4998 (vLLM's test, `M = 512`, `N = 20486`, `float16`). Four wrong results (the scaled product rounded before the bias
 is added, on the rounding test's data; the last `BLOCK_SIZE_K` products left out; the next row's
 scale; the bias left out) each break `Post`. The inputs are unchanged and, in the two direct
 launches (padded rows, column-major), no byte outside the matrix `C` is written. Outside the

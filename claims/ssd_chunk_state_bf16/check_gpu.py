@@ -10,12 +10,14 @@ source's ten test cases, on launches at the edges of `Inst.ok` and `Vals`, and c
   conditions (`dRef <= 64`, `eHat * |dt| <= 2^126`, `|B| * sHat <= 2^126`, `dotMag <= 2^120`);
 * `Post`: every element of `states` finite and within `tol` of `sRef`, both computed by the claim's
   definitions (`toks`, `dRef`, `wRef`, `dErr`, `expRel`, `errE`, `eHat`, `errS`, `sHat`, `errP`,
-  `pHat`, `errB`, `bHat`, `magB`, `dotMag`, `steps`, `dotTol`) from the host's inputs; the byte
+  `pHat`, `errB`, `bHat`, `magB`, `dotMag`, `steps`, `inMag`; `tol = 2^-8·(1 + steps·2^-6)·dotMag +
+  2^-100·inMag`) from the host's inputs; the byte
   frame: the inputs unchanged, and guard bands of 4096 elements on each side of `states` (the host's
   `torch.empty` allocation is placed inside a sentinel-filled buffer during the call) unchanged.
 
 The launches include one whose `x.stride(0)` and `B.stride(0)` are above `2^31` (`int64`
-arguments), which `Inst.ok` covers. Each line reports the largest |error| / tol over all elements.
+arguments), which `Inst.ok` covers. Each line reports the largest |error| / tol over all elements
+and tol / |sRef| (median and largest over the elements with sRef != 0).
 Negative tests then check that the same comparison rejects wrong outputs: one element moved by
 just over its tolerance, the states of a launch without `seq_idx` (which also sums the other
 requests' tokens), the states computed with the wrong group of `B`, and the states of kernels
@@ -34,7 +36,6 @@ import sys; sys.dont_write_bytecode = True  # keep source/ free of __pycache__ (
 import importlib.util
 import math
 import os
-from fractions import Fraction
 
 import torch
 
@@ -48,11 +49,6 @@ import triton  # noqa: E402
 
 DEV = torch.device("cuda")
 BK = 64
-# Claim.lean: rhod = DotLoop.stepRel relDot16 64, alphad = DotLoop.stepAbs absDot16 64
-_rel = Fraction(66, 2 ** 22)
-_abs = Fraction(66, 2 ** 126)
-RHOD = float(_rel + 3 * Fraction(1, 2 ** 24) * (1 + _rel))
-ALPHAD = float(_abs * (1 + 3 * Fraction(1, 2 ** 24)) + 4 * Fraction(1, 2 ** 150))
 GUARD = 4096
 SENTINEL = 0x7FC0DEAD           # a NaN pattern no store of the kernel writes
 worst = [0.0]
@@ -64,11 +60,6 @@ def req_of(qsl, nreq, t):
     return sum(1 for r in range(1, nreq) if qsl[r] <= t)
 
 
-def dot_tol(T, A):
-    p = (1.0 + RHOD) ** T
-    return (p - 1.0) * A + T * p * ALPHAD
-
-
 def mag_b(v):
     """Claim.lean `magB`: 0 for 0, otherwise max(|v|, 2^-126)."""
     a = v.abs()
@@ -76,7 +67,8 @@ def mag_b(v):
 
 
 def post_check(states, x, B, dt, dA, seqlens, cs, extra=None):
-    """Post's numeric clause for every element (and Vals); returns (worst err/tol, finite, vals)."""
+    """Post's numeric clause for every element (and Vals); returns (worst err/tol, finite, vals,
+    tol / |sRef| over the elements with sRef != 0)."""
     _, seqlen, H, P = x.shape
     G, N = B.shape[2], B.shape[3]
     nc = dt.shape[2]
@@ -90,6 +82,7 @@ def post_check(states, x, B, dt, dA, seqlens, cs, extra=None):
     vals_ok = vals_ok and bool((dA <= 0).all())
     fin_ok = True
     w_max = 0.0
+    ratios = []
     for c in range(nc):
         lo = c * cs
         end_tok = min((c + 1) * cs, seqlen) - 1
@@ -117,7 +110,8 @@ def post_check(states, x, B, dt, dA, seqlens, cs, extra=None):
         ref = torch.einsum("thp,thn->hpn", xs, Bw)
         A = torch.einsum("thp,thn->hpn", mag_b(xs), bHat.clamp(min=2.0 ** -126))
         T = (end_tok + 1 - lo + BK - 1) // BK
-        tol = torch.einsum("thp,thn->hpn", xs.abs(), errB) + dot_tol(T, A)
+        inMag = torch.einsum("thp,thn->hpn", 1 + xs.abs(), (1 + Bv.abs()) * (1 + dtv.abs()).t()[:, :, None])
+        tol = 2.0 ** -8 * (1 + T * 2.0 ** -6) * A + 2.0 ** -100 * inMag
         vals_ok = vals_ok and bool((D <= 64).all()) and float((eHat * dtv.abs()).max()) <= 2.0 ** 126
         vals_ok = vals_ok and float((Bv.abs() * sHat.t()[:, :, None]).max()) <= 2.0 ** 126
         vals_ok = vals_ok and float(A.max()) <= 2.0 ** 120
@@ -125,9 +119,12 @@ def post_check(states, x, B, dt, dA, seqlens, cs, extra=None):
         fin_ok = fin_ok and bool(torch.isfinite(got).all())
         r = float(((got - ref).abs() / tol).max())
         w_max = max(w_max, r)
+        nz = ref != 0
+        ratios.append((tol[nz] / ref[nz].abs()).flatten())
         if extra is not None:
             extra(c, ref, tol)
-    return w_max, fin_ok, vals_ok
+    rat = torch.cat(ratios) if ratios else torch.zeros(1, dtype=torch.float64)
+    return w_max, fin_ok, vals_ok, rat
 
 
 def run(name, seqlens, H, P, N, G, cs, rows, gen, transform=None, record=True):
@@ -164,12 +161,13 @@ def run(name, seqlens, H, P, N, G, cs, rows, gen, transform=None, record=True):
     for big in bufs:
         g = big.view(torch.int32)
         frame_ok = frame_ok and bool((g[:GUARD] == SENTINEL).all()) and bool((g[-GUARD:] == SENTINEL).all())
-    r, fin_ok, vals_ok = post_check(states, x, B, dt, dA, seqlens, cs)
+    r, fin_ok, vals_ok, rat = post_check(states, x, B, dt, dA, seqlens, cs)
     good = meta_ok and vals_ok and fin_ok and frame_ok and r <= 1
     if record:
         worst[0] = max(worst[0], r)
     print(f"{'ok ' if good else 'BAD'} {name}: requests {len(seqlens)} tokens {seqlen} heads {H} headdim {P} "
-          f"dstate {N} groups {G} chunk {cs} {'rows' if rows else 'contiguous'}: err/tol {r:.4f}; "
+          f"dstate {N} groups {G} chunk {cs} {'rows' if rows else 'contiguous'}: err/tol {r:.4f}, "
+          f"tol/|sRef| median {rat.median().item():.3g} max {rat.max().item():.3g}; "
           f"seq_idx {meta_ok}, Vals {vals_ok}, finite {fin_ok}, frame {frame_ok}", flush=True)
     if not good:
         failures.append(name)
@@ -226,7 +224,7 @@ def negative_tokens(gen):
     for name, kw, dA_scale in tests:
         dAv = dA if dA_scale is None else dA * dA_scale
         bad = wrong_states(x, B, dt, dAv, sl, cs, **kw)
-        r, _, _ = post_check(bad, x, B, dt, dAv, sl, cs)
+        r = post_check(bad, x, B, dt, dAv, sl, cs)[0]
         ok = r > 1
         print(f"{'ok ' if ok else 'BAD'} negative, {name}: err/tol {r:.3g} (must exceed 1)")
         if not ok:
@@ -236,7 +234,7 @@ def negative_tokens(gen):
     # across the heads in chunks 0 and 1 (i = 0) and e^-12.8 to e^-7.5 in chunk 2 (i = 88), so
     # leaving it out moves every element by less than its tolerance.
     bad = wrong_states(x, B, dt, dA, sl, cs, drop=lambda t0, e: {t0})
-    r, _, _ = post_check(bad, x, B, dt, dA, sl, cs)
+    r = post_check(bad, x, B, dt, dA, sl, cs)[0]
     lw = (dA[0, :, :2, cs - 1] - dA[0, :, :2, 0]).double()
     lw2 = (dA[0, :, 2, cs - 1] - dA[0, :, 2, 600 - 2 * cs]).double()
     print(f"    (first token of each chunk's request segment dropped, the inputs' decay: err/tol "
@@ -258,12 +256,12 @@ def negative(gen):
             hit["v"] = (ref[3, 5, 7] + 1.01 * tol[3, 5, 7]).item()
     post_check(states, x, B, dt, dA, sl, cs, extra=grab)
     bad[0, 1, 3, 5, 7] = hit["v"]
-    r1, _, _ = post_check(bad, x, B, dt, dA, sl, cs)
+    r1 = post_check(bad, x, B, dt, dA, sl, cs)[0]
     # 2. the launch without seq_idx: sums the earlier requests' tokens of a chunk too
-    r2, _, _ = post_check(mod.chunk_state_fwd(B, x, dt, dA, seq_idx=None), x, B, dt, dA, sl, cs)
+    r2 = post_check(mod.chunk_state_fwd(B, x, dt, dA, seq_idx=None), x, B, dt, dA, sl, cs)[0]
     # 3. B's groups swapped (head h reads group 1 - g)
     Bsw = B.flip(2).contiguous()
-    r3, _, _ = post_check(mod.chunk_state_fwd(Bsw, x, dt, dA, seq_idx=seq_idx), x, B, dt, dA, sl, cs)
+    r3 = post_check(mod.chunk_state_fwd(Bsw, x, dt, dA, seq_idx=seq_idx), x, B, dt, dA, sl, cs)[0]
     for name, r in (("one element + 1.01 tol", r1), ("no seq_idx", r2), ("groups swapped", r3)):
         ok = r > 1
         print(f"{'ok ' if ok else 'BAD'} negative, {name}: err/tol {r:.3g} (must exceed 1)")

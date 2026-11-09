@@ -447,29 +447,12 @@ def trips (L : Nat) : Nat := L / BLOCK + 1
 
 `BD = BLOCK_DMODEL`, `T` the row's loop trips, `X` the row's score bound. -/
 
-/-- The bound on each computed score's error: the score `tl.dot` (`(BD+2)·2^-22` of `scoreMag`),
-the `float32` rounding of `sm_scale`, the product by it and the `tl.dot_add`'s addition of `+0`,
-and absolute floors. -/
-noncomputable def dlt (BD : Nat) (X : ℝ) : ℝ := ((BD : ℝ) + 8) * (1 / 2 ^ 22) * X + 1 / 2 ^ 40
-
-/-- The bound on the relative error of each key's coefficient and of the normaliser `l_i`: one
-`bfloat16` rounding of `p` (`2^-8`), the `float32` roundings and `tl.exp`/`/` errors of each trip
-(`2^-18` per trip), and `tl.exp`'s error that grows with its argument (`2^-17·(X + dlt)`). -/
-noncomputable def rho (BD T : Nat) (X : ℝ) : ℝ :=
-  Real.exp (1 / 2 ^ 8 + ((T : ℝ) + 8) * (1 / 2 ^ 18) + (X + dlt BD X) * (1 / 2 ^ 17)) - 1
-
-/-- The bound on the accumulated `p·v` `tl.dot` errors, relative to the coefficients' weighted
-`|v|`: `(BLOCK_N + 8)·2^-22` per trip, compounded. -/
-noncomputable def gam (T : Nat) : ℝ := Real.exp ((T : ℝ) * 136 * (1 / 2 ^ 22)) - 1
-
-/-- The bound on `|acc − attnRef| / attnAbs` before the store. -/
-noncomputable def errE (BD T : Nat) (X : ℝ) : ℝ :=
-  Real.exp (2 * dlt BD X) * (rho BD T X + gam T * (1 + rho BD T X)) / (1 - rho BD T X) +
-    (Real.exp (2 * dlt BD X) - 1)
-
-/-- **The output's tolerance relative to `attnAbs`**: the store's `bfloat16` rounding and
-`errE`. -/
-noncomputable def tolRel (BD T : Nat) (X : ℝ) : ℝ := 1 / 2 ^ 8 + (1 + 1 / 2 ^ 8) * errE BD T X
+/-- **The output's tolerance relative to `attnAbs`**: `2^-6` (the two `bfloat16` roundings, of `p`
+and of the stored output, with the other per-row roundings), `2^-14` per loop trip (the `p·v`
+`tl.dot`s and the online softmax's per-trip roundings), and `(BD + 16)·2^-20` per unit of the row's
+score bound `X` (the score `tl.dot`'s error and `tl.exp`'s error that grows with its argument). -/
+noncomputable def tolRel (BD T : Nat) (X : ℝ) : ℝ :=
+  2 ^ (-6 : ℤ) + (T : ℝ) * 2 ^ (-14 : ℤ) + ((BD : ℝ) + 16) * X * 2 ^ (-20 : ℤ)
 
 /-- **The output's absolute floor**: `2^-80·(1 + Σ|v|)` (subnormal and absolute terms). -/
 noncomputable def tolAbs (vs : ℝ) : ℝ := (1 / 2 ^ 80) * (1 + vs)

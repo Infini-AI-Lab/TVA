@@ -14,7 +14,7 @@ torch.empty_like(q)`, with the grid `(num_seqs, num_heads)`. The launches to cov
 * The model: `paged_attention_kernel`, `model`, `launch`.
 * The conditions: `Inst`, `Inst.ok`, `Pre`.
 * The specification: `Post`, `Spec`, with the reference `attnRef`, its scale `attnAbs` and the
-  tolerances `tolO`, `tolR`, `tolF`.
+  tolerance `tolA`.
 * The assumptions: `Assumptions`.
 * The claim: `Statement`.
 * Checked here: `consistent`, `satisfiable`, and the coverage facts `canon_ok`, `setup_*_ok`.
@@ -335,95 +335,18 @@ noncomputable def attnAbs (d : Inst) (m : Mem) (s h e : Nat) : ℝ :=
   (∑ t ∈ Finset.range (seqLen d m s), weight d m s h t * |(val16 m d.v_cache (tokElem d m s h t e) : ℝ)|) /
     ∑ t ∈ Finset.range (seqLen d m s), weight d m s h t
 
-/-! ### The tolerances
+/-! ### The tolerance
 
-`D`, `P` are `HEAD_DIM` and `PAGE_SIZE`, `T` the number of pages the sequence spans
-(`cdiv(seq_len, PAGE_SIZE)`), and `X` a bound on the sequence's scaled score magnitudes
-(`scale · scoreAbs ≤ X` on its tokens). The constants are the library's: one rounding of
-`float32` (`2^-24` relative, `2^-150` absolute) and of `float16` (`2^-11`, `2^-25`), `Num.ExpF32`
-(`2^-22 + 2^-23·|x|` relative, `2^-140` absolute), `Num.DivFull` (`2^-22`, `2^-148`), and
-`Num.SumDepth`: a reduction over `n` positions combines along a tree of depth at most
-`⌈log₂ n⌉` (`Nat.clog 2 n`). -/
+`T` is the number of pages the sequence spans (`cdiv(seq_len, PAGE_SIZE)`, `nblocks`) and `X` a
+bound on the sequence's scaled score magnitudes (`scale · scoreAbs ≤ X` on its tokens). The
+output is within `tolA T X · (attnAbs + |attnRef|) + 2^-11·|attnRef| + 2^-24` of `attnRef`:
+`2^-11·|attnRef|` is the output's own `float16` rounding; `tolA` grows with the pages (each
+online-softmax update rescales the earlier pages' sums by `alpha`, `T` sequential roundings) and
+with the score bound (the exponents' roundings). README, Tolerances, derives it from the library's
+facts. -/
 
-/-- One rounding of `float32`, relative: `2^-24`. -/
-def u32 : ℚ := 1 / 2 ^ 24
-
-/-- The relative error of a score's row sum (`D` rounded products added along a tree of
-fusable additions, `3·2^-24` each, of depth `⌈log₂ D⌉`). -/
-def rhoD (D : Nat) : ℚ := (1 + u32) * (1 + 3 * u32) ^ Nat.clog 2 D - 1
-
-/-- The error of each exponent `s − m_new` (line 65) against the exact `scale·score − m_new`. -/
-def expErr (D : Nat) (X : ℚ) : ℚ := (rhoD D + 8 * u32) * X + 1 / 2 ^ 50
-
-/-- `Num.ExpF32`'s relative error on the exponents, which lie in `[-(2X + 1), 2X + 1]`. -/
-def relExp (X : ℚ) : ℚ := 1 / 2 ^ 22 + (2 * X + 1) / 2 ^ 23
-
-/-- The relative error of each `p` (line 65) against its exact weight. -/
-def psiP (D : Nat) (X : ℚ) : ℚ := (1 + expErr D X + expErr D X ^ 2) * (1 + relExp X) - 1
-
-/-- The relative error of a page's `tl.sum(p)` (line 66): IEEE additions along a tree of depth
-`⌈log₂ P⌉`. -/
-def psiL (D P : Nat) (X : ℚ) : ℚ := (1 + u32) ^ Nat.clog 2 P * (1 + psiP D X) - 1
-
-/-- The relative error of a page's `tl.sum(p[:, None] * v, axis=0)` (line 68): the rounded
-products along a tree of fusable additions of depth `⌈log₂ P⌉`. -/
-def psiA (D P : Nat) (X : ℚ) : ℚ := (1 + 3 * u32) ^ Nat.clog 2 P * (1 + u32) * (1 + psiP D X) - 1
-
-/-- The factor by which a page can scale the earlier pages' error: the addition of lines 66 and
-68 (`tl.mul_add`'s `3·2^-24`; at `P = 1`, line 68's `tl.addc` of the rounded product
-`acc * alpha`, one more `2^-24`), `alpha`'s `2^-22` and its `2^-140`. -/
-def step (P : Nat) : ℚ :=
-  (1 + 3 * u32) * (if P = 1 then 1 + u32 else 1) * (1 + 1 / 2 ^ 140) * (1 + 1 / 2 ^ 22)
-
-/-- The growth of `alpha`'s input-dependent error over the loop: `exp(2^-22·(m + X + E))` with
-`|m| ≤ X + E`, at most `1 + 4·2^-22·(X + E)`. -/
-def drift (D : Nat) (X : ℚ) : ℚ := 1 + 4 / 2 ^ 22 * (X + expErr D X)
-
-/-- The relative bound on `l_i` after `T` pages. -/
-def fL (D P T : Nat) (X : ℚ) : ℚ := (1 + psiL D P X) * drift D X * step P ^ T
-
-/-- The relative bound on the accumulator after `T` pages. -/
-def fA (D P T : Nat) (X : ℚ) : ℚ := (1 + psiA D P X) * drift D X * step P ^ T
-
-/-- The absolute error of `l_i` per page. -/
-def absL : ℚ := 1 / 2 ^ 100
-
-/-- The absolute error of the accumulator per page. -/
-def absA : ℚ := 1 / 2 ^ 90
-
-/-- The lower bound `1 − E` on the sum of the kernel's weights against its maximum. -/
-def wlow (D : Nat) (X : ℚ) : ℚ := 1 - expErr D X
-
-/-- `l_i`'s relative error after the loop, the absolute part folded in. -/
-def betaL (D P T : Nat) (X : ℚ) : ℚ := (fL D P T X - 1) + fL D P T X * (T * absL) / wlow D X
-
-/-- The denominator `1 − betaL`. -/
-def denQ (D P T : Nat) (X : ℚ) : ℚ := 1 - betaL D P T X
-
-/-- The error of `acc / l_i` from the accumulator's error, relative to the weighted mean of
-`|v|` (`attnAbs`). -/
-def relA (D P T : Nat) (X : ℚ) : ℚ := (fA D P T X - 1) / denQ D P T X
-
-/-- The error of `acc / l_i` from `l_i`'s error, relative to the exact output (`|attnRef|`). -/
-def relR (D P T : Nat) (X : ℚ) : ℚ := betaL D P T X / denQ D P T X
-
-/-- The absolute error of `acc / l_i`. -/
-def absQ (D P T : Nat) (X : ℚ) : ℚ := fA D P T X * (T * absA) / (wlow D X * denQ D P T X)
-
-/-- The last two roundings (`/` and `.to(float16)`), relative. -/
-def lastRel : ℚ := 1 / 2 ^ 11 * (1 + 1 / 2 ^ 22) + 1 / 2 ^ 22
-
-/-- **The output's tolerance relative to `attnAbs`**, the weighted mean of `|v|`. -/
-def tolO (D P T : Nat) (X : ℚ) : ℚ := relA D P T X * (1 + lastRel)
-
-/-- **The output's tolerance relative to `|attnRef|`**, the exact output: `l_i`'s error and the
-last two roundings. -/
-def tolR (D P T : Nat) (X : ℚ) : ℚ := relR D P T X * (1 + lastRel) + lastRel
-
-/-- **The output's absolute tolerance**: mainly the output's `float16` rounding near zero
-(`2^-25`). -/
-def tolF (D P T : Nat) (X : ℚ) : ℚ :=
-  absQ D P T X * (1 + lastRel) + 1 / 2 ^ 11 * (1 / 2 ^ 148) + 1 / 2 ^ 148 + 1 / 2 ^ 25
+/-- **The output's tolerance relative to `attnAbs + |attnRef|`**: `(9·T/8 + 8·X + 8)·2^-21`. -/
+def tolA (T : Nat) (X : ℚ) : ℚ := (9 * (T : ℚ) / 8 + 8 * X + 8) / 2 ^ 21
 
 /-- The elements of `out` the launch writes. -/
 def outElems (d : Inst) : Set Nat :=
@@ -432,8 +355,9 @@ def outElems (d : Inst) : Set Nat :=
 /-- What the launch leaves:
 * every element `(s, h, e)` of `out` holds a `float16` value `c`; when the sequence's values are
   covered (`SeqVals`), `c` is finite and, for every bound `X ≤ 2^10` on the sequence's scaled score
-  magnitudes, within `tolO·attnAbs + tolR·|attnRef| + tolF` of the exact attention `attnRef` over
-  the sequence's tokens, read through `block_tables` in `init`;
+  magnitudes, within `tolA T X · (attnAbs + |attnRef|) + 2^-11·|attnRef| + 2^-24` of the exact
+  attention `attnRef` over the sequence's tokens, read through `block_tables` in `init`
+  (`T = nblocks`);
 * every byte outside these elements is unchanged. -/
 def Post (d : Inst) (init fin : Mem) : Prop :=
   (∀ s h e, s < d.num_seqs → h < d.num_heads → e < d.HEAD_DIM →
@@ -441,9 +365,8 @@ def Post (d : Inst) (init fin : Mem) : Prop :=
       (SeqVals d init s h → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
         (∀ t, t < seqLen d init s → sigma d * scoreAbs d init s h t ≤ X) →
         |c.toReal - attnRef d init s h e| ≤
-          (tolO d.HEAD_DIM d.PAGE_SIZE (nblocks d init s) X : ℝ) * attnAbs d init s h e +
-            (tolR d.HEAD_DIM d.PAGE_SIZE (nblocks d init s) X : ℝ) * |attnRef d init s h e| +
-            (tolF d.HEAD_DIM d.PAGE_SIZE (nblocks d init s) X : ℝ))) ∧
+          (tolA (nblocks d init s) X : ℝ) * (attnAbs d init s h e + |attnRef d init s h e|) +
+            1 / 2 ^ 11 * |attnRef d init s h e| + 1 / 2 ^ 24)) ∧
   ∀ z, z ∉ d.out.elems (outElems d) → fin z = init z
 
 def Spec (K : Claim.Behaviour Inst) : Prop := Claim.Meets Inst.ok Pre Post K

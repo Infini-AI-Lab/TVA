@@ -29,15 +29,17 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    - if `0 ≤ d.adapter t`: for all `va`, `vb` such that row `t` of `inputs` and row `j` of adapter
      `d.adapter t`'s weights of slice `s` read in `init` as finite `bfloat16` values, and only when
      `dotMag d va vb ≤ 2^120` (line 596) and `vMag d va vb + atomTol d va vb ≤ binary32.maxVal`
-     (lines 616, 622), `v` is finite and
+     (lines 612, 618), `v` is finite and
      `|v.toRat - d.scaling.toRat * dotSum d va vb| ≤ tol d va vb`. Outside these conditions
      nothing more than the read is asked.
 
    `dotSum` (line 591) is the exact `Σ_k va k·vb k` in the rationals; `d.scaling` is the host's
-   double. `tol` (line 630) adds `|scaling32 d|·accTol` (the `SPLIT_K` accumulators, each
-   `errPart = min(errChunk, errStep)`, lines 578–601), `mulTol` (line 610, the products by
-   `scaling32 d`, line 304), `atomTol` (line 622, the `SPLIT_K` atomic additions in any order) and
-   `|scaling32 d − scaling|·|dotSum|`;
+   double. `tol` (line 630) is `partLen d · 2^-21 · |scaling| · dotMag d va vb +
+   2^-100 · (1 + |scaling| + dotMag d va vb)`, with `partLen d = BLOCK_K · cdiv(K, BLOCK_K ·
+   SPLIT_K)` (line 623, the `k` one program accumulates) and `dotMag` (line 596). The room
+   condition's `vMag` and `atomTol` (lines 612, 618) are built from the accumulators' bounds
+   `errPart = min(errChunk, errStep)` (lines 578–587), `partMag` (line 601) and `mulTol` (line 606,
+   the products by `scaling32 d`, line 304);
 2. the frame: every byte outside `d.out.elems (outIdx d)` (line 330) is unchanged.
 
 **What you are given** (`Assumptions`, line 663):
@@ -90,7 +92,9 @@ the pointers and `Wt := fun _ => ∅` (`iterW_empty`) (PROVER_GUIDE §4).
   `safe_dot_add`'s two forms, `Dot16Chunk.DotChunk16Loss.errB`, `FloatV.AddRel.err`) and within `errStep`
   (`dot`, `DotLift.dotAdd_step`, `DotLoop.accum_step`); `FloatV.mul_err` for `scaling`;
   `replay_err_shared` with `accStep_atomicAdd` (`atomic`) for the additions into `+0.0`, under the
-  room conditions of `OutSpec`. `## Tolerances` gives the derivation;
+  room conditions of `OutSpec`: this gives the fine bound `F` of README `## Tolerances`; then relax
+  it by the inequality chain there, `F ≤ tol` (`partLen d · 2^-21 · |scaling| · dotMag + 2^-100 ·
+  (1 + |scaling| + dotMag)`) on every covered instance;
 - the bytes outside the cells, which no program writes, give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `oneInst_ok`
@@ -117,8 +121,15 @@ the pointers and `Wt := fun _ => ∅` (`iterW_empty`) (PROVER_GUIDE §4).
 The reference is computed from the host's own inputs: `adapter` is the host's `token_lora_mapping`,
 and `S` reads `inputs` and slice `s`'s weight tensor at the indices of the token and its adapter, not
 at the rows the kernel gathers through the metadata nor at the address the kernel loads from the
-table. `dotMag = Σ_k liftMag x·liftMag w` (a `bfloat16` subnormal counted at `2^-126`); `tol`,
-`accTol`, `mulTol`, `vMag` and `atomTol` are in Tolerances.
+table. With `dotMag = Σ_k liftMag x·liftMag w` (a `bfloat16` subnormal counted at `2^-126`) and
+`L = BLOCK_K·cdiv(K, BLOCK_K·SPLIT_K)` (`partLen`, the `k` one of the `SPLIT_K` programs
+accumulates, in whole blocks), the tolerance is
+
+`tol = 2^-21·L·|scaling|·dotMag + 2^-100·(1 + |scaling| + dotMag)`:
+
+`2^-13·cdiv(K, 16384)` of `|scaling|·dotMag` below 128 tokens (`BLOCK_K = 256`, `SPLIT_K = 64`) and
+`2^-16·cdiv(K, 256)` from 128 tokens (`32`, `8`), plus a floor far below any `float32` output of
+real use. `vMag` and `atomTol` (the room condition) are in Tolerances.
 
 ## Conditions
 
@@ -294,25 +305,55 @@ From the library's facts, for one element `(s, t, j)` with finite inputs, `bk`, 
 - **The host's double.** `|v − scaling·S| ≤ |v − s32·S| + |s32 − scaling|·|S|`: `0` for the `0.5` and
   `1.0` the host passes, at most `(2^-24·|scaling| + 2^-150)·|S|` for a double in `float32`'s range.
 
-So `tol = |s32|·accTol + mulTol + atomTol + |s32 − scaling|·|S|`. The index conditions (Conditions)
-only decide which `int32` index values occur, each below `2^31`; they do not change the arithmetic of
-an element.
+So the element is within the fine bound `F = |s32|·accTol + mulTol + atomTol + |s32 − scaling|·|S|`
+of `scaling·S`. The index conditions (Conditions) only decide which `int32` index values occur, each
+below `2^31`; they do not change the arithmetic of an element.
+
+**The relaxation `F ≤ tol`.** Write `σ = |scaling|`, `s = |s32|`, `D = dotMag`, `T = stepsOf 0 =
+cdiv(K, bk·sk)` (every part has `T_p ≤ T` steps) and `L = bk·T` (`partLen`), so `tol = 2^-21·L·σ·D +
+2^-100·(1 + σ + D)`. The parts' lifted magnitudes add up to `D` (`Σ_p partLift p = D`) and
+`|partSum p| ≤ partLift p` (`liftMag q ≥ |q|`). The constants: `ρ = stepRel relDot16 bk` is
+`258·2^-22 + 3u·(1 + 258·2^-22) ≤ 6.17·10^-5` at `bk = 256` and `34·2^-22 + 3u·(…) ≤ 8.29·10^-6` at
+`bk = 32`; `α = stepAbs absDot16 bk ≤ 258·2^-126·(1 + 3u) + 4η ≤ 2^-117.9`; `K ≤ 2^17` gives `T ≤ 8`
+(`bk = 256`, `sk = 64`) and `T ≤ 512` (`bk = 32`, `sk = 8`), so `Tρ ≤ 4.3·10^-3` and
+`(1 + ρ)^T − 1 ≤ Tρ·e^{Tρ} ≤ 1.005·Tρ`, `(1 + ρ)^T ≤ 1.005`.
+
+1. `errPart p ≤ errStep p ≤ 1.005·Tρ·partLift p + 1.005·T·α`, so `accTol ≤ 1.005·Tρ·D + A` with
+   `A = 1.005·sk·T·α ≤ 1.005·2^12·2^-117.9 ≤ 2^-105`;
+2. `partMag ≤ D + accTol ≤ 1.005·D + A`; `mulTol ≤ 2^-24·s·(1.005·D + A) + 2^-144`;
+   `vMag ≤ 1.006·s·D + 1.01·s·A + 2^-144`;
+3. `atomTol = ((1 + 2^-23)^sk − 1)·vMag + sk·(1 + 2^-23)^sk·2^-124 ≤ 1.0001·sk·2^-23·vMag + 2^-117.9`;
+4. `s ≤ (1 + 2^-24)·σ + 2^-150` and `|s32 − scaling| ≤ 2^-24·σ + 2^-150` (one rounding to
+   nearest), `|S| ≤ D`.
+
+Collecting the terms in `σ·D`: `F ≤ c·σ·D + 2^-148·D + 2^-104·σ + 2^-117` with
+`c = 1.0051·Tρ + 2.006·2^-24 + 1.008·sk·2^-23`:
+- below 128 tokens (`bk = 256`, `sk = 64`): `c ≤ T·6.2·10^-5 + 1.2·10^-7 + 7.7·10^-6 ≤
+  T·7.0·10^-5 ≤ T·2^-13 = 2^-21·L` (`T ≥ 1`);
+- from 128 tokens (`bk = 32`, `sk = 8`): `c ≤ T·8.33·10^-6 + 1.2·10^-7 + 9.7·10^-7 ≤ T·9.5·10^-6 ≤
+  T·2^-16 = 2^-21·L`;
+
+and `2^-148·D + 2^-104·σ + 2^-117 ≤ 2^-100·(1 + σ + D)`. So `F ≤ tol` on every covered instance;
+`tol` is `1.6–1.8×` the step bound's share of `F` (`2^-13` against `7.0·10^-5`, `2^-16` against
+`9.5·10^-6`, per step).
 
 Against the output (`check_gpu.py`, `scaling = 1`): on the host's test data (`torch.rand`, all
-products positive) `tol / |out|` is `7·10^-5` (below 128 tokens, up to hidden 16384) to `4.7·10^-4`
-(hidden 14336 from 128 tokens), from the step bound, and the measured error is 0.6–2 % of `tol`. On
-signed data (`torch.randn`), from the chunk bound:
+products positive) `tol / |out|` is `1.2·10^-4` (below 128 tokens, up to hidden 16384) to
+`8.5·10^-4` (hidden 14336 from 128 tokens), `1.8×` the fine bound `F` (`7·10^-5` to `4.7·10^-4`),
+and the measured error is 0.3–1.2 % of `tol`. On signed data (`torch.randn`) the products cancel,
+`dotMag` is much larger than `|S|`, and `tol` is relative to `dotMag`, while `F`'s chunk bound
+follows the running partial sums:
 
-| hidden | below 128 tokens (`bk = 256`, `sk = 64`): `tol / |out|` median, p90 | from 128 tokens (`bk = 32`, `sk = 8`): median, p90 |
+| hidden | below 128 tokens (`bk = 256`, `sk = 64`): `tol / |out|` median, p90 (`F`: median) | from 128 tokens (`bk = 32`, `sk = 8`): median, p90 (`F`: median) |
 |---|---|---|
-| 4096 | `1.5·10^-3`, `7.4·10^-3` | `4.1·10^-3`, `2.1·10^-2` |
-| 14336 | `2.8·10^-3`, `1.5·10^-2` | `1.5·10^-2`, `7.9·10^-2` |
-| 128256 | — | `0.14`, `0.69` |
+| 4096 | `7.3·10^-3`, `3.7·10^-2` (`1.5·10^-3`) | `1.5·10^-2`, `7.8·10^-2` (`4.1·10^-3`) |
+| 14336 | `1.4·10^-2`, `7.2·10^-2` (`2.8·10^-3`) | `9.7·10^-2`, `0.52` (`1.5·10^-2`) |
+| 128256 | — | `2.6`, `13.5` (`0.14`) |
 
-The measured error is then `4·10^-4`–`1.3·10^-3` of `tol`. At hidden 14336 a dropped last block of
-`bk` `k` passes on 1.1 % of the elements below 128 tokens and 17.8 % from 128 tokens (a block of 32
-`k` against the bound of 448 chunks of 32), and fails `Post`; a dropped part of the `sk` parts, a
-missing scale, another adapter, swapped slices and an all-zero output pass on at most 2.3 % of them.
+The measured error is then `3·10^-5`–`3·10^-4` of `tol`. At hidden 14336 a dropped last block of
+`bk` `k` passes on 5.4 % of the elements below 128 tokens and 83.5 % from 128 tokens (a block of 32
+`k` against a bound of `2^-16·56` of `dotMag`), and fails `Post`; a dropped part of the `sk` parts, a
+missing scale, another adapter, swapped slices and an all-zero output pass on at most 14.6 % of them.
 
 ## Exclusions
 
@@ -383,10 +424,10 @@ None.
    configuration's boundary; `scaling` `0.1` and `1/3` (not `float32` values), `2^-7` and `−3.75`; and
    edges: hidden 2, 255, 2049, 16384, 128256, `2^17` and `2^17 − 1`; 128 adapters with `G = 129`; one
    token at rank 256; `specialize_active_lora`), all pass: the largest error / tolerance is
-   about `2·10^-2` (it varies with the order of the atomic additions); every `-1` element is the bit pattern `+0.0` in every slice; the byte
+   about `1.2·10^-2` (it varies with the order of the atomic additions); every `-1` element is the bit pattern `+0.0` in every slice; the byte
    frame holds (the host's output is allocated inside a buffer with 4096 sentinel elements before and
    after it, which keep their bytes, and every input buffer is unchanged); the room conditions hold.
    Negative tests on signed data at hidden 14336 and 4096, both configurations (all zero, the last
    block of `bk` `k` dropped, one of the `sk` parts dropped, the scale missing, another adapter,
    swapped slices): `Post` rejects each. The ranks 1, 4, 8, which are not part of the setup and
-   `Inst.ok` excludes (informational): error / tolerance `≤ 6.4·10^-3`.
+   `Inst.ok` excludes (informational): error / tolerance `≤ 3.5·10^-3`.

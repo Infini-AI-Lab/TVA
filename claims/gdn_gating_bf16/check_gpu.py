@@ -7,7 +7,8 @@ largest value `ExpRoom` admits, sums `a + dt_bias` at the softplus threshold, ne
 rounding to `-inf`), and checks `Post` exactly as `Claim.lean` states it, in `float64` from the
 host's inputs:
 
-* `g`: finite and `|g - gRef| <= gTol`, or `-inf` with `maxVal <= |gRef| + gTol`;
+* `g`: finite and `|g - gRef| <= gTol` (`gTol = gEps * gMag`), or `-inf` with
+  `maxVal <= |gRef| + gTol`; and that README Tolerances' fine bound lies below `gTol`;
 * `beta_output`: finite and `|beta - sigRef| <= bTol`;
 * the frame: in direct launches with the host's own launch line, on outputs carved from a
   random-filled pool, every guard byte and every input is unchanged.
@@ -50,6 +51,13 @@ def g_ref(A, x):
 
 
 def g_tol(A, x):
+    """`gTol = gEps A * gMag A x` of Claim.lean."""
+    eps = 2.0 ** -23 * (64 + torch.clamp(A.abs(), max=128.0))
+    return eps * (torch.exp(A) + 2.0 ** -121) * (sp_ref(x) + 2.0 ** -6)
+
+
+def g_fine(A, x):
+    """The fine bound of README Tolerances (before the relaxation to `gTol`), for the comparison."""
     rel = 2.0 ** -19 + 2.0 ** -23 * (A.abs() + 2 * torch.clamp(-x, min=0.0, max=20.0))
     return rel * g_ref(A, x).abs() + 2.0 ** -23 * torch.exp(A) + 2.0 ** -139 * sp_ref(x) + 2.0 ** -148
 
@@ -71,10 +79,12 @@ class Stats:
         self.fail = 0
         self.excl = 0
         self.excl_bad = 0
-        self.grel = 0.0
         self.gx = {}
+        self.fine_ok = True      # the fine bound of README Tolerances lies below gTol on every covered cell
+        self.real = {}           # tolerance / |output| samples on the setup's launches
+        self.realmax = {}
 
-    def check(self, name, A_log, a, b, dt_bias, g, beta):
+    def check(self, name, A_log, a, b, dt_bias, g, beta, real=False):
         """`Post`'s value clauses on one launch; the inputs are `[batch, H]` views (as the host
         passes them), the outputs `[1, batch, H]`."""
         A = A_log.double()[None, :]
@@ -101,10 +111,14 @@ class Stats:
         if covered.any():
             self.g = max(self.g, float(r[covered].max()))
             self.b = max(self.b, float(rb[covered].max()))
-        relpart = (2.0 ** -19 + 2.0 ** -23 * (A.abs() + 2 * torch.clamp(-x, min=0.0, max=20.0))) * ref.abs()
-        dom = covered & fin & (relpart >= tol - relpart)
-        if dom.any():
-            self.grel = max(self.grel, float(r[dom].max()))
+        fine = g_fine(A, x)
+        self.fine_ok = self.fine_ok and bool((fine[covered] <= tol[covered] * (1 + 1e-12)).all())
+        if real:
+            sel = covered & (ref != 0)
+            for key, t in (("g", tol), ("g fine", fine), ("beta", b_tol(bb))):
+                rr = (t / (bref if key == "beta" else ref).abs())[sel]
+                self.real.setdefault(key, []).append(rr.flatten()[::max(1, rr.numel() // 200000)].cpu())
+                self.realmax[key] = max(self.realmax.get(key, 0.0), float(rr.max()))
         for lo, hi in ((-100.0, -16.0), (-16.0, -8.0), (-8.0, 0.0), (0.0, 20.0), (20.0, 1e40)):
             sel = covered & fin & (x >= lo) & (x < hi) & (A.abs() <= 20)
             if sel.any():
@@ -141,7 +155,7 @@ def inputs(gen, batch, H, split, scale=8.0):
     return A_log, a, b, dt_bias
 
 
-def run_host(st, name, A_log, a, b, dt_bias):
+def run_host(st, name, A_log, a, b, dt_bias, real=False):
     copies = [t.clone() for t in (A_log, a, b, dt_bias)]
     g, beta = mod.fused_gdn_gating(A_log, a, b, dt_bias)
     torch.cuda.synchronize()
@@ -149,7 +163,7 @@ def run_host(st, name, A_log, a, b, dt_bias):
         assert torch.equal(t.view(torch.int16) if t.dtype == torch.bfloat16 else t.view(torch.int32),
                            c.view(torch.int16) if c.dtype == torch.bfloat16 else c.view(torch.int32)), \
             f"{name}: an input changed"
-    st.check(name, A_log, a, b, dt_bias, g, beta)
+    st.check(name, A_log, a, b, dt_bias, g, beta, real)
 
 
 def run_direct(st, name, A_log, a, b, dt_bias, gen):
@@ -193,13 +207,13 @@ def main():
                             (7, 4, False), (513, 16, False), (8192, 32, False), (32768, 32, True)]:
         A_log, a, b, dt_bias = inputs(gen, batch, H, split)
         a[0, :2] = torch.tensor([25.0, -30.0], dtype=torch.bfloat16)
-        run_host(st, f"test batch {batch} heads {H} split {split}", A_log, a, b, dt_bias)
+        run_host(st, f"test batch {batch} heads {H} split {split}", A_log, a, b, dt_bias, real=True)
     # SETUP.md's configurations (Qwen3-Next 32 heads at TP 1, 2, 4, 8; Qwen3.5 48 and 24).
     for batch, H, split in [(65536, 32, True), (65536, 16, False), (32768, 8, True), (65536, 4, True),
                             (65536, 48, True), (32768, 24, False)]:
         A_log, a, b, dt_bias = inputs(gen, batch, H, split)
         A_log = torch.log(torch.empty(H).uniform_(1e-3, 16, generator=gen)).to(DEV)  # A ~ U(0, 16)
-        run_host(st, f"config batch {batch} heads {H} split {split}", A_log, a, b, dt_bias)
+        run_host(st, f"config batch {batch} heads {H} split {split}", A_log, a, b, dt_bias, real=True)
     # Edges: every finite bfloat16 `a` (one per token) against a spread of `A_log` (one per head),
     # dt_bias 0 or small; every finite bfloat16 `b`.
     vals = all_bf16_finite().to(DEV)
@@ -235,10 +249,13 @@ def main():
     print(f"TOTAL: {st.n} covered cells; worst g err/tol {st.g:.4f}, worst beta err/tol {st.b:.4f}; "
           f"{st.ninf} cells -inf by the overflow clause; failures {st.fail}; outside Pre {st.excl} "
           f"(outside Post there: {st.excl_bad})")
-    print(f"  worst g err/tol where the relative term is at least half the tolerance: {st.grel:.4f}")
+    for key in ("g", "g fine", "beta"):
+        x = torch.cat(st.real[key])
+        print(f"  setup launches, tolerance/|output| {key:6s}: median {float(x.median()):.3g}, worst {st.realmax[key]:.3g}")
+    print(f"  the fine bound of README Tolerances lies below gTol on every covered cell: {st.fine_ok}")
     for (lo, hi), (e, t) in sorted(st.gx.items()):
         print(f"  x in [{lo:g}, {hi:g}), |A_log| <= 20: largest |g - gRef|/|gRef| {e:.3e}, largest gTol/|gRef| {t:.3e}")
-    assert st.fail == 0
+    assert st.fail == 0 and st.fine_ok
     print("Post holds on every covered cell")
 
 

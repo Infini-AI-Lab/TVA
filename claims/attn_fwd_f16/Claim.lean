@@ -21,8 +21,8 @@ out of scope (a tensor descriptor built inside the kernel).
 * The model: `attn_fwd_inner`, `maybe_make_tensor_desc`, `attn_fwd`, `model`, `launch`. The Lean
   names drop the source's leading underscore.
 * The conditions: `Inst`, `Inst.ok`, `Pre`.
-* The specification: `Post`, `Spec`, with the reference `attnRef`, `lseRef` and the tolerances
-  `tolO`, `tolS`, `tolF`, `tolM`.
+* The specification: `Post`, `Spec`, with the reference `attnRef`, `lseRef`, the scale `attnMag`
+  and the tolerances `epsO`, `epsM`.
 * The assumptions: `Assumptions`.
 * The claim: `Statement`.
 * Checked here: `consistent`, `satisfiable`, and the coverage facts `canon_ok`, `setup_*_ok`.
@@ -394,117 +394,21 @@ noncomputable def lseRef (d : Inst) (m : Mem) (bh n : Nat) : ℝ :=
 /-! ### The tolerances
 
 `X` bounds the row's scaled score magnitudes (`sm_scale · scoreMag ≤ X` over its keys), and `D`,
-`N` are `HEAD_DIM` and `N_CTX`. The constants are the library's: `relDot16` (`Rules.Num.DotF16`),
-`2^-22` (`Exp2F32`, `DivFull`, `Log2F32`), and one rounding of `float32` (`2^-24`) and of `float16`
-(`2^-11`). -/
+`N` are `HEAD_DIM` and `N_CTX`. Each tolerance is `2^-20` times a size `D·X + N + 2^10` (for `M`:
+`D·X + 2^10`): the error grows with `D·X` through the score's `tl.dot` (`Rules.Num.DotF16`, relative
+to `scoreMag`), with `N` through the `N/64` key blocks of the accumulator, and has a floor from the
+roundings to `float16` of `p` and of the output (README, Tolerances, derives it). -/
 
-/-- One rounding of `float32`, relative: `2^-24`. -/
-def u32 : ℚ := 1 / 2 ^ 24
+/-- The scale of the output's tolerance: the larger of `attnAbs` (the weighted mean of `|v|`) and
+the plain mean of `|v|` over the row's keys (`vAbsSum / |keys|`). -/
+noncomputable def attnMag (d : Inst) (m : Mem) (bh n e : Nat) : ℝ :=
+  max (attnAbs d m bh n e) ((vAbsSum d m bh n e : ℝ) / ((keys d n).card : ℝ))
 
-/-- The bound `3X/2` on `qk_scale · scoreMag`, in the base-2 exponent (`qk_scale` is
-`sm_scale · log₂ e` up to `2^-22` relative). -/
-def ybound (X : ℚ) : ℚ := 3 / 2 * X
+/-- **The output's relative tolerance**: `2^-20·(D·X + N + 2^10)`, times `attnMag`. -/
+def epsO (D N : Nat) (X : ℚ) : ℚ := (D * X + N + 2 ^ 10) / 2 ^ 20
 
-/-- The error of each computed exponent `qk·qk_scale − m` against the exact one: the score's
-`tl.dot` error (`relDot16 D` of `scoreMag`) and the roundings. -/
-def expErr (D : Nat) (X : ℚ) : ℚ := (Rules.Num.relDot16 D + 1 / 2 ^ 20) * ybound X + 1 / 2 ^ 50
-
-/-- The relative error of each `p = exp2(·)` against its exact weight. -/
-def psiP (D : Nat) (X : ℚ) : ℚ := (1 + expErr D X) * (1 + 1 / 2 ^ 22) - 1
-
-/-- The same after `p.to(float16)`. -/
-def psi16 (D : Nat) (X : ℚ) : ℚ := (1 + psiP D X) * (1 + 1 / 2 ^ 11) - 1
-
-/-- The relative error of a block's row sum `l_ij` (a tree of `63` additions over the `p`s). -/
-def psiL (D : Nat) (X : ℚ) : ℚ := (1 + u32) ^ 63 * (1 + psiP D X) - 1
-
-/-- The growth of the running maximum's rounding over the loop: `exp(u·(m + Y + E))` with
-`|m| ≤ Y + E`, at most `1 + 4u·(Y + E)`. -/
-def drift (D : Nat) (X : ℚ) : ℚ := 1 + 4 * u32 * (ybound X + expErr D X)
-
-/-- The factor by which each step can scale the accumulator's earlier content: `tl.dot`'s
-`relDot16 64`, `2^-150` from alpha's input, alpha's `2^-22` and the rounding of `acc * alpha`. -/
-def stepAcc : ℚ := (1 + Rules.Num.relDot16 64) * (1 + 1 / 2 ^ 150) * ((1 + 1 / 2 ^ 22) * (1 + u32))
-
-/-- The same for `l_i`: `tl.mul_add`'s `3u`, alpha's input and alpha's `2^-22`. -/
-def stepL : ℚ := (1 + 3 * u32) * (1 + 1 / 2 ^ 150) * (1 + 1 / 2 ^ 22)
-
-/-- The number of key blocks a row goes through, at most: `N / 64`. -/
-def nblocks (N : Nat) : Nat := N / 64
-
-/-- The relative bound on the accumulator after the loop. -/
-def facc (D N : Nat) (X : ℚ) : ℚ := (1 + psi16 D X) * drift D X * stepAcc ^ nblocks N
-
-/-- The relative bound on `l_i` after the loop. -/
-def fl (D N : Nat) (X : ℚ) : ℚ := (1 + psiL D X) * drift D X * stepL ^ nblocks N
-
-/-- The absolute error of `l_i`, per block (the masked lanes, the `2^-126` of each `exp2`, the
-roundings near zero). -/
-def absL : ℚ := 1 / 2 ^ 100
-
-/-- The absolute error of the accumulator per block, besides `omega0·|v|` per key and `kapA` per
-unit of weight: the `p·v` `tl.dot`'s `relDot16 64 = 66·2^-22` times the rest of the lift of a
-block's operands (`2^-14·(2^-25 + 2^-125) + 2^-28` per key, at most `2^-22 + 2^-32` over the block's
-`64` keys), about `0.52·2^-37`, with the roundings near zero. -/
-def absA : ℚ := 1 / 2 ^ 37
-
-/-- The absolute error of the accumulator per unit of weight: the `p·v` `tl.dot`'s `relDot16 64`
-times the lift `2^-14·|p|` of a subnormal `v` (counted at `2^-14`), with
-`|p| ≤ (1 + psi16)·weight + 2^-25 + 2^-125` and `psi16 ≤ 1/7`: `66·2^-36·8/7 ≤ 2^-29`. Over the
-keys it is `kapA` times `l_i`'s exact value, so it adds about `kapA` to `acc / l_i`. -/
-def kapA : ℚ := 1 / 2 ^ 29
-
-/-- The absolute error per key, times `|v|`: half `float16`'s smallest subnormal from
-`p.to(float16)` (`2^-25`, and more), and the `p·v` `tl.dot`'s `relDot16 64` times the lift `2^-14` of
-a subnormal `p` (`66·2^-36`). -/
-def omega0 : ℚ := 1 / 2 ^ 25 + 1 / 2 ^ 125 + 66 / 2 ^ 36
-
-/-- The lower bound `1 − E` on the sum of a row's weights against its maximum. -/
-def wlow (D : Nat) (X : ℚ) : ℚ := 1 - expErr D X
-
-/-- `l_i`'s relative error after the loop, the absolute part folded in. -/
-def betaL (D N : Nat) (X : ℚ) : ℚ := (fl D N X - 1) + fl D N X * (nblocks N * absL) / wlow D X
-
-/-- The denominator `1 − betaL` of the division's error. -/
-def denQ (D N : Nat) (X : ℚ) : ℚ := 1 - betaL D N X
-
-/-- The relative error of `acc / l_i` against the kernel's own weighted mean. -/
-def relQ (D N : Nat) (X : ℚ) : ℚ := (facc D N X - 1 + betaL D N X) / denQ D N X
-
-/-- The coefficient of `Σ|v|` in the error of `acc / l_i`. -/
-def absQS (D N : Nat) (X : ℚ) : ℚ := facc D N X * omega0 / (wlow D X * denQ D N X)
-
-/-- The absolute error of `acc / l_i`: `absA` per block, and `kapA` per unit of weight. -/
-def absQ0 (D N : Nat) (X : ℚ) : ℚ :=
-  facc D N X * (nblocks N * absA) / (wlow D X * denQ D N X) + facc D N X * kapA / denQ D N X
-
-/-- The relative change of the weights from `qk_scale · ln 2` to `sm_scale`: `4θ` with
-`θ = 2^-22·X`. -/
-def thetaW (X : ℚ) : ℚ := 1 / 2 ^ 20 * X
-
-/-- The last two roundings (`/` and `.to(float16)`), relative. -/
-def lastRel : ℚ := 1 / 2 ^ 11 * (1 + 1 / 2 ^ 22) + 1 / 2 ^ 22
-
-/-- **The output's tolerance relative to `attnAbs`**, the weighted mean of `|v|`. -/
-def tolO (D N : Nat) (X : ℚ) : ℚ :=
-  lastRel * (1 + relQ D N X) * (1 + thetaW X) + relQ D N X * (1 + thetaW X) + thetaW X
-
-/-- **The output's tolerance relative to `vAbsSum`** (`Σ|v|` over the row's keys): the `float16`
-rounding of small `p`s and the lift of subnormal `p`s in the `p·v` `tl.dot` (`omega0`, about
-`2^-25` per key). -/
-def tolS (D N : Nat) (X : ℚ) : ℚ := absQS D N X * (1 + lastRel)
-
-/-- **The output's absolute tolerance**: mainly the output's `float16` rounding near zero (`2^-25`),
-and `absQ0`, the lift of a subnormal `v` in the `p·v` `tl.dot` (`kapA`, about `2^-29`, and `absA`
-per block over `N/64` blocks). -/
-def tolF (D N : Nat) (X : ℚ) : ℚ :=
-  absQ0 D N X * (1 + lastRel) + 1 / 2 ^ 11 * (1 / 2 ^ 148) + 1 / 2 ^ 25 + 1 / 2 ^ 148
-
-/-- **`M`'s tolerance**, besides `2^-24·|lseRef|`: `tl.math.log2`'s `2^-22·|log₂ l_i|` with
-`|log₂ l_i| ≤ 17`, `log₂` of `l_i`'s relative error (at most twice it), the change from `qk_scale`
-to `sm_scale·log₂ e` (`2^-21·X`), `log2`'s absolute `2^-149`, and one rounding. -/
-def tolM (D N : Nat) (X : ℚ) : ℚ :=
-  (1 + u32) * (17 / 2 ^ 22 + 2 * betaL D N X + 1 / 2 ^ 21 * X + 1 / 2 ^ 149) + 1 / 2 ^ 150
+/-- **`M`'s tolerance** (absolute, in base-2 log space): `2^-20·(D·X + 2^10)`. -/
+def epsM (D : Nat) (X : ℚ) : ℚ := (D * X + 2 ^ 10) / 2 ^ 20
 
 /-- The bytes the launch may write: the elements of `o` and of `M`. -/
 def outBytes (d : Inst) : Set Int :=
@@ -513,9 +417,9 @@ def outBytes (d : Inst) : Set Int :=
 /-- What the launch leaves:
 * every element `(bh, n, e)` of `o` holds a `float16` value `c`; when head `bh`'s values are covered
   (`HeadOk`), `c` is finite and, for every bound `X ≤ 2^10` on the row's scaled score magnitudes,
-  within `tolO·attnAbs + tolS·vAbsSum + tolF` of the exact attention `attnRef`;
+  within `epsO·attnMag + 2^-24` of the exact attention `attnRef`;
 * every element `(bh, n)` of `M` holds a `float32` value `c`; for a covered head, `c` is finite and
-  within `tolM + 2^-24·|lseRef|` of the exact log-sum-exp `lseRef` (base 2);
+  within `epsM` of the exact log-sum-exp `lseRef` (base 2);
 * every byte outside these elements is unchanged. -/
 def Post (d : Inst) (init fin : Mem) : Prop :=
   (∀ bh n e, bh < d.Z * d.H → n < d.N_CTX → e < d.HEAD_DIM →
@@ -523,14 +427,13 @@ def Post (d : Inst) (init fin : Mem) : Prop :=
       (HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
         (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
         |c.toReal - attnRef d init bh n e| ≤
-          (tolO d.HEAD_DIM d.N_CTX X : ℝ) * attnAbs d init bh n e +
-            (tolS d.HEAD_DIM d.N_CTX X : ℝ) * (vAbsSum d init bh n e : ℝ) + (tolF d.HEAD_DIM d.N_CTX X : ℝ))) ∧
+          (epsO d.HEAD_DIM d.N_CTX X : ℝ) * attnMag d init bh n e + 1 / 2 ^ 24)) ∧
   (∀ bh n, bh < d.Z * d.H → n < d.N_CTX →
     ∃ c : F32, fin.read .f32 (d.M.ptr ((bh * d.N_CTX + n : Nat) : Int)).addr = some c ∧
       (HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
         (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
         |c.toReal - lseRef d init bh n| ≤
-          (tolM d.HEAD_DIM d.N_CTX X : ℝ) + (u32 : ℝ) * |lseRef d init bh n|)) ∧
+          (epsM d.HEAD_DIM X : ℝ))) ∧
   ∀ z, z ∉ outBytes d → fin z = init z
 
 def Spec (K : Claim.Behaviour Inst) : Prop := Claim.Meets Inst.ok Pre Post K

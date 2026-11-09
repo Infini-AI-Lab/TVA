@@ -125,9 +125,9 @@ tokens and 32 value heads); 6 edges of `Pre`, each with a `float32` and a `bfloa
 add up; the largest magnitudes `Pre` allows, `|A| = 2^64`, `|k| = |v| = 2^32`, `beta = 2^8`, `g = 8`,
 padded and packed; subnormal values with gates far below, where `exp2` flushes to 0); and one edge
 for a `bfloat16` `beta` whose roundings at lines 129 and 132 all go up and add up (`k = 1.15625`,
-`beta = 1.75`, `g = -0.0055`, `A` all `1`: `w` reaches `0.6499` of `tolW`); plus a direct launch writing `w` and `u` between guard regions.
+`beta = 1.75`, `g = -0.0055`, `A` all `1`); plus a direct launch writing `w` and `u` between guard regions.
 The largest
-measured `|out - ref| / tol` is `0.9921` for `u`, and for `w` `0.9676` (`float32` `beta`) and `0.9483`
+measured `|out - ref| / tol` is `0.9884` for `u`, and for `w` `0.4876` (`float32` `beta`) and `0.7186`
 (`bfloat16` `beta`); every output is finite, the inputs
 (and `cu_seqlens`, `chunk_indices`) are unchanged, and the guards keep their pattern. Every negative
 test is rejected (`w` without `2^g`, `A` transposed in its chunk, the wrong key head, a packed

@@ -6,8 +6,9 @@ the log-sum-exp `M` it saves can be read) on the launches of SETUP.md (the test'
 benchmark's `float16` launches) and on launches at the edges of `Inst.ok` and of `HeadOk`; computes
 `Post`'s reference and tolerances from the inputs in float64 exactly as `Claim.lean` states them
 (`score`, `scoreMag` with `liftMag`, the row's smallest `X`, `attnRef`, `attnAbs`, `vAbsSum`,
-`lseRef`, `tolO`, `tolS`, `tolF`, `tolM`); and reports, for `o` and `M`, the largest
-error / tolerance, that every element is written and finite, and the frame: the host's
+`attnMag`, `lseRef`, `epsO`, `epsM`); and reports, for `o` and `M`, the largest
+error / tolerance, the tolerance / |output| (median and worst) on the file's launches, for `Post`'s
+tolerance and for the fine bound of README Tolerances (which must lie below it), that every element is written and finite, and the frame: the host's
 `torch.empty_like` and `torch.empty` are made to return `o` and `M` as views into larger NaN-filled
 buffers, whose guard bands must stay unchanged, and the inputs must be unchanged.
 
@@ -39,8 +40,14 @@ def relDot16(K):
     return (K + 2) * 2.0 ** -22
 
 
-def tolerances(D, N, X):
-    """`tolO D N X`, `tolS`, `tolF`, `tolM` of Claim.lean ("The tolerances"), in float64; X a tensor."""
+def eps_post(D, N, X):
+    """`epsO D N X` and `epsM D X` of Claim.lean ("The tolerances"), in float64; X a tensor."""
+    return (D * X + N + 2 ** 10) * 2.0 ** -20, (D * X + 2 ** 10) * 2.0 ** -20
+
+
+def fine_tolerances(D, N, X):
+    """The fine bound of README Tolerances (`tolO`, `tolS`, `tolF`, `tolM`, steps 1-5), in float64;
+    X a tensor. Only for the comparison: `Post` states `eps_post`."""
     yb = 1.5 * X
     expErr = (relDot16(D) + 2.0 ** -20) * yb + 2.0 ** -50
     psiP = (1 + expErr) * (1 + 2.0 ** -22) - 1
@@ -154,18 +161,35 @@ def check_head(q, k, v, o, M, sigma, causal):
         absr = (w @ vabs) / W                          # attnAbs
         vsum = keep.double() @ vabs                    # vAbsSum
         lse = (zmax[:, 0] + torch.log(W[:, 0])) / math.log(2.0)   # lseRef (log2)
-        tO, tS, tF, tM = tolerances(D, N, X)
+        eO, eM = eps_post(D, N, X)
+        nkeys = keep.double().sum(1, keepdim=True)
+        mag = torch.maximum(absr, vsum / nkeys)        # attnMag
         errO = (o[r0:r1].double() - ref).abs()
-        boundO = tO[:, None] * absr + tS[:, None] * vsum + tF[:, None]
+        boundO = eO[:, None] * mag + 2.0 ** -24
         errM = (M[r0:r1].double() - lse).abs()
-        boundM = tM + u32 * lse.abs()
+        boundM = eM
         rO = max(rO, float((errO / boundO).max()))
         rM = max(rM, float((errM / boundM).max()))
+        tO, tS, tF, tM = fine_tolerances(D, N, X)
+        fineO = tO[:, None] * absr + tS[:, None] * vsum + tF[:, None]
+        fineM = tM + u32 * lse.abs()
+        global FINE_OK
+        FINE_OK = FINE_OK and bool((fineO <= boundO).all()) and bool((fineM <= boundM).all())
+        if STATS is not None:
+            nz = ref.abs() > 0
+            for key, b, r in (("o", boundO, ref.abs()), ("o fine", fineO, ref.abs()),
+                              ("M", boundM[:, None], lse.abs()[:, None]), ("M fine", fineM[:, None], lse.abs()[:, None])):
+                ratio = (b.expand_as(r) / r)[(r > 0).expand_as(r) if key[0] == "M" else nz]
+                STATS.setdefault(key, []).append(ratio.flatten()[::max(1, ratio.numel() // 20000)].cpu())
+                WORSTRATIO[key] = max(WORSTRATIO.get(key, 0.0), float(ratio.max()))
     return rO, rM, fin, headok, Xmax
 
 
 WORST = {"o": 0.0, "M": 0.0}
 ALL_OK = True
+FINE_OK = True      # the fine bound of README Tolerances lies below Post's tolerance everywhere
+STATS = None        # tolerance / |output| samples on the file's launches (a dict while they run)
+WORSTRATIO = {}
 
 
 def check_launch(name, Z, H, N, D, causal, sm, make, heads=None, Xtarget=None):
@@ -231,8 +255,19 @@ def custom(fq, fk, fv):
     return make
 
 
+def report_stats():
+    """Tolerance / |output| over the file's launches (test and benchmark): `Post`'s and the fine one's."""
+    global STATS
+    for key in ("o", "o fine", "M", "M fine"):
+        x = torch.cat(STATS[key])
+        print(f"tolerance/|output| {key:7s}: median {float(x.median()):.3g}  worst {WORSTRATIO[key]:.3g}")
+    STATS = None
+
+
 def main():
+    global STATS
     torch.manual_seed(0)
+    STATS = {}
     # --- the test (source lines 631-695): every float16 forward it runs (sm_scale 0.5, normal(0, 0.5))
     for Z in [1, 4]:
         for H in [2, 48]:
@@ -252,6 +287,7 @@ def main():
                     continue
                 heads = [0, 77, 127] if N >= 8192 else [0, 1, 64, 127]
                 check_launch("bench", 4, 32, N, D, causal, 1.3, randn, heads)
+    report_stats()
     # --- edges of Inst.ok
     check_launch("edge D=256", 1, 2, 1024, 256, False, 0.5, normal(0.5))
     check_launch("edge D=256 causal", 1, 2, 1024, 256, True, 0.5, normal(0.5))
@@ -282,9 +318,9 @@ def main():
                         lambda s, g: torch.randn(s, generator=g, device=DEV),
                         lambda s, g: torch.randn(s, generator=g, device=DEV) * 2.0 ** -18))
     print(f"\nworst error / tolerance: o {WORST['o']:.4f}, M {WORST['M']:.4f}; "
-          f"{'ALL OK' if ALL_OK else 'SOME FAILED'}")
+          f"fine bound below Post's: {FINE_OK}; {'ALL OK' if ALL_OK and FINE_OK else 'SOME FAILED'}")
     print(f"peak device memory: {torch.cuda.max_memory_allocated() / 2 ** 30:.2f} GiB")
-    return 0 if ALL_OK else 1
+    return 0 if ALL_OK and FINE_OK else 1
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ variable-length batch (`IS_VARLEN` either way, `int32` or `int64` tables), on an
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.ChunkBwdDvLocal.main : Statement` (`Statement`:
-`Claim.lean` line 530). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 519). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -21,21 +21,22 @@ variable-length batch (`IS_VARLEN` either way, `int32` or `int64` tables), on an
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 228), and every initial memory `init` that `Pre` accepts (line 482), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 500).
+(`Inst.ok`, line 228), and every initial memory `init` that `Pre` accepts (line 471), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 489).
 
-**What `Post` asks** (line 500), two parts:
+**What `Post` asks** (line 489), two parts:
 1. for every sequence `n < nSeq d` (line 348), token `p` with `lo d n ≤ p < hi d n` (lines
    351–352), value head `hv < HV` and column `e < V`: element `oIdx d p hv e` (line 338) of `dv`
    reads in `fin` as a `bfloat16` `c`, `c` is finite, and
    `|c.toReal − ref d init n p hv e| ≤ tol d init n p hv e`. This holds for every such element (no
-   guard: `Pre`'s `ValsOk`, line 466, covers the values). `ref` (line 409) is exact, in the reals:
+   guard: `Pre`'s `ValsOk`, line 455, covers the values). `ref` (line 409) is exact, in the reals:
    `Σ_{j ∈ [p, chunkEnd)} Aex·dov`, with `Aex` (line 398) `= sig·kq·wt` (lines 375, 378, 394) from
-   `q`, `k`, `g`, `do` in `init`, and `chunkEnd` (line 357) from `cu_seqlens` or the rows. `tol` is
-   defined at line 447 (with `eA`, `wErr`, `wUp`, `epsA`, lines 423–438);
-2. the frame: every byte outside `dv.elems (written d)` (line 493) is unchanged.
+   `q`, `k`, `g`, `do` in `init`, and `chunkEnd` (line 357) from `cu_seqlens` or the rows. `tol` (line
+   441) is `2^-7·Σ_j |Aex|·|dov| + 2^-13·Σ_j aMag·doMag + 2^-100` over the same `j`, with `aMag`
+   (line 432) `= sig·(kqMag + 2^-94)·(wt + 2^-112) + 2^-86`;
+2. the frame: every byte outside `dv.elems (written d)` (line 482) is unchanged.
 
-**What you are given** (`Assumptions`, line 510), six fields:
+**What you are given** (`Assumptions`, line 499), six fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): each `tl.dot` (model lines 130, 156) is within
@@ -74,15 +75,16 @@ column tiles), disjoint across trips (PROVER_GUIDE §4).
   from `TablesOk` (distinct rows); no program writes what any program reads (`dv_q`, `dv_k`,
   `dv_dO`, `dv_g`, `dv_cu`, `dv_ci`); and every element of `written d` is written (every chunk has
   a row, `TablesOk`; `nChunks` covers `T` on fixed length);
-- the value part of part 1, steps 1–6 of README `## Tolerances`: the `K` loop's dots and
-  multiply-adds (`dot`, `FloatV.fma_err` or `FloatV.mul_err` and `FloatV.add_err`), the gate
-  (`FloatV.sub_err`, `exp2`, `exp2_ninf`), the entry within `eA`, the two `bfloat16` roundings
-  (`FloatV.cvt_err`), the second dot (`dot`), with room from `ValsOk`;
+- the value part of part 1: derive the fine bound of README `## Tolerances`, steps 1–6 (the `K`
+  loop's dots and multiply-adds, `dot`, `FloatV.fma_err` or `FloatV.mul_err` and
+  `FloatV.add_err`; the gate, `FloatV.sub_err`, `exp2`, `exp2_ninf`; the entry within `eA`; the two
+  `bfloat16` roundings, `FloatV.cvt_err`; the second dot, `dot`; with room from `ValsOk`), then
+  relax it to `tol` by step 7 (`|ref| ≤ B1`, `wErr ≤ 2^-14·wt + 2^-125`, `eA ≤ 8·10^-5·aMag' + 2^-140`);
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `satInst_ok`,
 `canon_ok`, `setup_var3_tables`, the `s*_ok` facts and the `setup_*_ok` theorems; `bytes_disj`
-(line 576) can be reused.
+(line 565) can be reused.
 
 ## Specification
 
@@ -102,21 +104,24 @@ The reference is computed from `cu_seqlens` (or the rows), `q`, `k`, `g` and `do
 from `chunk_indices` or the kernel's indexing.
 
 `Post`: every `dv[p, hv, e]` (`p` a token of a sequence, `hv < HV`, `e < V`) is a finite
-`bfloat16` `c` with `|c − ref| ≤ tol`, and every byte outside those elements is unchanged.
-Over `j ∈ [p, chunkEnd)`, with `u = 2^-24`, `nK = cdiv(K, BK)`:
+`bfloat16` `c` with `|c − ref| ≤ tol`, and every byte outside those elements is unchanged. Over
+`j ∈ [p, chunkEnd)`:
 
-* `wErr = 2^{dg}·(2^{u·|dg| + 2^-149}·(1 + 2^-22) − 1) + 2^-126` with a gate, `0` without; `wUp = wt + wErr`;
-* `εA = (BK + 8 + 2·nK)·2^-22`;
-* `eA = σ·kqMag·(εA·wUp + wErr) + wUp·(σ·2^-110 + 2^-140) + 2^-140`;
-* `B1 = Σ_j |Aex|·|do_j|`, `Be = Σ_j eA·|do_j|`, `Bl = Σ_j (|Aex| + eA)·liftMag do_j`,
-  `Dl = Σ_j liftMag do_j`;
-* `tol = 2^-8·|ref| + (1 + 2^-8)·(2^-8·B1 + (1 + 2^-8)·Be + (BT + 3)·2^-22·Bl) + 2^-100·(1 + Dl)`.
+* `aMag(p, j) = σ·(kqMag + 2^-94)·(wt + 2^-112) + 2^-86`: the magnitude of the products
+  `σ·k·q·2^{dg}` that make entry `(p, j)`, with floors for the absolute errors of the `tl.dot`s
+  (`2^-94`), of `exp2` (`2^-112`) and of the second `tl.dot` (`2^-86`), far below real values;
+* `tol = 2^-7·Σ_j |Aex|·|do_j| + 2^-13·Σ_j aMag·liftMag do_j + 2^-100`.
 
-The two `2^-8` terms are the kernel's two `bfloat16` roundings, of each entry of `A` (line 140) and
-of the stored result (line 149); `Be` (the `float32` errors of the entries, about `3·10^-5` of
-`σ·kqMag` at `K = 128`) and the `Bl` term (the second `tl.dot`) are two to three orders smaller.
-On the host's `randn` inputs `tol` is about `(2^-8)·(|ref| + B1)`; the worst error on the H200 is
-`0.973` of it.
+The first term is the kernel's two `bfloat16` roundings, of each entry of `A` (line 140) and of the
+stored result (line 149), relative to the magnitudes of `ref`'s terms; the second the `float32`
+errors of the entries (the `K` loop's `tl.dot`s and multiply-adds, the gate) and the second
+`tl.dot`, relative to the products' magnitudes (`kqMag`, not `|kq|`: a dot product's error does not
+cancel with its terms). One magnitude for both would not do: on the host's `randn` inputs
+`Σ_j σ·kqMag·wt·|do|` is about `sqrt(2K/π)` times `Σ_j |Aex·do|` (`kq` cancels: 6 to 13 times at
+head dims 64 to 256), so charging the roundings to it would make `tol` that much looser, and
+charging the `float32` errors to `Σ_j |Aex·do|` fails where `kq` cancels. On those inputs `tol` is
+`2^-7·Σ_j |Aex·do|` plus a tenth to a fifth of that; the worst error on the H200 is `0.934` of
+it.
 
 ## Conditions
 
@@ -197,7 +202,13 @@ From the library's facts (`docs/rules/num.md`): `DotBF16` (`relDot16 K = (K+2)·
 `absDot16 K = (K+2)·2^-126`, relative to `|acc| + Σ liftMag a·liftMag b`), `Exp2F32` (`2^-22`
 relative, `2^-126` absolute), `Exp2F32NegInf`, and the IEEE rounding lemmas (`float32`: `u = 2^-24`,
 `η = 2^-150`; `bfloat16`: `2^-8`, `2^-134`). Fix a valid pair `p ≤ j` of one chunk, value head
-`hv`, `L = kqMag(p, j)`, `S = kq(p, j)`.
+`hv`, `L = kqMag(p, j)`, `S = kq(p, j)`. Notation (with `wErr`, `wUp` of `Claim.lean`, the gate's
+error and upper bound): `nK = cdiv(K, BK)`, `εA = (BK + 8 + 2·nK)·2^-22`, the entry's error bound
+`eA = σ·L·(εA·wUp + wErr) + wUp·(σ·2^-110 + 2^-140) + 2^-140`, and over `j ∈ [p, chunkEnd)`
+`B1 = Σ_j |Aex|·|do_j|`, `Be = Σ_j eA·|do_j|`, `Bl = Σ_j (|Aex| + eA)·liftMag do_j`,
+`Dl = Σ_j liftMag do_j`. Steps 1–6 give the fine bound
+`tol₀ = 2^-8·|ref| + (1 + 2^-8)·(2^-8·B1 + (1 + 2^-8)·Be + (BT + 3)·2^-22·Bl) + 2^-100·(1 + Dl)`;
+step 7 relaxes it to `tol`.
 
 1. **The `K` loop** (lines 128–136, `nK ≤ 16` trips, each a fresh `tl.dot` of `BK` columns then
    `tl.mul_add` with `σ₃₂ = hostF32(σ)`, `|σ₃₂ − σ| ≤ u·σ` since `σ ∈ [2^-32, 2^32]`). Trip `t`'s
@@ -228,15 +239,36 @@ relative, `2^-126` absolute), `Exp2F32NegInf`, and the IEEE rounding lemmas (`fl
 6. **Assembly.** With `x` the `float32` result,
    `|x − ref| ≤ E = 2^-8·B1 + (1 + 2^-8)·Be + (BT+3)·2^-22·Bl + abs`, `abs ≤ 2^-134·Dl +
    (BT+2)·2^-147·Dl + (BT+2)·2^-126`. The store: `|c − x| ≤ 2^-8·|x| + 2^-134` and
-   `|x| ≤ |ref| + E`, so `|c − ref| ≤ 2^-8·|ref| + (1 + 2^-8)·E + 2^-134 ≤ tol`
+   `|x| ≤ |ref| + E`, so `|c − ref| ≤ 2^-8·|ref| + (1 + 2^-8)·E + 2^-134 ≤ tol₀`
    (`(1 + 2^-8)·abs + 2^-134 ≤ 2^-100·(1 + Dl)`); `c` is finite (`|x| < 2^126`).
+7. **The relaxation `tol₀ ≤ tol`**, term by term in `j` (all terms are nonnegative; `d = |do_j|
+   ≤ liftMag do_j = d'`). *The gate:* for `|dg| ≤ 2^10`, `2^{u·|dg| + 2^-149}·(1 + 2^-22) − 1 ≤
+   2^{2^-14}·(1 + 2^-22) − 1 ≤ 4.26·10^-5`; for `dg < −2^10`, `2^{dg}·2^{u·|dg| + 2^-149}·(1 + 2^-22)
+   ≤ 2^-1000`; so `wErr ≤ ρw·wt + 2^-126·(1 + 2^-800)`, `ρw = 4.26·10^-5 ≤ 2^-14`, and
+   `wUp ≤ (1 + ρw)·wt + 2^-125`. *The entry:* with `εA ≤ 140·2^-22 = 3.34·10^-5` (`BK ≤ 128`,
+   `nK ≤ 2` at `BK = 128` since `K ≤ 256`; `56·2^-22` at `BK = 16`), `σ ≥ 2^-32` and
+   `aMag' = σ·(L + 2^-94)·(wt + 2^-112)` (so `aMag = aMag' + 2^-86`):
+   `σ·L·(εA·wUp + wErr) ≤ (εA·(1 + ρw) + ρw)·σ·L·wt + 1.0001·2^-126·σ·L ≤ 7.6·10^-5·σ·L·wt +
+   2^-13.99·σ·L·2^-112`; `wUp·σ·2^-110 ≤ 2^-16·1.0001·σ·2^-94·(wt + 2^-112)`; `wUp·2^-140 ≤
+   wUp·σ·2^-108 ≤ 2^-14·1.0001·σ·2^-94·(wt + 2^-112)`; so `eA ≤ 8.0·10^-5·aMag' + 2^-140`.
+   *The sums:* `|ref| ≤ B1`; `B1 ≤ Σ_j σ·L·wt·d ≤ Σ_j aMag'·d'`; `Be ≤ 8.0·10^-5·Σ_j aMag'·d' +
+   2^-140·Dl`; `Bl ≤ (1 + 8.0·10^-5)·Σ_j aMag'·d' + 2^-140·Dl`. So, with `BT + 3 ≤ 67`,
+   `tol₀ ≤ 2^-7·B1 + (2^-16 + 1.008·8.0·10^-5 + 1.004·67·2^-22·1.0001)·Σ_j aMag'·d' +
+   1.0001·2^-100·Dl + 2^-100 ≤ 2^-7·B1 + 1.12·10^-4·Σ_j aMag'·d' + 2^-99·Dl + 2^-100`, and
+   `1.12·10^-4 ≤ 2^-13 = 1.22·10^-4`, `2^-99 = 2^-13·2^-86`: `tol₀ ≤ 2^-7·B1 + 2^-13·Σ_j aMag·d' +
+   2^-100 = tol`. (`2^-8·|ref| + (1 + 2^-8)·2^-8·B1 = 2^-7·B1 + 2^-16·B1`, the excess charged to
+   the second term.) A randomized check of the per-`j` inequality over `σ ∈ [2^-32, 2^32]`, `L`
+   from `0` to `2^100`, `kq ∈ [−L, L]`, `dg` from `−2^128` to `64`, `|do|` from `0` to `2^100`
+   (subnormal included), `BK`, `K`, `BT` over their ranges (2·10^6 samples) finds the `tol₀` term at
+   most `0.9934` of the `tol` term.
 
 The bound is provable from `DotBF16`, `Exp2F32`, `Exp2F32NegInf` and the library's IEEE rounding
 lemmas (`FloatV.mul_err`, `add_err`, `sub_err`, `cvt_err`, `AddRel.err`; `tl.mul_add`'s two
-alternatives, the fused `FloatV.fma` or the two IEEE operations). It is meaningful: its leading terms are the two `bfloat16` roundings themselves, so
-on random inputs it is about `1.03×` the kernel's worst error (`check_gpu.py`: worst
-error / tolerance `0.973`), and a single wrong element, a missing gate or a wrong chunk size is
-rejected.
+alternatives, the fused `FloatV.fma` or the two IEEE operations). It is meaningful: its leading
+term is the two `bfloat16` roundings themselves, so on random inputs it is about `1.07×` the
+kernel's worst error (`check_gpu.py`: worst error / tolerance `0.934`); over SETUP.md's launches
+`tol / |ref|` has median `2.4·10^-2` (`1.5·10^-2` for `tol₀`), and a single wrong element, a
+missing gate or a wrong chunk size is rejected.
 
 ## Exclusions
 
@@ -295,8 +327,9 @@ None.
   head, head dims 16, chunk size 16, no gate, every byte `0`).
 * **Covers the setup**: `canon_ok` and the `setup_*_ok` above (each for both gate flags; the
   training batch for both table dtypes); `setup_var3_tables` (`TablesOk` on real tables).
-* **GPU** (`check_gpu.py`, H200, Triton 3.8.0, peak device memory 2.17 GiB): 46 checks pass: every
+* **GPU** (`check_gpu.py`, H200, Triton 3.8.0, peak device memory 2.20 GiB): 46 checks pass: every
   SETUP.md launch without and with a gate, `Inst.ok` and `Pre` edges (SETUP.md, "Checked on the
-  H200"); worst error / tolerance `0.973` (margin `1.03×`); every written element finite, `ValsOk`
+  H200"); worst error / tolerance `0.934` (margin `1.07×`); `tol / |ref|` over SETUP.md's launches
+  has median `2.4·10^-2`; every written element finite, `ValsOk`
   and `TablesOk` on every input, the inputs unchanged, every element of `dv` outside the sequences
   unchanged; four negative tests rejected; `B·HV = 65536` does not launch.

@@ -109,8 +109,7 @@ head, empty and short sequences, chunk sizes 16 and 32 on packed batches, sequen
 (inputs scaled to `kqMag` near `2^47` and `|do|` near `2^40`, subnormal `do`, all-positive inputs,
 strong decays with gate differences far below `−126`, gates rising by up to 63 within a chunk,
 `scale` `2^-32` and `2^32`). Every written element is finite and within `tol` of `ref`; the worst
-error / tolerance is `0.973` (at `B·HV = 65535`, head dims 16; `0.96` at most on the host's and the
-benchmarks' launches); `ValsOk` and `TablesOk` hold on every input, the inputs are unchanged, and
+error / tolerance is `0.934`; `ValsOk` and `TablesOk` hold on every input, the inputs are unchanged, and
 every element of `dv` outside the sequences keeps its sentinel. The four negative tests are rejected
 (one element moved, the ungated output against the gated specification, chunk size 32 against 64, an
 unwritten element changed), and a launch with `B·HV = 65536` (`B = 4096`, `HV = 16`) fails on the

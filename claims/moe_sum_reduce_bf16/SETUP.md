@@ -57,6 +57,6 @@ The claim should cover the wrapper's launches, with shapes as variables:
 scales `1e-40`, `0`, `−0`, `−7.75`, `1e30` and `1e39`, NaN and infinities in some elements, top-1 and
 top-64, hidden 1 and 2049, and `2^15` tokens; each case is also launched with other block sizes
 (`(4, 256)`, `(2, 1024)`, `(8, 64)`, `(1, 4096)`). Every element in range is finite and within the
-claim's tolerance (worst error / tolerance `0.9961`, one `bfloat16` rounding), the elements out of
+claim's tolerance (worst error / tolerance `0.9960`, one `bfloat16` rounding), the elements out of
 range are counted (for example 9218 in the near-overflow case with scale 3), the input is unchanged
 bit for bit, and the guard bands around the output keep their bytes.

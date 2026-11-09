@@ -8,11 +8,10 @@ device's `NUM_SMS`) and on launches at the edges of `Inst.ok`, and checks `Post`
 in float64, from the host's inputs, exactly as `Post` states it:
 
 * for each element `(i, j)` of `c`: `S = sum_k a[i, k] * b[k, j]` (exact products, float64 sum) and
-  `E = tol = errAt` over the inner loop's `T = cdiv(K, 64)` steps: `E_0 = 0`,
-  `E_{t+1} = (1 + rho) E_t + rho (|S_t| + L_t) + alpha`, with `S_t` the exact partial sum of the
-  products `k < 64 t`, `L_t = sum liftMag(a[i, k]) * liftMag(b[k, j])` over step `t`'s `k`
-  (`liftMag q = 0` at `0`, else `max(|q|, 2^-14)`), `rho = relDot16 64 = 66 * 2^-22`,
-  `alpha = absDot16 64 = 66 * 2^-126`; with `OutSpec`'s first clause, that the reals rounding to
+  `E = tol = 2^-15 * accMag + 2^-112`, `accMag = sum_{t < T} (|S_t| + L_t)` over the inner loop's
+  `T = cdiv(K, 64)` steps, with `S_t` the exact partial sum of the products `k < 64 t` and
+  `L_t = sum liftMag(a[i, k]) * liftMag(b[k, j])` over step `t`'s `k` (`liftMag q = 0` at `0`, else
+  `max(|q|, 2^-14)`); with `OutSpec`'s first clause, that the reals rounding to
   `c` in `float16` meet `[S - E, S + E]` (some `v` within `E` of `S` rounds to `c`, up to `v`'s
   `float32` grid); and, with room (`|S| + E <= 65504`, which every case here meets), `c` is finite
   and `|c - S| <= E + (|S| + E) * 2^-11 + 2^-25` (`OutSpec`);
@@ -27,7 +26,9 @@ in float64, from the host's inputs, exactly as `Post` states it:
   column-major layout) leave every byte outside the matrix `c` unchanged.
 
 Prints, per case, the largest error / tolerance over both clauses (below 1, with its margin) and the
-frame results. Usage: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
+frame results; on the setup's launches also `tol / |c|` (median, worst) and the same for the fine
+bound of README Tolerances (`errAt`: `E_0 = 0`, `E_{t+1} = (1 + rho) E_t + rho (|S_t| + L_t) +
+alpha`, `rho = 66 * 2^-22`, `alpha = 66 * 2^-126`), which `Post` does not use. Usage: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
 """
 import sys; sys.dont_write_bytecode = True  # keep source/ free of __pycache__ (python -I ignores PYTHONDONTWRITEBYTECODE)
 
@@ -44,8 +45,8 @@ mm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mm)
 
 DEV = "cuda"
-RHO = 66 * 2.0 ** -22           # rho = Rules.Num.relDot16 64 (exact in float64)
-ALPHA = 66 * 2.0 ** -126         # alpha = Rules.Num.absDot16 64
+RHO = 66 * 2.0 ** -22           # rho = Rules.Num.relDot16 64 (the fine bound only)
+ALPHA = 66 * 2.0 ** -126         # alpha = Rules.Num.absDot16 64 (the fine bound only)
 U16 = 2.0 ** -11                 # Format.binary16.u
 ETA16 = 2.0 ** -25               # Format.binary16.eta
 MAX16 = 65504.0
@@ -75,13 +76,14 @@ def rounding_interval(c):
 
 
 def tol_err(ad, bd, want=None):
-    """S and E = errAt(prodV, liftV, steps K) elementwise; with `want`, also the wrong results of
-    the negative tests."""
+    """S, E = tol = 2^-15 * accMag + 2^-112 and the fine bound errAt elementwise; with `want`,
+    also the wrong results of the negative tests."""
     R, K = ad.shape
     N = bd.shape[1]
     la, lb = lift(ad), lift(bd)
     S = torch.zeros((R, N), dtype=torch.float64, device=ad.device)
     E = torch.zeros_like(S)
+    Mag = torch.zeros_like(S)
     acc16 = torch.zeros_like(S) if want else None
     last = torch.zeros_like(S) if want else None
     for t in range((K + 63) // 64):
@@ -89,15 +91,17 @@ def tol_err(ad, bd, want=None):
         c = ad[:, lo:hi] @ bd[lo:hi, :]
         L = la[:, lo:hi] @ lb[lo:hi, :]
         E = (1 + RHO) * E + RHO * (S.abs() + L) + ALPHA
+        Mag += S.abs() + L
         S = S + c
         if want:
             acc16 = (acc16 + c).half().double()
             last = c
         del c, L
+    tol = 2.0 ** -15 * Mag + 2.0 ** -112
     if want:
-        return S, E, {"bf16_output": S.to(torch.bfloat16).double(), "fp16_accumulator": acc16,
+        return S, tol, E, {"bf16_output": S.to(torch.bfloat16).double(), "fp16_accumulator": acc16,
                       "dropped_last_step": (S - last).half().double()}
-    return S, E
+    return S, tol, E
 
 
 def ratio(S, E, got):
@@ -109,6 +113,9 @@ def ratio(S, E, got):
     r1 = torch.where(E > 0, dist / E.clamp_min(1e-300),
                      torch.where(dist > 0, torch.full_like(E, float("inf")), torch.zeros_like(E)))
     return torch.maximum(r1, (got - S).abs() / bound)
+
+
+STATS = {"tol": [], "fine": [], "tol_max": 0.0, "fine_max": 0.0}
 
 
 def check_out(a, b, c, rows=1024, negatives=False):
@@ -125,9 +132,9 @@ def check_out(a, b, c, rows=1024, negatives=False):
         rowfin = torch.isfinite(ad).all(dim=1)
         ad = torch.where(torch.isfinite(ad), ad, torch.zeros_like(ad))
         if negatives:
-            S, E, bad = tol_err(ad, bd, want=True)
+            S, E, F, bad = tol_err(ad, bd, want=True)
         else:
-            S, E = tol_err(ad, bd)
+            S, E, F = tol_err(ad, bd)
         fin = rowfin[:, None] & colfin[None, :]
         assert ((S.abs() + E)[fin] <= MAX16).all(), "no room in float16"
         got = c[r:r + rows].double()
@@ -136,11 +143,16 @@ def check_out(a, b, c, rows=1024, negatives=False):
         rr = torch.where(fin, ratio(S, E, g), torch.zeros_like(S))
         if fin.any():
             worst = max(worst, rr.max().item())
+            nz = fin & (got != 0)
+            for key, T in (("tol", E), ("fine", F)) if nz.any() else ():
+                q = (T / got.abs())[nz]
+                STATS[key].append(q[::97].float().cpu())
+                STATS[key + "_max"] = max(STATS[key + "_max"], q.max().item())
         if negatives:
             for name, x in bad.items():
                 neg[name] = max(neg.get(name, 0.0), ratio(S, E, x).max().item())
             del bad
-        del ad, S, E, got, g, rr
+        del ad, S, E, F, got, g, rr
     return (worst, neg) if negatives else worst
 
 
@@ -177,9 +189,16 @@ def host_case(name, M, N, K, seed=0, scale=1.0, negatives=False, nonfinite=False
     else:
         w = check_out(a, b.T, c)
     sms = torch.cuda.get_device_properties("cuda").multi_processor_count
+    st = ""
+    if name.startswith("setup"):
+        st = "; tol/|c| " + ", ".join(
+            f"{k} median {torch.cat(STATS[k]).median().item():.2e} worst {STATS[k + '_max']:.2e}"
+            for k in ("tol", "fine"))
+    for k in ("tol", "fine"):
+        STATS[k], STATS[k + "_max"] = [], 0.0
     print(f"{name}: M={M} N={N} K={K} NUM_SMS={sms} (randn{'' if scale == 1.0 else f' x{scale}'}"
           f"{', non-finite inputs' if nonfinite else ''}): max err/tol {w:.4f} (margin {1 - w:.4f}), "
-          f"inputs unchanged {same}{extra}", flush=True)
+          f"inputs unchanged {same}{extra}{st}", flush=True)
     del a, b, c, a0, b0
     torch.cuda.empty_cache()
     return w < 1 and ok, w

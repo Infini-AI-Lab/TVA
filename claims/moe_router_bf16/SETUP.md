@@ -64,7 +64,7 @@ the source's eight Grok test cases (`bs` 1, 7, 128 and 511, hidden 6144 and 8192
 two identical gate rows, a logit near `1300` and one near `−98,000`, `x` at `2^-126` with gate
 weights near `2^120`, hidden states scaled by 64 (logits up to 86), and `bs = 511` at hidden 6144
 and 8192 with the test's data and with logits of standard deviation 3. Every launch meets the
-claim: the worst error / tolerance is `3.2·10^-2` for the capped logits, `0.017` and `0.036` for the
+claim: the worst error / tolerance is `3.0·10^-2` for the capped logits, `0.017` and `0.035` for the
 two weights; the ids are the first argmaxes on every token; the inputs are unchanged and the guard
 bands around both outputs keep their bytes. On the last four launches a kernel without the soft cap
 and swapped ids fail `Post` (README, Tolerances).

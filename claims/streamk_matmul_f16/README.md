@@ -7,7 +7,7 @@ imports of lines 22–23; host `streamk_matmul` 70–93). `Claim.lean`, namespac
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.StreamKMatmul.main : Statement` (`Statement`:
-`Claim.lean` line 407). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 398). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -15,29 +15,27 @@ imports of lines 22–23; host `streamk_matmul` 70–93). `Claim.lean`, namespac
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 191), and every initial memory `init` that `Pre` accepts (line 293: the buffers
+(`Inst.ok`, line 191), and every initial memory `init` that `Pre` accepts (line 294: the buffers
 valid, every element of the matrix `c` a finite zero), every outcome of the launch is a normal end
-(no fault, no hang) whose final memory `fin` satisfies `Post` (line 374).
+(no fault, no hang) whose final memory `fin` satisfies `Post` (line 365).
 
-**What `Post` asks** (line 374), two parts:
-1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 363): element
+**What `Post` asks** (line 365), two parts:
+1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 354): element
    `i * stride_cm + j * stride_cn` of `c` reads in `fin` as some `float32` `c` (on every input);
    and for all `va vb : Nat → F16` such that, for every `k < K`, `init` reads `a`'s element
    `i * stride_am + k * stride_ak` as a finite `va k` and `b`'s element
    `k * stride_bk + j * stride_bn` as a finite `vb k`: `c` is finite and
    `|c.toRat - dotSum va vb d.K| ≤ tol va vb d.K`.
-   The reference `dotSum` (line 313) is the exact sum `Σ_{k<K} va k · vb k` in the rationals.
-   `tol` (line 355) is `tolDot` (line 347) plus `DotLoop.bound 2^-23 2^-124 (steps K)
-   (C + tolDot)`, with `C = Σ_{t < steps K} |chunkSum t|`. `tolDot` sums, over the chunks
-   `t < steps K` (`steps`, line 168; `chunk`, line 322: `k ∈ [64t, min(64t + 64, K))`),
-   `(1 + rho)^(steps K − 1 − t) · (rho · (dev t + chunkMag t) + alpha)`. The helpers are `rho`,
-   `alpha` (lines 307, 310: `relDot16 64`, `absDot16 64`), `chunkSum`, `chunkMag`, `mag16`, `pre`
-   and `dev` (lines 325, 330, 319, 334, 340). The bound holds whatever order the atomic additions
-   ran in. With a non-finite input, only "holds a value" is asked;
+   The reference `dotSum` (line 307) is the exact sum `Σ_{k<K} va k · vb k` in the rationals.
+   `tol` (line 348) is `2^-15 · tolMag va vb K + 2^-100`, with `tolMag` (line 342)
+   `Σ_{t ≤ T} dev t + Σ_{t < T} chunkMag t` over the chunks `t < T = steps K` (`steps`, line 168;
+   `chunk`, line 316: `k ∈ [64t, min(64t + 64, K))`). The helpers are `chunkSum`, `chunkMag`,
+   `mag16`, `pre` and `dev` (lines 319, 324, 313, 328, 334). The bound holds whatever order the
+   atomic additions ran in. With a non-finite input, only "holds a value" is asked;
 2. the frame: every byte outside the matrix `c` (`c.elems (cIdx d)`, `cIdx` line 185) is
    unchanged: `a`, `b`, and the elements of `c`'s storage outside the matrix.
 
-**What you are given** (`Assumptions`, line 382):
+**What you are given** (`Assumptions`, line 373):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 57 is within
@@ -48,8 +46,8 @@ valid, every element of the matrix `c` a finite zero), every outcome of the laun
   `2^-23·|o + v| + 2^-124` of `o + v` when `o`, `v` are finite and the sum is in range;
 - `atomic_total` (`Rules.Num.AtomicAddTotal P Format.binary32`): that atomic has a result.
 
-**The kernel, as the model runs it** (`streamk_matmul_kernel`, line 49; `model` line 275, `launch`
-line 285): a 1-D grid of `num_programs` programs with `BLOCK_M = BLOCK_N = 128`, `BLOCK_K = 64`.
+**The kernel, as the model runs it** (`streamk_matmul_kernel`, line 49; `model` line 276, `launch`
+line 286): a 1-D grid of `num_programs` programs with `BLOCK_M = BLOCK_N = 128`, `BLOCK_K = 64`.
 Program `pid` owns the iterations `[pid · iters_per_program, end)`, `end = min(…, total_iters)`, and
 runs a `while it < end` loop. Each trip takes one tile (`tile = it / iters_per_tile`), runs a
 `for kk in [k_first, k_last)` loop of two masked loads and one `tl.dot` per step into a zero
@@ -80,15 +78,17 @@ with the `SafeA.loop` constructor, by induction on `end − it`, which each trip
   program, the cells of `C` are equal or disjoint and present, and `c`'s matrix is disjoint from
   the reads (`c_a`, `c_b`); the postcondition `Q i log m` is `PermInv`, pairing the log with the
   program's partial sums (`Paired`, `Paired.lanes`);
-- the value part of `Post`: one program's part of a tile is within the `dev`-based recursion of
-  `tolDot` (`dot`, one step by `DotLift.dotAdd_step`; its own induction, README `## Tolerances`);
-  the parts of a tile are disjoint chunk ranges covering `0 … steps K − 1` (`cover`, `total`); a
-  split element's atomic additions are bounded by `replay_err_shared` with `accStep_atomicAdd`
-  (`atomic`) and `accStep_other`, under its room hypothesis;
+- the value part of `Post`, `|c − S| ≤ 2^-15 · tolMag + 2^-100`: derive the fine bound
+  `tolDot + DotLoop.bound 2^-23 2^-124 T (C + tolDot)` of README Tolerances (one program's part of
+  a tile is within the `dev`-based recursion of `tolDot`: `dot`, one step by
+  `DotLift.dotAdd_step`, its own induction; the parts of a tile are disjoint chunk ranges covering
+  `0 … steps K − 1` (`cover`, `total`); a split element's atomic additions are bounded by
+  `replay_err_shared` with `accStep_atomicAdd` (`atomic`) and `accStep_other`, under its room
+  hypothesis), then relax it by the inequality chain there (`T ≤ 128`; `C` bounded by the `dev` terms);
 - the frame: the bytes outside `W i` and `C` keep their initial value (`shared`'s last part).
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `idx_lt` (line 438) and `cdiv_cover` (line 443) can be reused.
+`setup_*_ok` theorems; `idx_lt` (line 429) and `cdiv_cover` (line 434) can be reused.
 
 ## Specification
 
@@ -108,24 +108,25 @@ cdiv(K, 64)` holds the products `k ∈ [64t, min(64t + 64, K))` (`chunk`), one `
   with `mag16 q = |q|`, except that a nonzero `q` below `2^-14` (a subnormal) counts as `2^-14`, as
   the tensor core aligns it (`Rules.Num.liftMag .f16`, by which `DotF16` counts);
 - `pre s = Σ_{u<s} chunkSum u`, and `dev t = max_{s ≤ t} |pre t − pre s|`: the largest exact value
-  the accumulator of a program can hold before chunk `t`, whichever chunk `s` its range starts at;
-- `tolDot = Σ_{t<T} (1 + ρ)^(T−1−t)·(ρ·(dev t + chunkMag t) + α)`, `ρ = relDot16 64 = 66·2^-22`,
-  `α = absDot16 64 = 66·2^-126` (`Rules.Num.DotF16`);
-- `tol = tolDot + DotLoop.bound 2^-23 2^-124 T (C + tolDot)`, `C = Σ_{t<T} |chunkSum t|`,
-  `DotLoop.bound r a T B = ((1+r)^T − 1)·B + T·(1+r)^T·a` (`2^-23`, `2^-124`:
-  `Rules.Num.AtomicAddF32`).
+  the accumulator of a program can hold at chunk boundary `t`, whichever chunk `s` its range starts
+  at;
+- `tolMag = Σ_{t ≤ T} dev t + Σ_{t < T} chunkMag t`: the accumulators' magnitudes at the `T + 1`
+  boundaries plus the products' lifted magnitudes;
+- **`|c − S| ≤ 2^-15 · tolMag + 2^-100`**.
 
-Its size follows the element's own partial sums, not `Σ|a·b|`: on `torch.randn` inputs, where
-`|pre t|` grows like `√(64t)` and `Σ_t chunkMag t ≈ (2/π)·K`, it is about `ρ·(Σ_t dev t + Σ|a·b|)`.
+Its size follows the element's own partial sums, not `T·Σ|a·b|`: on `torch.randn` inputs, where
+`|pre t|` grows like `√(64t)` and `Σ_t chunkMag t ≈ (2/π)·K`, `tolMag` is about `Σ_t dev t + Σ|a·b|`.
 What it rejects (`check_gpu.py`, at every tested `K` from 64 to 8192, the test's `4096`, `4097`
-included): on `randn` inputs, the result rounded to `bfloat16` (worst error / tolerance `3.1`–`124`),
-one 64-chunk left out (`175`–`35000`), and a `float16` accumulation chunk by chunk (`3.2`–`17`);
-with the mass in the last chunk, the result rounded to `float16` (`16`–`31`). It does not reject the
-result rounded to `float16` on `randn` inputs from about `K = 2048` (ratio `0.70` at `K = 4096`): the
-`float16` rounding of `|S| ≈ √K` is then below `ρ·Σ|a·b|`, the library's `DotF16` constant times the
-products' magnitude (Library requests). The device's error is `0.002`–`0.010` of the tolerance on
-the test's launches. On every input `tol` is at most `0.21%` of `A = Σ_k mag16(va k)·mag16(vb k)`,
-plus `10^-33`, at `K ≤ 2^13` (`dev t + chunkMag t ≤ Σ_{u≤t} chunkMag u ≤ A` and `C ≤ A`).
+included): on `randn` inputs, the result rounded to `bfloat16` (worst error / tolerance `1.7`–`41`),
+one 64-chunk left out (`96`–`13000`), and a `float16` accumulation chunk by chunk (`1.7`–`5.6`);
+with the mass in the last chunk, the result rounded to `float16` (`7.7`–`8.0`). It does not reject the
+result rounded to `float16` on `randn` inputs from about `K = 1024` (ratio `0.93` at `K = 1024`,
+`0.37` at `K = 4096`): the `float16` rounding of `|S| ≈ √K` is then below `2^-15·Σ|a·b|`, about the
+library's `DotF16` constant times the products' magnitude (Library requests). The median of
+`tol / |S|` over the test's host launches is `2.6·10^-4` to `3.9·10^-3`. The device's error is
+`0.0004`–`0.0051` of the tolerance on the test's launches. On every input `tol` is at most `0.4%` of
+`A = Σ_k mag16(va k)·mag16(vb k)`, plus `2^-100`, at `K ≤ 2^13` (`dev t ≤ A`, so
+`tolMag ≤ (T + 2)·A ≤ 130·A`).
 
 With a NaN or an infinity in row `i` of `a` or column `j` of `b`, `Post` says only that element
 `(i, j)` holds a value.
@@ -144,7 +145,7 @@ With a NaN or an infinity in row `i` of `a` or column `j` of `b`, `Post` says on
 | `M_pos`, `N_pos`, `K_pos` | `M, N, K > 0` | the host asserts it (line 75) |
 | `M_le` | `M + 127 ≤ 2^31` | `M` is an `int32`; the tile rows `pid_m·128 + i` (line 48) stay below `cdiv(M, 128)·128 ≤ M + 127` |
 | `N_le` | `N + 128 ≤ 2^31` | `N` is an `int32`; `tl.cdiv(N, 128)` computes `N + 127` in `int32` (line 37), and the tile columns stay below `2^31` |
-| `K_le` | `K ≤ 2^13` | keeps the tolerance below `0.21%` of `A = Σ mag16·mag16` on every input; also `K + 63 < 2^31` (line 38) |
+| `K_le` | `K ≤ 2^13` | at most `128` chunks, which the relaxation of Tolerances uses; keeps the tolerance below `0.4%` of `A = Σ mag16·mag16` on every input; also `K + 63 < 2^31` (line 38) |
 | `N_mul`, `N_le17` | `N % 128 = 0`, `N ≤ 2^17` | `N` is a model dimension (the GEMM's output features) |
 | `K_mul`, `K_le17` | `K % 128 = 0`, `K ≤ 2^17` | `K` is a model dimension (the GEMM's inner features) |
 | `M_le22` | `M ≤ 2^22` | `M` counts tokens, a context length |
@@ -198,7 +199,11 @@ multiples of 128 (Exclusions).
 
 ## Tolerances
 
-From the library's facts, for one element `(i, j)` with finite inputs:
+**The fine bound**, from the library's facts, for one element `(i, j)` with finite inputs:
+`tolDot + DotLoop.bound 2^-23 2^-124 T (C + tolDot)`, with
+`tolDot = Σ_{t<T} (1 + ρ)^(T−1−t)·(ρ·(dev t + chunkMag t) + α)`, `ρ = relDot16 64 = 66·2^-22`,
+`α = absDot16 64 = 66·2^-126` (`Rules.Num.DotF16`), `C = Σ_{t<T} |chunkSum t|`, and
+`DotLoop.bound r a T B = ((1+r)^T − 1)·B + T·(1+r)^T·a` (`2^-23`, `2^-124`: `Rules.Num.AtomicAddF32`).
 - **One `tl.dot` step.** Chunk `t` is one `tl.dot` of `K = 64` into the accumulator `acc` (the lanes
   past `K` load `+0`, of lifted magnitude `0`). `DotF16` (`DotLiftAcc`, one step by
   `DotLift.dotAdd_step`) gives a result within `ρ·(|acc| + chunkMag t) + α` of `acc + chunkSum t`,
@@ -220,12 +225,31 @@ From the library's facts, for one element `(i, j)` with finite inputs:
   since every partial and running sum is below `2^47`.
   Each partial is within its part's error of `pre e − pre s`, of magnitude at most
   `Σ_{s≤t<e} |chunkSum t|`, so `Σ|partial| ≤ C + tolDot`. Their exact values add up to `S`, their
-  errors to at most `tolDot`: `|c − S| ≤ tol`.
+  errors to at most `tolDot`: `|c − S| ≤ tolDot + DotLoop.bound 2^-23 2^-124 T (C + tolDot)`.
+
+**Relaxation to `Post`'s form.** `K ≤ 2^13` gives `T ≤ 128`. Let `M_0 = Σ_{t<T}(dev t + chunkMag t)`,
+so `tolMag = M_0 + dev T`.
+- `(1 + ρ)^127 < 1.0021`, so `tolDot ≤ 1.0021·(66/64)·2^-16·M_0 + 1.0021·T·α ≤ 1.0335·2^-16·M_0 + 2^-112`.
+- `f = (1 + 2^-23)^T − 1 ≤ 128·2^-23·(1 + 2^-23)^128 ≤ 1.00002·2^-16`, and
+  `T·(1 + 2^-23)^T·2^-124 ≤ 2^-116`.
+- `C` against `tolMag`: `dev t ≥ |pre t − pre (t−1)| = |chunkSum (t−1)|` for
+  `1 ≤ t ≤ T`, so `Σ_{t<T} dev t ≥ C − |chunkSum (T−1)|`, and `Σ_{t<T} chunkMag t ≥ C`
+  (`|chunkSum t| ≤ chunkMag t`, as `mag16 q ≥ |q|`); hence `M_0 ≥ 2C − |chunkSum (T−1)|` and
+  `dev T ≥ |chunkSum (T−1)|`.
+- The fine bound is `(1 + f)·tolDot + f·C + T(1+2^-23)^T·2^-124 ≤ 1.0336·2^-16·M_0 + 1.00002·2^-16·C + 2^-111`.
+  With the previous step, `1.00002·C ≤ 0.9664·M_0 + 2·dev T` (as `0.9664·(2C − x) + 2x ≥ 1.93·C`
+  for `x = |chunkSum (T−1)|`), so the fine bound is at most
+  `2^-16·(2·M_0 + 2·dev T) + 2^-111 ≤ 2^-15·tolMag + 2^-100 = tol`.
+
+At `T ≤ 64` (every setup launch) the atomic term is at most half of this; the `T + 1`-th `dev` term
+covers the worst case `T = 128` with all the mass in the last chunk.
 
 Meaningful (Specification): it rejects a `bfloat16` result, a lost chunk and a `float16`
-accumulation on the test's kind of inputs, and is `100`–`400` times the measured error on the test's
-launches (worst error / tolerance `0.0024`–`0.0100`; `0.036` over every case). The remaining gap is
-the library's `DotF16` constant, `66·2^-22` per 64-long `tl.dot` relative to `|acc| + chunkMag`.
+accumulation on the test's kind of inputs, and is `200`–`2500` times the measured error on the test's
+launches (worst error / tolerance `0.0004`–`0.0051`; `0.018` over every case). The fine bound is
+`1.9`–`2.2` times tighter on the test's launches (median `tol / |S|` `1.2·10^-4` to `2.1·10^-3`) and
+up to `3.8` times with the mass in the last chunk. The remaining gap is the library's `DotF16`
+constant, `66·2^-22` per 64-long `tl.dot` relative to `|acc| + chunkMag`.
 
 ## Exclusions
 
@@ -261,7 +285,7 @@ None needed for this claim. The claim cites `DotF16`; the library also states `D
   programs and a padded `c` in a sentinel buffer on the smaller shapes; edges: `1 × 1 × 1`,
   `129 × 257 × 4100`, `K = 2^13`, operands of magnitude `~2000`, subnormal operands, NaN and
   infinities, all-positive inputs, transposed `a` and `b`, `1` to `2048` programs. Worst error /
-  tolerance over every element with finite inputs: `0.0024`–`0.0100` on the test, `0.036` overall;
+  tolerance over every element with finite inputs: `0.0004`–`0.0051` on the test, `0.018` overall;
   every such element finite; `a`, `b` unchanged; frame holds. Negative tests at `K = 64 … 8192`
   (Specification) all fail `Post` as they must. 44 of 44 cases pass. Outside `Inst.ok` (`N` or
   `K` not a multiple of 128) and passing as well: the test's `1000³`, `257 × 129 × 4097` and `64³`,

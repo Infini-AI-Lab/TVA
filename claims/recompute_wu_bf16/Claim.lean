@@ -650,10 +650,10 @@ def uMag (d : Inst) (m : Mem) (s0 len t h c : Nat) : ℚ :=
       Rules.Num.liftMag .bf16 (vbV d m (colTok s0 t j) h c).toRat else 0
 
 /-- The tolerance of `u`: one `bfloat16` rounding of the result (`2^-8·|ref|`), the dot product's
-error (`DotBF16` at `K = 64`, carried through that rounding) and the rounding's subnormal floor. -/
+error relative to the lifted magnitude `L` (`2^-15·L`), and an absolute floor (`2^-119`) (README,
+Tolerances). -/
 def tolU (ref L : ℚ) : ℚ :=
-  2 ^ (-8 : ℤ) * |ref| + (1 + 2 ^ (-8 : ℤ)) * (Rules.Num.relDot16 64 * L + Rules.Num.absDot16 64) +
-    2 ^ (-134 : ℤ)
+  2 ^ (-8 : ℤ) * |ref| + 2 ^ (-15 : ℤ) * L + 2 ^ (-119 : ℤ)
 
 /-- `u[s0 + t, h, c]` in the final memory: a finite `bfloat16` within `tolU` of `uRef`. -/
 def CellU (d : Inst) (init fin : Mem) (s0 len t h c : Nat) : Prop :=
@@ -694,23 +694,17 @@ noncomputable def wFloor (d : Inst) (m : Mem) (s0 len t h c : Nat) : ℝ :=
     (Rules.Num.liftMag .bf16 (aV d m (s0 + t) h j).toRat : ℝ) * (|kbX d m (colTok s0 t j) h c| + 1)
     else 0
 
-/-- The coefficient of `wMag` in `tolW`: each operand's error (the products, `tl.math.exp2`'s
-`2^-22`, the rounding to `bfloat16` before the dot) and the dot product's error. With a `float32`
-`beta` one `bfloat16` rounding per operand, `2^-8 + 2^-14`; with a `bfloat16` `beta` two (line 129's
-`bfloat16` product and line 132's conversion), `2^-7 + 2^-13` (README, Tolerances). -/
-noncomputable def cW (d : Inst) : ℝ :=
-  if d.bbf then 2 ^ (-7 : ℤ) + 2 ^ (-13 : ℤ) else 2 ^ (-8 : ℤ) + 2 ^ (-14 : ℤ)
-
-/-- The tolerance of `w`: one `bfloat16` rounding of the result (`2^-8·|ref|`); the operands' and the
-dot product's errors, `c·wMag` (`c = cW d`); the absolute floors (README, Tolerances). -/
-noncomputable def tolW (c ref M F : ℝ) : ℝ :=
-  2 ^ (-8 : ℤ) * |ref| + c * M + 2 ^ (-124 : ℤ) * F + 2 ^ (-119 : ℤ)
+/-- The tolerance of `w`: `2^-6` of the magnitude `M = wMag` (the rounding of the result, at most
+`2^-8·|ref| ≤ 2^-8·M`, each operand's one or two roundings and the dot product's error), the
+absolute floors' `2^-124·F` (`F = wFloor`) and `2^-119` (README, Tolerances). -/
+noncomputable def tolW (M F : ℝ) : ℝ :=
+  2 ^ (-6 : ℤ) * M + 2 ^ (-124 : ℤ) * F + 2 ^ (-119 : ℤ)
 
 /-- `w[s0 + t, h, c]` in the final memory: a finite `bfloat16` within `tolW` of `wRef`. -/
 def CellW (d : Inst) (init fin : Mem) (s0 len t h c : Nat) : Prop :=
   ∃ o : BF16, bfAt d.w fin (wIdx d (s0 + t) h c) = some o ∧ o.isFinite = true ∧
     |o.toReal - wRef d init s0 len t h c| ≤
-      tolW (cW d) (wRef d init s0 len t h c) (wMag d init s0 len t h c) (wFloor d init s0 len t h c)
+      tolW (wMag d init s0 len t h c) (wFloor d init s0 len t h c)
 
 /-- Every column of `u` and `w` of token `t < len` of the sequence at `s0`, head `h`. -/
 def TokOk (d : Inst) (init fin : Mem) (s0 len t h : Nat) : Prop :=

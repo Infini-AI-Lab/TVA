@@ -13,7 +13,7 @@ the model map.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.LayerNormFwdF16.main : Statement` (`Statement`:
-`Claim.lean` line 404). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 413). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -21,28 +21,30 @@ the model map.
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 173), and every initial memory `init` that `Pre` accepts (line 353), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 374).
+(`Inst.ok`, line 173), and every initial memory `init` that `Pre` accepts (line 362), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 383).
 
-**What `Post` asks** (line 374): for every row `t < M`, `RowDone d init fin t` (line 364), and the
+**What `Post` asks** (line 383): for every row `t < M`, `RowDone d init fin t` (line 373), and the
 frame. The reference is the exact real LayerNorm of row `t` of `x`, read from `init` as reals
-(`meanRef` line 271, `varRef` 279, `rstdRef` 286, `zRef` 290, `yRef` 294, with `weight[j]` and
+(`meanRef` line 272, `varRef` 280, `rstdRef` 287, `zRef` 291, `yRef` 295, with `weight[j]` and
 `bias[j]`); element `(t, j)` of `x` and `y` is `idx d t j = t·N + j` (line 153). `RowDone` has three
 parts:
 1. `mean[t]` reads in `fin` as a finite `float32` `c` with
-   `|c.toReal - meanRef d init t| ≤ meanTol d init t` (`meanTol`, line 302);
+   `|c.toReal - meanRef d init t| ≤ meanTol d init t` (`meanTol`, line 303:
+   `(D + 4)·2^-23·A + 2^-140`, `A = absMean`);
 2. `rstd[t]` reads as a finite `float32` `c` with `|c.toReal - rstdRef d init t| ≤ rstdTol d init t`
-   (`rstdTol`, line 322, built from `cond` 307, `gam` 311, `mTerm` 317): relative when
-   `cond ≤ 1/2`, and `(1 + gam)/sqrt(eps) + 2^-140` otherwise;
+   (`rstdTol`, line 326, with `cond` 308): `(D·2^-21 + 2^-140/eps + cond/4)·rstdRef + 2^-140` when
+   `cond ≤ 1/2`, and `2/sqrt(eps)` otherwise;
 3. for every `j < N`: `y[idx t j]` reads as a finite `float16` `c` with
-   `|c.toReal - yRef d init t j| ≤ yTol d init t j` (`yTol`, line 338, built from `zTol` 328, which
-   has the same two cases).
+   `|c.toReal - yRef d init t j| ≤ yTol d init t j` (`yTol`, line 350:
+   `2^-9·yMag + 2·|w|·zTol + 2^-24`, with `yMag = |w|·|zRef| + |b|` line 345 and `zTol` line 335,
+   built from `gam` 313 and `mTerm` 320, which has the same two cases).
 
 These hold on every row; the two cases are inside the tolerances, not guards on what is asked.
-`depth` (line 299) is `Nat.clog 2 BLOCK`. The frame: every byte outside `outBytes d` (line 169:
+`depth` (line 300) is `Nat.clog 2 BLOCK`. The frame: every byte outside `outBytes d` (line 169:
 the `M·N` elements of `y`, the `M` elements of `mean` and `rstd`) is unchanged.
 
-**What you are given** (`Assumptions`, line 381):
+**What you are given** (`Assumptions`, line 390):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `sqrt_total` (`Num.MathTotal P .sqrt .binary32`): `tl.sqrt` (source line 81, `Claim.lean`
@@ -83,16 +85,18 @@ one trip writes row `row` of `y` (PROVER_GUIDE §4).
 - parts 1–3: the rounding of each step, the sums by `sum_err_depth` with `SumDepth.depth_le`, `N`
   exact through `tl.ItofRel` (`safe_itof`), `safe_mul_add`, `div_full`, `sqrt_acc` (its input is at
   least `2^-126` from `eps_ge`), the conversion of the host's `eps` (`FloatV.hostF32`), and `Pre`'s
-  `YRoom` (line 346), which keeps `y`'s `float32` value below `2^15·(1 + 3·2^-24)` so the `float16`
-  conversion does not overflow; README `## Tolerances` gives the derivation, steps 1–5;
+  `YRoom` (line 355), which keeps `y`'s `float32` value below `2^15·(1 + 3·2^-24)` so the `float16`
+  conversion does not overflow; README `## Tolerances` gives the derivation of the fine bounds,
+  steps 1–5, then relax them to `rstdTol` and `yTol` as its step 6 shows (`meanTol` is the fine
+  bound itself);
 - the frame: the bytes no program writes are `init`'s.
 
 `n_dim` and `m_ctx` (real model shapes) are not needed by the derivation; they give `N ≥ 128`
 (so `D ≥ 7`) and at most `2^22` programs.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mkInst_ok`,
-`eps1e5_facts`, `setup_test_ok` and `setup_bench_ok`; `bytes_disj` (line 446) and `elems_disj`
-(line 454) can be reused.
+`eps1e5_facts`, `setup_test_ok` and `setup_bench_ok`; `bytes_disj` (line 455) and `elems_disj`
+(line 463) can be reused.
 
 ## Specification
 
@@ -115,21 +119,28 @@ indexing. With `D = log₂ BLOCK_SIZE` (`depth`: the depth of the reductions' tr
 | Output | Tolerance |
 |---|---|
 | `mean` | `meanTol = (D + 4)·2^-23·A + 2^-140` |
-| `rstd` | `cond ≤ 1/2`: `rstdTol = rstdRef·(gam + mTerm) + 2^-140`; `cond > 1/2`: `(1 + gam)/sqrt(eps) + 2^-140`; `gam = (D + 8)·(2^-23 + 2^-145/eps)`, `mTerm = cond/8 + cond²/4` |
-| `y` | `yTol = 2^-10·|yRef| + (1 + 2^-10)·|w|·zTol + 2^-21·(|w|·|zRef| + |b|) + 2^-24`, with `zTol = (1 + 2·gam)·(|zRef|·(gam + mTerm) + cond) + 2^-140·(1 + rstdRef)` when `cond ≤ 1/2`, and `zTol = |zRef| + (1 + 2·gam)·(|x − meanRef| + meanTol)/sqrt(eps) + 2^-140·(1 + 1/sqrt(eps))` when `cond > 1/2` |
+| `rstd` | `cond ≤ 1/2`: `rstdTol = (D·2^-21 + 2^-140/eps + cond/4)·rstdRef + 2^-140`; `cond > 1/2`: `2/sqrt(eps)` |
+| `y` | `yTol = 2^-9·yMag + 2·|w|·zTol + 2^-24`, `yMag = |w|·|zRef| + |b|`, with `zTol = (1 + 2·gam)·(|zRef|·(gam + mTerm) + cond) + 2^-140·(1 + rstdRef)` when `cond ≤ 1/2`, and `zTol = |zRef| + (1 + 2·gam)·(|x − meanRef| + meanTol)/sqrt(eps) + 2^-140·(1 + 1/sqrt(eps))` when `cond > 1/2`; `gam = (D + 8)·(2^-23 + 2^-145/eps)`, `mTerm = cond/8 + cond²/4` |
+
+In words: the mean is within `(D + 4)·2^-23` of the row's mean magnitude; `rstd` is within
+`D·2^-21` relatively, plus `cond/4` for the mean's error (and a term in `1/eps` that is negligible
+at real `eps`); `y` is within `2^-9` of its terms' magnitude `yMag`, plus twice the standardised
+value's error `zTol` (about `cond` on a well-conditioned row) scaled by `|w|`. `zTol` is also what
+`Pre`'s `YRoom` uses.
 
 They hold on every row, with no condition on the data's spread. On the file's rows (`x ≈ −2.3 ±
 0.5`, `A ≈ 2.3`, `rstdRef ≈ 2`) at `BLOCK_SIZE = 8192` (`D = 13`, the test) they are `2.0·10^-6`
-relative for the mean, `3.7·10^-6` relative for `rstd` (`cond ≈ 9·10^-6`), and for `y` `2^-10·|y|`
-plus about `10^-5·|w|`: `tol/|y|` has median `9.9·10^-4` (larger only where `yRef` is near `0`);
-at `N = 15872` (`D = 14`) `2.1·10^-6`, `3.9·10^-6` and the same for `y`. The `y` tolerance is about twice the output's `float16` rounding. A kernel that drops one term
+relative for the mean, `8.5·10^-6` relative for `rstd` (`cond ≈ 9·10^-6`), and for `y`
+`2^-9·yMag` plus about `2·10^-5·|w|`: `tol/|y|` has median `2.0·10^-3` (larger only where `yRef`
+is near `0`); at `N = 15872` (`D = 14`) `2.1·10^-6`, `9.1·10^-6` and the same for `y`. The `y`
+tolerance is about four times the output's `float16` rounding. A kernel that drops one term
 of the mean's sum, one term of the variance's sum, or divides the variance by `N − 1` fails `Post`
-on these rows (`check_gpu.py`, negatives: error / tolerance `106`, `203`, `17` at `N = 8192`;
-`49`, `80`, `8` at `N = 15872`). The tolerances grow with `cond`, which is at most `meanTol/sqrt(eps)`:
+on these rows (`check_gpu.py`, negatives: error / tolerance `106`, `87`, `7.2` at `N = 8192`;
+`49`, `34`, `3.5` at `N = 15872`). The tolerances grow with `cond`, which is at most `meanTol/sqrt(eps)`:
 a row whose values share a large offset and differ by little loses the variance to the computed
 mean's rounding (the two-pass algorithm in `float32`). Up to `cond = 1/2` the tolerances stay
-relative (`rstd` within about `gam + cond/8` of `rstdRef`, relatively); beyond it they say only what
-`eps` bounds: `rstd` and `rstdRef` are both at most about `1/sqrt(eps)`, and the standardised value
+relative (`rstd` within `D·2^-21 + cond/4` of `rstdRef`, relatively, at real `eps`); beyond it
+they say only what `eps` bounds: `rstd` and `rstdRef` are both at most about `1/sqrt(eps)`, and the standardised value
 is at most about `(|x − meanRef| + meanTol)/sqrt(eps)`. Such a row has its values within about
 `2·meanTol` of one another (a constant row of `1000` at `eps = 1e-5` is one).
 
@@ -247,10 +258,10 @@ the deviations); each loop makes one trip, so `_mean = +0 + a` and `_var = mul_a
    0.204·cond ≤ 0.102` and `E²/(s² + eps) ≤ 0.3844·cond²`, so `r*/rstdRef = sqrt((s² + eps)/(S₀/N + eps))`
    is at most `1/sqrt(1 − 0.204·cond) ≤ 1 + 0.111·cond` and at least
    `1/sqrt(1 + 0.204·cond + 0.3844·cond²) ≥ 1 − 0.102·cond − 0.193·cond²`: within `mTerm` of `1`
-   (at most `0.82·mTerm`). Then `|rstd' − rstdRef| ≤ rstdRef·(ρ(1 + mTerm) + mTerm) ≤ rstdTol`
+   (at most `0.82·mTerm`). Then `|rstd' − rstdRef| ≤ rstdRef·(ρ(1 + mTerm) + mTerm) ≤ rstdRef·(gam + mTerm) + 2^-140`
    (`ρ·(1 + 1/8) ≤ 0.90·gam`, the absolute part included). Case `cond > 1/2`: both are positive, `rstdRef ≤ 1/sqrt(eps)`, and the
    input of `tl.sqrt` is at least `eps(1 − 10u)`, so `rstd' ≤ (1 + 14u)/sqrt(eps) + 2^-148`;
-   `|rstd' − rstdRef| ≤ max(rstd', rstdRef) ≤ rstdTol` (`gam ≥ 18u`).
+   `|rstd' − rstdRef| ≤ max(rstd', rstdRef) ≤ (1 + gam)/sqrt(eps) + 2^-140` (`gam ≥ 18u`).
 4. **Standardised value.** Lane `j` of line 92 rounds `(1 − α'_j)(x j − meanRef) − e'_j` with
    `|α'_j| ≤ u` and `|e'_j| ≤ E` (as line 78, the branch chosen anew), so
    `z' = fl(fl((1 − α'_j)(x j − meanRef) − e'_j)·rstd')` and
@@ -268,13 +279,30 @@ the deviations); each loop makes one trip, so `_mean = +0 + a` and `_var = mul_a
    `y' = float16(y32)`: `u16·|y32| + η16`, and no overflow: `|y32| ≤ |w|(|zRef| + zTol) + |b| +
    (rounding) ≤ 2^15·(1 + 3u) < 65504` (`YRoom`). So
    `|y' − yRef| ≤ 2^-11·|yRef| + (1 + 2^-11)((1 + 2u)·|w|·zTol + 2u·|w||zRef| + u·|b| + 2η) + 2^-25`,
-   within `yTol` (`(1 + 2^-11)(1 + 2u) ≤ 1 + 2^-10`; `2u(1 + 2^-11) ≤ 2^-21`; the absolute part
+   within `2^-10·|yRef| + (1 + 2^-10)·|w|·zTol + 2^-21·(|w|·|zRef| + |b|) + 2^-24`
+   (`(1 + 2^-11)(1 + 2u) ≤ 1 + 2^-10`; `2u(1 + 2^-11) ≤ 2^-21`; the absolute part
    below `2^-24`). The relative `2^-10` is twice the rounding's `2^-11`.
+6. **The stated tolerances.** Steps 1–5 give the fine bounds: `meanTol` itself; for `rstd`,
+   `rstdRef·(gam + mTerm) + 2^-140` (`cond ≤ 1/2`) or `(1 + gam)/sqrt(eps) + 2^-140`
+   (`cond > 1/2`); for `y`, `2^-10·|yRef| + (1 + 2^-10)·|w|·zTol + 2^-21·(|w|·|zRef| + |b|) +
+   2^-24`. Each is at most the stated one on every covered instance (`N ≥ 128`, so
+   `7 ≤ D ≤ 15`; `eps ≥ 2^-125`):
+   - `rstd`, `cond ≤ 1/2`: `gam = (D + 8)·2^-23 + (D + 8)·2^-145/eps ≤ D·2^-21 + 2^-140/eps`
+     (`D + 8 ≤ 4·D` for `D ≥ 3`; `D + 8 ≤ 23 < 2^5`), and `mTerm = cond/8 + cond²/4 ≤ cond/4`
+     (`cond ≤ 1/2`).
+   - `rstd`, `cond > 1/2`: `gam ≤ 23·(2^-23 + 2^-20) < 2^-15` and `1/sqrt(eps) ≥ 2^-63`, so
+     `(1 + gam)/sqrt(eps) + 2^-140 ≤ (1 + 2^-14)/sqrt(eps) ≤ 2/sqrt(eps)`.
+   - `y`: `|yRef| ≤ yMag`, so `2^-10·|yRef| + 2^-21·yMag ≤ (2^-10 + 2^-21)·yMag ≤ 2^-9·yMag`;
+     `(1 + 2^-10)·|w|·zTol ≤ 2·|w|·zTol` (`zTol ≥ 0`); `2^-24` is kept.
 
-Against the kernel's errors on the GPU: the `y` tolerance is twice the output's `float16` rounding,
-which dominates the kernel's error (ratio `0.499`); `meanTol` and `rstdTol` are about ten times the
-device's errors (ratios up to `0.10` and `0.06`): they take every rounding of a depth-`D` tree at its
-worst, where the device's partly cancel.
+Against the kernel's errors on the GPU: the `y` tolerance is about four times the output's
+`float16` rounding, which dominates the kernel's error (ratio `0.250`); `meanTol` and `rstdTol` are
+about ten and thirty times the device's errors (ratios up to `0.10` and `0.053`): they take every
+rounding of a depth-`D` tree at its worst, where the device's partly cancel. Against the fine
+bounds of steps 1–5, on the file's launches (the test and the 30 benchmark launches): `rstdTol` is
+`2.3×` larger (`tol/rstd` median `8.6·10^-6`, worst `9.2·10^-6`, against `3.7·10^-6` and
+`3.9·10^-6`); `yTol` is `2×` larger at the median (`tol/|y|` median `2.0·10^-3` against
+`9.9·10^-4`), more where `yRef` cancels to near `0` (`yMag ≫ |yRef|`); `meanTol` is unchanged.
 
 ## Exclusions
 
@@ -333,12 +361,12 @@ worst, where the device's partly cancel.
    `eps = 2^-125`) and near-constant rows; `|x|` up to `65504`; subnormal `x`; `w = b = 0`; spike
    rows with `|w| = 960`, `|b| = 1000`; `|w| = |b|` up to `2^10`. Every row checked. The frame holds
    everywhere (guard bands around `y`, `mean`, `rstd`; inputs unchanged), every element written and
-   finite. Worst error / tolerance: `y` `0.499` (the `float16` rounding; margin `2.0×`), `rstd`
-   `0.060`, `mean` `0.101` (`N = 3`); on the file's launches `0.499`, `0.056`, `0.092`. The
+   finite. Worst error / tolerance: `y` `0.250` (the `float16` rounding; margin `4.0×`), `rstd`
+   `0.053`, `mean` `0.101` (`N = 3`); on the file's launches `0.250`, `0.050`, `0.092`. The
    constant rows with `eps = 2^-125` are outside `Pre` (`YRoom`, Exclusions); their `mean` and
    `rstd` are checked and within tolerance. Negatives
    (wrong outputs at the test's shape and at `N = 15872`): a mean that drops one term, a variance
    that drops one term, the variance divided by `N − 1`, an all-zero `y`, `y` with the weights
-   shifted by one column; `Post` rejects each (error / tolerance at least `8`).
+   shifted by one column; `Post` rejects each (error / tolerance at least `3.4`).
    The edges `N = 2, 3, 1000, 32767` are outside `n_dim`: they check `Post` beyond the claim.
    The two launches outside `Inst.ok` behave as Exclusions says. PASS.

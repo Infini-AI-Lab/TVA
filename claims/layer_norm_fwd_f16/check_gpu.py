@@ -6,7 +6,7 @@ runs the tutorial's test and its benchmark: the script loads it with `benchmark.
 makes the benchmark's forward launches itself), on the launches of `SETUP.md` and on launches at the
 edges of `Inst.ok` and `Pre`. For every row it computes `Post`'s reference and tolerances from the
 host's inputs in float64 exactly as `Claim.lean` states them (`meanRef`, `varRef`, `rstdRef`,
-`zRef`, `yRef`, `meanTol`, `cond`, `gam`, `rstdTol`, `zTol`, `yTol`), checks `YRoom` (`Pre`), and
+`zRef`, `yRef`, `meanTol`, `cond`, `gam`, `mTerm`, `rstdTol`, `zTol`, `yMag`, `yTol`), checks `YRoom` (`Pre`), and
 reports, for `mean`, `rstd` and `y`, the largest error / tolerance and that every element is
 finite. The frame: the host's `torch.empty_like` and `torch.empty` are made to return views into
 larger buffers filled with a sentinel (NaN), whose guard bands must be unchanged and whose output
@@ -65,13 +65,14 @@ def tolerances(x, w, b, eps, BLOCK):
     gam = (D + 8) * (2.0 ** -23 + 2.0 ** -145 / eps)
     mTerm = cond / 8 + cond ** 2 / 4
     reg = cond <= 0.5          # the two cases of rstdTol and zTol
-    rstdTol = torch.where(reg, rstdRef * (gam + mTerm), (1 + gam) / math.sqrt(eps)) + 2.0 ** -140
+    rstdTol = torch.where(reg, (D * 2.0 ** -21 + 2.0 ** -140 / eps + cond / 4) * rstdRef + 2.0 ** -140,
+                          torch.full_like(rstdRef, 2 / math.sqrt(eps)))
     zTol = torch.where(
         reg[:, None],
         (1 + 2 * gam) * (zRef.abs() * (gam + mTerm[:, None]) + cond[:, None]) + 2.0 ** -140 * (1 + rstdRef[:, None]),
         zRef.abs() + (1 + 2 * gam) * ((x - meanRef[:, None]).abs() + meanTol[:, None]) / math.sqrt(eps) + 2.0 ** -140 * (1 + 1 / math.sqrt(eps)))
-    yTol = 2.0 ** -10 * yRef.abs() + (1 + 2.0 ** -10) * w.abs()[None, :] * zTol + \
-        2.0 ** -21 * (w.abs()[None, :] * zRef.abs() + b.abs()[None, :]) + 2.0 ** -24
+    yMag = w.abs()[None, :] * zRef.abs() + b.abs()[None, :]
+    yTol = 2.0 ** -9 * yMag + 2 * w.abs()[None, :] * zTol + 2.0 ** -24
     room = (w.abs()[None, :] * (zRef.abs() + zTol) + b.abs()[None, :] <= 2.0 ** 15).all(1)
     return meanRef, rstdRef, yRef, meanTol, rstdTol, yTol, room
 

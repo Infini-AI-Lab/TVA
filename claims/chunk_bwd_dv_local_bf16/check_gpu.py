@@ -6,18 +6,20 @@ default heads, a packed batch of 2^16 tokens with `int32` and `int64` tables, `B
 without and with a gate, and on launches at the edges of `Inst.ok` and `Pre`, and checks `Post` as
 it is stated, for every sequence `n`, token `p` of it, value head `hv` and column `e`:
 
-* `dv[p, hv, e]` is finite and `|dv - ref| <= tol`, with `ref`, `Aex`, `kqMag`, `wErr`, `wUp`,
-  `eA` and `tol` exactly as `Claim.lean` defines them, computed in `float64` from the host's
-  inputs: tokens are grouped by chunk from `cu_seqlens` (or the rows) alone, never from
-  `chunk_indices`; `float64`'s own rounding (`2^-52` relative per operation, over at most 256 + 64
-  terms) is far below `tol`'s `2^-8` terms;
+* `dv[p, hv, e]` is finite and `|dv - ref| <= tol`, with `ref`, `Aex`, `kqMag`, `aMag` and `tol`
+  (`2^-7·Σ_j |Aex·do| + 2^-13·Σ_j aMag·liftMag do + 2^-100`) exactly as `Claim.lean` defines
+  them, computed in `float64` from the host's inputs: tokens are grouped by chunk from
+  `cu_seqlens` (or the rows) alone, never from `chunk_indices`; `float64`'s own rounding (`2^-52`
+  relative per operation, over at most 256 + 64 terms) is far below `tol`'s `2^-7` term;
 * `ValsOk` (`Pre`) holds on the inputs: finite values, `|do| <= 2^100`, the gate differences
   `<= 64`, `kqMag <= 2^100`, `sig*kqMag*(1 + wUp) <= 2^100`, and the per-output room `<= 2^120`;
 * the host's tables satisfy `TablesOk`; the inputs are unchanged; and a direct launch with the
   host's own arguments and `dv` prefilled with a sentinel leaves every element outside the written
   set (`written`) unchanged.
 
-It reports, for each case, the largest error / tolerance (`dv`, the only output), and runs negative
+It reports, for each case, the largest error / tolerance (`dv`, the only output), and over SETUP.md's
+launches (the host's cases, the benchmark shapes, gated DeltaNet's default, the packed batch, the
+largest grid) `tol / |ref|` (median of a sample, and the largest); it runs negative
 tests (outputs the check must reject: one element moved by twice its tolerance, the ungated output
 against the gated specification, the output of chunk size 32 against chunk size 64, an unwritten
 element changed). Finally it shows, in a child process, that a launch with `B*HV = 65536` fails
@@ -94,8 +96,6 @@ def post_check(q, k, do, g, scale, cu, BT, BK, dv):
             ends.append(min(c0 + BT, hi))
     if not starts:
         return 0.0, True, True, (0.0, 0.0)
-    nK = (K + BK - 1) // BK
-    epsA = (BK + 8 + 2 * nK) / 2.0**22
     sig = float(scale)
     nb = max(1, 2**25 // (HV * BT * max(BT, V, K) * 8))  # chunks per batch: each float64 block <= 32 MiB
     worst, wpair, finite, vals = 0.0, (0.0, 0.0), True, True
@@ -133,17 +133,18 @@ def post_check(q, k, do, g, scale, cu, BT, BK, dv):
         vals &= bool((kqm[M] <= 2.0**100).all() and (sig * kqm * (1 + wu))[M].max() <= 2.0**100)
         Mf = M.to(F64)
         A = sig * kq * w * Mf
-        eA = (sig * kqm * (epsA * wu + ew) + wu * (sig / 2.0**110 + 2.0**-140) + 2.0**-140) * Mf
+        aMag = (sig * (kqm + 2.0**-94) * (w + 2.0**-112) + 2.0**-86) * Mf
         room = torch.einsum('chij,cjhv->cihv', sig * kqm * wu * Mf, lift(dd))
         vals &= bool((room <= 2.0**120).all())
         ref = torch.einsum('chij,cjhv->cihv', A, dd)
         B1 = torch.einsum('chij,cjhv->cihv', A.abs(), dd.abs())
-        Be = torch.einsum('chij,cjhv->cihv', eA, dd.abs())
-        Bl = torch.einsum('chij,cjhv->cihv', A.abs() + eA, lift(dd))
-        Dl = torch.einsum('chij,cjhv->cihv', Mf, lift(dd))
-        tol = (2.0**-8 * ref.abs() + (1 + 2.0**-8) * (2.0**-8 * B1 + (1 + 2.0**-8) * Be + (BT + 3) / 2.0**22 * Bl)
-               + 2.0**-100 * (1 + Dl))
+        Bm = torch.einsum('chij,cjhv->cihv', aMag, lift(dd))
+        tol = 2.0**-7 * B1 + 2.0**-13 * Bm + 2.0**-100
         vm = valid[..., None, None].expand_as(out)
+        if REL is not None:
+            q_ = (tol / ref.abs())[vm & (ref != 0)]
+            REL[1] = max(REL[1], q_.max().item())
+            REL[0].append(q_[torch.randint(0, q_.numel(), (min(q_.numel(), 100000),), device=DEVICE)].float().cpu())
         finite &= bool(torch.isfinite(out)[vm].all())
         err = (out - ref).abs()
         ratio = torch.where(vm, err / tol, z)
@@ -151,7 +152,7 @@ def post_check(q, k, do, g, scale, cu, BT, BK, dv):
         r = ratio.flatten()[i].item()
         if r > worst:
             worst, wpair = r, (err.flatten()[i].item(), tol.flatten()[i].item())
-        del kk, qq, dd, out, kq, kqm, A, eA, ref, B1, Be, Bl, Dl, tol, err, ratio, room, w, ew, wu
+        del kk, qq, dd, out, kq, kqm, A, aMag, ref, B1, Bm, tol, err, ratio, room, w, ew, wu
     return worst, finite, vals, wpair
 
 
@@ -202,6 +203,7 @@ def chunk_gate(B, T, HV, BT, cu, per_token=None):
 results = []
 worst_all = 0.0
 DATA = {}
+REL = None  # [samples, largest] of tol / |ref| while SETUP.md's launches run
 
 
 PEAK = [0.0, ""]
@@ -263,6 +265,7 @@ def check(name, B, T, H, HV, K, V, BT, cu=None, idx=torch.int64, gates=(False, T
 
 
 # The host's test cases (source lines 278-290).
+REL = [[], 0.0]
 for case in [(1, 63, 1, 1, 64, 64, 64, None), (2, 500, 4, 4, 60, 60, 64, None),
              (2, 1000, 2, 8, 128, 128, 64, None), (3, 1024, 4, 4, 100, 100, 64, None),
              (1, 64, 2, 4, 32, 32, 16, None), (1, 64, 2, 4, 32, 32, 32, None),
@@ -284,6 +287,9 @@ check("gdn default", 8, 2048, 6, 6, 256, 512, 64)
 for idx in (torch.int32, torch.int64):
     check("train 2^16", 1, 65536, 16, 32, 128, 128, 64, [0, 1, 64, 65, 4096, 30000, 65536], idx=idx)
 check("rows 65535", 4369, 16, 15, 15, 16, 16, 16)
+rel_all = torch.cat(REL[0])
+print(f"tol / |ref| on SETUP.md's launches: median {rel_all.median().item():.3e}, largest {REL[1]:.3e}")
+REL = None
 
 # Edges of Inst.ok: head dims 1, 15, 17 (masked K and V tails), K = 256 with BK = 128 (two trips),
 # V = 1000 (eight V trips), HV/H = 8, empty and short sequences, sequences not covering [0, T),

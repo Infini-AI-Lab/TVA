@@ -9,7 +9,7 @@ GPU check: [`check_gpu.py`](check_gpu.py). Setup: [`SETUP.md`](SETUP.md).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.ChunkDeltaH.main : Statement` (`Statement`:
-`Claim.lean` line 1084). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 1021). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -18,16 +18,16 @@ GPU check: [`check_gpu.py`](check_gpu.py). Setup: [`SETUP.md`](SETUP.md).
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 669), and every initial memory `init` that `Pre` accepts (line 754), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 1040).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 977).
 
-**What `Post` asks** (line 1040). For every sequence `n < N`, value head `hv < HV` and column
+**What `Post` asks** (line 977). For every sequence `n < N`, value head `hv < HV` and column
 `j < V`:
 1. `v_new`: for every token `s < lenOf d n` (line 638), element
    `uIdx d (rowOf d n) (startOf d n + s) hv j` of `vn` reads in `fin` as a `bfloat16` `x`; only
-   under `Vals init d` (line 1002) and `StOk fin d n hv j t'` for every `t' ≤ s / 64` (line 1019;
+   under `Vals init d` (line 939) and `StOk fin d n hv j t'` for every `t' ≤ s / 64` (line 956;
    the stored states of the token's chunk and of every earlier chunk) is more asked: `x` is
    finite and `|x.toReal − vrefS …| ≤ tolV …` (`vrefS` line 831, exact in the reals from `init` and
-   the stored `h[t]` in `fin`; `tolV` line 912);
+   the stored `h[t]` in `fin`; `tolV` line 892, `2^-8·vAbs + 2^-100` with `vAbs` line 886);
 2. `h`: for every chunk `t < nch d n` (line 641) and row `c < K`, element
    `hIdx d (cbase d n + t) hv c j` (lines 645, 663) of `h` holds a `bfloat16` value;
 3. the states: there is `Y : Nat → Nat → F32` with
@@ -35,7 +35,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    - for `t < nch d n` and `c < K`, a finite `Y t c` gives `h[t][c] = FloatV.cvt (Y t c)` exactly;
    - for `t < nch d n`, under `Vals` and `StOk … t'` for every `t' ≤ t`, `Y t`, `Y (t + 1)`
      finite and `colNorm K (Y (t + 1) − Step … (Y t)) ≤ errStep …` (`Step` line 839, exact;
-     `colNorm` line 846; `errStep` line 978);
+     `colNorm` line 846; `errStep` line 911);
    - with `storeHt`, `ht[sIdx d n hv c j]` (line 665) reads as `Y (nch d n) c` exactly;
 4. the frame: every byte outside the first `B·NTt·HV·K·V` elements of `h`, the first
    `B·T·HV·V` of `vn` and (with `storeHt`) the first `N·HV·K·V` of `ht` is unchanged.
@@ -43,7 +43,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 Outside `Vals` and these `StOk` guards only the presence clauses, the rounding link and
 `ht = Y (nch n)` are asked.
 
-**What you are given** (`Assumptions`, line 1066), five fields:
+**What you are given** (`Assumptions`, line 1003), five fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`, `relDot16 64`, `absDot16 64`): every `tl.dot` of
@@ -82,16 +82,18 @@ rows), disjoint across trips (PROVER_GUIDE §4).
   program reads (`disj_h`, `disj_vn`, `disj_ht`);
 - the loop invariant: the state blocks after `t` trips are `Y t`, the values the trip stored to
   `h[t]` are their rounding, and, under `Vals` and while `StOk t'` holds for every `t' < t`, the
-  padded rows `K ≤ c < 64·cdiv(K, 64)` stay within `padB t` (line 992; `StOk t'` keeps chunk
+  padded rows `K ≤ c < 64·cdiv(K, 64)` stay within `padB t` (line 929; `StOk t'` keeps chunk
   `t'`'s gated values finite, so the `k` dot's fact bounds what it adds to the padded rows); then
-  the value parts under `Vals` and `StOk`: `tolV` and `errStep` from `dot` chained
-  over the `K` blocks (`DotLoop.bound`), `exp2_acc`, `FloatV.mul_err`, `FloatV.sub_err`,
-  `FloatV.AddRel.err` and `FloatV.cvt_err` (README `## Tolerances`);
+  the value parts under `Vals` and `StOk`: the fine bounds `fineV` and `fineStep` of README
+  `## Tolerances` (steps 0–7) from `dot` chained over the `K` blocks (`DotLoop.bound`),
+  `exp2_acc`, `FloatV.mul_err`, `FloatV.sub_err`, `FloatV.AddRel.err` and `FloatV.cvt_err`; then
+  relax them to `tolV` and `errStep` by the inequality chain of step 8 (`fineV ≤ tolV`,
+  `fineStep ≤ errStep` under `Vals` and `StOk`);
 - the bytes no program writes give part 4.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `ok_of` and the
-`setup_*_ok` theorems; `bytes_disj` (line 1160), `disj_far` (line 1169) and `valid_zero`
-(line 1441) can be reused.
+`setup_*_ok` theorems; `bytes_disj` (line 1097), `disj_far` (line 1106) and `valid_zero`
+(line 1378) can be reused.
 
 ## Specification
 
@@ -138,8 +140,8 @@ counts from `cu_seqlens`, not the `chunk_offsets` the kernel loads, and no progr
 
 **What a reader may conclude**: `h[0]` is `bf16(h0)` exactly; the stored states are the exact
 `bfloat16` roundings of one `float32` state sequence that starts at the initial state, ends at `ht`,
-and follows the recurrence step by step, each step within `errStep` (about 0.3–0.7% of `‖h‖` on
-real inputs, median; the kernel's own step error is about a quarter of it); each new value is
+and follows the recurrence step by step, each step within `errStep` (about 0.4–0.7% of `‖h‖` on
+real inputs, median; the kernel's own step error is about a fifth of it); each new value is
 `u − w·h[t]` within `tolV`. The state carried between chunks is pinned to the stored `h[t]`: it
 lies in the box of `float32` values that round to `h[t]` (half a `bfloat16` unit), so a deviation
 in one chunk cannot hide in the store's rounding, and `ht` is the state itself. The
@@ -147,15 +149,22 @@ composition of the steps is not bounded: deviations up to `errStep` in every chu
 add up to a drift from the exact recurrence started at `h0` (Tolerances, "What `Post` admits").
 
 **The tolerances** are functions of the chunk's inputs and of `h[t]` alone (Claim.lean, "The
-tolerance of one step"; derivation under Tolerances); nothing is carried from chunk to chunk:
+tolerances"; derivation under Tolerances); nothing is carried from chunk to chunk. With
 
-`errStep t = dec + sKn·‖dB‖ + dotH` (`dotHvf` with `STATE_V_FIRST`),
+`vAbs t i = |vrefS t i| + 2^-5·(|u[i, j]| + ‖w[i]‖·‖h[t]‖)`
 
-where `dec` is the decay's and the scaling's error on `Y t` (`‖Y t‖ ≤ YB = ‖h[t]‖ + rh`, with
-`rh = (2^-8·‖h[t]‖ + √K·2^-134)/(1 − 2^-8)` the bound on `‖Y t − h[t]‖` the rounding gives),
-`sKn = ‖kᵀ‖₂` carries the gated values' roundings `dB`, and `dotH` is the `k` dot's error. Without
-the gate `dec = 0` and `dB` has no factor's error. `tolV t i` is the `w` dots', the `-`'s and the
-store's errors on the new value.
+(the new value's magnitude, with `2^-5` of its operands' magnitudes; the norms over the `K` rows,
+of `liftMag` values, a `bfloat16` subnormal counted at `2^-126`) and `Gᵢ = 2^(g_last − g_i)·vAbs t i`
+(the gated magnitudes; `Gᵢ = vAbs t i` without the gate),
+
+`tolV t i = 2^-8·vAbs t i + 2^-100`,
+
+`errStep t = 2^-8·‖kᵀ‖₂·‖G‖ + 2^-15·(‖k‖_F·‖G‖ + 2^g_last·‖h[t]‖) + 2^-36`
+
+(`‖kᵀ‖₂` the spectral norm of the chunk's keys, `‖k‖_F` their Frobenius norm of `liftMag` values):
+one `bfloat16` rounding of the new value; one `bfloat16` rounding of each gated value carried
+through `kᵀ`, the `k` dot's error, and the decay's and the scaling's roundings of the state; and a
+floor far below real states.
 
 ## Conditions
 
@@ -305,7 +314,7 @@ and are never stored. The library facts used are `FloatV.cvt_err` (`bfloat16`:
 2. **The new value** (lines 239, 243): `vn = fl(u − bv)` by `AddRel.err`, error
    `sB i = 3·2^-24·(|u| + bvB i) + 4·2^-150`. So `|vn − vrefS t i| ≤ dW i + sB i`,
    `|vn| ≤ vnB i = |vrefS t i| + dW i + sB i`, and the stored `bf16(vn)` adds `2^-8·|vn| + 2^-134`:
-   `tolV t i = dW i + sB i + 2^-8·vnB i + 2^-134`.
+   `fineV t i = dW i + sB i + 2^-8·vnB i + 2^-134`.
 3. **The gate** (lines 247–251): `dg̃ = fl(g_last − g_i)` within `dgE = 2^-24·|dg| + 2^-150`;
    `f = exp2(dg̃)` within `2^-22·2^dg̃ + 2^-126`; then `|f − 2^dg| ≤ errF = (1 + 2^-22)·2^(dg+dgE) −
    2^dg + 2^-126` (for `dg̃ ≥ dg` directly; for `dg̃ < dg` the error is at most
@@ -334,9 +343,42 @@ and are never stored. The library facts used are `FloatV.cvt_err` (`bfloat16`:
    the exact product), so `dotHvf` covers it. The combine pass does not fold the `+` into the dot
    (its operand is the `tt.trans`).
 7. **Composition**: `Y (t + 1) − Step t (Y t) = (Y' − 2^g_last·Y) + kᵀ·δ + dotErr` with
-   `|δᵢ| ≤ dB i`, so `‖Y (t + 1) − Step t (Y t)‖ ≤ dec + sKn·‖dB‖ + dotH = errStep t`
+   `|δᵢ| ≤ dB i`, so `‖Y (t + 1) − Step t (Y t)‖ ≤ dec + sKn·‖dB‖ + dotH = fineStep t`
    (`sKn = ‖kᵀ‖₂`). `h[t + 1] = bf16(Y (t + 1))` is the next trip's store (step 0) and `ht` the last
    `Y`: neither adds a tolerance.
+
+8. **The relaxation `fineV ≤ tolV`, `fineStep ≤ errStep`.** Write `r = |vrefS t i|`, `m = |u| +
+   ‖liftMag w[i]‖·‖liftMag h[t]‖`, so `vAbs = r + 2^-5·m` and `r ≤ m`; `Γ = Gamᵢ`, `γ = 2^g_last`,
+   `u = 2^-24`. Under `Vals` and `StOk`: `|u|, |w|, |k| ≤ 2^16`, `K ≤ 256` (`nb ≤ 4`), `‖h[t]‖ ≤ 2^40`,
+   `g_last, g_last − g ≤ 8`; so `‖w‖ ≤ 2^20`, `m ≤ 2^60.01`, `sKn ≤ ‖k‖_F ≤ 2^23`, `γ, Γ ≤ 2^8`.
+   * **`v_new`.** `(1 + rD)^nb − 1 ≤ 6.30·10^-5` and `nb·(1 + rD)^nb·aD ≤ 2^-117`, so `dW + sB ≤
+     6.32·10^-5·m + 2^-116.9` and `fineV = 2^-8·r + (1 + 2^-8)·(dW + sB) + 2^-134 ≤ 2^-8·r +
+     6.35·10^-5·m + 2^-116 ≤ 2^-8·(r + 2^-5·m) + 2^-100 = tolV` (`2^-13 = 1.22·10^-4`).
+   * **The gated values.** `errF = Γ·((1 + 2^-22)·2^dgE − 1) + 2^-126`: for `dg ≥ −126` the factor
+     is at most `(1 + 2^-22)·2^{126·u + 2^-150} − 1 ≤ 5.5·10^-6 ≤ 2^-17`; for `dg < −126`,
+     `Γ·(1 + 2^-22)·2^dgE ≤ (1 + 2^-22)·2^{−126·(1 − u)} ≤ 2^-125.9`; so `errF ≤ 2^-17·Γ + 2^-124.9`
+     and `fB ≤ (1 + 2^-17)·Γ + 2^-124.9`. Then `dB ≤ c₁·Γ·vnB + Γ·(dW + sB) + 2^-124.8·vnB +
+     2^-133.9`, `c₁ = 2^-8·(1 + u)·(1 + 2^-17) + u·(1 + 2^-17) + 2^-17 ≤ 2^-8 + 7.72·10^-6`, with
+     `vnB ≤ r + 6.32·10^-5·m + 2^-116.9`; charging `7.72·10^-6·Γ·r` to `Γ·m` (`r ≤ m`),
+     `dB ≤ 2^-8·Γ·r + 7.12·10^-5·Γ·m + A ≤ 2^-8·Γ·vAbs + A`, `A ≤ 2^-124.8·m + Γ·2^-116.8 +
+     2^-133.8 ≤ 2^-64.7`. Without the gate (`Γ = 1`) `dB ≤ 2^-8·r + 6.35·10^-5·m + 2^-116 ≤
+     2^-8·vAbs + 2^-116`. Over at most 64 tokens, `sKn·‖dB‖ ≤ 2^-8·sKn·‖G‖ + 2^23·8·2^-64.7`.
+   * **The `k` dot.** `vgbB + 2^-126 ≤ 1.004·Γ·vnB + 2^-124.8·vnB + 2^-125.8 ≤ 1.004·Gᵢ + 2^-64.6`
+     (`6.32·10^-5 ≤ 2^-5`), so `‖vgbB + 2^-126‖ ≤ 1.004·‖G‖ + 2^-61.6`; its factor on `kl = ‖k‖_F`
+     is `rD` in `dotH` and `rD + 3u·(1 + rD) ≤ 1.5915·10^-5` in `dotHvf`, and
+     `1.004·1.5915·10^-5 ≤ 2^-15 = 3.05·10^-5`; the rest is below `2^-54.5`.
+   * **The decay and the scaling.** `YB = (1 + 2^-8/(1 − 2^-8))·‖h[t]‖ + √K·2^-134/(1 − 2^-8) ≤
+     1.00392·‖h[t]‖ + 2^-129.9`, `eB ≤ (1 + 2^-22)·γ + 2^-126`; `dec + rD·YpB ≤ 1.00393·(2^-22 +
+     u·(1 + 2^-22) + rD)·γ·‖h[t]‖ + 2^-85 ≤ 1.61·10^-5·γ·‖h[t]‖ + 2^-85` (with `STATE_V_FIRST`
+     `dec + 3u·YpB`, smaller; without the gate `dec = 0`, `YpB = YB`, `γ = 1`), at most
+     `2^-15·γ·‖h[t]‖ + 2^-85`; and `√K·aD ≤ 2^-116`.
+
+   Summing, `fineStep ≤ 2^-8·sKn·‖G‖ + 2^-15·(kl·‖G‖ + γ·‖h[t]‖) + 2^-38.6 ≤ errStep` (floor
+   `2^-36`). On `check_gpu.py`'s launches the median of `tolV / |v_new|` is `1.03–1.24×` that of
+   `fineV` and the median of `errStep / ‖h[t + 1]‖` `1.04–1.19×` that of `fineStep`: the gated
+   values' rounding, `fineStep`'s main term, is just above `2^-8` of `‖kᵀ‖₂·‖Γ·r‖`, and `2^-8·‖G‖`
+   covers it with the `2^-5·m` share, which is larger where `u` and `w·h[t]` cancel (the delta rule
+   without a gate); the `2^-15·kl·‖G‖` term doubles the `k` dot's share.
 
 `StOk t` and `Vals` give each step room: `|Y| ≤ 2^41`, `|vn| ≤ 2^61`, `|vg| ≤ 2^70`, the dots'
 lifted magnitudes below `2^93`, so no intermediate is near `2^128` and every fact's room condition
@@ -352,22 +394,23 @@ log-uniform per head), `k` L2-normalized, `w`, `u` the WY representation, an ini
 order `0.5`, 16,384 tokens (256 chunks); the kernel's own step error is `‖Y (t + 1) − Step t (Y t)‖`
 with its `float32` states:
 
-| heads | `dt` | median | max | the kernel's step error / `‖h[t + 1]‖` (median) |
-|---|---|---|---|---|
-| Qwen3-Next (`K = V = 128`, 32 value heads) | none | 0.48% | 0.80% | 0.11% |
-| | `[10^-5, 10^-4]` | 0.50% | 0.91% | 0.12% |
-| | `[10^-4, 10^-3]` (`[V, K]`) | 0.60% | 0.97% | 0.14% |
-| | `[10^-3, 10^-1]` | 0.67% | 0.94% | 0.15% |
-| GatedDeltaNet (`K = 256`, `V = 512`, 6 heads) | none | 0.32% | 0.52% | 0.08% |
-| | `[10^-5, 10^-4]` | 0.36% | 0.56% | 0.09% |
-| | `[10^-4, 10^-3]` (`[V, K]`) | 0.49% | 0.73% | 0.13% |
-| | `[10^-3, 10^-1]` | 0.59% | 0.73% | 0.14% |
+| heads | `dt` | median | max | `fineStep`: median | the kernel's step error / `‖h[t + 1]‖` (median) |
+|---|---|---|---|---|---|
+| Qwen3-Next (`K = V = 128`, 32 value heads) | none | 0.62% | 1.00% | 0.54% | 0.11% |
+| | `[10^-5, 10^-4]` | 0.63% | 1.00% | 0.55% | 0.12% |
+| | `[10^-4, 10^-3]` (`[V, K]`) | 0.69% | 1.02% | 0.62% | 0.14% |
+| | `[10^-3, 10^-1]` | 0.70% | 0.98% | 0.67% | 0.15% |
+| GatedDeltaNet (`K = 256`, `V = 512`, 6 heads) | none | 0.42% | 0.62% | 0.36% | 0.08% |
+| | `[10^-5, 10^-4]` | 0.44% | 0.63% | 0.38% | 0.09% |
+| | `[10^-4, 10^-3]` (`[V, K]`) | 0.55% | 0.76% | 0.50% | 0.13% |
+| | `[10^-3, 10^-1]` | 0.62% | 0.78% | 0.59% | 0.14% |
 
-The per-chunk median is the same at the first and the last chunk (e.g. 0.53% and 0.48%,
-Qwen3-Next without decay). The tolerance is about 4 times the kernel's measured step error: the
+(`dt` drawn log-uniformly per token and head, `A` uniformly per head; the kernel's column is from
+another draw of the same construction.) The per-chunk median is the same at the first and the last chunk (e.g. 0.53% and 0.48%,
+Qwen3-Next without decay, for `fineStep`). The tolerance is about 4–5 times the kernel's measured step error: the
 gated values' roundings it adds up through `kᵀ` are worst-case, and they partly cancel in the
-kernel. On `check_gpu.py`'s launches the worst error / tolerance is up to 0.93 for the step (short
-chunks, where one token's rounding is attained) and up to 0.996 for `v_new` (its own store's
+kernel. On `check_gpu.py`'s launches the worst error / tolerance is up to 0.885 for the step (short
+chunks, where one token's rounding is attained) and up to 0.965 for `v_new` (its own store's
 rounding, attained up to the binade).
 
 **What `Post` admits.** A kernel deviating by up to `errStep` in every chunk meets `Post`. The
@@ -379,11 +422,12 @@ recurrence started at `h0`; stored as `bf16(Y (t + 1))`). Its drift (median of
 
 | gates | admitted drift | the kernel's drift |
 |---|---|---|
-| none (`USE_G = False`, DeltaNet; `gate_scale = 0`) | 2.75% | 0.30% |
-| `gate_scale = 0.003` (about `0.15%` decay per token) | 2.17% | 0.28% |
-| `gate_scale = 0.05` | 0.85% | 0.24% |
+| none (`USE_G = False`, DeltaNet; `gate_scale = 0`) | 3.15% | 0.30% |
+| `gate_scale = 0.003` (about `0.15%` decay per token) | 2.46% | 0.28% |
+| `gate_scale = 0.05` | 0.91% | 0.24% |
 
-Without the gate the claim is the most permissive, about `9×` the kernel's drift. The drift is
+(With `fineStep` in place of `errStep` the admitted drift is 2.73%, 2.16% and 0.86%.) Without the
+gate the claim is the most permissive, about `10×` the kernel's drift. The drift is
 flat, not compounding: it reaches its level within about 16 chunks and stays there (the
 delta rule's update pulls the state back toward the keys' targets, and the gates' decay shrinks
 earlier deviations).
@@ -391,8 +435,9 @@ earlier deviations).
 A bias of `1 ± 2^-7` per chunk on every state, a dropped decay, gate or chunk, a wrong key head and
 a corrupted element are refuted by `check_gpu.py` (no states `Y` exist: the nearest points of two
 consecutive rounding boxes are farther apart than one step's tolerance). A chunk's `g_last` read
-one token early is refuted on `make_inputs`' gates from `gate_scale = 0.01`; at
-`gate_scale = 0.003` its error is below `errStep` and those launches meet `Post`. Such a kernel
+one token early is refuted on `make_inputs`' gates from `gate_scale = 0.02` (largest lower bound /
+`errStep` `1.86` over 16,384 tokens); at `gate_scale = 0.01` (`0.89`) and below its error is below
+`errStep` and those launches meet `Post`. Such a kernel
 still does not meet `Statement`, which quantifies over every covered input: on inputs with strong
 decay (larger gates) its error exceeds `errStep`, as `check_gpu.py` shows.
 
@@ -423,7 +468,7 @@ What `SETUP.md` allows and the claim leaves out:
   `10^3`.
 * **The drift over many chunks**: `Post` bounds each step of the state, not the distance of `h[t]`
   from the exact recurrence started at `h0`; the steps' errors are not composed (Tolerances, "What
-  `Post` admits": a deviation of up to `errStep` in every chunk gives a drift of about 0.7–1.9% of
+  `Post` admits": a deviation of up to `errStep` in every chunk gives a drift of about 0.9–3.2% of
   `‖h‖`, against 0.2–0.3% for the kernel).
 * `gk`, `save_new_value=False`, other chunk sizes, other dtypes: not part of the setup
   (`SETUP.md`).
@@ -440,15 +485,15 @@ What `SETUP.md` allows and the claim leaves out:
   gate). `Post`'s states are witnessed by the kernel's own: a copy of the kernel with one more
   store per state block (the `float32` `b_h` beside each `bfloat16` store of lines 185–209) gives
   them, and its `h`, `v_new` and `ht` equal the host's bit for bit. `Y 0` is the initial state (as a
-  value), `h[t] = bf16(Y t)` and `ht = Y (nch n)` bit for bit, and the worst error / tolerance is `0.926`
-  for the step and `0.996` for `v_new`. `StOk` holds at every chunk, every output is finite, `Vals`
+  value), `h[t] = bf16(Y t)` and `ht = Y (nch n)` bit for bit, and the worst error / tolerance is `0.885`
+  for the step and `0.965` for `v_new`. `StOk` holds at every chunk, every output is finite, `Vals`
   holds, the frame holds (inputs unchanged, guard regions of 4096 elements around `h`, `v_new`,
   `ht` unchanged, every output element written), and the host's `chunk_offsets` equal `cbase`.
   Forty-seven corrupted outputs are refuted (no states `Y` can meet `Post`: the nearest points of
   two consecutive boxes of `float32` values rounding to the stored states, or to `h0` and `ht`, are
   farther than `errStep` from one step; or `h[0] ≠ bf16(h0)`; or a `v_new` element is out of its
   tolerance), on four launches (grouped value heads in both layouts, without the gate, and slow
-  decay over 16,384 tokens): an `h`, `v_new` or `ht` element moved by 4 times its tolerance, two
+  decay over 16,384 tokens, `gate_scale = 0.02`): an `h`, `v_new` or `ht` element moved by 4 times its tolerance, two
   sequences' `h` chunks exchanged, and the exact recurrence with one bug (no decay of the state, a
   chunk's update dropped, the tokens' gate `2^(g_last − g)` dropped, `k` read at the key head
   `hv % H`, every token gated from its chunk's first token, `g_last` read one token early, `ht` the

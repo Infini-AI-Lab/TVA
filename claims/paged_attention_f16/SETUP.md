@@ -48,8 +48,7 @@ at the edges of the claim (head dims and pages from `1` to `256`, one KV head, 2
 shared pages, a strided `q`, sequences of `2^16` tokens with pages of 16 and of 1, sequences of 32K
 to 64K tokens, empty sequences, sharp attention, values near `2^15` and near `2^-20`). Against
 `Post`'s exact reference, every covered element is finite and within its tolerance: worst error /
-tolerance `0.88` on the test's launches and `0.997` overall (an output near `10^-7`, where the bound
-is the output's `float16` rounding, `2^-25`); the inputs are unchanged and the bytes past `out`
+tolerance `0.85` on the test's launches and `0.89` overall (pages of 2 at head dim 64); the inputs are unchanged and the bytes past `out`
 keep their sentinel. `Post` rejects the wrong outputs it tries (all zeros, the last or first page
 dropped, the neighbouring key/value head, the scores without `scale`). A cache of more than `2^31`
 elements does not fit the check's 4 GB budget; the claim covers it (`setup_bigcache_ok`).

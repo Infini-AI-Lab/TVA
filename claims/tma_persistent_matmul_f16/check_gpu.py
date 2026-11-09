@@ -10,14 +10,13 @@ outside `Inst.ok`, `N_dim`/`K_dim`, and checked as extras), and checks `Post` el
 `Post` states it:
 
 * for each element `(i, j)` of `c`: `S = sum_k a[i, k] * b[j, k]` (exact products, float64 sum) and
-  `E = tol = errAt` over the inner loop's `T = cdiv(K, 64)` steps: `E_0 = 0`,
-  `E_{t+1} = (1 + rho) E_t + rho (|S_t| + L_t) + alpha`, with `S_t` the exact partial sum of the
-  products `k < 64 t`, `L_t = sum liftMag(a[i, k]) * liftMag(b[j, k])` over step `t`'s `k`
-  (`liftMag q = 0` at `0`, else `max(|q|, 2^-14)`), `rho = relDot16 64 = 66 * 2^-22`,
-  `alpha = absDot16 64 = 66 * 2^-126`; with `OutSpec`'s first clause, that the reals rounding to
-  `c` in `float16` meet `[S - E, S + E]` (some `v` within `E` of `S` rounds to `c`, up to `v`'s
-  `float32` grid); and, with room (`|S| + E <= 65504`, which every case here meets), `c` is finite
-  and `|c - S| <= E + (|S| + E) * 2^-11 + 2^-25` (`OutSpec`);
+  `E = tol = 2^-15 * pathMag + 2^-112`, `pathMag = sum_t (|S_t| + L_t)` over the inner loop's
+  `T = cdiv(K, 64)` steps, with `S_t` the exact partial sum of the products `k < 64 t`,
+  `L_t = sum liftMag(a[i, k]) * liftMag(b[j, k])` over step `t`'s `k` (`liftMag q = 0` at `0`,
+  else `max(|q|, 2^-14)`); `OutSpec`: the reals rounding to `c` in `float16` meet `[S - E, S + E]`
+  (some `v` within `E` of `S` rounds to `c`, up to `v`'s `float32` grid), measured as the
+  distance from `S` to that interval over `E`; with room (`|S| + E <= 65504`, which every case
+  here meets), `c` is finite;
 * elements whose row of `a` or row of `b` holds a NaN or an infinity need only hold some `float16`
   value; the others are checked as above (one case with non-finite inputs);
 * negative tests: wrong results that must each break `Post` on some element: from the same inputs,
@@ -30,7 +29,7 @@ outside `Inst.ok`, `N_dim`/`K_dim`, and checked as extras), and checks `Post` el
   `NUM_SMS` (`1`, `7`, `132`, `1000`), with `a` and `c` inside guarded buffers with padded rows
   (row strides above `K` and `N`), leave every byte outside the matrix `c` unchanged.
 
-Prints, per case, the largest error / tolerance over both clauses (below 1, with its margin) and the
+Prints, per case, the largest error / tolerance (below 1, with its margin) and the
 frame results. Usage: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
 """
 import sys; sys.dont_write_bytecode = True  # keep source/ free of __pycache__ (python -I ignores PYTHONDONTWRITEBYTECODE)
@@ -48,10 +47,6 @@ mm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mm)
 
 DEV = "cuda"
-RHO = 66 * 2.0 ** -22           # rho = Rules.Num.relDot16 64 (exact in float64)
-ALPHA = 66 * 2.0 ** -126         # alpha = Rules.Num.absDot16 64
-U16 = 2.0 ** -11                 # Format.binary16.u
-ETA16 = 2.0 ** -25               # Format.binary16.eta
 MAX16 = 65504.0
 CFG = dict(BLOCK_SIZE_M=128, BLOCK_SIZE_N=256, BLOCK_SIZE_K=64, GROUP_SIZE_M=8, EPILOGUE_SUBTILE=True,
            num_stages=4, num_warps=8)   # the config of SETUP.md (source line 501)
@@ -79,24 +74,26 @@ def rounding_interval(c):
 
 
 def tol_err(ad, bd, want=False):
-    """S and E = errAt(prodV, liftV, steps K) elementwise for rows `ad` (R x K) of `a` and the
+    """S and E = tol = 2^-15 pathMag + 2^-112 elementwise for rows `ad` (R x K) of `a` and the
     matrix `bd` (K x N, b transposed); with `want`, also the wrong results computed from the
     inputs."""
     R, K = ad.shape
     N = bd.shape[1]
     la, lb = lift(ad), lift(bd)
     S = torch.zeros((R, N), dtype=torch.float64, device=ad.device)
-    E = torch.zeros_like(S)
+    P = torch.zeros_like(S)    # pathMag
     last = torch.zeros_like(S) if want else None
     for t in range((K + 63) // 64):
         lo, hi = 64 * t, min(64 * t + 64, K)
         c = ad[:, lo:hi] @ bd[lo:hi, :]
         L = la[:, lo:hi] @ lb[lo:hi, :]
-        E = (1 + RHO) * E + RHO * (S.abs() + L) + ALPHA
+        P = P + S.abs() + L
         S = S + c
         if want:
             last = c
         del c, L
+    E = 2.0 ** -15 * P + 2.0 ** -112
+    del P
     if want:
         return S, E, {"bf16_output": S.to(torch.bfloat16).double(),
                       "missing_k_block": (S - last).half().double()}
@@ -104,13 +101,11 @@ def tol_err(ad, bd, want=False):
 
 
 def ratio(S, E, got):
-    """The larger of the two clauses' error / tolerance, elementwise (got finite, with room)."""
+    """`OutSpec`'s error / tolerance, elementwise (got finite, with room): the distance from `S` to
+    the reals that round to `got`, over `E`."""
     lo, hi = rounding_interval(got)
     dist = torch.clamp(torch.maximum(lo - S, S - hi), min=0)
-    bound = E + (S.abs() + E) * U16 + ETA16
-    r1 = torch.where(E > 0, dist / E.clamp_min(1e-300),
-                     torch.where(dist > 0, torch.full_like(E, float("inf")), torch.zeros_like(E)))
-    return torch.maximum(r1, (got - S).abs() / bound)
+    return dist / E
 
 
 def wrong_maps(c):

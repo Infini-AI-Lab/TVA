@@ -255,13 +255,14 @@ the reductions' trees over their `BLOCK_SIZE` leaves, `Rules.Num.SumDepth`):
 
 * `meanTol = (D + 4)·2^-23 · Σ|x|/N + 2^-140`;
 * `cond = meanTol · rstdRef`, the row's condition number;
-* `gam = (D + 8)·(2^-23 + 2^-145 / eps)`, the relative error of `rstd` from rounding;
-* `mTerm = cond/8 + cond²/4`, the relative error of `rstd` from the mean's error;
-* when `cond ≤ 1/2`: `rstdTol = rstdRef · (gam + mTerm) + 2^-140` and
-  `zTol j = (1 + 2·gam)·(|zRef j|·(gam + mTerm) + cond) + 2^-140·(1 + rstdRef)`;
-* when `cond > 1/2`: `rstdTol = (1 + gam)/sqrt(eps) + 2^-140` and
-  `zTol j = |zRef j| + (1 + 2·gam)·(|x j − meanRef| + meanTol)/sqrt(eps) + 2^-140·(1 + 1/sqrt(eps))`;
-* `yTol j = 2^-10·|yRef j| + (1 + 2^-10)·|w j|·zTol j + 2^-21·(|w j|·|zRef j| + |b j|) + 2^-24`.
+* `rstdTol = (D·2^-21 + 2^-140/eps + cond/4)·rstdRef + 2^-140` when `cond ≤ 1/2`, and
+  `2/sqrt(eps)` when `cond > 1/2`;
+* `zTol j`, the bound on the kernel's standardised value (`Pre`'s `YRoom` uses it too), with
+  `gam = (D + 8)·(2^-23 + 2^-145 / eps)` and `mTerm = cond/8 + cond²/4`:
+  `(1 + 2·gam)·(|zRef j|·(gam + mTerm) + cond) + 2^-140·(1 + rstdRef)` when `cond ≤ 1/2`, and
+  `|zRef j| + (1 + 2·gam)·(|x j − meanRef| + meanTol)/sqrt(eps) + 2^-140·(1 + 1/sqrt(eps))` when
+  `cond > 1/2`;
+* `yTol j = 2^-9·(|w j|·|zRef j| + |b j|) + 2·|w j|·zTol j + 2^-24`.
 -/
 
 /-- `x[t, j]` as a real. -/
@@ -307,24 +308,30 @@ noncomputable def meanTol (d : Inst) (init : Mem) (t : Nat) : ℝ :=
 noncomputable def cond (d : Inst) (init : Mem) (t : Nat) : ℝ :=
   meanTol d init t * rstdRef d init t
 
-/-- The relative error of `rstd` from the roundings of the variance, `eps`, `tl.sqrt` and `/`. -/
+/-- The relative error of `rstd` from the roundings of the variance, `eps`, `tl.sqrt` and `/`
+(in `zTol`). -/
 noncomputable def gam (d : Inst) : ℝ :=
   ((depth d : ℝ) + 8) * (2 ^ (-23 : ℤ) + 2 ^ (-145 : ℤ) / epsR d)
 
-/-- The relative error of `rstd` that the mean's error causes, on a row with `cond ≤ 1/2`: the
+/-- The relative error of `rstd` that the mean's error causes, on a row with `cond ≤ 1/2` (in
+`zTol`): the
 deviations of lines 78 and 92 subtract, lane by lane, a value within `meanTol` of `meanRef` (the
 fused subtraction takes an exact value that rounds to the stored mean). -/
 noncomputable def mTerm (d : Inst) (init : Mem) (t : Nat) : ℝ :=
   cond d init t / 8 + cond d init t ^ 2 / 4
 
-/-- The tolerance of the stored `rstd`: relative on a row with `cond ≤ 1/2`; otherwise the bound
-`1/sqrt(eps)` that both `rstd` and `rstdRef` keep below. -/
+/-- The tolerance of the stored `rstd`: `(D·2^-21 + 2^-140/eps + cond/4)·rstdRef + 2^-140` on a row
+with `cond ≤ 1/2` (the roundings, and the mean's error); otherwise `2/sqrt(eps)` (both `rstd` and
+`rstdRef` stay below about `1/sqrt(eps)`). -/
 noncomputable def rstdTol (d : Inst) (init : Mem) (t : Nat) : ℝ :=
-  if cond d init t ≤ 1 / 2 then rstdRef d init t * (gam d + mTerm d init t) + 2 ^ (-140 : ℤ)
-  else (1 + gam d) / Real.sqrt (epsR d) + 2 ^ (-140 : ℤ)
+  if cond d init t ≤ 1 / 2 then
+    ((depth d : ℝ) * 2 ^ (-21 : ℤ) + 2 ^ (-140 : ℤ) / epsR d + cond d init t / 4) *
+      rstdRef d init t + 2 ^ (-140 : ℤ)
+  else 2 / Real.sqrt (epsR d)
 
-/-- The bound on the kernel's standardised value `x_hat` against `zRef` (not an output; it makes
-`yTol` readable): relative on a row with `cond ≤ 1/2`; otherwise from `rstd ≤ (1 + gam)/sqrt(eps)`. -/
+/-- The bound on the kernel's standardised value `x_hat` against `zRef` (not an output; `yTol` and
+`Pre`'s `YRoom` use it): relative on a row with `cond ≤ 1/2`; otherwise from
+`rstd ≤ (1 + gam)/sqrt(eps)`. -/
 noncomputable def zTol (d : Inst) (init : Mem) (t j : Nat) : ℝ :=
   if cond d init t ≤ 1 / 2 then
     (1 + 2 * gam d) * (|zRef d init t j| * (gam d + mTerm d init t) + cond d init t) +
@@ -334,12 +341,14 @@ noncomputable def zTol (d : Inst) (init : Mem) (t j : Nat) : ℝ :=
       (1 + 2 * gam d) * (|xR d init t j - meanRef d init t| + meanTol d init t) /
         Real.sqrt (epsR d) + 2 ^ (-140 : ℤ) * (1 + 1 / Real.sqrt (epsR d))
 
-/-- The tolerance of each output element. -/
+/-- The magnitude of output `(t, j)`'s terms, `|w j|·|zRef j| + |b j|` (at least `|yRef j|`). -/
+noncomputable def yMag (d : Inst) (init : Mem) (t j : Nat) : ℝ :=
+  |(wv d init j).toReal| * |zRef d init t j| + |(bv d init j).toReal|
+
+/-- The tolerance of each output element: `2^-9·yMag` (the `float16` rounding and the `float32`
+steps), the standardised value's error `zTol` scaled by `2·|w|`, and `2^-24`. -/
 noncomputable def yTol (d : Inst) (init : Mem) (t j : Nat) : ℝ :=
-  2 ^ (-10 : ℤ) * |yRef d init t j| +
-    (1 + 2 ^ (-10 : ℤ)) * |(wv d init j).toReal| * zTol d init t j +
-    2 ^ (-21 : ℤ) * (|(wv d init j).toReal| * |zRef d init t j| + |(bv d init j).toReal|) +
-    2 ^ (-24 : ℤ)
+  2 ^ (-9 : ℤ) * yMag d init t j + 2 * |(wv d init j).toReal| * zTol d init t j + 2 ^ (-24 : ℤ)
 
 /-- Row `t`'s output has room in `float16`: for every column, `|w|·(|zRef| + zTol) + |b| ≤ 2^15`
 (the bound on the kernel's `float32` `x_hat·w + b` stays below `float16`'s largest value `65504`). -/

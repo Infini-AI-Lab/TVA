@@ -57,8 +57,8 @@ as variables:
 model-sized ones (up to 65,536 tokens with 4 to 48 heads), edge launches (every finite `bfloat16`
 `a` against 16 values of `A_log` from `-3e38` to `89`, with `dt_bias` zero, random and huge, and
 every finite `b`; sums near the threshold `20`), and two direct launches into a guarded random
-pool. Over 11,068,444 cells inside `Pre`, `Post` holds on every one: `g` at worst 0.4997 of
-`gTol` (0.375 where its relative term is at least half of it), `beta_output` at worst 0.498 of its
+pool. Over 11,068,444 cells inside `Pre`, `Post` holds on every one: `g` at worst 0.4995 of
+`gTol`, `beta_output` at worst 0.498 of its
 bound, 245,348 cells `-∞` by the overflow clause; every input and guard is unchanged. Of the
 1,050,128 cells outside `Pre`, 132,826 violate `Post` (`A_log ≥ 88.72284`, sums rounding to `+∞`,
 `b < -88.72`).

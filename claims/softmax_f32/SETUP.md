@@ -35,10 +35,10 @@ The claim must cover every launch the file makes, through `softmax(x)`:
 ## Checked on the H200
 
 `check_gpu.py` (Triton 3.8.0, one H200): on the test and on all 98 benchmark shapes, every output
-is finite and `Post` holds on every row, with worst error / tolerance `0.40` (test) and `0.39`–`0.46`
+is finite and `Post` holds on every row, with worst error / tolerance `0.26` (test) and `0.25`–`0.30`
 (benchmark). On the edges of `Inst.ok` (rows with `-inf`, rows near the `float32` range, gaps up
 to `1000`, subnormal inputs, rows that are not `RowOk`, `1`, `2`, `100` and `16384` columns,
 `BLOCK_SIZE` above `next_power_of_2(n_cols)`, from `1` program to `n_rows`, strided rows) the worst
-is `0.57`, the input is unchanged and no element outside the output elements is written. The host's
-output rounded to `float16` or `bfloat16` fails `Post` (worst error / tolerance above `1000`), and so
+over every `RowOk` row is `0.42`, the input is unchanged and no element outside the output elements is written. The host's
+output rounded to `float16` or `bfloat16` fails `Post`, and so
 does the exact softmax with a denominator that drops the row's last column. 112 of 112 cases pass.

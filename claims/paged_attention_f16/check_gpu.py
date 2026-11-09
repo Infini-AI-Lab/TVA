@@ -7,15 +7,14 @@ computes, in float64 and exactly as `Claim.lean` states them, the reference `att
 `attnAbs` (the softmax weights `exp(scale·score)` over the sequence's tokens read through the block
 table, `scale` the double), the sequence's page count `T = cdiv(seq_len, PAGE_SIZE)` and score bound
 `X = max_t scale·scoreAbs` (the smallest `X` the claim allows, where its tolerance is tightest),
-and the tolerances `tolO`, `tolR`, `tolF` (`rhoD`, `expErr`, `relExp`, `psiP`, `psiL`, `psiA`,
-`step`, `drift`, `fL`, `fA`, `betaL`, `denQ`, `relA`, `relR`, `absQ`, `lastRel`). It reports the
-largest `|c - attnRef| / (tolO·attnAbs + tolR·|attnRef| + tolF)` over the elements of sequences
-whose values are covered (`SeqVals`), that those elements are finite, and the frame: every input
+and the tolerance `tolA T X = (9·T/8 + 8·X + 8)·2^-21`. It reports the largest
+`|c - attnRef| / (tolA·(attnAbs + |attnRef|) + 2^-11·|attnRef| + 2^-24)` over the elements of
+sequences whose values are covered (`SeqVals`), that those elements are finite, and the frame: every input
 unchanged bit for bit, and `out` (from the host's `torch.empty_like`) a view of a longer buffer
 whose tail keeps a sentinel. On some launches it also checks that `Post` rejects wrong outputs
 (rounded to `float16`): all zeros, the last or the first page dropped, the neighbouring key/value
 head, the scores without `scale`; and it reports the tolerance against the output, `tol / |attnRef|`
-(median and 90th percentile).
+(median, 90th percentile and largest).
 
 Run: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
 """
@@ -36,40 +35,14 @@ spec.loader.exec_module(mod)
 
 DEV = "cuda"
 SENT = -12345  # an int16 pattern, a finite float16
-U = 2.0 ** -24
 
 
-def clog2(n):
-    """`Nat.clog 2 n`."""
-    return (n - 1).bit_length() if n > 1 else 0
+def tol_a(T, X):
+    """`tolA T X` of Claim.lean: `(9·T/8 + 8·X + 8)·2^-21`."""
+    return (9 * T / 8 + 8 * X + 8) / 2.0 ** 21
 
 
-def tolerances(D, P, T, X):
-    """`tolO D P T X`, `tolR D P T X`, `tolF D P T X` of Claim.lean, in float64 (T, X float64 tensors)."""
-    rhoD = (1 + U) * (1 + 3 * U) ** clog2(D) - 1
-    E = (rhoD + 8 * U) * X + 2.0 ** -50
-    relExp = 2.0 ** -22 + (2 * X + 1) / 2.0 ** 23
-    psiP = (1 + E + E ** 2) * (1 + relExp) - 1
-    psiL = (1 + U) ** clog2(P) * (1 + psiP) - 1
-    psiA = (1 + 3 * U) ** clog2(P) * (1 + U) * (1 + psiP) - 1
-    step = (1 + 3 * U) * ((1 + U) if P == 1 else 1) * (1 + 2.0 ** -140) * (1 + 2.0 ** -22)
-    drift = 1 + 4 / 2.0 ** 22 * (X + E)
-    fL = (1 + psiL) * drift * step ** T
-    fA = (1 + psiA) * drift * step ** T
-    wlow = 1 - E
-    betaL = (fL - 1) + fL * (T * 2.0 ** -100) / wlow
-    denQ = 1 - betaL
-    relA = (fA - 1) / denQ
-    relR = betaL / denQ
-    absQ = fA * (T * 2.0 ** -90) / (wlow * denQ)
-    lastRel = 2.0 ** -11 * (1 + 2.0 ** -22) + 2.0 ** -22
-    tolO = relA * (1 + lastRel)
-    tolR = relR * (1 + lastRel) + lastRel
-    tolF = absQ * (1 + lastRel) + 2.0 ** -11 * 2.0 ** -148 + 2.0 ** -148 + 2.0 ** -25
-    return tolO, tolR, tolF
-
-
-WORST = {"r": 0.0, "ok": True, "at": None, "tolO_max": 0.0, "elems": 0}
+WORST = {"r": 0.0, "ok": True, "at": None, "tolA_max": 0.0, "elems": 0}
 NEGS = ("zero", "drop-last-page", "drop-first-page", "next-kv-head", "no-scale")
 
 
@@ -111,9 +84,8 @@ def check(name, q, k_cache, v_cache, block_tables, seq_lens, out, negatives=Fals
             w = torch.softmax(sigma * score, dim=0)
             ref = w @ vv
             absw = w @ vv.abs()
-            tolO, tolR, tolF = tolerances(D, P, torch.tensor(T, dtype=torch.float64),
-                                          torch.tensor(X, dtype=torch.float64))
-            tol = tolO * absw + tolR * ref.abs() + tolF
+            tolA = tol_a(T, X)
+            tol = tolA * (absw + ref.abs()) + 2.0 ** -11 * ref.abs() + 2.0 ** -24
             rel.append(tol / ref.abs())
             c = out[s, h].double()
             if negatives:
@@ -139,7 +111,7 @@ def check(name, q, k_cache, v_cache, block_tables, seq_lens, out, negatives=Fals
             ratio = (c - ref).abs() / tol
             r = float(ratio.max())
             WORST["elems"] += D
-            WORST["tolO_max"] = max(WORST["tolO_max"], float(tolO))
+            WORST["tolA_max"] = max(WORST["tolA_max"], float(tolA))
             if r > r_case:
                 r_case = r
             if r > WORST["r"]:
@@ -158,7 +130,7 @@ def check(name, q, k_cache, v_cache, block_tables, seq_lens, out, negatives=Fals
     if rel:
         rel = torch.cat(rel)
         print(f"  {name}: tol / |attnRef| median {float(rel.median()):.3e}, 90th percentile "
-              f"{float(rel.quantile(0.9)):.3e}")
+              f"{float(rel.quantile(0.9)):.3e}, largest {float(rel.max()):.3e}")
     return r_case
 
 
@@ -238,8 +210,8 @@ def main():
     run("pre-bigv", 8, 2, 128, 16, [300, 2000], gen, v_scale=2.0 ** 13)
     run("pre-tinyv", 8, 2, 128, 16, [300, 2000], gen, v_scale=2.0 ** -20)
     print(f"WORST: err/tol {WORST['r']:.3e} (margin {1 / max(WORST['r'], 1e-300):.2f}x) at "
-          f"(case, seq, head, e, err, tol, X, T, attnAbs) = {WORST['at']}; largest tolO "
-          f"{WORST['tolO_max']:.3e}; {WORST['elems']} elements checked; finiteness and frame "
+          f"(case, seq, head, e, err, tol, X, T, attnAbs) = {WORST['at']}; largest tolA "
+          f"{WORST['tolA_max']:.3e}; {WORST['elems']} elements checked; finiteness and frame "
           f"{'hold' if WORST['ok'] else 'FAIL'}")
     sys.exit(0 if WORST["ok"] and WORST["r"] < 1 else 1)
 

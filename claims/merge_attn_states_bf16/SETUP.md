@@ -72,7 +72,8 @@ strides, transposed lse views), on vLLM's test's largest shape (4096 tokens, 64 
 every bit pattern but NaN, huge, subnormal and infinite; `bfloat16` inputs of every finite pattern;
 exact cancellation; both lse at the `float32` maximum; any bits, NaN included, in the copied tokens
 and in both-empty rows). Every output is within the claim's tolerance: the worst output error /
-tolerance is `0.978` (the bound is one `bfloat16` rounding, margin `1.02×`), the worst lse error /
+tolerance is `0.966` (the bound is one `bfloat16` rounding of the output plus `2^-13` of the larger
+input, margin `1.04×`), the worst lse error /
 tolerance `6.7·10^-3` (margin `149×`). On every case a both-empty pair gives lse `−∞` and output
 `+0`, the copied tokens are the suffix's bit for bit, and every input is unchanged; without `output_lse` the
 output is the same. Seven wrong outputs (all zero, the suffix's output alone, the prefix's output

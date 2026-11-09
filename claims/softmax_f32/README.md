@@ -7,7 +7,7 @@ to prove is `Statement`. The launches to cover are in `SETUP.md`.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.Softmax.main : Statement` (`Statement`: `Claim.lean`
-line 260). Unfolded (`Claim.Meets`), it says:
+line 256). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -16,29 +16,28 @@ line 260). Unfolded (`Claim.Meets`), it says:
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 112), and every initial memory `init` that `Pre` accepts (line 167), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 221).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 217).
 
-**What `Post` asks** (line 221). For every row `r < n_rows` there are values `xs` with:
+**What `Post` asks** (line 217). For every row `r < n_rows` there are values `xs` with:
 1. for every `k < n_cols`, input element `x[r, k]` (`inIdx d r k`, line 100) reads in `init` as
    `xs k`;
 2. for every `j < n_cols`, output element `y[r, j]` (`outIdx d r j`, line 103) reads in `fin` as some
    `float32` value. This holds for every row, whatever its inputs;
 3. only when `RowOk xs n_cols` holds (line 174: every input finite or `-∞`, and at least one finite
    when the row is not empty): there is one real factor `sc` for the whole row with
-   `|sc - 1| ≤ sumTol BLOCK_SIZE`, and for every `j < n_cols` the output `c` of `y[r, j]` is finite
+   `|sc - 1| ≤ sumTol`, and for every `j < n_cols` the output `c` of `y[r, j]` is finite
    and
 
-   $$|c - sc\cdot\sigma_j| \le (\mathtt{elemTol} + \mathtt{gapTol}\cdot\mathtt{softmaxGap}_j)\cdot\sigma_j + \mathtt{floorTol}\cdot\mathtt{softmaxMax},$$
+   $$|c - sc\cdot\sigma_j| \le \mathtt{elemTol}\cdot(\mathtt{softmaxGap}_j + 4)\cdot\sigma_j + \mathtt{floorTol},$$
 
    with `σ_j = softmaxRef xs n_cols j` (line 183): the exact softmax in the reals,
    `expIn (xs j) / Σ_{k<n_cols} expIn (xs k)` (`expIn`, line 179, `e^a` with `e^(-∞) = 0`).
    `softmaxMax` (line 188) is the row's largest `σ`, `softmaxGap` (line 193) is
-   `log(softmaxMax / σ_j)`. The tolerances: `sumTol` (line 200, `(⌈log₂ B⌉ + 56)·2^-24`),
-   `elemTol` (line 204), `gapTol` (line 208), `floorTol` (line 212). Outside `RowOk` only part 2 is
-   asked;
+   `log(softmaxMax / σ_j)`. The tolerances: `sumTol` (line 199, `2^-17`), `elemTol` (line 204,
+   `2^-22`), `floorTol` (line 208, `2^-133`). Outside `RowOk` only part 2 is asked;
 4. the frame: every byte outside the output elements `outSet d` (line 109) is unchanged.
 
-**What you are given** (`Assumptions`, line 237):
+**What you are given** (`Assumptions`, line 233):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `exp_total` (`Num.MathTotal P .exp .binary32`): `tl.exp` has a result on every input (source
@@ -76,14 +75,15 @@ invariant over the trips (PROVER_GUIDE §4).
   row's max is finite; the mask still matters: `BLOCK_SIZE` may exceed `n_cols` (`384` columns in a
   block of `512`);
 - parts 1 and 2 from the loads and stores of each row's trip (`grid_pos`: every row has a program);
-- part 3 on a `RowOk` row: the max is a finite input; `exp_acc` and `exp_ninf` bound each lane;
-  `sum_depth` with `SumDepth.depth_le` and `sum_err_depth` bound the sum and give `sc`; `div_full`
-  bounds each quotient (README, Tolerances, gives the derivation, including lanes where `x − max`
-  overflows);
+- part 3 on a `RowOk` row, `|sc − 1| ≤ 2^-17` and `|c_j − sc·σ_j| ≤ 2^-22·(gap_j + 4)·σ_j + 2^-133`:
+  derive the fine bound of README Tolerances (the max is a finite input; `exp_acc` and `exp_ninf`
+  bound each lane; `sum_depth` with `SumDepth.depth_le` and `sum_err_depth` bound the sum and give
+  `sc`; `div_full` bounds each quotient; including lanes where `x − max` overflows), then relax it
+  by the chain given there (`D ≤ 14`, `gap_j ≥ 0`, `σ_max ≤ 1`);
 - the bytes no program writes give the frame (part 4).
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `idx_lt` (line 284) can be reused.
+`setup_*_ok` theorems; `idx_lt` (line 280) can be reused.
 
 ## Specification
 
@@ -92,10 +92,11 @@ Element `j` of row `r` is `inIdx d r j = r·input_row_stride + j` of `x` and
 `xs k` the row's input values read in `init` (`k < n_cols`):
 - every output element `y[r, j]`, `j < n_cols`, holds a `float32` value;
 - if the row is `RowOk` (every value a finite `float32` or `−∞`, and one value finite when
-  `n_cols > 0`), there is **one factor `sc` for the whole row**, `|sc − 1| ≤ sumTol(BLOCK_SIZE)`,
+  `n_cols > 0`), there is **one factor `sc` for the whole row**, `|sc − 1| ≤ sumTol = 2^-17`,
   such that every output `c_j` is finite and
 
-  `|c_j − sc·σ_j| ≤ (elemTol + gapTol·gap_j)·σ_j + floorTol·σ_max`,
+  `|c_j − sc·σ_j| ≤ 2^-22·(gap_j + 4)·σ_j + 2^-133`
+  (`elemTol·(gap_j + 4)·σ_j + floorTol`),
 
   where `σ_j = softmaxRef xs n_cols j = e^(x_j) / Σ_k e^(x_k)` is the exact softmax in the reals
   (`e^(−∞) = 0`: `expIn`), `σ_max = softmaxMax` the row's largest `σ_k`, and
@@ -105,20 +106,18 @@ Element `j` of row `r` is `inIdx d r j = r·input_row_stride + j` of `x` and
 
 | Name | Value | Size |
 |---|---|---|
-| `sumTol B` | `(⌈log₂ B⌉ + 56)·2^-24` | `3.8·10^-6` at `B = 256`, `3.9·10^-6` at `1024`, `4.2·10^-6` at `2^14` |
-| `elemTol` | `2^-21 + 2^-30` | `4.8·10^-7` |
-| `gapTol` | `3·2^-24 + 2^-30` | `1.8·10^-7` per unit of `x_max − x_j` |
-| `floorTol` | `2^-133` | relative to `σ_max ≥ 1/n_cols` |
+| `sumTol` | `2^-17` | `7.6·10^-6`, for the whole row |
+| `elemTol` | `2^-22` | `2.4·10^-7` per unit of `gap_j + 4`: `9.5·10^-7` at `gap_j = 0` |
+| `floorTol` | `2^-133` | absolute |
 
-Only the row sum's error grows with `BLOCK_SIZE` (as `log₂ BLOCK_SIZE`), and it is one number shared
-by the row (the outputs are `e_j / S`), so `Post` states it once, as `sc`, and holds each output to a
-per-element relative bound that does not grow with `BLOCK_SIZE`. Consequences: `|c_j − σ_j| ≤ (sumTol + elemTol +
-gapTol·gap_j)·σ_j + floorTol·σ_max`, and the ratio of two outputs of a row is within about
-`2·elemTol + gapTol·(gap_i + gap_j)` of `σ_i/σ_j`. A result rounded to `float16` or `bfloat16` does
-not meet `Post` at any covered `BLOCK_SIZE ≥ 2`: on the row `[0, −1]`, `Post` needs the two outputs'
-relative errors to differ by at most `≈ 1.1·10^-6`, and their `float16` roundings differ by
+The row sum's error is one number shared by the row (the outputs are `e_j / S`), so `Post` states
+it once, as `sc`, and holds each output to a per-element relative bound that grows only with the
+gap. Consequences: `|c_j − σ_j| ≤ (2^-17 + 2^-22·(gap_j + 4))·σ_j + 2^-133`, and the ratio of two
+outputs of a row is within about `2^-22·(gap_i + gap_j + 8)` of `σ_i/σ_j`. A result rounded to
+`float16` or `bfloat16` does not meet `Post`: on the row `[0, −1]`, `Post` needs the two outputs'
+relative errors to differ by at most `≈ 2.1·10^-6`, and their `float16` roundings differ by
 `5.2·10^-4` (`bfloat16`: `3·10^-3`). Small outputs are held relatively: in a row `[20, 0, …, 0]` the
-outputs `σ ≈ 2·10^-9` must be within about `4·10^-6` of `sc·σ`, relatively.
+outputs `σ ≈ 2·10^-9` must be within about `5.5·10^-6` of `sc·σ`, relatively.
 
 A row that is not `RowOk` (a NaN or `+∞`, or every value `−∞`) has no defined softmax; `Post` asks
 only that its outputs hold values.
@@ -177,7 +176,7 @@ Seven `[rule]` fields, each the library's fact as `docs/rules/num.md` states it:
 (`Num.ExpF32`: relative `2^-22 + 2^-23·X` on `[−X, X]`, absolute `2^-140`), `exp_ninf`
 (`Num.ExpF32NegInf`: `tl.exp(−∞) = +0`), `div_total` (`Num.DivTotal P .binary32`), `div_full`
 (`Num.DivFull`: relative `2^-22`, absolute `2^-148` for quotients up to `2^126`), `sum_depth`
-(`Num.SumDepth`: the `tl.sum` of line 104 along a tree of depth at most `⌈log₂ BLOCK_SIZE⌉`; its
+(`Num.SumDepth`: the `tl.sum` of source line 104 along a tree of depth at most `⌈log₂ BLOCK_SIZE⌉`; its
 result is stored, and no loop updates a carried value with a reduction, the loop form the library
 excludes). The subtraction, the max and the sum are IEEE operations. No
 `[kernel]` field.
@@ -208,18 +207,29 @@ From the library's facts, per `RowOk` row with `B = BLOCK_SIZE`, `u = 2^-24`:
   of `A`, below `(D + 53.001)·u·A` (`D ≤ 14`, `A ≥ 1`); so `sc = A/S` is within
   `(D + 53.001)·u/(1 − 68u) ≤ (D + 54)·u` of `1`, inside `sumTol = (D + 56)·u`;
 - `DivFull` on `e_j / S` (quotient `≤ 2`, far inside `2^126`): relative `2^-22`, absolute `2^-148`.
-  Together: `|c_j − sc·σ_j| ≤ (2^-21 + 2^-30 + (3u + 2^-30)·|s_j|)·σ_j + 2^-133/A`, with
-  `|s_j| ≤ (1+u)·gap_j` absorbed in `gapTol` and `1/A = σ_max`: `elemTol`, `gapTol`, `floorTol`;
+  Together, the fine bound: `|sc − 1| ≤ (D + 56)·u` and
+  `|c_j − sc·σ_j| ≤ (2^-21 + 2^-30 + (3u + 2^-30)·gap_j)·σ_j + 2^-133·σ_max` (with
+  `|s_j| ≤ (1+u)·gap_j` and `1/A = σ_max`);
 - a lane whose `x − m` overflows to `−∞` (inputs near `±3.4·10^38` of opposite signs) has
-  `gap_j ≥ 2^127`: its output is within `2^-148 ≤ floorTol·σ_max` of `0` (`σ_max ≥ 2^-14`), and
-  `sc·σ_j ≤ gapTol·gap_j·σ_j`, so the same bound holds; no bound on the input magnitudes is needed.
+  `gap_j ≥ 2^127`: its output is within `2^-148 ≤ 2^-133·σ_max` of `0` (`σ_max ≥ 2^-14`), and
+  `sc·σ_j ≤ (3u + 2^-30)·gap_j·σ_j`, so the same bound holds; no bound on the input magnitudes is
+  needed.
 
-Meaningful: the per-element part does not grow with `B` and is a few `float32` roundings
-(measured worst error / tolerance `0.57`); a half-precision result fails it (Specification). The
-common factor's bound `sumTol` is about `66` `float32` roundings at every covered `B`: a
-denominator that drops one column (outputs `e_j/(A − e_last)`, exactly `sc·σ_j` with
-`sc = A/(A − e_last)`) fails `Post` on every row of the test's shape and on about `99%` of the rows at
-`4096 × 12672` (`check_gpu.py`).
+**Relaxation to `Post`'s constants.** `B ≤ 2^14` (`block_le`) gives `D ≤ 14`, so
+`(D + 56)·u ≤ 70·2^-24 ≤ 128·2^-24 = 2^-17 = sumTol`. On a `RowOk` row `σ_j ≤ σ_max`, so
+`gap_j = log(σ_max/σ_j) ≥ 0` (and `gap_j = 0` when `σ_j = 0`); then
+`2^-21 + 2^-30 + (3u + 2^-30)·gap_j ≤ 2^-20 + 2^-22·gap_j = 2^-22·(gap_j + 4)`, since
+`2^-21 + 2^-30 ≤ 2^-20` and `3·2^-24 + 2^-30 ≤ 4·2^-24`. Each `σ_k ≤ 1` (`e^(x_k)` is one of the
+non-negative terms of the denominator), so `σ_max ≤ 1` and `2^-133·σ_max ≤ 2^-133 = floorTol`.
+
+Meaningful: the per-element part is a few `float32` roundings plus the gap's
+(measured worst error / tolerance `0.42`); a half-precision result fails it (Specification). The
+common factor's bound `sumTol = 2^-17` is `128` `float32` roundings: a denominator that drops one
+column (outputs `e_j/(A − e_last)`, exactly `sc·σ_j` with `sc = A/(A − e_last)`) fails `Post` on
+rows of the test's shape and of `4096 × 12672` (`check_gpu.py`). Over the benchmark's launches
+(`torch.randn` rows), `(sumTol + elemTol·(gap_j + 4))·σ_j + floorTol`, relative to `σ_j`, is
+`9.5·10^-6` at the median and `1.1·10^-5` at the worst element (the fine bound: `5.3·10^-6`,
+`6.4·10^-6`); the tolerance is at most twice the fine bound on every element.
 
 ## Exclusions
 
@@ -259,7 +269,7 @@ None.
   that are not `RowOk`, `1`, `2`, `100`, `16384` columns, larger `BLOCK_SIZE`, `1` to `n_rows`
   programs, strided rows in a sentinel buffer). The test's shape and the edges with `1`, `2`, `8`,
   `100` or `1000` columns are outside `cols_dim`: they check `Post` beyond the claim. Worst error /
-  tolerance over every `RowOk` row: `0.40` on the test, `0.39`–`0.46` on the benchmark, `0.57`
+  tolerance over every `RowOk` row: `0.26` on the test, `0.25`–`0.30` on the benchmark, `0.42`
   overall; every `RowOk` output finite; inputs unchanged; frame holds. The host's output rounded to
   `float16` / `bfloat16`, and a denominator that drops the row's last column, fail `Post`. 112 of
   112 cases pass.

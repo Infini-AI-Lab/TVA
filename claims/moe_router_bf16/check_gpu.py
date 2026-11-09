@@ -5,20 +5,21 @@ moe_router.py, imported by path) on SETUP.md's launches (the source's eight Grok
 launches at the edges of `Inst.ok` and `Pre`, and checks `Pre` and `Post` as the claim states them,
 in float64:
 
-* `Pre`: the inputs finite, every `absS <= 2^120`, every `mu + capTol <= 1320`;
-* `Post`: `Post` asks for reals `C e` (one per expert) within `capTol` of `capRef(mu)`, of which
+* `Pre`: the inputs finite, every `absS <= 2^120`, every `mu + capTol <= 1320` (`capTol` the fine
+  bound of README Tolerances);
+* `Post`: `Post` asks for reals `C e` (one per expert) within `capEps` of `capRef(mu)`, of which
   the ids are the first argmaxes and the weights the softmax. The check takes as the witness `C` the
   capped logits computed by a probe kernel, `probe_kernel` below: the source's lines 66-93 copied
   verbatim, storing `logits_softcapped` (launched with the host's `BLOCK_SIZE` and `num_warps`).
   Any `C` meeting every clause shows `Post`; the check verifies that this one does: each `C e`
-  within `capTol` of `capRef(mu)`, the kernel's ids the first argmax of `C` and the first argmax of
+  within `capEps` of `capRef(mu)` (and README Tolerances' derived bound below `capEps`), the kernel's ids the first argmax of `C` and the first argmax of
   `C` without `i0`, the kernel's weights finite and within `wRel * softRef + wFloor`;
 * the byte frame: the inputs unchanged, and guard bands of 4096 elements on each side of
   `topk_weights` and `topk_ids` (the host's two `torch.empty` allocations are placed inside
   sentinel-filled buffers during the call) unchanged; every output element is checked.
 
 `mu` is the exact logit computed in float64 from the bfloat16 and float32 inputs (relative error
-about 1e-16 of `absS`, negligible against `tolL`). Each line reports the largest error / tolerance
+about 1e-16 of `absS`, negligible against the tolerance). Each line reports the largest error / tolerance
 of the capped logits (against `capRef`) and of the two weights (against the softmax of `C`).
 
 Run: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
@@ -94,7 +95,19 @@ def tol_l(B, hidden, S, depth=None):
 
 
 def cap_tol(B, hidden, mu, S, depth=None):
+    """`capTol`, the fine bound (README, Tolerances) that `Pre`'s range condition uses."""
     return (1 + 2.0 ** -21) * tol_l(B, hidden, S, depth) + 2.0 ** -21 * mu.abs() + 2.0 ** -14
+
+
+def cap_eps(S):
+    """`capEps`, the capped logit's tolerance in `Post`: `2^-18·S + 2^-14`."""
+    return 2.0 ** -18 * S + 2.0 ** -14
+
+
+def cap_route(B, hidden, mu, S):
+    """The bound README Tolerances derives (`capTol` with the cap formula's error `1.7e-5 + 2^-130`
+    at `2^-15` in place of its `2^-14`), which `capEps` must cover."""
+    return cap_tol(B, hidden, mu, S) - 2.0 ** -14 + 2.0 ** -15
 
 
 def soft_range(r, t, j):
@@ -112,13 +125,14 @@ def soft_range(r, t, j):
 
 def negatives(name, x, w):
     """Wrong results `Post` must reject (it is a statement about every token, so one rejected token
-    rejects the run), and the size of the tolerances, at the depth `⌈log₂ B⌉` (`SumDepth`) and, for
-    comparison, along any tree (depth `B − 1`):
+    rejects the run), and the size of the tolerances: `Post`'s `capEps`, and for comparison the fine
+    bound `capTol` at the depth `⌈log₂ B⌉` (`SumDepth`) and along any tree (depth `B − 1`); the
+    rejections that count are `capEps`'s:
     * a kernel without the soft cap: the ids and weights of the raw logits (the ids are the same, the
       weights the softmax of `mu`); rejected on a token when a weight lies outside the range of
-      `softRef` over every `C` within `capTol` (widened by `wRel` and `wFloor`);
-    * swapped ids `(i1, i0)`: rejected on a token when no `C` within `capTol` puts `i1` first,
-      `capRef(i0) − capTol(i0) > capRef(i1) + capTol(i1)`."""
+      `softRef` over every `C` within the tolerance (widened by `wRel` and `wFloor`);
+    * swapped ids `(i1, i0)`: rejected on a token when no `C` within the tolerance puts `i1` first,
+      `capRef(i0) − tol(i0) > capRef(i1) + tol(i1)`."""
     bs, hidden = x.shape
     B = triton.next_power_of_2(hidden)
     xd, wd = x.double(), w.double()
@@ -129,8 +143,8 @@ def negatives(name, x, w):
     i0, i1 = top[:, 0], top[:, 1]
     raw = torch.softmax(mu, dim=1)
     out = []
-    for label, depth in (("depth log2 B", None), ("any tree", B - 1)):
-        ct = cap_tol(B, hidden, mu, S, depth)
+    for label, ct in (("Post's capEps", cap_eps(S)), ("fine capTol, depth log2 B", cap_tol(B, hidden, mu, S)),
+                      ("fine capTol, any tree", cap_tol(B, hidden, mu, S, B - 1))):
         rel = (ct / ref.abs()).flatten()
         lo0, hi0 = soft_range(ref, ct, i0)
         lo1, hi1 = soft_range(ref, ct, i1)
@@ -143,7 +157,7 @@ def negatives(name, x, w):
         swap = r0 - t0 > r1 + t1
         wtol = torch.exp(2 * ct.max(1).values) - 1 + WREL1
         out.append((label, nocap, swap))
-        print(f"    {name}, {label}: capTol/|capRef| median {rel.median().item():.3g} "
+        print(f"    {name}, {label}: tol/|capRef| median {rel.median().item():.3g} "
               f"p90 {rel.quantile(0.9).item():.3g}; composed weight tolerance (relative) median "
               f"{wtol.median().item():.3g}; tokens rejecting a kernel without the soft cap "
               f"{nocap.double().mean().item():.3f}, rejecting swapped ids {swap.double().mean().item():.3f}")
@@ -208,9 +222,11 @@ def check(name, x, w):
         mu[r:r + rows] = xd @ wd.T                   # the exact logits (float64)
         S[r:r + rows] = xd.abs() @ wd.abs().T
         del xd
-    ct = cap_tol(B, hidden, mu, S)
+    ctp = cap_tol(B, hidden, mu, S)                 # Pre's fine bound
     pre_ok = xfin and bool(torch.isfinite(wd).all())
-    pre_ok = pre_ok and bool((S <= 2.0 ** 120).all()) and bool((mu + ct <= 1320).all())
+    pre_ok = pre_ok and bool((S <= 2.0 ** 120).all()) and bool((mu + ctp <= 1320).all())
+    ct = cap_eps(S)                                 # Post's tolerance
+    fine_ok = bool((cap_route(B, hidden, mu, S) <= ct).all()) if 128 <= B else True   # Inst.ok: B >= 128
     ref = 30 * torch.tanh(mu / 30)
     Cd = C.double()
     c_ok = bool(torch.isfinite(Cd).all())
@@ -239,10 +255,11 @@ def check(name, x, w):
     worst["cap"] = max(worst["cap"], e_cap)
     worst["w0"] = max(worst["w0"], e0)
     worst["w1"] = max(worst["w1"], e1)
-    good = pre_ok and c_ok and ids_ok and w_ok and frame_ok and e_cap <= 1 and e0 <= 1 and e1 <= 1
+    good = pre_ok and c_ok and ids_ok and w_ok and frame_ok and fine_ok and e_cap <= 1 and e0 <= 1 and e1 <= 1
     print(f"{'ok ' if good else 'BAD'} {name}: bs {bs} hidden {hidden} BLOCK {B}: err/tol capped logits "
           f"{e_cap:.2e}, weight0 {e0:.3f}, weight1 {e1:.3f}; ids {ids_ok}, Pre {pre_ok}, frame {frame_ok}; "
-          f"max S {S.max().item():.3g}, max |mu| {mu.abs().max().item():.3g}, max capTol {ct.max().item():.3g}")
+          f"max S {S.max().item():.3g}, max |mu| {mu.abs().max().item():.3g}, max capEps {ct.max().item():.3g}, "
+          f"derived bound <= capEps {fine_ok}")
     if not good:
         failures.append(name)
 

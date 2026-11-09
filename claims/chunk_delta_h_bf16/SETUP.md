@@ -127,8 +127,8 @@ tokens; strong decay; `β` up to 2; initial states of order `5·10^3` and `10^-3
 1 to 64 tokens; a gate that is not monotone within its chunks). `Post`'s `float32` states are the
 kernel's own, read by a copy of the kernel with one more store per state block (its outputs equal
 the host's bit for bit): `Y 0` is the initial state (as a value: an initial `-0` is the state `+0`), every stored state is the `bfloat16` rounding
-of its state and `ht` the last state, bit for bit; the worst error / tolerance is `0.926` (a step)
-and `0.996` (`v_new`); every stored state is in range (`StOk`), every output is finite, `Vals`
+of its state and `ht` the last state, bit for bit; the worst error / tolerance is `0.885` (a step)
+and `0.965` (`v_new`); every stored state is in range (`StOk`), every output is finite, `Vals`
 holds, the host's `chunk_offsets` equal `cbase`, and a direct launch with the outputs between guard
 regions leaves the guards and inputs unchanged, writes every output element and equals the host's
 outputs bit for bit. Forty-seven corrupted outputs on four launches (an element moved by 4 times

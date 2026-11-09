@@ -7,13 +7,17 @@ element, computed in float64 from the host's inputs exactly as `Post` states it:
 * a routed row `(t, j)` (local expert `e` of `topk_ids[t, j]`, through the expert map when there is
   one; the host's input, not what the kernel reads) and column `c`, with `a` row `t` of `A` for the
   first GEMM (`fused_moe_gemm1`) and row `t·top_k + j` for the second (`fused_moe_gemm2`):
-  `S = Σ_k a[k] · B[e, c, k]`, `E = tol BK K a B[e, c]` (`accErr` of Claim.lean: the chunk
-  recursion of `Rules.Num.DotBF16Chunk` over the exact partial sums of the 64-chunks, with the
-  lifted products `liftMag q = 0` at `0`, else `max(|q|, 2^-126)`; `BK` the tile's
-  `BLOCK_SIZE_K`), `tol_chunk` below. Without `MUL_ROUTED_WEIGHT`:
-  `|C - S| <= E + (|S| + E)·2^-8 + 2^-134`; with it, `w = topk_weights[t, j]`,
-  `tolW = |w|·E + ((|S| + E)·|w|)·2^-24 + 2^-150` and `|C - S·w| <= tolW + (|S·w| + tolW)·2^-8 + 2^-134`
-  (`outFin`, under its room conditions, which every case here meets);
+  `S = Σ_k a[k] · B[e, c, k]`, `T = tol BK K a B[e, c] = 2^-12·pathMag + 2^-133` (`pathMag`
+  of Claim.lean: over the 64-chunks of the loop, the largest of the exact partial sum before the
+  chunk, the one before the chunk's trip and the chunk's lifted magnitude, `liftMag q = 0` at `0`,
+  else `max(|q|, 2^-126)`, summed;
+  `BK` the tile's `BLOCK_SIZE_K`), `path_mag` below. `Post` (`outElem`, `outFin`) asks for a
+  `float32` `u` within `T` of `S` whose `bfloat16` rounding (without `MUL_ROUTED_WEIGHT`), or the
+  `bfloat16` rounding of `u ⊗ w` (with it, `w = topk_weights[t, j]`), is the output. The check takes
+  the interval of real values whose `bfloat16` rounding is the output (half a gap to each
+  neighbour), divides it by `w` with the weight, and measures `err` = the distance from `S` to
+  that interval; `Post` holds when `err ≤ T` (up to the `float32` grid of `u` and one `float32`
+  rounding of `u·w` at the interval's ends, far below `T`). The room conditions hold in every case.
 * a row whose block has expert `-1`: the `bfloat16` `+0.0` (bit for bit);
 * a row not routed to a local expert: unchanged (the host's `C` is filled with a sentinel pattern
   before the launch, by wrapping `torch.empty` during the host call);
@@ -22,7 +26,7 @@ element, computed in float64 from the host's inputs exactly as `Post` states it:
   `C` placed between two guard regions.
 
 Prints, per case, the tile and assignment the host chose, the largest error / tolerance of the
-output, `tol / |reference|` (median, 90th percentile) and the exactness and frame results; on some
+output, `tol / |S|` (median, 90th percentile) and the exactness and frame results; on some
 cases, negative tests (wrong outputs, counted by the elements `Post` rejects; one rejected element
 rejects the output). Each case stays under 4 GiB of device memory. Usage: CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py
 """
@@ -44,16 +48,13 @@ DEV = "cuda"
 
 
 
-RHO, SIG, ALP = 2.0 ** -13, 2.0 ** -20, 2.0 ** -143   # rhoChunk16, sigmaChunk16, alphaChunk16
-
-
-def tol_chunk(a, w, K, BK):
-    """`tol BK K va vb` (Claim.lean: `accErr`, `tripErr`, `chainE`, `chunkStep`) for every row of
-    `a` [r, K] and row of `w` [n, K] (float64 values of bfloat16 numbers): [r, n]. Positions past
-    `K` are zeros; the chunks are the 64 consecutive positions from `64·g`."""
+def path_mag(a, w, K, BK):
+    """`pathMag va vb BK K` (Claim.lean) for every row of `a` [r, K] and row of `w` [n, K] (float64
+    values of bfloat16 numbers): [r, n]. Positions past `K` are zeros; the chunks are the 64
+    consecutive positions from `64·g`, `g < cdiv(K, BK)·(BK/64)`, trip `g // (BK/64)`."""
     r, n = a.shape[0], w.shape[0]
     Kp = -(-K // BK) * BK
-    G, q, T = Kp // 64, BK // 64, Kp // BK
+    G, q = Kp // 64, BK // 64
     out = torch.empty((r, n), dtype=torch.float64, device=a.device)
     nb = max(1, (2 ** 25) // max(1, r * G))
     ap = torch.zeros((r, Kp), dtype=torch.float64, device=a.device)
@@ -68,24 +69,45 @@ def tol_chunk(a, w, K, BK):
         lw[:, :K] = lift(w[n0:n0 + nb])
         c = torch.einsum("rgk,ngk->rng", ap, wp.view(-1, G, 64))     # chunkSum
         m = torch.einsum("rgk,ngk->rng", la, lw.view(-1, G, 64))     # chunkLift
-        P = torch.cat([torch.zeros_like(c[..., :1]), c.cumsum(-1)], -1)   # preSum
-
-        def step(e, Pg, mg, Pg1):
-            return (1 + RHO + SIG) * e + RHO * torch.maximum(Pg.abs(), mg) + SIG * Pg1.abs() + ALP
-
-        E = torch.zeros_like(c[..., 0])
-        for t in range(T):
-            g0 = t * q
-            ea, L = E, torch.zeros_like(E)
-            for j in range(q):
-                ea = step(ea, P[..., g0 + j], m[..., g0 + j], P[..., g0 + j + 1])
-                L = step(L, P[..., g0 + j] - P[..., g0], m[..., g0 + j], P[..., g0 + j + 1] - P[..., g0])
-            eb = E + L + 3 * 2.0 ** -24 * ((P[..., g0 + q] - P[..., g0]).abs() + L + P[..., g0].abs() + E) \
-                + 4 * 2.0 ** -150
-            E = torch.maximum(ea, eb)
-        out[:, n0:n0 + nb] = E
-        del c, m, P, wp, lw
+        P = torch.cat([torch.zeros_like(c[..., :1]), c.cumsum(-1)[..., :-1]], -1)   # preSum g, g < G
+        Ptrip = P[..., (torch.arange(G, device=a.device) // q) * q]          # preSum at the trip's start
+        out[:, n0:n0 + nb] = torch.maximum(torch.maximum(P.abs(), Ptrip.abs()), m).sum(-1)
+        del c, m, P, Ptrip, wp, lw
     return out
+
+
+def tol_u(S_mag):
+    """`tol` of Claim.lean from `pathMag`."""
+    return 2.0 ** -12 * S_mag + 2.0 ** -133
+
+
+def bf16_preimage(v):
+    """The interval [lo, hi] of real values whose bfloat16 rounding is `v` (bfloat16, finite):
+    half the gap to each neighbour (its ends are ties; taking them closed changes nothing here)."""
+    bits = v.view(torch.int16).to(torch.int32)
+    mag = bits & 0x7FFF
+    neg = (bits & 0x8000) != 0
+
+    def val(mb):
+        return mb.to(torch.int16).view(torch.bfloat16).double()
+
+    x = val(mag)
+    up = val(mag + 1) - x
+    down = torch.where(mag == 0, up, x - val((mag - 1).clamp_min(0)))
+    lo_mag, hi_mag = x - down / 2, x + up / 2
+    lo = torch.where(neg, -hi_mag, torch.where(mag == 0, -up / 2, lo_mag))
+    hi = torch.where(neg, -lo_mag, hi_mag)
+    return lo, hi
+
+
+def dist_u(S, v, wt):
+    """The distance from `S` to the values `u` whose output (`bfloat16(u)`, or `bfloat16(u·w)`) is
+    `v`: the preimage interval of `v`, divided by `w` when `wt` is given."""
+    lo, hi = bf16_preimage(v)
+    if wt is not None:
+        lo, hi = lo / wt, hi / wt
+        lo, hi = torch.minimum(lo, hi), torch.maximum(lo, hi)
+    return torch.clamp(lo - S, min=0) + torch.clamp(S - hi, min=0)
 
 
 def lift(x):
@@ -194,10 +216,9 @@ def run_case(name, M, N, K, E, top_k, on_input, local_experts=None, ignore_inval
     local = topk_ids.long() if expert_map is None else expert_map[topk_ids.long()].long()
     ad = a.double()
     worst = 0.0
-    ratios = []           # tol / |reference| per element (a sample)
+    ratios = []           # tol / |S| per element (a sample)
     neg_fail = {n: 0 for n in NEGATIVES}
     n_el = 0
-    outd = out.double()
     out_bits = out.view(torch.int16)
     for e in range(E_local):
         t, j = torch.nonzero(local == e, as_tuple=True)
@@ -206,23 +227,14 @@ def run_case(name, M, N, K, E, top_k, on_input, local_experts=None, ignore_inval
         rows = t if gemm == 1 else t * top_k + j
         wd = w1[e].double()
         S = ad[rows] @ wd.t()                    # [rows, N], exact products, float64 sum
-        Et = tol_chunk(ad[rows], wd, K, BK)
-        wt = topk_weights[t, j].double()[:, None]
-
-        def tol_of(S, Et):
-            if rw:
-                ref = S * wt
-                tolW = wt.abs() * Et + ((S.abs() + Et) * wt.abs()) * 2.0 ** -24 + 2.0 ** -150
-                return ref, tolW + (ref.abs() + tolW) * 2.0 ** -8 + 2.0 ** -134
-            return S, Et + (S.abs() + Et) * 2.0 ** -8 + 2.0 ** -134
-
-        ref, tol = tol_of(S, Et)
-        n_el += ref.numel()
-        got = outd[t, j]
-        assert torch.isfinite(got).all(), name
-        r = ((got - ref).abs() / tol).max().item()
+        Tt = tol_u(path_mag(ad[rows], wd, K, BK))
+        wt = topk_weights[t, j].double()[:, None] if rw else None
+        n_el += S.numel()
+        got = out[t, j]
+        assert torch.isfinite(got.double()).all(), name
+        r = (dist_u(S, got, wt) / Tt).max().item()
         worst = max(worst, r)
-        rr = (tol / ref.abs().clamp_min(1e-30)).reshape(-1)
+        rr = (Tt / S.abs().clamp_min(1e-30)).reshape(-1)
         ratios.append(rr[:: max(1, rr.numel() // 20000)].float().cpu())
         if negatives:
             # wrong results the kernel could give; each must break Post somewhere
@@ -240,16 +252,16 @@ def run_case(name, M, N, K, E, top_k, on_input, local_experts=None, ignore_inval
             for n, v in bad.items():
                 if v is None:
                     continue
-                v = v.to(torch.bfloat16).double()
-                neg_fail[n] += int(((v - ref).abs() > tol).sum().item())
+                v = v.to(torch.bfloat16)
+                neg_fail[n] += int((dist_u(S, v, wt) > Tt).sum().item())
             # a bfloat16 accumulator: each BK step rounded to bfloat16
             acc = torch.zeros_like(S)
             for k0 in range(0, K, BK):
                 acc = (acc + ad[rows][:, k0:k0 + BK] @ wd[:, k0:k0 + BK].t()).to(torch.bfloat16).double()
-            v = (acc * wt if rw else acc).to(torch.bfloat16).double()
-            neg_fail["a bfloat16 accumulator"] += int(((v - ref).abs() > tol).sum().item())
+            v = (acc * wt if rw else acc).to(torch.bfloat16)
+            neg_fail["a bfloat16 accumulator"] += int((dist_u(S, v, wt) > Tt).sum().item())
             del S_drop, S_next, acc, v
-        del S, Et, ref, tol, got, wd
+        del S, Tt, got, wd
     rat = torch.cat(ratios)
     med, p90 = rat.median().item(), rat.quantile(0.9).item()
     # rows not routed to a local expert
@@ -266,14 +278,14 @@ def run_case(name, M, N, K, E, top_k, on_input, local_experts=None, ignore_inval
     neg_ok = all(neg_fail[n] > 0 for n in MUST_REJECT) if negatives else True
     print(f"{name}: GEMM {gemm} M={M} N={N} K={K} E={E} E_local={E_local} top_k={top_k} "
           f"rw={rw} naive={naive} tile={(BM, config['BLOCK_SIZE_N'], BK, config['GROUP_SIZE_M'])}: "
-          f"max err/tol {worst:.4f}, tol/|ref| median {med:.4f} p90 {p90:.3f}, zeros exact "
+          f"max err/tol {worst:.4f}, tol/|S| median {med:.4f} p90 {p90:.3f}, zeros exact "
           f"{exact_ok}, unrouted rows unchanged {frame_rows}, inputs unchanged {inputs_same}")
     if negatives:
         print("    negatives (elements outside tol): " +
               ", ".join(f"{n} {v}" for n, v in neg_fail.items()) +
               f" (of {n_el}); all rejected: {neg_ok}")
     ok = worst < 1 and exact_ok and frame_rows and inputs_same and neg_ok
-    del a, w1, out, outd, copies
+    del a, w1, out, copies
     torch.cuda.empty_cache()
     return ok, worst
 

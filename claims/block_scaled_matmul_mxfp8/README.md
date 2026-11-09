@@ -19,7 +19,7 @@ descriptor; `BLOCK_M = 128`, `BLOCK_N = 256`, `BLOCK_K = 128`, `b`'s block `[256
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.BlockScaledMxfp8.main : Statement` (`Statement`:
-`Claim.lean` line 486). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 505). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -27,37 +27,40 @@ descriptor; `BLOCK_M = 128`, `BLOCK_N = 256`, `BLOCK_K = 128`, `b`'s block `[256
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 245), and every initial memory `init` that `Pre` accepts (line 427), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 450).
+(`Inst.ok`, line 246), and every initial memory `init` that `Pre` accepts (line 449), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 469).
 
-**What `Post` asks** (line 450), two parts:
-1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 438): element `i·N + j` of `c` reads
+**What `Post` asks** (line 469), two parts:
+1. for every `i < M`, `j < N`, `OutSpec d init fin i j` (line 460): element `i·N + j` of `c` reads
    in `fin` as a `float16` `c`, and there is a finite `float32` `v` with
-   `|v.toRat − ref d init i j| ≤ tolOut d init i j` and `FloatV.NaNEq (FloatV.cvt v) c`; and when
-   `|ref| + tolOut ≤ binary16.maxVal`, `c` is finite and
-   `|c.toRat − ref| ≤ tolOut + (|ref| + tolOut)·binary16.u + binary16.eta`. `ref` (line 408) is the
-   exact sum, in the rationals, of the `K` scaled products `prods` (line 404: `xa`, `bVal`, the
-   scale bytes `sa`, `sb` at `sIdx` (line 326), all read from `init`); `tolOut` (line 411) is the
-   recursion `tol` (line 359) over the `K / 128` steps, with `rho`, `alpha` (lines 350, 353). This
-   holds for every element: `Pre`'s `ValsOk` (line 417) puts every input in the domain;
-2. the frame: every byte outside `cEl d` (line 240, the first `M·N` elements of `c`) is unchanged.
+   `|v.toRat − ref d init i j| ≤ vTol d init i j` and `FloatV.NaNEq (FloatV.cvt v) c`; and when
+   `|ref| + tolOut ≤ binary16.maxVal`, `c` is finite and `|c.toRat − ref| ≤ cTol d init i j`.
+   `ref` (line 417) is the exact sum, in the rationals, of the `K` scaled products `prods`
+   (line 413: `xa`, `bVal`, the scale bytes `sa`, `sb` at `sIdx` (line 327), all read from `init`).
+   `vTol` (line 428) is `2^-14·μ + 2^-108` and `cTol` (line 432) is `2^-11·|ref| + 2^-14·μ + 2^-24`,
+   with `μ = magOut d init i j` (line 424), `stepMag` (line 369) over the `K / 128` steps:
+   `Σ_t (|partSum p t| + chunkAbs p t)` (lines 343, 346). `tolOut` (line 421), the step recursion
+   `tol` (line 362, with `rho`, `alpha`, lines 351, 354), enters only the `float16` range condition
+   (and `Pre`'s room). This holds for every element: `Pre`'s `ValsOk` (line 439) puts every input in
+   the domain;
+2. the frame: every byte outside `cEl d` (line 241, the first `M·N` elements of `c`) is unchanged.
 
-**What you are given** (`Assumptions`, line 457), five fields:
+**What you are given** (`Assumptions`, line 476), five fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
-- `dot` (`Rules.Num.DotScaledE4m3`, a `DotScaledAcc`): the `tl.dot_scaled` of model line 146
+- `dot` (`Rules.Num.DotScaledE4m3`, a `DotScaledAcc`): the `tl.dot_scaled` of model line 147
   (`cfgMx`, `mxfp8`) is within `relDot16 K·(|acc| + Σ|a·b|) + absDot16 K` of `acc + Σ a·b` when
   the scaled values are in `scaledDomBF16`, the scale bits in `e8m0Dom`, the accumulator finite,
   with room in `float32`;
-- `dot_mixed` (`Rules.Num.DotScaledE4m3E2m1`): the same for model line 140 (`cfgMixed`, `mixed`);
+- `dot_mixed` (`Rules.Num.DotScaledE4m3E2m1`): the same for model line 141 (`cfgMixed`, `mixed`);
 - `dot_total`, `dot_total_mixed` (`Rules.Num.DotScaledTotal` at `cfgMx`, `cfgMixed`): those
-  `tl.dot_scaled` always have a result. The `cfgFp4` branch (line 143) is never reached.
+  `tl.dot_scaled` always have a result. The `cfgFp4` branch (line 144) is never reached.
 
-**The kernel, as the model runs it** (`block_scaled_matmul_kernel` line 72, `model` line 287,
-`launch` line 300): a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs. Program `pid` takes
+**The kernel, as the model runs it** (`block_scaled_matmul_kernel` line 73, `model` line 288,
+`launch` line 301): a 1-D grid of `cdiv(M, 128)·cdiv(N, 256)` programs. Program `pid` takes
 `pid_m = pid % num_pid_m`, `pid_n = pid / num_pid_m` (`tl.irem`, `tl.idiv`), then runs
 `tl.forRange 0 (K/128) 1`: each trip loads (`tl.desc_load`, host descriptors `aDesc`, `bDesc`,
-`aScaleDesc`, `bScaleDesc`, lines 209–227) the `a` tile `[128, 128]`, the `b` tile
+`aScaleDesc`, `bScaleDesc`, lines 210–228) the `a` tile `[128, 128]`, the `b` tile
 `[256, 128 / epbB]` and the two 5-D scale blocks, reshapes and permutes the scales (pure), and
 accumulates with `tl.dot_scaled`. After the loop it rounds the accumulator to `float16` (`tl.cvt`)
 and stores the `[128, 256]` tile through `cDesc` (`tl.desc_store`, lanes outside `c` not stored).
@@ -74,11 +77,13 @@ Programs write disjoint tiles and use no atomics: the route is `TVA.meets_indepe
   `cfgMixed`, with `dot_total` or `dot_total_mixed`), `safe_cvt`; the loop body writes nothing;
 - the programs' write tiles of `c` are disjoint (distinct `(pid_m, pid_n)`), and no program writes
   what any program reads (`c_in`);
-- the value part of part 1: an invariant over trips `t`, `|acc_t − partSum p t| ≤ tol p t` with
-  `acc_t` finite; each step from `dot` or `dot_mixed` (domain from `ValsOk.a_dom`, `b_dom`; the
-  permuted scale byte is `sIdx K r k`; for `mixed`, `rhsBits` reads nibble `k % 2` of byte `k / 2`,
-  which is `xbBits`; room from `ValsOk.room`); the padded lanes of a half tile hold `+0` and are not
-  stored; then `FloatV.cvt_err` for the store (README `## Tolerances`);
+- the value part of part 1, `|v − S| ≤ 2^-14·μ + 2^-108` and `|c − S| ≤ 2^-11·|S| + 2^-14·μ + 2^-24`:
+  derive the fine bound of README Tolerances (an invariant over trips `t`,
+  `|acc_t − partSum p t| ≤ tol p t` with `acc_t` finite; each step from `dot` or `dot_mixed`
+  (domain from `ValsOk.a_dom`, `b_dom`; the permuted scale byte is `sIdx K r k`; for `mixed`,
+  `rhsBits` reads nibble `k % 2` of byte `k / 2`, which is `xbBits`; room from `ValsOk.room`); the
+  padded lanes of a half tile hold `+0` and are not stored; then `FloatV.cvt_err` for the store),
+  then relax it by the closed form given there (`tolOut ≤ 1.0323·(ρ·μ + T·α)`, `T = K/128 ≤ 2^10`);
 - the bytes no program writes give part 2.
 
 The real-shape conditions (`M_ctx`: `M ≤ 2^22`; `N_dim`: `N ≤ 2^17`; with `K_ok`, `K ≤ 2^17`) keep
@@ -87,8 +92,8 @@ every `int32` offset and descriptor shape entry far below `2^31`: `offs_am < M �
 programs.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `satInst_ok`,
-`hostInst_ok` and the `setup_*_ok` theorems; `bytes_disjoint` (line 518), `elems_lt_sub` (line 527),
-`bDT_bytes` (line 532) and `div_epbB_le` (line 541) can be reused.
+`hostInst_ok` and the `setup_*_ok` theorems; `bytes_disjoint` (line 537), `elems_lt_sub` (line 546),
+`bDT_bytes` (line 551) and `div_epbB_le` (line 560) can be reused.
 
 ## Specification
 
@@ -105,18 +110,28 @@ the place the host's own reference reads it (`unpack_scale`, lines 411–417: `r
 follow the kernel's 5-D loads and permutes. The scaled value of an element `x` with scale byte `s`
 is `x·2^(s − 127)`; the products of output `(i, j)` are
 `p k = scaled(xa i k, sa i k)·scaled(bVal j k, sb j k)` (`prods`), its exact value `S = Σ_{k<K} p k`
-(`ref`), and its tolerance `tol = tol p (K / 128)` (`tolOut`), with
+(`ref`), and the magnitude the loop's `T = K / 128` steps carry (`magOut`, `stepMag`):
 
-`tol p 0 = 0`, `tol p (t + 1) = tol p t + ρ·(|partSum p t| + tol p t + chunkAbs p t) + α`,
+`μ = Σ_{t<T} (|partSum p t| + chunkAbs p t) = Σ_k |p k| + Σ_{t<T} |partSum p t|`,
 
-`partSum p t = Σ_{k < 128t} p k`, `chunkAbs p t = Σ_{128t ≤ k < 128t+128} |p k|`,
-`ρ = relDot16 128 = 130·2^-22 ≈ 3.10·10^-5`, `α = absDot16 128 = 130·2^-126`.
+`partSum p t = Σ_{k < 128t} p k`, `chunkAbs p t = Σ_{128t ≤ k < 128t+128} |p k|`: each step's error
+is relative to the accumulator's magnitude plus its products' magnitudes.
 
 `Post`: for every `i < M`, `j < N`, element `(i, j)` of `c` (element `i·N + j`) holds a `float16`
 value `c` that is the rounding to nearest even (up to NaN payload) of a finite `float32` `v` with
-`|v − S| ≤ tol`; and when `|S| + tol ≤ 65504`, `c` is finite and
-`|c − S| ≤ tol + (|S| + tol)·2^-11 + 2^-25`. Every byte outside the matrix `c` (its first `M·N`
-elements) is unchanged.
+
+`|v − S| ≤ 2^-14·μ + 2^-108` (`vTol`);
+
+and when `|S| + tolOut ≤ 65504`, `c` is finite and
+
+`|c − S| ≤ 2^-11·|S| + 2^-14·μ + 2^-24` (`cTol`): one `float16` rounding of the result plus `v`'s
+tolerance.
+
+`tolOut = tol p T` is the step recursion `tol p 0 = 0`,
+`tol p (t + 1) = tol p t + ρ·(|partSum p t| + tol p t + chunkAbs p t) + α`
+(`ρ = relDot16 128 = 130·2^-22 ≈ 3.10·10^-5`, `α = absDot16 128 = 130·2^-126`); it enters only the
+range conditions (`OutSpec`'s `float16` condition and `Pre`'s room). Every byte outside the matrix
+`c` (its first `M·N` elements) is unchanged.
 
 ## Conditions
 
@@ -203,16 +218,32 @@ covered `K`. Derivation, per output element and step `t` (`acc_t` the accumulato
    `FloatV.cvt_err`, `|c − v| ≤ |v|·2^-11 + 2^-25` when `|v| ≤ 65504`, which `|S| + tol ≤ 65504`
    gives.
 
-Closed form (not used by the proof): `tol ≤ ((1 + ρ)^T − 1)·Σ|p| + T·(1 + ρ)^T·α`, `T = K / 128`:
-`0.20%` of `Σ|p|` at `K = 8192`, `0.40%` at `16384`, `3.2%` at `2^17`, plus at most `2^-109`.
-The recursion is tighter when the partial sums cancel. On the host's data (GPU check, median over
-outputs of `tol / |S|`, the same for both formats): `5.4·10^-4` at `K = 512`, `3.3·10^-3` at
-`8192`, `5.4·10^-3` at `16384`, `3.0·10^-2` at `2^17`; the device's worst error is `0.80`, `0.36`, `0.23` and `0.04` of the whole
-bound at these `K` (it is mostly the `float16` rounding at small `K`). The tolerance is relative to
-`|acc| + Σ|a·b|` per step, so on cancelling products it is looser than the device's error (the
-products cancel by a factor of 60 to 90 at `K = 8192 … 16384`); it still rejects an omitted or
+So the fine bounds are `|v − S| ≤ tolOut = tol p T` (`T = K / 128`) and
+`|c − S| ≤ tolOut + (|S| + tolOut)·2^-11 + 2^-25`.
+
+**Relaxation to `vTol`, `cTol`.** Write `P_t = partSum p t`, `C_t = chunkAbs p t`, so
+`tol p (t+1) = (1 + ρ)·tol p t + ρ·(|P_t| + C_t) + α`. Unrolled from `tol p 0 = 0`:
+`tol p T = Σ_{t<T} (1 + ρ)^(T−1−t)·(ρ·(|P_t| + C_t) + α) ≤ (1 + ρ)^T·(ρ·μ + T·α)`, with
+`μ = Σ_{t<T} (|P_t| + C_t) = stepMag p T`. `K ≤ 2^17` (`K_ok`) gives `T ≤ 2^10` and
+`T·ρ ≤ 1024·130·2^-22 ≤ 0.0318`, so `(1 + ρ)^T ≤ e^0.0318 ≤ 1.0323`; then
+`1.0323·ρ = 134.2·2^-22 ≤ 256·2^-22 = 2^-14` and `1.0323·T·α ≤ 1.0323·1024·130·2^-126 ≤ 2^-108.9`.
+Hence `tolOut ≤ 2^-14·μ + 2^-108 = vTol`. For `c`:
+`tolOut + (|S| + tolOut)·2^-11 + 2^-25 = 2^-11·|S| + (1 + 2^-11)·tolOut + 2^-25
+≤ 2^-11·|S| + 134.3·2^-22·μ + 2^-108.8 + 2^-25 ≤ 2^-11·|S| + 2^-14·μ + 2^-24 = cTol`.
+The `float16` rounding stays relative to `|S|`, not folded into `μ`: on the host's data `μ` is
+about `100` to `170` times `|S|` at `K = 8192 … 16384` (medians; the products cancel), so
+`2^-11·μ` would be `5%` to `8%` of the output.
+
+Meaningful: on the host's data (GPU check, median over outputs, the same for both formats),
+`vTol / |S|` is `1.07·10^-3` at `K = 512`, `6.4·10^-3` at `8192`, `1.06·10^-2` at `16384`,
+`5.8·10^-2` at `2^17` (the fine bound `tolOut / |S|`: `5.4·10^-4`, `3.3·10^-3`, `5.4·10^-3`,
+`3.0·10^-2`; since `tolOut ≥ ρ·μ`, `vTol ≤ 1.97·tolOut + 2^-108`); `cTol / |S|` is `1.6·10^-3`, `6.9·10^-3`,
+`1.1·10^-2`, `5.9·10^-2` (the fine bound: `1.0·10^-3`, `3.7·10^-3`, `5.9·10^-3`, `3.0·10^-2`). The
+device's worst error is `0.69`, `0.22`, `0.14` and `0.02` of `cTol` at these `K` (mostly the
+`float16` rounding at small `K`). The tolerance is relative to `|acc| + Σ|a·b|` per step, so on
+cancelling products it is looser than the device's error; it still rejects an omitted or
 repeated group of 32 products, a wrong scale or scale layout, swapped nibbles, or another tile's
-element (`check_gpu.py`'s negative tests: each breaks `Post` on `85%` or more of the elements at
+element (`check_gpu.py`'s negative tests: each breaks `Post` on `77%` or more of the elements at
 `K = 512` and `8192`).
 
 ## Exclusions
@@ -255,24 +286,25 @@ None.
 * **Not vacuous**: `consistent` (`Platform.sm90ref`); `satisfiable` (`mxfp8`, `M = N = K = 128`,
   every byte `0x38`).
 * **Covers the setup**: `hostInst_ok` and the eleven `setup_*_ok` above.
-* **GPU** (`check_gpu.py`, H200, Triton 3.8.0; worst error / whole bound, all elements in
+* **GPU** (`check_gpu.py`, H200, Triton 3.8.0; worst error / `cTol`, all elements in
   `float16`'s range unless said; `mxfp8` / `mixed`): the claim's float64 reference against the
   host's own reference (`compute_reference=True`) at `256 × 512 × 512`: `5·10^-8` relative for
   both; the test's launch `8192³` (inputs drawn from the test's distribution, not its seed-42
-  bytes) `0.355` / `0.355`; the benchmark `K = 512` `0.800` / `0.800` (on the host's data the two
-  formats have the same values), `K = 16384` `0.233` (`mxfp8`; at `8192³` and `K = 16384` the
+  bytes) `0.220` / `0.220`; the benchmark `K = 512` `0.692` / `0.692` (on the host's data the two
+  formats have the same values), `K = 16384` `0.135` (`mxfp8`; at `8192³` and `K = 16384` the
   inputs are built by `host_like`, the host builder's steps in slices of rows, to stay under
-  4 GB); `Inst.ok` edges: `M = N = K = 128` (half a tile) `0.887` / `0.890`, `128 × 384 × 256`
-  `0.815` / `0.847`, `K = 2^17` `0.044` / `0.039`, `1152 × 640 × 1408` `0.622` / `0.646`; `Pre`
-  edges: same-sign products `0.215` / `0.298` (and `0.027` / `0.027` at `K = 2^17`), cancelling
-  partial sums `0.038` / `0.027`, every finite `e4m3` pattern and every `e2m1` code with some
-  outputs beyond `float16` (the rounding clause checked for `±∞`) `0.752` / `0.722`, extreme scale
-  bytes (`254` on `a`; `1` on an `e4m3` `b`, `2` on an `e2m1` `b`) `0.454` / `0.412`, subnormal
-  elements `0` (exact). Worst `0.890` (margin `1.12×`, the `float16` rounding of a small-`K`
-  output). Every case meets `Pre`; every element satisfies `Post`; the inputs are unchanged byte
-  for byte (`torch.equal` against full copies) and the guards around `c` keep their bits; every
-  element of `c` was written (it starts as a NaN sentinel). Negative tests at
-  `1024 × 1024 × 512` and `× 8192`, both formats: all zero, a group of 32 products left out, one
-  group's scale doubled, the scale layout with `(r % 128) // 32` and `(k % 128) // 32` exchanged,
-  the neighbouring column, and for `mixed` the two nibbles of each byte swapped: each breaks
-  `Post` (on `85%` to `100%` of the elements). Peak device memory 2.9 GiB.
+  4 GB); `Inst.ok` edges: `M = N = K = 128` (half a tile) `0.809` / `0.809`, `128 × 384 × 256`
+  `0.698` / `0.742`, `K = 2^17` `0.023` / `0.021`, `1152 × 640 × 1408` `0.457` / `0.498`; `Pre`
+  edges: same-sign products `0.130` / `0.181` (and `0.014` / `0.014` at `K = 2^17`), cancelling
+  partial sums `0.020` / `0.014`, every finite `e4m3` pattern and every `e2m1` code with some
+  outputs beyond `float16` (the rounding clause checked for `±∞`) `0.645` / `0.613`, extreme scale
+  bytes (`254` on `a`; `1` on an `e4m3` `b`, `2` on an `e2m1` `b`) `0.298` / `0.265`, subnormal
+  elements `0` (exact). Worst `0.809` (margin `1.24×`, the `float16` rounding of a small-`K`
+  output). Median `vTol / |S|` and `cTol / |S|` per case are printed (`## Tolerances`). Every case
+  meets `Pre`; every element satisfies `Post`; the inputs are unchanged byte for byte
+  (`torch.equal` against full copies) and the guards around `c` keep their bits; every element of
+  `c` was written (it starts as a NaN sentinel). Negative tests at `1024 × 1024 × 512` and
+  `× 8192`, both formats: all zero, a group of 32 products left out, one group's scale doubled, the
+  scale layout with `(r % 128) // 32` and `(k % 128) // 32` exchanged, the neighbouring column, and
+  for `mixed` the two nibbles of each byte swapped: each breaks `Post` (on `77%` to `100%` of the
+  elements). Peak device memory 2.9 GiB.

@@ -9,7 +9,7 @@ check: [`check_gpu.py`](check_gpu.py).
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.SsdChunkScan.main : Statement` (`Statement`:
-`Claim.lean` line 1241). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 1231). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -20,25 +20,27 @@ for every device behaviour `K` and platform `P` that satisfy `Assumptions`, ever
 (`Inst.ok`, line 738), and every initial memory `init` that `Pre` accepts (line 931: the twelve
 buffers valid, the metadata the host's, `MetaOk` line 910, and without initial states `cb` zero
 across requests, `CbZero` line 921), every outcome of the launch is a normal end (no fault, no
-hang) whose final memory `fin` satisfies `Post` (line 1214).
+hang) whose final memory `fin` satisfies `Post` (line 1204).
 
-**What `Post` asks** (line 1214), two parts:
+**What `Post` asks** (line 1204), two parts:
 1. for every token `t < T`, head `h < H`, channel `p < P`: element `outIdx d t h p` (line 681) of
    `out` reads in `fin` as some `bfloat16` `v` (`rdB`, line 891), on every input; and when
-   `Vals init d` holds (line 1187), `v` is finite and
+   `Vals init d` holds (line 1177), `v` is finite and
    `|v.toReal - yRef init d t h p| ≤ tol init d t h p`. Without `Vals`, only "holds a value" is
    asked. The reference `yRef` (line 1033) is exact, in the reals, from the host's inputs:
    `exp(dSt t h) · sig t h p + Σ_{s ∈ toks d t} wTS t h s · xv s h p + Dv h · xv t h p`, with the
    entering state `Sv` (line 983: the request's initial state, or `0` without, when `fromInit`;
    else `states[0, chk t]`), `sig` (line 1024), `wTS` (line 1028, `cb · exp(dS) · dt`), `dSt`,
    `dS` (lines 999, 1004), and the logical chunk `toks d t = [lTok t, t]` (lines 1016, 946)
-   computed from `qsl`, not from the metadata. `tol` (line 1170) is
-   `(1 + uB) · errPre + uB · |yRef| + etaB`: the error before the store, `errPre` (line 1165,
-   the sum of `errSig`, `errW`, `errDot`, `errMA`, lines 1108–1161), and the store's `bfloat16`
-   rounding;
+   computed from `qsl`, not from the metadata. `tol` (line 1159) is
+   `(nIt + 256)·2^-15·mag + 2·expErr + 2^-110·(1 + hSt)`: `mag` (line 1145) is
+   `|yRef| + hSt·lSig + lW`, the output's magnitude plus the lifted magnitudes of its two sums
+   (`lSig` line 1087, `hSt` 1103, `lW` 1126), `nIt` (line 1130) the loop's trips `cdiv(cs, 32)`,
+   and `expErr` (line 1151) the decays' `tl.exp` errors times what they multiply plus the weights'
+   absolute rounding terms (`eSt` 1102, `errE` 1063, `wAbs` 1114);
 2. the frame: every byte outside `out`'s first `T · (H · P)` elements is unchanged.
 
-**What you are given** (`Assumptions`, line 1224):
+**What you are given** (`Assumptions`, line 1214):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, when the launch is
   valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`, a `DotLiftAcc`): the `tl.dot`s of source lines 361 and 420 are within
@@ -83,14 +85,15 @@ loop writes nothing (`safe_forRange` with an invariant and `fun _ => ∅`).
 - the kernel's choices match the reference: the entering state is `Sv` (or `SvL` with the
   `tl.where` gate), the boundary entry gives `dSt`, the loop's tokens are `kToks d t` (line 1020),
   and without `hasInit` the extra tokens add nothing (`CbZero`);
-- the value part of `Post`: the step bounds of README `## Tolerances` (`FloatV.sub_err`,
-  `exp_acc`, `FloatV.mul_err`, `FloatV.cvt_err`, `DotLift.dotAdd_step` with `dot`, `FloatV.add_err`,
-  `fma_err`), with room from `Vals`;
+- the value part of `Post`, `|out − yRef| ≤ (nIt + 256)·2^-15·mag + 2·expErr + 2^-110·(1 + hSt)`:
+  derive the fine bound of README `## Tolerances` from its step bounds (`FloatV.sub_err`,
+  `exp_acc`, `FloatV.mul_err`, `FloatV.cvt_err`, `DotLift.dotAdd_step` with `dot`,
+  `FloatV.add_err`, `fma_err`), with room from `Vals`, then relax it as its step 8 shows;
 - the frame: the bytes no program writes.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `bytes_disj` (line 1282), `disj_far` (line 1291), `zero_i32` (line 1462)
-and `valid_zero` (line 1469) can be reused.
+`setup_*_ok` theorems; `bytes_disj` (line 1272), `disj_far` (line 1281), `zero_i32` (line 1452)
+and `valid_zero` (line 1459) can be reused.
 
 ## Specification
 
@@ -132,14 +135,19 @@ reads the wrong metadata entry, takes the wrong entering state, misses the decay
 
 **The tolerance** `tol` (`Claim.lean`, "The tolerance"; derivation under Tolerances) is
 
-`tol = (1 + 2^-8)·errPre + 2^-8·|yRef| + 2^-134`,
+`tol = (nIt + 256)·2^-15·mag + 2·expErr + 2^-110·(1 + hSt)`, `mag = |yRef| + hSt·lSig + lW`.
 
-the store's `bfloat16` rounding of a `float32` value within `errPre` of `yRef`, where `errPre =
-errSig + errW + errDot + errMA` sums the error of the state term (the `bfloat16` rounding of the
-states, line 360, the `tl.dot`, the computed decay `exp`, the product), of the intra-chunk weights
-(the `exp`, two products, the `bfloat16` rounding of line 414), of the loop's `tl.dot`s, and of
-the `D` term's `tl.mul_add`. Each is a magnitude computed from the inputs (`mSig = Σ|C||S|`,
-`wMag = |cb|·eHat·|dt|`, …) times a few unit roundoffs.
+`nIt = cdiv(chunk_size, 32)` is the number of the loop's trips: the relative part is `2^-7` for
+the `bfloat16` roundings (the states at line 360, the weights at line 414, the store) and
+`2^-15` per trip for the loop's `tl.dot`s, about `2^-7` at the real chunk sizes (`nIt = 8` at
+`256`). `mag` is the output's magnitude plus the lifted magnitudes of its two sums: the state term's
+`lSig = Σ_n (|C| + 2^-126)·((1 + 2^-8)|S| + 2^-134 + 2^-126)` scaled by the computed decay's bound
+`hSt = e^{dSt} + errE`, and the loop's `lW = Σ_s (wHat + 2^-126)·(|x_s| + 2^-126)` with
+`wHat ≈ |cb|·eHat·|dt|` the computed weight's bound; `|yRef| ≤ mag`. `expErr = Σ|C||S|·eSt +
+Σ_s (|cb|·|dt|·errE + wAbs)·|x_s|` is what the decays' `tl.exp` errors (`ExpF32`) contribute,
+each times what it multiplies, plus the weights' absolute rounding terms `wAbs = 2^-133 +
+2^-148·|dt|`: at most about `2^-16` of the term it multiplies while the decay exponent is in
+`[−64, 64]`, and the whole error where `tl.exp`'s absolute floor `2^-140` exceeds the decay.
 
 ## Conditions
 
@@ -245,7 +253,9 @@ Nemotron-H rank (`conv_dim` 10240) up to 209,715 tokens.
 Per output element, from the library's facts (`FloatV.sub_err`, `mul_err`, `add_err`,
 `fma_err`, `cvt_err`: `float32` `u = 2^-24`, `η = 2^-150`, `bfloat16` `u = 2^-8`, `η = 2^-134`;
 `Rules.Num.ExpF32`; `Rules.Num.DotBF16`: `relDot16 K = (K+2)·2^-22`, `absDot16 K = (K+2)·2^-126`
-of `|acc| + Σ liftMag a·liftMag b`; `docs/rules/num.md`):
+of `|acc| + Σ liftMag a·liftMag b`; `docs/rules/num.md`), steps 1–7 give a fine bound, and step 8
+relaxes it to `tol`. The names `errSig`, `ewS`, `errW`, `errMA`, `errPre` are this derivation's;
+the others are `Claim.lean`'s:
 
 1. **The entering state's decay** (line 344 with initial states): the exponent
    `dA_cs_m − dA_cs_m_boundary`; the boundary is the `+0` of line 269 when `o = 0`, so the IEEE `-`
@@ -289,11 +299,12 @@ of `|acc| + Σ liftMag a·liftMag b`; `docs/rules/num.md`):
    load `0`; the `x` values met are exact. So `|acc − (acc₀ + Σ_s w̃·x)| ≤ errDot` and `|acc| ≤ aAcc
    = aSig + mW + errDot`.
 5. **The `D` term** (line 442, `tl.mul_add`): either `fl(fl(x·D) + acc)` or `fma`, within
-   `(2^-23 + 2^-47)·(|x·D| + |acc|) + 3·2^-150 ≤ errMA` (room: `Vals`).
+   `(2^-23 + 2^-47)·(|x·D| + |acc|) + 3·2^-150 ≤ errMA` (room: `Vals`;
+   `errMA = (2^-23 + 2^-47)·(|x·D| + aAcc) + 3·2^-150`).
 6. **Composition and the store**: the `float32` value `r` before the store is within
    `errPre = errSig + errW + errDot + errMA` of `yRef` (`errW = Σ_s ewS·|x_s|`), and the store's
    `bfloat16` rounding errs by at most `2^-8·|r| + 2^-134 ≤ 2^-8·(|yRef| + errPre) + 2^-134`. So
-   `|out − yRef| ≤ tol`.
+   `|out − yRef| ≤ fine = (1 + 2^-8)·errPre + 2^-8·|yRef| + 2^-134`.
 7. **No overflow.** Each `float32` value the kernel computes for a stored output is bounded by a
    `Vals` quantity, `2^120` with at most a few relative errors of `2^-5` or less on top, a factor
    about `2^8` below the largest finite `float32` and `bfloat16` values (`≈ 2^128`): line 360's
@@ -313,13 +324,38 @@ of `|acc| + Σ liftMag a·liftMag b`; `docs/rules/num.md`):
    states (`exp` overflows times the zero `cb`), a decay boundary above `64`, a state read-out
    above the `float32` range, and `x` near the `bfloat16` maximum: each gives non-finite outputs.
 
-**Meaningful at the covered sizes.** The margin is the store's half-ulp: the tolerance's largest
+8. **The relaxation `fine ≤ tol`**, on every covered instance and `Vals` input (`u = 2^-8`,
+   `f = 2^-24`; `BSD ≤ 128`, so `relDot16 BSD ≤ 130·2^-22` and `absDot16 BSD < 2^-118.9`;
+   `cs ≤ 2^14`, so `nIt ≤ 512`). Lifts: `lSig ≥ (1 + u)·mSig + cSum·(2^-134 + 2^-126)`, so
+   `u·mSig + 2^-134·cSum ≤ u·lSig`, and `eSig ≤ (u + relDot16 BSD)·lSig + absDot16 BSD`; `mW ≤ lW`
+   and `Σ_s wMag·|x_s| ≤ lW`; `aSig ≤ 1.00004·hSt·lSig + (1 + f)·hSt·absDot16 BSD + 2^-150`;
+   `|x·D| ≤ |yRef| + hSt·lSig + lW` (`hSt ≥ e^{dSt}`, `wHat ≥ |wTS|`).
+   - `(1 + u)·errSig ≤ 0.003953·hSt·lSig + (1 + u)·mSig·eSt + (1 + u)(1 + f)·hSt·absDot16 BSD +
+     (1 + u)·2^-150`.
+   - `(1 + u)·errW ≤ 0.003922·lW + (1 + u)·Σ_s (|cb|·|dt|·errE + wAbs)·|x_s|`.
+   - `(1 + u)·errDot ≤ nIt·1.7234·10^-5·(hSt·lSig + lW) + 2^-110.9 + 2^-118·hSt`
+     (`2·nIt·(relDot16 32 + 2^-21) = nIt·72·2^-22`; `(1 + u)·2·nIt·(absDot16 32 + 2^-140) ≤
+     1.004·1024·35·2^-126`).
+   - `(1 + u)·errMA ≤ 2.5·10^-7·(|yRef| + hSt·lSig + lW) + 2^-140` (`aAcc ≤ 1.01·(hSt·lSig + lW)`
+     plus floors).
+   - `u·|yRef| + 2^-134`.
+
+   Summed: the coefficients of `|yRef|`, `hSt·lSig` and `lW` are at most `0.003953 +
+   nIt·1.73·10^-5 + 2.5·10^-7 ≤ 2^-7 + nIt·2^-15 = (nIt + 256)·2^-15`; the `tl.exp` and `wAbs`
+   terms, at most `(1 + u)·expErr ≤ 2·expErr`; the rest at most `2^-110·(1 + hSt)`. So
+   `fine ≤ (nIt + 256)·2^-15·mag + 2·expErr + 2^-110·(1 + hSt) = tol`. `check_gpu.py` evaluates
+   both on every covered launch: `tol ≥ fine` everywhere, `tol/fine` at most `2.06` on the test
+   launches and real ranks (median `2.0`), up to `193` on the edges where the lifts dominate
+   (subnormal `x` and `C`, states at `2^120` with `C` near `2^-130`).
+
+**Meaningful at the covered sizes.** The tolerance is about twice the fine bound, whose largest
 term is the store's rounding `2^-8·|yRef|`, a bound on half a `bfloat16` ulp that a value just
-below a power of two nearly reaches, so an element's error / tolerance can come within about
-`0.996` of `1` from that rounding alone. The launches of `check_gpu.py` sample this: the worst
-covered launch reaches `0.984` (0.86 to 0.98 on most launches), so the
-tolerance is the kernel's own worst case, not a loose bound. The next terms are the `bfloat16` roundings of the states and of the weights, which the edge "states rounding one way" meets (`0.965`). The median
-tolerance is 0.5% to 5% of `|yRef|` (the sums cancel: `Σ|C||S|` exceeds `|Σ C·S|`). On subnormal
+below a power of two nearly reaches: an element's error / tolerance can come within about `0.5`
+from that rounding alone. The launches of `check_gpu.py` sample this: the worst covered launch
+reaches `0.48` (0.1 to 0.47 on the test launches; against the fine bound: `0.984`). The next terms are the
+`bfloat16` roundings of the states and of the weights, which the edge "states rounding one way"
+meets. On the test launches the median tolerance is 0.9% to 9% of `|yRef|` (the fine bound: 0.4%
+to 4.7%; the sums cancel: `Σ|C||S|` exceeds `|Σ C·S|`). On subnormal
 inputs (`x`, `C` near `10^-39`) the absolute floor of `DotBF16` (`absDot16 = (K+2)·2^-126` per
 `tl.dot`) dominates, about `10^-35`, four orders above those outputs.
 
@@ -388,7 +424,9 @@ What `SETUP.md` allows and the claim leaves out:
   tokens; strong and no decay; a non-monotone `dA_cumsum`; values near `10^15`; states at `2^120`;
   subnormal `x` and `C`; states whose `bfloat16` roundings all go one way; `cb` at the `float32`
   maximum and NaN on the pairs `s > t`; `dt` at the `float32` maximum where `cb` is `0`). Worst
-  error / tolerance `0.984` (a sample; the store's half-ulp allows about `0.996`). `Pre` (the host's metadata equal `reqOf`/`hostIdx`/`hostOff`/`hostN`;
+  error / tolerance `0.480` (a sample; the store's half-ulp allows about `0.5`), and the
+  tolerance at least the fine bound of Tolerances on every output (`tol/fine` at most `2.06` on the
+  test launches and ranks). `Pre` (the host's metadata equal `reqOf`/`hostIdx`/`hostOff`/`hostN`;
   without initial states `cb` is `0` across requests), `Vals` and the byte frame hold (the inputs
   unchanged bit for bit, and guard bands of 4096 elements on each side of `out`, placed in a
   sentinel-filled buffer, unchanged); `cb` holds NaN on entries past `seqlen`. Eight launches
@@ -396,8 +434,8 @@ What `SETUP.md` allows and the claim leaves out:
   intact. `Post` rejects a launch with `chunk_offsets` all `0`, an output moved by twice its
   tolerance (with and without initial states), and the readings "the first request's chunk-0
   state from `initial_states`", "no decay boundary", "no `D` term" and, without initial states,
-  "a request that starts in a chunk continues `states[0, c]`" (`6·10^4`, `2.2`, `136`,
-  `2.6·10^5`, `1.1·10^4` and `87` times the tolerance).
+  "a request that starts in a chunk continues `states[0, c]`" (`3.1·10^4`, `2.1`, `68`,
+  `1.3·10^5`, `5.6·10^3` and `44` times the tolerance).
 
 ## Library requests
 

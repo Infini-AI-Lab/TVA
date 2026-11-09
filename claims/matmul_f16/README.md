@@ -10,7 +10,7 @@ launched by the host `matmul(a, b)` (lines 330–350). The claim is `Claims.Matm
 def Statement : Prop := ∀ K P, Assumptions K P → Spec K
 ```
 
-`Claim.lean` proves `consistent`, `satisfiable`, `tol_rel_lt` and the coverage facts `setup_*_ok`; it
+`Claim.lean` proves `consistent`, `satisfiable` and the coverage facts `setup_*_ok`; it
 does not prove `Statement`. The model map is `model-map.json` (every code line of the kernel lines
 `[154, 155], [228, 316]`).
 
@@ -26,7 +26,7 @@ configs and `benchmark` (400–437) and its run (440). The functions `get_cuda_a
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.Matmul.main : Statement` (`Statement`:
-`Claim.lean` line 379). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 357). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -35,25 +35,25 @@ configs and `benchmark` (400–437) and its run (440). The functions `get_cuda_a
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 176), and every initial memory `init` that `Pre` accepts (line 263), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 349).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 327).
 
-**What `Post` asks** (line 349), two parts:
-1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 332). Element
+**What `Post` asks** (line 327), two parts:
+1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 310). Element
    `i·stride_cm + j·stride_cn` of `c` reads in `fin` as some `float16` `c`. This holds for every
    element. Only when row `i` of `a` and column `j` of `b` read in `init` as finite values `va k`,
    `vb k` (`k < K`) it also asks for a finite `float32` `v` with
    - `|v.toRat - dotSum va vb d.K| ≤ tol va vb d.K` and `FloatV.NaNEq (FloatV.cvt v) c`;
    - if `|dotSum va vb d.K| + tol va vb d.K ≤ Format.binary16.maxVal`: `c` is finite and
-     `|c.toRat - dotSum …| ≤ tol … + (|dotSum …| + tol …) * Format.binary16.u + Format.binary16.eta`.
+     `|c.toRat - dotSum …| ≤ 2^-11 · |dotSum …| + 2^-15 · pathMag va vb d.K + 2^-24`.
 
-   `dotSum` (line 291) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 324) is
-   `errAt (prodV …) (liftV …) (steps K)`: the recursion `errAt` (line 317) over the
-   `steps K = cdiv(K, 64)` loop steps (line 269), with `rho = relDot16 64`, `alpha = absDot16 64`
-   (lines 273, 276), the exact partial sums `partSum` (line 305) and the steps' lifted magnitudes
-   `stepMag` of `liftV` (lines 308, 301);
+   `dotSum` (line 272) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 302) is
+   `2^-15 · pathMag va vb K + 2^-100`, and `pathMag` (line 297) is `Σ_{t < T} (|S_t| + L_t)` over
+   the `T = steps K = cdiv(K, 64)` loop steps (line 269): the exact partial sums `S_t = partSum
+   (prodV …) t` before each step (lines 286, 276) and the steps' lifted magnitudes `L_t = stepMag
+   (liftV …) t` (lines 289, 282);
 2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 170) is unchanged.
 
-**What you are given** (`Assumptions`, line 357):
+**What you are given** (`Assumptions`, line 335):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 300, on a finite row, column and
@@ -71,7 +71,7 @@ pointers by `64` columns or rows. After the loop it rounds to `float16` and stor
 `[128, 256]` tile of `c` masked by `M` and `N`. No reduction, no atomic. Programs write disjoint
 tiles of `c` and only read `a` and `b`: the route is `TVA.meets_independent`; the loop is
 `safe_forRange` with an invariant on the pointers and the accumulator (each element within
-`errAt` of the partial sum) and `Wt := fun _ => ∅` (`iterW_empty`) (PROVER_GUIDE §4).
+`E_t` of the partial sum, README Tolerances) and `Wt := fun _ => ∅` (`iterW_empty`) (PROVER_GUIDE §4).
 
 **What the proof must establish.**
 - each launch is valid and has `debug = false` (`Launch.valid_grid1`: fewer than `2^31` programs
@@ -83,10 +83,11 @@ tiles of `c` and only read `a` and `b`: the route is `TVA.meets_independent`; th
   lane inside `c` (`c_len`), with distinct lanes (`c_inj`);
 - the map `pid ↦ (pid_m, pid_n)` is one-to-one on the grid, so the programs' write tiles are
   disjoint (`c_inj`), and no program reads what another writes (`c_a`, `c_b`);
-- the value part of part 1: per trip, `safe_dot` with `dot` (and `dot_total`) moves the invariant
-  from `errAt … t` to `errAt … (t + 1)`; the room condition holds because `K_le` keeps every value
-  far inside `float32`; the final rounding is `FloatV.cvt_err`. `## Tolerances` gives the
-  derivation;
+- the value part of part 1, `|v − S| ≤ 2^-15 · pathMag + 2^-100` and the second clause's bound:
+  derive the fine bound `E_T` of README Tolerances (per trip, `safe_dot` with `dot` and `dot_total`
+  moves the invariant from `E_t` to `E_{t+1}`; the room condition holds because `K_le` keeps every
+  value far inside `float32`; the final rounding is `FloatV.cvt_err`), then relax it by the
+  inequality chain there (`E_T ≤ 2^-15 · pathMag + 2^-100`, as `T ≤ 128`);
 - the bytes no program writes give part 2.
 
 **What the real-shape conditions give** (`M_ctx`, `N_dim`, `K_dim`): every `k` step is full,
@@ -98,8 +99,8 @@ grid; with `M ≤ 2^22` and `N, K ≤ 2^17` every size is far below the `int32` 
 `N_le`.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok`
-(line 441) and the `setup_*_ok` theorems; reusable: `tol_rel_lt` (line 281), `row_lt` (line 410),
-`rm_inj` (line 416), `bytes_disjoint` (line 431).
+(line 419) and the `setup_*_ok` theorems; reusable: `row_lt` (line 388), `rm_inj` (line 394),
+`bytes_disjoint` (line 409).
 
 ## Specification
 
@@ -110,11 +111,18 @@ grid; with `M ≤ 2^22` and `N, K ≤ 2^17` every size is far below the `int32` 
   `c` (`OutSpec`). When, moreover, row `i` of `a` and column `j` of `b` hold finite `float16`
   values `va k` and `vb k` (`k < K`) in the initial memory:
   - `c` is the `float16` rounding (to nearest even, `FloatV.cvt`, up to NaN payload) of a finite
-    `float32` value `v` with `|v − S| ≤ E`, where `S = Σ_k va k · vb k` is the exact dot product
-    and `E = tol va vb K` the tolerance of Tolerances below, computed from the inputs;
+    `float32` value `v` with
+
+    `|v − S| ≤ E = 2^-15 · M + 2^-100`,
+
+    where `S = Σ_k va k · vb k` is the exact dot product and `M = pathMag va vb K` the magnitude
+    the loop's error scales with: `M = Σ_{t < T} (|S_t| + L_t)` over the `T = cdiv(K, 64)` steps of
+    the kernel's loop, `S_t` the exact partial sum of the products `k < 64t` (what the accumulator
+    holds before step `t`) and `L_t` the lifted magnitude `Σ liftMag(va k)·liftMag(vb k)` of step
+    `t`'s `64` products (`liftMag q = |q|`, or `2^-14` for a nonzero subnormal `q`). `M ≥ |S|`;
   - when `|S| + E ≤ 65504` (the largest `float16`), `c` is finite and
-    `|c − S| ≤ E + (|S| + E)·2^-11 + 2^-25` (one more `float16` rounding:
-    `Format.binary16.u = 2^-11`, `Format.binary16.eta = 2^-25`).
+    `|c − S| ≤ 2^-11 · |S| + 2^-15 · M + 2^-24` (the accumulation's tolerance and one more
+    `float16` rounding).
 
   With a NaN or an infinity in row `i` of `a` or column `j` of `b`, the claim says only that
   element `(i, j)` holds some `float16` value.
@@ -242,48 +250,56 @@ addresses; `hostInst_ok`):
 
 ## Tolerances
 
-`tol va vb K = errAt (prodV va vb K) (liftV va vb K) (steps K)` (`Claim.lean`), the error bound of
-the loop's `T = steps K = cdiv(K, 64)` steps against the exact partial sums. With `p e = va e · vb e`
-for `e < K` and `0` from `K` on (`prodV`: the lanes the masks disable load `+0`), `l e` its lifted
-magnitude `liftMag(va e)·liftMag(vb e)` (`liftV`; `liftMag q` is `|q|` for zero and normal values,
-`2^-14` for a nonzero subnormal one), `S_t = Σ_{e < 64t} p e` (`partSum`) and
-`L_t = Σ_{64t ≤ e < 64t+64} l e` (`stepMag`):
+**The fine bound.** For one element, with `p e = va e · vb e` for `e < K` and `0` from `K` on
+(`prodV`: the lanes the masks disable load `+0`), `l e` its lifted magnitude
+`liftMag(va e)·liftMag(vb e)` (`liftV`; `liftMag q` is `|q|` for zero and normal values, `2^-14` for
+a nonzero subnormal one), `S_t = Σ_{e < 64t} p e` (`partSum`) and `L_t = Σ_{64t ≤ e < 64t+64} l e`
+(`stepMag`), the error after `t` steps of the loop is at most `E_t`:
 
-`E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + L_t) + α`, `tol = E_T`,
+`E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + L_t) + α`,
 
-that is `E_T = Σ_{t<T} (1 + ρ)^(T−1−t)·(ρ·(|S_t| + L_t) + α)`, with the library's constants for one
-fp16 `tl.dot` of `K = 64`: `ρ = relDot16 64 = 66·2^-22`, `α = absDot16 64 = 66·2^-126`.
+that is `E_T = Σ_{t<T} (1 + ρ)^(T−1−t)·(ρ·(|S_t| + L_t) + α)`, `T = steps K = cdiv(K, 64)`, with the
+library's constants for one fp16 `tl.dot` of `K = 64`: `ρ = relDot16 64 = 66·2^-22`,
+`α = absDot16 64 = 66·2^-126`.
 
-**Derivation** (library facts only). Step `t` of the loop (line 300) is `acc ← tl.dot(a, b, acc)`, a
-`float16` dot of `64` products with the accumulator as its own (no separate addition). By
-`Rules.Num.DotF16` (`DotLiftAcc` with `K = 64`) each output element of it is within
-`relDot16 64·(|acc| + L_t) + absDot16 64` of `acc + c_t`, `c_t = S_{t+1} − S_t` the step's exact sum
-(the disabled lanes hold `+0`, adding nothing to `c_t` or `L_t`). If `acc` is within `E_t` of `S_t`
-then `|acc| ≤ |S_t| + E_t`, so the new accumulator is within
+**Derivation** (library facts only). Step `t` of the loop (source line 300) is
+`acc ← tl.dot(a, b, acc)`, a `float16` dot of `64` products with the accumulator as its own (no
+separate addition). By `Rules.Num.DotF16` (`DotLiftAcc` with `K = 64`) each output element of it is
+within `relDot16 64·(|acc| + L_t) + absDot16 64` of `acc + c_t`, `c_t = S_{t+1} − S_t` the step's
+exact sum (the disabled lanes hold `+0`, adding nothing to `c_t` or `L_t`). If `acc` is within `E_t`
+of `S_t` then `|acc| ≤ |S_t| + E_t`, so the new accumulator is within
 `E_t + ρ·(|S_t| + E_t + L_t) + α = E_{t+1}` of `S_{t+1}`; by induction the loop leaves a `float32`
 value within `E_T` of `S`. The fact's room condition holds at every step: finite `float16` products
 are below `2^32`, so with `K ≤ 2^13` every `|acc| + L_t` and its bound stay far inside the `float32`
-range. The final `.to(tl.float16)` (line 308) is one rounding (`FloatV.cvt_err`, `u = 2^-11`,
-`η = 2^-25`), which gives the second clause. Since `|S_t| + L_t ≤ A` (`A` the sum of all lifted
-magnitudes), `tol ≤ ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`, whose relative factor is below `0.21%` at every
-covered `K` (`tol_rel_lt`).
+range. The final `.to(tl.float16)` (source line 308) is one rounding (`FloatV.cvt_err`,
+`u = 2^-11`, `η = 2^-25`): `|c − S| ≤ E_T + (|S| + E_T)·2^-11 + 2^-25`.
 
-**Meaningful.** The bound follows the exact partial sums, so on zero-mean data it is far below
-`Σ|a·b|`: on the benchmark's `torch.randn` inputs its median is about `0.07` at `K = 4096` (at most `0.23`)
-against a median `|S|` of `43`. `check_gpu.py` measures the device's error at `0.48–0.83` of the
-tolerance on the setup's launches (`0.98` with subnormal operands, and `0.96` at `K = 1` beyond
-`Inst.ok`, where the output's rounding is the whole error), and it checks that three wrong kernels break `Post` on the test's and
-the benchmark's data (`K = 512 … 4096`): the exact result rounded to `bfloat16` (largest ratio `7` to
-`32`), a `float16` accumulator rounded after each step (`6` to `8`), and a result missing the last
-step's products (`890` and more).
+**Relaxation to `Post`'s form.** `K ≤ 2^13` (`K_le`) gives `T ≤ 128`, and
+`(1 + ρ)^127 ≤ (1 + 66·2^-22)^128 < 1.0021`. Every factor `(1 + ρ)^(T−1−t)` is at most `1.0021`, so
+
+- `E_T ≤ 1.0021·ρ·Σ_{t<T}(|S_t| + L_t) + 1.0021·T·α ≤ 1.0021·(66/64)·2^-16·M + 1.0021·128·66·2^-126
+  ≤ 1.034·2^-16·M + 2^-112 ≤ 2^-15·M + 2^-100 = tol`, with `M = pathMag`: the first clause;
+- `E_T + (|S| + E_T)·2^-11 + 2^-25 = 2^-11·|S| + (1 + 2^-11)·E_T + 2^-25
+  ≤ 2^-11·|S| + 1.035·2^-16·M + 2^-111 + 2^-25 ≤ 2^-11·|S| + 2^-15·M + 2^-24`: the second clause;
+- the room premise `|S| + tol ≤ 65504` implies `|S| + E_T ≤ 65504`, as `E_T ≤ tol`.
+
+**Meaningful.** `M` follows the exact partial sums, so on zero-mean data it is far below
+`T·Σ|a·b|`. Over the setup's launches, the median of `tol / |S|` per launch is `5.3·10^-4` to
+`3.2·10^-3` (`3.2·10^-3` at `K = 4096`; median over the launches `2.0·10^-3`); the fine bound `E_T`
+is about half of it (`2.7·10^-4` to `1.6·10^-3`). `check_gpu.py` measures the device's error at
+`0.33–0.72` of the tolerance on the setup's launches (`0.93` at `K = 1` beyond `Inst.ok`, where the
+output's rounding is the whole error), and it checks that three wrong kernels break `Post` on the
+test's and the benchmark's data (`K = 512 … 4096`): the exact result rounded to `bfloat16` (largest
+ratio `3.7` to `17`), a `float16` accumulator rounded after each step (`3.3` to `4.0`), and a result
+missing the last step's products (`460` and more).
 
 ## Exclusions
 
 Nothing `SETUP.md` asks for is left out. Conditions that exclude launches outside `SETUP.md`'s
 launches:
 
-- `K > 2^13` (outside the setup, whose largest `K` is `4096`): the tolerance grows with `K` and the
-  room argument of Tolerances is stated for `K ≤ 2^13`. The kernel is believed correct there.
+- `K > 2^13` (outside the setup, whose largest `K` is `4096`): the relaxation and the room argument
+  of Tolerances are stated for `K ≤ 2^13`. The kernel is believed correct there.
 - Strides of `2^31` or more, or sizes that make Triton pass an argument as `int64`: outside the
   setup; a different model (the arguments' integer class), not a kernel fault.
 - `ACTIVATION = "leaky_relu"`, other block configurations, `float8e5` operands: not part of the setup.
@@ -317,7 +333,7 @@ None.
 ## Checks
 
 1. **Builds**: `lake env lean ../claims/matmul_f16/Claim.lean`: no errors or warnings, no `sorry`, no
-   `axiom`; `consistent`, `satisfiable`, `tol_rel_lt` and every `setup_*_ok` depend only on
+   `axiom`; `consistent`, `satisfiable` and every `setup_*_ok` depend only on
    `propext`, `Classical.choice`, `Quot.sound`.
 2. **Not vacuous**: `consistent` (`Platform.sm90ref`), `satisfiable` (the test's instance, the
    all-zero memory).
@@ -330,11 +346,12 @@ None.
    `K` not a positive multiple of `128`), checks of the kernel past the claim: `K = 4095` with
    `M = 1000`, `N = 777`; `M = N = 1` with `K = 65`; `K = 1`; `K = 0`, where `c = 0` exactly; NaN and
    infinities at `300 × 500 × 700`; the two direct launches at `N = 1000`, `K = 777` and `N = 259`,
-   `K = 1000`; each within the tolerance (largest `0.958`, at `K = 1`). Both clauses of `OutSpec`
+   `K = 1000`; each within the tolerance (largest `0.931`, at `K = 1`). Both clauses of `OutSpec`
    checked (the first as: some real `v` within `E` of `S` rounds
    to `c` in `float16`; the check does not snap `v` to the `float32` grid, whose spacing is far below
-   every `E` here): largest error / tolerance over the covered launches **0.977** (margin 0.023,
-   subnormal operands); `0.75` on the test, `0.83` down to `0.48` on the benchmark. Negative tests on
+   every `E` here): largest error / tolerance over the covered launches **0.722** (margin 0.278,
+   the benchmark's `256`); `0.61` on the test, `0.72` down to `0.33` on the benchmark, `0.49` with
+   subnormal operands; the median of `tol / |S|` per launch is printed. Negative tests on
    the test and at `K = 512, 1024, 2048, 4096`: a `bfloat16`-rounded result, a `float16` accumulator
    and a missing step each break `Post` (Tolerances). Inputs unchanged; no byte outside the matrix
    `c` written. PASS.

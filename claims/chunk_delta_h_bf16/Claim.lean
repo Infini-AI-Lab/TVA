@@ -851,33 +851,22 @@ noncomputable def specNorm (m n : Nat) (A : Nat → Nat → ℝ) : ℝ :=
   sInf {c : ℝ | 0 ≤ c ∧ ∀ x : Nat → ℝ,
     colNorm m (fun a => ∑ b ∈ Finset.range n, A a b * x b) ≤ c * colNorm n x}
 
-/-! ### The tolerance of one step
+/-! ### The tolerances
 
-From the library's facts (`docs/rules/num.md`; README, Tolerances): `FloatV.cvt_err` for the
-`bfloat16` roundings (`2^-8·|x| + 2^-134`); `FloatV.mul_err`, `sub_err` (`2^-24·|x| + 2^-150`);
-`FloatV.AddRel.err` for the fusable `-` and `+` (`3·2^-24·(|x| + |y|) + 4·2^-150`); `Num.Exp2F32`
-(`2^-22·2^x + 2^-126`); `Num.DotBF16` (`relDot16 64 = 66·2^-22`, `absDot16 64 = 66·2^-126`,
-relative to `|acc| + Σ liftMag a·liftMag b`), chained over the `K` blocks as `DotLoop.bound`.
-Without the gate (`USE_G` false) lines 247–258 do not run: no factor, no product, no decay, and
-the terms they contribute are `0`. Each quantity is a function of the inputs of chunk `t` and of
-the stored state `h[t]`; none is carried from one chunk to the next. -/
+Simple bounds (README, Tolerances: derived from the library's facts as a fine bound, then relaxed):
+the new value's tolerance is `2^-8` of `vAbs`, its magnitude `|u − w·h[t]|` with `2^-5` of its
+operands' magnitudes `|u| + ‖w‖·‖h[t]‖`; a step's tolerance is `2^-8` of the gated `vAbs` through
+`‖kᵀ‖₂`, `2^-15` of the same through `‖k‖_F` and of the decayed state `2^g_last·‖h[t]‖`, and an
+absolute floor. Each quantity is a function of the inputs of chunk `t` and of the stored state
+`h[t]`; none is carried from one chunk to the next. -/
 
-/-- The constants: `float32` and `bfloat16` units and floors, `2^-126`, the dot constants at `64`. -/
+/-- The constants of the padded rows' bound (`padB`): `float32`'s unit and floor, `2^-126`, the
+dot constants at `64`. -/
 noncomputable def u32 : ℝ := 2 ^ (-24 : ℤ)
 noncomputable def e32 : ℝ := 2 ^ (-150 : ℤ)
-noncomputable def ubf : ℝ := 2 ^ (-8 : ℤ)
-noncomputable def ebf : ℝ := 2 ^ (-134 : ℤ)
 noncomputable def mu : ℝ := 2 ^ (-126 : ℤ)
 noncomputable def rD : ℝ := (Rules.Num.relDot16 64 : ℝ)
 noncomputable def aD : ℝ := (Rules.Num.absDot16 64 : ℝ)
-
-/-- The error of a chain of `nb` `tl.dot`s, each from the previous result, of lifted magnitude
-`L` in all (`DotLoop.bound rD aD nb L`, in `ℝ`). -/
-noncomputable def chainErr (nb : Nat) (L : ℝ) : ℝ :=
-  ((1 + rD) ^ nb - 1) * L + nb * (1 + rD) ^ nb * aD
-
-/-- The number of `K` blocks, `cdiv(K, 64)`. -/
-def nb (d : Inst) : Nat := (d.K + 63) / 64
 
 section Tol
 
@@ -888,96 +877,44 @@ noncomputable def hn : ℝ := colNorm d.K (Hs fin d n hv j t)
 noncomputable def hl : ℝ :=
   colNorm d.K (fun c => (Rules.Num.liftMag .bf16 (valB fin d.h (hIdx d (cbase d n + t) hv c j)) : ℝ))
 
-/-- The kernel's `float32` state `Y` entering chunk `t` against its stored rounding `h[t] = bf16(Y)`
-(line 185): `|Y − h[t]| ≤ 2^-8·|Y| + 2^-134` per row, so `‖Y − h[t]‖ ≤ rh` and `‖Y‖ ≤ YB`. -/
-noncomputable def rh : ℝ := (ubf * hn fin d n hv j t + Real.sqrt d.K * ebf) / (1 - ubf)
-noncomputable def YB : ℝ := hn fin d n hv j t + rh fin d n hv j t
-
 /-- `‖w[i]‖` under `liftMag`. -/
 noncomputable def wl (i : Nat) : ℝ :=
   colNorm d.K (fun c => (Rules.Num.liftMag .bf16 (wq m d n hv (BT * t + i) c) : ℝ))
 
-/-- The `w` dots on token `i` (lines 211–237; they read `bf16(Y) = h[t]`): `chainErr` of
-`‖liftMag w‖·‖liftMag h[t]‖`; a bound on their result `|b_v|`; the fusable `-` of line 239. -/
-noncomputable def dW (i : Nat) : ℝ := chainErr (nb d) (wl m d n hv t i * hl fin d n hv j t)
-noncomputable def bvB (i : Nat) : ℝ :=
-  |∑ c ∈ Finset.range d.K, wc m d n hv t i c * Hs fin d n hv j t c| + dW m fin d n hv j t i
-noncomputable def sB (i : Nat) : ℝ :=
-  3 * u32 * (|uc m d n hv t i j| + bvB m fin d n hv j t i) + 4 * e32
+/-- The magnitude of token `i`'s new value for the tolerances: `|vrefS| + 2^-5·(|u| +
+‖liftMag w‖·‖liftMag h[t]‖)`, the new value with `2^-5` of its operands' magnitudes. -/
+noncomputable def vAbs (i : Nat) : ℝ :=
+  |vrefS m fin d n hv j t i| +
+    2 ^ (-5 : ℤ) * (|uc m d n hv t i j| + wl m d n hv t i * hl fin d n hv j t)
 
-/-- A bound on the computed `|v_new|` before its store, and **the tolerance of `v_new`** at token
-`i` of chunk `t` (the store's `bfloat16` rounding included, line 243). -/
-noncomputable def vnB (i : Nat) : ℝ :=
-  |vrefS m fin d n hv j t i| + dW m fin d n hv j t i + sB m fin d n hv j t i
-noncomputable def tolV (i : Nat) : ℝ :=
-  dW m fin d n hv j t i + sB m fin d n hv j t i + ubf * vnB m fin d n hv j t i + ebf
+/-- **The tolerance of `v_new`** at token `i` of chunk `t`: `2^-8·vAbs + 2^-100` (the `w` dots,
+the `-` of line 239 and the store's `bfloat16` rounding, line 243). -/
+noncomputable def tolV (i : Nat) : ℝ := 2 ^ (-8 : ℤ) * vAbs m fin d n hv j t i + 2 ^ (-100 : ℤ)
 
-/-- The factor `exp2(g_last − g)` (line 250): the IEEE `-`'s error `dgE`, then `Num.Exp2F32`
-(`0` without the gate: the factor is the exact `1`). -/
-noncomputable def dgE (i : Nat) : ℝ := u32 * |dgv m d n hv t i| + e32
-noncomputable def errF (i : Nat) : ℝ :=
-  if d.useG then
-    (1 + 2 ^ (-22 : ℤ)) * Real.rpow 2 (dgv m d n hv t i + dgE m d n hv t i) - Gam m d n hv t i + mu
-  else 0
-noncomputable def fB (i : Nat) : ℝ := Gam m d n hv t i + errF m d n hv t i
-
-/-- The gated value `vg` (line 250, IEEE `*`; without the gate the new value itself), its
-`bfloat16` rounding `vgb` (line 288), and the error of `vgb` against `Gam·vrefS`. -/
-noncomputable def vgB (i : Nat) : ℝ :=
-  if d.useG then fB m d n hv t i * vnB m fin d n hv j t i * (1 + u32) + e32
-  else vnB m fin d n hv j t i
-noncomputable def dB (i : Nat) : ℝ :=
-  ubf * vgB m fin d n hv j t i + ebf +
-    (if d.useG then u32 * fB m d n hv t i * vnB m fin d n hv j t i + e32 else 0) +
-    errF m d n hv t i * vnB m fin d n hv j t i +
-    Gam m d n hv t i * (dW m fin d n hv j t i + sB m fin d n hv j t i)
-noncomputable def vgbB (i : Nat) : ℝ := (1 + ubf) * vgB m fin d n hv j t i + ebf
-
-/-- The decay `exp2(g_last)` (line 251, `Num.Exp2F32`) and the state's scaling `Y' = fl(Y·ẽ)`
-(line 252, IEEE `*`): `‖Y' − 2^g_last·Y‖ ≤ dec` (the scaling's rounding and the decay's error),
-`‖Y'‖ ≤ YpB`. Without the gate `Y' = Y`: `dec = 0`, `YpB = YB`. -/
+/-- The decay `exp2(g_last)`'s error (line 251, `Num.Exp2F32`) and a bound on its result (`0` and
+`2^g_last = 1` without the gate); `padB` uses them. -/
 noncomputable def errE : ℝ := if d.useG then 2 ^ (-22 : ℤ) * gam m d n hv t + mu else 0
 noncomputable def eB : ℝ := gam m d n hv t + errE m d n hv t
-noncomputable def dec : ℝ :=
-  if d.useG then
-    errE m d n hv t * YB fin d n hv j t + u32 * eB m d n hv t * YB fin d n hv j t +
-      Real.sqrt d.K * e32
-  else 0
-noncomputable def YpB : ℝ :=
-  if d.useG then eB m d n hv t * (1 + u32) * YB fin d n hv j t + Real.sqrt d.K * e32
-  else YB fin d n hv j t
 
-/-- The `k` dot's error (line 295): `relDot16 64·(|acc| + Σ liftMag k·liftMag vgb)`, by
-Cauchy–Schwarz with `‖liftMag k‖_F`. -/
+/-- `‖liftMag k‖_F` over the chunk's tokens, and `‖kᵀ‖₂` (`K × cl`). -/
 noncomputable def kl : ℝ :=
   Real.sqrt (∑ i ∈ Finset.range (cl d n t), ∑ c ∈ Finset.range d.K,
     (Rules.Num.liftMag .bf16 (kq m d n hv (BT * t + i) c) : ℝ) ^ 2)
-noncomputable def dotH : ℝ :=
-  rD * (YpB m fin d n hv j t +
-      kl m d n hv t * colNorm (cl d n t) (fun i => vgbB m fin d n hv j t i + mu)) +
-    Real.sqrt d.K * aD
-
-/-- With `STATE_V_FIRST` the `k` dot starts from `+0` and its transpose is added to `Y'` (line
-293): the dot's error `relDot16 64·Σ liftMag k·liftMag vgb + absDot16 64`, then the fusable `+`'s
-(`AddRel.err`: `3·2^-24·(|Y'| + |dot|) + 4·2^-150`; it covers the `fma` the backend forms from
-line 252's product and this `+`), in norm. -/
-noncomputable def dotHvf : ℝ :=
-  rD * kl m d n hv t * colNorm (cl d n t) (fun i => vgbB m fin d n hv j t i + mu) +
-    Real.sqrt d.K * aD +
-    3 * u32 * (YpB m fin d n hv j t +
-      (1 + rD) * kl m d n hv t * colNorm (cl d n t) (fun i => vgbB m fin d n hv j t i + mu) +
-      Real.sqrt d.K * aD) + 4 * Real.sqrt d.K * e32
-
-/-- `‖kᵀ‖₂` (`K × cl`). -/
 noncomputable def sKn : ℝ := specNorm d.K (cl d n t) (fun a i => kc m d n hv t i a)
 
 /-- **The tolerance of one step of the kernel's `float32` state** (`Y t` entering chunk `t` to
 `Y (t + 1)`, the state entering chunk `t + 1`, or `ht` after the last chunk):
-`‖Y (t + 1) − Step t (Y t)‖ ≤ errStep t`: the scaling's error, the gated values' errors through
-`kᵀ`, and the `k` dot's error. -/
+`‖Y (t + 1) − Step t (Y t)‖ ≤ errStep t`, with `G = (2^(g_last − g_i)·vAbs i)_i` the gated
+magnitudes: `2^-8·‖kᵀ‖₂·‖G‖` (the gated values' roundings through `kᵀ`), `2^-15·(‖k‖_F·‖G‖ +
+2^g_last·‖h[t]‖)` (the `k` dot's error and the decay's and the scaling's roundings), and the floor
+`2^-36`. -/
 noncomputable def errStep : ℝ :=
-  dec m fin d n hv j t + sKn m d n hv t * colNorm (cl d n t) (fun i => dB m fin d n hv j t i) +
-    (if d.vf then dotHvf m fin d n hv j t else dotH m fin d n hv j t)
+  2 ^ (-8 : ℤ) * sKn m d n hv t *
+      colNorm (cl d n t) (fun i => Gam m d n hv t i * vAbs m fin d n hv j t i) +
+    2 ^ (-15 : ℤ) * (kl m d n hv t *
+      colNorm (cl d n t) (fun i => Gam m d n hv t i * vAbs m fin d n hv j t i) +
+        gam m d n hv t * hn fin d n hv j t) +
+    2 ^ (-36 : ℤ)
 
 end Tol
 

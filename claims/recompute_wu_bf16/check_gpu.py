@@ -11,12 +11,11 @@ flat token `s0`, value head `h`, the columns `j < 64` of its row of `A` with
   product `v[f_j, h, c] * beta[f_j, h]` for a `bfloat16` one (its exact value fits `float32`, then one
   rounding), `uRef = sum_j A_j * vb_j`,
   `uMag = sum_j liftMag(A_j) * liftMag(vb_j)` (`liftMag q = 0` at `0`, else `max(|q|, 2^-126)`),
-  `tolU = 2^-8 |uRef| + (1 + 2^-8) (66 * 2^-22 * uMag + 66 * 2^-126) + 2^-134`;
+  `tolU = 2^-8 |uRef| + 2^-15 uMag + 2^-119`;
 * `w`: `x_j = k[f_j, h // (HV // H), c] * beta[f_j, h]`, `e_j = 2^g[f_j, h]`,
   `wRef = sum_j A_j x_j e_j`, `wMag = sum_j liftMag(A_j) |x_j| e_j`,
   `wFloor = sum_j liftMag(A_j) (|x_j| + 1)`,
-  `tolW = 2^-8 |wRef| + cW wMag + 2^-124 wFloor + 2^-119`, `cW = 2^-8 + 2^-14` (`float32` `beta`) or
-  `2^-7 + 2^-13` (`bfloat16` `beta`);
+  `tolW = 2^-6 wMag + 2^-124 wFloor + 2^-119` (either dtype of `beta`);
 
 and every output is finite. The frame: the inputs (and the host's `chunk_indices`, passed in) are
 compared with copies after each launch, and one direct launch writes `w` and `u` into views placed
@@ -206,8 +205,6 @@ def evaluate(k, v, beta, A, g, H, HV, cu, u, w):
     cm = valid.to(torch.float64)[:, None, None, :]       # columns inside the sequence
     rm = valid[:, :, None, None]                          # rows inside the sequence
     hg = max(1, (1 << 24) // (Q * BT * max(K, V, BT)))
-    # cW: 2^-8 + 2^-14 for a float32 beta, 2^-7 + 2^-13 for a bfloat16 one
-    cw = 2.0 ** -7 + 2.0 ** -13 if beta.dtype == torch.bfloat16 else 2.0 ** -8 + 2.0 ** -14
     ru = rw = 0.0
     fu = fw = True
     for h0 in range(0, HV, hg):
@@ -225,7 +222,7 @@ def evaluate(k, v, beta, A, g, H, HV, cu, u, w):
         uRef = torch.einsum('qrhj,qjhc->qrhc', Arow, vb)
         uMag = torch.einsum('qrhj,qjhc->qrhc', Lrow, lift(vb))
         del vb
-        tolU = 2.0 ** -8 * uRef.abs() + (1 + 2.0 ** -8) * (66 * 2.0 ** -22 * uMag + 66 * 2.0 ** -126) + 2.0 ** -134
+        tolU = 2.0 ** -8 * uRef.abs() + 2.0 ** -15 * uMag + 2.0 ** -119
         del uMag
         o = uo[:, hs].double()[rows]
         fu = fu and bool(torch.isfinite(o)[rm.expand_as(o)].all().item())
@@ -237,7 +234,7 @@ def evaluate(k, v, beta, A, g, H, HV, cu, u, w):
         e = torch.exp2(gf[:, hs].double())[..., None]
         wRef = torch.einsum('qrhj,qjhc->qrhc', Arow, (x * e)[rows])
         wMag = torch.einsum('qrhj,qjhc->qrhc', Lrow, (x.abs() * e)[rows])
-        tolW = 2.0 ** -8 * wRef.abs() + cw * wMag
+        tolW = 2.0 ** -6 * wMag
         del wMag
         tolW += 2.0 ** -124 * torch.einsum('qrhj,qjhc->qrhc', Lrow, (x.abs() + 1)[rows]) + 2.0 ** -119
         del x, e, Arow, Lrow

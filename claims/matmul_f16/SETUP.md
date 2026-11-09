@@ -47,8 +47,8 @@ another `tl.dot`), and those launches are not part of this setup.
 the file's draws, plus edges (`K = 8192`, `K = 4095`, `M = N = 1`, `K = 1`, `K = 0`, `M = 0`, inputs
 scaled by 8 and by `2^-12` (subnormal operands), NaN and infinities in the inputs) and two direct
 launches (a padded and a column-major `c` inside a guarded buffer, `b` with strides `(1, K)`). Every
-element of `c` meets both clauses of `Post`: the largest error / tolerance is 0.977 (subnormal
-operands, where the output's rounding is all the error); 0.75 on the test and 0.83 down to 0.48 on
-the benchmark. Three wrong results (rounded to `bfloat16`, accumulated in `float16` step by step, the
+element of `c` meets both clauses of `Post`: the largest error / tolerance is 0.722 on the
+covered launches (0.61 on the test, 0.72 down to 0.33 on the benchmark, 0.49 with subnormal
+operands) and 0.931 over all launches (`K = 1`). Three wrong results (rounded to `bfloat16`, accumulated in `float16` step by step, the
 last step's products left out) each break `Post` on the test's and the benchmark's data. The inputs
 are unchanged and no byte outside the matrix `c` is written.

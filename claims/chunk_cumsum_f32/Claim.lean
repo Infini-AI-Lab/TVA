@@ -262,13 +262,6 @@ def depth (d : Inst) (n p : Nat) : Nat :=
 def sig (d : Inst) : ℚ := if d.hasScale then d.scale.toRat else 1
 def sig32 (d : Inst) : ℚ := if d.hasScale then (sigma32 d).toRat else 1
 
-/-- One rounding of `float32`: `2^-24` relative, `2^-150` absolute (`Format.binary32`). -/
-def u32 : ℚ := 2 ^ (-24 : ℤ)
-def eta32 : ℚ := 2 ^ (-150 : ℤ)
-
-theorem u32_eq : u32 = Format.binary32.u := by unfold u32; rw [Format.binary32_u]
-theorem eta32_eq : eta32 = Format.binary32.eta := by unfold eta32; rw [Format.binary32_eta]
-
 /-- The element is in range: its terms are finite, `Σ|s| ≤ 2^126`, and with a scale the double
 and its `float32` value are finite and `|σ₃₂|·Σ|s| ≤ 2^126` (`float32` overflows near `2^128`). -/
 def InRange (d : Inst) (n p h : Nat) : Prop :=
@@ -276,17 +269,13 @@ def InRange (d : Inst) (n p h : Nat) : Prop :=
     (d.hasScale = true → d.scale.isFinite = true ∧ (sigma32 d).isFinite = true ∧
       |(sigma32 d).toRat| * absSum d n p h ≤ 2 ^ 126)
 
-/-- **The tolerance**, from the depth `m`, `S = refSum`, `A = absSum`: the scan's error
-`E = Tree.errBound u η m m A` (a tree of `m + 1` leaves, of depth and node count at most `m`,
-each node an IEEE addition; `sum_err_list`); with a scale, the `float32` product's rounding
-`Em = u·|σ₃₂|·(|S| + E) + η`, the scan's error scaled, `|σ₃₂|·E`, and the scale's own conversion
-`|σ − σ₃₂|·|S|` (the reference uses the host's double). -/
+/-- **The tolerance**: `(depth + 1)·2^-23` relative to `M = |σ₃₂|·A` (`A = absSum`; `depth + 1`
+lanes combined), the scale's own conversion `|σ − σ₃₂|·A` (the reference uses the host's double;
+`0` without a scale), and an absolute floor `2^-128·(1 + |σ₃₂|)` (`float32`'s subnormal roundings,
+scaled). Without a scale it is `(depth + 1)·2^-23·A + 2^-127`. -/
 def tol (d : Inst) (n p h : Nat) : ℚ :=
-  let E := Tree.errBound u32 eta32 (depth d n p) (depth d n p) (absSum d n p h)
-  let S := refSum d n p h
-  if d.hasScale then
-    |sig32 d| * E + (u32 * (|sig32 d| * (|S| + E)) + eta32) + |sig d - sig32 d| * |S|
-  else E
+  ((depth d n p + 1 : ℚ) * 2 ^ (-23 : ℤ)) * (|sig32 d| * absSum d n p h)
+    + |sig d - sig32 d| * absSum d n p h + 2 ^ (-128 : ℤ) * (1 + |sig32 d|)
 
 /-- The output elements the launch writes: every position of every sequence, every head. -/
 def written (d : Inst) : Set Nat :=

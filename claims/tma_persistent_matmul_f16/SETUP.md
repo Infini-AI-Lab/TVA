@@ -99,13 +99,11 @@ subnormal operands; NaN and infinities in the inputs) and four direct launches w
 `NUM_SMS = 1, 7, 132, 1000` (one program looping over 9 tiles; 33 tiles over 7 programs; 220 tiles
 over 132; a grid of 40 for 40 tiles), with `a` and `c` in buffers with padded rows (row strides
 above `K` and `N`, `c` inside a guarded buffer). Every element of `c` meets both clauses of `Post`:
-the largest error / tolerance is 0.977 (subnormal operands, where the output's rounding is all the
-error); 0.89 at `M = N = K = 32`, and 0.92 at `K = 128` down to 0.73 at `K = 1024` on the setup's
-`8192` sizes. Four wrong results each break `Post` at `K = 32, 128, 512, 1024` and on the partial
-tiles of `M = N = K = 1000`: the exact result rounded to `bfloat16` (ratio 16 to 121), the last
-`K` block of 64 products left out (ratio 2950 and more), and, from the kernel's own output, two row
-blocks of 128 swapped and the two `128`-column halves of each tile swapped (ratio 13000 and more;
-these two need `M`, `N > 128`, so they are not run at `32`). The inputs are unchanged and no byte
+the largest error / tolerance is 0.0042 (`K = 1024`); 0.0035 to 0.0042 on the setup's `8192` sizes
+and 0.0019 with subnormal operands. Four wrong results each break `Post` at `K = 32, 128, 512, 1024` and on the partial
+tiles of `M = N = K = 1000`: the exact result rounded to `bfloat16`, the last
+`K` block of 64 products left out, and, from the kernel's own output, two row
+blocks of 128 swapped and the two `128`-column halves of each tile swapped (these two need `M`, `N > 128`, so they are not run at `32`). The inputs are unchanged and no byte
 outside the matrix `c` is written. The host's own check, `validate`'s `torch.allclose` against the
 naive `matmul` with `atol = 1` (lines 701–709), passes at `M = N = K = 32` and at `M = N = 8192`,
 `K = 128, 512, 1024` (largest difference `0`).

@@ -98,8 +98,7 @@ of `Inst.ok` (32768 tokens at 128 heads; 200 one-token requests; chunks of 1 and
 dstate = 1`; `headdim` 65 and `dstate` 129), one with `x.stride(0)` and `B.stride(0)` above `2^31`
 (`int64` arguments), and seven of `Vals` (strong decay `dA × 200`, no decay,
 `dt × 1000`, a non-monotone `dA_cumsum`, values near `10^15` and near `10^-20`, and a coherent
-worst case for the `bfloat16` rounding). The worst error / tolerance is `0.992` (the coherent worst
-case; `0.98` on the others, from elements dominated by one token); every element is finite, `Vals`
+worst case for the `bfloat16` rounding). The worst error / tolerance is `0.977`; every element is finite, `Vals`
 holds, the byte frame holds, and the host's `seq_idx` equals the claim's `reqOf` on every launch.
 Eight negative tests are rejected: one element moved by 1.01 × its tolerance, the launch without
 `seq_idx`, `B`'s groups swapped, and the states of kernels that drop the last token of each chunk,

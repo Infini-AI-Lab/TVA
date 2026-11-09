@@ -15,7 +15,8 @@ The covered launches are the ones `SETUP.md` asks for: Grok's router, `num_exper
 * The model: `moe_router_kernel`, `model`, `launch`.
 * The conditions: `Inst`, `Inst.ok`, `Pre`.
 * The specification: `Post`, `Spec`, with the exact logits `mu` and the exact soft cap `capRef`
-  from the host's inputs, and the tolerances `tolL`, `capTol`, `wRel0`, `wRel1`, `wFloor`.
+  from the host's inputs, the tolerances `capEps`, `wRel0`, `wRel1`, `wFloor`, and the fine bound
+  `capTol` (with `tolL`) of `Pre`'s range condition.
 * The assumptions: `Assumptions`.
 * The checks: `consistent`, `satisfiable`, one covered instance per Grok test case (`setup_*`).
 
@@ -215,12 +216,19 @@ noncomputable def tolL (d : Inst) (S : ℝ) : ℝ :=
     4 * eta32 * (d.BLOCK - 1 : ℕ) * (1 + 3 * u32) ^ Nat.clog 2 d.BLOCK +
     u32 * S + d.hidden * eta32
 
-/-- The computed capped logit's error against `capRef` of the exact logit: the logit's error and
+/-- The fine bound of a computed capped logit's error against `capRef` of the exact logit (used
+by `Pre`'s range condition; `Post` states `capEps`, which is at least it): the logit's error and
 the scaling's (`/ 30`, `2 ·`) carried through the soft cap, which is `1`-Lipschitz in the logit
 (`2^-21·(|μ| + tolL)` from the division and the doubling), plus the cap formula's own error
 (`tl.exp`, `− 1`, `+ 1`, `/`, `· 30`), within `2^-14`. -/
 noncomputable def capTol (d : Inst) (μ S : ℝ) : ℝ :=
   (1 + 2 ^ (-21 : ℤ)) * tolL d S + 2 ^ (-21 : ℤ) * |μ| + 2 ^ (-14 : ℤ)
+
+/-- **The tolerance of a capped logit** in `Post`: `2^-18` relative to `absS` (the logit's
+reduction, along a tree of depth at most `⌈log₂ BLOCK⌉ ≤ 13`, `Rules.Num.SumDepth`, and the scaling),
+plus `2^-14` (the cap formula's own error). README, Tolerances, derives it; it is at least the fine
+bound `capTol` up to `capTol`'s absolute terms below `2^-130`, which the formula's margin covers. -/
+noncomputable def capEps (S : ℝ) : ℝ := 2 ^ (-18 : ℤ) * S + 2 ^ (-14 : ℤ)
 
 /-- The relative tolerance of the first weight (the inverse sum of the exponentials). -/
 noncomputable def wRel0 : ℝ := 2 ^ (-14 : ℤ)
@@ -254,14 +262,14 @@ def Pre (d : Inst) (init : Mem) : Prop :=
 /-! ## The specification -/
 
 /-- What the launch leaves for token `t`: there are reals `C e`, one per expert (the capped logits
-the run computes), each within `capTol` of the exact capped logit `capRef (mu t e)`, such that
+the run computes), each within `capEps` of the exact capped logit `capRef (mu t e)`, such that
 * `topk_ids[t, 0] = i0`, the first index of the largest `C` (`tie_break_left`), and
   `topk_ids[t, 1] = i1 ≠ i0`, the first index of the largest `C` among the other experts;
 * `topk_weights[t, 0]` and `topk_weights[t, 1]` are finite and within `wRel0` and `wRel1`
   (relative) plus `wFloor` of the softmax of `C` at `i0` and `i1`. -/
 def TokenPost (d : Inst) (init fin : Mem) (t : Nat) : Prop :=
   ∃ (C : ℕ → ℝ) (i0 i1 : ℕ),
-    (∀ e, e < 8 → |C e - capRef (mu init d t e)| ≤ capTol d (mu init d t e) (absS init d t e)) ∧
+    (∀ e, e < 8 → |C e - capRef (mu init d t e)| ≤ capEps (absS init d t e)) ∧
     i0 < 8 ∧ (∀ e, e < 8 → C e ≤ C i0) ∧ (∀ e, e < i0 → C e < C i0) ∧
     i1 < 8 ∧ i1 ≠ i0 ∧ (∀ e, e < 8 → e ≠ i0 → C e ≤ C i1) ∧
     (∀ e, e < i1 → e ≠ i0 → C e < C i1) ∧

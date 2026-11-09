@@ -221,8 +221,9 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `tiles + NUM_SMS ≤ 2^31`: the `int32` `num_tiles` (line 317) does not wrap, and the tile
   loop's bounds are valid (`tl.RangeOk`: `num_tiles + NUM_SMS − 1` is an `int32`). -/
   tiles_le : tiles d + d.NUM_SMS ≤ 2 ^ 31
-  /-- `K ≤ 2^13`: the tolerance of `Post` grows with `K`; up to `2^13` it is below `0.21%` of the
-  products' lifted magnitudes (`tol_rel_lt`). The setup's largest `K` is `1024`. -/
+  /-- `K ≤ 2^13`: the tolerance of `Post` grows with `K`; up to `2^13` it is below `0.4%` of the
+  products' lifted magnitudes (`accMag ≤ cdiv(K, 64)·Σ liftMag·liftMag`), and the steps' growth
+  factor is below `1.0021` (`tol_rel_lt`). The setup's largest `K` is `1024`. -/
   K_le : d.K ≤ 2 ^ 13
   /-- `N` is a model dimension (the output features): a positive multiple of `128`, at most `2^17`
   (README, Exclusions). -/
@@ -313,9 +314,9 @@ def rho : ℚ := Rules.Num.relDot16 64
 /-- The per-step absolute constant: `absDot16 64 = 66·2^-126`. -/
 def alpha : ℚ := Rules.Num.absDot16 64
 
-/-- The relative factor `(1 + ρ)^T − 1` on covered instances (`K ≤ 2^13`, `Inst.ok.K_le`): below
-`0.21%`. The tolerance `tol` is at most `((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α` with `A` the sum of all
-the products' lifted magnitudes (README, Tolerances). -/
+/-- The growth factor `(1 + ρ)^T` of the steps' bound on covered instances (`K ≤ 2^13`,
+`Inst.ok.K_le`): below `1 + 0.21%`. It bounds the step-by-step error by `tol` (README,
+Tolerances). -/
 theorem tol_rel_lt {K : Nat} (hK : K ≤ 2 ^ 13) :
     (1 + rho) ^ steps K - 1 < 21 / 10000 := by
   have hT : steps K ≤ 128 := by unfold steps; omega
@@ -345,21 +346,16 @@ def partSum (p : Nat → ℚ) (t : Nat) : ℚ := ∑ e ∈ Finset.range (64 * t)
 /-- The lifted magnitude of step `t`: `Σ q e` for `64·t ≤ e < 64·t + 64`. -/
 def stepMag (q : Nat → ℚ) (t : Nat) : ℚ := ∑ k : Fin 64, q (64 * t + k)
 
-/-- **The error bound after `t` steps** of the inner loop, from the exact partial sums: `E 0 = 0`
-and `E (t + 1) = (1 + ρ)·E t + ρ·(|S t| + L t) + α`, with `S t = partSum p t` the exact partial sum
-before step `t` and `L t = stepMag q t` the step's lifted magnitude. It is what `Rules.Num.DotF16`
-gives step by step: step `t`'s `tl.dot` of `64` products, with the accumulator `acc` as its own,
-leaves a value within `ρ·(|acc| + L t) + α` of `acc + c t` (`c t` the step's exact sum), and with
-`acc` within `E t` of `S t`, `|acc| ≤ |S t| + E t`, so the new accumulator is within `E (t + 1)` of
-`S (t + 1)`. In closed form `E T = Σ_{t < T} (1 + ρ)^(T − 1 − t)·(ρ·(|S t| + L t) + α)`. -/
-def errAt (p q : Nat → ℚ) : Nat → ℚ
-  | 0 => 0
-  | t + 1 => (1 + rho) * errAt p q t + rho * (|partSum p t| + stepMag q t) + alpha
+/-- The magnitude the accumulator passes through: `Σ_{t < T} (|S t| + L t)` over the inner loop's
+`T = steps K` steps, with `S t = partSum (prodV …) t` the exact partial sum before step `t` and
+`L t = stepMag (liftV …) t` the step's lifted magnitude. It is the sum of all the products' lifted
+magnitudes plus the partial sums' magnitudes at the steps' starts; it is at least `|dotSum|`. -/
+def accMag (va vb : Nat → F16) (K : Nat) : ℚ :=
+  ∑ t ∈ Finset.range (steps K), (|partSum (prodV va vb K) t| + stepMag (liftV va vb K) t)
 
 /-- **The tolerance of `Post`** for row values `va`, column values `vb` and the reduction length
-`K`: the error bound after the inner loop's `steps K` steps, `errAt (prodV va vb K) (liftV va vb K)
-(steps K)`. It is explicit and computable from the inputs. -/
-def tol (va vb : Nat → F16) (K : Nat) : ℚ := errAt (prodV va vb K) (liftV va vb K) (steps K)
+`K`: `2^-15·accMag + 2^-112`. It is explicit and computable from the inputs. -/
+def tol (va vb : Nat → F16) (K : Nat) : ℚ := 2 ^ (-15 : ℤ) * accMag va vb K + 2 ^ (-112 : ℤ)
 
 /-- What the launch leaves in element `(i, j)` of `c`: some `float16` value `c`; and when row `i` of
 `a` and column `j` of `b` hold finite values `va k`, `vb k` (`k < K`) in the initial memory, `c` is

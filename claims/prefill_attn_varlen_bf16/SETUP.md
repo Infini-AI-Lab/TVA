@@ -79,8 +79,8 @@ video frame pairs of 3072 patches, 2 heads of 80 on one image of 65536 patches, 
 32 heads of 64 on 8 KV heads) and `sm_scale = 1.0` on unit-RMS inputs; `Inst.ok` edges (head
 dims 9 and 256, 64 heads on one KV head, gaps and empty sequences, `sm_scale = 0.5`, one prompt
 of `2^17` tokens) and `Pre` edges (large scores, `|v| ≈ 10^30`, subnormal `v`, uniform
-attention), each causal and not. The worst error / tolerance is `0.859` (`0.80` on the host's
-own cases, `0.76` on the vision launches); every written element is finite, every input is
+attention), each causal and not. The worst error / tolerance is `0.434` (the uniform causal
+case; `0.40` on the host's own cases, `0.38` on the non-causal launches); every written element is finite, every input is
 unchanged, and every element of `o` outside the sequences keeps its bits. Wrong outputs (all
 zero, the other mode's output, a key block or a key left out, the wrong key/value head) are
 rejected. Head dims 1 and 8 are rejected on the host (`CompilationError`).

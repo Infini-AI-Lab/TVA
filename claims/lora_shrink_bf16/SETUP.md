@@ -97,11 +97,8 @@ tokens, `down_proj` at 64, 1024 and 4096 tokens), on `torch.rand` and signed `to
 127 and 128 tokens (the two configurations); `scaling` `0.1`, `1/3`, `2^-7` and `−3.75`; and edges
 (hidden 2, 255, 2049, 16384, 128256, `2^17` and `2^17 − 1`; 128 adapters with
 `num_active_loras = 129`; one token at rank 256 with three slices; `specialize_active_lora`). Every
-one is within the claim's tolerance: the largest error / tolerance is about `2·10^-2` (`torch.rand`
-data, 128 adapters), at most `1.3·10^-3` on signed data; every element of a token with no adapter is
-`+0.0` in every slice; the guard bands around the output and every input buffer are unchanged. On
-signed data at hidden 14336 the tolerance is `2.8·10^-3` of the output (median) below 128 tokens and
-`1.5·10^-2` from 128 tokens. Wrong outputs (all zero, the last `BLOCK_K` block of `k` dropped, one of
+one is within the claim's tolerance: the largest error / tolerance is about `1.2·10^-2`; every element of a token with no adapter is
+`+0.0` in every slice; the guard bands around the output and every input buffer are unchanged. Wrong outputs (all zero, the last `BLOCK_K` block of `k` dropped, one of
 the `SPLIT_K` parts dropped, the scale missing, another adapter, swapped slices) are rejected. It also
 runs ranks 8, 1 and 4 (cases 2 and 3, not part of the setup) for information: error / tolerance at
-most `6.4·10^-3`.
+most `3.5·10^-3`.

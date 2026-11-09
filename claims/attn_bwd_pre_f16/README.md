@@ -8,7 +8,7 @@ check: [`check_gpu.py`](check_gpu.py). The launches to cover: [`SETUP.md`](SETUP
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.AttnBwdPre.main : Statement` (`Statement`:
-`Claim.lean` line 283). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 261). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -17,20 +17,20 @@ check: [`check_gpu.py`](check_gpu.py). The launches to cover: [`SETUP.md`](SETUP
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 109), and every initial memory `init` that `Pre` accepts (line 175), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 217).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 209).
 
-**What `Post` asks** (line 217), two parts:
-1. for every `bh < Z·H` and `m < N_CTX`, `OutSpec d init fin (bh·N_CTX + m)` (line 204): element
+**What `Post` asks** (line 209), two parts:
+1. for every `bh < Z·H` and `m < N_CTX`, `OutSpec d init fin (bh·N_CTX + m)` (line 196): element
    `r = bh·N_CTX + m` of `Delta` reads in `fin` as a `float32` `c`, for every such `r`. Only when
    row `r` of `O` and of `DO` (elements `r·HEAD_DIM + k`, `k < HEAD_DIM`) read in `init` as finite
    `float16` values `vo k`, `vdo k` is more asked: `c` is finite and
-   `|c.toRat − dotSum vo vdo HEAD_DIM| ≤ tol HEAD_DIM (dotAbs vo vdo HEAD_DIM)`. `dotSum` and
+   `|c.toRat − dotSum vo vdo HEAD_DIM| ≤ tol (dotAbs vo vdo HEAD_DIM)`. `dotSum` and
    `dotAbs` (lines 181, 184) are the exact sums, in the rationals, of `vo k · vdo k` and of their
-   magnitudes; `tol` is defined at line 195. With a non-finite input in the row only "holds a
+   magnitudes; `tol B = 2^-19·B + 2^-138` (line 190). With a non-finite input in the row only "holds a
    `float32` value" is asked;
 2. the frame: every byte outside `Delta.elems (outSet d)` (line 100) is unchanged.
 
-**What you are given** (`Assumptions`, line 225), two fields:
+**What you are given** (`Assumptions`, line 217), two fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `sum_depth` (`Rules.Num.SumDepth P`): every `tl.sum` tree over `n` positions has depth at most
@@ -56,14 +56,16 @@ is `TVA.meets_independent` (PROVER_GUIDE §4).
 - the programs' write rows are disjoint (from the grid coordinates and `ctx_dvd`), and no program
   writes what any program reads (`Delta_O`, `Delta_DO`);
 - every `r < Z·H·N_CTX` is written by one program (`ctx_dvd`: the grid covers every position);
-- the value part of part 1: the widenings are exact (`FloatV.toRat_cvt_of_wider`), the products are
-  one `float32` rounding each, and the fused sum is bounded by `sumc_err_depth` at depth
-  `⌈log₂ HEAD_DIM⌉`, composed as in `sum_bcast_mul_tree_err` (README `## Tolerances`);
+- the value part of part 1, `|c − Σ o·do| ≤ 2^-19·Σ|o·do| + 2^-138`: derive the fine bound of
+  README `## Tolerances` (the widenings are exact, `FloatV.toRat_cvt_of_wider`; the products are
+  one `float32` rounding each; the fused sum is bounded by `sumc_err_depth` at depth
+  `⌈log₂ HEAD_DIM⌉`, composed as in `sum_bcast_mul_tree_err`), then relax it by `fine_le`
+  (`HEAD_DIM ≤ 256`);
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok` and the
-`setup_*_ok` theorems; `tol_le_bcast` (line 240), `tol_mono` (line 255), `tol_le` (line 271) and
-`elems_disjoint_of_lt` (line 292) can be reused.
+`setup_*_ok` theorems; `fine_le` (line 234: the fine bound is below `tol`) and
+`elems_disjoint_of_lt` (line 270) can be reused.
 
 ## Specification
 
@@ -73,28 +75,18 @@ For every `(batch, head)` pair `bh < Z·H` and position `m < N_CTX`, with `r = b
 * element `r` of `Delta` holds some `float32` value `c` in the final memory;
 * whenever row `r` of `O` and of `DO` (elements `r·HEAD_DIM + k`, `k < HEAD_DIM`) hold finite
   `float16` values `o_k`, `do_k` in the initial memory, `c` is finite and
-  `|c − Σ_k o_k·do_k| ≤ tol(HEAD_DIM, Σ_k |o_k·do_k|)`, the sums exact (`dotSum`, `dotAbs`).
+  `|c − Σ_k o_k·do_k| ≤ 2^-19·Σ_k |o_k·do_k| + 2^-138`, the sums exact (`dotSum`, `dotAbs`;
+  `tol B = 2^-19·B + 2^-138`).
 
 And every byte outside the elements `r < Z·H·N_CTX` of `Delta` is unchanged (`O`, `DO`, the rest
 of `Delta`'s storage, and every other byte the launch is given).
 
-`tol(D, B) = errBound(3u, 4η, ⌈log₂ D⌉, D − 1, (1 + u)·B + D·η) + (u·B + D·η)` with `u = 2^-24`,
-`η = 2^-150`, `Tree.errBound δ η d N A = ((1 + δ)^d − 1)·A + η·N·(1 + δ)^d`: the library's
-`bcastTreeBound D B` with the reduction's depth `⌈log₂ D⌉` (`Rules.Num.SumDepth`) in place of
-`D − 1` (`tol_le_bcast`: `tol ≤ bcastTreeBound`). To first order `(3·log₂ D + 1)·2^-24·B`:
-
-| `HEAD_DIM` | `tol / B` |
-|---|---|
-| 16 | `7.75·10^-7` |
-| 64 | `1.13·10^-6` |
-| 128 | `1.31·10^-6` |
-| 256 | `1.49·10^-6` |
-
-`tol_le` proves `tol(D, B) ≤ 2^-19·B + 2^-138` for every covered `D ≤ 256`. The bound is relative
+The error allowed is `2^-19 ≈ 1.9·10^-6` of `B = Σ_k |o_k·do_k|` (about `32` `float32`
+roundings), uniform over the covered `HEAD_DIM ≤ 256`, plus an absolute `2^-138`. The bound is relative
 to `Σ|o·do|`, not to `|Σ o·do|` (a sum with cancellation can lose every digit in `float32`). It
 rejects a `float16` result or accumulation (`2^-11` relative), a missing or doubled column, or the
 wrong row of `do` (`check_gpu.py`, negatives: on `randn` inputs at `HEAD_DIM` 64 and 128, `Post`
-fails on `90–93%` of the rows of a result rounded to `float16`, and on `99.9–100%` of the rows of
+fails on `87–89%` of the rows of a result rounded to `float16`, and on `99.9–100%` of the rows of
 the others).
 
 ## Conditions
@@ -162,8 +154,27 @@ rounded products by `errBound(3u, 4η, ⌈log₂ D⌉, D − 1, Σ|p_k|)`, with 
 (`Tree.errBound_mono`), and the products' own roundings add `u·B + D·η`: the composition is that of
 `sum_bcast_mul_tree_err`, with `sumc_err_depth` for `sumc_err_covers`. The room hypothesis holds on
 every input: a finite `float16` is at most `65504`, so `B ≤ 256·2^32 = 2^40`. So the bound is
-provable on every row with finite inputs. Meaningful: `tol/B ≤ 1.5·10^-6`, about `25` `float32`
-roundings; on the host's inputs the kernel's error reaches `8%` of it (`14%` at `HEAD_DIM = 16`).
+provable on every row with finite inputs. With `u = 2^-24`, `η = 2^-150`, this fine bound is
+
+`F(D, B) = errBound(3u, 4η, ⌈log₂ D⌉, D − 1, (1 + u)·B + D·η) + (u·B + D·η)`,
+`Tree.errBound δ η d N A = ((1 + δ)^d − 1)·A + η·N·(1 + δ)^d`
+
+(the library's `bcastTreeBound D B` with the depth `⌈log₂ D⌉` in place of `D − 1`), to first order
+`(3·⌈log₂ D⌉ + 1)·u·B`: `F/B` of `7.75·10^-7`, `1.13·10^-6`, `1.31·10^-6`, `1.49·10^-6` at
+`D` = 16, 64, 128, 256.
+
+**Relaxation** (`fine_le`, line 234). `F` grows with `D` (`Tree.errBound_mono`: depth, node count
+and argument all grow), so `F(D, B) ≤ F(256, B)` for every covered `D ≤ 256`. At `D = 256`,
+`⌈log₂ D⌉ = 8` and `(1 + 3u)^8 − 1 ≤ 24.00002·u`, so the relative part is at most
+`24.00002·u·(1 + u)·B + u·B ≤ 25.0001·u·B = 1.49·10^-6·B ≤ 32·u·B = 2^-19·B`, and the absolute
+part `24.00002·u·256·η + 4η·255·(1 + 3u)^8 + 256·η ≤ 1277·η ≤ 2^11·η = 2^-139 ≤ 2^-138`. So
+`F(D, B) ≤ 2^-19·B + 2^-138 = tol B`.
+
+Meaningful: `tol/B = 2^-19 = 1.9·10^-6`, at most `2.5×` the fine bound (at `D = 16`; `1.45×` at
+`D = 128`). Over the rows of the test's and the benchmark's launches (`13.4·10^6` rows), `tol/|ref|`
+has median `1.7·10^-5` (`1.1·10^-5` for the fine bound); its worst is `2.4·10^2` (`1.7·10^2` for
+the fine bound), at rows whose sum cancels (the bound is relative to `B`, not to `|ref|`). On the
+host's inputs the kernel's error reaches `6.5%` of `tol`.
 
 ## Exclusions
 
@@ -207,7 +218,7 @@ None.
   `attention(...).backward(dout)` (the kernel's tensors recorded at its launch), the benchmark's 10
   sizes, `HEAD_DIM` 16, 32, 256, `Z·H = 1`, `N_CTX = 0`, values near the `float16` limit (`2^13`
   scale), exact cancellation, subnormal-sized values, and rows with `∞`/NaN. Worst error /
-  tolerance `0.138` at `HEAD_DIM = 16` (margin 7×); `0.079` on the test's launches, `0.084` on
-  the benchmark's sizes; every row with finite inputs finite; `o`, `do` unchanged bit for bit and
+  tolerance `0.065` on the benchmark's sizes (margin 15×); `0.053` on the test's launches, `0.063`
+  at `HEAD_DIM = 16`; every row with finite inputs finite; `o`, `do` unchanged bit for bit and
   the bytes past `delta` keep their sentinel. Wrong outputs (a `float16` result, the last column
   dropped or doubled, the next row of `do`) fail `Post`.

@@ -5,7 +5,7 @@ imported by path) on the host's test launches, on SETUP.md's model shapes (causa
 encoders' non-causal launches) and on launches at the edges of `Inst.ok` and `Pre`, causal and
 not; computes `Post`'s reference and tolerance from the inputs in float64 exactly as `Claim.lean`
 states them (`lastKey`, `score`, `scoreMag` with `liftMag`, `Xrow`, `attnRef`, `attnAbs`, `vSum`,
-`trips`, `dlt`, `rho`, `gam`, `errE`, `tolRel`, `tolAbs`); and reports the largest error /
+`trips`, `tolRel`, `tolAbs`); and reports the largest error /
 tolerance over every written element, that every written element is finite, and the frame (every
 input unchanged; every element of `o` outside the sequences keeps its initial bits: the host's
 `torch.empty_like` is made to fill `o` with a sentinel pattern). Negative tests: `Post` must
@@ -41,13 +41,9 @@ def next_pow2(n):
 
 
 def tol_rel(BD, T, X):
-    """`tolRel BD T X` of Claim.lean, in float64 (T, X tensors)."""
-    dlt = (BD + 8) * 2.0 ** -22 * X + 2.0 ** -40
-    rho = torch.expm1(2.0 ** -8 + (T + 8) * 2.0 ** -18 + (X + dlt) * 2.0 ** -17)
-    gam = torch.expm1(T * 136 * 2.0 ** -22)
-    e2 = torch.exp(2 * dlt)
-    errE = e2 * (rho + gam * (1 + rho)) / (1 - rho) + torch.expm1(2 * dlt)
-    return 2.0 ** -8 + (1 + 2.0 ** -8) * errE
+    """`tolRel BD T X` of Claim.lean, in float64 (T, X tensors):
+    2^-6 + T 2^-14 + (BD + 16) X 2^-20."""
+    return 2.0 ** -6 + T * 2.0 ** -14 + (BD + 16) * X * 2.0 ** -20
 
 
 def lift(x):

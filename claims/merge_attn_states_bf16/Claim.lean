@@ -366,11 +366,11 @@ noncomputable def refOut (p s : F32) (pv sv : ℝ) : ℝ :=
 /-- The lse tolerance, relative to `1 + |lse|`: `2^-16`. -/
 def lseTol : ℚ := 2 ^ (-16 : ℤ)
 
-/-- One rounding to `bfloat16`, relative: `2^-8`. -/
+/-- One rounding to `bfloat16`, relative to the output: `2^-8`. -/
 def bf16Round : ℚ := 2 ^ (-8 : ℤ)
 
-/-- The output tolerance relative to the inputs' magnitudes `|pv| + |sv|`: `2^-14`. -/
-def outTol : ℚ := 2 ^ (-14 : ℤ)
+/-- The output tolerance relative to the larger input magnitude `max |pv| |sv|`: `2^-13`. -/
+def outTol : ℚ := 2 ^ (-13 : ℤ)
 
 /-- The output's absolute floor: `2^-133`, the smallest `bfloat16` subnormal. -/
 def absTol : ℚ := 2 ^ (-133 : ℤ)
@@ -382,7 +382,7 @@ def zeroB : BF16 := FloatV.ofPat 0
 * when `output_lse` is passed, the lse element: exactly `-∞` when both sides are empty, otherwise finite and within
   `lseTol·(1 + |refLse|)` of `refLse (corr p) (corr s)`;
 * each output element `j < head_size`: exactly `+0` when both sides are empty, otherwise finite
-  and within `bf16Round·|refOut| + outTol·(|pv| + |sv|) + absTol` of `refOut`, with `pv`, `sv` the
+  and within `bf16Round·|refOut| + outTol·max |pv| |sv| + absTol` of `refOut`, with `pv`, `sv` the
   initial `prefix_output[t, h, j]`, `suffix_output[t, h, j]`. -/
 def MergeOk (d : Inst) (init fin : Mem) (t h : Nat) : Prop :=
   ∃ p s : F32,
@@ -400,7 +400,7 @@ def MergeOk (d : Inst) (init fin : Mem) (t h : Nat) : Prop :=
         w.isFinite = true ∧
         |w.toReal - refOut (corr p) (corr s) pv.toReal sv.toReal| ≤
           (bf16Round : ℝ) * |refOut (corr p) (corr s) pv.toReal sv.toReal| +
-            (outTol : ℝ) * (|pv.toReal| + |sv.toReal|) + (absTol : ℝ))
+            (outTol : ℝ) * max |pv.toReal| |sv.toReal| + (absTol : ℝ))
 
 /-- What a copied `(t, h)` (`t ≥ prefill_tokens_with_context`) leaves: the suffix's lse element
 (when `output_lse` is passed) and its `head_size` output elements, bit for bit. -/

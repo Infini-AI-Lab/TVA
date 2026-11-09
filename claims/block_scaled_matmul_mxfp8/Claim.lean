@@ -13,7 +13,8 @@ operand `b` (`N × K`) of `float8e4nv` (`"mxfp8"`) or of `e2m1` packed two per b
 preshuffled layout, and a `float16` output `c` (`M × N`). The launches to cover are `SETUP.md`'s.
 
 This file holds the model (`block_scaled_matmul_kernel`, `model`, `launch`), the conditions
-(`Inst`, `Inst.ok`, `Pre`), the specification (`Post`, `Spec`, with the tolerance `tol`), the
+(`Inst`, `Inst.ok`, `Pre`), the specification (`Post`, `Spec`, with the tolerances `vTol`, `cTol`
+of the magnitude `stepMag`, and the step recursion `tol` of the room conditions), the
 assumptions (`Assumptions`) and the claim `Statement`, which it does not prove. It proves
 `consistent`, `satisfiable`, and that each launch of `SETUP.md` is covered (`setup_*_ok`). See
 `README.md`.
@@ -352,13 +353,21 @@ def rho : ℚ := Rules.Num.relDot16 128
 /-- The absolute constant of one step: `absDot16 128 = 130 · 2^-126`. -/
 def alpha : ℚ := Rules.Num.absDot16 128
 
-/-- **The tolerance** after `t` steps, computed from the exact inputs: `tol p 0 = 0`, and step
+/-- The step recursion after `t` steps, computed from the exact inputs: `tol p 0 = 0`, and step
 `t` adds `rho · (|partSum p t| + tol p t + chunkAbs p t) + alpha`, the library's bound for one
 `tl.dot_scaled` of `128` products into the accumulator, with the accumulator's magnitude bounded
-by the exact partial sum plus the tolerance so far. The output's tolerance is `tol p (K / 128)`. -/
+by the exact partial sum plus the bound so far. `tol p (K / 128)` (`tolOut`) enters the room
+conditions (`ValsOk.room`, `OutSpec`'s `float16` range condition); `Post`'s tolerances `vTol`,
+`cTol` are at least it (README, Tolerances). -/
 def tol (p : Nat → ℚ) : Nat → ℚ
   | 0 => 0
   | t + 1 => tol p t + rho * (|partSum p t| + tol p t + chunkAbs p t) + alpha
+
+/-- The magnitude the loop's steps carry after `T` steps: `Σ_{t<T} (|partSum p t| + chunkAbs p t)`,
+the exact accumulator's magnitude before each step plus that step's products' magnitudes (each
+step's error is relative to it). `stepMag p (K / 128) = Σ|p| + Σ_{t < K/128} |partSum p t|`. -/
+def stepMag (p : Nat → ℚ) (T : Nat) : ℚ :=
+  ∑ t ∈ Finset.range T, (|partSum p t| + chunkAbs p t)
 
 /-- The value element `i` of a `float8e4nv` buffer holds in memory `m` (`+0` if it cannot be
 read; `Pre` makes every buffer valid, so every element the claim reads can). -/
@@ -407,8 +416,21 @@ def prods (d : Inst) (m : Mem) (i j : Nat) : Nat → ℚ :=
 /-- The exact result of element `(i, j)`: `S = Σ_{k<K} p k`. -/
 def ref (d : Inst) (m : Mem) (i j : Nat) : ℚ := dotSum (prods d m i j) d.K
 
-/-- Its tolerance: `tol p (K / 128)`, the recursion over the `K / 128` steps of the loop. -/
+/-- The step recursion over the `K / 128` steps of the loop, `tol p (K / 128)` (the room
+conditions). -/
 def tolOut (d : Inst) (m : Mem) (i j : Nat) : ℚ := tol (prods d m i j) (d.K / 128)
+
+/-- The magnitude of element `(i, j)`: `μ = stepMag p (K / 128)`. -/
+def magOut (d : Inst) (m : Mem) (i j : Nat) : ℚ := stepMag (prods d m i j) (d.K / 128)
+
+/-- **The tolerance of the `float32` result** `v` of element `(i, j)`: `2^-14 · μ + 2^-108`
+(README, Tolerances). -/
+def vTol (d : Inst) (m : Mem) (i j : Nat) : ℚ := 2 ^ (-14 : ℤ) * magOut d m i j + 2 ^ (-108 : ℤ)
+
+/-- **The tolerance of the `float16` output** `c` of element `(i, j)`: one `float16` rounding of
+the result, `2^-11 · |S|`, plus `2^-14 · μ + 2^-24` (README, Tolerances). -/
+def cTol (d : Inst) (m : Mem) (i j : Nat) : ℚ :=
+  2 ^ (-11 : ℤ) * |ref d m i j| + 2 ^ (-14 : ℤ) * magOut d m i j + 2 ^ (-24 : ℤ)
 
 /-- The input values covered:
 * every element of `a` and of `b` in the library facts' domain with its scale (`InDom`: finite,
@@ -431,19 +453,16 @@ def Pre (d : Inst) (init : Mem) : Prop :=
 /-! ## The specification -/
 
 /-- What the launch leaves in element `(i, j)` of `c`: a `float16` value `c` that is the rounding
-to nearest even (`FloatV.cvt`, up to NaN payload) of a finite `float32` value `v` within `tol` of
-the exact result `S` (`ref`, from the initial memory); and when there is room in `float16`
-(`|S| + tol ≤ 65504`), `c` is finite and within `tol` plus one `float16` rounding
-(`(|S| + tol)·2^-11 + 2^-25`) of `S`. -/
+to nearest even (`FloatV.cvt`, up to NaN payload) of a finite `float32` value `v` within
+`vTol = 2^-14·μ + 2^-108` of the exact result `S` (`ref`, from the initial memory); and when there
+is room in `float16` (`|S| + tolOut ≤ 65504`), `c` is finite and within
+`cTol = 2^-11·|S| + 2^-14·μ + 2^-24` of `S`. -/
 def OutSpec (d : Inst) (init fin : Mem) (i j : Nat) : Prop :=
   ∃ c : F16, fin.read .f16 (d.c.ptr ↑(i * d.N + j)).addr = some c ∧
-    ∃ v : F32, v.isFinite = true ∧ |v.toRat - ref d init i j| ≤ tolOut d init i j ∧
+    ∃ v : F32, v.isFinite = true ∧ |v.toRat - ref d init i j| ≤ vTol d init i j ∧
       FloatV.NaNEq (FloatV.cvt v) c ∧
       (|ref d init i j| + tolOut d init i j ≤ Math.Float.Format.binary16.maxVal →
-        c.isFinite = true ∧
-        |c.toRat - ref d init i j| ≤ tolOut d init i j +
-          (|ref d init i j| + tolOut d init i j) * Math.Float.Format.binary16.u +
-            Math.Float.Format.binary16.eta)
+        c.isFinite = true ∧ |c.toRat - ref d init i j| ≤ cTol d init i j)
 
 /-- What the launch leaves: every element of `c` as `OutSpec` says; every byte outside the
 matrix `c` unchanged (the inputs and any other byte of `init`). -/

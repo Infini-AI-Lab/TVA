@@ -14,7 +14,7 @@ The kernel lines are 20–21, 47–110, 168–173 and 176–245; the host lines,
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.AttnFwd.main : Statement` (`Statement`:
-`Claim.lean` line 571). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 474). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -23,29 +23,30 @@ The kernel lines are 20–21, 47–110, 168–173 and 176–245; the host lines,
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 253), and every initial memory `init` that `Pre` accepts (line 317), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 520).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 424).
 
-**What `Post` asks** (line 520), three parts:
+**What `Post` asks** (line 424), three parts:
 1. `o`: for every `bh < Z·H`, `n < N_CTX`, `e < HEAD_DIM`, element `idx d bh n e` (line 247) of `o`
    reads in `fin` as a `float16` `c`, for every such element. Only when `HeadOk d init bh` holds
    (line 366: the head's `q`, `k`, `v` finite, `|v| ≤ 2^15`, `sigma d * scoreMag ≤ 2^10`) is more
    asked: `c` is finite and, for every `X ≤ 2^10` with `sigma d * scoreMag d init bh n j ≤ X` for
    every `j ∈ keys d n` (line 336),
-   `|c.toReal − attnRef| ≤ tolO D N X · attnAbs + tolS D N X · vAbsSum + tolF D N X`
+   `|c.toReal − attnRef| ≤ epsO D N X · attnMag + 2^-24`
    (`D = HEAD_DIM`, `N = N_CTX`). `attnRef` (line 377) is the exact attention in the reals, with
    weights `weight` (line 373) `= exp(σ·score)` from the values in `init` (`score` line 340, `val16`
-   line 323); `attnAbs` (line 382) and `vAbsSum` (line 387) are the scales. `tolO`, `tolS`, `tolF`
-   are defined at lines 489, 495, 500;
+   line 323); the scale `attnMag` (line 404) is the larger of `attnAbs` (line 382, the weighted mean
+   of `|v|`) and `vAbsSum / |keys d n|` (`vAbsSum` line 387, the plain mean of `|v|` over the keys);
+   `epsO D N X = 2^-20·(D·X + N + 2^10)` (line 408);
 2. `M`: for every `bh < Z·H`, `n < N_CTX`, element `bh·N_CTX + n` of `M` reads in `fin` as a
    `float32` `c`. Under `HeadOk d init bh` only: `c` is finite and, for every such `X`,
-   `|c.toReal − lseRef| ≤ tolM D N X + u32·|lseRef|`, `lseRef` (line 391) `= log₂ Σ_j weight`,
-   `tolM` at line 506, `u32` at line 402;
-3. the frame: every byte outside `outBytes d` (line 510: the first `rows d · HEAD_DIM` elements of
+   `|c.toReal − lseRef| ≤ epsM D X`, `lseRef` (line 391) `= log₂ Σ_j weight`,
+   `epsM D X = 2^-20·(D·X + 2^10)` (line 411);
+3. the frame: every byte outside `outBytes d` (line 414: the first `rows d · HEAD_DIM` elements of
    `o` and the first `rows d` of `M`) is unchanged.
 
 Outside `HeadOk` only "holds a value" is asked, in parts 1 and 2.
 
-**What you are given** (`Assumptions`, line 540), ten fields:
+**What you are given** (`Assumptions`, line 443), ten fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`): each `tl.dot` (model lines 93, 129) is within `relDot16 K` times
@@ -90,11 +91,13 @@ a key and a value tile (`tl.desc_load`), computes `qk` (`tl.dot`), the running m
 - the value parts of parts 1 and 2 under `HeadOk`: loop invariants on `m_i`, `l_i`, `acc` (README
   `## Tolerances`, steps 1–5: the exponents, the weights from `exp2` and `exp2_ninf`, the row sums
   with `sum_err_covers`, the accumulator from `dot` with `DotLiftAcc.mono`, the end from `div_full`
-  and `log2`), then the change from `2^(qk_scale·s)` to `exp(σ·s)`;
+  and `log2`), then the change from `2^(qk_scale·s)` to `exp(σ·s)`: this derives the fine bounds
+  `tolO·attnAbs + tolS·vAbsSum + tolF` and `tolM + 2^-24·|lseRef|` of README Tolerances; then relax
+  them to `epsO·attnMag + 2^-24` and `epsM` by the chain given there;
 - the bytes no program writes give part 3.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `canon_ok`,
-`smTest_ok`, `smBench_ok` and the `setup_*_ok` theorems; `disj_of_le` (line 582) can be reused.
+`smTest_ok`, `smBench_ok` and the `setup_*_ok` theorems; `disj_of_le` (line 485) can be reused.
 
 ## Specification
 
@@ -120,9 +123,16 @@ A head is covered (`HeadOk d init bh`) when every element of `q`, `k`, `v` in it
 - **`o`.** Every element `(bh, n, e)` (`bh < Z·H`, `n < N`, `e < D`) holds a `float16` `c`. For a
   covered head, `c` is finite and, for every `X ≤ 2^10` bounding the row (`σ·scoreMag(n, j) ≤ X`
   for every key `j` of `n`),
-  `|c − attnRef| ≤ tolO D N X · attnAbs + tolS D N X · vAbsSum + tolF D N X`.
+
+  `|c − attnRef| ≤ 2^-20·(D·X + N + 2^10) · attnMag + 2^-24`,
+
+  `attnMag = max(attnAbs, vAbsSum / |keys|)`: a relative error that grows with `D·X` (the score's
+  `tl.dot`, relative to `scoreMag`) and with `N` (the accumulator's `N/64` blocks), on the larger of
+  the weighted and the plain mean of `|v|` over the row's keys (the plain mean carries the rounding
+  of small `p`s to `float16`, about `2^-25·|v|` per key), and an absolute `2^-24` (the output's
+  `float16` rounding near zero).
 - **`M`.** Every element `(bh, n)` holds a `float32` `c`. For a covered head, `c` is finite and,
-  for every such `X`, `|c − lseRef| ≤ tolM D N X + 2^-24·|lseRef|`.
+  for every such `X`, `|c − lseRef| ≤ 2^-20·(D·X + 2^10)` (absolute: `M` is a base-2 logarithm).
 - **Frame.** Every byte outside the first `Z·H·N·D` elements of `o` and the first `Z·H·N` of `M`
   is unchanged.
 
@@ -134,12 +144,12 @@ over every pair of the largest shape keeps it below `22.7` (test) and `239.9` (b
 with probability below `10^-6`; the lift adds below `0.006` and `0.031` (a `χ²` tail of `|q|²`). The
 GPU check measured at most `17.4` (test) and `185.6` (benchmark) over the rows it read.
 
-| `D` | `N` | `X` | `tolO` | `tolS` | `tolF` | `tolM` |
+| `D` | `N` | `X` | `epsO` | `epsM` | fine `tolO` (Tolerances) | fine `tolM` |
 |---|---|---|---|---|---|---|
-| 64 | 128 | 16 | `1.8·10^-3` | `3.1·10^-8` | `3.2·10^-8` | `8.3·10^-4` |
-| 128 | 4096 | 23 (test) | `4.3·10^-3` | `3.1·10^-8` | `3.2·10^-8` | `2.3·10^-3` |
-| 128 | 2^14 | 240 (benchmark) | `2.9·10^-2` | `3.2·10^-8` | `3.4·10^-8` | `2.3·10^-2` |
-| 256 | 2^16 | 1024 | `0.24` | `4.2·10^-8` | `4.2·10^-8` | `0.19` |
+| 64 | 128 | 16 | `2.1·10^-3` | `2.0·10^-3` | `1.8·10^-3` | `8.3·10^-4` |
+| 128 | 4096 | 23 (test) | `7.7·10^-3` | `3.8·10^-3` | `4.3·10^-3` | `2.3·10^-3` |
+| 128 | 2^14 | 240 (benchmark) | `4.6·10^-2` | `3.0·10^-2` | `2.9·10^-2` | `2.3·10^-2` |
+| 256 | 2^16 | 1024 | `0.31` | `0.25` | `0.24` | `0.19` |
 
 ## Conditions
 
@@ -202,10 +212,30 @@ fresh `o`, `M`, at fixed aligned addresses). `canon_ok` proves `Inst.ok` for eve
 
 ## Tolerances
 
-The tolerances (`Claim.lean`, "The tolerances") compose only library constants: `relDot16 D = (D + 2)·2^-22` (`DotF16`, the score's `tl.dot`) and
-`relDot16 64` (the `p·v` `tl.dot`), `2^-22` (`Exp2F32`, `DivFull`, `Log2F32`), one `float32`
-rounding `2^-24` and one `float16` rounding `2^-11`. Their derivation, step by step (each step a library fact or an IEEE rounding lemma, so the
-bound is provable from the cited facts):
+`Post` states `epsO·attnMag + 2^-24` and `epsM` (`Claim.lean`, "The tolerances"). The route: derive
+the fine bounds below from the library's constants, then relax them.
+
+**The fine bounds.** They compose only library constants: `relDot16 D = (D + 2)·2^-22` (`DotF16`,
+the score's `tl.dot`) and `relDot16 64` (the `p·v` `tl.dot`), `2^-22` (`Exp2F32`, `DivFull`,
+`Log2F32`), one `float32` rounding `u = 2^-24` and one `float16` rounding `2^-11`. With
+`Y = 3X/2` and `nb = N/64`:
+- `E = expErr = (relDot16 D + 2^-20)·Y + 2^-50`; `psiP = (1 + E)(1 + 2^-22) − 1`;
+  `psi16 = (1 + psiP)(1 + 2^-11) − 1`; `psiL = (1 + u)^63·(1 + psiP) − 1`;
+  `drift = 1 + 4u·(Y + E)`;
+- `stepAcc = (1 + relDot16 64)(1 + 2^-150)(1 + 2^-22)(1 + u)`; `stepL = (1 + 3u)(1 + 2^-150)(1 + 2^-22)`;
+  `facc = (1 + psi16)·drift·stepAcc^nb`; `fl = (1 + psiL)·drift·stepL^nb`;
+- `absL = 2^-100`, `absA = 2^-37`, `kapA = 2^-29`, `omega0 = 2^-25 + 2^-125 + 66·2^-36`;
+  `wlow = 1 − E`; `betaL = (fl − 1) + fl·nb·absL / wlow`; `denQ = 1 − betaL`;
+  `relQ = (facc − 1 + betaL) / denQ`; `absQS = facc·omega0 / (wlow·denQ)`;
+  `absQ0 = facc·nb·absA / (wlow·denQ) + facc·kapA / denQ`;
+- `thetaW = 2^-20·X`; `lastRel = 2^-11·(1 + 2^-22) + 2^-22`;
+- `tolO = lastRel·(1 + relQ)(1 + thetaW) + relQ·(1 + thetaW) + thetaW`;
+  `tolS = absQS·(1 + lastRel)`; `tolF = absQ0·(1 + lastRel) + 2^-159 + 2^-25 + 2^-148`;
+  `tolM = (1 + u)·(17·2^-22 + 2·betaL + 2^-21·X + 2^-149) + 2^-150`.
+
+The fine bounds are `|o − attnRef| ≤ tolO·attnAbs + tolS·vAbsSum + tolF` and
+`|M − lseRef| ≤ tolM + 2^-24·|lseRef|`. Their derivation, step by step (each step a library fact or
+an IEEE rounding lemma, so the bound is provable from the cited facts):
 
 1. **Exponents.** `qk_scale = fl(fl32(σ)·fl32(1.44269504))` is within `2^-22·σ` of `σ·log₂e`
    relative and at most `3σ/2`. Each computed exponent `qk·qk_scale − m_i` is within
@@ -228,15 +258,37 @@ bound is provable from the cited facts):
    rounding to `float16` (`lastRel`, `2^-25` near zero). `M = m_i + log₂ l_i`: `Log2F32` with
    `|log₂ l_i| ≤ 17`, `log₂` of `l_i`'s error (`2·betaL`), `2^-21·X`, one rounding (`tolM`).
 
-**Meaningful.** At the test's sizes (`D = 128`, `N = 4096`, `X = 23`) `tolO` is `0.43%` of the
-weighted mean of `|v|` (about nine `float16` roundings); at the benchmark's (`N = 2^14`, `X = 240`)
-`2.9%`; at the largest covered values `24%`. The GPU check reaches `0.52` of the bound on the
-test's launches, `0.18` on the benchmark's, and `0.84` on an adversarial input (subnormal `q`, `v`),
-so the bound is within a factor of about 2 of the kernel's error on the file's launches. `tolS` is
-about `2^-25` per key of `Σ|v|`; `tolF` (below `4.3·10^-8`) is mostly the output's own `float16`
-rounding near zero. The bound is relative to `attnAbs`, not to `|attnRef|` (for zero-mean `v` the
-output can be much smaller than `attnAbs`); it grows with `X` because the library's `tl.dot` fact
-bounds each score's error relative to `scoreMag`.
+**Relaxation.** `X ≥ 0` (the keys of a row are never empty, and `σ·scoreMag ≥ 0`), `X ≤ 2^10`,
+`D ∈ {64, 128, 256}`, `128 ≤ N ≤ 2^16`. Write `e = 2^-22`.
+- `o`. `vAbsSum = |keys|·(vAbsSum/|keys|) ≤ N·attnMag` and `attnAbs ≤ attnMag`, so the fine bound
+  is at most `(tolO + N·tolS)·attnMag + tolF`. To first order, `tolO + N·tolS ≈ 2^-10 + 18.75e +
+  (3D + 25)·X·e + 1.21·N·e` (the two `float16` roundings `2^-11`; `2·expErr + 2·(drift − 1) + thetaW`
+  per unit of `X`; `N/64` blocks of `stepAcc − 1 = 67.25e` and `stepL − 1 = 1.75e`; `tolS ≈ e/8`
+  per key), against `epsO = 4e·(D·X + N + 2^10) = 2^-10 + 4D·X·e + 4N·e`: `3D + 25 ≤ 4D` for
+  `D ≥ 25`, and the slack `2.79·N·e ≥ 357e` (at `N ≥ 128`) covers `18.75e` and the second-order
+  terms. `tolF ≤ 2^-25 + facc·(2^-27 + 2^-29)/(wlow·denQ) ≤ 0.71·2^-24` (at `N = 2^16`, `X = 2^10`).
+- `M`. `|σ·score| ≤ σ·scoreMag ≤ X` and `1 ≤ |keys| ≤ 2^16`, so `|lseRef| ≤ X·log₂e + 16 ≤ 1.5X + 16`
+  and `2^-24·|lseRef| ≤ 0.375·X·e + 4e`. To first order `tolM ≈ 50.5e + (3D + 23)·X·e + 0.0547·N·e`,
+  so the fine bound is at most `54.5e + (3D + 23.4)·X·e + 3584e` (`N ≤ 2^16`), against
+  `epsM = 4e·(D·X + 2^10) = 4096e + 4D·X·e`.
+- Exactly: for fixed `(D, N)` every fine bound is convex in `X` (`E`, `psi*`, `drift` are affine
+  with nonnegative slopes, `facc`, `fl` products of them, `1/wlow` and `1/(1 − betaL)` convex
+  increasing), and `epsO`, `epsM` are affine in `X`, so `old ≤ new` on `[0, 2^10]` follows from
+  the two ends. Evaluated in exact rational arithmetic at `X = 0` and `X = 2^10` for all `1536`
+  pairs (`D`, `N` a multiple of `128` up to `2^16`): `(tolO + N·tolS)/epsO ≤ 0.927` (at `D = 64`,
+  `N = 128`, `X = 0`), `tolF/2^-24 ≤ 0.709` (`D = 256`, `N = 2^16`, `X = 2^10`) and
+  `(tolM + 2^-24·(1.5X + 16))/epsM ≤ 0.889` (`D = 64`, `N = 2^16`, `X = 0`).
+
+**Meaningful.** At the test's sizes (`D = 128`, `N = 4096`, `X = 23`) `epsO` is `0.77%` of `attnMag`
+(the fine `tolO` is `0.43%` of `attnAbs`); at the benchmark's (`N = 2^14`, `X = 240`) `4.6%` (`2.9%`);
+at the largest covered values `31%` (`24%`). Over the elements of the file's launches (test and
+benchmark), the tolerance of `o` over `|attnRef|` has median `4.6·10^-2` (fine: `2.0·10^-2`, a
+factor `2.3`), and that of `M` over `|lseRef|` median `1.9·10^-4` (fine: `9.4·10^-5`, `2.0`); the
+worst of either is unbounded (outputs cross `0`). The GPU check reaches `0.46` of `Post`'s bound on
+the test's launches, `0.11` on the benchmark's, and `0.46` on an adversarial input (subnormal `q`,
+`v`). The bound is relative to `attnMag`, not to `|attnRef|` (for zero-mean `v` the output can be
+much smaller than `attnAbs`); it grows with `X` because the library's `tl.dot` fact bounds each
+score's error relative to `scoreMag`.
 
 ## Exclusions
 
@@ -253,7 +305,7 @@ bounds each score's error relative to `scoreMag`.
   `Z = 4`, `H = 32`, `N_CTX = 2^24` (far beyond the file's `2^21`, and beyond the device's memory at
   any useful `HEAD_DIM`).
 - **`N_CTX > 2^16`.** The kernel is correct there (up to the `int32` limit), but the bound grows
-  with the blocks (`stepAcc^(N/64)`) and `X`; the file's largest is `2^14`. Not a kernel limit.
+  with the blocks (`N`) and `X`; the file's largest is `2^14`. Not a kernel limit.
 - **Out of scope: dimensions that are not multiples of `128` or exceed `2^17`, contexts longer than
   `2^22` tokens, and batches of more than `8192` requests: the claim covers real model shapes
   only.** The field is `Z` (`z_batch`: `Z ≤ 8192`). `N_CTX` is a context length already bounded by
@@ -292,9 +344,10 @@ block.)
   each, every row), and `Inst.ok`/`HeadOk` edges: `HEAD_DIM = 256` (causal and not),
   `N_CTX = 2^16` (`D = 256`, and causal at `D = 64`), `Z·H = 4096`, `sm_scale = 2^-60`, `X = 1000`
   (causal and not, and at `D = 256`, `N = 4096`), `|v| = 2^15`, uniform attention (`q = 0`,
-  `v = 1` and `v = 1/3`, `N = 2^14`), subnormal `q` and `v`. Worst error / tolerance: `o` `0.842`
-  (the subnormal edge; `0.52` on the test's launches, `0.18` on the benchmark's), `M` `0.048`
-  (`0.007` on the file's launches). Every element of `o` and `M` written and finite; the frame
+  `v = 1` and `v = 1/3`, `N = 2^14`), subnormal `q` and `v`. Worst error / tolerance (`Post`'s): `o` `0.461`
+  (the subnormal edge; `0.459` on the test's launches, `0.112` on the benchmark's), `M` `0.0053`
+  (on the benchmark's launches); the fine bounds of README Tolerances lie below `Post`'s on every
+  checked element; tolerance / `|output|` on the file's launches as in Tolerances. Every element of `o` and `M` written and finite; the frame
   holds (`o` and `M` are allocated inside larger NaN-filled buffers whose guard bands stay unchanged,
   and every input is unchanged, and no other tensor is allocated: the allocator the host sets is
   never called).

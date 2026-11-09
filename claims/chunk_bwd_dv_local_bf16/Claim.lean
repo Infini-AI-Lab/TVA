@@ -25,8 +25,8 @@ unchanged.
 * The model: `chunk_bwd_kernel_dv_local`, `model`, `launch`.
 * The conditions: `Inst`, `Inst.ok`, `Pre` (the tables as `prepare_chunk_indices` builds them,
   `TablesOk`; the input values covered, `ValsOk`).
-* The specification: `nSeq`, `lo`, `hi`, `chunkEnd`, `Aex`, `ref`, the error terms `wErr`, `wUp`,
-  `eA`, the tolerance `tol`, `Post`, `Spec`.
+* The specification: `nSeq`, `lo`, `hi`, `chunkEnd`, `Aex`, `ref`, the magnitude `aMag`, the
+  tolerance `tol`, `Post`, `Spec` (the gate's error bounds `wErr`, `wUp` serve `Pre`'s room bounds).
 * The assumptions: `Assumptions`.
 * Proved here: `consistent`, `satisfiable`, and the coverage of `SETUP.md`'s launches (`canon_ok`,
   `setup_*_ok`). `Statement` is the claim to prove.
@@ -409,22 +409,14 @@ noncomputable def doMag (d : Inst) (m : Mem) (j hv e : Nat) : ℝ :=
 noncomputable def ref (d : Inst) (m : Mem) (n p hv e : Nat) : ℝ :=
   ∑ j ∈ Finset.Ico p (chunkEnd d n p), Aex d m p j hv * dov d m j hv e
 
-/-! ### The tolerances (README, "Tolerances") -/
+/-! ### The tolerance (README, "Tolerances") -/
 
 /-- `u = 2^-24`, one `float32` rounding. -/
 noncomputable def u : ℝ := 1 / 2 ^ 24
 
-/-- The trips of line 128's loop, `cdiv(K, BK)`. -/
-def nK (d : Inst) : Nat := (d.K + d.BK - 1) / d.BK
-
-/-- The relative error of the computed `b_A` entry, relative to `σ·kqMag` times the gate's upper
-bound: the `nK` `tl.dot`s (`(BK + 2)·2^-22` of `kqMag`), the multiply-adds, the `float32`
-rounding of `scale` and the gate's product. -/
-noncomputable def epsA (d : Inst) : ℝ := ((d.BK : ℝ) + 8 + 2 * (nK d : ℝ)) / 2 ^ 22
-
 /-- The gate's error: the computed `exp2(fl(g[j] − g[p]))` is within `wErr` of `2^{g[j] − g[p]}`
 (the IEEE subtraction's rounding inside the exponent, `Exp2F32`'s `2^-22` and `2^-126`); `0`
-without a gate. -/
+without a gate. `Pre`'s room bounds use it (`wUp`). -/
 noncomputable def wErr (d : Inst) (m : Mem) (p j hv : Nat) : ℝ :=
   if d.useG then
     (2 : ℝ) ^ dg d m p j hv *
@@ -434,25 +426,22 @@ noncomputable def wErr (d : Inst) (m : Mem) (p j hv : Nat) : ℝ :=
 /-- The gate's upper bound, `wt + wErr`. -/
 noncomputable def wUp (d : Inst) (m : Mem) (p j hv : Nat) : ℝ := wt d m p j hv + wErr d m p j hv
 
-/-- The bound on `|b_A[p, j] − Aex|` before line 140's rounding to `bfloat16`. -/
-noncomputable def eA (d : Inst) (m : Mem) (p j hv : Nat) : ℝ :=
-  sig d * kqMag d m p j hv * (epsA d * wUp d m p j hv + wErr d m p j hv) +
-    wUp d m p j hv * (sig d / 2 ^ 110 + 1 / 2 ^ 140) + 1 / 2 ^ 140
+/-- The magnitude behind entry `(p, j)`: `σ·kqMag·wt`, the sum of the magnitudes of the products
+`σ·k·q·2^{dg}` that make the entry, with floors for the absolute errors of the `tl.dot`s
+(`kqMag + 2^-94`), of `exp2` (`wt + 2^-112`) and of the second `tl.dot` (`+ 2^-86`). -/
+noncomputable def aMag (d : Inst) (m : Mem) (p j hv : Nat) : ℝ :=
+  sig d * (kqMag d m p j hv + 1 / 2 ^ 94) * (wt d m p j hv + 1 / 2 ^ 112) + 1 / 2 ^ 86
 
-/-- **The tolerance** at `(n, p, hv, e)`: with `B1 = Σ_j |Aex|·|do|`, `Be = Σ_j eA·|do|`,
-`Bl = Σ_j (|Aex| + eA)·liftMag do` and `Dl = Σ_j liftMag do` over `j ∈ [p, chunkEnd)`,
-`2^-8·|ref| + (1 + 2^-8)·(2^-8·B1 + (1 + 2^-8)·Be + (BT + 3)·2^-22·Bl) + 2^-100·(1 + Dl)`: the
-store's rounding, line 140's rounding of each entry, the entries' errors and line 148's
-`tl.dot`. -/
+/-- **The tolerance** at `(n, p, hv, e)`, over `j ∈ [p, chunkEnd)`:
+`2^-7·Σ_j |Aex·do| + 2^-13·Σ_j aMag·liftMag do + 2^-100`. The first term is the kernel's two
+`bfloat16` roundings (of each entry of `A`, line 140, and of the stored result, line 149),
+relative to the magnitudes of `ref`'s terms; the second the `float32` errors of the entries
+(the `K` loop's `tl.dot`s, the gate) and line 148's `tl.dot`, relative to the products'
+magnitudes. -/
 noncomputable def tol (d : Inst) (m : Mem) (n p hv e : Nat) : ℝ :=
   let J := Finset.Ico p (chunkEnd d n p)
-  let B1 := ∑ j ∈ J, |Aex d m p j hv| * |dov d m j hv e|
-  let Be := ∑ j ∈ J, eA d m p j hv * |dov d m j hv e|
-  let Bl := ∑ j ∈ J, (|Aex d m p j hv| + eA d m p j hv) * doMag d m j hv e
-  let Dl := ∑ j ∈ J, doMag d m j hv e
-  1 / 2 ^ 8 * |ref d m n p hv e| +
-    (1 + 1 / 2 ^ 8) * (1 / 2 ^ 8 * B1 + (1 + 1 / 2 ^ 8) * Be + ((d.BT : ℝ) + 3) / 2 ^ 22 * Bl) +
-    1 / 2 ^ 100 * (1 + Dl)
+  1 / 2 ^ 7 * ∑ j ∈ J, |Aex d m p j hv| * |dov d m j hv e| +
+    1 / 2 ^ 13 * ∑ j ∈ J, aMag d m p j hv * doMag d m j hv e + 1 / 2 ^ 100
 
 /-! ### The inputs covered -/
 

@@ -13,7 +13,7 @@ The covered path is `SETUP.md`'s: `USE_G = True` (`g` given), `bfloat16` `k`, `v
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.RecomputeWU.main : Statement` (`Statement`:
-`Claim.lean` line 758). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 752). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -22,9 +22,9 @@ The covered path is `SETUP.md`'s: `USE_G = True` (`g` given), `bfloat16` `k`, `v
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 407), and every initial memory `init` that `Pre` accepts (line 598), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 728).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 722).
 
-**What `Post` asks** (line 728), three parts:
+**What `Post` asks** (line 722), three parts:
 1. padded (`isVarlen = false`): for every `b < B`, `t < T`, `h < HV`,
    `TokOk d init fin (b * T) T t h`: the sequence starts at flat token `b·T` and has length `T`;
 2. packed (`isVarlen = true`): for every `n < N`, `t < seqLen d init n`, `h < HV`,
@@ -34,7 +34,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 3. the frame: every byte outside `u.elems (uSet d)` and `w.elems (wSet d)` (lines 720, 723: the first
    `nTok·HV·V` elements of `u`, the first `nTok·HV·K` of `w`) is unchanged.
 
-`TokOk d init fin s0 len t h` (line 716) asks, for token `t` of the sequence at `s0`, head `h`:
+`TokOk d init fin s0 len t h` (line 710) asks, for token `t` of the sequence at `s0`, head `h`:
 - `CellU` (line 659) for every `c < V`: element `vIdx (s0 + t) h c` of `u` reads in `fin` as a
   finite `bfloat16` `o` with `|o.toRat − uRef| ≤ tolU uRef uMag`. `uRef` (line 641) is, in `ℚ`,
   `Σ_{j<64, inSeq len t j} (aV (s0+t) h j).toRat · (vbV (colTok s0 t j) h c).toRat`: `aV` (line 631)
@@ -42,19 +42,19 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
   inside the sequence; `vbV` (line 635) is source line 115's operand, an exact IEEE function of `init`
   (`bf16(fl32(v·beta))` for a `float32` `beta`, the `bfloat16` product for a `bfloat16` one).
   `uMag` (line 647) is the same sum of `liftMag .bf16 A_j · liftMag .bf16 vb_j`;
-  `tolU ref L = 2^-8·|ref| + (1 + 2^-8)·(relDot16 64·L + absDot16 64) + 2^-134` (line 654);
-- `CellW` (line 710) for every `c < K`: element `wIdx (s0 + t) h c` of `w` reads in `fin` as a
-  finite `bfloat16` `o` with `|o.toReal − wRef| ≤ tolW (cW d) wRef wMag wFloor`. `wRef` (line 679)
+  `tolU ref L = 2^-8·|ref| + 2^-15·L + 2^-119` (line 655);
+- `CellW` (line 704) for every `c < K`: element `wIdx (s0 + t) h c` of `w` reads in `fin` as a
+  finite `bfloat16` `o` with `|o.toReal − wRef| ≤ tolW wMag wFloor`. `wRef` (line 679)
   is exact, in `ℝ`: `Σ_{j<64, inSeq} A_j · kbX · gE`, with `kbX` (line 671) `k[f, kHead h, c] · beta[f, h]`
   (`kHead`, line 664: `h / (HV / H)`; `betaR`, line 667) and `gE` (line 675) `2^(g[f, h])`;
   `wMag` (line 685) and `wFloor` (line 692) the sums of `liftMag A_j · |kbX| · gE` and
-  `liftMag A_j · (|kbX| + 1)`; `tolW c ref M F = 2^-8·|ref| + c·M + 2^-124·F + 2^-119` (line 706),
-  `cW d` (line 701) `2^-8 + 2^-14` (`float32` `beta`) or `2^-7 + 2^-13` (`bfloat16` `beta`).
+  `liftMag A_j · (|kbX| + 1)`; `tolW M F = 2^-6·M + 2^-124·F + 2^-119` (line 700), for either
+  dtype of `beta`.
 
 Every element of every sequence's rows is constrained (no guard). Columns `j` outside the sequence
 add nothing to the sums.
 
-**What you are given** (`Assumptions`, line 739):
+**What you are given** (`Assumptions`, line 733):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `dot` (`Rules.Num.DotBF16`): every `bfloat16` `tl.dot` into `float32`, at any input precision, is a
@@ -104,12 +104,15 @@ a program's footprints depend on `init` (its sequence and chunk come from `chunk
   `.ieee` with a `+0` accumulator, then `FloatV.cvt_err` (source line 117); for `w`, `FloatV.mul_err`
   (source lines 129, 131), `exp2` (`g ≤ 8` gives room), `cvt_err` (source line 132), `dot` at `.tf32`, `cvt_err`
   (source line 133); room and finiteness from `Pre`'s magnitudes (`KVOk`, `AOk`, `BetaOk`, `BetaOkB`, `GOk`).
-  The derivation is in `## Tolerances`;
+  Derive the fine bounds of README `## Tolerances` (`2^-8·|uRef| + (1 + 2^-8)·(66·2^-22·uMag +
+  66·2^-126) + 2^-134` for `u`; `2^-8·|wRef| + c·wMag + 2^-124·wFloor + 2^-119` with `c = 2^-8 + 2^-14`
+  or `2^-7 + 2^-13` for `w`), then relax them to `tolU` and `tolW` by the steps given there (for `w`,
+  `|wRef| ≤ wMag`);
 - the frame: every written element lies in `uSet d` or `wSet d`, and bytes no program writes are
   unchanged.
 
-**Already in `Claim.lean`** (do not prove again): `consistent` (line 762), `satisfiable` (line 1124)
-and the 33 `setup_*_ok` theorems; `bytes_disj` (line 769) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 756), `satisfiable` (line 1118)
+and the 33 `setup_*_ok` theorems; `bytes_disj` (line 763) can be reused.
 
 ## Specification
 
@@ -129,15 +132,16 @@ the sequence:
   `uMag = Σ_j liftMag(A_j)·liftMag(vb_j)` (`Rules.Num.liftMag .bf16`: `|q|`, a subnormal counted at
   `2^-126`), and
 
-  `tolU = 2^-8·|uRef| + (1 + 2^-8)·(relDot16 64·uMag + absDot16 64) + 2^-134`
-  (`relDot16 64 = 66·2^-22 ≈ 1.6·10^-5`, `absDot16 64 = 66·2^-126`);
+  `tolU = 2^-8·|uRef| + 2^-15·uMag + 2^-119`: one `bfloat16` rounding of the result, the dot
+  product's error (`2^-15 ≈ 3.1·10^-5` of the lifted magnitude) and an absolute floor;
 * **`w[s0 + t, h, c]`** (`c < K`) is a finite `bfloat16` `o` with `|o − wRef| ≤ tolW`: with
   `x_j = k[f_j, h // (HV//H), c]·beta[f_j, h]` and `e_j = 2^(g[f_j, h])`, exactly (in `ℝ`),
   `wRef = Σ_j A_j·x_j·e_j`, `wMag = Σ_j liftMag(A_j)·|x_j|·e_j`, `wFloor = Σ_j liftMag(A_j)·(|x_j| + 1)`,
   and
 
-  `tolW = 2^-8·|wRef| + c·wMag + 2^-124·wFloor + 2^-119`, with `c = cW = 2^-8 + 2^-14` for a `float32`
-  `beta` and `2^-7 + 2^-13` for a `bfloat16` one (one more rounding per operand, line 129);
+  `tolW = 2^-6·wMag + 2^-124·wFloor + 2^-119` for either dtype of `beta`: `2^-6` of the magnitude
+  `wMag ≥ |wRef|` (the result's rounding and each operand's one or two roundings), and absolute
+  floors;
 * every byte outside the elements of `u` and `w` is unchanged.
 
 So `u` is the chunk's `A` times the `bfloat16` products `beta ⊙ v` the kernel forms, up to the dot
@@ -245,8 +249,8 @@ Derived from the library's facts (`docs/rules/num.md`): `u = 2^-24`, `η = 2^-15
 `|v·beta| ≤ 2^40`); outside, `v` and `beta` load as `+0`, so `b_vb = +0` and the
 term is `0` exactly. `DotBF16`: the result `ρ` is within `E = relDot16 64·uMag + absDot16 64` of
 `uRef` (room: `uMag ≤ 64·2^64·2^41 = 2^111`). The store (line 117): `|o − ρ| ≤ 2^-8|ρ| + 2^-134`,
-`|ρ| ≤ |uRef| + E`, so `|o − uRef| ≤ 2^-8|uRef| + (1 + 2^-8)·E + 2^-134 = tolU`, and `o` is finite
-(`|ρ| < 2^113`).
+`|ρ| ≤ |uRef| + E`, so `|o − uRef| ≤ 2^-8|uRef| + (1 + 2^-8)·E + 2^-134`, the fine bound of `u`,
+and `o` is finite (`|ρ| < 2^113`).
 
 **`w`.** Per column inside the sequence, with `y_j = |x_j|·e_j`: `p1 = fl32(k·beta)` (`|p1 − x| ≤
 u|x| + η`), `e = exp2(g)` (`|e − 2^g| ≤ 2^-22·2^g + 2^-126`; room since `g ≤ 8`), `p2 = fl32(p1·e)`
@@ -258,8 +262,9 @@ Outside the sequence `kb = +0`. The dot (line 132, `DotBF16`, room as for `u`) i
 result is within `E ≤ (2^-8 + 2^-20 + 66.52·2^-22)·wMag + (2^-125 + 66·2^-146)·wFloor + 66·2^-126` of
 `wRef`, and after the store `|o − wRef| ≤ 2^-8|wRef| + (1 + 2^-8)·E + 2^-134`, where
 `(1 + 2^-8)(2^-8 + 2^-20 + 66.52·2^-22) = 0.0039384 ≤ 2^-8 + 2^-14 = 0.0039673`,
-`(1 + 2^-8)(2^-125 + 66·2^-146) ≤ 2^-124` and `(1 + 2^-8)·66·2^-126 + 2^-134 ≤ 2^-119`: that is
-`tolW` for a `float32` `beta`. The output is finite (`|wRef| + E < 2^120`).
+`(1 + 2^-8)(2^-125 + 66·2^-146) ≤ 2^-124` and `(1 + 2^-8)·66·2^-126 + 2^-134 ≤ 2^-119`: the fine
+bound of `w` for a `float32` `beta` is `2^-8·|wRef| + c·wMag + 2^-124·wFloor + 2^-119` with
+`c = 2^-8 + 2^-14`. The output is finite (`|wRef| + E < 2^120`).
 
 **`w`, `bfloat16` `beta`.** Line 129 rounds `k·beta` to `bfloat16`: `p0 = bf16(x)`
 (`|p0 − x| ≤ 2^-8|x| + 2^-134`, exact when the product fits), and line 131 converts it to `float32`
@@ -268,17 +273,30 @@ scaled by `2^g ≤ 2^8` gives `2^-126`), `|kb − x·2^g| ≤ (2^-7 + 2^-16 + 2^
 1.01·2^-126 ≤ τ'_j := (2^-7 + 2^-15)·y + 2^-125(|x| + 1)`, and `liftMag(kb_j) ≤ (1 + 2^-6)·y_j +
 2^-124(|x_j| + 1)`. So `E ≤ (2^-7 + 2^-15 + 66·2^-22·(1 + 2^-6))·wMag + (2^-125 + 66·2^-146)·wFloor +
 66·2^-126`, and `(1 + 2^-8)(2^-7 + 2^-15 + 67.04·2^-22) = 0.0078897 ≤ 2^-7 + 2^-13 = 0.0079346`; the
-floors as above: that is `tolW` with `cW = 2^-7 + 2^-13`.
+floors as above: the fine bound of `w` with `c = 2^-7 + 2^-13`.
+
+**From the fine bounds to `tolU` and `tolW`.** For `u`: `(1 + 2^-8)·66·2^-22 = 66.26·2^-22 ≤ 128·2^-22
+= 2^-15` and `(1 + 2^-8)·66·2^-126 + 2^-134 ≤ 67·2^-126 ≤ 2^-119`, so the fine bound is at most
+`2^-8·|uRef| + 2^-15·uMag + 2^-119 = tolU`; the rounding term `2^-8·|uRef|` stays as it is (folding it
+into `uMag`, `2^-7·uMag`, would make the tolerance about `6` times larger on the check's data, since
+`uMag` is about `3·|uRef|` there). For `w`: `|wRef| ≤ wMag` (each term `|A_j·x_j·e_j| ≤
+liftMag(A_j)·|x_j|·e_j`), so `2^-8·|wRef| + c·wMag ≤ (2^-8 + c)·wMag ≤ (2^-8 + 2^-7 + 2^-13)·wMag =
+0.011841·wMag ≤ 2^-6·wMag` for either `c` (`2^-8 + 2^-14 ≤ 2^-7 + 2^-13`), and the floors are the
+same: the fine bound is at most `2^-6·wMag + 2^-124·wFloor + 2^-119 = tolW`.
 
 The bounds are provable from `DotBF16`, `Exp2F32` and the library's IEEE rounding lemmas
 (`FloatV.mul_err`, `cvt_err`); the dots' room and the outputs' finiteness come from `Pre`'s magnitudes.
-Meaningful: `tolU` is one `bfloat16` rounding of `uRef` plus `1.6·10^-5` of `uMag`, and the device
-reaches `0.992` of it; `tolW` is one rounding of `wRef` plus one rounding of each operand
-(`0.40%` of `wMag`; two roundings, `0.79%`, with a `bfloat16` `beta`), and the device reaches `0.968`
-of it (`0.948` with a `bfloat16` `beta`). These are the largest values measured on `check_gpu.py`'s
-inputs, not the worst case: an output whose roundings all reach half an ulp in the same direction
-comes within about `2^-6` of the bound (`1 − 2^-6` of `tolW`). Both bounds reject a 2% error in one
-element and `w` scaled by `1 + 2^-6` (`check_gpu.py`).
+Meaningful: `tolU` is one `bfloat16` rounding of `uRef` plus `3.1·10^-5` of `uMag` (median
+`tolU / |uRef|` `0.40%` on the check's launches, the same as the fine bound's), and the device reaches
+`0.988` of it. `tolW` is `1.56%` of `wMag`: one rounding of the result and one (or two, with a
+`bfloat16` `beta`) of each operand would be `0.79%` (`1.18%`); its median `tolW / |wRef|` is `2.2%` to
+`2.6%` on the check's launches (the fine bound's: `0.96%` with a `float32` `beta`, `1.5%` to `1.7%`
+with a `bfloat16` one, so `tolW` is at most `2.3` times looser), and the device reaches `0.488` of it
+(`0.719` with a `bfloat16` `beta`). These are the largest values measured on `check_gpu.py`'s inputs,
+not the worst case: an output whose roundings all reach half an ulp in the same direction comes within
+about `2^-6` of the fine bound, which is at most `0.50` of `tolW` (`float32` `beta`) or `0.76`
+(`bfloat16` `beta`). Both bounds reject a 2% error in one element and `w` scaled by `1 + 2^-6`
+(`check_gpu.py`).
 
 ## Exclusions
 
@@ -321,6 +339,6 @@ None.
   `setup_*_ok` are proved.
 * `check_gpu.py` on the H200: 47 launches through the host (`beta` `float32` and `bfloat16`; one,
   `B = 13107`, outside `Inst.ok`'s `b_batch`) and one
-  direct launch with guard regions, all passing; largest measured error / tolerance `0.9921` (`u`),
-  `0.9676` (`w`, `float32` `beta`) and `0.9483` (`w`, `bfloat16` `beta`); every output finite, the
+  direct launch with guard regions, all passing; largest measured error / tolerance `0.9884` (`u`),
+  `0.4876` (`w`, `float32` `beta`) and `0.7186` (`w`, `bfloat16` `beta`); every output finite, the
   inputs and the guards unchanged; every negative test rejected; `B·HV = 65536` fails to launch.

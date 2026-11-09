@@ -12,7 +12,7 @@ One program per (token, block of 8 heads): it loads `A_log`, `a`, `b`, `dt_bias`
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.GdnGating.main : Statement` (`Statement`: `Claim.lean`
-line 299). Unfolded (`Claim.Meets`), it says:
+line 303). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -21,25 +21,25 @@ line 299). Unfolded (`Claim.Meets`), it says:
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 139), and every initial memory `init` that `Pre` accepts (line 216), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 251).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 255).
 
-**What `Post` asks** (line 251), three parts, for every token `i < batch` and head `h < H`, with
+**What `Post` asks** (line 255), three parts, for every token `i < batch` and head `h < H`, with
 `A = A_log[h]`, `av = a[i·stride_a + h]`, `bv = dt_bias[h]`, `bb = b[i·stride_b + h]` read in `init`,
 and `x = av.toReal + bv.toReal` (the exact sum):
 1. element `i·H + h` of `g` reads in `fin` as `c`, and either `c` is finite with
    `|c.toReal - gRef A.toReal x| ≤ gTol A.toReal x`, or `c = FloatV.negInf` and
    `maxVal ≤ |gRef A.toReal x| + gTol A.toReal x` (the exact value is at the edge of `float32`'s
    range). `gRef A x = -(e^A · spRef x)` (line 226) is the exact decay in the reals, with
-   `spRef x = log(1 + e^x)` for `x ≤ 20` and `x` above (line 223); `gTol` (line 236) is relative
-   `2^-19 + 2^-23·(|A| + 2·min(max(-x, 0), 20))` of `|gRef|`, plus `2^-23·e^A`, `2^-139·spRef x`
-   and `2^-148`;
+   `spRef x = log(1 + e^x)` for `x ≤ 20` and `x` above (line 223); `gTol A x = gEps A · gMag A x`
+   (line 242): `gEps A = 2^-23·(64 + min(|A|, 128))` (line 238) times
+   `gMag A x = (e^A + 2^-121)·(spRef x + 2^-6)` (line 234), the magnitudes of the two factors;
 2. element `i·H + h` of `beta_output` reads in `fin` as a finite `c` with
    `|c.toReal - sigRef bb.toReal| ≤ bTol bb.toReal`: `sigRef b = 1 / (1 + e^(-b))` (line 229),
-   exact in the reals; `bTol b = 2^-7·|sigRef b| + 2^-133` (line 242);
+   exact in the reals; `bTol b = 2^-7·|sigRef b| + 2^-133` (line 246);
 3. the frame: every byte outside the first `batch·H` elements of `g` and of `beta_output` is
    unchanged.
 
-**What you are given** (`Assumptions`, line 274):
+**What you are given** (`Assumptions`, line 278):
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and the model's launch is well behaved from `init`;
 - `exp_total` (`Num.MathTotal P .exp .binary32`): `tl.exp` has a result on every input (source
@@ -74,8 +74,9 @@ The offsets are not the 1-D block pattern: use `safe_load` and `safe_store`.
 - the value of `g` gives part 1: the IEEE steps by `FloatV.add_err`, `mul_err`, `cvt_err` (the
   products by `1.0` and the negation are exact), `exp_acc` at `X = |x_f|` and at `X = |A|` (room
   from `ExpRoom`, line 192, and `InOk`, line 202), `exp_ninf` when the sum is `-∞`, `log_acc`,
-  with the two branches `x_f ≤ 20` and `x_f > 20`; README, Tolerances gives the derivation and the
-  overflow case;
+  with the two branches `x_f ≤ 20` and `x_f > 20`: derive the fine bound `gFine` of README,
+  Tolerances, then relax it to `gTol` by the chain given there (`gFine ≤ gTol`); the overflow case
+  as there;
 - the value of `beta_output` gives part 2: `exp_acc` at `X = |b|` (room from `InOk`), the `1 +`
   rounding, `div_full`, then the `bfloat16` rounding (`cvt_err`) and the exact widening;
 - the bytes no program writes give part 3.
@@ -85,7 +86,7 @@ once; the `int32` offsets still take their bounds from `flat_le`, `arow_le` and 
 head count is not bounded by it).
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `mk_ok` and the
-`setup_*_ok` theorems; `bytes_disj` (line 329), `rows_fit` (line 337) and `maxVal_ge` (line 394)
+`setup_*_ok` theorems; `bytes_disj` (line 333), `rows_fit` (line 341) and `maxVal_ge` (line 398)
 can be reused.
 
 ## Specification
@@ -97,7 +98,13 @@ can be reused.
 
 - `g[i * num_heads + h]` is a finite `float32` with `|g - gRef A x| ≤ gTol A x`, where
   `gRef A x = -e^A · spRef x`, `spRef x = ln(1 + e^x)` for `x ≤ 20` and `x` above it, and
-  `gTol A x = (2^-19 + 2^-23·(|A| + 2·min(max(-x, 0), 20)))·|gRef| + 2^-23·e^A + 2^-139·spRef x + 2^-148`;
+
+  `gTol A x = 2^-23·(64 + min(|A|, 128)) · (e^A + 2^-121)·(spRef x + 2^-6)`:
+
+  a relative `2^-23·(64 + |A|)` (`|A|` capped at `128`; `tl.exp(A)`'s error grows with `|A|`) of
+  the product of the two factors' magnitudes, `e^A` with a floor `2^-121` (`tl.exp`'s absolute
+  `2^-140`) and `softplus` with a floor `2^-6` (the rounding of `1 + exp(x)`, an absolute `2^-24`
+  in `softplus`, which is all the kernel achieves for `x ≪ 0`);
   or it is `-∞` and `maxVal ≤ |gRef| + gTol` (the exact value is at the top of `float32`'s range:
   the product overflows, as IEEE rounding requires);
 - `beta_output[i * num_heads + h]` is a finite `float32` with
@@ -197,20 +204,42 @@ Sum: relative `ρ_S ≤ (5.2 + 1.5·m)U` with `m = min(max(-x, 0), 20)`, absolut
 `|E·S - e^A·sp| ≤ e^A·sp·(ρ_S + r_A(1 + ρ_S)) + e^A·α_S·(1 + r_A) + 2^-140·(sp·(1 + ρ_S) + α_S)`,
 and the product's rounding adds `u·|E·S| + 2^-150`. Collecting:
 - relative: `ρ_S + r_A + 0.5U + (cross terms) ≤ (7.7 + 1.5m + |A|)U` for `|A| ≤ 2^20`, against
-  `gTol`'s `(16 + 2m + |A|)U` (a factor `≥ 2.08` on the constant part, `1.33` on the `m` part);
+  `gFine`'s `(16 + 2m + |A|)U` (below) (a factor `≥ 2.08` on the constant part, `1.33` on the `m` part);
   for `|A| > 2^20`, `e^A·sp ≤ e^(-2^20)·2^128`, far below `2^-148`;
 - absolute: `e^A·α_S·(1 + r_A)(1 + u) ≤ 1.13·2^-24·e^A < 2^-23·e^A` (`r_A ≤ 1/8` for
   `A ≥ -2^20`; `A ≤ 88.73` gives `r_A < 2^-16`); `2^-140·sp·(1 + ρ_S)(1 + u) ≤ 2^-139·sp`; the rest
   (`2^-140·α_S`, `2^-150`, and the `A < -2^20` terms) `≤ 2^-148`.
-- overflow: when `fl(-E·S)` is `-∞`, `|E·S| ≥ maxVal`, and `|E·S| ≤ |gRef| + gTol` by the same
+- overflow: when `fl(-E·S)` is `-∞`, `|E·S| ≥ maxVal`, and `|E·S| ≤ |gRef| + gFine` by the same
   bounds (`S ≥ -2^-148`, `E > 0` up to `2^-140`, so the sign is negative and `+∞` is impossible).
-So `gTol` is provable from the cited facts. Meaningful: at `|A_log| ≤ 20` the GPU's largest
-relative error is `3.4e-7` for `x ∈ [0, 20)` (tolerance up to `4.5e-6`), `1.8e-4` for `x ∈ [-8, 0)`
-(`3.6e-4`), and where the relative term is at least half of `gTol` the worst error is `0.375` of it.
-The absolute `2^-23·e^A` is twice the kernel's real worst error (`1 + e^x` rounded: the GPU reaches
-`0.4997` of `gTol` there). It is below `|g|` for `x > -16`; for `x < -16` the kernel's own result
-is about `0` (it computes `log(1 + exp(x))`, not `log1p`), a relative error up to `100 %`, and the
-tolerance says `|g - gRef| ≤ 2^-23·e^A`, which is what the kernel achieves.
+
+So the fine bound
+
+`gFine A x = (2^-19 + 2^-23·(|A| + 2m))·|gRef| + 2^-23·e^A + 2^-139·spRef x + 2^-148`,
+`m = min(max(-x, 0), 20)`,
+
+is provable from the cited facts.
+
+**Relaxation `gFine ≤ gTol`.** Write `a = min(|A|, 128)`, `sp = spRef x > 0`, `U = 2^-23`, and
+expand `gTol = U(64 + a)·(e^A·sp + 2^-6·e^A + 2^-121·sp + 2^-127)`. Every term of `gFine` is below
+one term of `gTol`:
+- `|A| ≤ 128` (so `a = |A|`; this includes every `A ≤ 88.73` that `Pre` allows on the positive
+  side): the relative term is `U(16 + |A| + 2m)·e^A·sp ≤ U(56 + |A|)·e^A·sp ≤ U(64 + a)·e^A·sp`
+  (`m ≤ 20`); `U·e^A = U·64·2^-6·e^A ≤ U(64 + a)·2^-6·e^A`; `2^-139·sp ≤ U·64·2^-121·sp = 2^-138·sp`;
+  `2^-148 ≤ U·64·2^-127 = 2^-144`.
+- `A < -128` (`a = 128`): `(56 + |A|)·e^A` decreases in `|A|`, so the relative term is at most
+  `U·184·e^-128·sp < 2^-200·sp`; the term `U·192·2^-121·sp = 2^-136.4·sp` of `gTol` covers it and
+  `2^-139·sp` together; the other two terms as above.
+The overflow clause then follows from `|gRef| + gFine ≤ |gRef| + gTol`.
+
+**Meaningful.** On the setup's launches (the test's and SETUP.md's configurations, covered cells
+with `gRef ≠ 0`), `gTol / |g|` has median `8.0·10^-6` (`gFine`: `2.35·10^-6`, `3.4×`). At
+`|A_log| ≤ 20` the GPU's largest relative error is `3.4e-7` for `x ∈ [0, 20)` (`gTol / |g|` up to
+`1.02e-5`), `1.8e-4` for `x ∈ [-8, 0)` (`4.8e-4`). The floor `2^-6` of `softplus` gives
+`2^-23·64·2^-6·e^A = 2^-23·e^A`, the same as `gFine`'s absolute term and twice the kernel's real
+worst error (`1 + e^x` rounded: the GPU reaches `0.4995` of `gTol` there). It is below `|g|` for
+`x > -16`; for `x < -16` the kernel's own result is about `0` (it computes `log(1 + exp(x))`, not
+`log1p`), a relative error up to `100 %`, and the tolerance says `|g - gRef| ≤ 2^-23·e^A` (about),
+which is what the kernel achieves.
 
 **`beta_output`**: `tl.exp(-b)` (`X = |b|`, room by `Pre`): relative `≤ (2 + 88.73)U < 1.1·10^-5`
 on `σ` (as above, `≤ ε` relative), `1 +`: `u`, `DivFull`: `2^-22` and `2^-148`, then the `bfloat16`
@@ -276,7 +305,8 @@ None needed for real use. The library states `ExpF32Overflow` (`tl.exp` on `floa
   finite `bfloat16` `a` against 16 values of `A_log` from `-3e38` to `89`, with `dt_bias` `0`,
   random, and `±3.38e38`, and every finite `b`; sums within a few ulps of the threshold `20`), and
   two direct launches with the host's launch line on outputs carved from a random pool with guards.
-  11,068,444 covered cells: `g` worst `0.4997` of `gTol` (`0.375` where its relative term is at least
-  half of it), `beta_output` worst `0.498` of `bTol`; 245,348 cells `-∞` by the overflow clause;
-  every input and guard unchanged. Of the 1,050,128 cells outside `Pre` (the exclusions), 132,826
+  11,068,444 covered cells: `g` worst `0.4995` of `gTol`, `beta_output` worst `0.498` of `bTol`;
+  `gFine ≤ gTol` on every covered cell; 245,348 cells `-∞` by the overflow clause; every input and
+  guard unchanged. On the setup's launches `gTol / |g|` has median `8.0·10^-6` and `bTol / |beta|`
+  `2^-7` (the `2^-133` floor never matters there). Of the 1,050,128 cells outside `Pre` (the exclusions), 132,826
   violate `Post` (`A_log ≥ 88.72284`, sums to `+∞`, `b < -88.72`), confirming the limits.

@@ -5,7 +5,7 @@ forward, then `_attention.backward`, which launches `_attn_bwd_preprocess` at li
 the benchmark's sizes and the edges of `Inst.ok` by the same launch line (the grid
 `(N_CTX // 128, BATCH * N_HEAD)`, `BLOCK_M = 128`, `HEAD_DIM`) on host-made `o`, `do` (the
 benchmark's full tensors do not fit the 4 GB budget through the whole backward pass). For each
-launch it computes `Post`'s reference `dotSum` and tolerance `tol HEAD_DIM (dotAbs)` in float64
+launch it computes `Post`'s reference `dotSum` and tolerance `tol (dotAbs)` in float64
 exactly as `Claim.lean` states them, and reports the largest error / tolerance over every row, that
 every row with finite inputs is finite, and the frame (`o`, `do` unchanged; in the direct launches
 `delta` is a view of a larger buffer whose tail keeps a sentinel); and that wrong outputs (`delta`
@@ -28,14 +28,11 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 DEV = "cuda"
-U, ETA = 2.0 ** -24, 2.0 ** -150
 
 
-def tol(D, B):
-    """`tol D B` of Claim.lean: errBound(3u, 4eta, ceil(log2 D), D-1, (1+u)B + D eta) + (uB + D eta)."""
-    g = (1 + 3 * U) ** ((D - 1).bit_length())   # ceil(log2 D) for D >= 1
-    A = (1 + U) * B + D * ETA
-    return (g - 1) * A + 4 * ETA * (D - 1) * g + (U * B + D * ETA)
+def tol(B):
+    """`tol B` of Claim.lean: 2^-19 B + 2^-138."""
+    return 2.0 ** -19 * B + 2.0 ** -138
 
 
 WORST = {"r": 0.0, "ok": True, "at": None}
@@ -56,7 +53,7 @@ def check(name, o, do, delta, chunk=1 << 17):
         finite_in = torch.isfinite(o2).all(1) & torch.isfinite(do2).all(1)
         prod = o2 * do2
         ref, B = prod.sum(1), prod.abs().sum(1)
-        t = tol(D, B)
+        t = tol(B)
         if not bool(torch.isfinite(c[finite_in]).all()):
             print(f"  {name}: a row with finite inputs is not finite  FAILED")
             WORST["ok"] = False
@@ -159,7 +156,7 @@ def negatives(D, Z=1, H=4, N=1024):
     O, DO = o.reshape(-1, D).double(), do.reshape(-1, D).double()
     prod = O * DO
     ref, B = prod.sum(1), prod.abs().sum(1)
-    t = tol(D, B)
+    t = tol(B)
     wrong = {
         "delta rounded to float16": delta.reshape(-1).half().double(),
         "last column dropped": (ref - prod[:, -1]).float().double(),

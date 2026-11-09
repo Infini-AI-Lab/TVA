@@ -16,7 +16,11 @@ float64, `Pre` and `Post` exactly as the claim states them:
   frame: the inputs unchanged bit for bit, and guard bands of 4096 elements on each side of `out`
   (placed inside a sentinel-filled buffer) unchanged.
 
-Each line reports the largest |error| / tol over the launch's outputs. The float64 evaluation of
+`tol = (nIt + 256) 2^-15 mag + 2 expErr + 2^-110 (1 + hSt)`, `mag = |yRef| + hSt lSig + lW`
+(Claim.lean). Each line reports the largest |error| / tol over the launch's outputs, the median
+tol / |yRef|, and the same median for the fine bound of README Tolerances (steps 1-6,
+`(1 + 2^-8) errPre + 2^-8 |yRef| + 2^-134`, which `Post` does not use) with the largest
+tol / fine; the check also fails if tol is below the fine bound anywhere on a covered launch. The float64 evaluation of
 `yRef` and `tol` has a relative error near 1e-15, far below the tolerance (about 1e-2 relative).
 Negative tests then check that `Post` rejects wrong outputs: a launch with wrong `chunk_offsets`,
 an output moved by twice its tolerance, and three plausible wrong readings of the kernel (the
@@ -42,13 +46,14 @@ import triton  # noqa: E402
 DEV = torch.device("cuda")
 uB, uF, mB = 2.0 ** -8, 2.0 ** -24, 2.0 ** -126
 etaF, etaB = 2.0 ** -150, 2.0 ** -134
-RHO = 2.0 ** -23 + 2.0 ** -47
+RHO = 2.0 ** -23 + 2.0 ** -47      # tl.mul_add's constant (the fine bound only)
 BK = 32
 GUARD = 4096
 SENTINEL = 0x7FC1                # a bfloat16 NaN pattern no store of the kernel writes
 BIG = 2.0 ** 120
 failures = []
 worst = [0.0]
+fine_stats = {"min tol - fine": float("inf"), "tol/fine": []}
 
 
 def relD(K):
@@ -185,6 +190,7 @@ def run_and_check(name, inp, H, P, N, G, cs, has_init=True, chunk_offsets=None, 
     viol = 0
     nonfin = 0
     rels = []
+    fmax = 0.0
     out64 = out[0].double()
     if perturb:
         out64 = out64.clone()
@@ -231,7 +237,8 @@ def run_and_check(name, inp, H, P, N, G, cs, has_init=True, chunk_offsets=None, 
             w = m(cbm * torch.exp(dS) * dtm)
             wMag = m(cbm.abs() * eHat(dS, dErrS) * dtm.abs())
             wAbs = m(2.0 ** -133 + 2.0 ** -148 * dtm.abs())
-            ewS = m(cbm.abs() * dtm.abs() * errE(dS, dErrS)) + (uB + 3 * uF) * wMag + wAbs
+            eW = m(cbm.abs() * dtm.abs() * errE(dS, dErrS))
+            ewS = eW + (uB + 3 * uF) * wMag + wAbs
             wHat = (1 + uB + 3 * uF) * wMag + wAbs
             # the pairs the loop computes (kToks): without initial states, from the physical
             # chunk's start (cb zero across requests: Pre)
@@ -257,7 +264,18 @@ def run_and_check(name, inp, H, P, N, G, cs, has_init=True, chunk_offsets=None, 
             errMA = RHO * (xD.abs() + aAcc) + 3 * etaF
             errPre = errSig + errW + errDot + errMA
             y = torch.exp(dSt) * sig + intra + xD
-            tol = (1 + uB) * errPre + uB * y.abs() + etaB
+            # the fine bound of README Tolerances (steps 1-6), for the comparison only
+            fine = (1 + uB) * errPre + uB * y.abs() + etaB
+            # Post's tolerance: (nIt + 256) 2^-15 mag + 2 expErr + 2^-110 (1 + hSt)
+            mag = y.abs() + hSt * lSig + lW
+            expErr = mSig * eSt + torch.einsum("hts,shp->thp", eW + wAbs, ax)
+            tol = (nIt + 256) * 2.0 ** -15 * mag + 2 * expErr + 2.0 ** -110 * (1 + hSt)
+            if expect == "hold":
+                fine_stats["min tol - fine"] = min(fine_stats["min tol - fine"],
+                                                   float((tol - fine).min()))
+                rf = (tol / fine).flatten()
+                fine_stats["tol/fine"].append(rf[::101].float().cpu())
+                fine_stats["max"] = max(fine_stats.get("max", 0.0), float(rf.max()))
             conds = {
                 "cb": vals_ok_cb,
                 "dSt": bool((dSt <= 64).all()),
@@ -284,12 +302,15 @@ def run_and_check(name, inp, H, P, N, G, cs, has_init=True, chunk_offsets=None, 
             viol += int((~good).sum())
             ratio = ((o - y).abs() / tol).nan_to_num(nan=float("inf"))
             worst_l = max(worst_l, float(ratio.max()))
-            rels.append(float((tol / y.abs()).median()))
+            rels.append((float((tol / y.abs()).median()), float((fine / y.abs()).median())))
+            fmax = max(fmax, float((tol / fine).max()))
     post_ok = viol == 0 and frame_ok
     ok = post_ok and vals_ok
     print(f"{name}: tokens {T} requests {nreq} heads {H} headdim {P} dstate {N} groups {G} "
           f"chunk {cs} initial states {has_init} (grid y {n}): worst err/tol {worst_l:.3g}, "
-          f"median tol/|yRef| {sorted(rels)[len(rels) // 2]:.1e}, violations {viol} "
+          f"median tol/|yRef| {sorted(rels)[len(rels) // 2][0]:.1e} "
+          f"(fine bound {sorted(rels)[len(rels) // 2][1]:.1e}; tol/fine at most {fmax:.3g}), "
+          f"violations {viol} "
           f"(non-finite {nonfin}), Vals {vals_ok}{'' if vals_ok else ' ' + str(vals_why)}, "
           f"frame {frame_ok}: " + ("holds" if ok else "FAILS"))
     if expect == "hold":
@@ -498,6 +519,12 @@ if __name__ == "__main__":
                   H, P, N, G, cs, has_init=False, variant="nogate", expect="reject")
 
     print(f"worst err/tol over the covered launches: {worst[0]:.3f}")
+    q = torch.cat(fine_stats["tol/fine"])
+    print(f"tol / fine bound over the covered launches' outputs: median {float(q.median()):.3f} "
+          f"(a sample) max {fine_stats['max']:.3f}; "
+          f"min (tol - fine) {fine_stats['min tol - fine']:.3g}")
+    if fine_stats["min tol - fine"] < 0:
+        failures.append("tol below the fine bound")
     if failures:
         print("FAILED:", failures)
         sys.exit(1)

@@ -77,12 +77,12 @@ distribution, not its seed-42 bytes) and the benchmark's `K = 512` (inputs from 
 and inputs, and checks every element of `c` against the claim's float64 reference and tolerance.
 At `8192³` and `K = 16384` the inputs are built by the host builder's steps in slices of rows (same
 distributions, layout and descriptors), since the host's builder alone needs more than 4 GB there.
-Worst error / bound: `0.355` (test), `0.800` (`K = 512`), `0.233` (`K = 16384`); `0.890` over all
-cases (`mixed`, `M = N = K = 128`). On the host's data the two formats give the same values (the
+Worst error / bound: `0.220` (test), `0.692` (`K = 512`), `0.135` (`K = 16384`); `0.809` over all
+cases (`M = N = K = 128`). On the host's data the two formats give the same values (the
 host draws the same `e2m1` values for `b` and casts them exactly to `e4m3` for `mxfp8`), and the
 results are the same. The claim's float64 reference matches the host's own reference
 (`compute_reference=True`) to `5·10^-8` for both formats. Wrong outputs (all zero, a group of 32
 products left out, one group's scale doubled, a wrong scale layout, the nibbles of `mixed`'s `b`
-swapped, the neighbouring column) each break `Post` on `85%` to `100%` of the elements at
+swapped, the neighbouring column) each break `Post` on `77%` to `100%` of the elements at
 `1024 × 1024 × 512` and `× 8192`. Every input stays unchanged byte for byte, every element of `c`
 is written, and the bytes around `c` keep their values.

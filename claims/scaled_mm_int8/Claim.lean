@@ -457,12 +457,14 @@ def e2 (sa S : ℚ) : ℚ := |sa| * e1 S + (|sa * S| + |sa| * e1 S) * u32 + eta3
 /-- Error of `scale_b.T * y` (line 185) against `sa·sb·S`: `|sb|·e2` from `y`, plus one rounding. -/
 def e3 (sa sb S : ℚ) : ℚ := |sb| * e2 sa S + (|sa * sb * S| + |sb| * e2 sa S) * u32 + eta32
 
-/-- **The `float32` tolerance** before the output's rounding, against `sa·sb·S + β`: `e3` without
-a bias; with one, `e3` plus the contractible addition of line 193 (`FloatV.AddRel.err`:
-`3u·(|x| + |β|) + 4η`, with `|x| ≤ |sa·sb·S| + e3`). -/
-def tol (hasBias : Bool) (sa sb S β : ℚ) : ℚ :=
-  if hasBias then e3 sa sb S + 3 * u32 * (|sa * sb * S| + e3 sa sb S + |β|) + 4 * eta32
-  else e3 sa sb S
+/-- The magnitude of the terms of `R = sa·sb·S + β`: `|sa·sb|·(|S| + 1) + |β|` (the `+ 1` covers
+the scales' own absolute rounding terms when `S = 0`; `S` is an integer). At least `|R|`. -/
+def mag (sa sb S β : ℚ) : ℚ := |sa * sb| * (|S| + 1) + |β|
+
+/-- **The `float32` tolerance** before the output's rounding, against `sa·sb·S + β`:
+`2^-21·mag + 2^-21`. It is above the bound of the conversion, the two scale products and the
+contractible bias addition of lines 180–193 (README, Tolerances). -/
+def tol (sa sb S β : ℚ) : ℚ := 2 ^ (-21 : ℤ) * mag sa sb S β + 2 ^ (-21 : ℤ)
 
 /-- Room in `float32` for every intermediate value (the operands of each rounding in range, and
 the addition's operands below `maxVal/2 − 2η`). -/
@@ -475,15 +477,15 @@ def outU : DType → ℚ
   | .f16 => Math.Float.Format.binary16.u
   | _ => Math.Float.Format.bfloat16.u
 
-/-- The output format's absolute rounding constant: `2^-134` (`bfloat16`), `2^-25` (`float16`). -/
-def outEta : DType → ℚ
-  | .f16 => Math.Float.Format.binary16.eta
-  | _ => Math.Float.Format.bfloat16.eta
-
 /-- The output format's largest value. -/
 def outMax : DType → ℚ
   | .f16 => Math.Float.Format.binary16.maxVal
   | _ => Math.Float.Format.bfloat16.maxVal
+
+/-- **The output's tolerance** against `sa·sb·S + β`, after the rounding to the output format
+`od`: `2·outU od·mag + 2^-20` (`2^-7·mag + 2^-20` for `bfloat16`, `2^-10·mag + 2^-20` for
+`float16`), above `tol` plus one rounding of the output format (README, Tolerances). -/
+def outTol (od : DType) (sa sb S β : ℚ) : ℚ := 2 * outU od * mag sa sb S β + 2 ^ (-20 : ℤ)
 
 /-- `c` is the rounding to nearest even of the `float32` value `v` in the output format, up to NaN
 payload. -/
@@ -507,8 +509,8 @@ value is `β` (finite; `0` without a bias), and there is room in `float32` (`Roo
 `S = Σ va k · vb k` (exact), `R = sa·sb·S + β` and `E = tol`,
 - `c` is the rounding (to nearest even, up to NaN payload) of a finite `float32` value `v` within `E`
   of `R`;
-- when `|R| + E` is at most the output format's largest value, `c` is finite and within `E` plus one
-  rounding (`(|R| + E)·u + η` of the output format) of `R`. -/
+- when `|R| + E` is at most the output format's largest value, `c` is finite and within `outTol` of
+  `R`. -/
 def OutSpec (d : Inst) (init fin : Mem) (i j : Nat) : Prop :=
   ∃ c : d.od.Val, fin.read d.od (d.c.ptr ↑(i * d.stride_cm + j * d.stride_cn)).addr = some c ∧
     ∀ (va vb : Nat → I8) (sa sb : F32) (β : ℚ),
@@ -520,15 +522,13 @@ def OutSpec (d : Inst) (init fin : Mem) (i j : Nat) : Prop :=
       Room32 sa.toRat sb.toRat (dotSum va vb d.K) β →
         ∃ v : F32, v.isFinite = true ∧
           |v.toRat - (sa.toRat * sb.toRat * dotSum va vb d.K + β)| ≤
-            tol d.hasBias sa.toRat sb.toRat (dotSum va vb d.K) β ∧
+            tol sa.toRat sb.toRat (dotSum va vb d.K) β ∧
           OutIs d.od v c ∧
-          (|sa.toRat * sb.toRat * dotSum va vb d.K + β| + tol d.hasBias sa.toRat sb.toRat (dotSum va vb d.K) β ≤
+          (|sa.toRat * sb.toRat * dotSum va vb d.K + β| + tol sa.toRat sb.toRat (dotSum va vb d.K) β ≤
               outMax d.od →
             ∃ q : ℚ, d.od.val? c = some q ∧
               |q - (sa.toRat * sb.toRat * dotSum va vb d.K + β)| ≤
-                tol d.hasBias sa.toRat sb.toRat (dotSum va vb d.K) β +
-                  (|sa.toRat * sb.toRat * dotSum va vb d.K + β| +
-                    tol d.hasBias sa.toRat sb.toRat (dotSum va vb d.K) β) * outU d.od + outEta d.od)
+                outTol d.od sa.toRat sb.toRat (dotSum va vb d.K) β)
 
 /-- What the launch leaves: every element of the matrix `C` as `OutSpec` says; every byte outside
 the matrix `C` unchanged (`A`, `B`, the scales, the bias, and `C`'s storage outside the matrix). -/

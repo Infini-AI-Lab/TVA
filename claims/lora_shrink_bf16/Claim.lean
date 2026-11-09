@@ -597,10 +597,6 @@ def dotMag (d : Inst) (va vb : Nat → BF16) : ℚ :=
   ∑ k ∈ Finset.range d.K,
     Rules.Num.liftMag .bf16 (va k).toRat * Rules.Num.liftMag .bf16 (vb k).toRat
 
-/-- The bound on the `SPLIT_K` accumulators' errors together: `Σ_{p < SPLIT_K} errPart p`. -/
-def accTol (d : Inst) (va vb : Nat → BF16) : ℚ :=
-  ∑ p ∈ Finset.range (sk d), errPart d va vb p
-
 /-- A bound on the accumulators' magnitudes together: `Σ_{p < SPLIT_K} (|partSum p| + errPart p)`. -/
 def partMag (d : Inst) (va vb : Nat → BF16) : ℚ :=
   ∑ p ∈ Finset.range (sk d), (|partSum d va vb p| + errPart d va vb p)
@@ -622,14 +618,18 @@ def vMag (d : Inst) (va vb : Nat → BF16) : ℚ :=
 def atomTol (d : Inst) (va vb : Nat → BF16) : ℚ :=
   DotLoop.bound (2 ^ (-23 : ℤ)) (2 ^ (-124 : ℤ)) (sk d) (vMag d va vb)
 
+/-- The `k` one program accumulates, in whole blocks: `BLOCK_K · cdiv(K, BLOCK_K · SPLIT_K)`
+(`BLOCK_K` times the steps of part `0`, the most of any part). -/
+def partLen (d : Inst) : Nat := bk d * stepsOf d 0
+
 /-- The tolerance of an output element against the host's `scaling · S` (`scaling` the host's
-double, `S = dotSum`, `s32 = scaling32`): the accumulators' bound scaled by `|s32|`, the products'
-roundings, the atomic additions, and the conversion of the host's double to the kernel's `float32`
-argument, `|s32 − scaling| · |S|` (`0` for `0.5` and `1.0`; at most `(2^-24·|scaling| + 2^-150)·|S|`
-for any double in `float32`'s range, one rounding to nearest). -/
+double, `S = dotSum`): `2^-21` per `k` of a program's accumulation of the scaled lifted magnitude
+`|scaling| · dotMag`, and an absolute floor `2^-100 · (1 + |scaling| + dotMag)`. It bounds the
+accumulators' errors (`errPart`), the products by the kernel's `float32` `scaling`, the atomic
+additions and the conversion of the host's double (README, Tolerances). -/
 def tol (d : Inst) (va vb : Nat → BF16) : ℚ :=
-  |(scaling32 d).toRat| * accTol d va vb + mulTol d va vb + atomTol d va vb +
-    |(scaling32 d).toRat - d.scaling.toRat| * |dotSum d va vb|
+  (partLen d : ℚ) * 2 ^ (-21 : ℤ) * (|d.scaling.toRat| * dotMag d va vb) +
+    2 ^ (-100 : ℤ) * (1 + |d.scaling.toRat| + dotMag d va vb)
 
 /-- What the launch leaves in element `(s, t, j)` of the output. A token with no adapter keeps the
 `+0.0` the output was allocated with. A token with an adapter `l = adapter t ≥ 0`: when the `K`

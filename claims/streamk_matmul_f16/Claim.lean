@@ -21,8 +21,8 @@ operands) of the exact `Σ_k a[i,k]·b[k,j]`, whatever order
 the atomic additions ran in; every byte outside the matrix `c` is unchanged.
 
 * The model: `streamk_matmul_kernel`, `model`, `launch` (the model map is `model-map.json`).
-* The conditions: `Inst`, `Inst.ok`, `Pre`. The specification: `tolDot`, `tol`, `dotSum`,
-  `rho`, `alpha`, `mag16`, `chunk`, `chunkSum`, `chunkMag`, `pre`, `dev`, `OutSpec`, `Post`, `Spec`.
+* The conditions: `Inst`, `Inst.ok`, `Pre`. The specification: `tolMag`, `tol`, `dotSum`,
+  `mag16`, `chunk`, `chunkSum`, `chunkMag`, `pre`, `dev`, `OutSpec`, `Post`, `Spec`.
 * The assumptions: five `[rule]` fields (`Compiler.Faithful`, the library's facts for an fp16
   `tl.dot` and a `float32` `tl.atomic_add`).
 * Proved here: `consistent`, `satisfiable`, and the coverage of the test's launches
@@ -201,8 +201,9 @@ structure Inst.ok (d : Inst) : Prop where
   /-- `N + 128 ≤ 2^31`: `N` is an `int32`, `tl.cdiv(N, 128)` computes `N + 127` in `int32`
   (line 37), and the tile columns stay below `N + 127` (line 49). -/
   N_le : d.N + 128 ≤ 2 ^ 31
-  /-- `K ≤ 2^13`: the tolerance of `Post` grows with `K`; up to `2^13` it is below `0.21%` of
-  `A = Σ_k mag16 (a[i,k]) · mag16 (b[k,j])` (`Σ|a·b|` when no operand is subnormal) on every input.
+  /-- `K ≤ 2^13`: at most `128` chunks, which the tolerance of `Post` relies on (README,
+  Tolerances); it is then below `0.4%` of `A = Σ_k mag16 (a[i,k]) · mag16 (b[k,j])` (`Σ|a·b|` when
+  no operand is subnormal) on every input.
   The test's largest `K` is `4097`. It also makes `K + 63 < 2^31` for `tl.cdiv(K, 64)` (line 38). -/
   K_le : d.K ≤ 2 ^ 13
   /-- `N` is a model dimension (the GEMM's output features): a multiple of 128, at most `2^17`. -/
@@ -302,13 +303,6 @@ The tolerance follows the kernel's `K` loop: chunk `t < T = steps K` holds the p
 `k ∈ [64·t, min(64·t + 64, K))`, one `tl.dot` of `K = 64` (the lanes past `K` are the loads'
 zeros). It is stated per element, from the element's own operands. -/
 
-/-- The library's constants for one fp16 `tl.dot` of `K = 64` (`Rules.Num.DotF16`):
-`ρ = relDot16 64 = 66·2^-22`. -/
-def rho : ℚ := Rules.Num.relDot16 64
-
-/-- `α = absDot16 64 = 66·2^-126`. -/
-def alpha : ℚ := Rules.Num.absDot16 64
-
 /-- The exact dot product of row values `va` and column values `vb` over `k < K`. -/
 def dotSum (va vb : Nat → F16) (K : Nat) : ℚ := ∑ k ∈ Finset.range K, (va k).toRat * (vb k).toRat
 
@@ -340,21 +334,18 @@ of the accumulator at chunk `t` whatever the split of the tile between programs.
 def dev (va vb : Nat → F16) (K t : Nat) : ℚ :=
   (Finset.range (t + 1)).sup' Finset.nonempty_range_add_one fun s => |pre va vb K t - pre va vb K s|
 
-/-- The accumulation's part of the tolerance:
-`Σ_{t < T} (1 + ρ)^(T − 1 − t) · (ρ · (dev t + chunkMag t) + α)`. The `tl.dot` of chunk `t` adds an
-error of at most `ρ · (|acc| + chunkMag t) + α` (`DotF16`), with `|acc|` at most `dev t` plus the
-error so far; summed over the chunks of every program that touches the tile. -/
-def tolDot (va vb : Nat → F16) (K : Nat) : ℚ :=
-  ∑ t ∈ Finset.range (steps K),
-    (1 + rho) ^ (steps K - 1 - t) * (rho * (dev va vb K t + chunkMag va vb K t) + alpha)
+/-- **The magnitude the tolerance scales with**: `Σ_{t ≤ T} dev t + Σ_{t < T} chunkMag t`,
+`T = steps K`: the largest exact values a program's accumulator can hold at the `T + 1` chunk
+boundaries, whatever the split of the tile between programs, plus the products' lifted magnitudes.
+It is what the `tl.dot`s scale their errors by (`DotF16`: `|acc|` plus the chunk's magnitude), and it
+bounds the magnitudes of the partial sums the atomic additions add up. -/
+def tolMag (va vb : Nat → F16) (K : Nat) : ℚ :=
+  (∑ t ∈ Finset.range (steps K + 1), dev va vb K t) +
+    ∑ t ∈ Finset.range (steps K), chunkMag va vb K t
 
-/-- The tolerance of an element: `tolDot`, plus `DotLoop.bound 2^-23 2^-124 T (C + tolDot)`, at most
-`T` `float32` atomic additions into the zero `c` (`Rules.Num.AtomicAddF32`'s `2^-23`, `2^-124`) of
-partial sums whose magnitudes add up to at most `C + tolDot`, `C = Σ_{t<T} |chunkSum t|`. An element
-of a tile one program does whole is within `tolDot`. -/
-def tol (va vb : Nat → F16) (K : Nat) : ℚ :=
-  tolDot va vb K + DotLoop.bound (2 ^ (-23 : ℤ)) (2 ^ (-124 : ℤ)) (steps K)
-    ((∑ t ∈ Finset.range (steps K), |chunkSum va vb K t|) + tolDot va vb K)
+/-- **The tolerance of an element**: `2^-15 · tolMag + 2^-100`, whatever the split of its tile
+between programs and the order of the atomic additions. -/
+def tol (va vb : Nat → F16) (K : Nat) : ℚ := 2 ^ (-15 : ℤ) * tolMag va vb K + 2 ^ (-100 : ℤ)
 
 /-- What the launch leaves in element `(i, j)` of `c`: some `float32` value `c`; and when row `i` of
 `a` and column `j` of `b` hold finite values `va k`, `vb k` (`k < K`) in the initial memory, `c` is

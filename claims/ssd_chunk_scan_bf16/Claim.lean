@@ -1051,8 +1051,6 @@ noncomputable def mB : ℝ := 2 ^ (-126 : ℤ)
 noncomputable def etaF : ℝ := 2 ^ (-150 : ℤ)
 /-- One `bfloat16` rounding's absolute term. -/
 noncomputable def etaB : ℝ := 2 ^ (-134 : ℤ)
-/-- `tl.mul_add`'s relative constant (two roundings, or one). -/
-noncomputable def rho : ℝ := 2 ^ (-23 : ℤ) + 2 ^ (-47 : ℤ)
 /-- `Num.DotBF16`'s constants, as reals. -/
 noncomputable def relD (K : Nat) : ℝ := (Rules.Num.relDot16 K : ℝ)
 noncomputable def absD (K : Nat) : ℝ := (Rules.Num.absDot16 K : ℝ)
@@ -1104,11 +1102,6 @@ noncomputable def eSig (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
 noncomputable def eSt (m₀ : Mem) (d : Inst) (t h : Nat) : ℝ := errE (dSt m₀ d t h) (dErrSt m₀ d t h)
 noncomputable def hSt (m₀ : Mem) (d : Inst) (t h : Nat) : ℝ := eHat (dSt m₀ d t h) (dErrSt m₀ d t h)
 
-/-- The error of `acc₀ = dot·scale` (line 361) against `exp(dSt)·Σ C·S`. -/
-noncomputable def errSig (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
-  (1 + uF) * eSig m₀ d t h p * hSt m₀ d t h + uF * mSig m₀ d t h p * hSt m₀ d t h +
-    mSig m₀ d t h p * eSt m₀ d t h + etaF
-
 /-- A bound on `|acc₀|`. -/
 noncomputable def aSig (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
   (1 + uF) * (mSig m₀ d t h p + eSig m₀ d t h p) * hSt m₀ d t h + etaF
@@ -1121,19 +1114,9 @@ noncomputable def wMag (m₀ : Mem) (d : Inst) (t h s : Nat) : ℝ :=
 noncomputable def wAbs (m₀ : Mem) (d : Inst) (t h s : Nat) : ℝ :=
   2 ^ (-133 : ℤ) + 2 ^ (-148 : ℤ) * |dtS m₀ d t h s|
 
-/-- The error of token `s`'s computed `bfloat16` weight (lines 408–414) against `wTS`: the
-`tl.exp` error, two `float32` products and one `bfloat16` rounding. -/
-noncomputable def ewS (m₀ : Mem) (d : Inst) (t h s : Nat) : ℝ :=
-  |cbTS m₀ d t h s| * |dtS m₀ d t h s| * errE (dS m₀ d t h s) (dErrS m₀ d t h s) +
-    (uB + 3 * uF) * wMag m₀ d t h s + wAbs m₀ d t h s
-
 /-- A bound on the computed weight's magnitude. -/
 noncomputable def wHat (m₀ : Mem) (d : Inst) (t h s : Nat) : ℝ :=
   (1 + uB + 3 * uF) * wMag m₀ d t h s + wAbs m₀ d t h s
-
-/-- `Σ_s` of the weights' errors times `|x_s|`. -/
-noncomputable def errW (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
-  ∑ s ∈ toks d t, ewS m₀ d t h s * |xv m₀ d s h p|
 
 /-- `Σ_s |w̃_s|·|x_s|`. -/
 noncomputable def mW (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
@@ -1157,18 +1140,25 @@ noncomputable def errDot (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
 noncomputable def aAcc (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
   aSig m₀ d t h p + mW m₀ d t h p + errDot m₀ d t h p
 
-/-- The error of line 442's `tl.mul_add`. -/
-noncomputable def errMA (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
-  rho * (|xv m₀ d t h p * Dv m₀ d h| + aAcc m₀ d t h p) + 3 * etaF
+/-- The magnitude of output `(t, h, p)`: `|yRef|`, plus the lifted magnitudes of its two sums, the
+state term's scaled by the computed decay's bound (`hSt·lSig`) and the loop's (`lW`). -/
+noncomputable def mag (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
+  |yRef m₀ d t h p| + hSt m₀ d t h * lSig m₀ d t h p + lW m₀ d t h p
 
-/-- The error of the `float32` value before the store. -/
-noncomputable def errPre (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
-  errSig m₀ d t h p + errW m₀ d t h p + errDot m₀ d t h p + errMA m₀ d t h p
+/-- The decays' `tl.exp` errors times what they multiply (`ExpF32`'s error `eSt` of the entering
+state's decay times `Σ|C||S|`, and each weight's `errE` times `|cb|·|dt|·|x|`), and the weights'
+absolute rounding terms `wAbs·|x|`. -/
+noncomputable def expErr (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
+  mSig m₀ d t h p * eSt m₀ d t h +
+    ∑ s ∈ toks d t, (|cbTS m₀ d t h s| * |dtS m₀ d t h s| * errE (dS m₀ d t h s) (dErrS m₀ d t h s) +
+      wAbs m₀ d t h s) * |xv m₀ d s h p|
 
-/-- **The tolerance** of `out[0, t, h, p]`: the error before the store, and the store's `bfloat16`
-rounding of the result (`2^-8` of `|yRef|` plus the error). -/
+/-- **The tolerance** of `out[0, t, h, p]`: `(nIt + 256)·2^-15·mag` (the roundings and the store's
+`bfloat16` rounding, `2^-7`, and the loop's `nIt` trips of `tl.dot`s, `2^-15` each), twice the
+decays' `tl.exp` errors `expErr`, and a floor `2^-110·(1 + hSt)`. -/
 noncomputable def tol (m₀ : Mem) (d : Inst) (t h p : Nat) : ℝ :=
-  (1 + uB) * errPre m₀ d t h p + uB * |yRef m₀ d t h p| + etaB
+  ((nIt d : ℝ) + 256) * 2 ^ (-15 : ℤ) * mag m₀ d t h p + 2 * expErr m₀ d t h p +
+    2 ^ (-110 : ℤ) * (1 + hSt m₀ d t h)
 
 /-- Element `i` of a `float32` buffer is a finite value of magnitude at most `2^120` (below
 `bfloat16`'s overflow threshold, so its rounding to `bfloat16` is finite). -/

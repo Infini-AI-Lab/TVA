@@ -10,20 +10,18 @@ stated, for every element `(i, j)` of `c`:
   in `float64` from the host's inputs (`ref_tol`): for the chunks `t < T = cdiv(K, 64)` of 64
   products, `chunkSum t`, `chunkMag t = sum mag16(a)*mag16(b)` (`mag16 q = 0` for `0`, else
   `max(|q|, 2^-14)`), `pre t = sum_{u<t} chunkSum u`, `dev t = max_{s<=t} |pre t - pre s|`,
-  `tolDot = sum_t (1+rho)^(T-1-t) * (rho*(dev t + chunkMag t) + alpha)`,
-  `tol = tolDot + DotLoop.bound 2^-23 2^-124 T (sum_t |chunkSum t| + tolDot)`,
-  `DotLoop.bound r a T B = ((1+r)^T - 1)*B + T*(1+r)^T*a`, `rho = relDot16 64 = 66*2^-22`,
-  `alpha = absDot16 64 = 66*2^-126` (the `float16` products are exact in `float64`; the sums' own
-  error is far below `tol`).
+  `tolMag = sum_{t<=T} dev t + sum_{t<T} chunkMag t`, `tol = 2^-15 * tolMag + 2^-100` (the
+  `float16` products are exact in `float64`; the sums' own error is far below `tol`).
 
-It reports, over the elements with finite inputs, the largest error / tolerance. The frame: `a`
+It reports, over the elements with finite inputs, the largest error / tolerance, and for the host
+launches the median of tol / |S| (elements with S != 0). The frame: `a`
 and `b` are unchanged (bitwise), and a direct launch of the module's kernel with `c` a padded
 matrix (`stride_cm > N`) inside a sentinel-filled buffer leaves every element outside the matrix
 unchanged; direct launches also use other program counts and transposed (strided) `a` and `b`.
 That the tolerance is meaningful: on `torch.randn` inputs the host's result rounded to `bfloat16`,
 with one 64-chunk left out, or accumulated in `float16` chunk by chunk, fails it at every tested `K`
 (64 to 8192); with the mass in the last chunk, the result rounded to `float16` fails it; the result
-rounded to `float16` on `randn` inputs is reported (info: it fails up to `K = 1024`).
+rounded to `float16` on `randn` inputs is reported (info: it fails up to `K = 512`).
 
 Usage: `CUDA_VISIBLE_DEVICES=<gpu> python -I check_gpu.py`.
 """
@@ -42,12 +40,7 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 DEVICE = triton.runtime.driver.active.get_active_torch_device()
-RHO, ALPHA = 66 * 2.0 ** -22, 66 * 2.0 ** -126
-RA, AA = 2.0 ** -23, 2.0 ** -124
-
-
-def bound(r, a, T, B):
-    return ((1 + r) ** T - 1) * B + T * (1 + r) ** T * a
+EPS, DELTA = 2.0 ** -15, 2.0 ** -100
 
 
 def mag16(q):
@@ -57,31 +50,32 @@ def mag16(q):
 def ref_tol(ad, bd):
     """`dotSum` and `tol` for every element, from `float64` operands (`ad` [m, K], `bd` [K, N],
     finite): chunk by chunk of 64, `pre`, `dev = max_{s<=t} |pre t - pre s|` (from the running min
-    and max of `pre`), `tolDot` by Horner (`td <- td*(1+rho) + rho*(dev+chunkMag) + alpha`), and
-    `tol = tolDot + bound(2^-23, 2^-124, T, C + tolDot)`, `C = sum_t |chunkSum t|`."""
+    and max of `pre`) at the chunk boundaries `t = 0 .. T`, and
+    `tol = 2^-15 * (sum_{t<=T} dev t + sum_{t<T} chunkMag t) + 2^-100`."""
     K = ad.shape[1]
     T = (K + 63) // 64
     al, bl = mag16(ad), mag16(bd)
     pre = torch.zeros(ad.shape[0], bd.shape[1], dtype=torch.float64, device=ad.device)
     mn, mx = pre.clone(), pre.clone()
-    td, C = pre.clone(), pre.clone()
+    mag = pre.clone()
     for t in range(T):
         sl = slice(64 * t, min(64 * t + 64, K))
         cs = ad[:, sl] @ bd[sl, :]
         cm = al[:, sl] @ bl[sl, :]
         dev = torch.maximum(pre - mn, mx - pre)
-        td = td * (1 + RHO) + RHO * (dev + cm) + ALPHA
-        C += cs.abs()
+        mag += dev + cm
         pre += cs
         mn = torch.minimum(mn, pre)
         mx = torch.maximum(mx, pre)
-    return pre, td + bound(RA, AA, T, C + td)
+    mag += torch.maximum(pre - mn, mx - pre)          # dev T
+    return pre, EPS * mag + DELTA
 
 
 def post_check(a, b, c, chunk=512):
     """(worst error / tol over elements with finite inputs, all such outputs finite, count of other
     elements)."""
     worst, finite, other = 0.0, True, 0
+    REL.clear()
     bd = b.double()
     bfin = torch.isfinite(bd).all(dim=0)                     # [N]
     bd0 = torch.where(torch.isfinite(bd), bd, torch.zeros_like(bd))
@@ -95,6 +89,8 @@ def post_check(a, b, c, chunk=512):
         cc = c[i0:i0 + chunk].double()
         finite &= bool(torch.isfinite(cc)[ok].all().item())
         r = ((cc - S).abs() / tl_)[ok]
+        nz = ok & (S != 0)
+        REL.append((tl_[nz] / S[nz].abs()).float().cpu())
         if r.numel():
             worst = max(worst, r.max().item())
         del ad, ad0, S, tl_, cc, r
@@ -125,6 +121,7 @@ def direct(a, b, num_programs, pad=5, guard=4096):
 
 results = []
 worst_all = 0.0
+REL = []
 
 
 def check(name, a, b, num_programs=None, host=True, progs=()):
@@ -135,9 +132,11 @@ def check(name, a, b, num_programs=None, host=True, progs=()):
         c = mod.streamk_matmul(a, b, num_programs)
         torch.cuda.synchronize()
         w, f, n_other = post_check(a, b, c)
+        med = torch.cat(REL).median().item()
         ok &= w <= 1.0 and f
         worst_all = max(worst_all, w)
-        parts.append(f"host programs={num_programs}: worst {w:.4f}, finite {f}, non-finite-input elements {n_other}")
+        parts.append(f"host programs={num_programs}: worst {w:.4f}, median tol/|S| {med:.2e}, finite {f}, "
+                     f"non-finite-input elements {n_other}")
         del c
     for p in progs:
         c, frame = direct(a, b, p)

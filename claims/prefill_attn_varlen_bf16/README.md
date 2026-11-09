@@ -13,7 +13,7 @@ The covered paths are `SETUP.md`'s: `IS_CAUSAL = True` and `IS_CAUSAL = False` (
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.PrefillAttnVarlen.main : Statement` (`Statement`:
-`Claim.lean` line 523). Unfolded (`Spec`, line 495, is `Claim.Meets Inst.ok Pre Post K`), it says:
+`Claim.lean` line 506). Unfolded (`Spec`, line 478, is `Claim.Meets Inst.ok Pre Post K`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -22,9 +22,9 @@ The covered paths are `SETUP.md`'s: `IS_CAUSAL = True` and `IS_CAUSAL = False` (
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
 (`Inst.ok`, line 270), and every initial memory `init` that `Pre` accepts (line 418), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 487).
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 470).
 
-**What `Post` asks** (line 487), two parts:
+**What `Post` asks** (line 470), two parts:
 1. for every `b < batch`, `p < lenOf d init b` (line 361), `h < H`, `e < Lk`: element
    `oIdx d (startOf d init b + p) h e` (lines 257, 359) of `o` reads in `fin` (`rdB`, line 340) as
    a `bfloat16` `c` that is finite, with
@@ -33,12 +33,12 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    reals, over the keys `j ≤ lastKey` (line 387: `p` when `causal`, `lenOf − 1` when not), with the
    exact scores `score` (line 375) from `init`; `attnAbs` (line 433) is the same mean of `|v|`,
    `vSum` (line 439) the plain sum of `|v|`. `trips` is line 444, `Xrow` (line 391) the largest
-   `scoreMag` (line 381) over the attended keys. The tolerance is `tolRel` (line 472, built from
-   `dlt`, `rho`, `gam`, `errE`, lines 453–466) and `tolAbs` (line 475). Every element of every
-   sequence is asked; there is no further guard;
-2. the frame: every byte outside `d.o.elems (outElems d init)` (line 478) is unchanged.
+   `scoreMag` (line 381) over the attended keys. The tolerance is `tolRel` (line 454,
+   `2^-6 + T·2^-14 + (BD + 16)·X·2^-20`) and `tolAbs` (line 458, `2^-80·(1 + vSum)`). Every
+   element of every sequence is asked; there is no further guard;
+2. the frame: every byte outside `d.o.elems (outElems d init)` (line 461) is unchanged.
 
-**What you are given** (`Assumptions`, line 499), eight fields:
+**What you are given** (`Assumptions`, line 482), eight fields:
 - `faithful` (`Compiler.Faithful`): the device's outcomes `K d` are outcomes of the model's launch,
   when the launch is valid, has `debug = false`, and is well behaved from `init`;
 - `dot` (`Num.DotBF16`): `tl.dot` of `bfloat16` into `float32` is within `relDot16 K = (K+2)·2^-22`
@@ -88,14 +88,15 @@ The loop rule is `safe_forRange` with an invariant on `(m_i, l_i, acc)`; the bod
   steps 3–5), from `ValsOk` (line 408: finite inputs, `|v| ≤ 2^120`, `scoreMag ≤ 2^12` on every pair
   of the sequence, masked or not), `dot` (one step: `DotLift.dotAdd_step`), `exp_acc`
   (`MathAcc.mono`), `exp_ninf`, `div_full`, `sum_err_covers`, `FloatV.mul_err`, `FloatV.cvt_err`,
-  `FloatV.AddRel.err`; then the store's rounding and the assembly into `tolRel·attnAbs + tolAbs`
-  (steps 6–7);
+  `FloatV.AddRel.err`; then the store's rounding and the assembly into the fine bound
+  `fineRel·attnAbs + tolAbs` (steps 6–7); then relax it by `fineRel ≤ tolRel` on every covered row
+  (step 8, an inequality between explicit real functions of `BD`, `T` and `X`);
 - the frame: the union of the write footprints is `d.o.elems (outElems d init)`, and the bytes no
   program writes keep their `init` value.
 
-**Already in `Claim.lean`** (do not prove again): `consistent` (line 527), `satisfiable` (line
-1031), `canon_ok` (line 583), `fusedQKV_ok` (line 832) and the `setup_*_ok` theorems;
-`bytes_disj` (line 565) can be reused.
+**Already in `Claim.lean`** (do not prove again): `consistent` (line 510), `satisfiable` (line
+1014), `canon_ok` (line 566), `fusedQKV_ok` (line 815) and the `setup_*_ok` theorems;
+`bytes_disj` (line 548) can be reused.
 
 ## Specification
 
@@ -118,31 +119,34 @@ finite `bfloat16` `c` with
 
 `|c − attnRef| ≤ tolRel(BLOCK_DMODEL, T, Xrow)·attnAbs + 2^-80·(1 + vSum)`,
 
-and every byte outside those elements is unchanged. With `D = BLOCK_DMODEL`:
+`tolRel(D, T, X) = 2^-6 + T·2^-14 + (D + 16)·X·2^-20` (`D = BLOCK_DMODEL`),
 
-* `δ = (D + 8)·2^-22·X + 2^-40` (each computed score's error),
-* `ρ = exp(2^-8 + (T + 8)·2^-18 + (X + δ)·2^-17) − 1` (each key's coefficient and the normaliser),
-* `γ = exp(T·136·2^-22) − 1` (the second `tl.dot` over `T` trips),
-* `E = e^{2δ}·(ρ + γ·(1 + ρ))/(1 − ρ) + (e^{2δ} − 1)`, `tolRel = 2^-8 + (1 + 2^-8)·E`.
+and every byte outside those elements is unchanged. The three parts of `tolRel`: `2^-6` covers the
+two `bfloat16` roundings the kernel makes (`p.to(bfloat16)` and the store) with the other
+roundings of a row; `2^-14` per trip the second `tl.dot`'s error, which the library's fact charges
+per key block, and the per-trip roundings of the online softmax; `(D + 16)·2^-20` per unit of `X`
+the score `tl.dot`'s error (relative to the lifted magnitudes, so growing with `D`) and
+`tl.exp`'s error, which grows with its argument. The table gives `tolRel` and the fine bound
+`fineRel` that README Tolerances derives (`tolRel ≥ fineRel` on every covered row):
 
-| `D` | `T` (tokens) | `X` | `tolRel` |
-|---|---|---|---|
-| 128 | 1 (≤ 128) | 8 | `8.5·10^-3` |
-| 128 | 16 (≤ 2048) | 8 | `9.1·10^-3` |
-| 128 | 64 (≤ 8192) | 16 | `1.1·10^-2` |
-| 128 | 1024 (≤ 2^17) | 16 | `4.8·10^-2` |
-| 128 | 1 | 256 | `2.7·10^-2` |
-| 256 | 1024 | 4096 (the cap) | `0.81` |
-| 128 | 43 (5476, not causal) | 8 | `1.0·10^-2` |
-| 128 | 512 (65536, not causal) | 8 | `2.8·10^-2` |
+| `D` | `T` (tokens) | `X` | `tolRel` | `fineRel` |
+|---|---|---|---|---|
+| 128 | 1 (≤ 128) | 8 | `1.7·10^-2` | `8.5·10^-3` |
+| 128 | 16 (≤ 2048) | 8 | `1.8·10^-2` | `9.1·10^-3` |
+| 128 | 64 (≤ 8192) | 16 | `2.2·10^-2` | `1.1·10^-2` |
+| 128 | 1024 (≤ 2^17) | 16 | `8.0·10^-2` | `4.8·10^-2` |
+| 128 | 1 | 256 | `5.1·10^-2` | `2.7·10^-2` |
+| 256 | 1024 | 4096 (the cap) | `1.14` | `0.81` |
+| 128 | 43 (5476, not causal) | 8 | `1.9·10^-2` | `1.0·10^-2` |
+| 128 | 512 (65536, not causal) | 8 | `4.8·10^-2` | `2.8·10^-2` |
 
-On the host's `randn` inputs `Xrow` is about `0.64·Lk·σ` (`≈ 7` at head dim 128). The floor
-`≈ 2·2^-8` is the two `bfloat16` roundings the kernel makes (`p.to(bfloat16)` and the store); the
-GPU check reaches `0.86` of the bound on an adversarial input and `0.80` on the host's. Against
-the output itself, on `randn` inputs, `tol / |attnRef|` has median `0.37` (90th percentile `2.1`)
-at 64/8 heads of 128, causal, prompts of 8192 and 4096, and median `0.54` (90th percentile `2.9`)
-at Qwen2.5-VL's 16 heads of 80, not causal, one image of 5476 patches: the bound is relative to
-`attnAbs`, which a mean over many keys of random sign makes much larger than `|attnRef|`.
+On the host's `randn` inputs `Xrow` is about `0.64·Lk·σ` (`≈ 7` at head dim 128). The GPU check
+reaches `0.43` of the bound on an adversarial input (`0.86` of the fine bound) and `0.40` on the
+host's. Against the output itself, on `randn` inputs, `tol / |attnRef|` has median `0.71` (90th
+percentile `4.0`) at 64/8 heads of 128, causal, prompts of 8192 and 4096, and median `1.03` (90th
+percentile `5.5`) at Qwen2.5-VL's 16 heads of 80, not causal, one image of 5476 patches (the fine
+bound: `0.37`, `2.1`, `0.54`, `2.9`): the bound is relative to `attnAbs`, which a mean over many keys
+of random sign makes much larger than `|attnRef|`.
 
 ## Conditions
 
@@ -218,7 +222,15 @@ same, 2 heads per rank), `setup_vit_video` (16 frame pairs of 3072 patches), `se
 
 ## Tolerances
 
-Derived from the library's facts (`u = 2^-24`, `docs/rules/num.md`). Fix a row (`b`, `h`, `p`),
+Derived from the library's facts (`u = 2^-24`, `docs/rules/num.md`), first as the fine bound
+`fineRel·attnAbs + 2^-80·(1 + vSum)` (steps 1–7), with `D = BLOCK_DMODEL`:
+
+* `δ = (D + 8)·2^-22·X + 2^-40` (each computed score's error),
+* `ρ = exp(2^-8 + (T + 8)·2^-18 + (X + δ)·2^-17) − 1` (each key's coefficient and the normaliser),
+* `γ = exp(T·136·2^-22) − 1` (the second `tl.dot` over `T` trips),
+* `E = e^{2δ}·(ρ + γ·(1 + ρ))/(1 − ρ) + (e^{2δ} − 1)`, `fineRel = 2^-8 + (1 + 2^-8)·E`;
+
+then relaxed to `tolRel` (step 8). Fix a row (`b`, `h`, `p`),
 `L = lastKey`, `X = Xrow`, `N = 128`, `D = BLOCK_DMODEL`; the row's trips are `t = 0 … T−1`
 (`start_n = 128·t`), and every key a trip enables is attended except, when causal, the keys above
 `p`; each trip has at least one attended key (key `start_n ≤ L`: `start_n ≤ 128·start_m ≤ p` when
@@ -273,20 +285,40 @@ only in the set of attended keys, `j ≤ L`, which the steps below sum over.
    most `(e^{T·132·2^-22} − 1)·B ≤ γ·B` (`136` for the margin and the `acc·acc_scale` roundings).
 6. **Assembly.** `|acc − attnRef| ≤ γ·A_c + ρ/(1−ρ)·A' + (e^{2δ}−1)·attnAbs + abs ≤
    E·attnAbs + abs`. The store: `|c − acc| ≤ 2^-8·|acc| + 2^-134`, `|acc| ≤ attnAbs·(1+E) + abs`,
-   so `|c − attnRef| ≤ (2^-8 + (1+2^-8)·E)·attnAbs + (1+2^-8)·abs + 2^-134`, and `c` is finite
-   (`|acc| < 2^122`).
+   so `|c − attnRef| ≤ (2^-8 + (1+2^-8)·E)·attnAbs + (1+2^-8)·abs + 2^-134 = fineRel·attnAbs +
+   (1+2^-8)·abs + 2^-134`, and `c` is finite (`|acc| < 2^122`).
 7. **Absolute terms.** Each key's coefficient has an absolute error below `2^-133` (the
    `bfloat16` subnormal step, `tl.exp`'s `2^-140`, `DivFull`'s `2^-148`), carried by later
    scalings of at most `2^9·T`; the dots' lifts of subnormals add `2^-126` per key or `p₂`, and
    `(N+2)·2^-126` per trip: in all `abs ≤ 2^-123·T·vSum + 2^-109·T² + 2^-134 ≤ 2^-80·(1+vSum)`
    for `T ≤ 1024` (`T ≤ cdiv(2^17, 128)` in either mode).
 
+8. **The relaxation `fineRel ≤ tolRel`.** On every covered row `T ≤ 1024` (`maxLen ≤ 2^17`),
+   `X ≤ 2^12` (`ValsOk`: `scoreMag ≤ 2^12`) and `D ≤ 256` (`bd_le`), so `δ ≤ 264·2^-22·2^12 + 2^-40 ≤
+   0.2579`, the exponent `s` of `ρ` is at most `2^-8 + 1032·2^-18 + 4096.26·2^-17 ≤ 0.0391`, `ρ ≤
+   0.0399` and `G = T·136·2^-22 ≤ 0.0333`. On these ranges `ρ = e^s − 1 ≤ 1.0201·s`,
+   `γ = e^G − 1 ≤ 1.0169·G`, `1/(1 − ρ) ≤ 1.0416`, `1 + ρ ≤ 1.0399` and `e^a − 1 ≤ 1.309·a` for
+   `a = 2δ ≤ 0.516` (`(e^x − 1)/x` increases with `x`). With `P = (ρ + γ·(1 + ρ))/(1 − ρ) ≤
+   1.0416·(1.0201·s + 1.0575·G) ≤ 1.0626·s + 1.1015·G ≤ 0.0782`, `E = P + (e^a − 1)·(1 + P) ≤ P +
+   1.309·1.0782·a ≤ 1.0626·s + 1.1015·G + 1.4114·a`, and
+   `fineRel ≤ 2^-8 + 1.0039·E ≤ 2^-8 + 1.0668·s + 1.1058·G + 1.4169·a`. Expanding `s = 2^-8 +
+   8·2^-18 + T·2^-18 + X·2^-17 + δ·2^-17`, `G = T·136·2^-22`, `a = 2δ`, `δ = (D + 8)·2^-22·X + 2^-40`:
+   * the constant: `2^-8 + 1.0668·(2^-8 + 8·2^-18) + 3·2^-40 ≤ 0.00811 ≤ 2^-6`;
+   * per trip: `1.0668·2^-18 + 1.1058·136·2^-22 ≤ 4.0·10^-5 ≤ 2^-14 = 6.10·10^-5`;
+   * per unit of `X`: `1.0668·2^-17 + (2·1.4169 + 1.0668·2^-17)·(D + 8)·2^-22 ≤ 8.14·10^-6 +
+     6.76·10^-7·(D + 8)`, at most `(D + 16)·2^-20 ≥ 1.52·10^-5 + 9.53·10^-7·D` for every `D ≥ 0`.
+
+   So `fineRel ≤ 2^-6 + T·2^-14 + (D + 16)·X·2^-20 = tolRel` on every covered row; the absolute
+   floor `2^-80·(1 + vSum)` is the same. At the host's sizes (`T ≤ 64`, `X ≤ 16`) `tolRel` is
+   `1.9–2×` `fineRel`, mostly from the constant `2^-6` (against `fineRel`'s `0.0081`); at the
+   largest covered row (`D = 256`, `T = 1024`, `X = 2^12`) it is `1.4×`.
+
 The bound is provable from `DotBF16`, `ExpF32`, `ExpF32NegInf`, `DivFull` and the library's IEEE
 rounding lemmas (`FloatV.mul_err`, `add_err`, `sub_err`, `cvt_err`, `AddRel.err`, `mulAdd_err`,
 `sum_err_covers`, `DotLift.dotAdd_step`); `ρ < 1/2` on every covered row (`T ≤ 1024`, `X ≤ 2^12`: `ρ ≤ 0.04`).
-Meaningful: `tolRel ≈ 0.85·10^-2` of the weighted mean of `|v|` at the host's sizes, about
-`1.16×` the kernel's worst error on an adversarial input; it grows with `T` because the library's
-`tl.dot` fact charges `130·2^-22` of the accumulator per key block.
+Meaningful: `tolRel ≈ 1.7·10^-2` of the weighted mean of `|v|` at the host's sizes (`fineRel ≈
+0.85·10^-2`); it grows with `T` because the library's `tl.dot` fact charges `130·2^-22` of the
+accumulator per key block.
 
 ## Exclusions
 
@@ -300,7 +332,7 @@ Meaningful: `tolRel ≈ 0.85·10^-2` of the weighted mean of `|v|` at the host's
   million tokens at that shape) reaches it, and the wrapper does not check.
 * **`max_input_len > 2^17`.** The kernel is correct there (up to the `int32` limit), but the
   library's `tl.dot` fact (`130·2^-22` per key block on the accumulator) makes the bound grow with
-  the number of trips: `tolRel ≈ 0.05` at `2^17` tokens, about `0.09` at `2^18`. SETUP.md asks
+  the number of trips: `tolRel ≈ 0.08` at `2^17` tokens, about `0.14` at `2^18`. SETUP.md asks
   for prompts of 1 to thousands of tokens; `2^17` is far beyond. Not a kernel limit.
 * **Contexts longer than `2^22` tokens, batches of more than `8192` (out of scope).** Dimensions
   that are not multiples of 128 or exceed `2^17`, contexts longer than `2^22` tokens, and batches of
@@ -346,14 +378,14 @@ None.
   head, gaps and empty sequences between sequences, `sm_scale = 0.5`, one prompt of `2^17`
   tokens); `Pre` edges (scores scaled 36× to `Xrow` in the hundreds, `|v| ≈ 10^30`,
   `|v| ≈ 10^-37` (subnormal `bfloat16`), and uniform attention with `v` constant, where every
-  `bfloat16` rounding of the weights pushes the same way). Worst error / tolerance `0.859`
-  (margin `1.16×`, the adversarial uniform causal case; `0.80` on the host's own tests, `0.76` on
-  the non-causal launches); largest `tolRel` met `4.7·10^-2` (the `2^17`-token prompt); every
+  `bfloat16` rounding of the weights pushes the same way). Worst error / tolerance `0.434`
+  (margin `2.31×`, the adversarial uniform causal case; `0.40` on the host's own tests, `0.38` on
+  the non-causal launches); largest `tolRel` met `7.9·10^-2` (the `2^17`-token prompt); every
   written element finite, every input unchanged, and every element of `o` outside the sequences
   keeps its initial bits. Head dims 1 and 8 are rejected on the host as expected.
 * **Negative tests**: on the strided causal launch and four non-causal ones (`vit-full`,
   `vit-window`, `vit-mimo`, `vit-scale1`), `Post` rejects an all-zero output, the kernel's output
   in the other mode (causal for a non-causal launch and back), the output without the last key
   block of each row, without the first key, and (grouped heads) with each query head on the
-  wrong key/value head: the smallest worst error / tolerance among them is `2.6` (the first key
+  wrong key/value head: the smallest worst error / tolerance among them is `1.36` (the first key
   left out of 5476 keys).

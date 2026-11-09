@@ -190,22 +190,7 @@ def launch (d : Inst) : Launch where
   fusion := true
   blocks := [[d.BLOCK_M], [d.BLOCK_DIM], [d.BLOCK_M, 1], [1, d.BLOCK_DIM], [d.BLOCK_M, d.BLOCK_DIM]]
 
-/-! ## The specification
-
-The rounding constants are the library's (`Format.binary32`, `Format.bfloat16`: `u`, `eta`). -/
-
-/-- One rounding of `float32`: `2^-24` relative (`Format.binary32.u`), `2^-150` absolute
-(`Format.binary32.eta`). -/
-def u32 : ℚ := 2 ^ (-24 : ℤ)
-def eta32 : ℚ := 2 ^ (-150 : ℤ)
-/-- One rounding of `bfloat16`: `2^-8` relative, `2^-134` absolute. -/
-def ubf : ℚ := 2 ^ (-8 : ℤ)
-def etabf : ℚ := 2 ^ (-134 : ℤ)
-
-theorem u32_eq : u32 = Format.binary32.u := by unfold u32; rw [Format.binary32_u]
-theorem eta32_eq : eta32 = Format.binary32.eta := by unfold eta32; rw [Format.binary32_eta]
-theorem ubf_eq : ubf = Format.bfloat16.u := by unfold ubf; rw [Format.bfloat16_u]
-theorem etabf_eq : etabf = Format.bfloat16.eta := by unfold etabf; rw [Format.bfloat16_eta]
+/-! ## The specification -/
 
 /-- Input `(t, k, j)` as the host's tensor holds it. -/
 def xv (d : Inst) (t k j : Nat) : BF16 := d.inVal (t * d.K * d.D + k * d.D + j)
@@ -224,23 +209,14 @@ def InRange (d : Inst) (t j : Nat) : Prop :=
     (sigma32 d).isFinite = true ∧ absSum d t j ≤ 2 ^ 126 ∧
     |(sigma32 d).toRat| * absSum d t j ≤ 2 ^ 126
 
-/-- The error of the `float32` accumulation of `K` values from `+0` (`K` IEEE additions, a chain
-of depth `K`; `Tree.errBound`): `((1+u)^K − 1)·A + η·K·(1+u)^K`. -/
-def accErr (K : Nat) (A : ℚ) : ℚ := Tree.errBound u32 eta32 K K A
-
-/-- **The tolerance** of an output element, from `S = Σx` (exact), `A = Σ|x|`, `σ` (the double)
-and `σ₃₂` (its `float32` constant):
-* `E1 = accErr K A`, the accumulation's error, so `|acc| ≤ |S| + E1`;
-* `Em = u·|σ₃₂|·(|S| + E1) + η`, one `float32` rounding of `acc·σ₃₂`;
-* `Q = |σ₃₂|·|S| + |σ₃₂|·E1 + Em`, a bound on the product `p`;
-* `Eb = u_bf·Q + η_bf`, one `bfloat16` rounding of `p`;
-* `tol = Eb + Em + |σ₃₂|·E1 + |σ − σ₃₂|·|S|`: the last term is the scale's own conversion
-  (the reference uses the host's double). -/
-def tol (K : Nat) (S A σ σ32 : ℚ) : ℚ :=
-  let E1 := accErr K A
-  let Em := u32 * (|σ32| * (|S| + E1)) + eta32
-  let Q := |σ32| * |S| + |σ32| * E1 + Em
-  (ubf * Q + etabf) + Em + |σ32| * E1 + |σ - σ32| * |S|
+/-- **The tolerance** of an output element, from `S = Σx` (exact), `A = Σ|x|` and `σ` (the
+host's double): one `bfloat16` rounding of the result, `2^-8·|σ·S|`, plus `K·2^-22` of
+`(|σ| + 2^-126)·(A + 2^-126)` (the `float32` accumulation, product and the scale's own `float32`
+conversion, with the magnitudes floored at `float32`'s smallest normal `2^-126`), plus `2^-133`
+(README, Tolerances). -/
+def tol (K : Nat) (S A σ : ℚ) : ℚ :=
+  2 ^ (-8 : ℤ) * |σ * S| + (K : ℚ) * 2 ^ (-22 : ℤ) * ((|σ| + 2 ^ (-126 : ℤ)) * (A + 2 ^ (-126 : ℤ))) +
+    2 ^ (-133 : ℤ)
 
 /-- What the launch leaves: every output element `(t, j)` holds a `bfloat16` value, which, when the
 element is `InRange`, is finite and within `tol` of `σ · Σ_k input[t, k, j]`; every byte outside
@@ -250,7 +226,7 @@ def Post (d : Inst) (init fin : Mem) : Prop :=
       fin.read .bf16 (d.output.ptr (t * d.D + j)).addr = some c ∧
       (InRange d t j → c.isFinite = true ∧
         |c.toRat - (sigma d).toRat * refSum d t j| ≤
-          tol d.K (refSum d t j) (absSum d t j) (sigma d).toRat (sigma32 d).toRat)) ∧
+          tol d.K (refSum d t j) (absSum d t j) (sigma d).toRat)) ∧
     ∀ z, z ∉ d.output.elems {e | e < d.T * d.D} → fin z = init z
 
 def Spec (K : Claim.Behaviour Inst) : Prop := Claim.Meets Inst.ok Pre Post K

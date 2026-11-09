@@ -27,7 +27,7 @@ benchmark and `__main__`.
 ## What you prove
 
 **The goal.** In `Proof.lean`, `theorem Claims.PersistentMatmul.main : Statement` (`Statement`:
-`Claim.lean` line 417). Unfolded (`Claim.Meets`), it says:
+`Claim.lean` line 413). Unfolded (`Claim.Meets`), it says:
 
 ```lean
 ∀ K P, Assumptions K P →
@@ -35,11 +35,11 @@ benchmark and `__main__`.
 ```
 
 for every device behaviour `K` and platform `P` that satisfy `Assumptions`, every covered instance `d`
-(`Inst.ok`, line 209), and every initial memory `init` that `Pre` accepts (line 301), every outcome of
-the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 387).
+(`Inst.ok`, line 209), and every initial memory `init` that `Pre` accepts (line 302), every outcome of
+the launch is a normal end (no fault, no hang) whose final memory `fin` satisfies `Post` (line 383).
 
-**What `Post` asks** (line 387), two parts:
-1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 370). Element
+**What `Post` asks** (line 383), two parts:
+1. for every `i < M`, `j < N`: `OutSpec d init fin i j` (line 366). Element
    `i·stride_cm + j·stride_cn` of `c` reads in `fin` as some `float16` `c`. This holds for every
    element. Only when row `i` of `a` and column `j` of `b` read in `init` as finite values `va k`,
    `vb k` (`k < K`) it also asks for a finite `float32` `v` with
@@ -47,14 +47,14 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
    - if `|dotSum va vb d.K| + tol va vb d.K ≤ Format.binary16.maxVal`: `c` is finite and
      `|c.toRat - dotSum …| ≤ tol … + (|dotSum …| + tol …) * Format.binary16.u + Format.binary16.eta`.
 
-   `dotSum` (line 329) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 362) is
-   `errAt (prodV …) (liftV …) (steps K)`: the recursion `errAt` (line 355) over the
-   `steps K = cdiv(K, 64)` inner steps (line 307), with `rho = relDot16 64`, `alpha = absDot16 64`
-   (lines 311, 314), the exact partial sums `partSum` (line 343) and the steps' lifted magnitudes
-   `stepMag` of `liftV` (lines 346, 339);
+   `dotSum` (line 330) is the exact sum `Σ_k va k·vb k` in the rationals. `tol` (line 358) is
+   `2^-15·accMag va vb K + 2^-112`, where `accMag` (line 353) sums, over the
+   `steps K = cdiv(K, 64)` inner steps (line 308), the exact partial sum's magnitude before the step
+   (`partSum` of `prodV`, lines 344, 334) and the step's lifted magnitude (`stepMag` of `liftV`,
+   lines 347, 340): `Σ_k liftMag(va k)·liftMag(vb k)` plus `Σ_t |S_t|`;
 2. the frame: every byte outside `d.c.elems (cIdx d)` (`cIdx`, line 202) is unchanged.
 
-**What you are given** (`Assumptions`, line 395):
+**What you are given** (`Assumptions`, line 391):
 - `faithful` (`Compiler.Faithful`): the device's outcomes are the model's, for a valid launch with
   `debug = false` that is well behaved from `init`;
 - `dot` (`Rules.Num.DotF16`, a `DotLiftAcc`): the `tl.dot` of source line 345, on a finite row, column and
@@ -63,7 +63,7 @@ the launch is a normal end (no fault, no hang) whose final memory `fin` satisfie
 - `dot_total` (`Rules.Num.DotTotal`): that `tl.dot` always has a result.
 
 **The kernel, as the model runs it** (`matmul_kernel_persistent` line 57, `compute_pid` line 31,
-`model` line 283, `launch` line 294): a 1-D grid of `min(NUM_SMS, tiles d)` programs (`tiles`,
+`model` line 284, `launch` line 295): a 1-D grid of `min(NUM_SMS, tiles d)` programs (`tiles`,
 line 191). Program `start_pid` runs an outer `tl.forRange` over the tiles
 `tile_id = start_pid, start_pid + NUM_SMS, … < num_tiles`. Each trip maps `tile_id` to
 `(pid_m, pid_n)` by `compute_pid`, forms `offs_am`, `offs_bn` (a `where` to `0` outside `M`, `N`),
@@ -75,7 +75,7 @@ again by `compute_pid`, rounds to `float16` and stores the `[128, 256]` tile of 
 of tiles and only read `a` and `b`: the route is `TVA.meets_independent`. The outer loop is
 `safe_forRange` with per-trip footprints `Wt t` (the `c` tile of `start_pid + t·NUM_SMS`),
 disjoint across trips; the inner loop is `safe_forRange` with an invariant on the accumulator
-(each element within `errAt … t` of the partial sum) and `Wt := fun _ => ∅` (`iterW_empty`)
+(each element within `E_t` of the partial sum, `E_t` the recursion of README `## Tolerances`) and `Wt := fun _ => ∅` (`iterW_empty`)
 (PROVER_GUIDE §4).
 
 **What the proof must establish.**
@@ -94,14 +94,16 @@ disjoint across trips; the inner loop is `safe_forRange` with an invariant on th
 - every `K` tile is full: `128 ∣ K` (`K_dim`) and `BLOCK_SIZE_K = 64 ∣ 128`, so the masks of
   source lines 343–344 enable every lane on every step (`K - ki·64 ≥ 64`), `steps K = K/64`, and
   no lane loads `other`; with `M_tile`, `N_tile`, every tile is whole in all three dimensions;
-- the value part of part 1: per inner trip, `safe_dot` with `dot` (and `dot_total`) moves the
-  invariant from `errAt … t` to `errAt … (t + 1)`; `K_le` keeps the room condition; the final
-  rounding is `FloatV.cvt_err`. `## Tolerances` gives the derivation;
+- the value part of part 1, `|v − S| ≤ 2^-15·accMag + 2^-112`: derive the fine bound of README
+  `## Tolerances` (per inner trip, `safe_dot` with `dot` and `dot_total` moves the invariant from
+  `E_t` to `E_{t+1}`; `K_le` keeps the room condition), then relax `E_T` by
+  `(1 + ρ)^T < 1.0021` (`tol_rel_lt`) as `## Tolerances` shows; the final rounding is
+  `FloatV.cvt_err`;
 - the bytes no program writes give part 2.
 
 **Already in `Claim.lean`** (do not prove again): `consistent`, `satisfiable`, `hostInst_ok`
-(line 481) and the `setup_*_ok` theorems; reusable: `tol_rel_lt` (line 319), `row_lt` (line 450),
-`rm_inj` (line 456), `bytes_disjoint` (line 471).
+(line 477) and the `setup_*_ok` theorems; reusable: `tol_rel_lt` (line 320), `row_lt` (line 446),
+`rm_inj` (line 452), `bytes_disjoint` (line 467).
 
 ## Specification
 
@@ -113,7 +115,12 @@ disjoint across trips; the inner loop is `safe_forRange` with an invariant on th
   values `va k` and `vb k` (`k < K`) in the initial memory:
   - `c` is the `float16` rounding (to nearest even, `FloatV.cvt`, up to NaN payload) of a finite
     `float32` value `v` with `|v − S| ≤ E`, where `S = Σ_k va k · vb k` is the exact dot product
-    and `E = tol va vb K` the tolerance of Tolerances below, computed from the inputs;
+    and `E = tol va vb K = 2^-15·accMag + 2^-112`, computed from the inputs:
+    `accMag = Σ_{t < T} (|S_t| + L_t)` over the inner loop's `T = cdiv(K, 64)` steps of `64`
+    products, `S_t` the exact partial sum of the products before step `t`, `L_t` the step's lifted
+    magnitude `Σ liftMag(va k)·liftMag(vb k)` (`liftMag` is `|q|`, or `2^-14` for a nonzero
+    subnormal `q`); so `accMag` is the products' total lifted magnitude plus the partial sums'
+    magnitudes, and at least `|S|`;
   - when `|S| + E ≤ 65504` (the largest `float16`), `c` is finite and
     `|c − S| ≤ E + (|S| + E)·2^-11 + 2^-25` (one more `float16` rounding:
     `Format.binary16.u = 2^-11`, `Format.binary16.eta = 2^-25`).
@@ -146,7 +153,7 @@ likewise for `b` and `c` (`aIdx`, `bIdx`, `cIdx`). `tiles d = cdiv(M, 128)·cdiv
 | `M_le`, `N_le` | `M + 128 ≤ 2^31`, `N + 256 ≤ 2^31` | `M` and `N` are `int32` arguments, and `tl.cdiv` computes `M + 127` and `N + 255` in `int32` (lines 314–315); the tile rows and columns `pid_m·128 + i`, `pid_n·256 + j` then stay below `2^31` |
 | `sms` | `0 < NUM_SMS < 2^31` | the tile loop's step (line 326) is positive (`tl.RangeOk`), and the constexpr is built as an `int32` (lines 321, 326, 347) |
 | `tiles_le` | `tiles + NUM_SMS ≤ 2^31` | the `int32` `num_tiles` (line 317) does not wrap, and `num_tiles + NUM_SMS − 1`, the tile loop's bound (`tl.RangeOk`), is an `int32` |
-| `K_le` | `K ≤ 2^13` | keeps the tolerance meaningful (Tolerances); the setup's largest `K` is `1024` |
+| `K_le` | `K ≤ 2^13` | keeps the tolerance meaningful (Tolerances) and `(1 + ρ)^T < 1.0021`; the setup's largest `K` is `1024` |
 | `N_dim`, `K_dim` | `0 < N`, `0 < K`, each a multiple of `128`, at most `2^17` | `N` and `K` are model dimensions (the output and inner features): real model shapes only (Exclusions) |
 | `M_ctx` | `M ≤ 2^22` | `M` counts tokens: real model shapes only (Exclusions) |
 | `am`, `ak`, `bk`, `bn`, `cm`, `cn` | each stride is below `2^31` | each stride is an `int32` argument (any value from `0`; the kernel has no `tl.assume` on them) |
@@ -260,19 +267,19 @@ aligned addresses; `hostInst_ok`):
 
 ## Tolerances
 
-`tol va vb K = errAt (prodV va vb K) (liftV va vb K) (steps K)` (`Claim.lean`), the error bound of
-the inner loop's `T = steps K = cdiv(K, 64)` steps against the exact partial sums. With
-`p e = va e · vb e` for `e < K` and `0` from `K` on (`prodV`: the lanes the masks disable load
-`+0`), `l e` its lifted magnitude `liftMag(va e)·liftMag(vb e)` (`liftV`; `liftMag q` is `|q|` for
-zero and normal values, `2^-14` for a nonzero subnormal one), `S_t = Σ_{e < 64t} p e` (`partSum`)
-and `L_t = Σ_{64t ≤ e < 64t+64} l e` (`stepMag`):
+`tol va vb K = 2^-15·accMag va vb K + 2^-112` (`Claim.lean`). With `p e = va e · vb e` for `e < K`
+and `0` from `K` on (`prodV`: the lanes the masks disable load `+0`), `l e` its lifted magnitude
+`liftMag(va e)·liftMag(vb e)` (`liftV`; `liftMag q` is `|q|` for zero and normal values, `2^-14`
+for a nonzero subnormal one), `T = steps K = cdiv(K, 64)`, `S_t = Σ_{e < 64t} p e` (`partSum`) and
+`L_t = Σ_{64t ≤ e < 64t+64} l e` (`stepMag`): `accMag = Σ_{t<T} (|S_t| + L_t)`.
 
-`E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + L_t) + α`, `tol = E_T`,
+**The fine bound** (library facts only): the recursion
+
+`E_0 = 0`, `E_{t+1} = (1 + ρ)·E_t + ρ·(|S_t| + L_t) + α`,
 
 that is `E_T = Σ_{t<T} (1 + ρ)^(T−1−t)·(ρ·(|S_t| + L_t) + α)`, with the library's constants for one
-fp16 `tl.dot` of `K = 64`: `ρ = relDot16 64 = 66·2^-22`, `α = absDot16 64 = 66·2^-126`.
-
-**Derivation** (library facts only). For a tile, the inner loop (lines 338–345) starts from
+fp16 `tl.dot` of `K = 64`: `ρ = relDot16 64 = 66·2^-22`, `α = absDot16 64 = 66·2^-126` (`rho`,
+`alpha`). For a tile, the inner loop (lines 338–345) starts from
 `accumulator = 0` (line 337) and its step `t` (`ki = t`) is `acc ← tl.dot(a, b, acc)`, a `float16`
 dot of `64` products with the accumulator as its own (no separate addition): row `i` of `a`'s
 columns `64t … 64t + 63` and column `j` of `b`'s rows `64t … 64t + 63`, the lanes `≥ K` loaded as
@@ -286,18 +293,24 @@ are below `2^32`, so with `K ≤ 2^13` every `|acc| + L_t` and its bound stay fa
 range. The final `.to(tl.float16)` (line 356) is one rounding (`FloatV.cvt_err`, `u = 2^-11`,
 `η = 2^-25`), which gives the second clause. The tile loop only chooses which program computes
 which tile, and each tile's computation is the same, so the bound holds for every element whatever
-`NUM_SMS`. Since `|S_t| + L_t ≤ A` (`A` the sum of all lifted magnitudes),
-`tol ≤ ((1 + ρ)^T − 1)·A + T·(1 + ρ)^T·α`, whose relative factor is below `0.21%` at every covered
-`K` (`tol_rel_lt`).
+`NUM_SMS`.
+
+**The relaxation** `E_T ≤ tol`: every `(1 + ρ)^(T−1−t)` is at most `(1 + ρ)^T < 1.0021`
+(`tol_rel_lt`, `T ≤ 128` from `K ≤ 2^13`), so
+`E_T ≤ 1.0021·ρ·accMag + 1.0021·T·α`; `1.0021·ρ = 1.0021·66·2^-22 < 16.6·2^-20 ≤ 2^-15`, and
+`1.0021·T·α ≤ 1.0021·128·66·2^-126 < 8467·2^-126 < 2^-112`. Since `|S_t| + L_t ≤ A` (`A` the sum of
+all lifted magnitudes), `accMag ≤ T·A` and `tol ≤ T·2^-15·A + 2^-112`, at most `0.4%` of `A` at
+`K = 2^13`.
 
 **Meaningful.** The bound follows the exact partial sums, so on zero-mean data it is far below
-`Σ|a·b|`: on the setup's `torch.randn` inputs its median is `0.0014` at `K = 128` (at most `0.0025`)
-against a median `|S|` of `7.6`, and `0.014` at `K = 1024` (at most `0.035`) against `21.6`.
-`check_gpu.py` measures the device's error at `0.74–0.92` of the tolerance on the setup's launches
-(`0.97` at `K = 1` and `0.98` with subnormal operands, where the output's rounding is the whole
-error), and it checks that three wrong kernels break `Post` at `K = 128, 512, 1024`: the exact
-result rounded to `bfloat16` (largest ratio `24` to `93`), a `float16` accumulator rounded after
-each step (`8` to `10`), and a result missing the last step's products (`3970` and more).
+`T·Σ|a·b|`: on the setup's `torch.randn` inputs `tol/|c|` has median `3.5·10^-4` at `K = 128` and
+`1.2·10^-3` at `K = 1024` (the fine bound `E_T`: `1.8·10^-4` and `6.4·10^-4`; `tol` is `1.94×`
+`E_T`, from `2^-15/ρ`); the worst is where `S` is near `0`. `check_gpu.py` measures the device's
+error at `0.60–0.86` of the tolerance on the setup's launches (`0.94` at `K = 1` and `0.96` with
+subnormal operands, where the output's rounding is the whole error), and it checks that three
+wrong kernels break `Post` at `K = 128, 512, 1024`: the exact result rounded to `bfloat16` (largest
+ratio `12` to `48`), a `float16` accumulator rounded after each step (`4.4` to `5.1`), and a result
+missing the last step's products (`2048` and more).
 
 ## Exclusions
 
@@ -364,8 +377,8 @@ None.
    (grids `1`, `7`, `132`, `40`), a padded or column-major `c` in a guarded buffer and `a` of
    strides `(1, M)`. Both clauses of `OutSpec` checked (the first as: some real `v` within `E` of
    `S` rounds to `c` in `float16`; the check does not snap `v` to the `float32` grid, whose spacing
-   is far below every `E` here): largest error / tolerance **0.977** (margin 0.023, subnormal
-   operands); `0.92` down to `0.74` on the setup's sizes. Negative tests at `K = 128, 512, 1024`: a
+   is far below every `E` here): largest error / tolerance **0.957** (margin 0.043, subnormal
+   operands); `0.86` down to `0.59` on the setup's sizes. Negative tests at `K = 128, 512, 1024`: a
    `bfloat16`-rounded result, a `float16` accumulator and a missing step each break `Post`
    (Tolerances). Inputs unchanged; no byte outside the matrix `c` written. PASS. The launches with
    `K = 4095, 1000, 777, 700, 300, 65, 1, 0` are outside `K_dim`: they check `Post` beyond the
