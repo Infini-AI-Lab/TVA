@@ -194,6 +194,12 @@ every role.
 
     There it runs, in order:
     - `lake build TVA`;
+    - `claims`: `lake env lean` on every `claims/<k>/Claim.lean` of the copy, from `lean/`, against
+      the library just built; the step fails if there is none, or if any exits with an error or
+      prints one (library issue L190). The fixed claims hold no proof, so this checks that each
+      still elaborates, as it did when it was fixed (a library change must keep the 41 claims
+      unaffected, user, 2026-11-10; round 39's `simp` lemmas broke one, L189), not that any holds:
+      the check still checks no claim in L160's sense;
     - `tvr library-check`: the library's hygiene, that `lean/TVA.lean` reaches every library module
       through its imports, and `leanchecker TVA`, which re-checks every library declaration with
       Lean's kernel (L40);
@@ -254,9 +260,17 @@ every role.
     ship, so the shipped configuration declares no kernel's library, library issue L187); no other
     key. `tvr` builds a local kernel with a configuration of its own, `lean/.lake/tvr/lakefile.toml`,
     which it writes afresh (`tvr new`, `tvr check`, `tvr index`) from `lean/lakefile.toml` and one
-    library per kernel folder, exactly `srcDir = "../kernels/<kernel>/lean"` with the kernel's module
-    as its root (a root other than `TVA` and `Mathlib`), and runs as `lake -f` from `lean/`, so the
-    package, its manifest and its build folder are the library's. `leanOptions`, which apply to every module, may set only resource limits, `autoImplicit`,
+    library per kernel folder, exactly `srcDir = "../kernels/<kernel>/lean"` with the first component
+    of the kernel's module as its root, and runs as `lake -f` from `lean/`, so the package, its
+    manifest and its build folder are the library's. Each kernel's root is its own (library issue
+    L191): the gate's `manifest` check, and `tvr new`, refuse a module whose root, compared ignoring
+    case, is another local kernel's module's root, or a root of `TVA`, of Mathlib, of the Lean
+    toolchain (`Init`, `Std`, `Lean`, `Lake` and each top-level `.olean` of the pinned toolchain's
+    `lib/lean`) or of a pinned package (`Batteries`, `Aesop`, `Qq`, `ProofWidgets`, `Plausible`,
+    `ImportGraph`, `LeanSearchClient`, `Cli`, `Archive`, `Counterexamples`, and each top-level module
+    of a package in `lean/.lake/packages`). Two libraries with one root would make
+    `lake build <module>` compile one file for both, into one `.olean`, and the claim reader and
+    `leanchecker` would read another kernel's build. `leanOptions`, which apply to every module, may set only resource limits, `autoImplicit`,
     `relaxedAutoImplicit`, `linter.*` and `pp.*` (library issue L40). There is no `lakefile.lean`.
     The lakefile's `rev` is the release tag of the toolchain's Lean or `master` (library issue L7).
     In `lake-manifest.json` the only direct package is Mathlib, from its own repository, with the

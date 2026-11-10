@@ -9,7 +9,7 @@ States: `OPEN` (to be fixed in the round named), `ACCEPTED` (fixed, and accepted
 review), `FIXED` (fixed in a round that no library review followed, by the user's decision under
 L36: rounds 21 to 23 and 26 to 28; the fixes of rounds 24 and 25 were reviewed later; and round 38, the
 final fix, by the user's decision of 2026-11-08: "let's run up to round37, and file a final fix without further
-review"), `CLOSED` (settled by the coordinator, as its section says).
+review"; and round 42, the final fix after round 41's review, by the user's decision of 2026-11-10: "review round 41. and then do a final fix"), `CLOSED` (settled by the coordinator, as its section says).
 
 The kernels of the first round (vec-add, grouped GEMM, flash attention) were cleared on
 2026-10-27 at the user's request, to restart from scratch. The issues they raised stand on their
@@ -200,12 +200,17 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L181](#l181) | ACCEPTED | 40 | library review round 39 (lr-39a) | gap: `Tile2`'s load, store and footprint lemmas require `e + (M-1)·s0 + (N-1)·s1 < b.len`, false for an empty tile at the end of its buffer |
 | [L182](#l182) | ACCEPTED | 40 | library review round 39 (lr-39a) | wording: `Recurrence.exp_sub_mem_Ioc`'s docstring points to `perturb_le_sum`, which bounds the computed decay, not the exact one |
 | [L183](#l183) | ACCEPTED | 40 | library review round 39 (lr-39a) | wording: `Tile2.start_arange64_toInt` states the `castInt` form a faithful transcription (`tl.convert`) never reaches; four `Tile2` integer lemmas repeat `IntW` ones |
-| [L184](#l184) | OPEN | 41 | library review round 40 (lr-40a) | gap: `Tile2` fixes each row lane to `r0 + i`, so the tutorial-03 rows `(pid*BM + arange) % M` (no row mask) are out of its reach |
-| [L185](#l185) | OPEN | 41 | library review round 40 (lr-40a) | wording: `Tensor.castInt`, `IntV.cast` and `Tensor.get1_castInt` disagree on whether `castInt` is `.to(tl.int64)`; no lemma links `ConvRel` and `IntV.cast` |
-| [L186](#l186) | OPEN | 41 | library review round 40 (lr-40b); coordinator's release check | gap: the release check's `audit` cannot pass: `cited_files` runs `git ls-files`, and the release copy has no `.git` |
-| [L187](#l187) | OPEN | 41 | library review round 40 (lr-40b) | gap: the shipped TVA fails its own audit (37 kernel `lean_lib`s with no folder; links to `kernels/README.md`), and the local audit checks citation targets against the local tree, so it cannot see it |
-| [L188](#l188) | OPEN | 41 | library review round 40 (lr-40b) | wording: REVIEW_PROTOCOL §2, LIBRARY_REVIEW's gate row, LIBRARY.md and README.md still describe `kernels/` as shipped and read by the release check |
-| [L189](#l189) | OPEN | 41 | coordinator, round 41 | soundness: round 39's `simp` lemmas `DType.ofBits_*` (`FloatFacts`) broke a fixed claim: `claims/layer_norm_fwd_f16/Claim.lean` no longer elaborated (`zero16_facts`) |
+| [L184](#l184) | ACCEPTED | 41 | library review round 40 (lr-40a) | gap: `Tile2` fixes each row lane to `r0 + i`, so the tutorial-03 rows `(pid*BM + arange) % M` (no row mask) are out of its reach |
+| [L185](#l185) | ACCEPTED | 41 | library review round 40 (lr-40a) | wording: `Tensor.castInt`, `IntV.cast` and `Tensor.get1_castInt` disagree on whether `castInt` is `.to(tl.int64)`; no lemma links `ConvRel` and `IntV.cast` |
+| [L186](#l186) | ACCEPTED | 41 | library review round 40 (lr-40b); coordinator's release check | gap: the release check's `audit` cannot pass: `cited_files` runs `git ls-files`, and the release copy has no `.git` |
+| [L187](#l187) | ACCEPTED | 41 | library review round 40 (lr-40b) | gap: the shipped TVA fails its own audit (37 kernel `lean_lib`s with no folder; links to `kernels/README.md`), and the local audit checks citation targets against the local tree, so it cannot see it |
+| [L188](#l188) | ACCEPTED | 41 | library review round 40 (lr-40b) | wording: REVIEW_PROTOCOL §2, LIBRARY_REVIEW's gate row, LIBRARY.md and README.md still describe `kernels/` as shipped and read by the release check |
+| [L189](#l189) | ACCEPTED | 41 | coordinator, round 41 | soundness: round 39's `simp` lemmas `DType.ofBits_*` (`FloatFacts`) broke a fixed claim: `claims/layer_norm_fwd_f16/Claim.lean` no longer elaborated (`zero16_facts`) |
+| [L190](#l190) | FIXED | 42 | library review round 41 (lr-41a, lr-41b) | gap: nothing checks that the 41 fixed claims still elaborate; a round-39-style break passes `tvr release` |
+| [L191](#l191) | FIXED | 42 | library review round 41 (lr-41a) | soundness: two local kernels whose modules share a root make `tvr check` build only one, so a kernel's own Lean is never compiled and its gate reports another kernel's claim |
+| [L192](#l192) | FIXED | 42 | library review round 41 (lr-41b) | gap: `Tile2.col_toInt` and `row_toInt` (no stride) take only `r0 + i`, `c0 + j` lanes, unlike the strided terms L184 generalised |
+| [L193](#l193) | FIXED | 42 | library review round 41 (lr-41b) | wording: the `safe_convert_iff` example in `IntW`'s L185 section does not elaborate |
+| [L194](#l194) | FIXED | 42 | library review round 41 (lr-41a) | wording: `docs/PROVER_GUIDE.md:34` and `docs/DESIGN.md:124` give `kernels/vec_add_f32/lean/VecAdd.lean`, which does not ship, as the worked example; DESIGN.md's layout lists `kernels/` with no note that it is local |
 
 ## L1
 
@@ -3072,22 +3077,76 @@ the lemmas through it, and name the kernels that no longer build. Round 34.
 
 **`Tile2` for rows that are not `r0 + i`** (gap; lr-40a, round 40). `Tile2.Elem`, `MaskOk` and every lane lemma fix row lane `i` to `r0 + i` (and column `j` to `c0 + j`). Tutorial 03's `offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M` (no row mask; row `(r0 + i) % M`), and the same with `% N` in `int64`, are out of reach, so such a kernel re-derives its tile footprint and load. Generalise `Tile2` (`Elem`, `MaskOk`, the lane, footprint and load/store rules) to row and column lane values `ρ i`, `κ j`, of which `r0 + i` is one instance, and add a lane lemma for `tl.irem (r0 + tl.arange) M` (`ρ i = (r0 + i) % M < M`). Round 41.
 
+**Round 41 fix**: see [round-41/author/notes.md](round-41/author/notes.md).
+
+**Round 41 review** (lr-41a ACCEPT, lr-41b ACCEPT).
+
 ## L185
 
 **One meaning for the integer cast** (wording; lr-40a, round 40). `Tensor.castInt` (`lean/TVA/Lang/Tensor.lean`) and `IntV.cast` (`lean/TVA/Lang/Scalar.lean`) say `castInt` is `x.to(tl.int64)`; round 40's `Tensor.get1_castInt` (`lean/TVA/Lemmas/IntW.lean`) says it is not, and that `.to(…)` and the promotion are `tl.convert`. Both are right in value: for integer dtypes other than `int1`, `ConvRel`'s only result is `IntV.cast` of the operand (lr-40a `work/Probes.lean` proves `ConvRel P .i32 .i64 a (IntV.cast a)`). Make the three docstrings agree, and state the bridge as a lemma (e.g. `ConvRel P d d' x r ↔ r = IntV.cast x` for integer `d`, `d'` other than `int1`), so a prover can move between the two forms and a reviewer accept either transcription. Round 41.
+
+**Round 41 fix**: see [round-41/author/notes.md](round-41/author/notes.md).
+
+**Round 41 review** (lr-41a ACCEPT, lr-41b ACCEPT).
 
 ## L186
 
 **The release check's audit and `git`** (gap; lr-40b, round 40, and the coordinator's release check of the same commit). The commit that stopped tracking `kernels/` made `cited_files` (`tools/tvr.py`) call `shipped_files()`, which runs `git ls-files`. The release copy has no `.git`, and inside the sandbox `system_tool("git")` refuses `/usr/bin/git`, so the release's `audit` step stops (`git ls-files failed`). When there is no `.git`, read every Markdown and Lean file (the copy holds only what ships), as `main` already does for `shipped_problems`. Round 41.
 
+**Round 41 fix**: see [round-41/author/notes.md](round-41/author/notes.md).
+
+**Round 41 review** (lr-41a ACCEPT, lr-41b ACCEPT).
+
 ## L187
 
 **The shipped TVA and its audit** (gap; lr-40b, round 40). After `kernels/` stopped shipping: `lean/lakefile.toml` still lists 37 kernel `lean_lib`s (`srcDir = "../kernels/<k>/lean"`), which `lake_violations` refuses with no kernel folder; `README.md` and `docs/LIBRARY.md` link to `kernels/README.md`. `tvr audit` in a fresh git copy reports 39 problems, but prints `independent` in the working tree, because `citation_problems` checks a target against the local tree (where the git-ignored `kernels/` remains). Remove the kernel `lean_lib`s from the shipped lakefile (and keep `tvr new`'s additions out of it), point the two links elsewhere, and in a git checkout have a cited TVA file count only when it ships. Round 41.
+
+**Round 41 fix**: see [round-41/author/notes.md](round-41/author/notes.md).
+
+**Round 41 review** (lr-41a ACCEPT, lr-41b ACCEPT).
 
 ## L188
 
 **Documents that describe `kernels/` as shipped** (wording; lr-40b, round 40). REVIEW_PROTOCOL.md §2 ("Of `kernels/` the check still reads each kernel's review records…", "Every file under `kernels/` is scanned"), LIBRARY_REVIEW.md's `gate` row, LIBRARY.md ("Build: … one library per kernel folder", the "Kernels" section) and README.md ("Kernels: …"). `kernels/` is now local and not shipped (user decision 2026-11-10: "let's just git ignore kernels and remove on the remote site"); the release check reads none of it. Say so. Round 41.
 
+**Round 41 fix**: see [round-41/author/notes.md](round-41/author/notes.md).
+
+**Round 41 review** (lr-41a ACCEPT, lr-41b ACCEPT).
+
 ## L189
 
 **A `simp` lemma that broke a fixed claim** (soundness; coordinator, round 41). Round 39 made `DType.ofBits_f16` … `DType.ofBits_f8e4nv` (`TVA.Lemmas.FloatFacts`: `DType.ofBits d n = ofPat n`) `simp` lemmas. `claims/layer_norm_fwd_f16/Claim.lean` proves `zero16_facts` with `simp [FloatV.toReal, h]`, where `h` is stated on `DType.ofBits .f16 …`. The new lemmas rewrite the goal to `ofPat …` first, so `h` no longer applies and the claim stops elaborating: a fixed claim (pinned by its sha256) became unbuildable through an additive change. It elaborates against the library before round 39 (the claim image of that revision) and fails from round 39 on. The 40 other claims were not affected. Round 41 (coordinator's fix): the six lemmas are no longer `simp` (still stated, cited by name); `lake build TVA` is green and all 41 `claims/*/Claim.lean` elaborate with no error. A library change must keep every fixed claim elaborating (user, 2026-11-10: "we should keep the 41 claims unaffected"). Round 41.
+
+**Round 41 fix**: see [round-41/author/notes.md](round-41/author/notes.md).
+
+**Round 41 review** (lr-41a ACCEPT, lr-41b ACCEPT).
+
+## L190
+
+**The fixed claims elaborate** (gap; lr-41a, lr-41b, round 41). The user requires that library changes keep the 41 fixed claims unaffected (2026-11-10), but no step elaborates a `claims/*/Claim.lean`: `tvr release` builds `TVA` in a sandbox that ships `claims/`, and `tvr library-check` reads none of them, so round 39's break (L189) passed two reviews unseen. Add a release step after `build` that runs `lake env lean` on every `claims/*/Claim.lean` in the sandbox and fails on any error (it checks only that each claim elaborates, not a proof, so the release still "checks no claim" in L160's sense), and list it in REVIEW_PROTOCOL §2 and LIBRARY_REVIEW's `gate` row and reviewer checklist. Round 42.
+
+**Round 42 fix** (FIXED, no review followed: the final fix, user decision 2026-11-10, "review round 41. and then do a final fix"): see [round-42/author/notes.md](round-42/author/notes.md).
+
+## L191
+
+**Two local kernels with the same module root** (soundness; lr-41a, round 41). `kernel_lakefile` (`tools/tvr.py`) declares one `lean_lib` per local kernel with `roots = [<module's first component>]`, and neither it, `manifest_problems` nor `check` refuses two kernels whose modules share a root. Then `lake build <Module>` compiles one file (the library listed last), both write the same `.olean`, and the claim reader and `leanchecker` read that build: a copy of `vec_add_f32` with `(1 : Nat) = 2 := rfl` appended passed all 13 checks with `vec_add_f32`'s digest (lr-41a `work/same_root.py`). Refuse a module whose root is another local kernel's, or a root of Lean or of a pinned package (`Init`, `Lean`, `Std`, `Lake`, `Batteries`, `Aesop`, …), or build each kernel with a configuration that declares `TVA` and that kernel alone; say which in REVIEW_PROTOCOL §2 ("Lake"). Round 42.
+
+**Round 42 fix** (FIXED, no review followed: the final fix, user decision 2026-11-10, "review round 41. and then do a final fix"): see [round-42/author/notes.md](round-42/author/notes.md).
+
+## L192
+
+**`Tile2`'s unit-stride terms** (gap; lr-41b, round 41). `Tile2.col_toInt` and `row_toInt` (`rows[:, None]`, `cols[None, :]` with no stride) take only `r0 + i` and `c0 + j` lanes, while `add_toInt_on`'s docstring offers `col_toInt` as the row term for enabled lanes; a `% N` column used without a stride needs a hand proof (lr-41b `work/UnitStride.lean`). State them (or `…_on` forms) for any `ρ`, `κ`, as L184 did for the strided terms. Round 42.
+
+**Round 42 fix** (FIXED, no review followed: the final fix, user decision 2026-11-10, "review round 41. and then do a final fix"): see [round-42/author/notes.md](round-42/author/notes.md).
+
+## L193
+
+**The `safe_convert_iff` example** (wording; lr-41b, round 41). The example in `lean/TVA/Lemmas/IntW.lean`'s section "The integer cast (library issue L185)", `safe_convert_iff (fun i r => ConvRel.iff_cast_i32_i64) (y := x.castInt)`, does not elaborate (`(y := …)` is elaborated before `d'` is known); `safe_convert_iff fun _ _ => ConvRel.iff_cast_i32_i64` works (lr-41b `work/Variant.lean`). Write that form. Round 42.
+
+**Round 42 fix** (FIXED, no review followed: the final fix, user decision 2026-11-10, "review round 41. and then do a final fix"): see [round-42/author/notes.md](round-42/author/notes.md).
+
+## L194
+
+**Guidance that points into `kernels/`** (wording; lr-41a, round 41). `docs/PROVER_GUIDE.md:34` and `docs/DESIGN.md:124` give `kernels/vec_add_f32/lean/VecAdd.lean`, which does not ship (L187, L188), as the worked example of a whole claim, and `docs/DESIGN.md:60`'s layout lists `../kernels/` with no note that it is local; the citation check misses them (code spans). Point the example at a file that ships, or say it is local only, and mark `kernels/` local in the layout. Round 42.
+
+**Round 42 fix** (FIXED, no review followed: the final fix, user decision 2026-11-10, "review round 41. and then do a final fix"): see [round-42/author/notes.md](round-42/author/notes.md).

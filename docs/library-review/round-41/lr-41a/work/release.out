@@ -1,0 +1,12 @@
+PASS  shipped: 1944 files; none in a folder the text scan skips
+PASS  packages: every package of lean/lake-manifest.json made afresh from its upstream repository: Mathlib's commit is its inputRev's, the inherited packages are those Mathlib's manifest pins, every file is its commit's blob, and no build output
+PASS  sandbox: shows only the copy, /usr, /etc (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only, no link) and the system's /usr/bin/python3.12; no network
+sandbox <dir>: 1944 shipped files; an allowlist sandbox (bwrap), no network
+PASS  build: lake build TVA (Mathlib built from its pinned source)
+PASS  library: library hygiene; leanchecker TVA re-checks every library declaration
+PASS  records: every recorded file is as its ledger recorded it, nothing was added to a recorded folder, every event follows from a recorded file and every kernel's role folder from its events, and every library round before the last is recorded
+PASS  lint library 41 author: regular
+FAIL  lint library 41 lr-41a: - docs/library-review/round-41/lr-41a/report.md: placeholders (TODO) are left | - docs/library-review/round-41/lr-41a/report.md § Verdicts: `- **L<n>** ACCEPT — <reason>` or `REOPEN — <what is wrong>`: '**L184** TODO — TODO' | - docs/library-review/round-41/lr-41a/report.md § Verdicts: `- **L<n>** A
+FAIL  lint library 41 lr-41b: - docs/library-review/round-41/lr-41b/report.md: placeholders (TODO) are left | - docs/library-review/round-41/lr-41b/report.md § Verdicts: `- **L<n>** ACCEPT — <reason>` or `REOPEN — <what is wrong>`: '**L184** TODO — TODO' | - docs/library-review/round-41/lr-41b/report.md § Verdicts: `- **L<n>** A
+PASS  audit: independent
+release check FAIL (8 of 10 steps pass); release.json is in <dir>, the --dir folder (the sandbox was removed; --keep keeps it)

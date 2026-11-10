@@ -1,0 +1,69 @@
+run 2026-11-10T20:34Z
+  int8 -> int8      256 values, mismatches 0
+  int8 -> int16     256 values, mismatches 0
+  int8 -> int32     256 values, mismatches 0
+  int8 -> int64     256 values, mismatches 0
+  int8 -> uint8     256 values, mismatches 0
+  int8 -> uint16    256 values, mismatches 0
+  int8 -> uint32    256 values, mismatches 0
+  int8 -> uint64    256 values, mismatches 0
+ int16 -> int8    65536 values, mismatches 0
+ int16 -> int16   65536 values, mismatches 0
+ int16 -> int32   65536 values, mismatches 0
+ int16 -> int64   65536 values, mismatches 0
+ int16 -> uint8   65536 values, mismatches 0
+ int16 -> uint16  65536 values, mismatches 0
+ int16 -> uint32  65536 values, mismatches 0
+ int16 -> uint64  65536 values, mismatches 0
+ int32 -> int8    20182 values, mismatches 0
+ int32 -> int16   20182 values, mismatches 0
+ int32 -> int32   20182 values, mismatches 0
+ int32 -> int64   20182 values, mismatches 0
+ int32 -> uint8   20182 values, mismatches 0
+ int32 -> uint16  20182 values, mismatches 0
+ int32 -> uint32  20182 values, mismatches 0
+ int32 -> uint64  20182 values, mismatches 0
+ int64 -> int8    20374 values, mismatches 0
+ int64 -> int16   20374 values, mismatches 0
+ int64 -> int32   20374 values, mismatches 0
+ int64 -> int64   20374 values, mismatches 0
+ int64 -> uint8   20374 values, mismatches 0
+ int64 -> uint16  20374 values, mismatches 0
+ int64 -> uint32  20374 values, mismatches 0
+ int64 -> uint64  20374 values, mismatches 0
+ uint8 -> int8      256 values, mismatches 0
+ uint8 -> int16     256 values, mismatches 0
+ uint8 -> int32     256 values, mismatches 0
+ uint8 -> int64     256 values, mismatches 0
+ uint8 -> uint8     256 values, mismatches 0
+ uint8 -> uint16    256 values, mismatches 0
+ uint8 -> uint32    256 values, mismatches 0
+ uint8 -> uint64    256 values, mismatches 0
+uint16 -> int8    65536 values, mismatches 0
+uint16 -> int16   65536 values, mismatches 0
+uint16 -> int32   65536 values, mismatches 0
+uint16 -> int64   65536 values, mismatches 0
+uint16 -> uint8   65536 values, mismatches 0
+uint16 -> uint16  65536 values, mismatches 0
+uint16 -> uint32  65536 values, mismatches 0
+uint16 -> uint64  65536 values, mismatches 0
+uint32 -> int8    20182 values, mismatches 0
+uint32 -> int16   20182 values, mismatches 0
+uint32 -> int32   20182 values, mismatches 0
+uint32 -> int64   20182 values, mismatches 0
+uint32 -> uint8   20182 values, mismatches 0
+uint32 -> uint16  20182 values, mismatches 0
+uint32 -> uint32  20182 values, mismatches 0
+uint32 -> uint64  20182 values, mismatches 0
+uint64 -> int8    20374 values, mismatches 0
+uint64 -> int16   20374 values, mismatches 0
+uint64 -> int32   20374 values, mismatches 0
+uint64 -> int64   20374 values, mismatches 0
+uint64 -> uint8   20374 values, mismatches 0
+uint64 -> uint16  20374 values, mismatches 0
+uint64 -> uint32  20374 values, mismatches 0
+uint64 -> uint64  20374 values, mismatches 0
+irem rows: 53760 lanes, mismatches 0
+casts: 1701568 conversions, mismatches 0
+triton 3.8.0 torch 2.11.0+cu130 gpu NVIDIA H200 NVL
+exit 0

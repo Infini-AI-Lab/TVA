@@ -1,0 +1,7 @@
+UnitStride.lean:11:15: error: Type mismatch
+  row_toInt ?m.57 i j
+has type
+  ((Tensor.row ?m.55 BM).get2 i j).toInt = ↑((?m.54 + ↑j) * 1)
+but is expected to have type
+  IntV.toInt ((cols.row BM).get2 i j) = ↑((c0 + ↑j) % N * 1)
+exit 1

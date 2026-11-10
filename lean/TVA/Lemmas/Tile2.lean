@@ -33,7 +33,9 @@ pointer is `b.ptr e`), and the mask enables it when `r0 + i < M` and `c0 + j < N
   (`off_toInt_on`, `add_toInt_on`, `colMul_toInt_on`, `mulCol_toInt_on`, `rowMul_toInt_on`,
   `mulRow_toInt_on`): a masked-off lane's offset may wrap, since nothing uses it. The `…_on` forms
   take rows and columns of any form, lane values `ρ i` and `κ j` (library issue L184), of which
-  `r0 + i` and `c0 + j` are one instance and `(r0 + i) % M` another;
+  `r0 + i` and `c0 + j` are one instance and `(r0 + i) % M` another; so do the unit-stride terms
+  `col_toInt` and `row_toInt` (`rows[:, None]`, `cols[None, :]`, lane `ρ i * 1`, `κ j * 1`, on every
+  lane, library issue L192);
 * **pointers** (`Tile2.ptr_lane`, `ptr_lane_seq`, and `ptr_lane_sum_of`, `ptr_lane_seq_of` for any
   form of the two terms, `ptr_lane_sum_swap_of`, `ptr_lane_seq_swap_of` with the column term
   first; on the enabled lanes, from the matrix's bound, the same names with `_on`): the pointer
@@ -181,10 +183,13 @@ theorem mulCol_toInt {rows : Tensor [BM] (IntV true w)} {a : IntV true w}
   rw [show (((r0 + i) * s0 : Nat) : Int) = ((s0 * (r0 + i) : Nat) : Int) by rw [Nat.mul_comm]]
   exact IntV.mul_nat ha (hr i) (by rw [Nat.mul_comm]; exact lt_of_le_of_lt (row_le i.isLt s0) hfit)
 
-/-- `rows[:, None]` with a unit row stride: lane `(i, j)` is `(r0 + i) * 1`. -/
+/-- `rows[:, None]` with a unit row stride, rows of any form (library issue L192): lane `(i, j)` is
+`ρ i * 1`, on every lane, with no bound (nothing is multiplied). `ρ i = r0 + i` is one instance (a
+caller with `hr : ∀ i, (rows.get1 i).toInt = ((r0 + i : Nat) : Int)` gets `(r0 + i) * 1`), and
+`ρ i = (r0 + i) % M` another (`irem_toInt`). -/
 theorem col_toInt {rows : Tensor [BM] (IntV true w)}
-    (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int)) (i : Fin BM) (j : Fin BN) :
-    ((rows.col BN).get2 i j).toInt = (((r0 + i) * 1 : Nat) : Int) := by
+    (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((ρ i : Nat) : Int)) (i : Fin BM) (j : Fin BN) :
+    ((rows.col BN).get2 i j).toInt = ((ρ i * 1 : Nat) : Int) := by
   rw [Nat.mul_one]; exact hr i
 
 /-- `cols[None, :] * a` (`cols.row BM * a`): lane `(i, j)` is `(c0 + j) * s1`. -/
@@ -202,10 +207,13 @@ theorem mulRow_toInt {cols : Tensor [BN] (IntV true w)} {a : IntV true w}
   rw [show (((c0 + j) * s1 : Nat) : Int) = ((s1 * (c0 + j) : Nat) : Int) by rw [Nat.mul_comm]]
   exact IntV.mul_nat ha (hc j) (by rw [Nat.mul_comm]; exact lt_of_le_of_lt (row_le j.isLt s1) hfit)
 
-/-- `cols[None, :]` with a unit column stride: lane `(i, j)` is `(c0 + j) * 1`. -/
+/-- `cols[None, :]` with a unit column stride, columns of any form (library issue L192): lane
+`(i, j)` is `κ j * 1`, on every lane, with no bound. `κ j = c0 + j` is one instance (a caller with
+`hc : ∀ j, (cols.get1 j).toInt = ((c0 + j : Nat) : Int)` gets `(c0 + j) * 1`), and
+`κ j = (c0 + j) % N` another. -/
 theorem row_toInt {cols : Tensor [BN] (IntV true w)}
-    (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int)) (i : Fin BM) (j : Fin BN) :
-    ((cols.row BM).get2 i j).toInt = (((c0 + j) * 1 : Nat) : Int) := by
+    (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((κ j : Nat) : Int)) (i : Fin BM) (j : Fin BN) :
+    ((cols.row BM).get2 i j).toInt = ((κ j * 1 : Nat) : Int) := by
   rw [Nat.mul_one]; exact hc j
 
 /-- **The sum of a row term and a column term** (`x + y`, any form of either): lane `(i, j)` is
@@ -278,8 +286,9 @@ theorem mulRow_toInt_on {cols : Tensor [BN] (IntV true w)} {a : IntV true w}
 /-- **The sum of a row term and a column term on an enabled lane** (`ρ i < M`, `κ j < N`):
 `ρ i * s0 + κ j * s1`, with no overflow when the matrix's largest offset,
 `(M - 1) * s0 + (N - 1) * s1`, is below `2^(w-1)`. The row term need hold only on rows in the
-matrix (`colMul_toInt_on`, `mulCol_toInt_on`; `fun i j _ => col_toInt hr i j`), the column term
-only on columns in it. -/
+matrix (`colMul_toInt_on`, `mulCol_toInt_on`; with a unit stride `fun i j _ => col_toInt hr i j`),
+the column term only on columns in it (`rowMul_toInt_on`, `mulRow_toInt_on`;
+`fun i j _ => row_toInt hc i j`). -/
 theorem add_toInt_on {x y : Tensor [BM, BN] (IntV true w)}
     (hx : ∀ (i : Fin BM) (j : Fin BN), ρ i < M → (x.get2 i j).toInt = ((ρ i * s0 : Nat) : Int))
     (hy : ∀ (i : Fin BM) (j : Fin BN), κ j < N → (y.get2 i j).toInt = ((κ j * s1 : Nat) : Int))

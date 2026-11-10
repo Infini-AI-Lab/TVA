@@ -1,0 +1,11 @@
+152 names checked, 10 errors
+_unsigned | (lean.unknownIdentifier): Unknown identifier `_unsigned`
+_unsigned_le | (lean.unknownIdentifier): Unknown identifier `_unsigned_le`
+add_nat | : Ambiguous term
+i | (lean.unknownIdentifier): Unknown identifier `i`
+mul_nat | : Ambiguous term
+sfits_iff | : Ambiguous term
+sfits_natCast | : Ambiguous term
+sfits_of_nonneg | : Ambiguous term
+sub_nat | : Ambiguous term
+w | (lean.unknownIdentifier): Unknown identifier `w`

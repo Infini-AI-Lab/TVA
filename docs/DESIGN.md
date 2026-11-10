@@ -57,7 +57,9 @@ TVA/Rules/       trusted rules (Compiler.Faithful) and facts about P (Num)
 TVA/Lemmas/      proof kit: Safe, per-op rules, Buf, Access, Block, BlockPtr, Desc, Scan,
                  Scaled, Random, Layout, Int, Num, Tree, Sum, Independent, Shared, Claim,
                  Consistency
-../kernels/      one folder per proved kernel: Lean bundle, source, write-up, evidence, review
+../claims/       the fixed claims: model, conditions, specification, assumptions (no proof)
+../kernels/      local only (git-ignored, not shipped): one folder per proved kernel: Lean bundle,
+                 source, write-up, evidence, review
 ```
 
 **Shallow values, deep effects.** Tensors, integers and floats are ordinary Lean values, and
@@ -120,9 +122,6 @@ are in [SEMANTICS.md](SEMANTICS.md).
    footprint, the launch is well behaved and cannot hang. Its final memory then agrees with each
    program's solo run on that program's footprint, and with the initial memory elsewhere.
 3. **Claim.** `meets_independent` combines (2) with `Compiler.Faithful` into `Meets ok Pre Post K`.
-
-`kernels/vec_add_f32/lean/VecAdd.lean` follows this route end to end. Its main theorem depends only
-on `propext`, `Classical.choice` and `Quot.sound`.
 
 Kernels whose programs share memory only through `acq_rel` atomics (split-K `atomic_add`,
 histograms, global counters whose value is not used to choose what to touch) use the second

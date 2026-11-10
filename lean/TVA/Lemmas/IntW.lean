@@ -850,7 +850,9 @@ Between two integer dtypes other than `int1`, `ConvRel`'s only result is `IntV.c
 (`IntV.cast_eq_ofInt`: the cast is the value modulo `2^w'`, which `ofIntRel` gives). So
 `tl.convert d d' x` (the model of `x.to(d')` and of an implicit promotion) has exactly one result,
 `x.castInt`: `safe_convert_iff` with `iff_cast_<d>_<d'>` turns one form into the other, as
-`safe_convert_iff (fun i r => ConvRel.iff_cast_i32_i64) (y := x.castInt)`. -/
+`safe_convert_iff fun _ _ => ConvRel.iff_cast_i32_i64`, which proves
+`Safe E R W Q m (tl.convert .i32 .i64 x >>= k) ↔ Safe E R W Q m (k x.castInt)` at any shape, `y`
+taken from the goal (library issue L193). -/
 
 theorem iff_cast_i8_i8 {x : I8} {r : I8} : ConvRel P .i8 .i8 x r ↔ r = IntV.cast x := by
   rw [IntV.cast_eq_ofInt]; exact Iff.rfl

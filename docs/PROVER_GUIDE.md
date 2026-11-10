@@ -31,7 +31,10 @@ whether it follows a pattern.
 | **Assumptions** | `structure Assumptions K P`: `[rule]` fields cite the library, `[kernel]` fields are facts about your own values (closed statements, which `consistent` proves) | kernel reviewer (`RULE_MISCITED`; `ASSUMPTION_*` for `[kernel]`) |
 | **Proof** | `theorem main : ∀ K P, Assumptions K P → Spec K` | Lean |
 
-`kernels/vec_add_f32/lean/VecAdd.lean` has all four for tutorial 01.
+`claims/vec_add_f32/Claim.lean` has the first three for tutorial 01 (the model, the specification,
+the assumptions, and the `Statement` they make), with `consistent`; it holds no proof. In a claim task
+the same claim is in the task's worked example, `examples/vec_add_f32/` beside these docs, with its
+complete proof, `Proof.lean`: all four, `theorem main` included.
 
 ## 1. The model
 

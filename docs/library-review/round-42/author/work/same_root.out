@@ -1,0 +1,39 @@
+## A1: vec_add_aa, module VecAdd (vec_add_f32's root)
+$ tools/tvr.py check vec_add_aa  (exit 1)
+FAIL  manifest   kernel.json: lean.module's root 'VecAdd' is also the root of kernels/vec_add_f32's module 'VecAdd': two kernels whose modules share a root build one file for both (library issue L191)
+gate FAIL (nothing else runs on this manifest)
+
+## A2: vec_add_f32, while vec_add_aa shares its root
+$ tools/tvr.py check vec_add_f32  (exit 1)
+FAIL  manifest   kernel.json: lean.module's root 'VecAdd' is also the root of kernels/vec_add_aa's module 'VecAdd': two kernels whose modules share a root build one file for both (library issue L191)
+gate FAIL (nothing else runs on this manifest)
+
+## B: vec_add_aa, module VecAddAa (its own root), the appended theorem
+$ tools/tvr.py check vec_add_aa  (exit 1)
+PASS  manifest   kernel.json: the module and namespace are plain names, the files are in the kernel folder, the ranges are line pairs
+FAIL  build      lake build VecAddAa: error: ../kernels/vec_add_aa/lean/VecAddAa.lean:323:0: Not a definitional equality: the left-hand side | error: ../kernels/vec_add_aa/lean/VecAddAa.lean:323:49: Type mismatch
+FAIL  replay     not run (the build did not run or failed)
+FAIL  shape      not checked (the build did not run or failed)
+gate FAIL  digest e3b0c44298fc1c14
+
+## C: vec_add_aa, module Aesop.VecAdd
+$ tools/tvr.py check vec_add_aa  (exit 1)
+FAIL  manifest   kernel.json: lean.module's root 'Aesop' is taken ('Aesop', a root of TVA, Mathlib, the Lean toolchain or a pinned package): a kernel's module needs a root of its own (library issue L191)
+gate FAIL (nothing else runs on this manifest)
+
+## C: vec_add_aa, module std.VecAdd
+$ tools/tvr.py check vec_add_aa  (exit 1)
+FAIL  manifest   kernel.json: lean.module's root 'std' is taken ('Std', a root of TVA, Mathlib, the Lean toolchain or a pinned package): a kernel's module needs a root of its own (library issue L191)
+gate FAIL (nothing else runs on this manifest)
+
+## C: vec_add_aa, module TVA.VecAdd
+$ tools/tvr.py check vec_add_aa  (exit 1)
+FAIL  manifest   kernel.json: lean.module's root 'TVA' is taken ('TVA', a root of TVA, Mathlib, the Lean toolchain or a pinned package): a kernel's module needs a root of its own (library issue L191)
+gate FAIL (nothing else runs on this manifest)
+
+## D: vec_add_f32 alone
+$ tools/tvr.py check vec_add_f32  (exit 0)
+PASS  manifest   kernel.json: the module and namespace are plain names, the files are in the kernel folder, the ranges are line pairs
+PASS  build      lake build VecAdd
+gate PASS  digest 7be6709b6e4f426e
+

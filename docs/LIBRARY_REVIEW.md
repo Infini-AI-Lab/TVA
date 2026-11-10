@@ -49,6 +49,13 @@ For each issue of a batch (`docs/library-review/ISSUES.md`):
 6. **Reach.** The batch lists the constants whose meaning changed. The digests hash whole
    library files, so the items that reach a changed file re-open whatever the list says; the list
    tells reviewers what to re-read.
+7. **The fixed claims.** A library change keeps every fixed claim unaffected (user, 2026-11-10:
+   "we should keep the 41 claims unaffected"): nothing under `claims/` changes, and every
+   `claims/*/Claim.lean` still elaborates against the library (`lake env lean` from `lean/`), with
+   no error. The release check's `claims` step elaborates each one in its sandbox (library issues
+   L189, L190). It checks that a claim still states what it stated, not that it holds; does the
+   batch also keep its meaning (no definition or statement a claim uses changed, no new `simp`
+   lemma that rewrites a claim's own proofs)?
 
 Above all, ask how a kernel claim that trusts the statement could be wrong.
 
@@ -103,7 +110,7 @@ reopens nothing, raises no new soundness issue, and the matrix has no gap.
 | `transcription` | the transcription guidance and the facts it rests on: could a model that follows the guidance, or a drop it suggests, differ from the source? Is every fact about Triton it relies on stated in SEMANTICS.md? | `docs/TRANSCRIPTION.md`, `docs/SEMANTICS.md` ("How the front end evaluates the source"), `docs/exclusions.md` |
 | `rules` | `Compiler.Faithful`, the launch conditions and the claim's shape: true, satisfiable, and what kernels need? | `lean/TVA/Claim.lean`, `lean/TVA/Rules`, `docs/rules/compiler-faithful.md` |
 | `device` | the device facts and their evidence: true on the target, with TVA's own evidence? | `lean/TVA/Rules/Num*`, `docs/rules/num.md`, `evidence/` |
-| `gate` | the gate, the claim reader and the release check: can a wrong, vacuous or foreign claim pass `tvr check`, or a change escape the digests? Can `tvr release`, which checks no claim and no kernel's gate (library issues L160, L167, L171; `kernels/` is local and does not ship, so it reads nothing of it, L187, L188; of `claims/` it reads, in the audit, the text), pass a library that depends on anything it does not ship (its `shipped`, `packages` and `sandbox` steps), does not build (`build`), or fails `tvr library-check` (`library`), its records (`records`), the lint of the records not yet recorded (`lint`: the library's last round and each kernel's current round) or the audit (`audit`)? | `tools/tvr.py`, `tools/claim_reader.lean.in`, `docs/REVIEW_PROTOCOL.md` §2, §4–§8 |
+| `gate` | the gate, the claim reader and the release check: can a wrong, vacuous or foreign claim pass `tvr check`, or a change escape the digests? Can `tvr release`, which checks no claim and no kernel's gate (library issues L160, L167, L171; `kernels/` is local and does not ship, so it reads nothing of it, L187, L188; of `claims/` it reads, in the audit, the text, and elaborates each `Claim.lean`, L190), pass a library that depends on anything it does not ship (its `shipped`, `packages` and `sandbox` steps), does not build (`build`), breaks a fixed claim (`claims`: some `claims/*/Claim.lean` no longer elaborates against it, as round 39's `simp` lemmas did, L189, L190), or fails `tvr library-check` (`library`), its records (`records`), the lint of the records not yet recorded (`lint`: the library's last round and each kernel's current round) or the audit (`audit`)? | `tools/tvr.py`, `tools/claim_reader.lean.in`, `docs/REVIEW_PROTOCOL.md` §2, §4–§8 |
 | `lemmas` | the lemmas: does each statement say what its name and docstring claim, and what kernels need? | `lean/TVA/Lemmas`, `docs/LIBRARY.md` |
 
 The coordinator gives each reviewer one area: `tvr prompt library reviewer <round> <id> --area <area>`.

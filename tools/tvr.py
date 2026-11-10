@@ -188,17 +188,81 @@ def manifest(k):
     return m
 
 
+# The module roots no local kernel may take (library issue L191), besides LEAN_ROOTS and those `reserved_roots`
+# finds installed: the Lean toolchain's (`Init`, `Std`, `Lean`, `Lake`, …) and those of the packages
+# lean/lake-manifest.json pins. A kernel's library has its module's first component as its root, and its
+# build writes `.lake/build/lib/lean/<root>/…` in the library's package: a root that is another library's,
+# or another kernel's, makes `lake build <module>` compile some other file, which the claim reader and
+# `leanchecker` then read.
+RESERVED_ROOTS = ("Init", "Std", "Lean", "Lake", "LakeMain", "LeanChecker", "Leanc", "LeanExport", "LeanIR",
+                  "Batteries", "Aesop", "Qq", "ProofWidgets", "Plausible", "ImportGraph", "LeanSearchClient",
+                  "Cli", "Archive", "Counterexamples")
+
+
+def reserved_roots():
+    """The roots `RESERVED_ROOTS` names, LEAN_ROOTS, and every root found installed: each top-level `.olean`
+    of the toolchain lean/lean-toolchain pins (`<toolchain>/lib/lean/<root>.olean`), and each package's
+    top-level modules (`lean/.lake/packages/<package>/<root>.lean`, or a folder `<root>` named as a module
+    is, upper case first)."""
+    out = set(LEAN_ROOTS) | set(RESERVED_ROOTS)
+    try:
+        tc = open(os.path.join(ROOT, "lean", "lean-toolchain"), encoding="utf-8").read().strip()
+        lib = os.path.join(os.path.expanduser("~"), ".elan", "toolchains",
+                           tc.replace("/", "--").replace(":", "---"), "lib", "lean")
+        out |= {n[:-len(".olean")] for n in os.listdir(lib) if n.endswith(".olean")}
+    except (OSError, UnicodeDecodeError):
+        pass
+    pkgs = os.path.join(ROOT, "lean", ".lake", "packages")
+    for pk in (sorted(os.listdir(pkgs)) if os.path.isdir(pkgs) else []):
+        d = os.path.join(pkgs, pk)
+        for n in (os.listdir(d) if os.path.isdir(d) else []):
+            stem = n[:-len(".lean")] if n.endswith(".lean") and os.path.isfile(os.path.join(d, n)) else \
+                n if os.path.isdir(os.path.join(d, n)) and n[:1].isupper() else None
+            if stem and LEAN_NAME.fullmatch(stem) and "." not in stem:
+                out.add(stem)
+    return out
+
+
+def root_problems(k, mod):
+    """Why kernel `k` may not have the module `mod` (library issue L191): its root (the first component) is
+    TVA's, Mathlib's, the Lean toolchain's or a pinned package's (`reserved_roots`), or another local
+    kernel's module's; roots are compared ignoring case, as a file system that ignores case would."""
+    bad = []
+    root = mod.split(".")[0]
+    taken = sorted(r for r in reserved_roots() if r.casefold() == root.casefold())
+    if taken:
+        bad.append(f"lean.module's root {root!r} is taken ({taken[0]!r}, a root of TVA, Mathlib, the Lean toolchain or "
+                   "a pinned package): a kernel's module needs a root of its own (library issue L191)")
+    for k2 in kernels():
+        if k2 == k:
+            continue
+        try:
+            m2 = str(load_json(kpath(k2, "kernel.json"))["lean"]["module"])
+        except Exception:
+            continue
+        if m2.split(".")[0].casefold() == root.casefold():
+            bad.append(f"lean.module's root {root!r} is also the root of kernels/{k2}'s module {m2[:60]!r}: two "
+                       "kernels whose modules share a root build one file for both (library issue L191)")
+    return bad
+
+
 def manifest_problems(k, man):
     """What the gate takes from a kernel's manifest, checked before it is used (library issue L38): the
     Lean module and namespace are plain names (`LEAN_NAME`), since the claim reader is Lean text built
     around them; the source and the write-up are files of the kernel folder; the line ranges are pairs
-    of line numbers."""
+    of line numbers. The module's root (its first component) is the kernel's own (library issue L191):
+    no other local kernel's module has it, and it is not TVA's, Mathlib's, the Lean toolchain's or a
+    pinned package's (`reserved_roots`); roots are compared ignoring case, as a file system that
+    ignores case would."""
     bad = []
     lean = man.get("lean") if isinstance(man.get("lean"), dict) else {}
     for key in ("module", "namespace"):
         v = lean.get(key)
         if not (isinstance(v, str) and LEAN_NAME.fullmatch(v)):
             bad.append(f"lean.{key} must be a dotted name of ASCII letters, digits, `_` and `'` (found {str(v)[:60]!r})")
+    mod = lean.get("module")
+    if isinstance(mod, str) and LEAN_NAME.fullmatch(mod):
+        bad += root_problems(k, mod)
     src = man.get("source") if isinstance(man.get("source"), dict) else {}
     for key, v in (("source.file", src.get("file")), ("doc", man.get("doc", "README.md"))):
         inside = isinstance(v, str) and v and not os.path.isabs(v) and \
@@ -2453,7 +2517,8 @@ def build_inputs(k):
 # `lean/lakefile.toml` declares TVA alone (`lake_violations`). For a kernel's build, `tvr` writes
 # `lean/.lake/tvr/lakefile.toml`: the shipped configuration, then one library per kernel folder
 # (`srcDir = "../kernels/<kernel>/lean"`, the kernel's module as its root, a name of `[a-z0-9_]`, a root
-# other than TVA's and Mathlib's), and builds with `lake -f` from `lean/`, so the package, its manifest
+# other than TVA's and Mathlib's; the gate's `manifest` check refuses a root that is not the kernel's own,
+# `root_problems`, library issue L191), and builds with `lake -f` from `lean/`, so the package, its manifest
 # and its build folder are the library's. `tvr new`, `tvr check` and `tvr index` write it afresh.
 KERNEL_LAKEFILE = os.path.join(ROOT, "lean", ".lake", "tvr", "lakefile.toml")
 
@@ -4481,6 +4546,29 @@ def cmd_release(argv):
           ("an allowlist sandbox (bwrap), no network" if mask else "HOME only (--no-mask): paths outside it still exist"),
           flush=True)
     b = step("build", [lake, "build", "TVA"], os.path.join(inside_root, "lean"), "lake build TVA (Mathlib built from its pinned source)")
+    # The fixed claims elaborate (library issue L190; user, 2026-11-10: "we should keep the 41 claims
+    # unaffected"): every `claims/<k>/Claim.lean` of the copy, with `lake env lean` from lean/ against the
+    # library just built. A claim holds no proof, so this checks that each still states what it stated, not
+    # that it holds: the check still checks no claim (L160).
+    if b.returncode == 0:
+        cdir = os.path.join(copy, "claims")
+        names = sorted(n for n in os.listdir(cdir) if os.path.isfile(os.path.join(cdir, n, "Claim.lean"))) \
+            if os.path.isdir(cdir) else []
+
+        def elaborate(n):
+            r = run([lake, "env", "lean", os.path.join("..", "claims", n, "Claim.lean")], os.path.join(inside_root, "lean"))
+            errs = [l.strip() for l in (r.stdout + r.stderr).splitlines() if ": error" in l or l.lower().startswith("error")]
+            return None if r.returncode == 0 and not errs else \
+                f"claims/{n}/Claim.lean: " + (errs[0] if errs else f"lean exits {r.returncode}")[:200]
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            cbad = [x for x in ex.map(elaborate, names) if x]
+        record("claims", names and not cbad,
+               f"lake env lean on each of the {len(names)} claims/*/Claim.lean: every one elaborates, with no error"
+               if names and not cbad else "; ".join(cbad[:4]) + (f" (+{len(cbad) - 4} more)" if len(cbad) > 4 else "")
+               if cbad else "no claims/*/Claim.lean in the copy")
+    else:
+        record("claims", False, "not run (the build failed)")
     if b.returncode == 0:
         step("library", tvr + ["library-check"], inside_root, "library hygiene; leanchecker TVA re-checks every library declaration")
     else:
@@ -4533,6 +4621,9 @@ def cmd_new(k, module, ns, source):
     for what, v in (("--module", module), ("--namespace", ns)):
         if not (isinstance(v, str) and LEAN_NAME.fullmatch(v)):
             die(f"{what} is a dotted name of ASCII letters, digits, `_` and `'` (library issue L38)")
+    rp = root_problems(k, module)
+    if rp:
+        die("--module: " + "; ".join(rp))
     if os.path.exists(kpath(k)):
         die(f"kernels/{k} exists")
     base = os.path.basename(source)

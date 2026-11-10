@@ -1,0 +1,15 @@
+Variant.lean:8:2: error: Type mismatch
+  safe_convert_iff fun i r => ?m.39
+has type
+  Safe ?m.17 ?m.18 ?m.19 ?m.21 ?m.22 (tl.convert ?m.24 ?m.25 ?m.26 >>= ?m.33) ↔
+    Safe ?m.17 ?m.18 ?m.19 ?m.21 ?m.22 (?m.33 ?m.32)
+but is expected to have type
+  Safe E R W Q m (tl.convert DType.i32 DType.i64 x >>= k) ↔ Safe E R W Q m (k x.castInt)
+Variant.lean:16:2: error: Type mismatch
+  safe_convert_iff fun i r => ?m.35
+has type
+  Safe ?m.13 ?m.14 ?m.15 ?m.17 ?m.18 (tl.convert ?m.20 ?m.21 ?m.22 >>= ?m.29) ↔
+    Safe ?m.13 ?m.14 ?m.15 ?m.17 ?m.18 (?m.29 ?m.28)
+but is expected to have type
+  Safe E R W Q m (tl.convert DType.i32 DType.i64 x >>= k) ↔ Safe E R W Q m (k x.castInt)
+exit 1

@@ -1,0 +1,52 @@
+$ -I tools/tvr.py check vec_add_aa  (exit 0)
+PASS  manifest   kernel.json: the module and namespace are plain names, the files are in the kernel folder, the ranges are line pairs
+PASS  source     source/01-vector-add.py sha256 842430949e0ccde4
+PASS  hygiene    no proof escape, kernel bypass, meta code, meta type, handler attribute, notation, renaming, local or erased instance, option beyond limits, printing and linters, string literal holding `{` or line break other than a line feed in the kernel; no proof escape, bypass, meta code, such option or string in the library's code
+PASS  independence the kernel and the library import only TVA, the kernel's own modules and Mathlib, and refer to no other project
+PASS  build      lake build VecAdd
+PASS  replay     leanchecker VecAdd: every declaration of the kernel's modules re-checked by Lean's kernel
+PASS  shape      main : ∀ K P, Assumptions K P → Spec K; consistent : Claim.Consistent Assumptions; satisfiable : Claim.Satisfiable Inst.ok Pre; Spec K = Meets Inst.ok Pre Post K; Assumptions is a structure with exactly the parameters (K : Claim.Behaviour Inst) (P : Platform)
+PASS  axioms     consistent: propext, Classical.choice, Quot.sound; main: propext, Classical.choice, Quot.sound; satisfiable: propext, Classical.choice, Quot.sound
+PASS  usage      every assumption is used by main
+PASS  namespace  the kernel declares everything in its namespace, no name that could be read as another constant, no name outside plain ASCII, no instance, and no binder named like a library namespace
+PASS  kinds      every assumption is a [rule] stating a fact the library states, applied to the platform (Compiler.Faithful as Faithful P (model x) (launch x) (K x), or a fact docs/rules/num.md lists, as listed), with no constant of the kernel's own, or a [kernel] fact about the kernel's own values; every TVA.Rules constant reached is declared under lean/TVA/Rules
+PASS  map        12 entries cover every code line of [[23, 24], [29, 54]]; every function of the source lies in the kernel lines or the host lines, and every @triton.jit function in the kernel lines; every code line outside a function, and every unused function's header, lies in the kernel lines or the host lines
+PASS  doc        README.md has the sections Specification, Conditions, Assumptions, Proof
+gate PASS  digest 7be6709b6e4f426e
+
+$ ~/.elan/bin/lake env lean ../kernels/vec_add_aa/lean/VecAdd.lean  (exit 1)
+../kernels/vec_add_aa/lean/VecAdd.lean:323:0: error: Not a definitional equality: the left-hand side
+  1
+is not definitionally equal to the right-hand side
+  2
+../kernels/vec_add_aa/lean/VecAdd.lean:323:49: error: Type mismatch
+  rfl
+has type
+  ?m.7 = ?m.7
+but is expected to have type
+  1 = 2
+
+lean/.lake/tvr/lakefile.toml, its kernel libraries:
+version = "2.0.0"
+defaultTargets = ["TVA"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.35.0"
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "TVA"
+
+[[lean_lib]]
+name = "vec_add_aa"
+srcDir = "../kernels/vec_add_aa/lean"
+roots = ["VecAdd"]
+
+[[lean_lib]]
+name = "vec_add_f32"
+srcDir = "../kernels/vec_add_f32/lean"
+roots = ["VecAdd"]
