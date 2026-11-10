@@ -1,7 +1,0 @@
-M=512 N=512 K=512 np=132: total=128 ipp=1 np*ipp=132 stored tiles=0 split tiles=16
-M=1000 N=1000 K=1000 np=132: total=1024 ipp=8 np*ipp=1056 stored tiles=0 split tiles=64
-M=3072 N=4096 K=1024 np=132: total=12288 ipp=94 np*ipp=12408 stored tiles=654 split tiles=114
-M=257 N=129 K=4097 np=7: total=390 ipp=56 np*ipp=392 stored tiles=0 split tiles=6
-M=64 N=64 K=64 np=3: total=1 ipp=1 np*ipp=3 stored tiles=1 split tiles=0
-M=8192 N=8192 K=4096 np=132: total=262144 ipp=1986 np*ipp=262152 stored tiles=3969 split tiles=127
-random instances checked: 3000

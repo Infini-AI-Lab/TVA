@@ -1,5 +1,0 @@
-heads 32/8 head_dim 128 page 16: max scale*scoreAbs 10.9601, mean 7.1564 (0.6366*sqrt(D) = 7.2023), max attnAbs 3.8691, max pages 256
-heads 8/8 head_dim 64 page 16: max scale*scoreAbs 9.0395, mean 5.3922 (0.6366*sqrt(D) = 5.0928), max attnAbs 1.9195, max pages 129
-heads 16/2 head_dim 128 page 32: max scale*scoreAbs 10.4842, mean 6.8450 (0.6366*sqrt(D) = 7.2023), max attnAbs 1.5896, max pages 256
-overall: max scale*scoreAbs 10.9601, max attnAbs 3.8691
-bound at tolO(128,32,256,11)=1.2488e-3 and the largest attnAbs: 4.8318e-03

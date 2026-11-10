@@ -1,6 +1,0 @@
-R=  128 K= 128 rep=1: host reference == sIdx: True; kernel path == sIdx: True
-R=  256 K= 384 rep=1: host reference == sIdx: True; kernel path == sIdx: True
-R=  640 K= 512 rep=1: host reference == sIdx: True; kernel path == sIdx: True
-R=  256 K= 256 rep=2: host reference == sIdx: True; kernel path == sIdx: True
-R=  384 K= 640 rep=2: host reference == sIdx: True; kernel path == sIdx: True
-R= 1152 K= 256 rep=2: host reference == sIdx: True; kernel path == sIdx: True

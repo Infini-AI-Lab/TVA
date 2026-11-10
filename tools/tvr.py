@@ -510,10 +510,14 @@ _PLACEHOLDER = re.compile(r"[a-z0-9_.]+(?:-[a-z0-9_.]+)*-[A-Z]+|.*\.\.\.|")
 
 def cited_files():
     """The files whose citations `citation_problems` checks: every Markdown and Lean file of the project but
-    the records, the evidence and Triton's pinned files (`CITE_SKIP`)."""
+    the records, the evidence and Triton's pinned files (`CITE_SKIP`); only files TVA ships (`shipped_files`),
+    so a folder git ignores, such as a local `kernels/`, is not read."""
     out = []
+    shipped = set(shipped_files())
     for p in text_files(ROOT):
         r = rel(p).replace(os.sep, "/")
+        if r not in shipped:
+            continue
         if p.endswith((".md", ".lean")) and not r.startswith(CITE_SKIP) and "/review/" not in r and not os.path.islink(p):
             out.append(p)
     return out

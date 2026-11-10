@@ -1,4 +1,0 @@
-test D=128 (Z=4, H=48, N=4096): P(some row norm^2 > 288 s^2) <= 9.84e-07; then sigma*sum|qk| <= 36.0 (premise 1024)
-test D=64: P(some row norm^2 > 256 s^2) <= 5.89e-17; then sigma*sum|qk| <= 32.0 (premise 1024)
-bench D=128 (Z=4, H=32, N=2^14): P(some row norm^2 > 288 s^2) <= 2.62e-06; then sigma*sum|qk| <= 374.4 (premise 1024)
-bench D=64: P(some row norm^2 > 256 s^2) <= 1.57e-16; then sigma*sum|qk| <= 332.8 (premise 1024)

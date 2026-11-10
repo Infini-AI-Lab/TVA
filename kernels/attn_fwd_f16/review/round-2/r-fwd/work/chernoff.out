@@ -1,2 +1,0 @@
-test: S > 184.0 has P <= 3.30e-17 (lambda 0.59); over 3.20e+09 pairs <= 1.06e-07
-bench: S > 184.6 has P <= 2.30e-17 (lambda 0.59); over 3.44e+10 pairs <= 7.90e-07
