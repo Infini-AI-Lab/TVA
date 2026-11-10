@@ -30,13 +30,15 @@ Reviewers judge the model against the source, the specification and the assumpti
 - Reviewing the library: [docs/LIBRARY_REVIEW.md](docs/LIBRARY_REVIEW.md), issues in
   [docs/library-review/ISSUES.md](docs/library-review/ISSUES.md), evidence in `evidence/`
 - Plan: [docs/plan/PLAN.md](docs/plan/PLAN.md)
-- Kernels: [kernels/](kernels/README.md), one folder per kernel with its Lean bundle, source,
-  write-up and review. Restarted from scratch on 2026-10-27, beginning with vector addition
+- Kernels: `kernels/` is local, and TVA does not ship it (user decision 2026-11-10): one folder per
+  kernel with its Lean bundle, source, write-up and review, made by `tvr new`; the release check reads
+  none of it. The fixed claims of the test kernels ship in [claims/](claims/README.md)
 - Agents in containers: [sandbox/](sandbox/README.md) runs the protocol on one kernel with a prover
   agent, reviewer agents and a review service, each in a container (a Harbor task), with a harness
   that helps weaker models ([sandbox/HARNESS.md](sandbox/HARNESS.md))
 
-Build:
+Build (the library, `TVA`; a local kernel builds with `lake -f .lake/tvr/lakefile.toml build <Module>`,
+the configuration `tvr` writes):
 
 ```
 cd lean && ~/.elan/bin/lake build

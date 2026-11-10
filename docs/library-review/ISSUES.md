@@ -196,10 +196,16 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L177](#l177) | ACCEPTED | 39 | coordinator, claim tasks 2026-11-10 | gap: float zeros and format constants, exact widening conversions, `NaNEq`, errors on `toReal`, and the maximum of two approximations |
 | [L178](#l178) | ACCEPTED | 39 | coordinator, claim tasks 2026-11-10 | gap: no online-softmax lemma (running maximum, rescaled sum and accumulator), exact or with rounding |
 | [L179](#l179) | ACCEPTED | 39 | coordinator, claim tasks 2026-11-10 | gap: no lemma for a recurrence carried across loop trips with a decay (chunked state), with per-trip errors |
-| [L180](#l180) | OPEN | 40 | library review round 39 (lr-39b) | gap: `Tile2`'s offset and pointer lemmas (and `Block`'s `Fits`) need the no-overflow bound on every lane, masked-off ones included, so a claim that bounds only the matrix cannot use them on the last partial tile |
-| [L181](#l181) | OPEN | 40 | library review round 39 (lr-39a) | gap: `Tile2`'s load, store and footprint lemmas require `e + (M-1)·s0 + (N-1)·s1 < b.len`, false for an empty tile at the end of its buffer |
-| [L182](#l182) | OPEN | 40 | library review round 39 (lr-39a) | wording: `Recurrence.exp_sub_mem_Ioc`'s docstring points to `perturb_le_sum`, which bounds the computed decay, not the exact one |
-| [L183](#l183) | OPEN | 40 | library review round 39 (lr-39a) | wording: `Tile2.start_arange64_toInt` states the `castInt` form a faithful transcription (`tl.convert`) never reaches; four `Tile2` integer lemmas repeat `IntW` ones |
+| [L180](#l180) | ACCEPTED | 40 | library review round 39 (lr-39b) | gap: `Tile2`'s offset and pointer lemmas (and `Block`'s `Fits`) need the no-overflow bound on every lane, masked-off ones included, so a claim that bounds only the matrix cannot use them on the last partial tile |
+| [L181](#l181) | ACCEPTED | 40 | library review round 39 (lr-39a) | gap: `Tile2`'s load, store and footprint lemmas require `e + (M-1)·s0 + (N-1)·s1 < b.len`, false for an empty tile at the end of its buffer |
+| [L182](#l182) | ACCEPTED | 40 | library review round 39 (lr-39a) | wording: `Recurrence.exp_sub_mem_Ioc`'s docstring points to `perturb_le_sum`, which bounds the computed decay, not the exact one |
+| [L183](#l183) | ACCEPTED | 40 | library review round 39 (lr-39a) | wording: `Tile2.start_arange64_toInt` states the `castInt` form a faithful transcription (`tl.convert`) never reaches; four `Tile2` integer lemmas repeat `IntW` ones |
+| [L184](#l184) | OPEN | 41 | library review round 40 (lr-40a) | gap: `Tile2` fixes each row lane to `r0 + i`, so the tutorial-03 rows `(pid*BM + arange) % M` (no row mask) are out of its reach |
+| [L185](#l185) | OPEN | 41 | library review round 40 (lr-40a) | wording: `Tensor.castInt`, `IntV.cast` and `Tensor.get1_castInt` disagree on whether `castInt` is `.to(tl.int64)`; no lemma links `ConvRel` and `IntV.cast` |
+| [L186](#l186) | OPEN | 41 | library review round 40 (lr-40b); coordinator's release check | gap: the release check's `audit` cannot pass: `cited_files` runs `git ls-files`, and the release copy has no `.git` |
+| [L187](#l187) | OPEN | 41 | library review round 40 (lr-40b) | gap: the shipped TVA fails its own audit (37 kernel `lean_lib`s with no folder; links to `kernels/README.md`), and the local audit checks citation targets against the local tree, so it cannot see it |
+| [L188](#l188) | OPEN | 41 | library review round 40 (lr-40b) | wording: REVIEW_PROTOCOL §2, LIBRARY_REVIEW's gate row, LIBRARY.md and README.md still describe `kernels/` as shipped and read by the release check |
+| [L189](#l189) | OPEN | 41 | coordinator, round 41 | soundness: round 39's `simp` lemmas `DType.ofBits_*` (`FloatFacts`) broke a fixed claim: `claims/layer_norm_fwd_f16/Claim.lean` no longer elaborated (`zero16_facts`) |
 
 ## L1
 
@@ -3034,14 +3040,54 @@ the lemmas through it, and name the kernels that no longer build. Round 34.
 
 **Lane bounds for enabled lanes only** (gap; lr-39b, round 39). `Tile2.off_toInt`, `ptr_lane`, `ptr_lane_seq` and `ptr_lane_sum_of` need the largest offset over every lane, masked-off ones included (`(r0 + BM − 1)·s0 + (c0 + BN − 1)·s1 < 2^(w−1)`), and their consumers (`addrs_tile2`, `accBytes_tile2`, `safe_load_tile2`, `safe_store_tile2`) take the lane hypothesis for all lanes. A masked-off lane's wrapped offset is never used (`tl.addrs` gives it no address), so the bound is stronger than needed: with `M = 1000`, `BM = 64`, `s0 = 2149000` the matrix bound `(M−1)·s0 + (N−1)·s1 < 2^31` holds but `1023·s0 > 2^31`. `Block`'s `Fits p B` has the same limit for the 1-D block. Let the consumers take the lane hypothesis for enabled lanes only, and add lane lemmas for enabled lanes from `(M−1)·s0 + (N−1)·s1 < 2^(w−1)` (and the 1-D form from `n ≤ 2^(w−1)`); keep the existing `Block` statements, which kernels use, and add the new forms beside them. Round 40.
 
+**Round 40 fix**: see [round-40/author/notes.md](round-40/author/notes.md).
+
+**Round 40 review** (lr-40a ACCEPT, lr-40b ACCEPT).
+
 ## L181
 
 **An empty tile at the end of its buffer** (gap; lr-39a, round 39). `Tile2.safe_load_tile2`, `safe_store_tile2`, `Buf.tile2_sub_bytes` and `Buf.tile2_disjoint_of` require `e + (M − 1)·s0 + (N − 1)·s1 < b.len` even when the tile has no element; for `M = 0` (a varlen batch's last sequence of length 0, at `e = b.len`) the premise is false though the access is safe (lr-39a `work/tile2_empty.lean`). The 1-D `safe_load_block` takes `n ≤ b.len`, which admits `n = 0`. Take `M = 0 ∨ N = 0 ∨ …`, or a bound on each element of the tile. Round 40.
+
+**Round 40 fix**: see [round-40/author/notes.md](round-40/author/notes.md).
+
+**Round 40 review** (lr-40a ACCEPT, lr-40b ACCEPT).
 
 ## L182
 
 **`exp_sub_mem_Ioc`'s docstring** (wording; lr-39a, round 39). It says a kernel uses it "for the `|g t| ≤ 1` of `perturb_le_sum`", but `perturb_le_sum` bounds the computed decay `|ĝ t|` (a float that an approximate `exp` may round above 1, the reason for `perturb_le_pow`), not the exact `Real.exp` this lemma bounds. Point to `perturb'` (which bounds the exact gate) with `run_le_sum`, and to `abs_le_sum`. Round 40.
 
+**Round 40 fix**: see [round-40/author/notes.md](round-40/author/notes.md).
+
+**Round 40 review** (lr-40a ACCEPT, lr-40b ACCEPT).
+
 ## L183
 
 **`start_arange64_toInt` and repeated integer lemmas** (wording; lr-39a, round 39). Its docstring gives `pid.to(tl.int64) * BM + tl.arange(0, BM)` with the `int32` `arange` cast by `castInt`, but SEMANTICS.md and TRANSCRIPTION.md model that implicit promotion as `tl.convert .i32 .i64` (a `ConvRel` pick), so a faithful transcription never reaches the lemma. State it for `tl.convert`'s result (lanes related by `ConvRel P .i32 .i64`), or say how to combine `ConvRel.toInt_i32_i64` with `start_add_toInt`. `Tile2.toInt_mul_nat`, `toInt_add_nat`, `toInt_mul_ofNat` and `arange_toInt` repeat `IntV.mul_nat`, `add_nat`, `mul_ofNat` and `IntV.I32.toInt_tl_arange` with an extra `0 < w` premise: keep one of each. Round 40.
+
+**Round 40 fix**: see [round-40/author/notes.md](round-40/author/notes.md).
+
+**Round 40 review** (lr-40a ACCEPT, lr-40b ACCEPT).
+
+## L184
+
+**`Tile2` for rows that are not `r0 + i`** (gap; lr-40a, round 40). `Tile2.Elem`, `MaskOk` and every lane lemma fix row lane `i` to `r0 + i` (and column `j` to `c0 + j`). Tutorial 03's `offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M` (no row mask; row `(r0 + i) % M`), and the same with `% N` in `int64`, are out of reach, so such a kernel re-derives its tile footprint and load. Generalise `Tile2` (`Elem`, `MaskOk`, the lane, footprint and load/store rules) to row and column lane values `ρ i`, `κ j`, of which `r0 + i` is one instance, and add a lane lemma for `tl.irem (r0 + tl.arange) M` (`ρ i = (r0 + i) % M < M`). Round 41.
+
+## L185
+
+**One meaning for the integer cast** (wording; lr-40a, round 40). `Tensor.castInt` (`lean/TVA/Lang/Tensor.lean`) and `IntV.cast` (`lean/TVA/Lang/Scalar.lean`) say `castInt` is `x.to(tl.int64)`; round 40's `Tensor.get1_castInt` (`lean/TVA/Lemmas/IntW.lean`) says it is not, and that `.to(…)` and the promotion are `tl.convert`. Both are right in value: for integer dtypes other than `int1`, `ConvRel`'s only result is `IntV.cast` of the operand (lr-40a `work/Probes.lean` proves `ConvRel P .i32 .i64 a (IntV.cast a)`). Make the three docstrings agree, and state the bridge as a lemma (e.g. `ConvRel P d d' x r ↔ r = IntV.cast x` for integer `d`, `d'` other than `int1`), so a prover can move between the two forms and a reviewer accept either transcription. Round 41.
+
+## L186
+
+**The release check's audit and `git`** (gap; lr-40b, round 40, and the coordinator's release check of the same commit). The commit that stopped tracking `kernels/` made `cited_files` (`tools/tvr.py`) call `shipped_files()`, which runs `git ls-files`. The release copy has no `.git`, and inside the sandbox `system_tool("git")` refuses `/usr/bin/git`, so the release's `audit` step stops (`git ls-files failed`). When there is no `.git`, read every Markdown and Lean file (the copy holds only what ships), as `main` already does for `shipped_problems`. Round 41.
+
+## L187
+
+**The shipped TVA and its audit** (gap; lr-40b, round 40). After `kernels/` stopped shipping: `lean/lakefile.toml` still lists 37 kernel `lean_lib`s (`srcDir = "../kernels/<k>/lean"`), which `lake_violations` refuses with no kernel folder; `README.md` and `docs/LIBRARY.md` link to `kernels/README.md`. `tvr audit` in a fresh git copy reports 39 problems, but prints `independent` in the working tree, because `citation_problems` checks a target against the local tree (where the git-ignored `kernels/` remains). Remove the kernel `lean_lib`s from the shipped lakefile (and keep `tvr new`'s additions out of it), point the two links elsewhere, and in a git checkout have a cited TVA file count only when it ships. Round 41.
+
+## L188
+
+**Documents that describe `kernels/` as shipped** (wording; lr-40b, round 40). REVIEW_PROTOCOL.md §2 ("Of `kernels/` the check still reads each kernel's review records…", "Every file under `kernels/` is scanned"), LIBRARY_REVIEW.md's `gate` row, LIBRARY.md ("Build: … one library per kernel folder", the "Kernels" section) and README.md ("Kernels: …"). `kernels/` is now local and not shipped (user decision 2026-11-10: "let's just git ignore kernels and remove on the remote site"); the release check reads none of it. Say so. Round 41.
+
+## L189
+
+**A `simp` lemma that broke a fixed claim** (soundness; coordinator, round 41). Round 39 made `DType.ofBits_f16` … `DType.ofBits_f8e4nv` (`TVA.Lemmas.FloatFacts`: `DType.ofBits d n = ofPat n`) `simp` lemmas. `claims/layer_norm_fwd_f16/Claim.lean` proves `zero16_facts` with `simp [FloatV.toReal, h]`, where `h` is stated on `DType.ofBits .f16 …`. The new lemmas rewrite the goal to `ofPat …` first, so `h` no longer applies and the claim stops elaborating: a fixed claim (pinned by its sha256) became unbuildable through an additive change. It elaborates against the library before round 39 (the claim image of that revision) and fails from round 39 on. The 40 other claims were not affected. Round 41 (coordinator's fix): the six lemmas are no longer `simp` (still stated, cited by name); `lake build TVA` is green and all 41 `claims/*/Claim.lean` elaborate with no error. A library change must keep every fixed claim elaborating (user, 2026-11-10: "we should keep the 41 claims unaffected"). Round 41.

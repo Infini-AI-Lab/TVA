@@ -4,7 +4,7 @@
 Each kernel is one folder, kernels/<kernel>/ (the layout is section 1 of the protocol).
 
   tvr new     KERNEL --module M --namespace NS --source FILE
-                                scaffold kernels/KERNEL (folder, manifest, lake library)
+                                scaffold kernels/KERNEL (folder, manifest; its library in lean/.lake/tvr/lakefile.toml)
   tvr check   KERNEL            run the gate: build, read the Lean claim (tools/claim_reader.lean.in); write gate.json,
                                 claim.md and a snapshot of the item cones
   tvr assign  KERNEL REVIEWER   assign a reviewer
@@ -508,15 +508,34 @@ _CODE_SPAN = re.compile(r"`[^`\n]*`")
 _PLACEHOLDER = re.compile(r"[a-z0-9_.]+(?:-[a-z0-9_.]+)*-[A-Z]+|.*\.\.\.|")
 
 
-def cited_files():
+def git_checkout():
+    """Whether TVA's root is a git checkout. A release copy is not: it has no git metadata and holds only
+    what ships (the release check's `shipped` step made it so)."""
+    return os.path.exists(os.path.join(ROOT, ".git"))
+
+
+def shipped_set():
+    """What ships, by path from TVA's root with `/`, folders included (every folder above a shipped
+    file), in a git checkout (`shipped_files`); `None` outside one (library issues L186, L187)."""
+    if not git_checkout():
+        return None
+    out = set()
+    for f in shipped_files():
+        parts = f.rstrip("/").split("/")
+        out.update("/".join(parts[:n]) for n in range(1, len(parts) + 1))
+    return out
+
+
+def cited_files(shipped=None):
     """The files whose citations `citation_problems` checks: every Markdown and Lean file of the project but
-    the records, the evidence and Triton's pinned files (`CITE_SKIP`); only files TVA ships (`shipped_files`),
-    so a folder git ignores, such as a local `kernels/`, is not read."""
+    the records, the evidence and Triton's pinned files (`CITE_SKIP`); in a git checkout only files TVA
+    ships (`shipped_set`), so a folder git ignores, such as a local `kernels/`, is not read; outside one
+    (a release copy, which holds only what ships; library issue L186) every such file."""
     out = []
-    shipped = set(shipped_files())
+    shipped = shipped_set() if shipped is None else shipped
     for p in text_files(ROOT):
         r = rel(p).replace(os.sep, "/")
-        if r not in shipped:
+        if shipped is not None and r not in shipped:
             continue
         if p.endswith((".md", ".lean")) and not r.startswith(CITE_SKIP) and "/review/" not in r and not os.path.islink(p):
             out.append(p)
@@ -527,10 +546,13 @@ def citation_problems(paths=None):
     """The citations of files of TVA that do not exist (library issue L70): in each file of `paths`
     (`cited_files` by default), every path from TVA's root that starts `docs/` or `evidence/`, and in a
     Markdown file every link to a relative path (code spans aside), up to a placeholder; a line number
-    (`:12`), an anchor (`#…`) and a closing punctuation mark are not part of the path."""
+    (`:12`), an anchor (`#…`) and a closing punctuation mark are not part of the path. In a git checkout
+    a cited file or folder of TVA must also ship (`shipped_set`; library issue L187): a git-ignored
+    `kernels/` exists locally but not in what ships."""
     bad = []
     root = os.path.realpath(ROOT)
-    for p in paths if paths is not None else cited_files():
+    shipped = shipped_set()
+    for p in paths if paths is not None else cited_files(shipped):
         try:
             text = open(p, encoding="utf-8").read()
         except (UnicodeDecodeError, OSError):
@@ -558,8 +580,13 @@ def citation_problems(paths=None):
                 if tgt:
                     cites.append((tgt, os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(p)), tgt))))
         for tok, dest in cites:
-            if tok and (dest == root or dest.startswith(root + os.sep)) and not os.path.exists(dest):
+            if not tok or not (dest == root or dest.startswith(root + os.sep)):
+                continue
+            if not os.path.exists(dest):
                 bad.append(f"{rel(p)}: cites {tok}, which does not exist")
+            elif shipped is not None and dest != root and \
+                    os.path.relpath(dest, root).replace(os.sep, "/") not in shipped:
+                bad.append(f"{rel(p)}: cites {tok}, which TVA does not ship (git ignores it)")
     return sorted(set(bad))
 
 
@@ -766,8 +793,10 @@ def import_violations(files, roots):
 
 
 def lake_violations():
-    """The lake configuration: Mathlib is the only requirement, and the libraries are TVA's own and one
-    per kernel folder (`../kernels/<kernel>/lean`, with the kernel's module as its root)."""
+    """The lake configuration: Mathlib is the only requirement, and the only library is TVA's own.
+    `kernels/` is local and does not ship (library issue L187), so the shipped `lean/lakefile.toml`
+    declares no kernel's library: `tvr` builds a kernel with a configuration of its own,
+    `lean/.lake/tvr/lakefile.toml` (`kernel_lakefile`), written from this one."""
     lean = os.path.join(ROOT, "lean")
     bad = [f"lean/{f}: lake reads it, and TVA's configuration is lakefile.toml only"
            for f in ("lakefile.lean", "lakefile") if os.path.exists(os.path.join(lean, f))]
@@ -805,7 +834,6 @@ def lake_violations():
     names = [lib.get("name") for lib in libs if isinstance(lib, dict)]
     if names.count("TVA") != 1:
         bad.append("lean/lakefile.toml: exactly one lean_lib must be TVA")
-    root = os.path.realpath(ROOT)
     for lib in libs:
         if not isinstance(lib, dict):
             bad.append("lean/lakefile.toml: a lean_lib that is not a table")
@@ -815,17 +843,9 @@ def lake_violations():
             if set(lib) != {"name"}:
                 bad.append("lean/lakefile.toml: the TVA lean_lib takes only its name (its sources are lean/TVA)")
             continue
-        if not (isinstance(name, str) and os.path.exists(kpath(name, "kernel.json"))):
-            bad.append(f"lean/lakefile.toml: lean_lib {name!r} is neither TVA nor a kernel folder's library")
-            continue
-        want_root = str((manifest(name).get("lean") or {}).get("module", "")).split(".")[0]
-        want = {"name": name, "srcDir": f"../kernels/{name}/lean", "roots": [want_root]}
-        if lib != want or want_root in LEAN_ROOTS:
-            bad.append(f"lean/lakefile.toml: lean_lib {name!r} must be exactly name, srcDir = \"../kernels/{name}/lean\" "
-                       f"and roots = [\"{want_root}\"] (the kernel's module), with a root other than {', '.join(LEAN_ROOTS)}")
-        src = os.path.realpath(os.path.join(lean, str(lib.get("srcDir", "."))))
-        if src != os.path.realpath(kpath(name, "lean")) or not src.startswith(root + os.sep):
-            bad.append(f"lean/lakefile.toml: lean_lib {name!r} has sources outside its kernel folder")
+        bad.append(f"lean/lakefile.toml: lean_lib {str(name)[:60]!r} is not TVA: the shipped configuration declares "
+                   "TVA alone, since kernels/ does not ship (library issue L187); tvr builds a kernel with "
+                   "lean/.lake/tvr/lakefile.toml")
     for t in cfg.get("defaultTargets", []):
         if t not in names:
             bad.append(f"lean/lakefile.toml: default target {t!r} is not one of the libraries")
@@ -2429,6 +2449,28 @@ def build_inputs(k):
     return {p: _file_digest(p) for p in sorted(paths)}
 
 
+# A kernel's library (library issue L187). `kernels/` is local and git ignores it, so the shipped
+# `lean/lakefile.toml` declares TVA alone (`lake_violations`). For a kernel's build, `tvr` writes
+# `lean/.lake/tvr/lakefile.toml`: the shipped configuration, then one library per kernel folder
+# (`srcDir = "../kernels/<kernel>/lean"`, the kernel's module as its root, a name of `[a-z0-9_]`, a root
+# other than TVA's and Mathlib's), and builds with `lake -f` from `lean/`, so the package, its manifest
+# and its build folder are the library's. `tvr new`, `tvr check` and `tvr index` write it afresh.
+KERNEL_LAKEFILE = os.path.join(ROOT, "lean", ".lake", "tvr", "lakefile.toml")
+
+
+def kernel_lakefile():
+    """Write `KERNEL_LAKEFILE` (above) from `lean/lakefile.toml` and the kernel folders; return its path."""
+    with open(os.path.join(ROOT, "lean", "lakefile.toml"), encoding="utf-8") as f:
+        out = [f.read().rstrip("\n")]
+    for k in kernels():
+        mod = str((manifest(k).get("lean") or {}).get("module", ""))
+        root_mod = mod.split(".")[0]
+        if re.fullmatch(r"[a-z0-9_]+", k) and LEAN_NAME.fullmatch(mod) and root_mod not in LEAN_ROOTS:
+            out.append(f'[[lean_lib]]\nname = "{k}"\nsrcDir = "../kernels/{k}/lean"\nroots = ["{root_mod}"]')
+    write(KERNEL_LAKEFILE, "\n\n".join(out) + "\n")
+    return KERNEL_LAKEFILE
+
+
 def check(k):
     man = manifest(k)
     checks = []
@@ -2474,7 +2516,7 @@ def check(k):
     if bad or ind:
         add("build", False, "not run (hygiene or independence failed)")
     else:
-        r = subprocess.run([LAKE, "build", mod], cwd=lean_dir, capture_output=True, text=True)
+        r = subprocess.run([LAKE, "-f", kernel_lakefile(), "build", mod], cwd=lean_dir, capture_output=True, text=True)
         errs = [l for l in r.stdout.splitlines() if l.startswith("error")]
         built = r.returncode == 0
         add("build", built, f"lake build {mod}" + ("" if built else ": " + " | ".join(errs[:3])))
@@ -4504,23 +4546,16 @@ def cmd_new(k, module, ns, source):
         "doc": "README.md"})
     dump_json(kpath(k, "model-map.json"), {"entries": []})
     write(kpath(k, "README.md"), README_TEMPLATE.format(title=k, src=f"source/{base}"))
-    add_lake_lib(k, module)
+    kernel_lakefile()
     render_index()
-    print(f"created kernels/{k}; write lean/{module.replace('.', '/')}.lean, fill kernel.json (ranges) and model-map.json")
-
-
-def add_lake_lib(k, module):
-    p = os.path.join(ROOT, "lean", "lakefile.toml")
-    s = open(p).read()
-    if re.search(rf'^name = "{re.escape(k)}"$', s, re.M):
-        return
-    s = re.sub(r'^defaultTargets = \[(.*?)\]', lambda m: f'defaultTargets = [{m.group(1)}, "{k}"]', s, count=1, flags=re.M)
-    s = s.rstrip("\n") + f'\n\n[[lean_lib]]\nname = "{k}"\nsrcDir = "../kernels/{k}/lean"\nroots = ["{module.split(".")[0]}"]\n'
-    write(p, s)
+    print(f"created kernels/{k}; write lean/{module.replace('.', '/')}.lean, fill kernel.json (ranges) and model-map.json; "
+          f"build with `lake -f .lake/tvr/lakefile.toml build {module}` from lean/")
 
 
 def main(argv):
     if len(argv) >= 2 and argv[1] == "index":
+        if kernels():
+            kernel_lakefile()
         for k in kernels():
             render_review(k)
         render_index()
@@ -4538,7 +4573,7 @@ def main(argv):
         bad += library_module_problems()
         # what ships must be what the scan reads (library issue L41); a release copy has no git
         # metadata, and holds only what ships, which the release check's `shipped` step checked
-        if os.path.exists(os.path.join(ROOT, ".git")):
+        if git_checkout():
             bad += shipped_problems(shipped_files())
         print("\n".join(bad) if bad else "independent: TVA imports only TVA and Mathlib, and refers to no other project")
         return 1 if bad else 0

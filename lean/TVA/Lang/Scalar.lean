@@ -93,8 +93,10 @@ def ashr? (a : IntV s w) (n : Nat) : Option (IntV s w) :=
 def lshr? (a : IntV s w) (n : Nat) : Option (IntV s w) :=
   if n < w then some ⟨a.bits >>> n⟩ else none
 
-/-- Integer-to-integer cast (`x.to(tl.intW)`): sign-extend when the *source* is signed,
-zero-extend otherwise, truncate when narrower. -/
+/-- Integer-to-integer cast: sign-extend when the *source* is signed, zero-extend otherwise,
+truncate when narrower; the value modulo `2^w'` (`IntV.cast_eq_ofInt`). It is the one result of
+`x.to(tl.intW)` (`tl.convert`, `ConvRel`) between integer dtypes other than `int1`
+(`ConvRel.iff_cast_i32_i64` and the other pairs, in `TVA.Lemmas.IntW`). -/
 def cast {s' : Bool} {w' : Nat} (a : IntV s w) : IntV s' w' :=
   ⟨if s then a.bits.signExtend w' else a.bits.zeroExtend w'⟩
 

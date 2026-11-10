@@ -1,0 +1,18 @@
+../docs/library-review/round-40/lr-40a/work/Probes.lean:26:6: warning: `simp` already closes the goal
+
+Hint: Use `simp` instead of `simpa`:
+  [apply] simp
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+../docs/library-review/round-40/lr-40a/work/Probes.lean:27:12: warning: Unused tactic linter: `simp` does nothing.
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+../docs/library-review/round-40/lr-40a/work/Probes.lean:27:22: warning: Unused tactic linter: `norm_num` does nothing.
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+../docs/library-review/round-40/lr-40a/work/Probes.lean:27:12: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+../docs/library-review/round-40/lr-40a/work/Probes.lean:27:22: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`

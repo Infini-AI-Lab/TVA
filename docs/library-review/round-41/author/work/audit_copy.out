@@ -1,0 +1,13 @@
+== C1 the shipped files, no .git (a release copy): exit 0
+independent: TVA imports only TVA and Mathlib, and refers to no other project
+
+== C2 the same, a fresh git checkout: exit 0
+independent: TVA imports only TVA and Mathlib, and refers to no other project
+
+== C3 a git-ignored kernels/README.md that exists, cited from a shipped page: exit 1
+docs/LIBRARY_REVIEW.md: cites ../kernels/README.md, which TVA does not ship (git ignores it)
+
+== C4 and a kernel library in the shipped lakefile: exit 1
+lean/lakefile.toml: lean_lib 'x' is not TVA: the shipped configuration declares TVA alone, since kernels/ does not ship (library issue L187); tvr builds a kernel with lean/.lake/tvr/lakefile.toml
+docs/LIBRARY_REVIEW.md: cites ../kernels/README.md, which TVA does not ship (git ignores it)
+

@@ -204,8 +204,13 @@ def and (x y : Tensor s Bool) : Tensor s Bool := map2 (· && ·) x y
 def or (x y : Tensor s Bool) : Tensor s Bool := map2 (· || ·) x y
 def not (x : Tensor s Bool) : Tensor s Bool := map (! ·) x
 
-/-- Integer cast of each element (`x.to(tl.int64)` etc.). Not for `x.to(tl.int1)`, which is
-`x != 0` (`semantic.py:874-887`): write that comparison. -/
+/-- Integer cast of each element (`IntV.cast`: the value modulo `2^w'`). The model writes
+`x.to(d')` and an implicit promotion as `tl.convert d d' x` (`TVA.Lang.Promote`); between integer
+dtypes other than `int1`, that conversion has exactly one result, `x.castInt`
+(`ConvRel.iff_cast_i32_i64` and the other pairs, `safe_convert_iff` in `TVA.Lemmas.IntW`), so
+`x.castInt` is the value of `x.to(tl.int64)` too, and either form transcribes it. The model also
+uses it for its own widening steps (an integer reduction, `tl.make_block_ptr`). Not for
+`x.to(tl.int1)`, which is `x != 0` (`semantic.py:874-887`): write that comparison. -/
 def castInt {sg sg' : Bool} {w w' : Nat} (x : Tensor s (IntV sg w)) : Tensor s (IntV sg' w') :=
   map IntV.cast x
 

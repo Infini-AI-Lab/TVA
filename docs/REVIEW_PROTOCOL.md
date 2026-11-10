@@ -217,11 +217,13 @@ every role.
     kernel ships (L42, L52, L53, L69), and compared every page `tvr` generates (each kernel's
     `claim.md` and `REVIEW.md`, `kernels/README.md`, `docs/library-review/REPORTS.md`) with the one
     regenerated there (L53, L96); those steps are gone, and a kernel's `gate.json`, certificate and
-    generated pages are as the tree holds them, checked by no step. Of `kernels/` the check still
-    reads each kernel's review records (the `records` step: its ledger, the files it records and their
-    events, its snapshots, its role folders; and `lint` on its current round, which reads the shipped
-    `gate.json`) and the text and imports of every file (`tvr audit`); `lake build TVA` builds no
-    kernel's modules.
+    generated pages are as the tree holds them, checked by no step. `kernels/` is now local: git
+    ignores it and TVA does not ship it (user decision 2026-11-10: "let's just git ignore kernels and
+    remove on the remote site"), so the copy holds no kernel, and the check reads nothing of
+    `kernels/` and covers no kernel (library issues L187, L188): its `records` and `lint` steps read
+    the library's records alone, the audit no kernel's files, and `lake build TVA` builds the library
+    alone. A local kernel's records, text and imports are checked where it lives, by `tvr check`, `tvr
+    lint` and the local `tvr audit`.
 
     A dependency of these steps on anything but TVA, Mathlib's pinned source, the Lean toolchain and
     the system fails there, however it is spelled or computed, because nothing else exists.
@@ -248,9 +250,13 @@ every role.
     Every Lean file under `lean/` must be a module that `lean/TVA.lean` reaches through its imports,
     so that `lake build TVA` builds it and `leanchecker TVA` replays it (library issue L40).
   - **Lake.** `lean/lakefile.toml`, parsed as TOML: the only requirement is Mathlib from
-    `leanprover-community` (no `path`, no `git`); the libraries are `TVA` and one per kernel folder,
-    exactly `srcDir = "../kernels/<kernel>/lean"` with the kernel's module as its root; no other
-    key. `leanOptions`, which apply to every module, may set only resource limits, `autoImplicit`,
+    `leanprover-community` (no `path`, no `git`); the only library is `TVA` (`kernels/` does not
+    ship, so the shipped configuration declares no kernel's library, library issue L187); no other
+    key. `tvr` builds a local kernel with a configuration of its own, `lean/.lake/tvr/lakefile.toml`,
+    which it writes afresh (`tvr new`, `tvr check`, `tvr index`) from `lean/lakefile.toml` and one
+    library per kernel folder, exactly `srcDir = "../kernels/<kernel>/lean"` with the kernel's module
+    as its root (a root other than `TVA` and `Mathlib`), and runs as `lake -f` from `lean/`, so the
+    package, its manifest and its build folder are the library's. `leanOptions`, which apply to every module, may set only resource limits, `autoImplicit`,
     `relaxedAutoImplicit`, `linter.*` and `pp.*` (library issue L40). There is no `lakefile.lean`.
     The lakefile's `rev` is the release tag of the toolchain's Lean or `master` (library issue L7).
     In `lake-manifest.json` the only direct package is Mathlib, from its own repository, with the
@@ -283,8 +289,9 @@ every role.
     - a relative path whose `..` climbs out of TVA from the file's folder.
 
     In a git checkout the audit also lists what TVA ships, and fails on a shipped file inside a
-    folder the scan skips, so the scan reads every file that ships (library issue L41). Every file
-    under `kernels/` is scanned, in a folder that holds no `kernel.json` too (library issue L70).
+    folder the scan skips, so the scan reads every file that ships (library issue L41). Where a local
+    `kernels/` exists (a working tree; it does not ship), every file under it is scanned, in a folder
+    that holds no `kernel.json` too (library issue L70).
 
     Before these tests the text is normalised (NFKC) and the escapes of path characters, letters
     and digits are decoded: `\/`, `\uXXXX`, `\UXXXXXXXX`, `\xXX`, Python's `\NNN` and `\N{…}`,
@@ -316,7 +323,11 @@ every role.
     read up to a placeholder (`round-<N>/`, `{kernel}`, `*.md`, `…`, `...`, a lower-case word with an
     upper-case one after its last hyphen, such as `round-N`), and a line number, an anchor and closing
     punctuation are not part of it. A component in capitals only (`DESIGN`, cited without its `.md`) is a
-    name, and is checked (library issue L82).
+    name, and is checked (library issue L82). In a git checkout the files read are those TVA ships,
+    and a cited file or folder must ship too, not only exist: a git-ignored file, such as a local
+    `kernels/README.md`, is absent from what ships, so a citation of it fails (library issue L187). A
+    release copy has no git metadata and holds only what ships, so there every Markdown and Lean file
+    is read, and existing is shipping (library issue L186).
   - **Fact pages.** `tvr audit` checks that `RULE_PAGES` in `tools/tvr.py` gives a page of
     `docs/rules/` for every module of `lean/TVA/Rules`, at any depth (a module in a subfolder, such
     as `TVA.Rules.Num.Exp2`, has the page of the nearest module above it that has one, library issue
@@ -356,7 +367,8 @@ every role.
 
 Everything about one kernel is in one folder. Every file has one author, and `tvr` records a
 reviewer's or the prover's file only from that author's place. `kernels/README.md` (generated)
-lists the kernels and where each one stands.
+lists the kernels and where each one stands. `kernels/` is local: git ignores it and TVA does not
+ship it (user decision 2026-11-10; library issue L188).
 
 ```
 kernels/<kernel>/
@@ -365,7 +377,7 @@ kernels/<kernel>/
   SETUP.md                   setup     for a kernel a tutorial autotunes: the config chosen at setup, and from where (below)
   source/<file>.py           setup     the kernel source, pinned by its sha256 (copied at setup, below)
   lean/<Module>.lean, lean/<Module>/*.lean
-                             prover    the Lean bundle (a lake library of its own: lean/lakefile.toml)
+                             prover    the Lean bundle (a lake library of its own: lean/.lake/tvr/lakefile.toml, §2)
   model-map.json             prover    each source line → model text, or a drop and its reason (§7)
   claim.md                   tvr       the sheet the reviewers judge (tvr check)
   gate.json                  tvr       the gate's checks and the item digests (tvr check)
@@ -687,7 +699,7 @@ has no outcome (the later run is), while the launcher's skip above ends `ok` and
 | `source` | the kernel source has the manifest's sha256 |
 | `hygiene` | the library's code (comments and docstrings aside) has no proof escape, kernel or compiler bypass, meta code, meta type, handler attribute or option of those below (library issue L40); neither the library's code nor a kernel's Lean has a string literal holding `{` (Lean reads such a literal as a plain string or as an interpolated one, whose `{…}` is code with literals and comments of its own, depending on the syntax before it, so the comment reader could take a command after it for a comment; without one, the reader is exact, L40); a kernel's Lean has no line break but line feeds (§7, L51); and the kernel's Lean files, read whole (comments and strings included), contain no proof escape (`sorry`, `admit`, `native_decide`, `+native`, `ofReduceBool`, an `axiom` command), no kernel or compiler bypass (`implemented_by`, `extern`, `unsafe`, `set_option debug.*`, `addDecl…`, `doCheck`, `skipKernelTC`, `modifyEnv`, `setEnv`, `Environment`), no meta code (`#eval`, `#exit`, `run_cmd`, `run_elab`, `run_meta`, `run_tac`, `by_elab`, `eval%`, `elab`, `macro`, `syntax`, `initialize`, `register_…`, `include_str`, `simproc`, `delab`, …), no meta type (`IO`, `CoreM`, `MetaM`, `TermElabM`, `CommandElabM`, `TacticM`, `MacroM`, `Lean.Elab`, `Lean.Meta`, `Lean.Syntax`), no attribute that installs a handler (`tactic`, `init`, `norm_num`, `positivity`, `aesop`, `export`), and nothing that gives a name another meaning (L20): no notation (`notation`, `infix`, `infixl`, `infixr`, `prefix`, `postfix`, `binder_predicate`, `unif_hint`), no `open … renaming`, no `export`, no `local`/`scoped` instance, attribute or notation, no instance attribute or instance erasure (`attribute [-…]`), and no `set_option` other than resource limits, `autoImplicit`, `pp.*` (`pp.notation` included), `trace.*` and `linter.*`; the full list is `HYGIENE` in `tools/tvr.py` |
 | `independence` | §2 |
-| `build` | `lake build <module>` succeeds. It runs only after `hygiene` and `independence` pass, since building runs the kernel's Lean |
+| `build` | `lake -f .lake/tvr/lakefile.toml build <module>` (from `lean/`, the configuration `tvr` writes, §2) succeeds. It runs only after `hygiene` and `independence` pass, since building runs the kernel's Lean |
 | `replay` | `leanchecker <root>` (Lean's own tool, in the toolchain) re-checks every declaration of the kernel's modules from the compiled files, with Lean's kernel, in the environment of their imports. A declaration that meta code added without the kernel's check fails here. The library's own modules are replayed the same way (`leanchecker TVA`) by the release check (§2, library issue L40) |
 | `shape` | the claim reader elaborates: `main : ∀ K P, Assumptions K P → Spec K`, `consistent : Claim.Consistent Assumptions`, `satisfiable : Claim.Satisfiable Inst.ok Pre` (some covered instance and memory, library issue L71), `Spec K = Claim.Meets Inst.ok Pre Post K`; `Assumptions` is a `structure` (of another inductive type the reader would read no field, so the claim would show no assumption while a constructor held anything; the reader fails, and so does a reader that panics, on a line of its output other than its result line, which quotes the claim's names and docstrings, library issue L106, L112); every field of `Assumptions` is public (a `private` field's projection has another name than `<namespace>.Assumptions.<field>`, so the reader would list the field and read none of it: it refuses the claim with an error that names the field, library issue L112); and `Assumptions` has exactly the two parameters `(K : Claim.Behaviour Inst) (P : Platform)`, in this order, both explicit: the reader finds `K` and `P` among the binders of each field's projection by their place, so a parameter before them (an instance argument) would make `kinds` read other binders as `K` and `P`; any other parameter is refused too (library issue L94) |
 | `axioms` | `main`, `consistent` and `satisfiable` depend only on `propext`, `Classical.choice`, `Quot.sound` |

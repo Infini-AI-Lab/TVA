@@ -1,0 +1,12 @@
+%14 = shl nuw nsw i32 %10, 3, !dbg !15
+%23 = mul i32 %4, %13, !dbg !16
+%36 = getelementptr i8, ptr addrspace(1) %0, i64 %35, !dbg !20
+%38 = getelementptr i8, ptr addrspace(1) %0, i64 %37, !dbg !20
+%40 = getelementptr i8, ptr addrspace(1) %0, i64 %39, !dbg !20
+%42 = getelementptr i8, ptr addrspace(1) %0, i64 %41, !dbg !20
+%44 = getelementptr i8, ptr addrspace(1) %0, i64 %43, !dbg !20
+%46 = getelementptr i8, ptr addrspace(1) %0, i64 %45, !dbg !20
+%48 = getelementptr i8, ptr addrspace(1) %0, i64 %47, !dbg !20
+%50 = getelementptr i8, ptr addrspace(1) %0, i64 %49, !dbg !20
+%61 = getelementptr i8, ptr addrspace(1) %1, i64 %60, !dbg !23
+%63 = getelementptr i8, ptr addrspace(1) %61, i64 %62, !dbg !23

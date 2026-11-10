@@ -1,0 +1,8 @@
+triton 3.8.0 torch 2.11.0+cu130 NVIDIA H200 NVL 2026-11-10
+load: enabled lanes = element, masked-off lanes = other: True
+load: memory unchanged: True
+store: enabled lanes written: True
+store: canaries at wrapped addresses kept: True
+store: nothing else changed: True
+load_k llir op/flags: [('add', ''), ('getelementptr', ''), ('mul', ''), ('shl', ''), ('shl', ' nuw')]
+load_k True True False

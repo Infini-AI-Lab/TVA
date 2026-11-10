@@ -81,8 +81,9 @@ Read these in `~/fpv/tva`:
 
 ## How to work
 
-- Build with `cd ~/fpv/tva/lean && ~/.elan/bin/lake build <Module>`. Never run two builds at
-  once.
+- Build with `cd ~/fpv/tva/lean && ~/.elan/bin/lake -f .lake/tvr/lakefile.toml build <Module>`
+  (the configuration with the kernels' libraries, which `tvr new`, `tvr check` and `tvr index`
+  write). Never run two builds at once.
 - Run the gate with `python3 -I tools/tvr.py check {{kernel}}` until it passes.
 
 ## Answering a round: regular, checked, then recorded

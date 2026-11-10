@@ -39,6 +39,11 @@ width, and the small facts a proof about index arithmetic needs on the way. All 
   holding every source value, and `i32_i32`, `i64_i64`, `u32_u32`, `u64_u64`), a narrowing one in
   range too (`ConvRel.toInt_i64_i32`); `int1` gives `0` or `1` (`toInt_i1_i32`, `toInt_i1_i64`);
   `exists_i32_i64`, `exists_i64_i64`, `exists_i64_i32`.
+* The integer cast (library issue L185): `IntV.cast_eq_ofInt` (`IntV.cast`, and so `Tensor.castInt`,
+  is the value modulo `2^w'`); `ConvRel.iff_cast_i32_i64` and every other pair of `int8`…`int64`,
+  `uint8`…`uint64` (`ConvRel P d d' x r ↔ r = IntV.cast x`: the cast is the conversion's one
+  result); `safe_convert_iff` (`tl.convert d d' x >>= k` is safe exactly when `k y` is, for the one
+  result `y`; for integers, `x.castInt`).
 * `tl.arange` lanes: `I32.toInt_arange`, `I32.toInt_tl_arange`, `I32.toInt_sadd_arange`.
 * Lanes of integer vectors (`Tensor`): `get1_add`, `get1_sub`, `get1_mul`, `get1_neg`, `get1_sadd`,
   `get1_adds`, `get1_smul`, `get1_muls`, `get1_ltS`, `get1_lt`, `get1_le`, `get1_eq`,
@@ -564,6 +569,22 @@ theorem I32.toInt_sadd_arange {c : I32} {s n : Nat} (hc : c.toInt = s) (h : s + 
   have hl := I32.toInt_tl_arange (n := n) (by omega) i
   exact IntV.add_nat hc hl (by simp only [Nat.sub_zero] at hi; norm_num; omega)
 
+/-- **The integer cast is the value modulo `2^w'`** (library issue L185): sign-extension of a signed
+source, or zero-extension of an unsigned one, then truncation, is `IntV.ofInt a.toInt`, what
+`ConvRel` gives between integer dtypes other than `int1` (`ConvRel.iff_cast_i32_i64` and the other
+pairs). -/
+theorem cast_eq_ofInt {s' : Bool} {w' : Nat} (a : IntV s w) :
+    (IntV.cast a : IntV s' w') = IntV.ofInt a.toInt := by
+  cases s
+  · show IntV.mk _ = IntV.mk _
+    simp only [IntV.toInt, Bool.false_eq_true, ite_false]
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    simp [BitVec.toNat_setWidth]
+  · show IntV.mk _ = IntV.mk _
+    simp only [IntV.toInt, ite_true]
+    rfl
+
 end IntV
 
 /-! ## Lanes of integer vectors
@@ -623,9 +644,11 @@ variable {n : Nat} {sg : Bool} {w : Nat}
 @[simp] theorem get1_eq (x y : Tensor [n] (IntV sg w)) (i : Fin n) :
     (x.eq y).get1 i = (x.get1 i).eq (y.get1 i) := rfl
 
-/-- Lane `i` of `x.castInt` (the model's own widening step, as in a reduction of a narrow integer
-type or the entries of `tl.make_block_ptr`; not `x.to(tl.int64)` or an implicit promotion, which are `tl.convert`, with
-`ConvRel.toInt_i32_i64` and the other pairs) is the cast of lane `i`. -/
+/-- Lane `i` of `x.castInt` is the cast of lane `i`. `x.castInt` is the one result of
+`tl.convert d d' x` (the model of `x.to(tl.int64)` and of an implicit promotion) between integer
+dtypes other than `int1` (`ConvRel.iff_cast_i32_i64` and the other pairs, `safe_convert_iff`), and
+the model's own widening step (a reduction of a narrow integer type, the entries of
+`tl.make_block_ptr`). -/
 @[simp] theorem get1_castInt {sg' : Bool} {w' : Nat} (x : Tensor [n] (IntV sg w)) (i : Fin n) :
     (x.castInt : Tensor [n] (IntV sg' w')).get1 i = IntV.cast (x.get1 i) := rfl
 
@@ -821,6 +844,232 @@ theorem exists_i64_i64 (x : I64) : ∃ r : I64, ConvRel P .i64 .i64 x r := ⟨In
 when in range). -/
 theorem exists_i64_i32 (x : I64) : ∃ r : I32, ConvRel P .i64 .i32 x r := ⟨IntV.ofInt x.toInt, rfl⟩
 
+/-! ### The integer cast (library issue L185)
+
+Between two integer dtypes other than `int1`, `ConvRel`'s only result is `IntV.cast` of the operand
+(`IntV.cast_eq_ofInt`: the cast is the value modulo `2^w'`, which `ofIntRel` gives). So
+`tl.convert d d' x` (the model of `x.to(d')` and of an implicit promotion) has exactly one result,
+`x.castInt`: `safe_convert_iff` with `iff_cast_<d>_<d'>` turns one form into the other, as
+`safe_convert_iff (fun i r => ConvRel.iff_cast_i32_i64) (y := x.castInt)`. -/
+
+theorem iff_cast_i8_i8 {x : I8} {r : I8} : ConvRel P .i8 .i8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i8_i16 {x : I8} {r : I16} : ConvRel P .i8 .i16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i8_i32 {x : I8} {r : I32} : ConvRel P .i8 .i32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i8_i64 {x : I8} {r : I64} : ConvRel P .i8 .i64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i8_u8 {x : I8} {r : U8} : ConvRel P .i8 .u8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i8_u16 {x : I8} {r : U16} : ConvRel P .i8 .u16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i8_u32 {x : I8} {r : U32} : ConvRel P .i8 .u32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i8_u64 {x : I8} {r : U64} : ConvRel P .i8 .u64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i16_i8 {x : I16} {r : I8} : ConvRel P .i16 .i8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i16_i16 {x : I16} {r : I16} : ConvRel P .i16 .i16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i16_i32 {x : I16} {r : I32} : ConvRel P .i16 .i32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i16_i64 {x : I16} {r : I64} : ConvRel P .i16 .i64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i16_u8 {x : I16} {r : U8} : ConvRel P .i16 .u8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i16_u16 {x : I16} {r : U16} : ConvRel P .i16 .u16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i16_u32 {x : I16} {r : U32} : ConvRel P .i16 .u32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i16_u64 {x : I16} {r : U64} : ConvRel P .i16 .u64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i32_i8 {x : I32} {r : I8} : ConvRel P .i32 .i8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i32_i16 {x : I32} {r : I16} : ConvRel P .i32 .i16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i32_i32 {x : I32} {r : I32} : ConvRel P .i32 .i32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i32_i64 {x : I32} {r : I64} : ConvRel P .i32 .i64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i32_u8 {x : I32} {r : U8} : ConvRel P .i32 .u8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i32_u16 {x : I32} {r : U16} : ConvRel P .i32 .u16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i32_u32 {x : I32} {r : U32} : ConvRel P .i32 .u32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i32_u64 {x : I32} {r : U64} : ConvRel P .i32 .u64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i64_i8 {x : I64} {r : I8} : ConvRel P .i64 .i8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i64_i16 {x : I64} {r : I16} : ConvRel P .i64 .i16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i64_i32 {x : I64} {r : I32} : ConvRel P .i64 .i32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i64_i64 {x : I64} {r : I64} : ConvRel P .i64 .i64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i64_u8 {x : I64} {r : U8} : ConvRel P .i64 .u8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i64_u16 {x : I64} {r : U16} : ConvRel P .i64 .u16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i64_u32 {x : I64} {r : U32} : ConvRel P .i64 .u32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_i64_u64 {x : I64} {r : U64} : ConvRel P .i64 .u64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u8_i8 {x : U8} {r : I8} : ConvRel P .u8 .i8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u8_i16 {x : U8} {r : I16} : ConvRel P .u8 .i16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u8_i32 {x : U8} {r : I32} : ConvRel P .u8 .i32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u8_i64 {x : U8} {r : I64} : ConvRel P .u8 .i64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u8_u8 {x : U8} {r : U8} : ConvRel P .u8 .u8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u8_u16 {x : U8} {r : U16} : ConvRel P .u8 .u16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u8_u32 {x : U8} {r : U32} : ConvRel P .u8 .u32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u8_u64 {x : U8} {r : U64} : ConvRel P .u8 .u64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u16_i8 {x : U16} {r : I8} : ConvRel P .u16 .i8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u16_i16 {x : U16} {r : I16} : ConvRel P .u16 .i16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u16_i32 {x : U16} {r : I32} : ConvRel P .u16 .i32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u16_i64 {x : U16} {r : I64} : ConvRel P .u16 .i64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u16_u8 {x : U16} {r : U8} : ConvRel P .u16 .u8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u16_u16 {x : U16} {r : U16} : ConvRel P .u16 .u16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u16_u32 {x : U16} {r : U32} : ConvRel P .u16 .u32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u16_u64 {x : U16} {r : U64} : ConvRel P .u16 .u64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u32_i8 {x : U32} {r : I8} : ConvRel P .u32 .i8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u32_i16 {x : U32} {r : I16} : ConvRel P .u32 .i16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u32_i32 {x : U32} {r : I32} : ConvRel P .u32 .i32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u32_i64 {x : U32} {r : I64} : ConvRel P .u32 .i64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u32_u8 {x : U32} {r : U8} : ConvRel P .u32 .u8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u32_u16 {x : U32} {r : U16} : ConvRel P .u32 .u16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u32_u32 {x : U32} {r : U32} : ConvRel P .u32 .u32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u32_u64 {x : U32} {r : U64} : ConvRel P .u32 .u64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u64_i8 {x : U64} {r : I8} : ConvRel P .u64 .i8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u64_i16 {x : U64} {r : I16} : ConvRel P .u64 .i16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u64_i32 {x : U64} {r : I32} : ConvRel P .u64 .i32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u64_i64 {x : U64} {r : I64} : ConvRel P .u64 .i64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u64_u8 {x : U64} {r : U8} : ConvRel P .u64 .u8 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u64_u16 {x : U64} {r : U16} : ConvRel P .u64 .u16 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u64_u32 {x : U64} {r : U32} : ConvRel P .u64 .u32 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
+theorem iff_cast_u64_u64 {x : U64} {r : U64} : ConvRel P .u64 .u64 x r ↔ r = IntV.cast x := by
+  rw [IntV.cast_eq_ofInt]; exact Iff.rfl
+
 end ConvRel
+
+section Convert
+variable {E : Env} {R W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Shape}
+
+/-- **A conversion with one result** (library issue L185): when every element of `x` has exactly
+one result, the element of `y` (`ConvRel E.P d d' (x.get i) r ↔ r = y.get i`), `tl.convert d d' x`
+followed by `k` is safe exactly when `k y` is. Between integer dtypes other than `int1`,
+`y = x.castInt` (`ConvRel.iff_cast_i32_i64` and the other pairs), so `x.to(tl.int64)` may be read
+as `tl.convert .i32 .i64 x` or as `x.castInt`. -/
+theorem safe_convert_iff {d d' : DType} {x : Tensor s d.Val} {y : Tensor s d'.Val}
+    {k : Tensor s d'.Val → Prog α} (h : ∀ i r, ConvRel E.P d d' (x.get i) r ↔ r = y.get i) :
+    Safe E R W Q m (tl.convert d d' x >>= k) ↔ Safe E R W Q m (k y) := by
+  constructor
+  · intro hs
+    simp only [tl.convert, Prog.bind_eq, Prog.bind] at hs
+    cases hs with
+    | env h1 =>
+      cases h1 with
+      | pick _ hall =>
+        simpa [Prog.bind] using hall y fun i => (h i (y.get i)).2 rfl
+  · intro hs
+    refine safe_convert (fun i => ⟨y.get i, (h i _).2 rfl⟩) fun r hr => ?_
+    have : r = y := Tensor.ext (funext fun i => (h i _).1 (hr i))
+    rw [this]; exact hs
+
+end Convert
 
 end TVA

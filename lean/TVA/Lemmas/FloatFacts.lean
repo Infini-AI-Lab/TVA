@@ -213,17 +213,17 @@ end FloatV
 
 /-- The `float16` value with bit pattern `n` (`DType.ofBits`, as in a bit cast) is `ofPat n`; so
 `DType.f16.ofBits 0`, the default element of a `float16` tensor, is `+0`. -/
-@[simp] theorem DType.ofBits_f16 (n : Nat) : DType.ofBits .f16 n = (FloatV.ofPat n : F16) := rfl
+theorem DType.ofBits_f16 (n : Nat) : DType.ofBits .f16 n = (FloatV.ofPat n : F16) := rfl
 /-- `DType.ofBits .bf16 n` is `ofPat n`. -/
-@[simp] theorem DType.ofBits_bf16 (n : Nat) : DType.ofBits .bf16 n = (FloatV.ofPat n : BF16) := rfl
+theorem DType.ofBits_bf16 (n : Nat) : DType.ofBits .bf16 n = (FloatV.ofPat n : BF16) := rfl
 /-- `DType.ofBits .f32 n` is `ofPat n`. -/
-@[simp] theorem DType.ofBits_f32 (n : Nat) : DType.ofBits .f32 n = (FloatV.ofPat n : F32) := rfl
+theorem DType.ofBits_f32 (n : Nat) : DType.ofBits .f32 n = (FloatV.ofPat n : F32) := rfl
 /-- `DType.ofBits .f64 n` is `ofPat n`. -/
-@[simp] theorem DType.ofBits_f64 (n : Nat) : DType.ofBits .f64 n = (FloatV.ofPat n : F64) := rfl
+theorem DType.ofBits_f64 (n : Nat) : DType.ofBits .f64 n = (FloatV.ofPat n : F64) := rfl
 /-- `DType.ofBits .f8e5 n` is `ofPat n`. -/
-@[simp] theorem DType.ofBits_f8e5 (n : Nat) : DType.ofBits .f8e5 n = (FloatV.ofPat n : F8E5) := rfl
+theorem DType.ofBits_f8e5 (n : Nat) : DType.ofBits .f8e5 n = (FloatV.ofPat n : F8E5) := rfl
 /-- `DType.ofBits .f8e4nv n` is `ofPat n`. -/
-@[simp] theorem DType.ofBits_f8e4nv (n : Nat) :
+theorem DType.ofBits_f8e4nv (n : Nat) :
     DType.ofBits .f8e4nv n = (FloatV.ofPat n : F8E4) := rfl
 
 /-- `tl.zeros(…, tl.float16)` holds `+0`. -/
