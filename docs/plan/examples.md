@@ -9,7 +9,8 @@ clearly state the specification, assumption, condition and proof."
 
 The sources are Triton 3.8.0's tutorials `01-vector-add.py`, `08-grouped-gemm.py`
 (`grouped_matmul_kernel`, the pointer version) and `06-fused-attention.py` (`_attn_fwd`).
-Each bundle states four things, and its kernel folder's `README.md` (`kernels/<kernel>/`) repeats them in words:
+Each bundle states four things, and its kernel folder's `README.md` (`<kernel>/README.md`)
+repeats them in words:
 
 - **Specification** (`Post`): what the outputs are.
 - **Conditions** (`Inst.ok`, `Pre`): the instances and inputs covered.

@@ -9,7 +9,7 @@ it as `python3 -I tools/tvr.py …` from the TVA root). The agents' prompts are 
 A kernel's claim rests on two layers. Each has an author and reviewers, and each layer's
 reviewers check only that layer.
 
-| | **Library** (`lean/TVA`, `docs/`, `evidence/`) | **Kernel** (`kernels/<kernel>/`) |
+| | **Library** (`lean/TVA`, `docs/`, `evidence/`) | **Kernel** (the kernel's folder, `<kernel>/`) |
 |---|---|---|
 | Author | **library author**: what each Triton construct means (`TVA.Lang`, `TVA.Sem`, [SEMANTICS.md](SEMANTICS.md)), guidance on transcribing source into a model ([TRANSCRIPTION.md](TRANSCRIPTION.md)), the compiler rule and the device facts with their constants (`TVA.Rules`), lemmas | **kernel prover** ([PROVER_GUIDE.md](PROVER_GUIDE.md)): the model, the model map, the conditions, the specification, the kernel's own assumptions, the proof, the write-up |
 | Reviewer | **library reviewer** ([LIBRARY_REVIEW.md](LIBRARY_REVIEW.md)): checks the library against Triton 3.8.0 and the target GPU, using the compiler's sources, PTX and runs on the GPU | **kernel reviewer** ([REVIEWER_GUIDE.md](REVIEWER_GUIDE.md)): checks the prover's choices against the kernel's source and its real use, **trusting the library** |
@@ -218,15 +218,14 @@ every role.
 
     It gates no kernel (library issue L160; user, 2026-11-08: "we do not need 12 certified kernels'
     shipped gates now. since they are becoming tasks in our benchmark." and "I do not think we need
-    recomputing the gates of all 38 kernels in kernels/"). Until round 35 it also ran the gate on every
+    recomputing the gates of all 38 kernels [...]"). Until round 35 it also ran the gate on every
     kernel, compared each recomputed `gate.json` and the certificate regenerated from it with what the
     kernel ships (L42, L52, L53, L69), and compared every page `tvr` generates (each kernel's
-    `claim.md` and `REVIEW.md`, `kernels/README.md`, `docs/library-review/REPORTS.md`) with the one
-    regenerated there (L53, L96); those steps are gone, and a kernel's `gate.json`, certificate and
-    generated pages are as the tree holds them, checked by no step. `kernels/` is now local: git
-    ignores it and TVA does not ship it (user decision 2026-11-10: "let's just git ignore kernels and
-    remove on the remote site"), so the copy holds no kernel, and the check reads nothing of
-    `kernels/` and covers no kernel (library issues L187, L188): its `records` and `lint` steps read
+    `claim.md` and `REVIEW.md`, the generated kernel index, `docs/library-review/REPORTS.md`) with
+    the one regenerated there (L53, L96); those steps are gone, and a kernel's `gate.json`,
+    certificate and generated pages are as the tree holds them, checked by no step. Kernel folders
+    are local; TVA does not ship them, so the copy holds no kernel, and the check reads no kernel
+    folder and covers no kernel (library issues L187, L188): its `records` and `lint` steps read
     the library's records alone, the audit no kernel's files, and `lake build TVA` builds the library
     alone. A local kernel's records, text and imports are checked where it lives, by `tvr check`, `tvr
     lint` and the local `tvr audit`.
@@ -256,13 +255,13 @@ every role.
     Every Lean file under `lean/` must be a module that `lean/TVA.lean` reaches through its imports,
     so that `lake build TVA` builds it and `leanchecker TVA` replays it (library issue L40).
   - **Lake.** `lean/lakefile.toml`, parsed as TOML: the only requirement is Mathlib from
-    `leanprover-community` (no `path`, no `git`); the only library is `TVA` (`kernels/` does not
+    `leanprover-community` (no `path`, no `git`); the only library is `TVA` (kernel folders do not
     ship, so the shipped configuration declares no kernel's library, library issue L187); no other
     key. `tvr` builds a local kernel with a configuration of its own, `lean/.lake/tvr/lakefile.toml`,
     which it writes afresh (`tvr new`, `tvr check`, `tvr index`) from `lean/lakefile.toml` and one
-    library per kernel folder, exactly `srcDir = "../kernels/<kernel>/lean"` with the first component
-    of the kernel's module as its root, and runs as `lake -f` from `lean/`, so the package, its
-    manifest and its build folder are the library's. Each kernel's root is its own (library issue
+    library per kernel folder, exactly `srcDir` set to that folder's `lean/` (relative to TVA's
+    `lean/`) with the first component of the kernel's module as its root, and runs as `lake -f`
+    from `lean/`, so the package, its manifest and its build folder are the library's. Each kernel's root is its own (library issue
     L191): the gate's `manifest` check, and `tvr new`, refuse a module whose root, compared ignoring
     case, is another local kernel's module's root, or a root of `TVA`, of Mathlib, of the Lean
     toolchain (`Init`, `Std`, `Lean`, `Lake` and each top-level `.olean` of the pinned toolchain's
@@ -303,8 +302,8 @@ every role.
     - a relative path whose `..` climbs out of TVA from the file's folder.
 
     In a git checkout the audit also lists what TVA ships, and fails on a shipped file inside a
-    folder the scan skips, so the scan reads every file that ships (library issue L41). Where a local
-    `kernels/` exists (a working tree; it does not ship), every file under it is scanned, in a folder
+    folder the scan skips, so the scan reads every file that ships (library issue L41). Where
+    local kernel folders exist (a working tree), every file under them is scanned, in a folder
     that holds no `kernel.json` too (library issue L70).
 
     Before these tests the text is normalised (NFKC) and the escapes of path characters, letters
@@ -338,9 +337,9 @@ every role.
     upper-case one after its last hyphen, such as `round-N`), and a line number, an anchor and closing
     punctuation are not part of it. A component in capitals only (`DESIGN`, cited without its `.md`) is a
     name, and is checked (library issue L82). In a git checkout the files read are those TVA ships,
-    and a cited file or folder must ship too, not only exist: a git-ignored file, such as a local
-    `kernels/README.md`, is absent from what ships, so a citation of it fails (library issue L187). A
-    release copy has no git metadata and holds only what ships, so there every Markdown and Lean file
+    and a cited file or folder must ship too, not only exist: a git-ignored file, such as the
+    generated kernel index, is absent from what ships, so a citation of it fails (library issue
+    L187). A release copy has no git metadata and holds only what ships, so there every Markdown and Lean file
     is read, and existing is shipping (library issue L186).
   - **Fact pages.** `tvr audit` checks that `RULE_PAGES` in `tools/tvr.py` gives a page of
     `docs/rules/` for every module of `lean/TVA/Rules`, at any depth (a module in a subfolder, such
@@ -380,12 +379,12 @@ every role.
 ## 3. The kernel folder
 
 Everything about one kernel is in one folder. Every file has one author, and `tvr` records a
-reviewer's or the prover's file only from that author's place. `kernels/README.md` (generated)
-lists the kernels and where each one stands. `kernels/` is local: git ignores it and TVA does not
-ship it (user decision 2026-11-10; library issue L188).
+reviewer's or the prover's file only from that author's place. The generated kernel index lists
+the kernels and where each one stands. Kernel folders are local; TVA does not ship them (library
+issue L188).
 
 ```
-kernels/<kernel>/
+<kernel>/
   README.md                  prover    the write-up: Specification, Conditions, Assumptions, Proof, Narrowings
   kernel.json                prover    manifest: title, Lean module and namespace, source file, sha256, line ranges
   SETUP.md                   setup     for a kernel a tutorial autotunes: the config chosen at setup, and from where (below)
@@ -481,7 +480,7 @@ A kernel folder holds no device evidence: device facts are the library's.
   `release.json` back.
 - **A new kernel**: `tvr new <kernel> --module <Module> --namespace <NS> --source <file>`.
 - **Setting up a kernel folder** (library issue L116). The user and the coordinator ("setup" above:
-  whoever creates `kernels/<kernel>/`) set up each kernel's folder, before any prover starts: `tvr
+  whoever creates the kernel's folder) set up each kernel's folder, before any prover starts: `tvr
   new` copies the source into `source/` and pins its sha256. TVA verifies the kernel itself, not
   the autotuner (the user's decisions, 2026-10-29: "actually we do not neccessarily cover autotune.
   we do verification basically for the kernel." and "our principle is, we are verifying kernel
@@ -876,8 +875,8 @@ The certificate is granted, and `review/certificate.json` written, when all of t
   to the build's inputs, or to a library file that reaches the kernel's items, the certificate
   lapses until `tvr check` runs again and the reviewers re-accept the items whose digests changed
   (after a change that leaves the digests as they were, such as one to the gate's code, `tvr check`
-  alone restores the certificate); meanwhile `REVIEW.md` and `kernels/README.md` mark the gate
-  stale;
+  alone restores the certificate); meanwhile `REVIEW.md` and the generated kernel index mark the
+  gate stale;
 - every assigned reviewer has accepted every item at its current digest;
 - no blocking finding is unresolved.
 

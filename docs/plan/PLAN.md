@@ -70,7 +70,7 @@ library and lemma construction."
 ## Now (user, 2026-10-27): the library, the protocol and the interface
 
 User: "let's stop our work proving kernels. let's strengthen our library, protocol and
-interface." The three kernels (`kernels/`) stay as they are: round 1 is recorded, and their
+interface." The three kernels stay as they are: round 1 is recorded, and their
 gates show what they need from the library.
 
 1. **Library batch 1**: the issues L1–L6 of [library-review/ISSUES.md](../library-review/ISSUES.md).

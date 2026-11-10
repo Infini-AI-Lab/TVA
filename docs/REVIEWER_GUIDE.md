@@ -2,8 +2,8 @@
 
 You review one kernel's claim. The process is [REVIEW_PROTOCOL.md](REVIEW_PROTOCOL.md) (§9:
 filings, finding kinds, acceptance), and your prompt is
-[prompts/kernel-reviewer.md](prompts/kernel-reviewer.md). Start from the kernel's `claim.md`
-(`kernels/<kernel>/`).
+[prompts/kernel-reviewer.md](prompts/kernel-reviewer.md). Start from the kernel's `claim.md`, in
+the kernel's folder (`<kernel>/`).
 
 The prover claims, with a Lean proof:
 
@@ -114,7 +114,7 @@ instance? A line dropped that does something is `MAP_INCOMPLETE`.
 
 **Names: read the kernel's whole Lean.** A model line can read as a library operation and mean
 something else, without any change to its text. Read every Lean file of the kernel
-(`kernels/<kernel>/lean/`) in full, not only what claim.md quotes, and judge what each name in the
+(`<kernel>/lean/`) in full, not only what claim.md quotes, and judge what each name in the
 model means: every `def`, `notation`, `open`, `namespace`, `instance`, `attribute`, `export` and
 `set_option`, every binder (`fun`, `let`, a parameter with a default value, a pattern) and every
 field access. The routes found so far: a kernel definition named like a library operation

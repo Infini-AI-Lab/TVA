@@ -58,9 +58,10 @@ TVA/Lemmas/      proof kit: Safe, per-op rules, Buf, Access, Block, BlockPtr, De
                  Scaled, Random, Layout, Int, Num, Tree, Sum, Independent, Shared, Claim,
                  Consistency
 ../claims/       the fixed claims: model, conditions, specification, assumptions (no proof)
-../kernels/      local only (git-ignored, not shipped): one folder per proved kernel: Lean bundle,
-                 source, write-up, evidence, review
 ```
+
+Each proved kernel has a folder of its own (Lean bundle, source, write-up, evidence, review).
+Kernel folders are local; TVA does not ship them.
 
 **Shallow values, deep effects.** Tensors, integers and floats are ordinary Lean values, and
 exact operations are Lean functions. So a proof computes with them using `simp` and arithmetic.

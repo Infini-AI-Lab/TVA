@@ -30,10 +30,10 @@ Reviewers judge the model against the source, the specification and the assumpti
 - Reviewing the library: [docs/LIBRARY_REVIEW.md](docs/LIBRARY_REVIEW.md), issues in
   [docs/library-review/ISSUES.md](docs/library-review/ISSUES.md), evidence in `evidence/`
 - Plan: [docs/plan/PLAN.md](docs/plan/PLAN.md)
-- Kernels: `kernels/` is local, and TVA does not ship it (user decision 2026-11-10): one folder per
-  kernel with its Lean bundle, source, write-up and review, made by `tvr new`; the release check reads
-  none of it. The fixed claims of the test kernels ship in [claims/](claims/README.md), and the
-  release check elaborates each against the library (library issue L190)
+- Kernels: one folder per kernel with its Lean bundle, source, write-up and review, made by `tvr
+  new`. Kernel folders are local; TVA does not ship them, and the release check reads none of
+  them. The fixed claims of the test kernels ship in [claims/](claims/README.md), and the release
+  check elaborates each against the library (library issue L190)
 - Agents in containers: [sandbox/](sandbox/README.md) runs the protocol on one kernel with a prover
   agent, reviewer agents and a review service, each in a container (a Harbor task), with a harness
   that helps weaker models ([sandbox/HARNESS.md](sandbox/HARNESS.md))

@@ -73,7 +73,7 @@ tokens: set it below the model's context length, HARNESS.md).
 **Kernels.** Any kernel folder of TVA's tree at the base image's commit, with its source and
 `kernel.json` (`tvr new` makes one). A certified kernel's task carries its certified proof as the oracle
 solution (`-a oracle`); a kernel without a certificate has no oracle. Of the twelve certified kernels
-(`kernels/README.md`), `vec_add_f32` is the smallest; `paged_attention_f16` (indirect access) and
+(listed in the generated kernel index), `vec_add_f32` is the smallest; `paged_attention_f16` (indirect access) and
 `streamk_matmul_f16` (atomics) are among the hardest.
 
 **Result.** Harbor's reward (`/logs/verifier/reward.json`) is 1 when the verifier's own gate passes and
@@ -82,8 +82,8 @@ the certificate holds; it also reports `rounds_reviewed`, `rejected`, `findings`
 Anthropic's own endpoint only), `service_error` (a reviewer or the service failed, not the prover) and
 `escalated`. With another endpoint, the spend is in the credit meter's ledger (HARNESS.md). The exported record,
 with the job logs and the reviewer agents' transcripts, is in the trial's `artifacts/export/`. Its
-`kernel/` folder is the kernel's folder as TVA keeps it: put in place of `kernels/<kernel>/` in TVA's
-tree at the same commit, `tvr status` reads its certificate as it reads any other (a record made by
+`kernel/` folder is the kernel's folder as TVA keeps it: put in its place in TVA's tree at the
+same commit, `tvr status` reads its certificate as it reads any other (a record made by
 the scripted reviewers, who read nothing, is a plumbing test and nothing more).
 
 Without a key, or with a bad one, the reviewer container stops at start (it runs one short agent call

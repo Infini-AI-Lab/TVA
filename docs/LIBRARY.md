@@ -1,7 +1,7 @@
 # Library map
 
 Build: `cd lean && ~/.elan/bin/lake build` (the one target, `TVA`). `lean/lakefile.toml` declares the library alone,
-since `kernels/` does not ship (below); a local kernel builds with the configuration `tvr` writes,
+since kernel folders do not ship (below); a local kernel builds with the configuration `tvr` writes,
 `cd lean && ~/.elan/bin/lake -f .lake/tvr/lakefile.toml build <Module>` (library issue L187).
 
 ## Language (`TVA/Lang/`)
@@ -91,12 +91,11 @@ rationals; its agreement with the device is [evidence/float-layer](../evidence/f
 
 `TVA.Lemmas.FloatErr` lifts the bounds to `FloatV`.
 
-## Kernels (`kernels/<kernel>/`, local, not shipped)
+## Kernels
 
-`kernels/` is local: git ignores it, and TVA does not ship it (user decision 2026-11-10: "let's just
-git ignore kernels and remove on the remote site"). A kernel folder, made by `tvr new`, holds a
-kernel's Lean bundle, source, write-up and review records; `tvr index` writes the local index
-`kernels/README.md`, with each kernel's gate, review phase and certificate; `tvr check` builds the
+Kernel folders are local; TVA does not ship them. A kernel folder, made by `tvr new`, holds a
+kernel's Lean bundle, source, write-up and review records; `tvr index` writes the generated kernel
+index, with each kernel's gate, review phase and certificate; `tvr check` builds the
 kernel with `lean/.lake/tvr/lakefile.toml` (library issue L187). The release check reads none of
 it, and covers no kernel. What ships of the test kernels is their fixed claims, in
 [claims/](../claims/README.md); the release check elaborates each against the library (its `claims`

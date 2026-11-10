@@ -2,7 +2,7 @@
 
 Twenty-five Triton kernels from three serving and training code bases, each to be proved and reviewed
 in the sandbox ([README.md](README.md)) as one task: `make_task.py <kernel>`, one prover, two
-reviewers, the same time limit. The twelve kernels in `kernels/` come from Triton's tutorials; this
+reviewers, the same time limit. TVA's first twelve kernels come from Triton's tutorials; this
 set asks what the protocol does on the kernels that real systems run, and how a model's result
 depends on what a kernel does.
 
@@ -50,7 +50,7 @@ Sources, pinned:
 
 ## The set
 
-Kernel names follow `kernels/`: the operation, then the data type of the configuration proved.
+Kernel names follow the kernel folders: the operation, then the data type of the configuration proved.
 Source paths are relative to the package: `vllm/`, `python/sglang/`, `fla/`.
 
 | # | Kernel (TVA name) | Source | Lines | What it does | Level |
@@ -85,7 +85,7 @@ By code base: vLLM 7, SGLang 10, fla 8. By level (L0 / L1 / L2 / L3): 5 / 5 / 9 
 
 ## Levels
 
-Every kernel in `kernels/` has a level, by the proof expected: what the control flow asks
+Every kernel has a level, by the proof expected: what the control flow asks
 (one pass, a loop, several programs or stages) and what the numbers ask (exact, one bound, a bound
 carried through a loop or a chain of `tl.dot`s and rescalings). Where a kernel has two of a level's
 marks, or marks of two levels, it takes the higher level.
@@ -136,7 +136,7 @@ All kernels: 6 / 7 / 13 / 11. The borderline calls, which a run's results may mo
 
 ## Preparing a kernel
 
-Each kernel becomes a folder `kernels/<name>/` with no proof yet, as `make_task.py` needs, holding:
+Each kernel becomes a kernel folder (`<name>/`) with no proof yet, as `make_task.py` needs, holding:
 
 - `source/<file>.py`: the kernel verbatim. Next to it go:
   - the `@triton.jit` helpers it calls, copied from their modules (fla's `exp`, `softplus`,
@@ -162,7 +162,7 @@ Each kernel becomes a folder `kernels/<name>/` with no proof yet, as `make_task.
   unless its relaxed atomics are shown ordered, and kernel 10 with softcapping off, whose `tanh` is
   libdevice's. A narrower claim is then the prover's to state, as for any kernel.
 - `SETUP.md`: the shapes, dtypes and launch the code base uses (from its tests and model configs),
-  as in `kernels/paged_attention_f16/SETUP.md`.
+  as in `paged_attention_f16`'s `SETUP.md`.
 - An entry in `make_task.py`'s `EXAMPLES`: the three closest certified kernels.
 
   | Kernels | Examples |
@@ -171,8 +171,8 @@ Each kernel becomes a folder `kernels/<name>/` with no proof yet, as `make_task.
   | GEMMs | `matmul_f16`, `block_scaled_matmul_mxfp8`, `grouped_matmul_tma_f16` |
   | attention | `attn_fwd_f16`, `paged_attention_f16` |
 
-- **The kernel's commit.** Commit the folders, since a task's image holds TVA at a commit. The kernels
-  index (`kernels/README.md`) lists them as having no claim yet.
+- **The kernel's commit.** Commit the folders, since a task's image holds TVA at a commit. The
+  generated kernel index lists them as having no claim yet.
 
 The controls' findings stay out of TVA: they are kept with the run records, outside the tasks, and
 read only when a run's result is judged.

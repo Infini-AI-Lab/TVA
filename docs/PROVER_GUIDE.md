@@ -1,6 +1,6 @@
 # Prover guide
 
-Each kernel is one folder, `kernels/<kernel>/`, reviewed under the protocol in
+Each kernel is one folder, the kernel's folder (`<kernel>/`), reviewed under the protocol in
 [REVIEW_PROTOCOL.md](REVIEW_PROTOCOL.md). Your prompt is
 [prompts/kernel-prover.md](prompts/kernel-prover.md).
 - Start the folder with `python3 -I tools/tvr.py new <kernel> …`.

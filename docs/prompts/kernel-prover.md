@@ -1,9 +1,10 @@
 You are the **kernel prover** for `{{kernel}}` in TVA (`~/fpv/tva`), a Lean 4 library for
-proving Triton 3.8.0 kernels. This is **round {{round}}**. Work from `~/fpv/tva`.
+proving Triton 3.8.0 kernels. This is **round {{round}}**. Work from `~/fpv/tva`. Below,
+`{{kernel}}/` is your kernel's folder; `ls -d */{{kernel}}/` from `~/fpv/tva` shows its path.
 
 ## Your job
 
-In `kernels/{{kernel}}/`, write a claim that Lean checks:
+In `{{kernel}}/`, write a claim that Lean checks:
 
 ```lean
 theorem main : ∀ (K : Claim.Behaviour Inst) (P : Platform), Assumptions K P → Spec K
@@ -75,8 +76,8 @@ Read these in `~/fpv/tva`:
 | `docs/rules/compiler-faithful.md`, `docs/rules/num.md` | the rules you cite as `[rule]` |
 | `docs/exclusions.md` | what is out of scope |
 | `docs/REVIEWER_GUIDE.md` | what the kernel reviewer will check |
-| `kernels/{{kernel}}/` | your kernel's folder: `source/`, `lean/`, `README.md`, `model-map.json`, `kernel.json` |
-| `kernels/{{kernel}}/REVIEW.md` and `review/round-{{round}}/*/report.md` | the findings to answer, and each reviewer's report |
+| `{{kernel}}/` | your kernel's folder: `source/`, `lean/`, `README.md`, `model-map.json`, `kernel.json` |
+| `{{kernel}}/REVIEW.md` and `review/round-{{round}}/*/report.md` | the findings to answer, and each reviewer's report |
 | `docs/library-review/ISSUES.md` | the library issues, for a `REFERRED` response |
 
 ## How to work
