@@ -50,3 +50,8 @@ import TVA.Lemmas.Dot8Chunk
 import TVA.Lemmas.DotLift
 import TVA.Lemmas.Dot16Chunk
 import TVA.Lemmas.AtomicResult
+import TVA.Lemmas.IntW
+import TVA.Lemmas.Tile2
+import TVA.Lemmas.FloatFacts
+import TVA.Lemmas.Recurrence
+import TVA.Lemmas.OnlineSoftmax

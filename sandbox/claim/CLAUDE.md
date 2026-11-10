@@ -54,7 +54,15 @@ build errors. Never wait with `sleep` or a polling loop: end your turn when only
 - **One walk for every mode.** When the kernel branches on a flag (variable length, a mask, a window, a dtype),
   prove the body once and split on the flag where the code differs, not by copying the whole walk per mode.
 - **Look in the library first** (`/app/docs/LIBRARY.md`, `grep -rn` in `/app/lean/TVA/Lemmas`): it has loop and
-  error lemmas for common patterns (dot-product accumulation, for one). A lemma you write is yours to keep proving.
+  error lemmas for common patterns. Among them:
+  - integer values at any width (`IntW`);
+  - 2-D masked tiles: offsets, footprints, load/store, disjointness (`Tile2`);
+  - float constants and exact conversions (`FloatFacts`);
+  - dot-product accumulation (`DotLoop`);
+  - online softmax (`OnlineSoftmax`);
+  - a state carried across trips with a decay (`Recurrence`).
+
+  A lemma you write is yours to keep proving.
 
 ## Time
 

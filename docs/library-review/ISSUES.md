@@ -191,6 +191,11 @@ own; the cleared kernels' records are in the git history (commit `089d4c5`).
 | [L172](#l172) | FIXED | 38 | library review round 37 (lr-37b) | wording: review-questions Q7 describes the wrong sm_90 instructions for 16-bit atomics (a single float16/bfloat16 add and a 16-bit atomic_cas are a 32-bit CAS loop; contiguous lanes are `.v8` atomics, not `f16x2`) |
 | [L173](#l173) | FIXED | 38 | library review round 37 (lr-37b) | wording: SEMANTICS.md "Atomics" does not say the operand is converted to the pointer's element type, or that `atomic_cas` converts nothing (mismatched operands are rejected on the host) |
 | [L174](#l174) | FIXED | 38 | library review round 37 (lr-37b) | wording: "signed max or unsigned min" (S3) holds for `atomic_max` only; its line references are off |
+| [L175](#l175) | OPEN | 39 | coordinator, claim tasks 2026-11-10 | gap: integer-width facts for any width (`int64` too): exact `+ − *` of tracked naturals, `SFits` helpers, literals, `ofNat` arithmetic, `ext_toInt`, `eq`, integer widening casts |
+| [L176](#l176) | OPEN | 39 | coordinator, claim tasks 2026-11-10 | gap: the 2-D strided tile (`base + rows[:, None]*s0 + cols[None, :]*s1`, masked) has no lemmas; only the 1-D block does |
+| [L177](#l177) | OPEN | 39 | coordinator, claim tasks 2026-11-10 | gap: float zeros and format constants, exact widening conversions, `NaNEq`, errors on `toReal`, and the maximum of two approximations |
+| [L178](#l178) | OPEN | 39 | coordinator, claim tasks 2026-11-10 | gap: no online-softmax lemma (running maximum, rescaled sum and accumulator), exact or with rounding |
+| [L179](#l179) | OPEN | 39 | coordinator, claim tasks 2026-11-10 | gap: no lemma for a recurrence carried across loop trips with a decay (chunked state), with per-trip errors |
 
 ## L1
 
@@ -2980,3 +2985,33 @@ the lemmas through it, and name the kernels that no longer build. Round 34.
 **S3's max/min pair** (wording; lr-37b, round 37). The sentence "signed max or unsigned min" (S3) is true for `atomic_max` only (`atomic_min` is signed min or unsigned max), and its line references into Triton's `semantic.py` are off. Correct both. Round 38 (the final fix, no review after it).
 
 **Round 38 fix** (FIXED, no review followed): S3 gives both pairs (`atomic_max`: signed max or unsigned min; `atomic_min`: signed min or unsigned max) and cites `semantic.py:1299-1374` and `1271-1275`.
+
+## L175
+
+**Integer-width facts for any width** (gap; coordinator, claim tasks 2026-11-10). Provers of the 40 fixed claims wrote 908 lemmas about `IntV`, `toInt` and `SFits` that mention nothing of their claim, in 39 of the 40 claims (about 8,100 lines). The library states `toInt_add/sub/mul` (with an `SFits` premise) and `I32.add_nat`, `mul_nat`, `sub_nat` for `int32` only. Most re-derived facts are: the same tracked-natural forms for `int64` and any width; `SFits w (n : Int)` from `n < 2^(w-1)`, `SFits` monotone in `w`, `SFits` of a product or sum of bounded naturals; `toInt` of the literals `0`, `1`, `-1` and of `IntV.ofNat n` in range (as `simp` lemmas); `IntV.ofNat a + IntV.ofNat b = IntV.ofNat (a + b)` and the product (wrapping, so always true); `IntV.ext_toInt`; `a.eq b = decide (a.toInt = b.toInt)` (and `ne`); a widening `ConvRel` between integer types keeps `toInt`. State them for `IntV true w` (and `I32`, `I64` names where a kernel writes them), in the library's existing modules or a new one. Round 39.
+
+**Round 39 fix** (awaiting library review): see [round-39/author/notes.md](round-39/author/notes.md).
+
+## L176
+
+**The 2-D strided tile** (gap; coordinator, claim tasks 2026-11-10). Every claim with a matrix operand loads or stores a tile `base + rows[:, None] * s0 + cols[None, :] * s1` with a mask `(rows < M)[:, None] & (cols < N)[None, :]` (or one of its factors), where `rows = r0 + tl.arange(0, BM)` and `cols = c0 + tl.arange(0, BN)`, in `int32` or `int64` index arithmetic. `TVA.Lemmas.Block` covers the 1-D block only; provers wrote footprint lemmas in all 40 claims, mostly this pattern again. State, as `Block` does for 1-D: each lane's offset `toInt` (no overflow, from a bound on the largest offset), the tile's `Buf.Addrs` (element `(r0+i)*s0 + (c0+j)*s1` enabled when the mask holds), `accBytes`/`img`, the `Safe` load and store of the tile, and disjointness of the elements of two tiles at different `(r0, c0)` on a row-major (`s1 = 1`, `s0 ≥ N`) or column-major layout. Round 39.
+
+**Round 39 fix** (awaiting library review): see [round-39/author/notes.md](round-39/author/notes.md).
+
+## L177
+
+**Float constants, exact conversions, approximations of a maximum** (gap; coordinator, claim tasks 2026-11-10). Provers wrote 673 generic lemmas about `FloatV`, `toRat`, `cvt` and formats in 35 claims (about 10,400 lines). Most re-derived: the zero of each format (`ofPat 0`: finite, `toRat = 0`; `litF32`/`litBF16`/… of zero; `cvt` of zero); `maxVal`, `u` and `η` of `binary32`, `binary16`, `bfloat16` (and `binary64`) as closed numbers in `ℚ` and `ℝ`; a widening conversion (`float16`, `bfloat16`, fp8 to `float32`; `float32` to `float64`) is exact: `cvt` and every `ConvRel` that widens keep `isFinite` and `toRat`; `NaNEq` is reflexive, symmetric and transitive; the rounding errors of `FloatErr` written on `toReal`; and the maximum of two approximations: from `|a − A| ≤ δ`, `|b − B| ≤ δ` and a `MaxRel` (or `max`) result `c`, `|c − max A B| ≤ δ`, and the same for a `tl.max` reduction tree. Round 39.
+
+**Round 39 fix** (awaiting library review): see [round-39/author/notes.md](round-39/author/notes.md).
+
+## L178
+
+**Online softmax** (gap; coordinator, claim tasks 2026-11-10). Attention kernels with a loop over key blocks keep a running maximum `m`, a running sum `l` and an accumulator `acc`, rescaled by `α = exp(m_old − m_new)` (or `exp2`) at each trip; none of the five fixed claims of this family was proved, and their provers stopped at this invariant. State, over `ℝ` and from TVA and Mathlib alone (L115): the exact invariant (for any sequence of references `m_t`, not only the true maximum: `l_t = Σ_{j<t} exp(s_j − m_t)`, `acc_t = Σ_{j<t} exp(s_j − m_t)·v_j`, so `acc/l` is the softmax-weighted sum); and a perturbed form, where each trip's `α`, `p = exp(s − m)`, sums and products carry relative and absolute errors, bounding `|acc_n/l_n − Σ softmax_j·v_j|` by the per-trip errors and `max |v|`. The masked score (`−∞`, giving `p = 0`) and the first trip (`m = −∞`, `α = 0`) must fit. Round 39.
+
+**Round 39 fix** (awaiting library review): see [round-39/author/notes.md](round-39/author/notes.md).
+
+## L179
+
+**A recurrence carried across loop trips with a decay** (gap; coordinator, claim tasks 2026-11-10). Chunked linear-attention and state-space kernels carry a state across trips, `S_{t+1} = g_t·S_t + U_t` per entry (a decay `0 ≤ g_t ≤ 1`, or `exp` of a non-positive gate, and an update that is itself a dot product); one of five such fixed claims was proved. State, over `ℝ`: the closed form (`S_n = Σ_t (Π_{t<u<n} g_u)·U_t + (Π g)·S_0`), and the perturbed form, where the computed state satisfies `|Ŝ_{t+1} − (ĝ_t·Ŝ_t + Û_t)| ≤ e_t` with `|ĝ_t − g_t| ≤ γ_t` and `|Û_t − U_t| ≤ ε_t`, bounding `|Ŝ_n − S_n|` by a sum of the per-trip errors (and a simpler bound when every `|ĝ_t| ≤ 1`). Round 39.
+
+**Round 39 fix** (awaiting library review): see [round-39/author/notes.md](round-39/author/notes.md).
