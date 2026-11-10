@@ -125,6 +125,19 @@ reading, as in `Access`). -/
 def RowAccess (D : TensorDesc d) (BN : Nat) (y : I32) : Prop :=
   D.Valid ∧ D.rank = 2 ∧ D.block = [1, BN] ∧ (y.toInt * d.bytes) % 16 = 0
 
+/-! Decision procedures, for running a model (`Solve`). -/
+
+instance decForallSuccLt (n : Nat) (P : Nat → Prop) [DecidablePred P] :
+    Decidable (∀ k, k + 1 < n → P k) :=
+  decidable_of_iff (∀ k, k < n - 1 → P k)
+    ⟨fun h k hk => h k (by omega), fun h k hk => h k (by omega)⟩
+
+instance (D : TensorDesc d) : Decidable D.Valid := by unfold Valid; infer_instance
+instance (D : TensorDesc d) (offs : List Int) (bs : Shape) : Decidable (D.Access offs bs) := by
+  unfold Access; infer_instance
+instance (D : TensorDesc d) (BN : Nat) (y : I32) : Decidable (D.RowAccess BN y) := by
+  unfold RowAccess; infer_instance
+
 end TensorDesc
 
 /-- The reductions of `desc.atomic_*`. -/
@@ -139,6 +152,9 @@ def Allowed : RedOp → DType → Prop
   | .add, d => d ∈ [DType.u32, .i32, .u64, .f32, .f16, .bf16]
   | .min, d | .max, d => d ∈ [DType.u32, .i32, .u64, .i64, .f16, .bf16]
   | .and, d | .or, d | .xor, d => d ∈ [DType.u32, .i32, .u64, .i64]
+
+instance (op : RedOp) (d : DType) : Decidable (op.Allowed d) := by
+  cases op <;> unfold Allowed <;> infer_instance
 
 /-- The new value of an element under a float `min`/`max` reduction: as `tl.maximum`, or a NaN
 when an operand is NaN (the hardware may propagate it). -/
@@ -177,12 +193,15 @@ def make_tensor_descriptor (base : Ptr d) (shape : List I32) (strides : List I64
     (padding : Padding := .zero) : Prog (TensorDesc d) :=
   .pick (fun D : TensorDesc d => (∀ x ∈ shape, 0 ≤ x.toInt) ∧ (∀ x ∈ strides, 0 ≤ x.toInt) ∧
     D = ⟨base, shape.map (fun x => x.toInt.toNat), strides.map (fun x => x.toInt.toNat), block,
-      padding⟩) .ret
+      padding⟩)
+    ⟨fun _ => if h : (∀ x ∈ shape, 0 ≤ x.toInt) ∧ (∀ x ∈ strides, 0 ≤ x.toInt) then
+        some (.ok _ ⟨h.1, h.2, rfl⟩)
+      else some (.empty fun _ hD => h ⟨hD.1, hD.2.1⟩)⟩ .ret
 
 /-- `desc.load(offsets)`: the block at `offsets`; lanes outside the tensor hold the padding. -/
 def desc_load {bs : Shape} (D : TensorDesc d) (offsets : List I32) : Prog (Tensor bs d.Val) :=
   let o := offsets.map IntV.toInt
-  .pick (fun _ : Unit => D.Access o bs) fun _ => do
+  .pick (fun _ : Unit => D.Access o bs) Solve.guard fun _ => do
     let v ← tl.load (D.ptrsAt (TensorDesc.coord o)) (some (D.maskAt (TensorDesc.coord o)))
     tl.pad D.padding (fun i => D.inbAt (TensorDesc.coord o i)) v
 
@@ -191,7 +210,7 @@ The model converts `value` to the descriptor's dtype first, as Triton does impli
 def desc_store {bs : Shape} (D : TensorDesc d) (offsets : List I32) (vals : Tensor bs d.Val) :
     Prog Unit :=
   let o := offsets.map IntV.toInt
-  .pick (fun _ : Unit => D.Access o bs) fun _ =>
+  .pick (fun _ : Unit => D.Access o bs) Solve.guard fun _ =>
     tl.store (D.ptrsAt (TensorDesc.coord o)) vals (some (D.maskAt (TensorDesc.coord o)))
 
 /-- `desc.atomic_add(offsets, value)` etc.: one relaxed, `gpu`-scope reduction per lane inside
@@ -199,7 +218,7 @@ the tensor, in an unspecified order; no result. -/
 def desc_atomic {bs : Shape} (op : RedOp) (D : TensorDesc d) (offsets : List I32)
     (vals : Tensor bs d.Val) : Prog Unit :=
   let o := offsets.map IntV.toInt
-  .pick (fun _ : Unit => D.Access o bs ∧ op.Allowed d) fun _ =>
+  .pick (fun _ : Unit => D.Access o bs ∧ op.Allowed d) Solve.guard fun _ =>
   .env fun e => do
     let _ ← tl.atomicWith (D.ptrsAt (TensorDesc.coord o)) (fun i => op.Upd e d (vals.get i))
       (some (D.maskAt (TensorDesc.coord o))) .relaxed .gpu
@@ -210,7 +229,7 @@ def desc_atomic {bs : Shape} (op : RedOp) (D : TensorDesc d) (offsets : List I32
 uses it is rejected on the host (`evidence/desc-zero-shape` Z14, Z16): no outcome. -/
 def desc_gather {M BN : Nat} {w : Nat} (D : TensorDesc d) (xs : Tensor [M] (IntV true w)) (y : I32) :
     Prog (Tensor [M, BN] d.Val) :=
-  .pick (fun _ : Unit => D.RowAccess BN y) fun _ =>
+  .pick (fun _ : Unit => D.RowAccess BN y) Solve.guard fun _ =>
     tl.load (D.ptrsAt (TensorDesc.rowCoord xs y)) (some (D.maskAt (TensorDesc.rowCoord xs y)))
 
 /-- `desc.scatter(value, x_offsets, y_offset)`: the inverse of `desc_gather`. Every lane must
@@ -219,7 +238,7 @@ the H200 a launch that uses it is rejected on the host (`evidence/desc-zero-shap
 outcome. -/
 def desc_scatter {M BN : Nat} {w : Nat} (D : TensorDesc d) (vals : Tensor [M, BN] d.Val)
     (xs : Tensor [M] (IntV true w)) (y : I32) : Prog Unit :=
-  .pick (fun _ : Unit => D.RowAccess BN y ∧ ∀ l : Idx [M, BN], D.inbAt (TensorDesc.rowCoord xs y l) = true)
+  .pick (fun _ : Unit => D.RowAccess BN y ∧ ∀ l : Idx [M, BN], D.inbAt (TensorDesc.rowCoord xs y l) = true) Solve.guard
     fun _ =>
     tl.store (D.ptrsAt (TensorDesc.rowCoord xs y)) vals
 

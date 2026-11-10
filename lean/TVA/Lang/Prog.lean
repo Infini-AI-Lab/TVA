@@ -12,7 +12,8 @@ semantics (`TVA.Sem`) and the lemmas can see them:
 | `load d s addrs k` | `tl.load`: read the elements at the enabled addresses (`some a`); disabled lanes (`none`) are not accessed and get unspecified values |
 | `store d s addrs vals k` | `tl.store`: write each enabled lane's value, in an unspecified order (it matters only for duplicate addresses) |
 | `rmw d a upd sem scope k` | one element of `tl.atomic_*`: read the old value, write a new one related to it by `upd`, return the old value; the step may happen after later steps that do not depend on the old value (`Step.defer`). An atomic whose result the source never uses has `sem` `acq_rel` at `gpu`/`sys` scope (`MemSem.unused`, library issue L157) |
-| `pick P k` | a value the program cannot predict, constrained by `P` (masked-out loads, rounding choices, reduction trees, platform results). It is undefined behaviour when nothing satisfies `P` |
+| `pick P solve k` | a value the program cannot predict, constrained by `P` (masked-out loads, rounding choices, reduction trees). It is undefined behaviour when nothing satisfies `P`. `solve` is for running the model (`Solve`); the semantics ignores it |
+| `plat q k` | an operation the platform defines (`tl.exp`, `/`, `tl.dot`, conversions into fp8): a result `PlatQ.Rel` allows for the environment's platform. It is undefined behaviour when there is none |
 | `ub` | undefined behaviour |
 | `loop init body k` | a `while` loop: run `body` until it returns `inr b` |
 | `env k` | read the environment (platform, `enable_fp_fusion`) |
@@ -38,6 +39,85 @@ debug semantics here"), and `num_stages` stays dropped: the reuse of a program's
 pipelining could reorder is excluded.
 -/
 namespace TVA
+
+/-! ## Running a model
+
+`Step` (`TVA.Sem.Step`) is a relation, so a model cannot simply be run. The executor of
+`validation/Exec.lean` runs one anyway, against concrete memory, and its soundness lemma says
+`Step` can do whatever it reports. What it needs at each `pick` is a witness of `P`, and in
+compiled code `P` is erased. So each `pick` carries a `Solve P`: code that proposes a witness,
+asking an oracle (`Hints`) for the parts it cannot compute, and returns it with a proof. Because
+the answer carries its proof, a wrong solver can only make the executor give up. It never changes
+the model's meaning, and the reviewer of a model can ignore it. -/
+
+/-- A certified answer to "some `b` with `P b`". -/
+inductive Ans {β : Type} (P : β → Prop) : Type where
+  /-- A witness. -/
+  | ok (b : β) (h : P b)
+  /-- No witness exists: the step is undefined behaviour. -/
+  | empty (h : ∀ b, ¬ P b)
+
+/-- What a solver may ask the oracle for: the parts of a witness it cannot compute. The family is
+closed, so an oracle can match on the question. -/
+inductive Query : Type → Type where
+  /-- A reduction or scan tree over `n` leaves. -/
+  | tree (n : Nat) : Query Tree
+  /-- An order of the lanes of a block. -/
+  | perm (s : Shape) : Query (List (Idx s))
+  /-- A bijection between the lanes of two blocks (`reshape(can_reorder=True)`). -/
+  | bij (s s' : Shape) : Query (Idx s' ≃ Idx s)
+  /-- A rational (the exact operands of a fused addition). -/
+  | rat : Query Rat
+  /-- A choice between alternatives. -/
+  | nat : Query Nat
+  /-- An element (padding, the junk of a disabled lane). -/
+  | val (d : DType) : Query d.Val
+
+/-- An oracle for `Query`. -/
+abbrev Hints := {τ : Type} → Query τ → Option τ
+
+/-- How to run a `pick P`. `run` returns `none` when it has no answer. -/
+structure Solve {β : Type} (P : β → Prop) where
+  run : Hints → Option (Ans P)
+
+namespace Solve
+
+variable {β : Type} {P : β → Prop}
+
+/-- No solver: the executor gives up at this `pick`. -/
+def none : Solve P := ⟨fun _ => Option.none⟩
+
+/-- The witness `b`, with its proof. -/
+def ok (b : β) (h : P b) : Solve P := ⟨fun _ => some (.ok b h)⟩
+
+/-- Try the witness `b`. -/
+def check (b : β) [Decidable (P b)] : Solve P :=
+  ⟨fun _ => if h : P b then some (.ok b h) else Option.none⟩
+
+/-- `b` is the only candidate: if it fails, nothing satisfies `P`. -/
+def only (b : β) [Decidable (P b)] (h : ∀ b', P b' → P b) : Solve P :=
+  ⟨fun _ => if hb : P b then some (.ok b hb) else some (.empty fun b' hb' => hb (h b' hb'))⟩
+
+/-- A guard `pick (fun _ : Unit => c)`. -/
+def guard {c : Prop} [Decidable c] : Solve (fun _ : Unit => c) := only () fun _ h => h
+
+/-- A compiler hint `pick (fun y => y = x ∧ c y)`: the witness is `x`. -/
+def hint {c : β → Prop} (x : β) [Decidable (c x)] : Solve (fun y => y = x ∧ c y) :=
+  ⟨fun _ => if h : c x then some (.ok x ⟨rfl, h⟩)
+    else some (.empty fun _ hy => h (hy.1 ▸ hy.2))⟩
+
+/-- A lanewise partial function `g`: the result is `g` at every lane, and there is none when some
+lane has no value (integer `//` by zero, an oversized shift). -/
+def lanes {s : Shape} {α : Type} [Inhabited α] (g : Idx s → Option α) :
+    Solve (fun r : Tensor s α => ∀ i, g i = some (r.get i)) :=
+  ⟨fun _ => if h : ∀ i, (g i).isSome then
+      some (.ok ⟨fun i => (g i).getD default⟩ fun i => by
+        obtain ⟨a, ha⟩ := Option.isSome_iff_exists.mp (h i)
+        show g i = some ((g i).getD default)
+        rw [ha]; rfl)
+    else some (.empty fun r hr => h fun i => by rw [hr i]; rfl)⟩
+
+end Solve
 
 /-- The `sem` argument of a Triton atomic (default `acq_rel`). -/
 inductive MemSem where
@@ -98,7 +178,8 @@ inductive Prog : Type → Type 1 where
       (k : Prog α) : Prog α
   | rmw {α : Type} (d : DType) (addr : Int) (upd : d.Val → d.Val → Prop) (sem : MemSem)
       (scope : Scope) (k : d.Val → Prog α) : Prog α
-  | pick {α β : Type} (P : β → Prop) (k : β → Prog α) : Prog α
+  | pick {α β : Type} (P : β → Prop) (solve : Solve P) (k : β → Prog α) : Prog α
+  | plat {α : Type} (q : PlatQ) (k : q.Out → Prog α) : Prog α
   | ub {α : Type} : Prog α
   | loop {α σ β : Type} (init : σ) (body : σ → Prog (σ ⊕ β)) (k : β → Prog α) : Prog α
   | env {α : Type} (k : Env → Prog α) : Prog α
@@ -111,7 +192,8 @@ def bind {α β : Type} : Prog α → (α → Prog β) → Prog β
   | load d s addrs k, f => load d s addrs (fun v => (k v).bind f)
   | store d s addrs vals k, f => store d s addrs vals (k.bind f)
   | rmw d a upd sem sc k, f => rmw d a upd sem sc (fun v => (k v).bind f)
-  | pick P k, f => pick P (fun b => (k b).bind f)
+  | pick P sv k, f => pick P sv (fun b => (k b).bind f)
+  | plat q k, f => plat q (fun r => (k r).bind f)
   | ub, _ => ub
   | loop init body k, f => loop init body (fun b => (k b).bind f)
   | env k, f => env (fun e => (k e).bind f)
@@ -131,7 +213,8 @@ instance : Monad Prog where
   | load d s addrs k ih => simp only [bind, ih]
   | store d s addrs vals k ih => simp only [bind, ih]
   | rmw d a upd sem sc k ih => simp only [bind, ih]
-  | pick P k ih => simp only [bind, ih]
+  | pick P sv k ih => simp only [bind, ih]
+  | plat q k ih => simp only [bind, ih]
   | ub => rfl
   | loop init body k _ ih => simp only [bind, ih]
   | env k ih => simp only [bind, ih]
@@ -143,7 +226,8 @@ theorem bind_assoc {α β γ : Type} (p : Prog α) (f : α → Prog β) (g : β 
   | load d s addrs k ih => simp only [bind, ih]
   | store d s addrs vals k ih => simp only [bind, ih]
   | rmw d a upd sem sc k ih => simp only [bind, ih]
-  | pick P k ih => simp only [bind, ih]
+  | pick P sv k ih => simp only [bind, ih]
+  | plat q k ih => simp only [bind, ih]
   | ub => rfl
   | loop init body k _ ih => simp only [bind, ih]
   | env k ih => simp only [bind, ih]

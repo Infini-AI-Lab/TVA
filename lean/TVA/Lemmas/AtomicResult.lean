@@ -30,7 +30,8 @@ def skipRmw {α : Type} : Prog α → Prog α
   | .ret a => .ret a
   | .load d s addrs k => .load d s addrs k
   | .store d s addrs vals k => .store d s addrs vals k
-  | .pick P k => .pick P k
+  | .pick P sv k => .pick P sv k
+  | .plat q k => .plat q k
   | .ub => .ub
   | .loop init body k => .loop init body k
   | .env k => .env k
@@ -135,7 +136,7 @@ theorem crosswarp_excluded (P : Platform) (Y C OUT Q : Ptr .i32) (sem : MemSem) 
     ((tl.rmwSeq ptrs0 upd0 .acqRel .gpu (enab.erase lane0) (Function.update junk lane0 v)).bind
       (fun old => Prog.ret ⟨old⟩)).bind G0
   let q1 : Prog Unit := (tl.atomicWith ptrs0 upd0 none .acqRel .gpu).bind G0
-  let q2 : Prog Unit := (Prog.pick (fun order : List (Idx [512 - 0]) => order.Perm enab) fun order =>
+  let q2 : Prog Unit := (Prog.pick (fun order : List (Idx [512 - 0]) => order.Perm enab) Solve.none fun order =>
     ((tl.rmwSeq ptrs0 upd0 .acqRel .gpu order junk).bind (fun old => Prog.ret ⟨old⟩)).bind G0)
   let q3 : Prog Unit := .rmw .i32 (ptrs0.get lane0).addr (upd0 lane0) .acqRel .gpu kk
   have s1 : Step E init (prog0 Y C OUT sem) (.next init q1 .silent) := Step.env
@@ -180,7 +181,7 @@ theorem crosswarp_excluded (P : Platform) (Y C OUT Q : Ptr .i32) (sem : MemSem) 
     let enabC : List (Idx []) := (Idx.all []).filter (fun i => (tl.addrs ptrsC none i).isSome)
     let G1 := cont1 Y Q
     let w1 : Prog Unit := (tl.atomicWith ptrsC updC none .acqRel .gpu).bind G1
-    let w2 : Prog Unit := Prog.pick (fun order : List (Idx []) => order.Perm enabC) fun order =>
+    let w2 : Prog Unit := Prog.pick (fun order : List (Idx []) => order.Perm enabC) Solve.none fun order =>
       ((tl.rmwSeq ptrsC updC .acqRel .gpu order junkC).bind (fun old => Prog.ret ⟨old⟩)).bind G1
     let w3 : Prog Unit :=
       ((tl.rmwSeq ptrsC updC .acqRel .gpu enabC junkC).bind (fun old => Prog.ret ⟨old⟩)).bind G1
@@ -193,7 +194,7 @@ theorem crosswarp_excluded (P : Platform) (Y C OUT Q : Ptr .i32) (sem : MemSem) 
     let enabY : List (Idx []) := (Idx.all []).filter (fun i => (tl.addrs ptrsY none i).isSome)
     let G2 : Tensor [] I32 → Prog Unit := fun _ => tl.store1 Q qv.item
     let w5 : Prog Unit := (tl.atomicWith ptrsY updY none .acqRel .gpu).bind G2
-    let w6 : Prog Unit := Prog.pick (fun order : List (Idx []) => order.Perm enabY) fun order =>
+    let w6 : Prog Unit := Prog.pick (fun order : List (Idx []) => order.Perm enabY) Solve.none fun order =>
       ((tl.rmwSeq ptrsY updY .acqRel .gpu order junkC).bind (fun old => Prog.ret ⟨old⟩)).bind G2
     let w7 : Prog Unit :=
       ((tl.rmwSeq ptrsY updY .acqRel .gpu enabY junkC).bind (fun old => Prog.ret ⟨old⟩)).bind G2

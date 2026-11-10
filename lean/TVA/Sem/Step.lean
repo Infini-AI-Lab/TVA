@@ -127,10 +127,16 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
       {k k' : d.Val → Prog α} {m' : Mem} {e : Event} :
       (∀ v, Step E m (k v) (.next m' (k' v) e)) →
       Step E m (.rmw d a upd sem sc k) (.next m' (.rmw d a upd sem sc k') e)
-  | pick {α β : Type} {P : β → Prop} {k : β → Prog α} (b : β) :
-      P b → Step E m (.pick P k) (.next m (k b) .silent)
-  | pickUB {α β : Type} {P : β → Prop} {k : β → Prog α} :
-      (∀ b, ¬ P b) → Step E m (.pick P k) .ub
+  /-- A `pick`: any value satisfying `P`. The solver `sv` plays no part. -/
+  | pick {α β : Type} {P : β → Prop} {sv : Solve P} {k : β → Prog α} (b : β) :
+      P b → Step E m (.pick P sv k) (.next m (k b) .silent)
+  | pickUB {α β : Type} {P : β → Prop} {sv : Solve P} {k : β → Prog α} :
+      (∀ b, ¬ P b) → Step E m (.pick P sv k) .ub
+  /-- An operation of the platform: any result its relation allows. -/
+  | plat {α : Type} {q : PlatQ} {k : q.Out → Prog α} (r : q.Out) :
+      q.Rel E.P r → Step E m (.plat q k) (.next m (k r) .silent)
+  | platUB {α : Type} {q : PlatQ} {k : q.Out → Prog α} :
+      (∀ r, ¬ q.Rel E.P r) → Step E m (.plat q k) .ub
   | ub {α : Type} : Step E m (.ub : Prog α) .ub
   | loop {α σ β : Type} {init : σ} {body : σ → Prog (σ ⊕ β)} {k : β → Prog α} :
       Step E m (.loop init body k) (.next m (Prog.loopStep init body k) .silent)

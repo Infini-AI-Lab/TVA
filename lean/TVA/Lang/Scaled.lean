@@ -121,6 +121,18 @@ dtype holds its scale format. -/
 def TypesOk (cfg : ScaledCfg) (dl dr dsl dsr : DType) : Prop :=
   cfg.lhs.StoredIn dl ∧ cfg.rhs.StoredIn dr ∧ cfg.lhsScale.Stores dsl ∧ cfg.rhsScale.Stores dsr
 
+instance (fmt : MXFmt) (d : DType) : Decidable (fmt.StoredIn d) := by
+  cases fmt <;> unfold MXFmt.StoredIn <;> infer_instance
+instance (sf : ScaleFmt) (d : DType) : Decidable (sf.Stores d) := by
+  cases sf <;> unfold ScaleFmt.Stores <;> infer_instance
+instance (fmt : MXFmt) (kpack kAlongCols : Bool) (rows cols R C : Nat) :
+    Decidable (StorageOk fmt kpack kAlongCols rows cols R C) := by
+  unfold StorageOk; infer_instance
+instance (cfg : ScaledCfg) (M N K Ra Ca Rb Cb G : Nat) :
+    Decidable (cfg.ShapeOk M N K Ra Ca Rb Cb G) := by unfold ShapeOk; infer_instance
+instance (cfg : ScaledCfg) (dl dr dsl dsr : DType) : Decidable (cfg.TypesOk dl dr dsl dsr) := by
+  unfold TypesOk; infer_instance
+
 /-- The `lhs` element bits as a logical `[M, K]` tensor. -/
 def unpackL (cfg : ScaledCfg) (M K : Nat) {R C : Nat} {d : DType} (raw : Tensor [R, C] d.Val) :
     Tensor [M, K] Nat :=
@@ -153,9 +165,9 @@ def dot_scaled (cfg : ScaledCfg) (M N K : Nat) {dl dr dsl dsr : DType} {Ra Ca Rb
     (lhs : Tensor [Ra, Ca] dl.Val) (lhs_scale : Option (Tensor [M, G] dsl.Val))
     (rhs : Tensor [Rb, Cb] dr.Val) (rhs_scale : Option (Tensor [N, G] dsr.Val))
     (acc : Tensor [M, N] F32) : Prog (Tensor [M, N] F32) :=
-  .pick (fun _ : Unit => cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr) fun _ =>
-  .env fun e => .pick (fun r => e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
-      (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) acc r) .ret
+  .pick (fun _ : Unit => cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr) Solve.guard fun _ =>
+  .plat (.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
+      (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) acc) .ret
 
 /-- A source `tl.dot_scaled(…, acc=z) + c` (or `c + tl.dot_scaled(…)`) with a zero accumulator
 `z` (the default `tl.zeros`, or any constant `±0.0`) and no other use of the product. Triton's
@@ -166,13 +178,13 @@ def dot_scaled_add (cfg : ScaledCfg) (M N K : Nat) {dl dr dsl dsr : DType} {Ra C
     (rhs : Tensor [Rb, Cb] dr.Val) (rhs_scale : Option (Tensor [N, G] dsr.Val))
     (c : Tensor [M, N] F32) (z : Tensor [M, N] F32 := Tensor.full (FloatV.ofPat 0)) :
     Prog (Tensor [M, N] F32) :=
-  .pick (fun _ : Unit => cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr) fun _ =>
+  .pick (fun _ : Unit => cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr) Solve.guard fun _ =>
   .env fun e => .pick (fun r =>
     e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) c r ∨
     ∃ d, e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) z d ∧
-      ∀ i, AddRel e.fusion (d.get i) (c.get i) (r.get i)) .ret
+      ∀ i, AddRel e.fusion (d.get i) (c.get i) (r.get i)) Solve.none .ret
 
 end tl
 

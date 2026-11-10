@@ -97,6 +97,7 @@ theorem Step.frame {α : Type} {E : Env} {m m' : Mem} {p p' : Prog α} {e : Even
   | rmw old new _ _ => cases ho; exact fun x hx => Mem.write_frame _ _ _ _ hx
   | load => cases ho; exact fun _ _ => rfl
   | pick => cases ho; exact fun _ _ => rfl
+  | plat => cases ho; exact fun _ _ => rfl
   | loop => cases ho; exact fun _ _ => rfl
   | env => cases ho; exact fun _ _ => rfl
   | defer _ ih => cases ho; exact ih default rfl
@@ -104,6 +105,7 @@ theorem Step.frame {α : Type} {E : Env} {m m' : Mem} {p p' : Prog α} {e : Even
   | storeUB => cases ho
   | rmwUB => cases ho
   | pickUB => cases ho
+  | platUB => cases ho
   | ub => cases ho
 
 /-- **Transfer of one step.** A step can be taken the same way in any memory that agrees on the
@@ -128,6 +130,7 @@ theorem Step.transfer {α : Type} {E : Env} {m m₀ m' : Mem} {p p' : Prog α} {
     rw [Mem.mix_write_self]
     exact .rmw old new ((Mem.read_congr fun x hx => hag x (Or.inl hx)).trans hr) hu
   | pick b hb => cases ho; simpa [Event.silent] using Step.pick b hb
+  | plat r hr => cases ho; simpa [Event.silent] using Step.plat r hr
   | loop => cases ho; simpa [Event.silent] using Step.loop
   | env => cases ho; simpa [Event.silent] using Step.env
   | defer _ ih => cases ho; exact .defer fun v => ih v hag rfl
@@ -135,6 +138,7 @@ theorem Step.transfer {α : Type} {E : Env} {m m₀ m' : Mem} {p p' : Prog α} {
   | storeUB => cases ho
   | rmwUB => cases ho
   | pickUB => cases ho
+  | platUB => cases ho
   | ub => cases ho
 
 /-! ## The predicate -/
@@ -166,8 +170,11 @@ inductive Safe (E : Env) (R : Set Int) : Set Int → {α : Type} → (α → Mem
         Safe E R (W \ Mem.span d a) Q (m.write d a new) (k old)) →
       Safe E R W Q m (.rmw d a upd sem sc k)
   | pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {β : Type} {P : β → Prop}
-      {k : β → Prog α} :
-      (∃ b, P b) → (∀ b, P b → Safe E R W Q m (k b)) → Safe E R W Q m (.pick P k)
+      {sv : Solve P} {k : β → Prog α} :
+      (∃ b, P b) → (∀ b, P b → Safe E R W Q m (k b)) → Safe E R W Q m (.pick P sv k)
+  | plat {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {q : PlatQ}
+      {k : q.Out → Prog α} :
+      (∃ r, q.Rel E.P r) → (∀ r, q.Rel E.P r → Safe E R W Q m (k r)) → Safe E R W Q m (.plat q k)
   | loop {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {σ β : Type} {init : σ}
       {body : σ → Prog (σ ⊕ β)} {k : β → Prog α} :
       Safe E R W Q m (Prog.loopStep init body k) → Safe E R W Q m (.loop init body k)
@@ -200,6 +207,7 @@ theorem mono {α : Type} {Q Q' : α → Mem → Prop} {W W' : Set Int} {m : Mem}
   | rmw hex hS hSR _ ih =>
     exact .rmw hex (hS.trans hW) hSR fun o n ho hn => ih o n ho hn hQ (Set.sdiff_subset_sdiff_left hW)
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hQ hW
+  | plat hex _ ih => exact .plat hex fun b hb => ih b hb hQ hW
   | loop _ ih => exact .loop (ih hQ hW)
   | env _ ih => exact .env (ih hQ hW)
 
@@ -233,6 +241,7 @@ theorem bind {α β : Type} {Q : β → Mem → Prop} {f : α → Prog β} {p : 
     rw [union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
+  | plat hex _ ih => exact .plat hex fun b hb => ih b hb hd hQ'
   | loop _ ih => exact .loop (by rw [← loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
 
@@ -293,6 +302,13 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
       refine ⟨by simp [Event.silent], by simp [Event.silent], ?_, ?_⟩
       · simpa [Event.silent] using Step.pick b hb
       · simpa [Event.silent] using hk b hb
+  | plat r hr =>
+    cases ho
+    cases h with
+    | plat _ hk =>
+      refine ⟨by simp [Event.silent], by simp [Event.silent], ?_, ?_⟩
+      · simpa [Event.silent] using Step.plat r hr
+      · simpa [Event.silent] using hk r hr
   | loop =>
     cases ho
     cases h with
@@ -344,6 +360,7 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
   | storeUB => cases ho
   | rmwUB => cases ho
   | pickUB => cases ho
+  | platUB => cases ho
   | ub => cases ho
 
 /-- A safe program does not step into undefined behaviour, in any memory agreeing with its own
@@ -367,6 +384,7 @@ theorem no_ub {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
       · rw [hrd, hr] at h1; cases h1
       · rw [hrd, hr] at hr'; cases hr'; exact hno new hu
   | pickUB hno => cases h with | pick hex _ => obtain ⟨b, hb⟩ := hex; exact hno b hb
+  | platUB hno => cases h with | plat hex _ => obtain ⟨b, hb⟩ := hex; exact hno b hb
   | ub => cases h
 
 /-- **Progress and preservation.** Every step of a safe program is a normal step, within the
@@ -455,6 +473,8 @@ theorem acc {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {p : P
       fun new hnew => ih old new hr hnew
   | pick _ _ ih =>
     constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | pick b hb => exact ih b hb
+  | plat _ _ ih =>
+    constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | plat r hr => exact ih r hr
   | loop _ ih => constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | loop => exact ih
   | env _ ih => constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | env => exact ih
 

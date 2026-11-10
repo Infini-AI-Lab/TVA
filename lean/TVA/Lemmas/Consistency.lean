@@ -78,10 +78,14 @@ theorem Step.progress {α : Type} (E : Env) (m : Mem) (p : Prog α) (hp : ∀ a,
       by_cases hn : ∃ new, upd old new
       · obtain ⟨new, hu⟩ := hn; exact ⟨_, .rmw old new hr hu⟩
       · push Not at hn; exact ⟨_, .rmwUB (Or.inr ⟨old, hr, hn⟩)⟩
-  | pick P k =>
+  | pick P sv k =>
     by_cases h : ∃ b, P b
     · obtain ⟨b, hb⟩ := h; exact ⟨_, .pick b hb⟩
     · push Not at h; exact ⟨_, .pickUB h⟩
+  | plat q k =>
+    by_cases h : ∃ r, q.Rel E.P r
+    · obtain ⟨r, hr⟩ := h; exact ⟨_, .plat r hr⟩
+    · push Not at h; exact ⟨_, .platUB h⟩
   | ub => exact ⟨_, .ub⟩
   | loop init body k => exact ⟨_, .loop⟩
   | env k => exact ⟨_, .env⟩

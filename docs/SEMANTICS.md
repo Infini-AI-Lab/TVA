@@ -119,7 +119,8 @@ A model is a `Prog`, written in `do` notation. Its constructors, and their steps
 | `load d s addrs k` | Each enabled lane (`addrs i = some a`) reads its element; disabled lanes get any value. If an enabled address is unreadable (unaligned, or a byte is absent): undefined behaviour. Event: reads the enabled bytes. |
 | `store d s addrs vals k` | The enabled lanes are written in some order, so on a duplicate address the later lane wins. An unwritable address is undefined behaviour. Event: writes the enabled bytes. |
 | `rmw d a upd sem scope k` | One atomic read-modify-write: the old value `o`, any new `n` with `upd o n`, returns `o`. If no `n` exists, or the address is unreadable: undefined behaviour. Event: reads and writes the element's bytes, names its cell. It may also stay pending while a later step goes first (`Step.defer`, below). |
-| `pick P k` | Continue with any `b` satisfying `P b`; if there is none, undefined behaviour. |
+| `pick P solve k` | Continue with any `b` satisfying `P b`; if there is none, undefined behaviour. `solve` (a `Solve P`) is for running the model (`validation/Exec.lean`) and plays no part in the step. |
+| `plat q k` | An operation the platform defines (`PlatQ`: `math`, `div`, `cvt` into fp8, `dot`, `dotScaled`): continue with any result `r` with `q.Rel E.P r`; if there is none, undefined behaviour. |
 | `ub` | Undefined behaviour. |
 | `loop init body k` | Unfold one iteration (`Prog.loopStep`). |
 | `env k` | Read the environment (platform `P`, `fusion`). |

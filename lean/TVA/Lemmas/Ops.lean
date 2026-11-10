@@ -305,7 +305,7 @@ theorem safe_math {fn : MathFn} {x : Tensor s (FloatV f)} {k : Tensor s (FloatV 
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.math fn x >>= k) := by
   simp only [tl.math, bind_eq, Prog.bind]
-  exact .env (.pick ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk)
+  exact .plat ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
 theorem safe_div {x y : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog α}
     (hex : ∀ i, ∃ r, E.P.div f (x.get i) (y.get i) r)
@@ -313,7 +313,7 @@ theorem safe_div {x y : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog �
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.div x y >>= k) := by
   simp only [tl.div, bind_eq, Prog.bind]
-  exact .env (.pick ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk)
+  exact .plat ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
 theorem safe_cvt8 {g : TVA.Math.Float.Format} {x : Tensor s (FloatV f)} {rnd : TVA.Math.Float.RoundMode}
     {k : Tensor s (FloatV g) → Prog α}
@@ -324,7 +324,7 @@ theorem safe_cvt8 {g : TVA.Math.Float.Format} {x : Tensor s (FloatV f)} {rnd : T
     Safe E R W Q m (tl.cvt8 x rnd >>= k) := by
   simp only [tl.cvt8, bind_eq, Prog.bind]
   exact .pick ⟨(), hok⟩ fun _ _ =>
-    .env (.pick ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk)
+    .plat ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
 theorem safe_dot {cfg : DotCfg} {M N K : Nat} {a : Tensor [M, K] cfg.a.Val}
     {b : Tensor [K, N] cfg.b.Val} {acc : Tensor [M, N] cfg.acc.Val}
@@ -333,7 +333,7 @@ theorem safe_dot {cfg : DotCfg} {M N K : Nat} {a : Tensor [M, K] cfg.a.Val}
     (hk : ∀ r, E.P.dot cfg a b acc r → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.dot cfg a b acc >>= k) := by
   simp only [tl.dot, bind_eq, Prog.bind]
-  exact .env (.pick hex hk)
+  exact .plat hex hk
 
 /-- `tl.dot(a, b) + c`: either combined form, given that the `tl.dot` with accumulator `c` has a
 result (`hex`): that one form is enough for the program to go on, so neither the separate product

@@ -54,6 +54,10 @@ def Valid (p : BlockPtr d) : Prop :=
 /-- A `boundary_check` tuple: distinct dimensions of the block. -/
 def CheckOk (p : BlockPtr d) (bc : List Nat) : Prop := bc.Nodup ∧ ∀ k ∈ bc, k < p.rank
 
+instance (p : BlockPtr d) : Decidable p.Valid := by unfold Valid; infer_instance
+instance (p : BlockPtr d) (bc : List Nat) : Decidable (p.CheckOk bc) := by
+  unfold CheckOk; infer_instance
+
 /-- Lane `i`'s coordinate along dimension `k`: `offsets[k] + i_k` in `int64`. -/
 def coord (p : BlockPtr d) (i : Idx p.block) (k : Nat) : I64 :=
   p.offsets.getD k 0 + IntV.ofNat (i.coord k)
@@ -90,14 +94,14 @@ def advance (p : BlockPtr d) (deltas : List I64) : BlockPtr d :=
 /-- `tl.load(p, boundary_check=bc, padding_option=…)` of a block pointer. -/
 def load_block (p : BlockPtr d) (bc : List Nat := []) (padding : Padding := .undef) :
     Prog (Tensor p.block d.Val) :=
-  .pick (fun _ : Unit => p.Valid ∧ p.CheckOk bc) fun _ => do
+  .pick (fun _ : Unit => p.Valid ∧ p.CheckOk bc) Solve.guard fun _ => do
     let v ← tl.load p.ptrs (some (p.mask bc))
     tl.pad padding (p.inb bc) v
 
 /-- `tl.store(p, value, boundary_check=bc)` of a block pointer. The model converts `value` to the
 element type first, as Triton does implicitly. -/
 def store_block (p : BlockPtr d) (vals : Tensor p.block d.Val) (bc : List Nat := []) : Prog Unit :=
-  .pick (fun _ : Unit => p.Valid ∧ p.CheckOk bc) fun _ => tl.store p.ptrs vals (some (p.mask bc))
+  .pick (fun _ : Unit => p.Valid ∧ p.CheckOk bc) Solve.guard fun _ => tl.store p.ptrs vals (some (p.mask bc))
 
 end tl
 

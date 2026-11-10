@@ -76,7 +76,7 @@ relation `op a b c` (`c` is a possible result of `combine_fn(a, b)`). -/
 def associative_scan (x : Tensor s α) (axis : Nat) (op : α → α → α → Prop) (reverse : Bool := false) :
     Prog (Tensor s α) :=
   .pick (fun r : Tensor s α => ∀ i, ∃ t : Tree, ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
-    t.Eval op (fun j => x.get (i.set axis j)) (r.get i)) .ret
+    t.Eval op (fun j => x.get (i.set axis j)) (r.get i)) Solve.none .ret
 
 section Float
 variable {f : TVA.Math.Float.Format}
@@ -121,7 +121,7 @@ def sort [SortKey α] (x : Tensor s α) (descending : Bool := false) : Prog (Ten
   .pick (fun r : Tensor s α => ∀ i,
     (∀ t, t < Shape.dim s (s.length - 1) → SortKey.Ordered (x.get (i.set (s.length - 1) t))) →
       PermAlong (s.length - 1) (Shape.dim s (s.length - 1)) x r i ∧
-      SortedAlong descending (s.length - 1) (Shape.dim s (s.length - 1)) r i) .ret
+      SortedAlong descending (s.length - 1) (Shape.dim s (s.length - 1)) r i) Solve.none .ret
 
 /-! ## Histograms -/
 
@@ -137,7 +137,7 @@ def histogram {n : Nat} {sg : Bool} {w : Nat} (x : Tensor [n] (IntV sg w)) (bins
   .pick (fun r : Tensor [bins] I32 =>
     (∀ j, enabledBy mask j = true → 0 ≤ (x.get1 j).toInt ∧ (x.get1 j).toInt < bins) ∧
     ∀ b : Fin bins, r.get1 b =
-      IntV.ofNat (Finset.univ.filter fun j : Fin n => enabledBy mask j = true ∧ (x.get1 j).toInt = b).card) .ret
+      IntV.ofNat (Finset.univ.filter fun j : Fin n => enabledBy mask j = true ∧ (x.get1 j).toInt = b).card) (Solve.only (Tensor.of1 fun b => IntV.ofNat (Finset.univ.filter fun j : Fin n => enabledBy mask j = true ∧ (x.get1 j).toInt = b).card) fun _ hr => ⟨hr.1, fun _ => rfl⟩) .ret
 
 end tl
 

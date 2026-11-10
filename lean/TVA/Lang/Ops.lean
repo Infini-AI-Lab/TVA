@@ -156,6 +156,15 @@ other coordinate, and their `k`-th coordinates have the same quotient by `C`. -/
 def Idx.SameGroup {s : Shape} (k C : Nat) (i j : Idx s) : Prop :=
   (∀ k', k' ≠ k → i.coord k' = j.coord k') ∧ i.coord k / C = j.coord k / C
 
+/-! The decision procedures below are for running a model (`Solve`); they do not change any
+meaning. -/
+
+instance {s : Shape} (k C : Nat) (i j : Idx s) : Decidable (Idx.SameGroup k C i j) :=
+  decidable_of_iff ((∀ k' < s.length, k' ≠ k → i.coord k' = j.coord k') ∧ i.coord k / C = j.coord k / C)
+    ⟨fun ⟨h, h'⟩ => ⟨fun k' hk => (Nat.lt_or_ge k' s.length).elim (fun hl => h k' hl hk)
+      (fun hg => by rw [Idx.coord_of_ge i hg, Idx.coord_of_ge j hg]), h'⟩,
+     fun ⟨h, h'⟩ => ⟨fun k' _ hk => h k' hk, h'⟩⟩
+
 /-- Along dimension `k`, each group of `C` positions (`Idx.SameGroup`) holds consecutive values,
 `HintVal.unit β` apart. -/
 def ContigAlong {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) : Prop :=
@@ -169,6 +178,11 @@ largest such group size. -/
 def ContigIs {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) : Prop :=
   ContigAlong x k C ∧ (2 * C ≤ s.dim k → ¬ ContigAlong x k (2 * C))
 
+instance {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) :
+    Decidable (ContigAlong x k C) := by unfold ContigAlong; infer_instance
+instance {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) :
+    Decidable (ContigIs x k C) := by unfold ContigIs; infer_instance
+
 /-- `v` divides the first element of each group of `C` positions along dimension `k`: the elements
 whose coordinate `k` is a multiple of `C`. With `C = 1`, every element. -/
 def FirstsDiv {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C v : Nat) : Prop :=
@@ -177,6 +191,11 @@ def FirstsDiv {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C v : Na
 /-- Along dimension `k`, each group of `C` positions holds equal values. -/
 def ConstAlong {s : Shape} {β : Type} (x : Tensor s β) (k C : Nat) : Prop :=
   ∀ i j : Idx s, Idx.SameGroup k C i j → x.get j = x.get i
+
+instance {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C v : Nat) :
+    Decidable (FirstsDiv x k C v) := by unfold FirstsDiv; infer_instance
+instance {s : Shape} {β : Type} [DecidableEq β] (x : Tensor s β) (k C : Nat) :
+    Decidable (ConstAlong x k C) := by unfold ConstAlong; infer_instance
 
 namespace tl
 
@@ -229,7 +248,7 @@ def load {d : DType} (ptrs : Tensor s (Ptr d)) (mask : Option (Tensor s Bool) :=
 
 /-- Pad the lanes outside the bounds (`inb i = false`) of a loaded block. -/
 def pad {d : DType} (p : Padding) (inb : Idx s → Bool) (v : Tensor s d.Val) : Prog (Tensor s d.Val) :=
-  .pick (fun r : Tensor s d.Val => ∀ i, if inb i then r.get i = v.get i else p.Holds (r.get i)) .ret
+  .pick (fun r : Tensor s d.Val => ∀ i, if inb i then r.get i = v.get i else p.Holds (r.get i)) Solve.none .ret
 
 /-- `x.to(tl.pointer_type(d))` of an integer scalar (`inttoptr`, `semantic.py:909-910`): the
 pointer whose address is the integer's bits read unsigned (LLVM zero-extends a narrower integer
@@ -274,8 +293,8 @@ def rmwSeq {d : DType} (ptrs : Tensor s (Ptr d)) (upd : Idx s → d.Val → d.Va
 def atomicWith {d : DType} (ptrs : Tensor s (Ptr d)) (upd : Idx s → d.Val → d.Val → Prop)
     (mask : Option (Tensor s Bool)) (sem : MemSem) (scope : Scope) : Prog (Tensor s d.Val) :=
   let enabled := (Idx.all s).filter (fun i => (addrs ptrs mask i).isSome)
-  .pick (fun (_ : Idx s → d.Val) => True) fun junk =>
-  .pick (fun (order : List (Idx s)) => order.Perm enabled) fun order => do
+  .pick (fun (_ : Idx s → d.Val) => True) Solve.none fun junk =>
+  .pick (fun (order : List (Idx s)) => order.Perm enabled) Solve.none fun order => do
     let old ← rmwSeq ptrs upd sem scope order junk
     return ⟨old⟩
 
@@ -460,7 +479,7 @@ variable {f : Format}
 
 /-- The results of an elementwise operation whose exact result is `v`: `v` up to NaN payload. -/
 def upToNaN (v : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.NaNEq (v.get i) (r.get i)) .ret
+  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.NaNEq (v.get i) (r.get i)) (Solve.ok v fun _ => Or.inl rfl) .ret
 
 /-- `x + y` on floats, IEEE (round to nearest even). This is the meaning of a source `+` whose
 operands are not, in the compiled dataflow, results of a floating multiplication or of a
@@ -481,13 +500,13 @@ the two IEEE operations or one `fma`; without it, the two operations. -/
 def mul_add (a b c : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
   .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i,
     FloatV.NaNEq (FloatV.add (FloatV.mul (a.get i) (b.get i)) (c.get i)) (r.get i) ∨
-    (e.fusion = true ∧ FloatV.NaNEq (FloatV.fma (a.get i) (b.get i) (c.get i)) (r.get i))) .ret
+    (e.fusion = true ∧ FloatV.NaNEq (FloatV.fma (a.get i) (b.get i) (c.get i)) (r.get i))) (Solve.ok ⟨fun i => FloatV.add (FloatV.mul (a.get i) (b.get i)) (c.get i)⟩ fun _ => Or.inl (Or.inl rfl)) .ret
 
 /-- A contractible addition `x + y` whose operands may be products the compiler fuses: any
 result `AddRel` allows. Use it when an operand's product is not visible to the model, or when
 both are products. -/
 def addc (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i, AddRel e.fusion (x.get i) (y.get i) (r.get i)) .ret
+  .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i, AddRel e.fusion (x.get i) (y.get i) (r.get i)) (Solve.ok (Tensor.map2 FloatV.add x y) fun _ => Or.inl (Or.inl rfl)) .ret
 
 /-- A contractible subtraction: `x + (-y)` under `addc` (`a*b - c` and `c - a*b` both contract
 to an `fma`). -/
@@ -507,7 +526,7 @@ quotient is a product for a following addition (library issue L163, `evidence/di
 `div.full.f32` ends in a multiply that `ptxas` may fuse with the addition, so the addition is
 `tl.addc`/`tl.subc` on this quotient (`AddRel`). -/
 def div (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i, e.P.div f (x.get i) (y.get i) (r.get i)) .ret
+  .plat (.div f x y) .ret
 
 /-- `tl.div_rn(x, y)`: IEEE division. Also `tl.fdiv(x, y, ieee_rounding=True)`, which Triton
 3.8.0 compiles to the same `tt.precise_divf` (`div.rn.f32`; both accept `float32` operands only)
@@ -519,7 +538,7 @@ def sqrt_rn (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := upToNaN (x
 
 /-- An approximate elementwise function, as the platform computes it. -/
 def math (fn : MathFn) (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i, e.P.math fn f (x.get i) (r.get i)) .ret
+  .plat (.math fn f x) .ret
 
 /-- `tl.exp`, `tl.exp2`, `tl.log`, `tl.log2`, `tl.sin`, `tl.cos`, `tl.sqrt`, `tl.rsqrt`,
 `tl.erf`. -/
@@ -541,9 +560,9 @@ def abs (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := upToNaN (x.map
 converts `bfloat16` operands to `float32` first (`core.py:2927, 2949`): the model converts
 explicitly, and the result is `float32`. -/
 def maximum (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel true (x.get i) (y.get i) (r.get i)) .ret
+  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel true (x.get i) (y.get i) (r.get i)) (Solve.ok (Tensor.map2 FloatV.max x y) fun _ => Or.inl (Or.inl rfl)) .ret
 def minimum (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel false (x.get i) (y.get i) (r.get i)) .ret
+  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel false (x.get i) (y.get i) (r.get i)) (Solve.ok (Tensor.map2 FloatV.min x y) fun _ => Or.inl (Or.inl rfl)) .ret
 
 /-- `tl.maximum(x, y)` / `tl.minimum(x, y)` on integer tensors, and Python's `max(x, y)` /
 `min(x, y)` in a kernel when an operand is a tensor (`core.py:3882-3929`, which folds
@@ -562,18 +581,23 @@ def iminimum {sg : Bool} {w : Nat} (x y : Tensor s (IntV sg w)) : Tensor s (IntV
 def RoundOk (f g : Format) (rnd : RoundMode) : Prop :=
   rnd = .rn ∨ (rnd = .rz ∧ f = .binary32 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .e5m2))
 
+instance (f : Format) : Decidable f.Std := by unfold Format.Std; infer_instance
+instance (f : Format) : Decidable f.F8 := by unfold Format.F8; infer_instance
+instance (f g : Format) (rnd : RoundMode) : Decidable (RoundOk f g rnd) := by
+  unfold RoundOk; infer_instance
+
 /-- `x.to(dtype, fp_downcast_rounding=rnd)` between standard float formats (`float16`,
 `bfloat16`, `float32`, `float64`): one rounding (`.rn` to nearest even, the default; `.rz`
 toward zero), up to NaN payload. Widening is exact. Undefined behaviour for other formats, which
 use `tl.cvt8` (into fp8) and `tl.cvtFrom8` (out of fp8). -/
 def cvt {g : Format} (x : Tensor s (FloatV f)) (rnd : RoundMode := .rn) : Prog (Tensor s (FloatV g)) :=
-  .pick (fun _ : Unit => f.Std ∧ g.Std ∧ RoundOk f g rnd) fun _ => upToNaN (x.map (FloatV.cvtWith rnd))
+  .pick (fun _ : Unit => f.Std ∧ g.Std ∧ RoundOk f g rnd) Solve.guard fun _ => upToNaN (x.map (FloatV.cvtWith rnd))
 
 /-- `x.to(dtype, fp_downcast_rounding=rnd)` from `float16`, `bfloat16` or `float32` into an fp8
 format: as the platform converts (`P.cvt f g rnd`). -/
 def cvt8 {g : Format} (x : Tensor s (FloatV f)) (rnd : RoundMode := .rn) : Prog (Tensor s (FloatV g)) :=
-  .pick (fun _ : Unit => (f = .binary16 ∨ f = .bfloat16 ∨ f = .binary32) ∧ g.F8 ∧ RoundOk f g rnd) fun _ =>
-  .env fun e => .pick (fun r : Tensor s (FloatV g) => ∀ i, e.P.cvt f g rnd (x.get i) (r.get i)) .ret
+  .pick (fun _ : Unit => (f = .binary16 ∨ f = .bfloat16 ∨ f = .binary32) ∧ g.F8 ∧ RoundOk f g rnd) Solve.guard fun _ =>
+  .plat (.cvt f g rnd x) .ret
 
 /-- `x.to(dtype)` from fp8 (`float8e5`, `float8e4nv`) to `float16`, `bfloat16` or `float32`:
 exact on finite elements. An infinity or NaN may come out as any value: Triton converts
@@ -581,8 +605,8 @@ exact on finite elements. An infinity or NaN may come out as any value: Triton c
 `triton-3.8.0-nvidia-ElementwiseOpToLLVM.cpp:68-121, 433-434`). There is no fp8 → `float64`
 conversion (`:421-457`). -/
 def cvtFrom8 {g : Format} (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV g)) :=
-  .pick (fun _ : Unit => f.F8 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .binary32)) fun _ =>
-  .pick (fun r : Tensor s (FloatV g) => ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)) .ret
+  .pick (fun _ : Unit => f.F8 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .binary32)) Solve.guard fun _ =>
+  .pick (fun r : Tensor s (FloatV g) => ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)) (Solve.ok (x.map FloatV.cvt) fun _ _ => rfl) .ret
 
 /-- The results an integer `z` may convert to in format `g`: rounded to nearest even once, or
 twice through a wider standard format. Before sm_90 there is no direct integer-to-`bfloat16`
@@ -602,8 +626,8 @@ def ItofRel (g : Format) (z : Int) (r : FloatV g) : Prop :=
 /-- `x.to(float dtype)` of an integer tensor (`sitofp`/`uitofp`) into a standard format: each
 element as `ItofRel` allows. Into fp8 it does not compile (`semantic.py:916`). -/
 def itof {sg : Bool} {w : Nat} (x : Tensor s (IntV sg w)) : Prog (Tensor s (FloatV f)) :=
-  .pick (fun _ : Unit => f.Std) fun _ =>
-  .pick (fun r : Tensor s (FloatV f) => ∀ i, ItofRel f (x.get i).toInt (r.get i)) .ret
+  .pick (fun _ : Unit => f.Std) Solve.guard fun _ =>
+  .pick (fun r : Tensor s (FloatV f) => ∀ i, ItofRel f (x.get i).toInt (r.get i)) (Solve.ok (x.map fun a => FloatV.ofRat (a.toInt : Rat)) fun _ => Or.inl rfl) .ret
 
 /-- `x.to(int dtype)` of a float tensor in a standard format: truncation toward zero;
 undefined behaviour when an element is NaN, infinite, or out of the integer type's range (LLVM
@@ -612,9 +636,9 @@ def ftoi {sg : Bool} {w : Nat} (x : Tensor s (FloatV f)) : Prog (Tensor s (IntV 
   let inRange (a : FloatV f) : Prop :=
     a.isFinite = true ∧ (Format.intRange sg w).1 ≤ a.toRat.num.tdiv a.toRat.den ∧
       a.toRat.num.tdiv a.toRat.den ≤ (Format.intRange sg w).2
-  .pick (fun _ : Unit => f.Std) fun _ =>
+  .pick (fun _ : Unit => f.Std) Solve.guard fun _ =>
   .pick (fun r : Tensor s (IntV sg w) => ∀ i, inRange (x.get i) ∧
-    r.get i = IntV.ofInt ((x.get i).toRat.num.tdiv (x.get i).toRat.den)) .ret
+    r.get i = IntV.ofInt ((x.get i).toRat.num.tdiv (x.get i).toRat.den)) (Solve.only ⟨fun i => IntV.ofInt ((x.get i).toRat.num.tdiv (x.get i).toRat.den)⟩ fun _ hr i => ⟨(hr i).1, rfl⟩) .ret
 
 /-! ## Floating-point reductions
 
@@ -635,19 +659,19 @@ def sumBound (P : Platform) (n : Nat) : Nat := max (P.sumDepth n) (Nat.clog 2 n)
 /-- A whole rank-1 reduction along some tree, each node an `AddRel fusion` addition. -/
 def sumWith (fusion : Bool) {n : Nat} (x : Tensor [n] (FloatV f)) : Prog (FloatV f) :=
   .env fun e => .pick (fun r => ∃ t : Tree, t.Covers n ∧ t.depth ≤ sumBound e.P n ∧
-    t.Eval (AddRel fusion) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r) .ret
+    t.Eval (AddRel fusion) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r) Solve.none .ret
 
 /-- Row reductions of a rank-2 tensor (`axis=1`). -/
 def sum1With (fusion : Bool) {m n : Nat} (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [m] (FloatV f)) :=
   .env fun e => .pick (fun r : Tensor [m] (FloatV f) => ∀ i, ∃ t : Tree, t.Covers n ∧
     t.depth ≤ sumBound e.P n ∧
-    t.Eval (AddRel fusion) (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) .ret
+    t.Eval (AddRel fusion) (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) Solve.none .ret
 
 /-- Column reductions of a rank-2 tensor (`axis=0`). -/
 def sum0With (fusion : Bool) {m n : Nat} (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [n] (FloatV f)) :=
   .env fun e => .pick (fun r : Tensor [n] (FloatV f) => ∀ j, ∃ t : Tree, t.Covers m ∧
     t.depth ≤ sumBound e.P m ∧
-    t.Eval (AddRel fusion) (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) .ret
+    t.Eval (AddRel fusion) (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) Solve.none .ret
 
 /-- `tl.sum(x)` of a rank-1 tensor that is not a product: IEEE additions along a tree, in the
 input's own format (Triton promotes only integers narrower than 32 bits, `standard.py:270-292`). -/
@@ -674,20 +698,20 @@ after Triton's widening of integers narrower than 32 bits to `int32`; with `retu
 are `tl.argmax1`/`argmax0`/`argmaxAll`. -/
 def max1 {m n : Nat} (isMax : Bool) (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [m] (FloatV f)) :=
   .pick (fun r : Tensor [m] (FloatV f) => ∀ i, ∃ t : Tree, t.Covers n ∧
-    t.Eval (FloatV.MaxRel isMax) (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) .ret
+    t.Eval (FloatV.MaxRel isMax) (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.get1 i)) Solve.none .ret
 
 /-- `tl.max(x)` (`isMax`) or `tl.min(x)` of a rank-1 float tensor (or `axis=0` of it): the
 whole tensor combined with `MaxRel` along a tree, after the same widening as `max1` (integers:
 see `max1`). -/
 def maxAll {n : Nat} (isMax : Bool) (x : Tensor [n] (FloatV f)) : Prog (FloatV f) :=
   .pick (fun r => ∃ t : Tree, t.Covers n ∧
-    t.Eval (FloatV.MaxRel isMax) (fun j => if h : j < n then x.get1 ⟨j, h⟩ else default) r) .ret
+    t.Eval (FloatV.MaxRel isMax) (fun j => if h : j < n then x.get1 ⟨j, h⟩ else default) r) Solve.none .ret
 
 /-- `tl.max(x, axis=0)` (`isMax`) or `tl.min(x, axis=0)` of a rank-2 float tensor: each column,
 as `max1` (integers: see `max1`). -/
 def max0 {m n : Nat} (isMax : Bool) (x : Tensor [m, n] (FloatV f)) : Prog (Tensor [n] (FloatV f)) :=
   .pick (fun r : Tensor [n] (FloatV f) => ∀ j, ∃ t : Tree, t.Covers m ∧
-    t.Eval (FloatV.MaxRel isMax) (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) .ret
+    t.Eval (FloatV.MaxRel isMax) (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.get1 j)) Solve.none .ret
 
 end Float
 
@@ -755,21 +779,21 @@ positions. -/
 def argmaxAll [CmpKey α] [Inhabited α] {n : Nat} (isMax tieLeft : Bool) (x : Tensor [n] α) :
     Prog (α × I32) :=
   .pick (fun r : α × I32 => ArgRes isMax tieLeft n
-    (fun j => if h : j < n then x.get1 ⟨j, h⟩ else default) r) .ret
+    (fun j => if h : j < n then x.get1 ⟨j, h⟩ else default) r) Solve.none .ret
 
 /-- `tl.max(x, 1, return_indices=True)` (`isMax`) or `tl.min(x, 1, …)` of a rank-2 tensor: for
 each row, a pair `ArgRes` allows; `tl.argmax(x, 1)` (`tl.argmin`) is the index tensor. -/
 def argmax1 [CmpKey α] [Inhabited α] {m n : Nat} (isMax tieLeft : Bool) (x : Tensor [m, n] α) :
     Prog (Tensor [m] α × Tensor [m] I32) :=
   .pick (fun r : Tensor [m] α × Tensor [m] I32 => ∀ i, ArgRes isMax tieLeft n
-    (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.1.get1 i, r.2.get1 i)) .ret
+    (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.1.get1 i, r.2.get1 i)) Solve.none .ret
 
 /-- `tl.max(x, 0, return_indices=True)` (`isMax`) or `tl.min(x, 0, …)` of a rank-2 tensor: for
 each column, a pair `ArgRes` allows; `tl.argmax(x, 0)` (`tl.argmin`) is the index tensor. -/
 def argmax0 [CmpKey α] [Inhabited α] {m n : Nat} (isMax tieLeft : Bool) (x : Tensor [m, n] α) :
     Prog (Tensor [n] α × Tensor [n] I32) :=
   .pick (fun r : Tensor [n] α × Tensor [n] I32 => ∀ j, ArgRes isMax tieLeft m
-    (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.1.get1 j, r.2.get1 j)) .ret
+    (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.1.get1 j, r.2.get1 j)) Solve.none .ret
 
 /-! ## Matrix multiplication -/
 
@@ -777,7 +801,7 @@ def argmax0 [CmpKey α] [Inhabited α] {m n : Nat} (isMax tieLeft : Bool) (x : T
 `input_precision`): as the platform computes it. -/
 def dot (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
     (acc : Tensor [M, N] cfg.acc.Val) : Prog (Tensor [M, N] cfg.acc.Val) :=
-  .env fun e => .pick (e.P.dot cfg a b acc) .ret
+  .plat (.dot cfg a b acc) .ret
 
 /-- A source `tl.dot(a, b, acc=z) + c` (or `c + tl.dot(…)`) with a zero accumulator `z` (the
 default, or any constant `±0`) and no other use of the product. Triton's combine pass may
@@ -789,7 +813,7 @@ def dot_add (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tens
     (c : Tensor [M, N] cfg.acc.Val) (z : Tensor [M, N] cfg.acc.Val := Tensor.full (cfg.acc.ofBits 0)) :
     Prog (Tensor [M, N] cfg.acc.Val) :=
   .env fun e => .pick (fun r => e.P.dot cfg a b c r ∨
-    ∃ d, e.P.dot cfg a b z d ∧ ∀ i, AccAdd e.fusion cfg.acc (d.get i) (c.get i) (r.get i)) .ret
+    ∃ d, e.P.dot cfg a b z d ∧ ∀ i, AccAdd e.fusion cfg.acc (d.get i) (c.get i) (r.get i)) Solve.none .ret
 
 /-- The product of a float dtype: the IEEE product up to NaN payload (`False` for other
 dtypes). -/
@@ -816,7 +840,7 @@ def sum_bcast_mul (d : DType) {M K N : Nat} (x : Tensor [M, K] d.Val) (y : Tenso
       (∀ k (hk : k < K), MulRel d (x.get2 i ⟨k, hk⟩) (y.get2 ⟨k, hk⟩ j) (p k)) ∧
       ∃ t : Tree, t.Covers K ∧ t.Eval (AccAdd e.fusion d) p (r.get2 i j)) ∨
     (d.bytes ≤ 4 ∧ 16 ≤ M ∧ 16 ≤ N ∧
-      e.P.dot { a := d, b := d, acc := d, precision := .ieee } x y (Tensor.full (d.ofBits 0)) r)) .ret
+      e.P.dot { a := d, b := d, acc := d, precision := .ieee } x y (Tensor.full (d.ofBits 0)) r)) Solve.none .ret
 
 /-! ## Integer division and shifts
 
@@ -828,17 +852,17 @@ division, but it is computed in Lean by the model. -/
 
 /-- `x // y` on integer tensors. -/
 def idiv {sg : Bool} {w : Nat} (x y : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).div? (y.get i) = some (r.get i)) .ret
+  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).div? (y.get i) = some (r.get i)) (Solve.lanes fun i => (x.get i).div? (y.get i)) .ret
 
 /-- `x % y` on integer tensors. -/
 def irem {sg : Bool} {w : Nat} (x y : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).rem? (y.get i) = some (r.get i)) .ret
+  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).rem? (y.get i) = some (r.get i)) (Solve.lanes fun i => (x.get i).rem? (y.get i)) .ret
 
 /-- `x << n`. Both operands have the promoted type (`semantic.py:421-425`). Undefined when an
 amount, read as unsigned, is at least the width: LLVM gives poison, and a negative amount is a
 huge one. -/
 def shl {sg : Bool} {w : Nat} (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).shl? (n.get i).bits.toNat = some (r.get i)) .ret
+  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).shl? (n.get i).bits.toNat = some (r.get i)) (Solve.lanes fun i => (x.get i).shl? (n.get i).bits.toNat) .ret
 
 /-- `x >> n`, arithmetic. Triton picks `ashr` or `lshr` by the source dtype of the tensor
 operand Python dispatches on, before promotion, and then shifts the promoted values. That
@@ -847,11 +871,11 @@ one when the left is a Python scalar (`__rrshift__`, `core.py:1018-1024`). So `i
 is an arithmetic shift of `uint32` values, and `0xF0 >> s` with `s : uint8` is a logical one.
 The model chooses `ashr`/`lshr` that way, not from the promoted type. -/
 def ashr {sg : Bool} {w : Nat} (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).ashr? (n.get i).bits.toNat = some (r.get i)) .ret
+  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).ashr? (n.get i).bits.toNat = some (r.get i)) (Solve.lanes fun i => (x.get i).ashr? (n.get i).bits.toNat) .ret
 
 /-- `x >> n`, logical: the left operand's source type is unsigned (see `ashr`). -/
 def lshr {sg : Bool} {w : Nat} (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).lshr? (n.get i).bits.toNat = some (r.get i)) .ret
+  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).lshr? (n.get i).bits.toNat = some (r.get i)) (Solve.lanes fun i => (x.get i).lshr? (n.get i).bits.toNat) .ret
 
 /-! ## Compiler hints
 
@@ -960,7 +984,7 @@ single value. The forms for any rank end in `N` and take a list, one entry per d
 source does. -/
 
 /-- `tl.assume(cond)`. -/
-def assume (c : Bool) : Prog Unit := .pick (fun _ : Unit => c = true) .ret
+def assume (c : Bool) : Prog Unit := .pick (fun _ : Unit => c = true) Solve.guard .ret
 
 /-- `tl.max_contiguous(x, C)` (1-D), with no `tl.multiple_of` on the same value: `C` is `x`'s
 contiguity (`ContigIs`): `x` is `n / C` runs of `C` consecutive values, and not `n / (2·C)` runs of
@@ -968,11 +992,11 @@ contiguity (`ContigIs`): `x` is `n / C` runs of `C` consecutive values, and not 
 `tl.max_contiguous_multiple_of`. -/
 def max_contiguous {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C : Nat) :
     Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ContigIs x 0 C) .ret
+  .pick (fun y => y = x ∧ ContigIs x 0 C) (Solve.hint x) .ret
 
 /-- `tl.max_constancy(x, C)` (1-D): `x` is `n / C` runs of `C` equal values. -/
 def max_constancy {n : Nat} {β : Type} (x : Tensor [n] β) (C : Nat) : Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ConstAlong x 0 C) .ret
+  .pick (fun y => y = x ∧ ConstAlong x 0 C) Solve.none .ret
 
 /-- `tl.multiple_of(x, v)` (1-D), with no `tl.max_contiguous` on the same value: `v` divides the
 first element of each group of `contig` positions of `x` (`FirstsDiv`). `contig` is a lower bound
@@ -982,7 +1006,7 @@ multiple of `v`) otherwise. With a `tl.max_contiguous` on the same value, the pa
 `tl.max_contiguous_multiple_of`. -/
 def multiple_of {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (v : Nat)
     (contig : Nat := 1) : Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ FirstsDiv x 0 contig v) .ret
+  .pick (fun y => y = x ∧ FirstsDiv x 0 contig v) (Solve.hint x) .ret
 
 /-- `tl.max_contiguous(tl.multiple_of(x, v), C)` (1-D; both hints on the same value, in either
 order): the pair replaces what the compiler believes of `x`'s contiguity and divisibility, so it
@@ -991,21 +1015,21 @@ first element of each group (`FirstsDiv`), also with `C` below `x`'s own contigu
 (`evidence/hint-contig` H17-H19; library issue L58). -/
 def max_contiguous_multiple_of {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C v : Nat) :
     Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ContigAlong x 0 C ∧ FirstsDiv x 0 C v) .ret
+  .pick (fun y => y = x ∧ ContigAlong x 0 C ∧ FirstsDiv x 0 C v) (Solve.hint x) .ret
 
 /-- `tl.multiple_of(x, v)` of a scalar. -/
 def multiple_of1 {β : Type} [HintVal β] (x : β) (v : Nat) : Prog β :=
-  .pick (fun y => y = x ∧ (v : Int) ∣ HintVal.val x) .ret
+  .pick (fun y => y = x ∧ (v : Int) ∣ HintVal.val x) (Solve.hint x) .ret
 
 /-- `tl.max_contiguous(x, Cs)` for any rank, with no `tl.multiple_of` on the same value: along each
 dimension `k`, `Cs[k]` is `x`'s contiguity (`ContigIs`). -/
 def max_contiguousN {β : Type} [HintVal β] (x : Tensor s β) (Cs : List Nat) : Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → ContigIs x k (Cs.getD k 1)) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → ContigIs x k (Cs.getD k 1)) (Solve.hint x) .ret
 
 /-- `tl.max_constancy(x, Cs)` for any rank: along each dimension `k`, every group of `Cs[k]`
 positions holds equal values. -/
 def max_constancyN {β : Type} (x : Tensor s β) (Cs : List Nat) : Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1)) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1)) Solve.none .ret
 
 /-- `tl.multiple_of(x, vs)` for any rank, with no `tl.max_contiguous` on the same value: along each
 dimension `k`, `vs[k]` divides the first element of each group of `contig[k]` positions
@@ -1017,7 +1041,7 @@ pointer of the block is 16-byte aligned (dimension 0 has contiguity 1, so its va
 element), which no launch meets (`evidence/hint-rank2` R1, R2). -/
 def multiple_ofN {β : Type} [HintVal β] (x : Tensor s β) (vs : List Nat) (contig : List Nat := []) :
     Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → FirstsDiv x k (contig.getD k 1) (vs.getD k 1)) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → FirstsDiv x k (contig.getD k 1) (vs.getD k 1)) (Solve.hint x) .ret
 
 /-- `tl.max_contiguous(tl.multiple_of(x, vs), Cs)` for any rank (both hints on the same value): along
 each dimension `k`, groups of `Cs[k]` positions hold consecutive values and `vs[k]` divides the first
@@ -1025,14 +1049,14 @@ element of each group (see `max_contiguous_multiple_of`). -/
 def max_contiguous_multiple_ofN {β : Type} [HintVal β] (x : Tensor s β) (Cs vs : List Nat) :
     Prog (Tensor s β) :=
   .pick (fun y => y = x ∧ ∀ k, k < s.length →
-    ContigAlong x k (Cs.getD k 1) ∧ FirstsDiv x k (Cs.getD k 1) (vs.getD k 1)) .ret
+    ContigAlong x k (Cs.getD k 1) ∧ FirstsDiv x k (Cs.getD k 1) (vs.getD k 1)) (Solve.hint x) .ret
 
 /-! ## Shape changes with reordering -/
 
 /-- `tl.reshape(x, s', can_reorder=True)` (and the deprecated `tl.view`): the same elements, in
 an order the compiler chooses. `Tensor.reshape` is the row-major `can_reorder=False` form. -/
 def reshape_any (x : Tensor s α) (s' : Shape) : Prog (Tensor s' α) :=
-  .pick (fun r : Tensor s' α => ∃ e : Idx s' ≃ Idx s, ∀ i, r.get i = x.get (e i)) .ret
+  .pick (fun r : Tensor s' α => ∃ e : Idx s' ≃ Idx s, ∀ i, r.get i = x.get (e i)) Solve.none .ret
 
 /-! ## Loops -/
 

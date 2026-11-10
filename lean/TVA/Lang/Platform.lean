@@ -119,4 +119,37 @@ structure Env where
   a following addition (`fma`). -/
   fusion : Bool := true
 
+
+/-- One question to the platform: an operation `Platform` leaves to the device, on concrete
+operands, for a whole tensor. `Prog.plat q k` asks it; `PlatQ.Rel` is what the answer may be.
+Each relation is the one the operation had as a `pick` over `Env.P` (`∀ i`, per element). -/
+inductive PlatQ : Type where
+  | math (fn : MathFn) (f : Format) {s : Shape} (x : Tensor s (FloatV f))
+  | div (f : Format) {s : Shape} (x y : Tensor s (FloatV f))
+  | cvt (f g : Format) (rnd : RoundMode) {s : Shape} (x : Tensor s (FloatV f))
+  | dot (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
+      (acc : Tensor [M, N] cfg.acc.Val)
+  | dotScaled (cfg : ScaledCfg) {M N K : Nat} (a : Tensor [M, K] Nat) (sa : Option (Tensor [M, K] Nat))
+      (b : Tensor [K, N] Nat) (sb : Option (Tensor [K, N] Nat)) (acc : Tensor [M, N] F32)
+
+namespace PlatQ
+
+/-- The type of the answer. -/
+def Out : PlatQ → Type
+  | @math _ f s _ => Tensor s (FloatV f)
+  | @div f s _ _ => Tensor s (FloatV f)
+  | @cvt _ g _ s _ => Tensor s (FloatV g)
+  | @dot cfg M N _ _ _ _ => Tensor [M, N] cfg.acc.Val
+  | @dotScaled _ M N _ _ _ _ _ _ => Tensor [M, N] F32
+
+/-- The answers platform `P` allows. -/
+def Rel (P : Platform) : (q : PlatQ) → q.Out → Prop
+  | @math fn f _ x => fun r => ∀ i, P.math fn f (x.get i) (r.get i)
+  | @div f _ x y => fun r => ∀ i, P.div f (x.get i) (y.get i) (r.get i)
+  | @cvt f g rnd _ x => fun r => ∀ i, P.cvt f g rnd (x.get i) (r.get i)
+  | @dot cfg _ _ _ a b acc => fun r => P.dot cfg a b acc r
+  | @dotScaled cfg _ _ _ a sa b sb acc => fun r => P.dotScaled cfg a sa b sb acc r
+
+end PlatQ
+
 end TVA

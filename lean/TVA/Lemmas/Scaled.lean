@@ -26,7 +26,7 @@ theorem safe_dot_scaled {cfg : ScaledCfg} {M N K : Nat} {dl dr dsl dsr : DType} 
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) acc r → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.dot_scaled cfg M N K lhs lhs_scale rhs rhs_scale acc >>= k) := by
   simp only [tl.dot_scaled, Prog.bind_eq, Prog.bind]
-  exact .pick ⟨(), hshape, htypes⟩ fun _ _ => .env (.pick hex hk)
+  exact .pick ⟨(), hshape, htypes⟩ fun _ _ => .plat hex hk
 
 /-- **`tl.dot_scaled(…) + c`**: either the combined form or the product then the addition. -/
 theorem safe_dot_scaled_add {cfg : ScaledCfg} {M N K : Nat} {dl dr dsl dsr : DType} {Ra Ca Rb Cb G : Nat}

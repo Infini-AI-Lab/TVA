@@ -424,7 +424,7 @@ promotion of a mixed-dtype operator (`BinOp.typing?` and the others give the tar
 condition of `tl.where` (to `int1`). Each element as `ConvRel` allows; undefined behaviour if some
 element has no result. -/
 def convert {s : Shape} (d d' : DType) (x : Tensor s d.Val) : Prog (Tensor s d'.Val) :=
-  .env fun e => .pick (fun r : Tensor s d'.Val => ∀ i, ConvRel e.P d d' (x.get i) (r.get i)) .ret
+  .env fun e => .pick (fun r : Tensor s d'.Val => ∀ i, ConvRel e.P d d' (x.get i) (r.get i)) Solve.none .ret
 
 end tl
 
