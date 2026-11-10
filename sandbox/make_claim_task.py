@@ -257,7 +257,8 @@ def main():
     ap.add_argument("--agent-timeout", type=int, default=8 * 3600)
     ap.add_argument("--cpus", type=int, default=16)
     ap.add_argument("--memory-mb", type=int, default=65536)
-    ap.add_argument("--context-window", type=int, default=128000)
+    ap.add_argument("--context-window", type=int, default=640000,
+                    help="Claude Code's context window (tokens; the model takes 1M); it compacts near it")
     a = ap.parse_args()
     k, tva = a.kernel, os.path.realpath(a.tva)
     if k == EXAMPLE:

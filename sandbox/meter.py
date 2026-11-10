@@ -20,12 +20,16 @@ duration; the ledger is appended to, never rewritten, and a restarted meter coun
 the total reaches the budget, the meter answers every request with HTTP 402 (`billing_error`), so the
 agents stop.
 
+The endpoint caches prompts per replica, so the meter routes each label's requests to one replica: it adds
+`x-session-affinity: <label>-<id>` (the id is fixed per ledger) unless the request carries one.
+
 `report` sums a ledger by label and by model.
 
 Standard library only.
 """
 import argparse
 import datetime
+import hashlib
 import http.server
 import ipaddress
 import json
@@ -97,6 +101,8 @@ class Meter:
             os.write(fd, ("meter-" + secrets.token_urlsafe(24)).encode())
             os.close(fd)
         self.client_key = open(kp).read().strip()
+        # the endpoint caches per replica: one routing key per ledger keeps an agent's prompts on one replica
+        self.affinity = hashlib.sha256(os.path.abspath(a.ledger).encode()).hexdigest()[:16]
         self.lock = threading.Lock()
         self.spent = sum(r.get("cost", 0) for r in read_ledger(a.ledger))
 
@@ -148,6 +154,8 @@ def handler(M):
                 if k.lower() not in HOP:
                     req.add_header(k, v)
             req.add_header("Authorization", f"Bearer {M.key}")
+            if not self.headers.get("x-session-affinity"):
+                req.add_header("x-session-affinity", f"{label}-{M.affinity}")
             req.add_header("Accept-Encoding", "identity")
             t0, raw, status = time.time(), b"", 0
             try:

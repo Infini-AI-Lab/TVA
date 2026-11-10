@@ -99,7 +99,10 @@ def check(out_json=None):
     add("claim", good, "Claim.lean is the claim" if good else
         "Claim.lean differs from the claim: restore it (the claim is fixed; the proof goes in Proof.lean)")
     files = proof_files()
-    if not add("files", files, f"{len(files)} proof file(s)" if files else "no /app/claim/Proof.lean"):
+    root = os.path.isfile(os.path.join(WS, "Proof.lean"))
+    if not add("files", root, f"{len(files)} proof file(s)" if root else
+               "no /app/claim/Proof.lean: the build starts there; it holds `main` (or imports the Proof/ module "
+               "that does)" + (f"; {len(files)} file(s) under Proof/ are not reached" if files else "")):
         return done()
     bad = []
     for p in files:
@@ -254,10 +257,21 @@ def hook_pre_tool(inp):
     sys.exit(0)
 
 
+PLAN = "/tmp/plan.md"
+
+
 def hook_session_start(inp):
     c = clock(start=True)
     text = time_line(c) + (" Grading is all or nothing, and an unfinished proof scores 0: plan for the time you have. "
                            "`/usr/local/bin/tva-claim time` shows what is left.")
+    # after a compaction (or a resume) the plan the prover keeps comes back in full: what is proved, what is next
+    if inp.get("source") in ("compact", "resume") and os.path.isfile(PLAN):
+        plan = open(PLAN, errors="replace").read()
+        if len(plan) > 12000:
+            plan = plan[:12000] + "\n[... the rest of /tmp/plan.md is cut here: keep the plan short]"
+        text += f"\n\nYour plan ({PLAN}, kept by you; update it as lemmas change status):\n\n" + plan.strip()
+    elif inp.get("source") in ("compact", "resume"):
+        text += f"\n\nYou keep no plan yet: write {PLAN} (the lemmas of your proof and each one's status); it comes back after each compaction."
     out({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}})
 
 

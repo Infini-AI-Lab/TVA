@@ -42,6 +42,20 @@ arrives as a message when it ends. Give each subagent one lemma, with its exact 
 `/app/claim/Proof/`, and do not edit that file while it works. The `lean-fixer` subagent iterates on one file's
 build errors. Never wait with `sleep` or a polling loop: end your turn when only waiting is left.
 
+## Planning the proof
+
+- **Keep a plan in `/tmp/plan.md`**: the lemmas of your proof, one line each (name, what it states, status:
+  stated, proved, or stuck and why). Update it when a status changes. Your context is summarized now and then;
+  after each summary the harness shows you the plan again, so it is how you know what is done and what is next.
+- **Decide what is true before you walk the program.** Write down first what each output's value satisfies and,
+  for each loop, the invariant after `k` iterations (with its error bound), and check the bound at the largest
+  covered instance. Then state the lemmas and `main`, and only then step through the kernel body. A wrong
+  invariant found after the walk costs hours.
+- **One walk for every mode.** When the kernel branches on a flag (variable length, a mask, a window, a dtype),
+  prove the body once and split on the flag where the code differs, not by copying the whole walk per mode.
+- **Look in the library first** (`/app/docs/LIBRARY.md`, `grep -rn` in `/app/lean/TVA/Lemmas`): it has loop and
+  error lemmas for common patterns (dot-product accumulation, for one). A lemma you write is yours to keep proving.
+
 ## Time
 
 The session has a time limit ([/instruction.md](/instruction.md) gives it); `/usr/local/bin/tva-claim time` shows the time used
