@@ -1,4 +1,5 @@
 import TVA.Lemmas.Block
+import TVA.Lemmas.IntW
 
 /-!
 # Two-dimensional strided tiles
@@ -17,27 +18,39 @@ Lane `(i, j)` addresses element `e + (r0 + i) * s0 + (c0 + j) * s1` of a buffer 
 pointer is `b.ptr e`), and the mask enables it when `r0 + i < M` and `c0 + j < N`
 (`Tile2.Elem`). This file states, in `int32` or `int64` (any signed width `w`):
 
+* **row and column vectors**: `start_add_toInt` (`a + x`, any width), `arange64_toInt` and
+  `start_arange64_toInt` (`tl.arange` converted to `int64` by `tl.convert .i32 .i64`, the model of
+  `pid.to(tl.int64) * BM + tl.arange(0, BM)`); in `int32`, `IntV.I32.toInt_tl_arange` and
+  `IntV.I32.toInt_sadd_arange` (`pid * BM + tl.arange(0, BM)`), with `IntV.mul_ofNat` for
+  `pid * BM` and `Block.fits_of_pow2` for its bound (`TVA.Lemmas.IntW`, `TVA.Lemmas.Block`);
 * **offsets** (`Tile2.off_toInt`, and the terms `colMul_toInt`, `mulCol_toInt`, `col_toInt`,
   `rowMul_toInt`, `mulRow_toInt`, `row_toInt`): each lane's offset is the integer one, with no
-  overflow, from a bound on the largest offset, `(r0 + BM - 1) * s0 + (c0 + BN - 1) * s1 < 2^(w-1)`;
-  the row and column vectors from `tl.arange` (`arange_toInt`, `start_arange_toInt`,
-  `start_arange64_toInt`, `start_add_toInt`, `castInt_toInt`) and the scalar `pid * BM`
-  (`toInt_mul_ofNat`);
+  overflow, from a bound on the largest offset over every lane,
+  `(r0 + BM - 1) * s0 + (c0 + BN - 1) * s1 < 2^(w-1)`; and on the enabled lanes only (`r0 + i < M`,
+  `c0 + j < N`) from the matrix's largest offset, `(M - 1) * s0 + (N - 1) * s1 < 2^(w-1)`
+  (`off_toInt_on`, `add_toInt_on`, `colMul_toInt_on`, `mulCol_toInt_on`, `rowMul_toInt_on`,
+  `mulRow_toInt_on`): a masked-off lane's offset may wrap, since nothing uses it;
 * **pointers** (`Tile2.ptr_lane`, `ptr_lane_seq`, and `ptr_lane_sum_of`, `ptr_lane_seq_of` for any
   form of the two terms, `ptr_lane_sum_swap_of`, `ptr_lane_seq_swap_of` with the column term
-  first): the pointer tensor's `get2`, for `base + (x + y)` and `base + x + y`; and lane by lane,
+  first; on the enabled lanes, from the matrix's bound, the same names with `_on`): the pointer
+  tensor's `get2`, for `base + (x + y)` and `base + x + y`; and lane by lane,
   `Tensor.get2_ptrAdd`, `Tensor.get2_ptrAddT`;
 * **masks** (`Tile2.MaskOk`: `maskOk_and`, `maskOk_rows`, `maskOk_cols`, `maskOk_none`,
   `maskOk_of_get`);
 * **footprints** (`addrs_tile2`, `img_tile2`, `accBytes_tile2`, `Buf.tile2`), and the load and store
-  rules `safe_load_tile2`, `safe_store_tile2`, as `Block` does for the 1-D block;
+  rules `safe_load_tile2`, `safe_store_tile2`, as `Block` does for the 1-D block; the matrix lies in
+  its buffer when it is empty (`M = 0` or `N = 0`, as for the last sequence of a varlen batch, of
+  length `0`, at the end of its buffer) or its last element does
+  (`M = 0 ∨ N = 0 ∨ e + (M - 1) * s0 + (N - 1) * s1 < b.len`);
 * **disjointness** of the elements of two tiles whose rows or columns are apart by at least the
   block (`Tile2.elem_disjoint`, `elem_disjoint_grid`, `Buf.tile2_disjoint`, `Buf.tile2_disjoint_grid`),
   when distinct `(row, column)` pairs give distinct elements (`Tile2.Inj`): row-major
   (`inj_rowMajor`: `N * s1 ≤ s0`, `0 < s1`; `s1 = 1`, `N ≤ s0`: `inj_rowMajor1`) or column-major
   (`inj_colMajor`: `M * s0 ≤ s1`, `0 < s0`; `s0 = 1`, `M ≤ s1`: `inj_colMajor1`).
 
-A lane rule (`ptr_lane…`) gives `hp : ∀ i j, ptrs.get2 i j = b.ptr (e + (r0 + i) * s0 + (c0 + j) * s1)`
+A lane rule gives the pointers of the enabled lanes,
+`hp : ∀ i j, r0 + i < M → c0 + j < N → ptrs.get2 i j = b.ptr (e + (r0 + i) * s0 + (c0 + j) * s1)`
+(`ptr_lane_on` and the other `…_on`; from a rule for every lane, `fun i j _ _ => ptr_lane … i j`),
 and a mask rule gives `MaskOk mk r0 c0 M N`; the footprint and load and store rules take those
 two, so any way of writing the pointers or the mask fits. Without a row (column) mask, choose
 `M` (`N`) with `r0 + BM ≤ M` (`c0 + BN ≤ N`): the tile's elements are then the same.
@@ -46,108 +59,82 @@ namespace TVA
 
 namespace Tile2
 
-/-! ## Integer arithmetic -/
+/-! ## Row and column vectors
+
+The scalar arithmetic is `TVA.Lemmas.IntW`'s, for any width and with no `0 < w` premise:
+`IntV.mul_nat`, `IntV.add_nat`, `IntV.mul_ofNat` (`pid * BM`, with `IntV.ofNat BM`); the lanes of
+`tl.arange(0, n)` are `IntV.I32.toInt_tl_arange`, and of `c + tl.arange(0, n)` in `int32`
+`IntV.I32.toInt_sadd_arange`. -/
 
 section IntArith
 variable {w : Nat}
 
-private theorem sfits_nat {x : Nat} (h : x < 2 ^ (w - 1)) : IntV.SFits w (x : Int) := by
-  have h' : (x : Int) < 2 ^ (w - 1) := by exact_mod_cast h
-  have : (0 : Int) ≤ 2 ^ (w - 1) := by positivity
-  exact ⟨by omega, h'⟩
-
-/-- A product of non-negative values below `2^(w-1)` does not wrap. -/
-theorem toInt_mul_nat {a b : IntV true w} {x y : Nat} (hw : 0 < w) (ha : a.toInt = x)
-    (hb : b.toInt = y) (h : x * y < 2 ^ (w - 1)) : (a * b).toInt = ((x * y : Nat) : Int) := by
-  have hs : IntV.SFits w (a.toInt * b.toInt) := by
-    rw [ha, hb]; exact_mod_cast sfits_nat h
-  rw [IntV.toInt_mul hw hs, ha, hb]; push_cast; rfl
-
-/-- A sum of non-negative values below `2^(w-1)` does not wrap. -/
-theorem toInt_add_nat {a b : IntV true w} {x y : Nat} (hw : 0 < w) (ha : a.toInt = x)
-    (hb : b.toInt = y) (h : x + y < 2 ^ (w - 1)) : (a + b).toInt = ((x + y : Nat) : Int) := by
-  have hs : IntV.SFits w (a.toInt + b.toInt) := by
-    rw [ha, hb]; exact_mod_cast sfits_nat h
-  rw [IntV.toInt_add hw hs, ha, hb]; push_cast; rfl
-
-/-- `pid * BM` for a block size `B` (`IntV.ofNat B`): the product `p * B`, when below `2^(w-1)`.
-`B` need not fit by itself when `p = 0`. -/
-theorem toInt_mul_ofNat {a : IntV true w} {p B : Nat} (hw : 0 < w) (ha : a.toInt = p)
-    (h : p * B < 2 ^ (w - 1)) : (a * IntV.ofNat B).toInt = ((p * B : Nat) : Int) := by
-  rcases Nat.eq_zero_or_pos p with rfl | hp
-  · have hs : IntV.SFits w (a.toInt * (IntV.ofNat B : IntV true w).toInt) := by
-      rw [ha]; simp only [Nat.cast_zero, zero_mul]; exact_mod_cast sfits_nat (x := 0) (by omega)
-    rw [IntV.toInt_mul hw hs, ha]; simp
-  · have hB : B < 2 ^ (w - 1) := lt_of_le_of_lt (Nat.le_mul_of_pos_left B hp) h
-    exact toInt_mul_nat hw ha (IntV.toInt_ofNat hw (by exact_mod_cast hB)) h
-
-/-- `tl.arange(0, n)`: lane `i` is `i` (written `0 + i`, the form `r0 + i` of a row or column
-vector with `r0 = 0`). -/
-theorem arange_toInt {n : Nat} (hn : n ≤ 2 ^ 31) (i : Fin (n - 0)) :
-    ((tl.arange 0 n).get1 i).toInt = ((0 + i : Nat) : Int) := by
-  have hi := i.isLt
-  simp only [Nat.sub_zero] at hi
-  show (IntV.ofInt (((0 : Nat) : Int) + (i : Nat)) : I32).toInt = _
-  rw [IntV.I32.toInt_ofInt] <;> push_cast
-  · ring
-  · constructor <;> omega
-
-/-- `a + x` for a scalar `a` (the first row or column, `r0`) and a vector `x` of lanes `0 + i`
-(`tl.arange(0, n)`, cast or not): lane `i` is `r0 + i`, when `r0 + n ≤ 2^(w-1)`. -/
-theorem start_add_toInt {n r0 : Nat} {a : IntV true w} {x : Tensor [n] (IntV true w)} (hw : 0 < w)
-    (ha : a.toInt = r0) (hx : ∀ i : Fin n, (x.get1 i).toInt = ((0 + i : Nat) : Int))
+/-- `a + x` for a scalar `a` (the first row or column, `r0`) and a vector `x` whose lane `i` has value
+`i` (`tl.arange(0, n)`: `IntV.I32.toInt_tl_arange`; that vector converted to `int64`:
+`arange64_toInt`): lane `i` is `r0 + i`, when `r0 + n ≤ 2^(w-1)`. -/
+theorem start_add_toInt {n r0 : Nat} {a : IntV true w} {x : Tensor [n] (IntV true w)}
+    (ha : a.toInt = r0) (hx : ∀ i : Fin n, (x.get1 i).toInt = ((i : Nat) : Int))
     (hfit : r0 + n ≤ 2 ^ (w - 1)) (i : Fin n) :
     ((a + x).get1 i).toInt = ((r0 + i : Nat) : Int) := by
   have hi := i.isLt
-  show (a + x.get1 i).toInt = _
-  have h := toInt_add_nat hw ha (hx i) (by omega)
-  rw [h]; congr 1; omega
+  rw [Tensor.get1_sadd]
+  exact IntV.add_nat ha (hx i) (by omega)
 
-/-- `a + tl.arange(0, n)` in `int32` (`pid * BM + tl.arange(0, BM)`, with `a.toInt = r0`): lane
-`i` is `r0 + i`, when `r0 + n ≤ 2^31`. -/
-theorem start_arange_toInt {n r0 : Nat} {a : I32} (ha : a.toInt = r0) (hfit : r0 + n ≤ 2 ^ 31)
-    (i : Fin (n - 0)) : ((a + tl.arange 0 n).get1 i).toInt = ((r0 + i : Nat) : Int) :=
-  start_add_toInt (by norm_num) ha (arange_toInt (by omega)) (by simpa using hfit) i
+/-- **`tl.arange(0, n)` converted to `int64`.** The implicit promotion of
+`pid.to(tl.int64) * BM + tl.arange(0, BM)` and the explicit `tl.arange(0, BM).to(tl.int64)` are
+both `tl.convert .i32 .i64` in the model (SEMANTICS.md, "Operators and promotion"); from the lanes
+`safe_convert` gives (`ConvRel P .i32 .i64`), lane `i` has value `i`. With `start_add_toInt`
+(`w = 64`), lane `i` of `a + x` is `r0 + i` when `r0 + n ≤ 2^63`. -/
+theorem arange64_toInt {P : Platform} {n : Nat} {x : Tensor [n - 0] I64}
+    (hx : ∀ i, ConvRel P .i32 .i64 ((tl.arange 0 n).get i) (x.get i)) (hn : n ≤ 2 ^ 31)
+    (i : Fin (n - 0)) : (x.get1 i).toInt = ((i : Nat) : Int) := by
+  rw [show x.get1 i = x.get (i, ()) from rfl, ConvRel.toInt_i32_i64 (hx (i, ()))]
+  exact IntV.I32.toInt_tl_arange hn i
 
-/-- `castInt` to a wider signed type keeps each lane's value. -/
-theorem castInt_toInt {n w' : Nat} {x : Tensor [n] (IntV true w)} {v : Fin n → Int}
-    (hx : ∀ i, (x.get1 i).toInt = v i) (h : w ≤ w') (i : Fin n) :
-    ((x.castInt : Tensor [n] (IntV true w')).get1 i).toInt = v i := by
-  show (IntV.cast (x.get1 i) : IntV true w').toInt = _
-  rw [IntV.toInt_cast _ h, hx]
-
-/-- `a + tl.arange(0, n)` in `int64` (`pid.to(tl.int64) * BM + tl.arange(0, BM)`: the `int32`
-`arange` is cast to `int64`): lane `i` is `r0 + i`, when `r0 + n ≤ 2^63`. -/
-theorem start_arange64_toInt {n r0 : Nat} {a : I64} (ha : a.toInt = r0) (hfit : r0 + n ≤ 2 ^ 63)
-    (hn : n ≤ 2 ^ 31) (i : Fin (n - 0)) :
-    ((a + ((tl.arange 0 n).castInt : Tensor [n - 0] I64)).get1 i).toInt = ((r0 + i : Nat) : Int) :=
-  start_add_toInt (by norm_num) ha (castInt_toInt (arange_toInt hn) (by norm_num))
-    (by simpa using hfit) i
+/-- `pid.to(tl.int64) * BM + tl.arange(0, BM)` as the model writes it, `a + x` with `x` the
+`arange` converted by `tl.convert .i32 .i64` (`arange64_toInt`): lane `i` is `r0 + i`, when
+`r0 + n ≤ 2^63`. -/
+theorem start_arange64_toInt {P : Platform} {n r0 : Nat} {a : I64} {x : Tensor [n - 0] I64}
+    (ha : a.toInt = r0) (hx : ∀ i, ConvRel P .i32 .i64 ((tl.arange 0 n).get i) (x.get i))
+    (hfit : r0 + n ≤ 2 ^ 63) (hn : n ≤ 2 ^ 31) (i : Fin (n - 0)) :
+    ((a + x).get1 i).toInt = ((r0 + i : Nat) : Int) :=
+  start_add_toInt ha (arange64_toInt hx hn) (by simpa using hfit) i
 
 end IntArith
 
-/-! ## Lane offsets -/
+/-! ## Lane offsets
+
+Two forms. The first (`colMul_toInt`, …, `off_toInt`) bounds every lane, masked-off ones included:
+the largest offset `(r0 + BM - 1) * s0 + (c0 + BN - 1) * s1` is below `2^(w-1)`. The second (`…_on`)
+bounds the enabled lanes only, those with `r0 + i < M` and `c0 + j < N`, from the matrix's largest
+offset `(M - 1) * s0 + (N - 1) * s1 < 2^(w-1)`: a masked-off lane's offset may wrap, and nothing
+uses it (`tl.addrs` gives that lane no address, and the mask is computed from `rows` and `cols`,
+not from the offset). A claim that bounds only the matrix uses the second form on the last
+partial tile. -/
 
 section Offsets
-variable {w BM BN r0 c0 s0 s1 : Nat}
+variable {w BM BN r0 c0 s0 s1 M N : Nat}
 
 private theorem row_le {i : Nat} (hi : i < BM) (s : Nat) : (r0 + i) * s ≤ (r0 + BM - 1) * s :=
   Nat.mul_le_mul_right s (by omega)
 
+private theorem le_pred {k K : Nat} (h : k < K) (s : Nat) : k * s ≤ (K - 1) * s :=
+  Nat.mul_le_mul_right s (by omega)
+
 /-- `rows[:, None] * a` (`rows.col BN * a`): lane `(i, j)` is `(r0 + i) * s0`. -/
-theorem colMul_toInt {rows : Tensor [BM] (IntV true w)} {a : IntV true w} (hw : 0 < w)
+theorem colMul_toInt {rows : Tensor [BM] (IntV true w)} {a : IntV true w}
     (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int)) (ha : a.toInt = s0)
     (hfit : (r0 + BM - 1) * s0 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     ((rows.col BN * a).get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int) :=
-  toInt_mul_nat hw (hr i) ha (lt_of_le_of_lt (row_le i.isLt s0) hfit)
+  IntV.mul_nat (hr i) ha (lt_of_le_of_lt (row_le i.isLt s0) hfit)
 
 /-- `a * rows[:, None]` (`a * rows.col BN`): lane `(i, j)` is `(r0 + i) * s0`. -/
-theorem mulCol_toInt {rows : Tensor [BM] (IntV true w)} {a : IntV true w} (hw : 0 < w)
+theorem mulCol_toInt {rows : Tensor [BM] (IntV true w)} {a : IntV true w}
     (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int)) (ha : a.toInt = s0)
     (hfit : (r0 + BM - 1) * s0 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     ((a * rows.col BN).get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int) := by
   rw [show (((r0 + i) * s0 : Nat) : Int) = ((s0 * (r0 + i) : Nat) : Int) by rw [Nat.mul_comm]]
-  exact toInt_mul_nat hw ha (hr i) (by rw [Nat.mul_comm]; exact lt_of_le_of_lt (row_le i.isLt s0) hfit)
+  exact IntV.mul_nat ha (hr i) (by rw [Nat.mul_comm]; exact lt_of_le_of_lt (row_le i.isLt s0) hfit)
 
 /-- `rows[:, None]` with a unit row stride: lane `(i, j)` is `(r0 + i) * 1`. -/
 theorem col_toInt {rows : Tensor [BM] (IntV true w)}
@@ -156,19 +143,19 @@ theorem col_toInt {rows : Tensor [BM] (IntV true w)}
   rw [Nat.mul_one]; exact hr i
 
 /-- `cols[None, :] * a` (`cols.row BM * a`): lane `(i, j)` is `(c0 + j) * s1`. -/
-theorem rowMul_toInt {cols : Tensor [BN] (IntV true w)} {a : IntV true w} (hw : 0 < w)
+theorem rowMul_toInt {cols : Tensor [BN] (IntV true w)} {a : IntV true w}
     (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int)) (ha : a.toInt = s1)
     (hfit : (c0 + BN - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     ((cols.row BM * a).get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int) :=
-  toInt_mul_nat hw (hc j) ha (lt_of_le_of_lt (row_le j.isLt s1) hfit)
+  IntV.mul_nat (hc j) ha (lt_of_le_of_lt (row_le j.isLt s1) hfit)
 
 /-- `a * cols[None, :]` (`a * cols.row BM`): lane `(i, j)` is `(c0 + j) * s1`. -/
-theorem mulRow_toInt {cols : Tensor [BN] (IntV true w)} {a : IntV true w} (hw : 0 < w)
+theorem mulRow_toInt {cols : Tensor [BN] (IntV true w)} {a : IntV true w}
     (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int)) (ha : a.toInt = s1)
     (hfit : (c0 + BN - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     ((a * cols.row BM).get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int) := by
   rw [show (((c0 + j) * s1 : Nat) : Int) = ((s1 * (c0 + j) : Nat) : Int) by rw [Nat.mul_comm]]
-  exact toInt_mul_nat hw ha (hc j) (by rw [Nat.mul_comm]; exact lt_of_le_of_lt (row_le j.isLt s1) hfit)
+  exact IntV.mul_nat ha (hc j) (by rw [Nat.mul_comm]; exact lt_of_le_of_lt (row_le j.isLt s1) hfit)
 
 /-- `cols[None, :]` with a unit column stride: lane `(i, j)` is `(c0 + j) * 1`. -/
 theorem row_toInt {cols : Tensor [BN] (IntV true w)}
@@ -179,12 +166,12 @@ theorem row_toInt {cols : Tensor [BN] (IntV true w)}
 /-- **The sum of a row term and a column term** (`x + y`, any form of either): lane `(i, j)` is
 `(r0 + i) * s0 + (c0 + j) * s1`, with no overflow when the largest offset,
 `(r0 + BM - 1) * s0 + (c0 + BN - 1) * s1`, is below `2^(w-1)`. -/
-theorem add_toInt {x y : Tensor [BM, BN] (IntV true w)} (hw : 0 < w)
+theorem add_toInt {x y : Tensor [BM, BN] (IntV true w)}
     (hx : ∀ i j, (x.get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int))
     (hy : ∀ i j, (y.get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int))
     (hfit : (r0 + BM - 1) * s0 + (c0 + BN - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     ((x + y).get2 i j).toInt = (((r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) :=
-  toInt_add_nat hw (hx i j) (hy i j)
+  IntV.add_nat (hx i j) (hy i j)
     (lt_of_le_of_lt (Nat.add_le_add (row_le i.isLt s0) (row_le j.isLt s1)) hfit)
 
 /-- **The offset of a 2-D tile**, `rows[:, None] * a0 + cols[None, :] * a1` in a signed width `w`
@@ -192,14 +179,78 @@ theorem add_toInt {x y : Tensor [BM, BN] (IntV true w)} (hw : 0 < w)
 strides `a0`, `a1` of values `s0`, `s1`: lane `(i, j)` is `(r0 + i) * s0 + (c0 + j) * s1`, with no
 overflow when the largest offset, `(r0 + BM - 1) * s0 + (c0 + BN - 1) * s1`, is below `2^(w-1)`. -/
 theorem off_toInt {rows : Tensor [BM] (IntV true w)} {cols : Tensor [BN] (IntV true w)}
-    {a0 a1 : IntV true w} (hw : 0 < w)
+    {a0 a1 : IntV true w}
     (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int))
     (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int))
     (ha0 : a0.toInt = s0) (ha1 : a1.toInt = s1)
     (hfit : (r0 + BM - 1) * s0 + (c0 + BN - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     ((rows.col BN * a0 + cols.row BM * a1).get2 i j).toInt =
       (((r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) :=
-  add_toInt hw (colMul_toInt hw hr ha0 (by omega)) (rowMul_toInt hw hc ha1 (by omega)) hfit i j
+  add_toInt (colMul_toInt hr ha0 (by omega)) (rowMul_toInt hc ha1 (by omega)) hfit i j
+
+/-! ### Enabled lanes only -/
+
+/-- `rows[:, None] * a` on a lane whose row is in the matrix (`r0 + i < M`): `(r0 + i) * s0`, when
+`(M - 1) * s0 < 2^(w-1)`. -/
+theorem colMul_toInt_on {rows : Tensor [BM] (IntV true w)} {a : IntV true w}
+    (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int)) (ha : a.toInt = s0)
+    (hfit : (M - 1) * s0 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) (hi : r0 + i < M) :
+    ((rows.col BN * a).get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int) :=
+  IntV.mul_nat (hr i) ha (lt_of_le_of_lt (le_pred hi s0) hfit)
+
+/-- `a * rows[:, None]` on a lane whose row is in the matrix: `(r0 + i) * s0`, when
+`(M - 1) * s0 < 2^(w-1)`. -/
+theorem mulCol_toInt_on {rows : Tensor [BM] (IntV true w)} {a : IntV true w}
+    (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int)) (ha : a.toInt = s0)
+    (hfit : (M - 1) * s0 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) (hi : r0 + i < M) :
+    ((a * rows.col BN).get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int) := by
+  rw [show (((r0 + i) * s0 : Nat) : Int) = ((s0 * (r0 + i) : Nat) : Int) by rw [Nat.mul_comm]]
+  exact IntV.mul_nat ha (hr i) (by rw [Nat.mul_comm]; exact lt_of_le_of_lt (le_pred hi s0) hfit)
+
+/-- `cols[None, :] * a` on a lane whose column is in the matrix (`c0 + j < N`): `(c0 + j) * s1`,
+when `(N - 1) * s1 < 2^(w-1)`. -/
+theorem rowMul_toInt_on {cols : Tensor [BN] (IntV true w)} {a : IntV true w}
+    (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int)) (ha : a.toInt = s1)
+    (hfit : (N - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) (hj : c0 + j < N) :
+    ((cols.row BM * a).get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int) :=
+  IntV.mul_nat (hc j) ha (lt_of_le_of_lt (le_pred hj s1) hfit)
+
+/-- `a * cols[None, :]` on a lane whose column is in the matrix: `(c0 + j) * s1`, when
+`(N - 1) * s1 < 2^(w-1)`. -/
+theorem mulRow_toInt_on {cols : Tensor [BN] (IntV true w)} {a : IntV true w}
+    (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int)) (ha : a.toInt = s1)
+    (hfit : (N - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) (hj : c0 + j < N) :
+    ((a * cols.row BM).get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int) := by
+  rw [show (((c0 + j) * s1 : Nat) : Int) = ((s1 * (c0 + j) : Nat) : Int) by rw [Nat.mul_comm]]
+  exact IntV.mul_nat ha (hc j) (by rw [Nat.mul_comm]; exact lt_of_le_of_lt (le_pred hj s1) hfit)
+
+/-- **The sum of a row term and a column term on an enabled lane** (`r0 + i < M`, `c0 + j < N`):
+`(r0 + i) * s0 + (c0 + j) * s1`, with no overflow when the matrix's largest offset,
+`(M - 1) * s0 + (N - 1) * s1`, is below `2^(w-1)`. The row term need hold only on rows in the
+matrix (`colMul_toInt_on`, `mulCol_toInt_on`; `fun i j _ => col_toInt hr i j`), the column term
+only on columns in it. -/
+theorem add_toInt_on {x y : Tensor [BM, BN] (IntV true w)}
+    (hx : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → (x.get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int))
+    (hy : ∀ (i : Fin BM) (j : Fin BN), c0 + j < N → (y.get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int))
+    (hfit : (M - 1) * s0 + (N - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN)
+    (hi : r0 + i < M) (hj : c0 + j < N) :
+    ((x + y).get2 i j).toInt = (((r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) :=
+  IntV.add_nat (hx i j hi) (hy i j hj)
+    (lt_of_le_of_lt (Nat.add_le_add (le_pred hi s0) (le_pred hj s1)) hfit)
+
+/-- **The offset of a 2-D tile on an enabled lane**, `rows[:, None] * a0 + cols[None, :] * a1`:
+lane `(i, j)` with `r0 + i < M` and `c0 + j < N` is `(r0 + i) * s0 + (c0 + j) * s1`, with no
+overflow when the matrix's largest offset, `(M - 1) * s0 + (N - 1) * s1`, is below `2^(w-1)`. -/
+theorem off_toInt_on {rows : Tensor [BM] (IntV true w)} {cols : Tensor [BN] (IntV true w)}
+    {a0 a1 : IntV true w}
+    (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int))
+    (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int))
+    (ha0 : a0.toInt = s0) (ha1 : a1.toInt = s1)
+    (hfit : (M - 1) * s0 + (N - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN)
+    (hi : r0 + i < M) (hj : c0 + j < N) :
+    ((rows.col BN * a0 + cols.row BM * a1).get2 i j).toInt =
+      (((r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) :=
+  add_toInt_on (colMul_toInt_on hr ha0 (by omega)) (rowMul_toInt_on hc ha1 (by omega)) hfit i j hi hj
 
 end Offsets
 
@@ -221,20 +272,23 @@ private theorem row_le' {r0 BM i : Nat} (hi : i < BM) (s : Nat) :
     (r0 + i) * s ≤ (r0 + BM - 1) * s :=
   Nat.mul_le_mul_right s (by omega)
 
+private theorem le_pred' {k K : Nat} (h : k < K) (s : Nat) : k * s ≤ (K - 1) * s :=
+  Nat.mul_le_mul_right s (by omega)
+
 section Pointers
-variable {d : DType} {w w' BM BN r0 c0 s0 s1 e : Nat}
+variable {d : DType} {w w' BM BN r0 c0 s0 s1 e M N : Nat}
 
 /-- **The pointers `base + (x + y)`** (one offset tensor, the sum of a row term and a column term
 of any form), with `base = b.ptr e`: lane `(i, j)` points at element
 `e + (r0 + i) * s0 + (c0 + j) * s1`, when the largest offset is below `2^(w-1)`. -/
 theorem ptr_lane_sum_of (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
-    {x y : Tensor [BM, BN] (IntV true w)} (hw : 0 < w)
+    {x y : Tensor [BM, BN] (IntV true w)}
     (hx : ∀ i j, (x.get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int))
     (hy : ∀ i j, (y.get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int))
     (hfit : (r0 + BM - 1) * s0 + (c0 + BN - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     (base + (x + y)).get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) := by
   show base.offset ((x + y).get2 i j).toInt = _
-  rw [add_toInt hw hx hy hfit, hb, Buf.ptr_offset]; push_cast; ring_nf
+  rw [add_toInt hx hy hfit, hb, Buf.ptr_offset]; push_cast; ring_nf
 
 /-- **The pointers `base + x + y`** (`(base + x) + y`: two pointer additions, a row term and a
 column term of any form, possibly of different widths), with `base = b.ptr e`: lane `(i, j)` points
@@ -249,14 +303,14 @@ theorem ptr_lane_seq_of (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
 
 /-- `ptr_lane_sum_of` with the column term first, `base + (y + x)`. -/
 theorem ptr_lane_sum_swap_of (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
-    {x y : Tensor [BM, BN] (IntV true w)} (hw : 0 < w)
+    {x y : Tensor [BM, BN] (IntV true w)}
     (hx : ∀ i j, (x.get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int))
     (hy : ∀ i j, (y.get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int))
     (hfit : (r0 + BM - 1) * s0 + (c0 + BN - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     (base + (y + x)).get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) := by
   have hs : ((y + x).get2 i j).toInt = (((r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) := by
     rw [show (r0 + (i : Nat)) * s0 + (c0 + j) * s1 = (c0 + j) * s1 + (r0 + i) * s0 by ring]
-    exact toInt_add_nat hw (hy i j) (hx i j)
+    exact IntV.add_nat (hy i j) (hx i j)
       (by have := Nat.add_le_add (row_le' (r0 := r0) i.isLt s0) (row_le' (r0 := c0) j.isLt s1); omega)
   show base.offset ((y + x).get2 i j).toInt = _
   rw [hs, hb, Buf.ptr_offset]; push_cast; ring_nf
@@ -277,14 +331,13 @@ theorem ptr_lane_seq_swap_of (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : 
 `(r0 + BM - 1) * s0 + (c0 + BN - 1) * s1`, is below `2^(w-1)`. -/
 theorem ptr_lane (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
     {rows : Tensor [BM] (IntV true w)} {cols : Tensor [BN] (IntV true w)} {a0 a1 : IntV true w}
-    (hw : 0 < w) (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int))
+    (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int))
     (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int))
     (ha0 : a0.toInt = s0) (ha1 : a1.toInt = s1)
     (hfit : (r0 + BM - 1) * s0 + (c0 + BN - 1) * s1 < 2 ^ (w - 1)) (i : Fin BM) (j : Fin BN) :
     (base + (rows.col BN * a0 + cols.row BM * a1)).get2 i j =
       b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) :=
-  ptr_lane_sum_of b hb hw (colMul_toInt hw hr ha0 (by omega)) (rowMul_toInt hw hc ha1 (by omega))
-    hfit i j
+  ptr_lane_sum_of b hb (colMul_toInt hr ha0 (by omega)) (rowMul_toInt hc ha1 (by omega)) hfit i j
 
 /-- **The pointers of a 2-D tile, added one term at a time**,
 `base + rows[:, None] * a0 + cols[None, :] * a1` with `base = b.ptr e` (the row term in width `w`,
@@ -292,7 +345,7 @@ the column term in width `w'`): lane `(i, j)` points at element `e + (r0 + i) * 
 when each term's largest value is below its bound. -/
 theorem ptr_lane_seq (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
     {rows : Tensor [BM] (IntV true w)} {cols : Tensor [BN] (IntV true w')} {a0 : IntV true w}
-    {a1 : IntV true w'} (hw : 0 < w) (hw' : 0 < w')
+    {a1 : IntV true w'}
     (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int))
     (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int))
     (ha0 : a0.toInt = s0) (ha1 : a1.toInt = s1)
@@ -300,7 +353,95 @@ theorem ptr_lane_seq (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
     (i : Fin BM) (j : Fin BN) :
     (base + rows.col BN * a0 + cols.row BM * a1).get2 i j =
       b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) :=
-  ptr_lane_seq_of b hb (colMul_toInt hw hr ha0 hfit0) (rowMul_toInt hw' hc ha1 hfit1) i j
+  ptr_lane_seq_of b hb (colMul_toInt hr ha0 hfit0) (rowMul_toInt hc ha1 hfit1) i j
+
+/-! ### Enabled lanes only
+
+Each gives the pointers on the lanes with `r0 + i < M` and `c0 + j < N`, the form the footprint and
+load and store rules take (`hp`), from the matrix's largest offset. A lemma above gives that form
+too: `fun i j _ _ => ptr_lane … i j`. -/
+
+/-- `ptr_lane_sum_of` on the enabled lanes, `base + (x + y)`: from the terms on rows (columns) in
+the matrix and `(M - 1) * s0 + (N - 1) * s1 < 2^(w-1)`. -/
+theorem ptr_lane_sum_of_on (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
+    {x y : Tensor [BM, BN] (IntV true w)}
+    (hx : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → (x.get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int))
+    (hy : ∀ (i : Fin BM) (j : Fin BN), c0 + j < N → (y.get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int))
+    (hfit : (M - 1) * s0 + (N - 1) * s1 < 2 ^ (w - 1)) :
+    ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      (base + (x + y)).get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) := by
+  intro i j hi hj
+  show base.offset ((x + y).get2 i j).toInt = _
+  rw [add_toInt_on hx hy hfit i j hi hj, hb, Buf.ptr_offset]; push_cast; ring_nf
+
+/-- `ptr_lane_sum_swap_of` on the enabled lanes, `base + (y + x)`. -/
+theorem ptr_lane_sum_swap_of_on (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
+    {x y : Tensor [BM, BN] (IntV true w)}
+    (hx : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → (x.get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int))
+    (hy : ∀ (i : Fin BM) (j : Fin BN), c0 + j < N → (y.get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int))
+    (hfit : (M - 1) * s0 + (N - 1) * s1 < 2 ^ (w - 1)) :
+    ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      (base + (y + x)).get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) := by
+  intro i j hi hj
+  have hs : ((y + x).get2 i j).toInt = (((r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) := by
+    rw [show (r0 + (i : Nat)) * s0 + (c0 + j) * s1 = (c0 + j) * s1 + (r0 + i) * s0 by ring]
+    exact IntV.add_nat (hy i j hj) (hx i j hi)
+      (by have := Nat.add_le_add (le_pred' hi s0) (le_pred' hj s1); omega)
+  show base.offset ((y + x).get2 i j).toInt = _
+  rw [hs, hb, Buf.ptr_offset]; push_cast; ring_nf
+
+/-- `ptr_lane_seq_of` on the enabled lanes, `base + x + y`: each term on rows (columns) in the
+matrix, bounded by its own lemma. -/
+theorem ptr_lane_seq_of_on (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
+    {sg sg' : Bool} {x : Tensor [BM, BN] (IntV sg w)} {y : Tensor [BM, BN] (IntV sg' w')}
+    (hx : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → (x.get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int))
+    (hy : ∀ (i : Fin BM) (j : Fin BN), c0 + j < N → (y.get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int)) :
+    ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      (base + x + y).get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) := by
+  intro i j hi hj
+  show (base.offset (x.get2 i j).toInt).offset (y.get2 i j).toInt = _
+  rw [hx i j hi, hy i j hj, hb, Buf.ptr_offset, Buf.ptr_offset]; push_cast; ring_nf
+
+/-- `ptr_lane_seq_swap_of` on the enabled lanes, `base + y + x`. -/
+theorem ptr_lane_seq_swap_of_on (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
+    {sg sg' : Bool} {x : Tensor [BM, BN] (IntV sg w)} {y : Tensor [BM, BN] (IntV sg' w')}
+    (hx : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → (x.get2 i j).toInt = (((r0 + i) * s0 : Nat) : Int))
+    (hy : ∀ (i : Fin BM) (j : Fin BN), c0 + j < N → (y.get2 i j).toInt = (((c0 + j) * s1 : Nat) : Int)) :
+    ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      (base + y + x).get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) := by
+  intro i j hi hj
+  show (base.offset (y.get2 i j).toInt).offset (x.get2 i j).toInt = _
+  rw [hx i j hi, hy i j hj, hb, Buf.ptr_offset, Buf.ptr_offset]; push_cast; ring_nf
+
+/-- **The pointers of a 2-D tile on the enabled lanes**,
+`base + (rows[:, None] * a0 + cols[None, :] * a1)` with `base = b.ptr e`: lane `(i, j)` with
+`r0 + i < M` and `c0 + j < N` points at element `e + (r0 + i) * s0 + (c0 + j) * s1`, when the
+matrix's largest offset, `(M - 1) * s0 + (N - 1) * s1`, is below `2^(w-1)`. -/
+theorem ptr_lane_on (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
+    {rows : Tensor [BM] (IntV true w)} {cols : Tensor [BN] (IntV true w)} {a0 a1 : IntV true w}
+    (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int))
+    (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int))
+    (ha0 : a0.toInt = s0) (ha1 : a1.toInt = s1)
+    (hfit : (M - 1) * s0 + (N - 1) * s1 < 2 ^ (w - 1)) :
+    ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      (base + (rows.col BN * a0 + cols.row BM * a1)).get2 i j =
+        b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) :=
+  ptr_lane_sum_of_on b hb (colMul_toInt_on hr ha0 (by omega)) (rowMul_toInt_on hc ha1 (by omega)) hfit
+
+/-- **The pointers of a 2-D tile on the enabled lanes, added one term at a time**,
+`base + rows[:, None] * a0 + cols[None, :] * a1` (the row term in width `w`, the column term in
+width `w'`), when `(M - 1) * s0 < 2^(w-1)` and `(N - 1) * s1 < 2^(w'-1)`. -/
+theorem ptr_lane_seq_on (b : Buf d) {base : Ptr d} (hb : base = b.ptr (e : Int))
+    {rows : Tensor [BM] (IntV true w)} {cols : Tensor [BN] (IntV true w')} {a0 : IntV true w}
+    {a1 : IntV true w'}
+    (hr : ∀ i : Fin BM, (rows.get1 i).toInt = ((r0 + i : Nat) : Int))
+    (hc : ∀ j : Fin BN, (cols.get1 j).toInt = ((c0 + j : Nat) : Int))
+    (ha0 : a0.toInt = s0) (ha1 : a1.toInt = s1)
+    (hfit0 : (M - 1) * s0 < 2 ^ (w - 1)) (hfit1 : (N - 1) * s1 < 2 ^ (w' - 1)) :
+    ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      (base + rows.col BN * a0 + cols.row BM * a1).get2 i j =
+        b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int) :=
+  ptr_lane_seq_of_on b hb (colMul_toInt_on hr ha0 hfit0) (rowMul_toInt_on hc ha1 hfit1)
 
 end Pointers
 
@@ -439,10 +580,14 @@ theorem elem_disjoint_grid {pm pn pm' pn' : Nat} (hinj : Inj s0 s1 M N)
   · exact hne (Block.tile_unique (B := BN) (n := pn * BN + j + 1) (j := pn * BN + j)
       ⟨by omega, by omega, by omega⟩ ⟨by omega, by omega, by omega⟩)
 
-/-- The tile's elements are below `e + (M - 1) * s0 + (N - 1) * s1 + 1`. -/
-theorem elem_lt {r0 c0 x len : Nat} (hlen : e + (M - 1) * s0 + (N - 1) * s1 < len)
+/-- The tile's elements are below `len` when the matrix is empty (`M = 0` or `N = 0`: the tile has
+no element) or its last element is (`e + (M - 1) * s0 + (N - 1) * s1 < len`). -/
+theorem elem_lt {r0 c0 x len : Nat} (hlen : M = 0 ∨ N = 0 ∨ e + (M - 1) * s0 + (N - 1) * s1 < len)
     (h : Elem e s0 s1 r0 c0 BM BN M N x) : x < len := by
   obtain ⟨i, j, -, -, hiM, hjN, rfl⟩ := h
+  rcases hlen with h0 | h0 | hlen
+  · omega
+  · omega
   have h1 : (r0 + i) * s0 ≤ (M - 1) * s0 := Nat.mul_le_mul_right s0 (by omega)
   have h2 : (c0 + j) * s1 ≤ (N - 1) * s1 := Nat.mul_le_mul_right s1 (by omega)
   omega
@@ -461,8 +606,10 @@ variable {d : DType} {e s0 s1 BM BN M N : Nat}
 def tile2 (b : Buf d) (e s0 s1 r0 c0 BM BN M N : Nat) : Set Int :=
   b.elems {x | Elem e s0 s1 r0 c0 BM BN M N x}
 
-/-- The tile's bytes lie in `b` when its last element does (`e + (M - 1) * s0 + (N - 1) * s1 < b.len`). -/
-theorem tile2_sub_bytes (b : Buf d) {r0 c0 : Nat} (hlen : e + (M - 1) * s0 + (N - 1) * s1 < b.len) :
+/-- The tile's bytes lie in `b` when the matrix is empty (`M = 0` or `N = 0`) or its last element
+lies in `b` (`e + (M - 1) * s0 + (N - 1) * s1 < b.len`). -/
+theorem tile2_sub_bytes (b : Buf d) {r0 c0 : Nat}
+    (hlen : M = 0 ∨ N = 0 ∨ e + (M - 1) * s0 + (N - 1) * s1 < b.len) :
     b.tile2 e s0 s1 r0 c0 BM BN M N ⊆ b.bytes :=
   b.elems_sub_bytes fun _ hx => elem_lt hlen hx
 
@@ -489,8 +636,8 @@ theorem tile2_disjoint_grid (b : Buf d) {pm pn pm' pn' : Nat} (hinj : Inj s0 s1 
 /-- Tiles of disjoint buffers do not overlap. -/
 theorem tile2_disjoint_of {d' : DType} (b : Buf d) (c : Buf d') (hbc : Disjoint b.bytes c.bytes)
     {r0 c0 e' s0' s1' r0' c0' BM' BN' M' N' : Nat}
-    (hb : e + (M - 1) * s0 + (N - 1) * s1 < b.len)
-    (hc : e' + (M' - 1) * s0' + (N' - 1) * s1' < c.len) :
+    (hb : M = 0 ∨ N = 0 ∨ e + (M - 1) * s0 + (N - 1) * s1 < b.len)
+    (hc : M' = 0 ∨ N' = 0 ∨ e' + (M' - 1) * s0' + (N' - 1) * s1' < c.len) :
     Disjoint (b.tile2 e s0 s1 r0 c0 BM BN M N) (c.tile2 e' s0' s1' r0' c0' BM' BN' M' N') :=
   hbc.mono (b.tile2_sub_bytes hb) (c.tile2_sub_bytes hc)
 
@@ -503,25 +650,36 @@ variable {d : DType} {e s0 s1 r0 c0 BM BN M N : Nat}
 
 /-- **The lanes of a 2-D tile access, as buffer elements**: lane `(i, j)` touches element
 `e + (r0 + i) * s0 + (c0 + j) * s1` when `r0 + i < M` and `c0 + j < N`, from the lanes' pointers
-(`hp`, by `ptr_lane`, `ptr_lane_seq`, `ptr_lane_sum_of` or `ptr_lane_seq_of`) and the mask
+on the enabled lanes (`hp`, by `ptr_lane_on`, `ptr_lane_seq_on`, `ptr_lane_sum_of_on`,
+`ptr_lane_seq_of_on`, their `swap` forms, or `fun i j _ _ => ptr_lane … i j`; a masked-off lane's
+pointer may be anything) and the mask
 (`MaskOk`, by `maskOk_and`, `maskOk_rows`, `maskOk_cols` or `maskOk_none`). -/
 theorem addrs_tile2 (b : Buf d) {ptrs : Tensor [BM, BN] (Ptr d)}
     {mk : Option (Tensor [BM, BN] Bool)}
-    (hp : ∀ i j, ptrs.get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int))
+    (hp : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      ptrs.get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int))
     (hm : MaskOk mk r0 c0 M N) :
     b.Addrs (tl.addrs ptrs mk) (fun i => e + (r0 + (i.1 : Nat)) * s0 + (c0 + (i.2.1 : Nat)) * s1)
       (fun i => decide (r0 + (i.1 : Nat) < M) && decide (c0 + (i.2.1 : Nat) < N)) := by
   rintro ⟨i, j, ⟨⟩⟩
   have hmij := hm i j
-  have hpij : ptrs.get (i, j, ()) = _ := hp i j
-  cases mk with
-  | none =>
-    simp only [on] at hmij
-    simp only [tl.addrs, ← hmij, ite_true, hpij]
-  | some m =>
-    simp only [on] at hmij
-    simp only [tl.addrs]
-    rw [show m.get (i, j, ()) = m.get2 i j from rfl, hmij, hpij]
+  by_cases hij : r0 + (i : Nat) < M ∧ c0 + (j : Nat) < N
+  · have hpij : ptrs.get (i, j, ()) = _ := hp i j hij.1 hij.2
+    have hen : on mk i j = true := by rw [hmij]; simp [hij.1, hij.2]
+    cases mk with
+    | none => simp [tl.addrs, hpij, hij.1, hij.2]
+    | some m =>
+      have hm' : m.get (i, j, ()) = true := hen
+      simp [tl.addrs, hm', hpij, hij.1, hij.2]
+  · have hd : (decide (r0 + (i : Nat) < M) && decide (c0 + (j : Nat) < N)) = false := by
+      simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not]; omega
+    have hen : on mk i j = false := by rw [hmij]; exact hd
+    cases mk with
+    | none => exact absurd hen (by simp [on])
+    | some m =>
+      have hm' : m.get (i, j, ()) = false := hen
+      simp only [tl.addrs, hm', Bool.false_eq_true, ite_false]
+      simp [hd]
 
 /-- An enabled lane's element is in the tile. -/
 theorem tile2_lane_elem (i : Idx [BM, BN])
@@ -545,7 +703,8 @@ theorem img_tile2 :
 /-- The bytes a 2-D tile access touches: `b.tile2`. -/
 theorem accBytes_tile2 (b : Buf d) {ptrs : Tensor [BM, BN] (Ptr d)}
     {mk : Option (Tensor [BM, BN] Bool)}
-    (hp : ∀ i j, ptrs.get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int))
+    (hp : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      ptrs.get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int))
     (hm : MaskOk mk r0 c0 M N) :
     accBytes d (tl.addrs ptrs mk) = b.tile2 e s0 s1 r0 c0 BM BN M N := by
   rw [(addrs_tile2 b hp hm).accBytes, img_tile2]; rfl
@@ -569,12 +728,15 @@ theorem tile2_inj (hinj : Inj s0 s1 M N) (i i' : Idx [BM, BN])
 variable {E : Env} {R W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem}
 
 /-- **2-D tile load.** Each lane of the tile (row below `M`, column below `N`) gets its element;
-a masked-off lane gets `other` when given, and is unspecified otherwise. The tile's elements must
-lie in `b` (`e + (M - 1) * s0 + (N - 1) * s1 < b.len`) and in the read footprint. -/
+a masked-off lane gets `other` when given, and is unspecified otherwise. The pointers are needed on
+the enabled lanes only (`hp`). The tile's elements must lie in `b` (the matrix is empty, or
+`e + (M - 1) * s0 + (N - 1) * s1 < b.len`) and in the read footprint. -/
 theorem safe_load_tile2 (b : Buf d) {ptrs : Tensor [BM, BN] (Ptr d)}
     {mk : Option (Tensor [BM, BN] Bool)} {other : Option (Tensor [BM, BN] d.Val)}
-    (hp : ∀ i j, ptrs.get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int))
-    (hm : MaskOk mk r0 c0 M N) (hlen : e + (M - 1) * s0 + (N - 1) * s1 < b.len)
+    (hp : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      ptrs.get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int))
+    (hm : MaskOk mk r0 c0 M N)
+    (hlen : M = 0 ∨ N = 0 ∨ e + (M - 1) * s0 + (N - 1) * s1 < b.len)
     (hv : b.Valid m) (hR : b.tile2 e s0 s1 r0 c0 BM BN M N ⊆ R)
     {k : Tensor [BM, BN] d.Val → Prog α}
     (hk : ∀ v : Tensor [BM, BN] d.Val,
@@ -594,11 +756,15 @@ theorem safe_load_tile2 (b : Buf d) {ptrs : Tensor [BM, BN] (Ptr d)}
 /-- **2-D tile store.** Afterwards each lane of the tile (row below `M`, column below `N`) holds its
 value, nothing outside the tile changed, and every present byte is still present. The layout must
 not alias (`Tile2.Inj`: `inj_rowMajor`, `inj_colMajor`), so that the lanes write distinct
-elements. The rest of the program may not write the tile again. -/
+elements. As for the load, the pointers are needed on the enabled lanes only (`hp`), and the
+matrix is empty or `e + (M - 1) * s0 + (N - 1) * s1 < b.len`. The rest of the program may not write
+the tile again. -/
 theorem safe_store_tile2 (b : Buf d) {ptrs : Tensor [BM, BN] (Ptr d)}
     {mk : Option (Tensor [BM, BN] Bool)} {vals : Tensor [BM, BN] d.Val}
-    (hp : ∀ i j, ptrs.get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int))
-    (hm : MaskOk mk r0 c0 M N) (hlen : e + (M - 1) * s0 + (N - 1) * s1 < b.len)
+    (hp : ∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →
+      ptrs.get2 i j = b.ptr ((e + (r0 + i) * s0 + (c0 + j) * s1 : Nat) : Int))
+    (hm : MaskOk mk r0 c0 M N)
+    (hlen : M = 0 ∨ N = 0 ∨ e + (M - 1) * s0 + (N - 1) * s1 < b.len)
     (hinj : Inj s0 s1 M N) (hv : b.Valid m) (hW : b.tile2 e s0 s1 r0 c0 BM BN M N ⊆ W)
     {k : Unit → Prog α}
     (hk : ∀ m', (∀ (i : Fin BM) (j : Fin BN), r0 + i < M → c0 + j < N →

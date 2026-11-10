@@ -1,0 +1,85 @@
+Access.lean: 17 names cited, not found: [TVA.Lemmas.Block,
+ TVA.Lemmas.BlockPtr,
+ TVA.Lemmas.Desc,
+ b.elems,
+ offs_m,
+ offs_n]
+AtomicResult.lean: 5 names cited, not found: [crosswarp_nowait.py]
+BlockPtr.lean: 12 names cited, not found: [b.ptr, i_k, p.base, p.elem]
+Buf.lean: 6 names cited, not found: [b.Holds, b.Valid, b.bytes, b.ptr, x_ptr]
+Claim.lean: 7 names cited, not found: [TVA.Lemmas.Independent, num_ctas]
+Desc.lean: 13 names cited, not found: [D.base, D.elemAt, TVA.Lang.Desc, b.ptr]
+Dot16Chunk.lean: 29 names cited, not found: [TVA.Lemmas.Dot8Chunk, TVA.Rules.Num.Dot16Chunk, a_k, b_k, num.md]
+Dot8Chunk.lean: 47 names cited, not found: [A_j,
+ Dot8Chunk.LiftAcc,
+ TVA.Lemmas.DotLift,
+ TVA.Rules.Num.Dot8Chunk,
+ a_k,
+ b_k,
+ num.md]
+DotLift.lean: 25 names cited, not found: [TVA.Lemmas.Dot8Chunk, TVA.Lemmas.Sm90, a_k, b_k, num.md]
+DotLoop.lean: 12 names cited, not found: [TVA.Lemmas.DotLift]
+FloatErr.lean: 34 names cited, not found: [TVA.Math.Rounding]
+FloatFacts.lean: 123 names cited, not found: [TVA.Lang.Ops,
+ TVA.Math.Encoding,
+ d.ofBits,
+ semantic.cast,
+ tl.max,
+ tl.min,
+ x.to]
+FloatMax.lean: 27 names cited, not found: [tl.max, tl.min]
+FusedErr.lean: 8 names cited, not found: [TVA.Lang.Ops, enable_fp_fusion]
+Int.lean: 18 names cited, not found: [TVA.Lemmas.SharedAcc, tl.int32, tl.int64, x.to]
+IntW.lean: 117 names cited, not found: [TVA.Lemmas.Int,
+ TVA.Lemmas.Scalar,
+ a.toInt,
+ b.toInt,
+ i32_i32,
+ i64_i64,
+ u32_u32,
+ u64_u64]
+LIBRARY.md:10: 16 names cited, not found: [tl.broadcast_to]
+LIBRARY.md:100: 2 names cited, not found: [add_kernel, vec_add_f32]
+LIBRARY.md:101: 5 names cited, not found: [softmax_f32, softmax_kernel, tl.max]
+LIBRARY.md:102: 3 names cited, not found: [matmul_f16, matmul_kernel]
+LIBRARY.md:103: 2 names cited, not found: [matmul_e5m2, matmul_kernel]
+LIBRARY.md:104: 4 names cited, not found: [_attn_fwd, attn_fwd_f16, tl.math.exp2]
+LIBRARY.md:105: 2 names cited, not found: [_attn_fwd, attn_fwd_e5m2]
+LIBRARY.md:106: 2 names cited, not found: [_attn_bwd_preprocess, attn_bwd_pre_f16]
+LIBRARY.md:107: 5 names cited, not found: [_attn_bwd, _attn_bwd_dkdv, _attn_bwd_dq, attn_bwd_f16]
+LIBRARY.md:108: 2 names cited, not found: [grouped_matmul_tma_f16, grouped_matmul_tma_kernel]
+LIBRARY.md:109: 3 names cited, not found: [block_scaled_matmul_kernel, block_scaled_matmul_mxfp8]
+LIBRARY.md:110: 2 names cited, not found: [paged_attention_f16, paged_attention_kernel]
+LIBRARY.md:111: 4 names cited, not found: [streamk_matmul_f16, streamk_matmul_kernel]
+LIBRARY.md:14: 34 names cited, not found: [return_indices, tl.argmax, tl.argmin, tl.max, tl.min]
+LIBRARY.md:15: 11 names cited, not found: [semantic.cast]
+LIBRARY.md:26: 2 names cited, not found: [Sem.Step]
+LIBRARY.md:27: 3 names cited, not found: [Sem.Launch]
+LIBRARY.md:28: 1 names cited, not found: [Sem.AtomicResult]
+LIBRARY.md:30: 1 names cited, not found: [Rules.Compiler]
+LIBRARY.md:31: 14 names cited, not found: [Rules.Num, Rules.Num.Dot8Chunk]
+LIBRARY.md:32: 6 names cited, not found: [Rules.Num.Dot8Chunk, Rules.Num.Sm90]
+LIBRARY.md:33: 7 names cited, not found: [Rules.Num, Rules.Num.Dot8Chunk]
+LIBRARY.md:34: 2 names cited, not found: [Rules.Num.Dot16Chunk]
+LIBRARY.md:48: 64 names cited, not found: [_bind, tie_break_left]
+LIBRARY.md:49: 14 names cited, not found: [_of]
+LIBRARY.md:50: 11 names cited, not found: [_all]
+LIBRARY.md:57: 10 names cited, not found: [acq_rel]
+LIBRARY.md:58: 5 names cited, not found: [num_ctas]
+LIBRARY.md:60: 10 names cited, not found: [Rules.Num.Sm90]
+LIBRARY.md:70: 23 names cited, not found: [tl.max]
+LIBRARY.md:71: 75 names cited, not found: [_unsigned, _unsigned_le, mul_ofInt]
+LIBRARY.md:73: 85 names cited, not found: [x.to]
+LIBRARY.md:85: 3 names cited, not found: [TVA.Math.Bytes]
+LIBRARY.md:9: 3 names cited, not found: [TVA.Math.Arith]
+Layout.lean: 6 names cited, not found: [a.shape, tl.interleave, tl.join]
+OnlineSoftmax.lean: 53 names cited, not found: [M_t, Y_t, Z_t, acc_0, acc_t, l_0, l_t, m_0, m_t, s_j]
+Ops.lean: 66 names cited, not found: [tie_break_left, x.to]
+Safe.lean: 6 names cited, not found: [TVA.Lemmas.Independent, TVA.Lemmas.Ops]
+Scalar.lean: 8 names cited, not found: [tl.cdiv]
+Scaled.lean: 4 names cited, not found: [P.dotScaled]
+Shared.lean: 24 names cited, not found: [TVA.Lemmas.SharedAcc, acq_rel, vals.get]
+SharedAcc.lean: 31 names cited, not found: [TVA.Lemmas.Shared]
+Sm90.lean: 7 names cited, not found: [TVA.Rules.Num.Sm90]
+SumFused.lean: 17 names cited, not found: [enable_fp_fusion]
+Tile2.lean: 46 names cited, not found: [b.ptr, ptrs.get2]

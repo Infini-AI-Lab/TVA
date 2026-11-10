@@ -23,6 +23,14 @@ of disjoint buffers do not overlap.
 `cdiv(n, BLOCK)` fits when `n + BLOCK ≤ 2^31` (`fits_of_grid`), and when `n < 2^31` and `BLOCK`
 divides `2^31` (`fits_of_grid_dvd`), as every power of two up to `2^31` does
 (`fits_of_grid_pow2`; Triton's block sizes are powers of two up to `2^20`).
+
+Unlike `TVA.Lemmas.Tile2`, whose lane rules need the bound on the enabled lanes only (a masked-off
+lane's wrapped offset is never used), the 1-D block needs it on every lane: its mask compares the
+offsets themselves, so a lane whose offset wrapped to a negative value would be enabled. For a
+power-of-two block this is no limit: `Fits p B` holds as soon as the program's first offset
+`p * B` is below `2^31` (`fits_of_dvd`, `fits_of_pow2`: a multiple of `B` below `2^31` is at most
+`2^31 - B`), in particular for every program with an element below `n ≤ 2^31`
+(`fits_of_lt_pow2`), the last partial block included.
 -/
 namespace TVA
 
@@ -146,6 +154,29 @@ of two up to `2^20`): every program of the grid `cdiv(n, B)` fits when `n < 2^31
 theorem fits_of_grid_pow2 {p B n e : Nat} (hB : B = 2 ^ e) (he : e ≤ 31) (hn : n < 2 ^ 31)
     (hp : p < (n + B - 1) / B) : Fits p B :=
   fits_of_grid_dvd (hB ▸ Nat.pow_dvd_pow 2 he) hn hp
+
+/-- A program whose first offset `p * B` is below `2^31` fits when `B` divides `2^31`: `p * B` is a
+multiple of `B` below `2^31`, so at most `2^31 - B`. -/
+theorem fits_of_dvd {p B : Nat} (hB : B ∣ 2 ^ 31) (hp : p * B < 2 ^ 31) : Fits p B := by
+  obtain ⟨c, hc⟩ := hB
+  have hpc : p < c := by
+    rw [hc, Nat.mul_comm B c] at hp
+    exact Nat.lt_of_mul_lt_mul_right hp
+  unfold Fits
+  have : (p + 1) * B ≤ c * B := Nat.mul_le_mul_right B hpc
+  rw [Nat.succ_mul] at this; rw [hc, Nat.mul_comm B c]; omega
+
+/-- `fits_of_dvd` for a power-of-two block size up to `2^31` (every `tl.arange` length is a power
+of two): a program fits when its first offset `p * B` is below `2^31`. -/
+theorem fits_of_pow2 {p B e : Nat} (hB : B = 2 ^ e) (he : e ≤ 31) (hp : p * B < 2 ^ 31) :
+    Fits p B :=
+  fits_of_dvd (hB ▸ Nat.pow_dvd_pow 2 he) hp
+
+/-- **A program with an element fits**: for a power-of-two block, a program with an element below
+`n` (`p * B < n`, the last partial block included) fits when `n ≤ 2^31`. -/
+theorem fits_of_lt_pow2 {p B n e : Nat} (hB : B = 2 ^ e) (he : e ≤ 31) (hp : p * B < n)
+    (hn : n ≤ 2 ^ 31) : Fits p B :=
+  fits_of_pow2 hB he (by omega)
 
 end Block
 

@@ -1,0 +1,5 @@
+TVA.Lemmas.IntW: 130 public declarations, 130 theorems, nonstandard axioms: []
+TVA.Lemmas.Tile2: 56 public declarations, 50 theorems, nonstandard axioms: []
+TVA.Lemmas.FloatFacts: 201 public declarations, 201 theorems, nonstandard axioms: []
+TVA.Lemmas.Recurrence: 34 public declarations, 32 theorems, nonstandard axioms: []
+TVA.Lemmas.OnlineSoftmax: 85 public declarations, 73 theorems, nonstandard axioms: []

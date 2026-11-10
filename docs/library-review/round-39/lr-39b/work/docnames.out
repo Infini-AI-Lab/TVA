@@ -1,0 +1,12 @@
+FloatFacts: 122 names cited, not found: [TVA.Lang.Ops, TVA.Math.Encoding, d.ofBits, semantic.cast, tl.max, tl.min]
+IntW: 117 names cited, not found: [TVA.Lemmas.Int,
+ TVA.Lemmas.Scalar,
+ a.toInt,
+ b.toInt,
+ i32_i32,
+ i64_i64,
+ u32_u32,
+ u64_u64]
+OnlineSoftmax: 52 names cited, not found: [M_t, Y_t, Z_t, acc_0, acc_t, l_0, l_t, m_0, m_t]
+Recurrence: 26 names cited, not found: []
+Tile2: 46 names cited, not found: [b.ptr, ptrs.get2]

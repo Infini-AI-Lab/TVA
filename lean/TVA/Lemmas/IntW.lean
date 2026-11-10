@@ -623,7 +623,9 @@ variable {n : Nat} {sg : Bool} {w : Nat}
 @[simp] theorem get1_eq (x y : Tensor [n] (IntV sg w)) (i : Fin n) :
     (x.eq y).get1 i = (x.get1 i).eq (y.get1 i) := rfl
 
-/-- Lane `i` of an integer cast (`x.to(tl.int64)` and the others) is the cast of lane `i`. -/
+/-- Lane `i` of `x.castInt` (the model's own widening step, as in a reduction of a narrow integer
+type or the entries of `tl.make_block_ptr`; not `x.to(tl.int64)` or an implicit promotion, which are `tl.convert`, with
+`ConvRel.toInt_i32_i64` and the other pairs) is the cast of lane `i`. -/
 @[simp] theorem get1_castInt {sg' : Bool} {w' : Nat} (x : Tensor [n] (IntV sg w)) (i : Fin n) :
     (x.castInt : Tensor [n] (IntV sg' w')).get1 i = IntV.cast (x.get1 i) := rfl
 

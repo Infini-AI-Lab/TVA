@@ -354,8 +354,11 @@ theorem cum_le {A : ℕ → ℝ} {t n : ℕ} (htn : t ≤ n)
 
 /-- **Every factor of a decreasing cumulative sum is in `(0, 1]`**: if `A (u + 1) ≤ A u` on
 `t ≤ u < n` (each gate `A (u + 1) − A u` is non-positive) and `t ≤ n`, then
-`exp(A n − A t) ∈ (0, 1]`. A kernel with `exp(cs[last] − cs[i])` uses it for the `|g t| ≤ 1` of
-`perturb_le_sum` and `abs_le_sum`. -/
+`exp(A n − A t) ∈ (0, 1]`. It bounds the exact gate `g t = Real.exp(…)`, not a computed one: a
+kernel with `exp(cs[last] − cs[i])` uses it for the `|g t| ≤ G t` (with `G t = 1`) of `perturb'`,
+then `run_le_sum` (`0 ≤ G ≤ 1`), and for the `|g t| ≤ 1` of `abs_le_sum`. The computed decay `ĝ t`,
+which `perturb_le_sum` bounds by `1`, is a float that an approximate `exp` may round above `1`
+(`perturb_le_pow` covers that case). -/
 theorem exp_sub_mem_Ioc {A : ℕ → ℝ} {t n : ℕ} (htn : t ≤ n)
     (h : ∀ u, t ≤ u → u < n → A (u + 1) ≤ A u) :
     0 < Real.exp (A n - A t) ∧ Real.exp (A n - A t) ≤ 1 :=

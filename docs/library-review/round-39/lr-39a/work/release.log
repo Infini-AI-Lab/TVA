@@ -1,0 +1,37 @@
+PASS  shipped: 2852 files; none in a folder the text scan skips
+PASS  packages: every package of lean/lake-manifest.json made afresh from its upstream repository: Mathlib's commit is its inputRev's, the inherited packages are those Mathlib's manifest pins, every file is its commit's blob, and no build output
+PASS  sandbox: shows only the copy, /usr, /etc (read-only, nothing user-placed), the Lean toolchain leanprover/lean4:v4.35.0 (read-only, no link) and the system's /usr/bin/python3.12; no network
+sandbox <dir>: 2852 shipped files; an allowlist sandbox (bwrap), no network
+PASS  build: lake build TVA (Mathlib built from its pinned source)
+PASS  library: library hygiene; leanchecker TVA re-checks every library declaration
+PASS  records: every recorded file is as its ledger recorded it, nothing was added to a recorded folder, every event follows from a recorded file and every kernel's role folder from its events, and every library round before the last is recorded
+PASS  lint library 39 author: regular
+FAIL  lint library 39 lr-39a: - docs/library-review/round-39/lr-39a/report.md: placeholders (TODO) are left | - docs/library-review/round-39/lr-39a/report.md § Verdicts: `- **L<n>** ACCEPT — <reason>` or `REOPEN — <what is wrong>`: '**L175** TODO — TODO' | - docs/library-review/round-39/lr-39a/report.md § Verdicts: `- **L<n>** A
+FAIL  lint library 39 lr-39b: - docs/library-review/round-39/lr-39b/report.md: placeholders (TODO) are left | - docs/library-review/round-39/lr-39b/report.md § Verdicts: `- **L<n>** ACCEPT — <reason>` or `REOPEN — <what is wrong>`: '**L175** TODO — TODO' | - docs/library-review/round-39/lr-39b/report.md § Verdicts: `- **L<n>** A
+PASS  lint attn_bwd_f16 reviewer r-bwd: regular
+PASS  lint attn_bwd_f16 reviewer r-bwd2: regular
+PASS  lint attn_bwd_pre_f16 reviewer r-bwdpre: regular
+PASS  lint attn_bwd_pre_f16 reviewer r-bwdpre2: regular
+PASS  lint attn_fwd_e5m2 reviewer r-e5fwd: regular
+PASS  lint attn_fwd_e5m2 reviewer r-e5fwd2: regular
+PASS  lint attn_fwd_f16 reviewer r-fwd: regular
+PASS  lint attn_fwd_f16 reviewer r-fwd2: regular
+PASS  lint block_scaled_matmul_mxfp8 reviewer r-mx8: regular
+PASS  lint block_scaled_matmul_mxfp8 reviewer r-mx8b: regular
+PASS  lint grouped_matmul_tma_f16 reviewer r-gmm: regular
+PASS  lint grouped_matmul_tma_f16 reviewer r-gmm2: regular
+PASS  lint matmul_e5m2 reviewer r-e5m2: regular
+PASS  lint matmul_e5m2 reviewer r-e5m2b: regular
+PASS  lint matmul_f16 reviewer r-matmul: regular
+PASS  lint matmul_f16 reviewer r-matmul2: regular
+PASS  lint paged_attention_f16 reviewer r-pa: regular
+PASS  lint paged_attention_f16 reviewer r-pa2: regular
+PASS  lint softmax_f32 reviewer r-softmax: regular
+PASS  lint softmax_f32 reviewer r-softmax2: regular
+PASS  lint streamk_matmul_f16 reviewer r-sk: regular
+PASS  lint streamk_matmul_f16 reviewer r-sk2: regular
+PASS  lint vec_add_f32 reviewer r-vecadd: regular
+PASS  lint vec_add_f32 reviewer r-vecadd2: regular
+FAIL  audit: kernels/vocab_embedding_bf16/README.md: cites lean/, which does not exist | kernels/vocab_embedding_bf16/REVIEW.md: cites claim.md, which does not exist | kernels/vocab_embedding_bf16/REVIEW.md: cites review/ledger.jsonl, which does not exist
+release check FAIL (31 of 34 steps pass); release.json is in <dir>, the --dir folder (the sandbox was removed; --keep keeps it)
+exit 1
