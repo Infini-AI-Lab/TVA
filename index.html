@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>TVA: AI Agents Prove Triton Kernels Correct — InfiniAI Lab</title>
-<meta name="description" content="TVA is a Lean 4 library and agent sandbox in which AI agents prove that real Triton kernels from SGLang, vLLM and flash-linear-attention are correct on every launch they cover." />
+<meta name="description" content="TVA is a Lean 4 library for proving Triton kernels correct, with a sandbox in which AI agents write the proofs." />
 <link rel="icon" type="image/png" href="infini-ai.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -197,11 +197,9 @@
     <div class="eyebrow">Trusted AI systems</div>
     <h1>TVA: AI Agents Prove Triton Kernels Correct</h1>
     <p class="lede">
-      Tests check the shapes you think of. A proof covers every launch. TVA is a Lean 4 library
-      and an agent sandbox in which AI agents prove that the Triton kernels behind LLM serving,
-      from SGLang, vLLM and flash-linear-attention, are correct on every launch they cover:
-      no fault, no race, nothing written outside their outputs, and every output within a stated
-      bound of the exact answer.
+      TVA is a Lean 4 library for proving Triton kernels correct, with a sandbox in which AI agents
+      write the proofs. A proof covers every launch a claim allows: no fault, no race, no write
+      outside the outputs, and every output within a stated bound of the exact result.
     </p>
     <div class="byline">Zhuoming Chen · InfiniAI Lab, Carnegie Mellon University · November 2026</div>
     <div class="head-links">
@@ -212,94 +210,77 @@
 
 <article>
 
-<h2>The inference stack is now a target</h2>
+<h2>The inference stack is under attack</h2>
 
-<p>
-The last few months made one thing plain: the software that serves AI models is being attacked
-like any other high-value infrastructure.
-</p>
 <ul>
   <li>
-    <strong>Inference providers.</strong> Fireworks AI disclosed unauthorized use of internal
-    credentials in early October 2026 and a second intrusion through a third-party cloud provider
-    later that month; a November update widened the scope to account data and, for some customers,
-    secrets, datasets and incomplete model weights
+    <strong>Inference providers.</strong> Fireworks AI disclosed misuse of internal credentials in
+    October 2026, then a second intrusion through a third-party cloud provider. Its November update
+    adds account data and, for some customers, secrets, datasets and incomplete model weights
     (<a href="https://cryptobriefing.com/fireworks-ai-october-security-incident-customer-data/" target="_blank" rel="noopener">Crypto Briefing</a>,
     <a href="https://www.drweb.de/fireworks-ai-zweiter-hackerangriff-kundendaten/" target="_blank" rel="noopener">Dr. Web</a>).
   </li>
   <li>
-    <strong>Serving engines.</strong> SGLang received a CVSS 9.8 remote-code-execution report,
-    CVE-2026-5760, in which a crafted chat template inside a GGUF model file runs code on the
-    server, after two earlier critical deserialization flaws
+    <strong>Serving engines.</strong> SGLang's CVE-2026-5760 (CVSS 9.8) lets a chat template inside a
+    GGUF model file run code on the server; two critical deserialization flaws preceded it
     (<a href="https://thehackernews.com/2026/04/sglang-cve-2026-5760-cvss-98-enables.html" target="_blank" rel="noopener">The Hacker News</a>,
     <a href="https://labs.cloudsecurityalliance.org/research/csa-research-note-sglang-cve-2026-5760-gguf-rce-20260422-csa/" target="_blank" rel="noopener">CSA</a>).
   </li>
   <li>
-    <strong>The supply chain.</strong> In the PHP ecosystem, a malicious <code>intercom-php</code>
-    release and a compromise of the Laravel-Lang packages pushed credential stealers and backdoors
-    into widely installed libraries, through the projects' own release channels
+    <strong>The supply chain.</strong> A malicious <code>intercom-php</code> release and a compromise
+    of the Laravel-Lang packages shipped credential stealers and backdoors through the projects' own
+    release channels
     (<a href="https://cloudsmith.com/blog/mini-shai-hulud-reaches-packagist-the-intercom-intercom-php-compromise-explained" target="_blank" rel="noopener">Cloudsmith</a>,
     <a href="https://thehackernews.com/2026/05/laravel-lang-php-packages-compromised.html" target="_blank" rel="noopener">The Hacker News</a>).
   </li>
 </ul>
 <p>
-None of these incidents went through a GPU kernel. But they share a pattern: attackers go where
-code is trusted, changes fast, and is too large for anyone to re-read. GPU kernels fit that
-description better than almost anything else in an LLM stack. vLLM and SGLang together contain about 1,800
-<code>@triton.jit</code> functions, new ones arrive with every model architecture, and more and more of
-them are written by AI agents. A kernel runs with access to the whole GPU memory: the weights,
-and the KV caches of every request in the batch. And its failures are silent. An
-<code>int32</code> offset that wraps only past a few million tokens, a mask that is off by one
-row, or a race between programs does not crash anything; it returns a plausible wrong answer, or
-reads a byte that belongs to someone else. Research has also started to treat the numerical
-layer itself as an attack surface, with backdoors that trigger only under particular compiler
+None of these went through a GPU kernel, but they share a pattern: attackers target code that is
+trusted, changes fast, and is too large to re-read. Kernels fit. vLLM and SGLang together contain
+about 1,800 <code>@triton.jit</code> functions, each new model architecture adds more, and agents now
+write many of them. A kernel can read and write all of GPU memory, including the weights and every
+request's KV cache, and its bugs are silent: an <code>int32</code> offset that wraps past a few
+million tokens, an off-by-one mask, or a race returns a plausible wrong answer or reads another
+request's data. Researchers have also built backdoors that trigger only under particular compiler
 optimizations or hardware
 (<a href="https://arxiv.org/abs/2605.20641" target="_blank" rel="noopener">1</a>,
 <a href="https://arxiv.org/abs/2601.21902" target="_blank" rel="noopener">2</a>).
 </p>
 <p>
-Testing samples a few shapes and a few inputs. Code review does not scale to the rate at which
-kernels change. What does scale is a proof that a machine checks: a statement that holds for
-<em>every</em> launch the host can make, checked by a small trusted kernel rather than by
-whoever reviews the pull request. Writing such proofs by hand is far too expensive, which is why
-nobody does it for production kernels. Our bet is that AI agents can now write them.
+Tests sample a few shapes and inputs, and review cannot keep up with the rate of change. A
+machine-checked proof covers every launch the host can make. Writing such proofs by hand costs too
+much, so nobody does it for production kernels. We bet that agents can.
 </p>
 
 <h2>What TVA is</h2>
 
-<p>
-TVA has three parts.
-</p>
 <ol>
   <li>
-    <strong>A Lean 4 semantics of Triton.</strong> About 8,300 lines of Lean define what a Triton
-    program means: tensors, the <code>tl.*</code> operations, masked loads and stores, atomics,
-    and a launch as programs interleaving over a byte-addressed memory. Floating-point values are
-    exact IEEE bit patterns (fp32, fp16, bf16, fp8 formats, mxfp8 with e8m0 scales) with exact
-    rounding; integers are fixed-width and wrap. Operations whose result the hardware leaves
-    open, such as <code>tl.exp</code>, the accumulation order inside <code>tl.dot</code>, or float
-    atomics, return any value allowed by a <em>device fact</em>, and each device fact is backed
-    by our own measurements on an H200.
+    <strong>A Lean 4 semantics of Triton</strong> (about 8,300 lines): tensors, the <code>tl.*</code>
+    operations, masked loads and stores, atomics, and a launch as programs interleaving over a
+    byte-addressed memory. Floats are exact IEEE bit patterns (fp32, fp16, bf16, fp8, mxfp8 with
+    e8m0 scales) with exact rounding; integers have fixed width and wrap. Where the hardware leaves
+    a result open (<code>tl.exp</code>, the order of a <code>tl.dot</code> accumulation, float
+    atomics), the operation returns any value a <em>device fact</em> allows, and each device fact
+    rests on our measurements on an H200.
   </li>
   <li>
-    <strong>Fixed claims about real kernels.</strong> A claim transcribes a kernel line by line
-    into that vocabulary and states which launches it covers and what every covered launch must
-    leave in memory. Claims are written once, by hand, and pinned by their SHA-256.
+    <strong>A proof kit</strong> (about 16,000 lines of proved lemmas) for memory access patterns,
+    loops, integer widths, floating-point error, <code>tl.dot</code> accumulation, online softmax,
+    decayed recurrences, scans and shared atomics. A proof walks the kernel one program at a time.
   </li>
   <li>
-    <strong>A proof kit and a sandbox for agents.</strong> About 16,000 lines of proved lemmas
-    (memory access patterns, loops, integer widths, floating-point error, <code>tl.dot</code>
-    accumulation, online softmax, decayed recurrences, scans, shared atomics) let a prover walk a
-    kernel one program at a time. A container gives an agent the claim, the library and the docs,
-    and one tool that grades its proof.
+    <strong>A sandbox for agents</strong>: a container with the library, its docs and one tool that
+    grades a proof.
   </li>
 </ol>
 
-<h3>What a claim says</h3>
+<h3>Stating a claim</h3>
 <p>
-Every claim has the same shape. <code>Inst</code> is everything the host chooses (shapes,
-scalars, buffers), <code>ok</code> says which choices are covered, and <code>Post</code> says
-what the final memory must satisfy:
+A claim, written once by hand and pinned by its SHA-256, transcribes a kernel line by line into
+TVA's vocabulary and says which launches it covers and what each must leave in memory.
+<code>Inst</code> is what the host chooses (shapes, scalars, buffers), <code>ok</code> the covered
+choices, <code>Post</code> the required final memory:
 </p>
 <pre><code><span class="k">def</span> Claim.Holds (c : Claim) : Prop :=
   ∀ P, Device P →                    <span class="c">-- every platform with the H200's device facts</span>
@@ -309,8 +290,7 @@ what the final memory must satisfy:
 <span class="c">-- Correct: no undefined behaviour, no race between programs, and every way the launch can end
 -- is a normal end (no fault, no hang) whose final memory satisfies Post.</span></code></pre>
 <p>
-Here is the model of Triton's vector-addition tutorial. Each line reads one line of the source,
-and the comments say how:
+The model of Triton's vector-addition tutorial, one line per source line:
 </p>
 <pre><code><span class="k">def</span> add_kernel (x_ptr y_ptr output_ptr : Ptr .f32) (n_elements : I32) (BLOCK_SIZE : Nat) : Kernel <span class="k">where</span>
   body ctx := <span class="k">do</span>
@@ -324,29 +304,27 @@ and the comments say how:
     <span class="k">let</span> output ← tl.add x y
     tl.store (output_ptr + offsets) output (some mask)</code></pre>
 <p>
-Its <code>Post</code> says that element <code>j &lt; n</code> of the output is the IEEE sum of
-the inputs' elements <code>j</code>, and that <strong>every other byte of memory is
-unchanged</strong>. That last clause is in every claim. A proved kernel writes only its outputs.
+Its <code>Post</code> says that output element <code>j &lt; n</code> is the IEEE sum of the inputs'
+elements <code>j</code>, and that <strong>every other byte is unchanged</strong>. Every claim has
+that last clause, so a proved kernel writes only its outputs.
 </p>
 <p>
-For production kernels the interesting part is the conditions. SGLang's 50-line vocabulary
-embedding lookup needs eleven of them: the ids are <code>int32</code> or <code>int64</code>,
-<code>BLOCK_H</code> is a power of two, the <code>int32</code> column index cannot wrap, the grid
-fits CUDA's limits, every vocabulary index of the tensor-parallel shard fits in
-<code>int64</code>, and the output shares no byte with the inputs. None of these is written in the kernel's source. A claim makes
-every one of them explicit, so a reader can check them against the code that launches the
-kernel. For floating-point kernels, <code>Post</code> bounds the error against the exact
-real-number result with a tolerance that is derived from the device facts and stays meaningful
-at the largest covered size.
+For production kernels, the conditions carry most of the content. SGLang's 50-line vocabulary
+embedding lookup needs eleven, none written in its source: the ids are <code>int32</code> or
+<code>int64</code>, <code>BLOCK_H</code> is a power of two, the <code>int32</code> column index cannot
+wrap, the grid fits CUDA's limits, every vocabulary index of the tensor-parallel shard fits in
+<code>int64</code>, and the output shares no byte with the inputs. A reader can check each against
+the host code. For floating-point kernels, <code>Post</code> bounds the error against the exact
+real-number result, with a tolerance derived from the device facts that stays meaningful at the
+largest covered size.
 </p>
 
 <h3>What you trust</h3>
 <p>
-The list is short and lives in one file: Lean and Mathlib; that the claim's model is the kernel,
-which a reader checks line by line; that Triton 3.8.0 compiles the kernel as the model says,
-outside a published list of 56 excluded features and situations, among them known miscompiles;
-and the device facts, each with its measurements. Everything else, including the 16,000 lines of
-proof kit and every agent-written proof, is checked by Lean.
+One file lists it: Lean and Mathlib; that the model transcribes the kernel; that Triton 3.8.0
+compiles the kernel as the model says, outside a published list of 56 exclusions (known miscompiles
+among them); and the device facts with their measurements. Lean checks everything else, including
+the proof kit and every agent-written proof.
 </p>
 
 <h2>Agents prove, a machine grades</h2>
@@ -400,82 +378,73 @@ proof kit and every agent-written proof, is checked by Lean.
     <text x="681" y="232" text-anchor="middle" font-weight="600" fill="#b76cd9">reward 1 or 0</text>
   </g>
 </svg>
-<figcaption>The kernel's claim is fixed before any agent sees it. The agent writes only the proof,
-and a machine check, not a reviewer, decides whether it counts.</figcaption>
+<figcaption>The claim is fixed before an agent sees it. The agent writes only the proof; a machine
+check decides whether it counts.</figcaption>
 </figure>
 
 <p>
-Because claims are fixed, nobody needs to judge an agent's proof. An agent gets one claim in a
-container, as a task in the <a href="https://github.com/harbor-framework/harbor" target="_blank" rel="noopener">Harbor</a>
-framework: the claim's files, the built library with its documentation, and one worked
-example. It writes <code>theorem main : claim.Holds</code> in Lean, often split into many modules, and
-builds as often as it likes. A grader in a separate container then runs five
-checks:
+Because the claim is fixed, nobody has to judge the agent's proof. The agent gets one claim in a
+container, as a <a href="https://github.com/harbor-framework/harbor" target="_blank" rel="noopener">Harbor</a> task, with the
+built library, its docs and one worked example. It writes <code>theorem main : claim.Holds</code>
+and builds as often as it likes. A grader in a separate container then checks that:
 </p>
 <ol>
   <li>the claim file is byte-for-byte the pinned one;</li>
-  <li>the proof uses no escape hatch: no <code>sorry</code>, <code>axiom</code>,
+  <li>the proof has no escape hatch: no <code>sorry</code>, <code>axiom</code>,
       <code>native_decide</code>, <code>implemented_by</code>, meta code, local instances or
       foreign imports;</li>
   <li>everything builds from scratch;</li>
-  <li><code>main</code> has exactly the type <code>claim.Holds</code> and depends only on Lean's
-      three standard axioms;</li>
-  <li>Lean's kernel re-checks every declaration of the claim and of the proof from the compiled
-      files.</li>
+  <li><code>main</code> has exactly the type <code>claim.Holds</code> and uses only Lean's three
+      standard axioms;</li>
+  <li>Lean's kernel re-checks every declaration of the claim and the proof.</li>
 </ol>
 <p>
-The answer is a reward of 1 or 0. Nothing in it depends on trusting the agent. Each claim also
-keeps a reference proof, and the sandbox never shows it to an agent: a task copies only the
-claim's own files, through an allow-list that also refuses any file whose content matches a
-reference proof.
+The result is a reward of 1 or 0. Each claim also has a reference proof, which the agent never
+sees: a task gets only the claim's own files, and the agent's container reaches no network but the
+model endpoint.
 </p>
 
-<h2>Results: all 41 claims proved by agents</h2>
+<h2>Results: agents proved all 41 claims</h2>
 
 <p>
-We wrote fixed claims for 41 kernels. Fourteen are Triton tutorial and library kernels: vector
-addition, softmax, layer norm, fp16, fp8 and mxfp8 GEMMs, persistent and TMA GEMMs, stream-K
-with atomics, FlashAttention forward and backward, and paged attention. Twenty-seven are
-production kernels: 12 from SGLang, 7 from vLLM and 8 from flash-linear-attention, covering
-extend and prefill attention over paged and variable-length batches, fused MoE, LoRA, int8
-scaled GEMMs, speculative-decoding rejection sampling, KV-cache writes, Mamba-2 SSD and gated
-DeltaNet chunked recurrences.
+We used TVA to write fixed claims for 41 kernels. Fourteen are Triton tutorial and library kernels:
+vector addition, softmax, layer norm, fp16, fp8 and mxfp8 GEMMs, persistent and TMA GEMMs, stream-K
+with atomics, FlashAttention forward and backward, and paged attention. Twenty-seven are production
+kernels, 12 from SGLang, 7 from vLLM and 8 from flash-linear-attention: extend and prefill attention
+over paged and variable-length batches, fused MoE, LoRA, int8 scaled GEMMs, speculative-decoding
+rejection sampling, KV-cache writes, and Mamba-2 SSD and gated DeltaNet chunked recurrences.
 </p>
 <p>
-Every one of the 41 claims now has a complete proof written by AI agents and accepted by the
-grader in a fresh container: 40 of them by Claude Sonnet 5.5 agents, plus the vector-addition
-worked example. The hardest took several agent sessions, each handing a written plan to the
-next.
+All 41 now have complete proofs written by AI agents, each accepted by the grader in a fresh
+container: 40 by Claude Sonnet 5.5 agents, plus the vector-addition worked example. The hardest took
+several agent sessions, each handing a written plan to the next.
 </p>
 
 <div class="stats">
   <div class="stat"><div class="n">41 / 41</div><div class="l">claims proved, each graded in a fresh container</div></div>
   <div class="stat"><div class="n">27</div><div class="l">production kernels from SGLang, vLLM and flash-linear-attention</div></div>
-  <div class="stat"><div class="n">170k</div><div class="l">lines of agent-written Lean, every line checked</div></div>
-  <div class="stat"><div class="n">0</div><div class="l">claims found false: each kernel meets its claim on every covered launch</div></div>
+  <div class="stat"><div class="n">170k</div><div class="l">lines of agent-written Lean, all checked</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">claims found false</div></div>
 </div>
 
 <figure>
 <div class="bars" id="bars"></div>
-<figcaption>Size of each machine-checked proof, in lines of Lean including its documentation. Proofs
-range from 210 lines (vector addition) to about 9,900 (fla's LayerNorm/GroupNorm with a
-residual); the median is about 3,400.</figcaption>
+<figcaption>Lines of Lean in each proof, documentation included: from 210 (vector addition) to about
+9,900 (fla's LayerNorm/GroupNorm with a residual); median about 3,400.</figcaption>
 </figure>
 
 <p>
-Proof size tracks what makes a kernel hard to reason about rather than its length. Elementwise
-and gather kernels are short. GEMMs need the error of a <code>tl.dot</code> accumulation over
-the K loop. Attention kernels need an online-softmax invariant whose error bound survives every
-rescaling, and the chunked recurrences of linear attention need a state invariant carried
-across chunks with decays. SGLang's extend attention, with its paged KV cache, tree masks for
-speculative decoding and sliding windows, needed 49 modules.
+Proof size follows the reasoning a kernel needs, not its length. Elementwise and gather kernels are
+short. GEMMs need the error of a <code>tl.dot</code> accumulation over the K loop. Attention needs
+an online-softmax invariant whose error bound survives every rescaling; linear attention needs a
+state invariant carried across chunks with decays. SGLang's extend attention, with a paged KV cache,
+tree masks for speculative decoding and sliding windows, took 49 modules.
 </p>
 
 <h2>How TVA compares</h2>
 
 <p>
-Formal verification of GPU kernels has moved fast this year. The systems closest to ours
-verify machine-learning kernels at the PTX level or against a reference program:
+The closest systems verify machine-learning kernels at the PTX level or against a reference program:
 </p>
 
 <div class="table-wrap">
@@ -495,63 +464,48 @@ verify machine-learning kernels at the PTX level or against a reference program:
 </div>
 
 <p>
-<a href="https://arxiv.org/abs/2511.12638" target="_blank" rel="noopener">Volta</a> checks that an
-optimized kernel is equivalent to a reference by symbolic execution, with thread counts, tensor
-sizes, pointer targets and branch conditions known statically, and compares expressions over the
-reals; its open implementation, <a href="https://github.com/francois141/ptx_verifier" target="_blank" rel="noopener">ptx_verifier</a>,
-extracts Lean propositions for a fixed size.
-<a href="https://sentryward.io/blog/" target="_blank" rel="noopener">SentryWard</a> verifies
-synchronization, race freedom and equivalence for warp-specialized Hopper and Blackwell kernels at
-fixed sizes, excluding addresses and branches that depend on loaded values.
-<a href="https://sf-tensor.com/papers/formalizing-ptx.pdf" target="_blank" rel="noopener">Formalizing PTX in Lean</a>
-models every execution of hand-written PTX against the PTX memory model, including asynchronous
-copies and tensor cores, with LLMs writing the proofs. Earlier tools such as GPUVerify and Faial
-prove race freedom only, and recent agent systems for CUDA, such as
+<a href="https://arxiv.org/abs/2511.12638" target="_blank" rel="noopener">Volta</a> checks an optimized kernel's equivalence to
+a reference by symbolic execution, with thread counts, tensor sizes, pointer targets and branch
+conditions known statically, and compares expressions over the reals; its open implementation,
+<a href="https://github.com/francois141/ptx_verifier" target="_blank" rel="noopener">ptx_verifier</a>, extracts Lean propositions
+for a fixed size. <a href="https://sentryward.io/blog/" target="_blank" rel="noopener">SentryWard</a> verifies synchronization,
+race freedom and equivalence of warp-specialized Hopper and Blackwell kernels at fixed sizes, without
+data-dependent addresses or branches.
+<a href="https://sf-tensor.com/papers/formalizing-ptx.pdf" target="_blank" rel="noopener">Formalizing PTX in Lean</a> models every
+execution of hand-written PTX under the PTX memory model, including asynchronous copies and tensor
+cores, with LLMs writing the proofs. GPUVerify and Faial prove race freedom only;
 <a href="https://arxiv.org/abs/2511.12294" target="_blank" rel="noopener">ProofWright</a> and
-<a href="https://arxiv.org/abs/2610.24548" target="_blank" rel="noopener">Browne et al.</a>,
-target elementwise kernels or a CUDA subset.
+<a href="https://arxiv.org/abs/2610.24548" target="_blank" rel="noopener">Browne et al.</a> target elementwise kernels or a CUDA
+subset.
 </p>
 <p>
-TVA makes a different trade. It works one level higher, on Triton programs, and trusts the
-Triton compiler with one stated rule. In exchange it covers what production serving kernels
-actually do: shapes known only at run time, addresses read from memory (page tables, expert
-maps, sequence offsets), integer arithmetic that can wrap, and floating-point results that are
-<em>not</em> equal to the exact answer and must be bounded honestly. A real-number equivalence
-proof says nothing about how far a bf16 attention output may be from exact attention at a long
-context. A TVA claim states that bound, and the proof establishes it.
+TVA works one level higher, on Triton, and trusts the Triton compiler under one stated rule. In
+return it covers what serving kernels do: shapes known only at run time, addresses read from memory
+(page tables, expert maps, sequence offsets), integer arithmetic that wraps, and floating-point
+results that differ from the exact answer. A real-number equivalence proof cannot say how far a bf16
+attention output may be from exact attention at long context; a TVA claim states that bound and the
+proof establishes it.
 </p>
 
 <h2>Limits</h2>
 <ul>
-  <li>The Triton compiler is trusted outside the exclusion list, and claims cover one stack:
+  <li>The Triton compiler is trusted outside the exclusion list, and claims target one stack:
       Triton 3.8.0 on the H200.</li>
-  <li>Claims are written by hand, and a reader must still check that a model transcribes its
-      source. The fixed shape of a claim, a line-by-line model with comments, keeps that check
-      local.</li>
-  <li>A proof guarantees what the claim states. Each claim says which launches it leaves out and
-      why, and some real modes are left out, for example in-kernel TMA descriptors.</li>
-  <li>Proofs are long and agent time is not free. Making agents cheaper and more reliable at this
-      is the next step.</li>
+  <li>Claims are written by hand, and a reader must check that each model transcribes its source;
+      the line-by-line form keeps that check local.</li>
+  <li>A proof guarantees only what its claim states. Each claim lists the launches it leaves out,
+      such as in-kernel TMA descriptors.</li>
+  <li>Proofs are long, and agent time costs money.</li>
 </ul>
 
 <h2>What's next</h2>
 <p>
-The 41 claims and their checker are, in effect, a benchmark: each task is one kernel and one
-fixed claim, and success is a binary machine check that cannot be gamed by weakening the
-specification. We are using it to measure how well different models prove kernels, and we are
-working toward the case that matters most: when a kernel is wrong, an agent should come back with
-a concrete launch that breaks it rather than with nothing. The library, the claims and the
-sandbox are open source at
+The 41 claims and the grader form a benchmark: one kernel and one fixed claim per task, scored by a
+binary machine check that weakening the specification cannot game. We are using it to compare
+models, and working toward agents that answer a wrong kernel with a concrete launch that breaks it.
+TVA and the claims are open source at
 <a href="https://github.com/Infini-AI-Lab/TVA" target="_blank" rel="noopener">github.com/Infini-AI-Lab/TVA</a>.
 </p>
-
-<div class="callout">
-<p>
-<strong>In one sentence:</strong> TVA turns "this kernel passed our tests" into "Lean checked
-that this kernel is correct on every launch its host can make", and lets AI agents do the
-proving.
-</p>
-</div>
 
 </article>
 
