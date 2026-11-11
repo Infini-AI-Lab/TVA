@@ -20,6 +20,7 @@ verifier checks the proof in another.
 | `claim_files.py` | the allow list of a claim's files that reach a prover: `Claim.lean`, `claim.json`, `README.md`, `SETUP.md`, `source/` (never `oracle/` or `check_gpu.py`) |
 | `make_task.py` | writes the Harbor task `tva3-claim-<kernel>/` and a script that runs it once |
 | `harness/cc_agent.py` | the Harbor agent `ClaudeCodeClaim`: Claude Code, resumed after an error exit |
+| `meter_relay.py` | the prover's only way out: a TCP relay from the task's sealed network to the meter, one port |
 | `meter.py` | the credit meter: a proxy on the host that records each request's tokens and cost, stops at a budget, and keeps the endpoint's key out of the containers |
 
 ## The claim image
@@ -68,8 +69,10 @@ example's:
   never to an agent's container;
 - the claim image holds one proof, `vec_add_f32`'s, at `/app/examples/vec_add_f32/`; its `docs/` name no
   other proof;
-- the repository is private, and the containers hold no credentials for it (the prover's container reaches the
-  network, through which it reaches the meter).
+- the prover's container reaches no network but the meter: it is only on a sealed Docker network (`internal`, no
+  route to the internet or the host) whose one other member, `meter` (`meter_relay.py`), relays one port to the
+  credit meter on the host. The task's `environment/docker-compose.yaml` sets this up, and the run script gives
+  the relay the meter's address. The verifier runs with no network at all.
 
 ## Use
 

@@ -9,6 +9,8 @@ writes, for each KERNEL, OUT/tva3-claim-KERNEL/:
   task.toml, instruction.md                      Harbor's task; its prompt points to /instruction.md
   environment/Dockerfile, environment/claim/,    the prover's image: the claim image, Claude Code, this claim
   environment/instruction.md                     in /app/claim, and the task at /instruction.md
+  environment/docker-compose.yaml,               the prover's network: sealed, its one way out a relay to the
+  environment/meter_relay.py                     credit meter
   tests/Dockerfile, tests/claim/, tests/test.sh  the verifier's image: the same, with its own copy of the claim
   solution/                                      with --oracle: the claim's oracle proof (claims/KERNEL/oracle/)
 
@@ -45,6 +47,31 @@ CHECK = "/usr/local/bin/tva-check check /app/claim"
 GRADE = "/usr/local/bin/tva-check grade /app/claim"
 TIME = "/usr/local/bin/tva-check time"
 VERIFIER_TIMEOUT = 3600
+
+
+# The prover's network (environment/docker-compose.yaml, merged by Harbor with its own compose files).
+COMPOSE = """# The prover reaches nothing but the credit meter. `main` (the prover's container) is only on `sealed`, an
+# internal network with no route out: not the internet, not the host. Its one other member is `meter`
+# (meter_relay.py), which is also on an ordinary network and relays one port, 8080, to the meter at
+# TVA_METER_HOST:TVA_METER_PORT (set by the task's run script; unset, it relays nothing).
+services:
+  main:
+    networks: [sealed]
+    depends_on: [meter]
+  meter:
+    image: {image}
+    command: ["python3", "-I", "/opt/meter_relay.py"]
+    volumes: ["./meter_relay.py:/opt/meter_relay.py:ro"]
+    environment:
+      TARGET_HOST: "${{TVA_METER_HOST:-}}"
+      TARGET_PORT: "${{TVA_METER_PORT:-}}"
+      LISTEN_PORT: "8080"
+    networks: [sealed, egress]
+networks:
+  sealed:
+    internal: true
+  egress: {{}}
+"""
 
 
 def write(path, text, mode=0o644):
@@ -212,13 +239,15 @@ RUN = """#!/bin/bash
 # Run the task {task} once: the credit meter (budget ${budget}), Harbor with the claim agent on {model}, then the
 # meter's report. Everything goes to {runs}/{task}/: meter.jsonl (the ledger), meter.log, harbor.log, jobs/.
 # The endpoint's key stays on the host (the meter reads KEY_FILE); the containers get only the meter's client key.
+# The prover's container reaches nothing but the meter: it is on a sealed network whose one other member, `meter`
+# (environment/docker-compose.yaml, meter_relay.py), relays to the meter at $METER_HOST:$PORT.
 #   KEY_FILE=<file with the endpoint's key> {out}/run-{task}.sh
 set -euo pipefail
 : "${{KEY_FILE:?set KEY_FILE to the file that holds the endpoint key}}"
 UPSTREAM=${{UPSTREAM:-{upstream}}}
 PRICE=${{PRICE:-{price}}}
 PORT=${{PORT:-18800}}
-HOST=${{HOST:-$(hostname -I | awk '{{print $1}}')}}       # the host's address, as the containers reach it
+METER_HOST=${{TVA_METER_HOST:-$(hostname -I | awk '{{print $1}}')}}   # the host's address, as the relay reaches it
 HARBOR=${{HARBOR:-harbor}}
 d={runs}/{task}
 mkdir -p "$d"
@@ -227,7 +256,7 @@ python3 -I {sandbox}/meter.py serve --upstream "$UPSTREAM" --key-file "$KEY_FILE
 meter=$!
 trap 'kill $meter 2>/dev/null || true' EXIT
 for i in $(seq 1 30); do [ -s "$d/meter.jsonl.client-key" ] && break; sleep 1; done
-ANTHROPIC_BASE_URL="http://$HOST:$PORT/prover" ANTHROPIC_API_KEY="$(cat "$d/meter.jsonl.client-key")" \\
+TVA_METER_HOST="$METER_HOST" TVA_METER_PORT="$PORT" ANTHROPIC_BASE_URL="http://meter:8080/prover" ANTHROPIC_API_KEY="$(cat "$d/meter.jsonl.client-key")" \\
   PYTHONPATH={sandbox}/harness "$HARBOR" run -p {out}/{task} -a cc_agent:ClaudeCodeClaim \\
   -m anthropic/{model} -e docker -o "$d/jobs" > "$d/harbor.log" 2>&1 || echo "harbor exit $?" >> "$d/harbor.log"
 python3 -I {sandbox}/meter.py report "$d/meter.jsonl"
@@ -292,6 +321,8 @@ source = "/app/claim/Proof.lean"
 [[artifacts]]
 source = "/app/claim/Proof"
 ''')
+    write(os.path.join(out, "environment", "docker-compose.yaml"), COMPOSE.format(image=image))
+    shutil.copy(os.path.join(HERE, "meter_relay.py"), os.path.join(out, "environment", "meter_relay.py"))
     write(os.path.join(out, "environment", "Dockerfile"), f"""# The prover's image: the claim image, Claude Code, and the claim in /app/claim.
 FROM {image}
 {CLAUDE_CODE}
