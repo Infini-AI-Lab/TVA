@@ -54,6 +54,7 @@ theorem coord_of_ge : ∀ {s : Shape} (i : Idx s) {k : Nat}, s.length ≤ k → 
   | _ :: _, (_, _), 0, h => absurd h (by simp)
   | _ :: s, (_, j), k + 1, h => coord_of_ge (s := s) j (by simpa using h)
 
+/-- After setting coordinate `k` to a value below its dimension, coordinate `k` is that value. -/
 theorem coord_set_self : ∀ {s : Shape} (i : Idx s) {k t : Nat}, t < Shape.dim s k →
     (i.set k t).coord k = t
   | [], (), _, _, h => absurd h (Nat.not_lt_zero _)
@@ -62,6 +63,7 @@ theorem coord_set_self : ∀ {s : Shape} (i : Idx s) {k t : Nat}, t < Shape.dim 
       simp [set, coord, h']
   | _ :: s, (_, j), k + 1, _, h => coord_set_self (s := s) j h
 
+/-- Setting coordinate `k` leaves every other coordinate unchanged. -/
 theorem coord_set_ne : ∀ {s : Shape} (i : Idx s) {k k' t : Nat}, k' ≠ k →
     (i.set k t).coord k' = i.coord k'
   | [], (), _, _, _, _ => rfl
@@ -71,11 +73,13 @@ theorem coord_set_ne : ∀ {s : Shape} (i : Idx s) {k k' t : Nat}, k' ≠ k →
   | _ :: s, (_, j), _ + 1, _ + 1, _, h =>
       coord_set_ne (s := s) j (fun e => h (congrArg (· + 1) e))
 
+/-- Setting coordinate `k` to its own value leaves the index unchanged. -/
 theorem set_coord_self : ∀ {s : Shape} (i : Idx s) (k : Nat), i.set k (i.coord k) = i
   | [], (), _ => rfl
   | _ :: _, (i, j), 0 => by simp [set, coord, i.2]; rfl
   | _ :: s, (i, j), k + 1 => by simp only [set, coord, set_coord_self (s := s) j k]; rfl
 
+/-- Setting coordinate `k` twice keeps only the second value (when it is below the dimension). -/
 theorem set_set : ∀ {s : Shape} (i : Idx s) {k t t' : Nat}, t' < Shape.dim s k →
     (i.set k t).set k t' = i.set k t'
   | [], (), _, _, _, _ => rfl
@@ -114,6 +118,7 @@ def ofCoords : (s : Shape) → (c : Nat → Nat) → (∀ k, k < s.length → c 
   | _ :: s, c, h => (⟨c 0, h 0 (Nat.succ_pos _)⟩,
       ofCoords s (fun k => c (k + 1)) (fun k hk => h (k + 1) (Nat.succ_lt_succ hk)))
 
+/-- Coordinate `k` of the index built by `ofCoords` from `c` is `c k`. -/
 theorem coord_ofCoords : ∀ (s : Shape) (c : Nat → Nat)
     (h : ∀ k, k < s.length → c k < Shape.dim s k) {k : Nat}, k < s.length →
     (ofCoords s c h).coord k = c k
@@ -134,11 +139,13 @@ def unsnoc {n : Nat} : {s : Shape} → Idx (s ++ [n]) → Idx s × Fin n
   | [], (t, ()) => ((), t)
   | _ :: _, (i, j) => ((i, (unsnoc j).1), (unsnoc j).2)
 
+/-- Splitting the last coordinate off `snoc i t` gives back `i` and `t`. -/
 @[simp] theorem unsnoc_snoc {n : Nat} : ∀ {s : Shape} (i : Idx s) (t : Fin n),
     unsnoc (snoc i t) = (i, t)
   | [], (), _ => rfl
   | _ :: _, (i, j), t => by simp only [snoc, unsnoc, unsnoc_snoc j t]
 
+/-- Appending back the last coordinate split off by `unsnoc` gives the original index. -/
 @[simp] theorem snoc_unsnoc {n : Nat} : ∀ {s : Shape} (i : Idx (s ++ [n])),
     snoc (unsnoc i).1 (unsnoc i).2 = i
   | [], (_, ()) => rfl
@@ -151,12 +158,14 @@ def pos : (s : Shape) → Idx s → Nat
   | [], () => 0
   | _ :: s, (i, j) => i.val * s.prod + pos s j
 
+/-- If a position lies below the size of `n :: s`, the inner shape `s` has a nonzero size. -/
 theorem prod_pos_of_lt {n : Nat} {s : Shape} {p : Nat} (h : p < (n :: s).prod) : 0 < s.prod := by
   rw [List.prod_cons] at h
   rcases Nat.eq_zero_or_pos s.prod with h0 | h0
   · rw [h0, Nat.mul_zero] at h; exact absurd h (Nat.not_lt_zero _)
   · exact h0
 
+/-- The row-major position of an index lies below the number of elements of its shape. -/
 theorem pos_lt : ∀ (s : Shape) (i : Idx s), pos s i < s.prod
   | [], () => Nat.one_pos
   | n :: s, (i, j) => by
@@ -175,9 +184,11 @@ def ofPos : (s : Shape) → (p : Nat) → p < s.prod → Idx s
           (by rw [List.prod_cons] at h; exact h)⟩,
         ofPos s (p % s.prod) (Nat.mod_lt _ (prod_pos_of_lt h)))
 
+/-- `ofPos` at equal positions gives equal indices: rewrites a position under its bound proof. -/
 theorem ofPos_congr {s : Shape} {p q : Nat} (h : p = q) (hp : p < s.prod) (hq : q < s.prod) :
     ofPos s p hp = ofPos s q hq := by subst h; rfl
 
+/-- The row-major position of the index at position `p` is `p`. -/
 theorem pos_ofPos : ∀ (s : Shape) (p : Nat) (h : p < s.prod), pos s (ofPos s p h) = p
   | [], p, h => by
       have h' : p < 1 := h
@@ -187,6 +198,7 @@ theorem pos_ofPos : ∀ (s : Shape) (p : Nat) (h : p < s.prod), pos s (ofPos s p
       simp only [ofPos, pos, pos_ofPos s]
       exact Nat.div_add_mod' p s.prod
 
+/-- The index at the row-major position of `i` is `i`. -/
 theorem ofPos_pos : ∀ (s : Shape) (i : Idx s) (h : pos s i < s.prod),
     ofPos s (pos s i) h = i
   | [], (), _ => rfl

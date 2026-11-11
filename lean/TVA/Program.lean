@@ -141,11 +141,15 @@ instance : Monad Prog where
   pure := ret
   bind := bind
 
+/-- `pure a` in `do` notation is the program `ret a`. -/
 @[simp] theorem pure_eq {α : Type} (a : α) : (pure a : Prog α) = ret a := rfl
+/-- `p >>= f` in `do` notation is `p.bind f`. -/
 @[simp] theorem bind_eq {α β : Type} (p : Prog α) (f : α → Prog β) : p >>= f = p.bind f := rfl
 
+/-- Running `ret a` and then `f` is `f a`. -/
 @[simp] theorem ret_bind {α β : Type} (a : α) (f : α → Prog β) : (ret a).bind f = f a := rfl
 
+/-- Running `p` and then returning its result is `p`. -/
 @[simp] theorem bind_ret {α : Type} (p : Prog α) : p.bind ret = p := by
   induction p with
   | ret a => rfl
@@ -157,6 +161,7 @@ instance : Monad Prog where
   | loop init body k _ ih => simp only [bind, ih]
   | env k ih => simp only [bind, ih]
 
+/-- Sequential composition of programs is associative. -/
 theorem bind_assoc {α β γ : Type} (p : Prog α) (f : α → Prog β) (g : β → Prog γ) :
     (p.bind f).bind g = p.bind (fun a => (f a).bind g) := by
   induction p with

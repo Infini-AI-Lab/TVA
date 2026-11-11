@@ -13,6 +13,11 @@ if ! docker image inspect "$base" >/dev/null 2>&1; then
   echo "$base is missing: building it" >&2
   base="$("$here/../build_base.sh" | tail -1)"
 fi
+# docs/index/ must describe this library: the image ships docs/ to provers
+if ! PATH="$HOME/.elan/bin:$PATH" python3 -I "$tva/tools/make_index.py" --check >&2; then
+  echo "docs/index/ is stale: run python3 -I tools/make_index.py, then build again" >&2
+  exit 1
+fi
 ctx="$(mktemp -d)"
 trap 'rm -rf "$ctx"' EXIT
 cp "$here/Dockerfile" "$here/tva-check" "$here/lake" "$here/settings.json" "$here/lean-fixer.md" "$here/CLAUDE.md" \

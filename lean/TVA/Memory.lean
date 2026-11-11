@@ -47,9 +47,11 @@ variable {d : DType}
 /-- `p + i`: the pointer `i` elements further (`i * d.bytes` bytes). -/
 def offset (p : Ptr d) (i : Int) : Ptr d := ⟨p.addr + i * d.bytes⟩
 
+/-- The address of `p + i` is `i * d.bytes` bytes past the address of `p`. -/
 @[simp] theorem offset_addr (p : Ptr d) (i : Int) :
     (p.offset i).addr = p.addr + i * d.bytes := rfl
 
+/-- Moving a pointer by `i` elements and then by `j` moves it by `i + j` elements. -/
 @[simp] theorem offset_offset (p : Ptr d) (i j : Int) :
     (p.offset i).offset j = p.offset (i + j) := by
   simp only [offset]; congr 1; rw [Int.add_mul, Int.add_assoc]
@@ -101,9 +103,11 @@ instance {s : Shape} {d : DType} {sg : Bool} {w : Nat} :
     HSub (Tensor s (Ptr d)) (Tensor s (IntV sg w)) (Tensor s (Ptr d)) :=
   ⟨fun ps offs => ps + offs.map (fun o => -o)⟩
 
+/-- `p + k` for a scalar integer `k` moves `p` by the value of `k` elements. -/
 @[simp] theorem Ptr.add_int {d : DType} {sg : Bool} {w : Nat} (p : Ptr d) (k : IntV sg w) :
     p + k = p.offset k.toInt := rfl
 
+/-- `p - k` for a scalar integer `k` moves `p` by the value of `-k`, wrapped in `k`'s type. -/
 @[simp] theorem Ptr.sub_int {d : DType} {sg : Bool} {w : Nat} (p : Ptr d) (k : IntV sg w) :
     p - k = p.offset (-k).toInt := rfl
 
@@ -123,10 +127,12 @@ theorem Ptr.sub_int_of_signed {d : DType} {w : Nat} (p : Ptr d) (k : IntV true w
     simp only [IntV.toInt, ite_true] at hk
     omega
 
+/-- Lane `i` of `ptr + offs` is `ptr` moved by the value of `offs[i]` elements. -/
 @[simp] theorem Tensor.get_ptrAdd {s : Shape} {d : DType} {sg : Bool} {w : Nat} (p : Ptr d)
     (offs : Tensor s (IntV sg w)) (i : Idx s) :
     (p + offs).get i = p.offset (offs.get i).toInt := rfl
 
+/-- Lane `i` of `ptrs + offs` is `ptrs[i]` moved by the value of `offs[i]` elements. -/
 @[simp] theorem Tensor.get_ptrAddT {s : Shape} {d : DType} {sg : Bool} {w : Nat}
     (ps : Tensor s (Ptr d)) (offs : Tensor s (IntV sg w)) (i : Idx s) :
     (ps + offs).get i = (ps.get i).offset (offs.get i).toInt := rfl
@@ -210,8 +216,10 @@ def Holds (b : Buf d) (m : Mem) (v : Nat → d.Val) : Prop :=
 /-- Two buffers, possibly of different dtypes, do not overlap. -/
 def Disjoint' (b : Buf d) {d' : DType} (c : Buf d') : Prop := Disjoint b.bytes c.bytes
 
+/-- The address of element `j` of a buffer is `j * d.bytes` bytes past its base. -/
 @[simp] theorem ptr_addr (b : Buf d) (j : Int) : (b.ptr j).addr = b.base + j * d.bytes := rfl
 
+/-- Moving the pointer to element `i` of a buffer by `k` elements points to element `i + k`. -/
 @[simp] theorem ptr_offset (b : Buf d) (i k : Int) : (b.ptr i).offset k = b.ptr (i + k) := by
   simp only [ptr, Ptr.offset]; congr 1; ring
 
@@ -251,12 +259,15 @@ theorem aligned (b : Buf d) {m : Mem} (hv : b.Valid m) {j : Nat} (hj : j < b.len
     nlinarith
   · simp only [ptr_addr]; rw [Int.add_mul_emod_self_right]; exact h2
 
+/-- The bytes of an element in `S` lie in the footprint `b.elems S`. -/
 theorem span_sub_elems (b : Buf d) {S : Set Nat} {j : Nat} (hj : j ∈ S) :
     Mem.span d (b.ptr (j : Int)).addr ⊆ b.elems S := fun _ hx => ⟨j, hj, hx⟩
 
+/-- A larger set of elements has a larger footprint. -/
 theorem elems_mono (b : Buf d) {S T : Set Nat} (h : S ⊆ T) : b.elems S ⊆ b.elems T := by
   rintro x ⟨j, hj, hx⟩; exact ⟨j, h hj, hx⟩
 
+/-- The footprint of a union of element sets is the union of their footprints. -/
 theorem elems_union (b : Buf d) (S T : Set Nat) :
     b.elems (S ∪ T) = b.elems S ∪ b.elems T := by
   ext x; constructor

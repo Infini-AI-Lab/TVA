@@ -13,7 +13,7 @@ in modules under `/app/claim/Proof/`). The claim is fixed; Lean checks the proof
 | `/app/claim/` | the fixed claim (`Claim.lean`, `claim.json`, `README.md`, `SETUP.md`, `source/`: never change them) and your proof (`Proof.lean`, `Proof/`) |
 | `/app/examples/vec_add_f32/` | a worked example: another fixed claim with its complete proof (`Proof.lean`). Read it; it is not built here (its modules have the same names as yours) |
 | `/app/lean/` | the TVA library with Mathlib, built: `TVA/Claim.lean` (what `claim.Holds` means), the `tl.*` semantics (`TVA/Triton`, `TVA/Launch`), and the proof kit `TVA/Proof` |
-| `/app/docs/` | TVA's docs: `PROVING.md` (how proofs go, which kit module to use), `SEMANTICS.md`, `LIBRARY.md` (a map of the library), `DESIGN.md` |
+| `/app/docs/` | TVA's docs: `INDEX.md` (where each lemma is: start there; `index/NAMES.tsv` lists every declaration, one per line, for `grep`), `PROVING.md` (how proofs go, which kit module to use), `SEMANTICS.md`, `LIBRARY.md` (a map of the library), `DESIGN.md` |
 | `/tmp/` | your scratch files |
 
 ## Building and checking
@@ -55,8 +55,8 @@ build errors. Never wait with `sleep` or a polling loop: end your turn when only
   prove the body once and split on the flag where the code differs, not by copying the whole walk per mode.
 - **The shape of the proof** is the example's: one program at a time (`Safe`, walked line by line with one rule
   per `tl.*` operation), disjoint footprints, then `correct_of_safe` (its docstring shows the skeleton of `main`).
-- **Look in the library first** (the list in `/app/lean/TVA/Proof.lean`, `/app/docs/LIBRARY.md`, `grep -rn` in
-  `/app/lean/TVA/Proof`). Among its modules:
+- **Look in the library first**: `/app/docs/INDEX.md` lists the lemmas each step of a proof needs, and
+  `grep -i WORD /app/docs/index/NAMES.tsv` finds any declaration with its `file:line` and summary. Among its modules:
   - `TVA.Proof.Rules.*`: the rule of each operation (`Memory`: loads and stores; `Arith`, `Convert`, `Reduce`,
     `ArgReduce`, `Dot`, `Loop`);
   - `TVA.Proof.Buf`, `TVA.Proof.Mem`: buffer elements, footprints, reads after writes;

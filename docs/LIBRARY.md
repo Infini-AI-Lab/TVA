@@ -1,7 +1,8 @@
 # A map of `lean/TVA/`
 
 Every module opens with a docstring that says what it defines, how that maps to Triton, and what
-to read next; this page is the index. The library has two parts:
+to read next; this page is a map of the modules. To find a definition or lemma by name or topic,
+use [INDEX.md](INDEX.md) and the generated [index/](index/). The library has two parts:
 
 - **`import TVA`** is the trusted part (`lean/TVA.lean`): everything a claim is stated in, and
   everything a reader of a proved claim trusts. Claims import it.

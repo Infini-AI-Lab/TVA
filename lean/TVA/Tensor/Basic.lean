@@ -75,6 +75,9 @@ end Idx
   /-- The element at an index. -/
   get : Idx s → α
 
+/-- Two tensors of the same shape with the same element at every index are equal. -/
+add_decl_doc Tensor.ext
+
 namespace Tensor
 
 variable {s : Shape} {α β γ δ : Type}
@@ -98,11 +101,15 @@ def map3 (f : α → β → γ → δ) (x : Tensor s α) (y : Tensor s β) (z : 
 /-- The elements in row-major order. -/
 def toList (x : Tensor s α) : List α := (Idx.all s).map x.get
 
+/-- Every element of `tl.full` (or a broadcast scalar) is the fill value. -/
 @[simp] theorem get_full (a : α) (i : Idx s) : (full a : Tensor s α).get i = a := rfl
+/-- Reading a tensor built by `map` applies the function to the input at the same position. -/
 @[simp] theorem get_map (f : α → β) (x : Tensor s α) (i : Idx s) :
     (x.map f).get i = f (x.get i) := rfl
+/-- Reading a tensor built by `map2` reads the two tensors at the same position. -/
 @[simp] theorem get_map2 (f : α → β → γ) (x : Tensor s α) (y : Tensor s β) (i : Idx s) :
     (map2 f x y).get i = f (x.get i) (y.get i) := rfl
+/-- Reading a tensor built by `map3` reads the three tensors at the same position. -/
 @[simp] theorem get_map3 (f : α → β → γ → δ) (x : Tensor s α) (y : Tensor s β) (z : Tensor s γ)
     (i : Idx s) : (map3 f x y z).get i = f (x.get i) (y.get i) (z.get i) := rfl
 
@@ -126,8 +133,11 @@ def get1 {n : Nat} (x : Tensor [n] α) (i : Fin n) : α := x.get (i, ())
 /-- The element `x[i, j]` of a rank-2 tensor. -/
 def get2 {m n : Nat} (x : Tensor [m, n] α) (i : Fin m) (j : Fin n) : α := x.get (i, j, ())
 
+/-- The value of the rank-0 tensor of `a` is `a`. -/
 @[simp] theorem item_scalar (a : α) : (scalar a).item = a := rfl
+/-- Element `i` of the rank-1 tensor `of1 f` is `f i`. -/
 @[simp] theorem get1_of1 {n : Nat} (f : Fin n → α) (i : Fin n) : (of1 f).get1 i = f i := rfl
+/-- Element `(i, j)` of the rank-2 tensor `of2 f` is `f i j`. -/
 @[simp] theorem get2_of2 {m n : Nat} (f : Fin m → Fin n → α) (i : Fin m) (j : Fin n) :
     (of2 f).get2 i j = f i j := rfl
 
@@ -155,29 +165,40 @@ def bcastRows {n : Nat} (x : Tensor [1, n] α) (m : Nat) : Tensor [m, n] α :=
 `Tensor.permute` (`permute_trans`: this is `permute [1, 0]`). -/
 def trans {m n : Nat} (x : Tensor [m, n] α) : Tensor [n, m] α := of2 (fun j i => x.get2 i j)
 
+/-- Element `(i, j)` of `x[:, None]` broadcast to `n` columns is `x[i]`, whatever the column. -/
 @[simp] theorem get2_col {m n : Nat} (x : Tensor [m] α) (i : Fin m) (j : Fin n) :
     (x.col n).get2 i j = x.get1 i := rfl
+/-- Element `(i, j)` of `x[None, :]` broadcast to `m` rows is `x[j]`, whatever the row. -/
 @[simp] theorem get2_row {m n : Nat} (x : Tensor [n] α) (i : Fin m) (j : Fin n) :
     (x.row m).get2 i j = x.get1 j := rfl
+/-- Element `(i, 0)` of `x[:, None]` is `x[i]`. -/
 @[simp] theorem get2_unsqueeze1 {m : Nat} (x : Tensor [m] α) (i : Fin m) (j : Fin 1) :
     x.unsqueeze1.get2 i j = x.get1 i := rfl
+/-- Element `(0, j)` of `x[None, :]` is `x[j]`. -/
 @[simp] theorem get2_unsqueeze0 {n : Nat} (x : Tensor [n] α) (i : Fin 1) (j : Fin n) :
     x.unsqueeze0.get2 i j = x.get1 j := rfl
+/-- Every column of a `[m, 1]` tensor broadcast to `[m, n]` repeats its single column. -/
 @[simp] theorem get2_bcastCols {m n : Nat} (x : Tensor [m, 1] α) (i : Fin m) (j : Fin n) :
     (x.bcastCols n).get2 i j = x.get2 i 0 := rfl
+/-- Every row of a `[1, n]` tensor broadcast to `[m, n]` repeats its single row. -/
 @[simp] theorem get2_bcastRows {m n : Nat} (x : Tensor [1, n] α) (i : Fin m) (j : Fin n) :
     (x.bcastRows m).get2 i j = x.get2 0 j := rfl
+/-- Element `(j, i)` of `tl.trans(x)` is element `(i, j)` of `x`. -/
 @[simp] theorem get2_trans {m n : Nat} (x : Tensor [m, n] α) (j : Fin n) (i : Fin m) :
     x.trans.get2 j i = x.get2 i j := rfl
 
 /-! The same reads in the `x.get (i, j, ())` form, which pointer arithmetic and the memory
 operations produce. -/
 
+/-- `get1_of1` in the `x.get (i, ())` form: element `i` of `of1 f` is `f i`. -/
 @[simp] theorem get_of1 {n : Nat} (f : Fin n → α) (i : Fin n) : (of1 f).get (i, ()) = f i := rfl
+/-- `get2_of2` in the `x.get (i, j, ())` form: element `(i, j)` of `of2 f` is `f i j`. -/
 @[simp] theorem get_of2 {m n : Nat} (f : Fin m → Fin n → α) (i : Fin m) (j : Fin n) :
     (of2 f).get (i, j, ()) = f i j := rfl
+/-- `get2_col` in the `x.get (i, j, ())` form: `x[:, None]` broadcast to columns reads `x[i]`. -/
 @[simp] theorem get_col {m n : Nat} (x : Tensor [m] α) (i : Fin m) (j : Fin n) :
     (x.col n).get (i, j, ()) = x.get (i, ()) := rfl
+/-- `get2_row` in the `x.get (i, j, ())` form: `x[None, :]` broadcast to `m` rows reads `x[j]`. -/
 @[simp] theorem get_row {m n : Nat} (x : Tensor [n] α) (i : Fin m) (j : Fin n) :
     (x.row m).get (i, j, ()) = x.get (j, ()) := rfl
 
@@ -187,8 +208,10 @@ operations produce. -/
 be a power of two (`semantic.py:594`); the model of a compiled kernel satisfies that. -/
 def arange (start : Int) (n : Nat) : Tensor [n] I32 := of1 (fun i => IntV.ofInt (start + i.val))
 
+/-- Lane `i` of `tl.arange(start, start + n)` holds `start + i` as a `tl.int32`. -/
 @[simp] theorem get1_arange (start : Int) (n : Nat) (i : Fin n) :
     (arange start n).get1 i = IntV.ofInt (start + i.val) := rfl
+/-- `get1_arange` in the `x.get (i, ())` form: lane `i` of `tl.arange` holds `start + i`. -/
 @[simp] theorem get_arange (start : Int) (n : Nat) (i : Fin n) :
     (arange start n).get (i, ()) = IntV.ofInt (start + i.val) := rfl
 
@@ -197,6 +220,7 @@ holds and from `y` elsewhere. -/
 def where_ (c : Tensor s Bool) (x y : Tensor s α) : Tensor s α :=
   ⟨fun i => if c.get i then x.get i else y.get i⟩
 
+/-- Each element of `tl.where(c, x, y)` is `x`'s where `c` holds and `y`'s elsewhere. -/
 @[simp] theorem get_where (c : Tensor s Bool) (x y : Tensor s α) (i : Idx s) :
     (where_ c x y).get i = if c.get i then x.get i else y.get i := rfl
 
@@ -230,19 +254,27 @@ instance : HMul (IntV sg w) (Tensor s (IntV sg w)) (Tensor s (IntV sg w)) :=
 instance : HMul (Tensor s (IntV sg w)) (IntV sg w) (Tensor s (IntV sg w)) :=
   ⟨fun x a => x.map (· * a)⟩
 
+/-- An element of `x + y` on integer tensors is the wrapping sum of the two elements. -/
 @[simp] theorem get_add (x y : Tensor s (IntV sg w)) (i : Idx s) :
     (x + y).get i = x.get i + y.get i := rfl
+/-- An element of `x - y` on integer tensors is the wrapping difference of the two elements. -/
 @[simp] theorem get_sub (x y : Tensor s (IntV sg w)) (i : Idx s) :
     (x - y).get i = x.get i - y.get i := rfl
+/-- An element of `x * y` on integer tensors is the wrapping product of the two elements. -/
 @[simp] theorem get_mul (x y : Tensor s (IntV sg w)) (i : Idx s) :
     (x * y).get i = x.get i * y.get i := rfl
+/-- An element of `-x` on an integer tensor is the wrapping negation of the element. -/
 @[simp] theorem get_neg (x : Tensor s (IntV sg w)) (i : Idx s) : (-x).get i = -x.get i := rfl
+/-- An element of `a + x` (scalar plus tensor) is `a` plus the element, wrapping. -/
 @[simp] theorem get_sadd (a : IntV sg w) (x : Tensor s (IntV sg w)) (i : Idx s) :
     (a + x).get i = a + x.get i := rfl
+/-- An element of `x + a` (as in `offs + block_start`) is the element plus `a`, wrapping. -/
 @[simp] theorem get_adds (x : Tensor s (IntV sg w)) (a : IntV sg w) (i : Idx s) :
     (x + a).get i = x.get i + a := rfl
+/-- An element of `a * x` (scalar times tensor) is `a` times the element, wrapping. -/
 @[simp] theorem get_smul (a : IntV sg w) (x : Tensor s (IntV sg w)) (i : Idx s) :
     (a * x).get i = a * x.get i := rfl
+/-- An element of `x * a` (as in `offs * stride`) is the element times `a`, wrapping. -/
 @[simp] theorem get_muls (x : Tensor s (IntV sg w)) (a : IntV sg w) (i : Idx s) :
     (x * a).get i = x.get i * a := rfl
 
@@ -253,6 +285,7 @@ reduction). `x.to(tl.int1)` is `x != 0` (`semantic.py:874-887`), not this. -/
 def castInt {sg' : Bool} {w' : Nat} (x : Tensor s (IntV sg w)) : Tensor s (IntV sg' w') :=
   map IntV.cast x
 
+/-- An element of an integer tensor cast with `x.to(...)` is the element cast by `IntV.cast`. -/
 @[simp] theorem get_castInt {sg' : Bool} {w' : Nat} (x : Tensor s (IntV sg w)) (i : Idx s) :
     (x.castInt : Tensor s (IntV sg' w')).get i = IntV.cast (x.get i) := rfl
 
@@ -267,12 +300,16 @@ def le (x y : Tensor s (IntV sg w)) : Tensor s Bool := map2 IntV.le x y
 /-- `x == y` on integer tensors. -/
 def eq (x y : Tensor s (IntV sg w)) : Tensor s Bool := map2 IntV.eq x y
 
+/-- An element of `x < y` on integer tensors compares the two elements. -/
 @[simp] theorem get_lt (x y : Tensor s (IntV sg w)) (i : Idx s) :
     (x.lt y).get i = IntV.lt (x.get i) (y.get i) := rfl
+/-- An element of the mask `x < a` (e.g. `offs < n`) compares the element with the scalar `a`. -/
 @[simp] theorem get_ltS (x : Tensor s (IntV sg w)) (a : IntV sg w) (i : Idx s) :
     (x.ltS a).get i = IntV.lt (x.get i) a := rfl
+/-- An element of `x <= y` on integer tensors compares the two elements. -/
 @[simp] theorem get_le (x y : Tensor s (IntV sg w)) (i : Idx s) :
     (x.le y).get i = IntV.le (x.get i) (y.get i) := rfl
+/-- An element of `x == y` on integer tensors tests the two elements for equality. -/
 @[simp] theorem get_eq (x y : Tensor s (IntV sg w)) (i : Idx s) :
     (x.eq y).get i = IntV.eq (x.get i) (y.get i) := rfl
 
@@ -290,12 +327,16 @@ def feq (x y : Tensor s (FloatV f)) : Tensor s Bool := map2 FloatV.eq x y
 /-- `x != y` on float tensors: the negation of `feq` (true when either is NaN). -/
 def fne (x y : Tensor s (FloatV f)) : Tensor s Bool := map2 FloatV.ne x y
 
+/-- An element of `x < y` on float tensors compares the two elements (false on NaN). -/
 @[simp] theorem get_flt (x y : Tensor s (FloatV f)) (i : Idx s) :
     (x.flt y).get i = FloatV.lt (x.get i) (y.get i) := rfl
+/-- An element of `x <= y` on float tensors compares the two elements (false on NaN). -/
 @[simp] theorem get_fle (x y : Tensor s (FloatV f)) (i : Idx s) :
     (x.fle y).get i = FloatV.le (x.get i) (y.get i) := rfl
+/-- An element of `x == y` on float tensors compares the two elements (false on NaN, `-0 == +0`). -/
 @[simp] theorem get_feq (x y : Tensor s (FloatV f)) (i : Idx s) :
     (x.feq y).get i = FloatV.eq (x.get i) (y.get i) := rfl
+/-- An element of `x != y` on float tensors compares the two elements (true on NaN). -/
 @[simp] theorem get_fne (x y : Tensor s (FloatV f)) (i : Idx s) :
     (x.fne y).get i = FloatV.ne (x.get i) (y.get i) := rfl
 
@@ -308,10 +349,13 @@ def or (x y : Tensor s Bool) : Tensor s Bool := map2 (· || ·) x y
 /-- `~x` on a boolean tensor. -/
 def not (x : Tensor s Bool) : Tensor s Bool := map (! ·) x
 
+/-- An element of the mask `x & y` is the `and` of the two elements. -/
 @[simp] theorem get_and (x y : Tensor s Bool) (i : Idx s) :
     (x.and y).get i = (x.get i && y.get i) := rfl
+/-- An element of the mask `x | y` is the `or` of the two elements. -/
 @[simp] theorem get_or (x y : Tensor s Bool) (i : Idx s) :
     (x.or y).get i = (x.get i || y.get i) := rfl
+/-- An element of the mask `~x` is the negation of the element. -/
 @[simp] theorem get_not (x : Tensor s Bool) (i : Idx s) : x.not.get i = !x.get i := rfl
 
 /-! ### Exact reductions

@@ -32,6 +32,9 @@ held as its bit pattern. -/
   bits : BitVec w
   deriving DecidableEq, Repr
 
+/-- Two integer values of the same dtype with the same bit pattern are equal. -/
+add_decl_doc IntV.ext
+
 namespace IntV
 
 variable {s : Bool} {w : Nat}

@@ -17,7 +17,8 @@ Mathlib, the transcription, the compiler, and the device facts (each measured in
 | `claims/` | 41 fixed claims, one folder per kernel; [claims/README.md](claims/README.md) says what a folder holds |
 | `sandbox/` | the container a prover works in, and the tool that grades a proof; see [sandbox/README.md](sandbox/README.md) |
 | `evidence/` | TVA's own measurements on the H200 behind the device facts |
-| `docs/` | [DESIGN.md](docs/DESIGN.md) (the contract), [SEMANTICS.md](docs/SEMANTICS.md) (what a model means), [PROVING.md](docs/PROVING.md) (how to prove a claim), [LIBRARY.md](docs/LIBRARY.md) (a map of `lean/TVA/`), [EXCLUSIONS.md](docs/EXCLUSIONS.md) (what no claim covers) |
+| `tools/` | `make_index.py`, which generates `docs/index/` from the built library |
+| `docs/` | [DESIGN.md](docs/DESIGN.md) (the contract), [SEMANTICS.md](docs/SEMANTICS.md) (what a model means), [PROVING.md](docs/PROVING.md) (how to prove a claim), [LIBRARY.md](docs/LIBRARY.md) (a map of `lean/TVA/`), [EXCLUSIONS.md](docs/EXCLUSIONS.md) (what no claim covers), [INDEX.md](docs/INDEX.md) (every definition and lemma, searchable) |
 
 ## Building
 

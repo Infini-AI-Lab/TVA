@@ -22,7 +22,9 @@ look for a way around a condition.
 Read first: `lean/TVA/Claim.lean` (what `claim.Holds` means), the claim's `README.md` and
 `Claim.lean`, and [SEMANTICS.md](SEMANTICS.md) for what each model line means. The worked example
 is `vec_add_f32`'s proof, `sandbox/claim/oracle/vec_add_f32/Proof.lean` (in a claim container,
-`examples/vec_add_f32/` beside these docs); section 8 walks through it.
+`examples/vec_add_f32/` beside these docs); section 8 walks through it. To find a lemma, start
+with [INDEX.md](INDEX.md): a table of the lemmas each step needs, and `index/NAMES.tsv`, every
+declaration with its `file:line`, for `grep`.
 
 ## 1. The shape of a proof
 

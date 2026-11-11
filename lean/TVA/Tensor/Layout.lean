@@ -48,13 +48,16 @@ def interleave {n : Nat} (a b : Tensor (s ++ [n]) α) : Tensor (s ++ [2 * n]) α
 def reshape (x : Tensor s α) (s' : Shape) (h : s'.prod = s.prod) : Tensor s' α :=
   ⟨fun i => x.get (Idx.ofPos s (Idx.pos s' i) (h ▸ Idx.pos_lt s' i))⟩
 
+/-- Element `(i, t)` of `tl.join(a, b)` is `a[i]` when `t = 0` and `b[i]` when `t = 1`. -/
 @[simp] theorem get_join_snoc (a b : Tensor s α) (i : Idx s) (t : Fin 2) :
     (join a b).get (Idx.snoc i t) = if t.val = 0 then a.get i else b.get i := by
   simp [join]
 
+/-- `tl.split` of `tl.join(a, b)` gives back `a` and `b`. -/
 @[simp] theorem split_join (a b : Tensor s α) : (join a b).split = (a, b) := by
   simp [split, join]
 
+/-- `tl.join` of the two halves from `tl.split(x)` gives back `x`. -/
 @[simp] theorem join_split (x : Tensor (s ++ [2]) α) : join x.split.1 x.split.2 = x := by
   ext i
   obtain ⟨j, t, rfl⟩ : ∃ j t, i = Idx.snoc j t := ⟨_, _, (Idx.snoc_unsnoc i).symm⟩
@@ -70,6 +73,7 @@ def reshape (x : Tensor s α) (s' : Shape) (h : s'.prod = s.prod) : Tensor s' α
       omega
     rw [ht]
 
+/-- In the last dimension, `tl.interleave(a, b)` holds `a` at `t / 2` for even `t`, else `b`. -/
 @[simp] theorem get_interleave_snoc {n : Nat} (a b : Tensor (s ++ [n]) α) (i : Idx s)
     (t : Fin (2 * n)) :
     (interleave a b).get (Idx.snoc i t) =
@@ -184,6 +188,7 @@ def Shape.bcastOk : Shape → Shape → Bool
   | a :: s, b :: t => (a == b || a == 1) && Shape.bcastOk s t
   | _, _ => false
 
+/-- A shape that passes Triton's broadcast check has the same rank as the target shape. -/
 theorem Shape.bcastOk_length : ∀ {s t : Shape}, Shape.bcastOk s t = true → s.length = t.length
   | [], [], _ => rfl
   | _ :: s, _ :: t, h => by
@@ -192,6 +197,7 @@ theorem Shape.bcastOk_length : ∀ {s t : Shape}, Shape.bcastOk s t = true → s
   | [], _ :: _, h => by simp [Shape.bcastOk] at h
   | _ :: _, [], h => by simp [Shape.bcastOk] at h
 
+/-- If `s` broadcasts to `t`, each dimension of `s` is `t`'s or `1` (or beyond the rank). -/
 theorem Shape.bcastOk_dim : ∀ {s t : Shape}, Shape.bcastOk s t = true → ∀ k,
     Shape.dim s k = Shape.dim t k ∨ Shape.dim s k = 1 ∨ s.length ≤ k
   | [], [], _, k => Or.inr (Or.inr (Nat.zero_le k))
