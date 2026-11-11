@@ -1,0 +1,25 @@
+{
+  "kernel": "vocab_embedding_bf16",
+  "title": "Vocabulary-parallel embedding lookup (`_vocab_parallel_embedding_kernel`, bfloat16), SGLang",
+  "namespace": "Claims.VocabEmbedding",
+  "lean": "Claim.lean",
+  "source": "source/vocab_parallel_embedding.py",
+  "source_sha256": "9106316fb3e4dda0a57116d60a494d09ce7e77c8f4f35612883961397ec36c32",
+  "kernel_lines": [
+    [
+      50,
+      99
+    ]
+  ],
+  "host_lines": [
+    [
+      48,
+      48
+    ],
+    [
+      102,
+      227
+    ]
+  ],
+  "claim_sha256": "ab69491f23cf68d59140586d0434a2a7fc89f4a2560e31f23d8e08afc3ab963e"
+}

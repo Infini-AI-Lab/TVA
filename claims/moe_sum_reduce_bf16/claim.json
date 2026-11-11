@@ -1,0 +1,56 @@
+{
+  "kernel": "moe_sum_reduce_bf16",
+  "title": "MoE sum-reduce, the top-k combine (`_moe_sum_reduce_kernel`, bfloat16), SGLang",
+  "namespace": "Claims.MoeSumReduce",
+  "lean": "Claim.lean",
+  "source": "source/moe_sum_reduce.py",
+  "source_sha256": "0bfe7343f7194d119523c53692e3fcdea141ad1c7a095275c9a76f550c65868b",
+  "kernel_lines": [
+    [
+      44,
+      44
+    ],
+    [
+      46,
+      47
+    ],
+    [
+      50,
+      70
+    ],
+    [
+      72,
+      73
+    ],
+    [
+      75,
+      76
+    ],
+    [
+      78,
+      79
+    ],
+    [
+      81,
+      81
+    ],
+    [
+      83,
+      83
+    ],
+    [
+      85,
+      87
+    ],
+    [
+      89,
+      96
+    ],
+    [
+      98,
+      104
+    ]
+  ],
+  "host_lines": [],
+  "claim_sha256": "a7aa92e4948ea581e767b5c5c9fbf20f667128eba9a4a8c45d40b31dd3c2e19c"
+}

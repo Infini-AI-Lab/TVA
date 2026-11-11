@@ -1,0 +1,14 @@
+name = "TVA"
+version = "3.0.0"
+defaultTargets = ["TVA"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.35.0"
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "TVA"

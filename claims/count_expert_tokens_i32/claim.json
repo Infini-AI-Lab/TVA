@@ -1,0 +1,44 @@
+{
+  "kernel": "count_expert_tokens_i32",
+  "title": "MoE expert token counts, through an expert map (`_count_expert_num_tokens`, int32), vLLM",
+  "namespace": "Claims.CountExpertTokens",
+  "lean": "Claim.lean",
+  "source": "source/count_expert_tokens.py",
+  "source_sha256": "bcd9f62e24f0335fffe43e1d38b905165c2c013dbf15e1d8d86ed6795bd73265",
+  "kernel_lines": [
+    [
+      1,
+      1
+    ],
+    [
+      39,
+      39
+    ],
+    [
+      41,
+      42
+    ],
+    [
+      45,
+      55
+    ],
+    [
+      57,
+      58
+    ],
+    [
+      60,
+      67
+    ],
+    [
+      69,
+      71
+    ],
+    [
+      73,
+      74
+    ]
+  ],
+  "host_lines": [],
+  "claim_sha256": "2bd8aa12de487fc92582c66069c017642e1123a088214e9662d3d221478ab0a9"
+}

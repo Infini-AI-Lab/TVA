@@ -1,0 +1,45 @@
+{
+  "kernel": "vec_add_f32",
+  "title": "Vector addition, Triton tutorial 01 (`add_kernel`, float32)",
+  "namespace": "Claims.VecAdd",
+  "lean": "Claim.lean",
+  "source": "source/01-vector-add.py",
+  "source_sha256": "842430949e0ccde4fbce07606cce3ac4bac36bf21b2b12619a31b795ca4029b3",
+  "kernel_lines": [
+    [
+      23,
+      24
+    ],
+    [
+      29,
+      54
+    ]
+  ],
+  "host_lines": [
+    [
+      21,
+      21
+    ],
+    [
+      26,
+      26
+    ],
+    [
+      62,
+      78
+    ],
+    [
+      84,
+      93
+    ],
+    [
+      107,
+      129
+    ],
+    [
+      135,
+      135
+    ]
+  ],
+  "claim_sha256": "14740b54be6c750b7951cbb630b7a02d7c446fa7f53cb73fb38281fc0ac253b6"
+}

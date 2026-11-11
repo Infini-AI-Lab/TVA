@@ -1,0 +1,33 @@
+{
+  "kernel": "kv_cache_write_bf16",
+  "title": "KV cache write, flash layout (`reshape_and_cache_kernel_flash`, a bfloat16 or float8e4nv cache), vLLM",
+  "namespace": "Claims.KvCacheWrite",
+  "lean": "Claim.lean",
+  "source": "source/reshape_and_cache_flash.py",
+  "source_sha256": "1f2fcc499cf8129184807e331a42a8562a3ef5816845af7ee788da3ce1c50a74",
+  "kernel_lines": [
+    [
+      60,
+      61
+    ],
+    [
+      73,
+      195
+    ]
+  ],
+  "host_lines": [
+    [
+      58,
+      58
+    ],
+    [
+      64,
+      70
+    ],
+    [
+      198,
+      375
+    ]
+  ],
+  "claim_sha256": "37c216283648b38af43f8cf88397140ac237b4e94c1d11462690ac2821bbb47c"
+}

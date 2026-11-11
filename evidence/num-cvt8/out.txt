@@ -1,0 +1,21 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+| from | to | finite inputs with abs(x) <= maxVal | differ from round-to-nearest-even | first difference | finite inputs above maxVal | their results (bits) |
+|---|---|---|---|---|---|---|
+| float32 | float8e4nv | 2277507074 | 0 | None | 2000683006 | `7e`, `fe` |
+| float32 | float8e5 | 2394947586 | 0 | None | 1883242494 | `7b`, `fb` |
+| float16 | float8e4nv | 48642 | 0 | None | 14846 | `7e`, `fe` |
+| float16 | float8e5 | 62978 | 0 | None | 510 | `7b`, `fb` |
+| bfloat16 | float8e4nv | 34754 | 0 | None | 30526 | `7e`, `fe` |
+| bfloat16 | float8e5 | 36546 | 0 | None | 28734 | `7b`, `fb` |
+
+## Special inputs from float32 (result bits)
+| to | +inf | -inf | nan | +0 | -0 | 448 | 464 | 57344 | 61440 |
+|---|---|---|---|---|---|---|---|---|---|
+| float8e4nv | `7e` | `fe` | `7f` | `00` | `80` | `7e` | `7e` | `7e` | `7e` |
+| float8e5 | `7b` | `fb` | `7f` | `00` | `80` | `5f` | `5f` | `7b` | `7b` |
+
+## Instructions in the PTX
+- from `float32`: `cvt.rn.satfinite.e4m3x2.f32`, `cvt.rn.satfinite.e5m2x2.f32`, `cvt.s64.s32`
+- from `float16`: `cvt.rn.satfinite.e4m3x2.f16x2`, `cvt.rn.satfinite.e5m2x2.f16x2`, `cvt.s64.s32`
+- from `bfloat16`: `cvt.f32.bf16`, `cvt.rn.satfinite.e4m3x2.f32`, `cvt.rn.satfinite.e5m2x2.f32`, `cvt.s64.s32`

@@ -1,0 +1,134 @@
+A.cvt.f16.f32                cvt.f32.f16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+A.cvt.f16.f64                cvt.f64.f16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+A.cvt.f16.bf16               cvt.f32.f16 cvt.rn.bf16.f32 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+A.cvt.f16.e4m3.sat1          cvt.rn.satfinite.e4m3x2.f16x2 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.f16.e4m3.sat0          cvt.rn.satfinite.e4m3x2.f16x2 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.f16.e5m2.sat1          cvt.rn.satfinite.e5m2x2.f16x2 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.f16.e5m2.sat0          cvt.rn.satfinite.e5m2x2.f16x2 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.bf16.f32               cvt.f32.bf16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+A.cvt.bf16.f64               cvt.f64.bf16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+A.cvt.bf16.f16               cvt.f32.bf16 cvt.rn.f16.f32 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+A.cvt.bf16.e4m3.sat1         cvt.f32.bf16 cvt.rn.satfinite.e4m3x2.f32 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.bf16.e4m3.sat0         cvt.f32.bf16 cvt.rn.satfinite.e4m3x2.f32 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.bf16.e5m2.sat1         cvt.f32.bf16 cvt.rn.satfinite.e5m2x2.f32 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.bf16.e5m2.sat0         cvt.f32.bf16 cvt.rn.satfinite.e5m2x2.f32 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.e5m2.f16               and.b16 cvt.rn.f16x2.e5m2x2 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 or.b16 shl.b16
+A.cvt.e5m2.bf16              cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.rn.bf16x2 mul.wide.u32 prmt.b32
+A.cvt.e5m2.f32               and.b16 cvt.f32.f16 cvt.rn.f16x2.e5m2x2 cvt.u16.u64 cvt.u64.u32 mul.wide.u32 or.b16 shl.b16
+A.cvt.e4m3.f16               and.b16 cvt.rn.f16x2.e4m3x2 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 or.b16 shl.b16
+A.cvt.e4m3.bf16              and.b16 cvt.bf16.f16 cvt.rn.f16x2.e4m3x2 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 or.b16 shl.b16
+A.cvt.e4m3.f32               and.b16 cvt.f32.f16 cvt.rn.f16x2.e4m3x2 cvt.u16.u64 cvt.u64.u32 mul.wide.u32 or.b16 shl.b16
+A.cvt.f32.f64                cvt.f64.f32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+A.cvt.f32.f16.rn             cvt.rn.f16.f32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+A.cvt.f32.f16.rz             cvt.rz.f16.f32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+A.cvt.f32.bf16.rn            cvt.rn.bf16.f32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+A.cvt.f32.bf16.rz            cvt.rz.bf16.f32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+A.cvt.f32.e4m3.sat1          cvt.rn.satfinite.e4m3x2.f32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.f32.e5m2.sat1          cvt.rn.satfinite.e5m2x2.f32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.f32.e5m2.rz.sat1       cvt.rz.f16.f32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32 prmt.b32
+A.cvt.f64.f32                cvt.rn.f32.f64 cvt.u64.u32 mul.wide.u32
+A.cvt.f64.f16                cvt.rn.f16.f64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+A.cvt.f64.bf16               cvt.rn.bf16.f64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+A.cvt.f32.e4m3.sat0.sample   cvt.rn.satfinite.e4m3x2.f32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+A.cvt.f32.e5m2.sat0.sample   cvt.rn.satfinite.e5m2x2.f32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 shr.u16
+B.add.f16                    add.f16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+B.sub.f16                    cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 sub.f16
+B.mul.f16                    cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.f16 mul.wide.u32
+B.fma.f16                    cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 fma.rn.f16 mul.wide.u32
+B.add.bf16                   add.bf16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+B.sub.bf16                   cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 sub.bf16
+B.mul.bf16                   cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.bf16 mul.wide.u32
+B.fma.bf16                   cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 fma.rn.bf16 mul.wide.u32
+B.add.f32                    add.f32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+B.add.f64                    add.f64 cvt.u64.u32 mul.wide.u32
+B.sub.f32                    cvt.u32.u64 cvt.u64.u32 mul.wide.u32 sub.f32
+B.sub.f64                    cvt.u64.u32 mul.wide.u32 sub.f64
+B.mul.f32                    cvt.u32.u64 cvt.u64.u32 mul.f32 mul.wide.u32
+B.mul.f64                    cvt.u64.u32 mul.f64 mul.wide.u32
+B.div.f32                    cvt.u32.u64 cvt.u64.u32 div.rn.f32 mul.wide.u32
+B.div.f64                    cvt.u64.u32 div.rn.f64 mul.wide.u32
+B.fma.f32                    cvt.u32.u64 cvt.u64.u32 fma.rn.f32 mul.wide.u32
+B.fma.f64                    cvt.u64.u32 fma.rn.f64 mul.wide.u32
+B.sqrt.f32                   cvt.u32.u64 cvt.u64.u32 mul.wide.u32 sqrt.rn.f32
+B.lt.f16                     cvt.u16.u64 cvt.u64.u32 mul.wide.u32 selp.b64 setp.lt.f16
+B.lt.f32                     cvt.u32.u64 cvt.u64.u32 mul.wide.u32 selp.b64 setp.lt.f32
+B.lt.f64                     cvt.u64.u32 mul.wide.u32 selp.b64 setp.lt.f64
+B.le.f16                     cvt.u16.u64 cvt.u64.u32 mul.wide.u32 selp.b64 setp.le.f16
+B.le.f32                     cvt.u32.u64 cvt.u64.u32 mul.wide.u32 selp.b64 setp.le.f32
+B.le.f64                     cvt.u64.u32 mul.wide.u32 selp.b64 setp.le.f64
+B.eq.f16                     cvt.u16.u64 cvt.u64.u32 mul.wide.u32 selp.b64 setp.eq.f16
+B.eq.f32                     cvt.u32.u64 cvt.u64.u32 mul.wide.u32 selp.b64 setp.eq.f32
+B.eq.f64                     cvt.u64.u32 mul.wide.u32 selp.b64 setp.eq.f64
+B.ne.f16                     cvt.u16.u64 cvt.u64.u32 mul.wide.u32 selp.b64 setp.neu.f16
+B.ne.f32                     cvt.u32.u64 cvt.u64.u32 mul.wide.u32 selp.b64 setp.neu.f32
+B.ne.f64                     cvt.u64.u32 mul.wide.u32 selp.b64 setp.neu.f64
+B.max.f16                    cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 max.f16 mul.wide.u32
+B.max.f32                    cvt.u32.u64 cvt.u64.u32 max.f32 mul.wide.u32
+B.max.f64                    cvt.u64.u32 max.f64 mul.wide.u32
+B.min.f16                    cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 min.f16 mul.wide.u32
+B.min.f32                    cvt.u32.u64 cvt.u64.u32 min.f32 mul.wide.u32
+B.min.f64                    cvt.u64.u32 min.f64 mul.wide.u32
+B.maxnan.f16                 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 max.NaN.f16 mul.wide.u32
+B.maxnan.f32                 cvt.u32.u64 cvt.u64.u32 max.NaN.f32 mul.wide.u32
+B.maxnan.f64                 cvt.u64.u32 max.f64 mul.wide.u32 selp.f64 setp.eq.f64 setp.nan.f64
+B.minnan.f16                 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 min.NaN.f16 mul.wide.u32
+B.minnan.f32                 cvt.u32.u64 cvt.u64.u32 min.NaN.f32 mul.wide.u32
+B.minnan.f64                 cvt.u64.u32 min.f64 mul.wide.u32 selp.f64 setp.eq.f64 setp.nan.f64
+C.neg.f16                    cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+C.abs.f16                    cvt.u64.u32 mul.wide.u32
+C.neg.bf16                   cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+C.abs.bf16                   cvt.u64.u32 mul.wide.u32
+C.neg.f32                    cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+C.abs.f32                    cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+C.neg.f64                    cvt.u64.u32 mul.wide.u32
+C.abs.f64                    cvt.u64.u32 mul.wide.u32
+D.itof.s8.f16                cvt.rn.f16.s16 cvt.s8.s64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.s8.bf16               cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32 prmt.b32 sub.bf16x2
+D.itof.s8.f32                cvt.rn.f32.s16 cvt.s8.s64 cvt.u64.u32 mul.wide.u32
+D.itof.u8.f16                and.b16 cvt.rn.f16.u16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.u8.bf16               and.b16 cvt.rn.bf16.u16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.u8.f32                and.b16 cvt.rn.f32.u16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.itof.s16.f16               cvt.rn.f16.s16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.s16.bf16              cvt.rn.bf16.s16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.s16.f32               cvt.rn.f32.s16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.itof.u16.f16               cvt.rn.f16.u16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.u16.bf16              cvt.rn.bf16.u16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.u16.f32               cvt.rn.f32.u16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.itof.s32.f32               cvt.rn.f32.s32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+D.itof.s32.f16               cvt.rn.f16.s32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.s32.bf16              cvt.rn.bf16.s32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.s32.f64               cvt.rn.f64.s32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+D.itof.u32.f32               cvt.rn.f32.u32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+D.itof.u32.f16               cvt.rn.f16.u32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.u32.bf16              cvt.rn.bf16.u32 cvt.u32.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.u32.f64               cvt.rn.f64.u32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+D.itof.s64.f16               cvt.rn.f16.s64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.s64.bf16              cvt.rn.bf16.s64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.s64.f32               cvt.rn.f32.s64 cvt.u64.u32 mul.wide.u32
+D.itof.s64.f64               cvt.rn.f64.s64 cvt.u64.u32 mul.wide.u32
+D.itof.u64.f16               cvt.rn.f16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.u64.bf16              cvt.rn.bf16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.itof.u64.f32               cvt.rn.f32.u64 cvt.u64.u32 mul.wide.u32
+D.itof.u64.f64               cvt.rn.f64.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f16.s8                cvt.rzi.s16.f16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.ftoi.f16.u8                cvt.rzi.u16.f16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.ftoi.f16.s16               cvt.rzi.s16.f16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.ftoi.f16.u16               cvt.rzi.u16.f16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.ftoi.f16.s32               cvt.rzi.s32.f16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f16.u32               cvt.rzi.u32.f16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f16.s64               cvt.rzi.s64.f16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f16.u64               cvt.rzi.u64.f16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.bf16.s8               cvt.rzi.s16.bf16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.ftoi.bf16.u8               cvt.rzi.u16.bf16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.ftoi.bf16.s16              cvt.rzi.s16.bf16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.ftoi.bf16.u16              cvt.rzi.u16.bf16 cvt.u16.u64 cvt.u64.u16 cvt.u64.u32 mul.wide.u32
+D.ftoi.bf16.s32              cvt.rzi.s32.bf16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.bf16.u32              cvt.rzi.u32.bf16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.bf16.s64              cvt.rzi.s64.bf16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.bf16.u64              cvt.rzi.u64.bf16 cvt.u16.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f32.s32               cvt.rzi.s32.f32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f32.u32               cvt.rzi.u32.f32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f32.s64               cvt.rzi.s64.f32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f64.s64               cvt.rzi.s64.f64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f32.u64               cvt.rzi.u64.f32 cvt.u32.u64 cvt.u64.u32 mul.wide.u32
+D.ftoi.f64.u64               cvt.rzi.u64.f64 cvt.u64.u32 mul.wide.u32

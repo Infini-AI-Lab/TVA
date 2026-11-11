@@ -1,0 +1,85 @@
+{
+  "kernel": "chunk_fwd_o_bf16",
+  "title": "Chunked linear-attention output (`chunk_fwd_kernel_o`, bfloat16, BK = BV of 32, 64 or 128), fla",
+  "namespace": "Claims.ChunkFwdO",
+  "lean": "Claim.lean",
+  "source": "source/chunk_o.py",
+  "source_sha256": "dee3b86f2ea8e1e60b4cb3b4075e09fe9d6433a5ce688ec9ab64f67d4756af58",
+  "kernel_lines": [
+    [
+      65,
+      66
+    ],
+    [
+      69,
+      76
+    ],
+    [
+      79,
+      80
+    ],
+    [
+      83,
+      110
+    ],
+    [
+      112,
+      121
+    ],
+    [
+      123,
+      127
+    ],
+    [
+      129,
+      130
+    ],
+    [
+      132,
+      150
+    ],
+    [
+      152,
+      158
+    ],
+    [
+      160,
+      172
+    ],
+    [
+      174,
+      175
+    ],
+    [
+      177,
+      181
+    ]
+  ],
+  "host_lines": [
+    [
+      184,
+      185
+    ],
+    [
+      188,
+      209
+    ],
+    [
+      212,
+      220
+    ],
+    [
+      223,
+      273
+    ],
+    [
+      276,
+      315
+    ],
+    [
+      318,
+      355
+    ]
+  ],
+  "claim_sha256": "7031a812cb4fa7fcaa24bc3c241040372b4c218ebb9125782abf3a6acd9c400c"
+}

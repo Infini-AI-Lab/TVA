@@ -1,0 +1,25 @@
+{
+  "kernel": "moe_router_bf16",
+  "title": "MoE router, soft cap and top-k by argmax (`fused_moe_router_cudacore_kernel`, bfloat16), SGLang",
+  "namespace": "Claims.MoeRouter",
+  "lean": "Claim.lean",
+  "source": "source/moe_router.py",
+  "source_sha256": "10a053252d935345fb9f531cca7bc2cf4609d8b14bcb31c2ac181f5ffb874ac3",
+  "kernel_lines": [
+    [
+      47,
+      152
+    ]
+  ],
+  "host_lines": [
+    [
+      45,
+      45
+    ],
+    [
+      155,
+      236
+    ]
+  ],
+  "claim_sha256": "c2f54e74983a53bd001bd5b318cf004cced302c81137ab7886f403747d2f1ff3"
+}

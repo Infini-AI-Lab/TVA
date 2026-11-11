@@ -1,0 +1,49 @@
+{
+  "kernel": "recompute_wu_bf16",
+  "title": "WY representation of the gated DeltaNet's chunks, `w` and `u` (`recompute_w_u_fwd_kernel`, bfloat16), fla",
+  "namespace": "Claims.RecomputeWU",
+  "lean": "Claim.lean",
+  "source": "source/wy_fast.py",
+  "source_sha256": "c67e8a86b32603bd6ee787c9e97389b87994ee8b9bed7ca9114c042fc1aa1950",
+  "kernel_lines": [
+    [
+      61,
+      62
+    ],
+    [
+      65,
+      66
+    ],
+    [
+      69,
+      133
+    ]
+  ],
+  "host_lines": [
+    [
+      1,
+      57
+    ],
+    [
+      59,
+      59
+    ],
+    [
+      136,
+      137
+    ],
+    [
+      140,
+      161
+    ],
+    [
+      164,
+      172
+    ],
+    [
+      175,
+      220
+    ]
+  ],
+  "claim_sha256": "9fb03c304e40b64b8a1112c641de121fc38439e6bf8b283cdc9fd447634896c6"
+}

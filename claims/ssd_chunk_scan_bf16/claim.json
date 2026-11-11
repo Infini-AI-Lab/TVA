@@ -1,0 +1,29 @@
+{
+  "kernel": "ssd_chunk_scan_bf16",
+  "title": "Mamba-2 SSD chunk scan of a packed prefill batch, with or without initial states (`_chunk_scan_fwd_kernel`, bfloat16), SGLang",
+  "namespace": "Claims.SsdChunkScan",
+  "lean": "Claim.lean",
+  "source": "source/ssd_chunk_scan.py",
+  "source_sha256": "396b9a9b41d5da0ff0d93163282061035c5b72980b83bde9b315f4a8d511772b",
+  "kernel_lines": [
+    [
+      88,
+      89
+    ],
+    [
+      92,
+      488
+    ]
+  ],
+  "host_lines": [
+    [
+      84,
+      86
+    ],
+    [
+      491,
+      809
+    ]
+  ],
+  "claim_sha256": "1db69a2fc6cc1575f69aa7a8e6ac5a39bbbc0c0bfeaaeb1e21b90afb73139c39"
+}

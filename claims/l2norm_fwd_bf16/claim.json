@@ -1,0 +1,25 @@
+{
+  "kernel": "l2norm_fwd_bf16",
+  "title": "L2 normalisation, forward (`l2norm_fwd_kernel`, bfloat16 input, bfloat16 or float32 output), fla",
+  "namespace": "Claims.L2NormFwd",
+  "lean": "Claim.lean",
+  "source": "source/l2norm.py",
+  "source_sha256": "ab8238b18a5bdfb526880ebb4673375f1ef3298a09a63a39204dcd8cbfeb9c73",
+  "kernel_lines": [
+    [
+      40,
+      60
+    ]
+  ],
+  "host_lines": [
+    [
+      38,
+      38
+    ],
+    [
+      63,
+      126
+    ]
+  ],
+  "claim_sha256": "4841ceb0365989da5d6c63d48bd7cd3f9801ed28765cf8bc628345d9e89ccc22"
+}

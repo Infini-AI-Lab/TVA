@@ -1,0 +1,25 @@
+{
+  "kernel": "gdn_gating_bf16",
+  "title": "Gated DeltaNet gating, softplus decay and sigmoid (`fused_gdn_gating_kernel`, bfloat16), SGLang",
+  "namespace": "Claims.GdnGating",
+  "lean": "Claim.lean",
+  "source": "source/fused_gdn_gating.py",
+  "source_sha256": "53b3fe099f1deef4eb5d48658005e7e03c8c1beef88a4a7d34f4884f83ffc48f",
+  "kernel_lines": [
+    [
+      47,
+      84
+    ]
+  ],
+  "host_lines": [
+    [
+      45,
+      45
+    ],
+    [
+      87,
+      167
+    ]
+  ],
+  "claim_sha256": "e3835af6c017e2a5b450b4c71ced8402670db2c2daa5121f2b367bc9919cac25"
+}

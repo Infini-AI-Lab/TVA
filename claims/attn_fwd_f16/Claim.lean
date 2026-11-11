@@ -1,0 +1,579 @@
+import TVA
+
+/-!
+# `attn_fwd_f16`: fused attention forward, Triton tutorial 06
+
+The kernel is `_attn_fwd` of `source/06-fused-attention.py` (lines 176–245) with its helpers
+`_attn_fwd_inner` (lines 47–110) and `_maybe_make_tensor_desc` (lines 168–173), in the `float16`
+run (`FP8_OUTPUT = False`), with the config of `SETUP.md` (`BLOCK_M = 128`, `BLOCK_N = 64`,
+`num_stages = 2`, `num_warps = 4`, the autotune decorator removed and its `pre_hook` done by the
+host before the launch). It reads the module-level names `triton` and `tl` (lines 20–21) and its
+helpers. The Lean names drop the source's leading underscore.
+
+The host (`_attention.forward`, lines 505–580) launches it on `float16` tensors `q`, `k`, `v` of
+shape `[Z, H, N_CTX, HEAD_DIM]` (contiguous), writes the `float16` output `o` (same shape) and the
+`float32` log-sum-exp `M` (`[Z, H, N_CTX]`). The claim covers the launches with
+`warp_specialize = False`, the path on which the H200's host passes host `TensorDescriptor`s
+(line 523); with `warp_specialize = True` the kernel builds its own descriptors, which is not
+covered.
+
+What is claimed: every covered launch ends normally; every element of `o` holds a `float16` value
+and every element of `M` a `float32` value; for a head whose values are covered (`HeadOk`: finite
+inputs, `|v| ≤ 2^15`, scaled score magnitudes at most `2^10`), each output is finite and within
+`epsO·attnMag + 2^-24` of the exact attention `attnRef`, and each `M` is finite and within `epsM`
+of the exact base-2 log-sum-exp `lseRef`; every other byte is unchanged.
+
+The conditions: `HEAD_DIM` is `64`, `128` or `256`; `N_CTX` is a positive multiple of `128`, at
+most `2^16`; `0 < Z ≤ 8192`, `0 < H`, `Z·H < 2^16` and `Z·H·N_CTX < 2^31`; `sm_scale` is a finite
+double in `[2^-64, 2^64]`; the buffers hold the tensors and are 16-byte aligned; `o` and `M` share
+no byte with each other or with the inputs.
+
+The tolerances rest on the device facts for a `float16` `tl.dot`, `tl.math.exp2`, `tl.math.log2`
+and `/` on `float32` (`Device`).
+-/
+
+namespace Claims.AttnFwd
+
+open TVA
+
+/-! ## The model -/
+
+set_option linter.unusedVariables false in
+/-- `_maybe_make_tensor_desc` (source lines 168–173), inlined at each call. Every covered launch
+passes a host `TensorDescriptor` (`warp_specialize = False`), so line 170's
+`isinstance(desc_or_ptr, tl.tensor_descriptor)`, which Python evaluates at compile time, is
+true: the front end visits only line 171, which returns the descriptor; lines
+172–173 are never visited. -/
+def maybe_make_tensor_desc (desc_or_ptr : TensorDesc .f16) (shape : List I32) (strides : List I64)
+    (block_shape : Shape) : Prog (TensorDesc .f16) :=
+  pure desc_or_ptr
+
+/-- The `tl.dot` configuration of lines 73 and 103: `float16` operands into `float32`, no
+`input_precision` (the default `tf32`, which Triton ignores for `float16` operands) and no
+`max_num_imprecise_acc` (`0`). -/
+def cfg16 : DotCfg := { a := .f16, b := .f16, acc := .f32, precision := .tf32, maxImpreciseAcc := 0 }
+
+/-- `_attn_fwd_inner` (source lines 47–110), inlined at each call (a `@triton.jit` helper is
+inlined), with `dtype = tl.float16` (the only value `_attn_fwd` passes on covered launches, line
+187), `IS_HOPPER = True` (the H200) and the call's `STAGE`. `offs_m`, `offs_n` and `N_CTX` are
+annotated `tl.constexpr` but receive tensors (`_attn_fwd`'s `int32` blocks and its runtime `int32`
+`N_CTX`), which they hold (an annotation on a helper's parameter changes nothing). `qk_scale` is the
+`float32` scalar of line 219. `BLOCK_M`, `HEAD_DIM`, `BLOCK_N`, `STAGE` are compile-time values
+(Lean parameters); `warp_specialize` (`False` on every covered launch) is used only as `tl.range`'s
+scheduling keyword (line 69) and in line 87's condition, whose `not IS_HOPPER` is false, so the
+model has no parameter for it. -/
+def attn_fwd_inner {BLOCK_M HEAD_DIM BLOCK_N : Nat}
+    (acc : Tensor [BLOCK_M, HEAD_DIM] F32) (l_i m_i : Tensor [BLOCK_M] F32)
+    (q : Tensor [BLOCK_M, HEAD_DIM] F16) (desc_k desc_v : TensorDesc .f16)
+    (offset_y start_m : I32) (qk_scale : F32) (STAGE : Nat)
+    (offs_m : Tensor [BLOCK_M] I32) (offs_n : Tensor [BLOCK_N] I32) (N_CTX : I32) :
+    Prog (Tensor [BLOCK_M, HEAD_DIM] F32 × Tensor [BLOCK_M] F32 × Tensor [BLOCK_M] F32) := do
+  -- lines 55–62: a compile-time `if` on `STAGE`; a Python `0` assigned to `lo` holds the `int32`
+  -- `+0`; `start_m * BLOCK_M` and `(start_m + 1) * BLOCK_M` are `int32` (the constexprs built in
+  -- `int32`), wrapping; line 59's hint checks `lo` where it is defined (line 58)
+  let (lo, hi) ← if STAGE = 1 then
+      pure ((IntV.ofInt 0 : I32), start_m * (IntV.ofNat BLOCK_M : I32))
+    else if STAGE = 2 then do
+      let lo := start_m * (IntV.ofNat BLOCK_M : I32)
+      let hi := (start_m + (IntV.ofInt 1 : I32)) * (IntV.ofNat BLOCK_M : I32)
+      let lo ← tl.multiple_of1 lo BLOCK_M
+      pure (lo, hi)
+    else
+      pure ((IntV.ofInt 0 : I32), N_CTX)
+  -- line 63
+  let offsetk_y := offset_y + lo
+  -- lines 64–67: `dtype == tl.float8e5` is false (compile time): line 67
+  let offsetv_y := offset_y + lo
+  -- line 69: `tl.range(lo, hi, BLOCK_N)` with `int32` bounds and step (the constexpr), an `int32`
+  -- induction variable; the loop carries `acc`, `l_i`, `m_i`, `offsetk_y`, `offsetv_y`
+  let (acc, l_i, m_i, _offsetk_y, _offsetv_y) ← tl.forRange lo hi (IntV.ofNat BLOCK_N : I32)
+      (acc, l_i, m_i, offsetk_y, offsetv_y) fun start_n (acc, l_i, m_i, offsetk_y, offsetv_y) => do
+    -- line 70: a hint on the induction variable, which has no effect (not modelled)
+    -- line 72: the `[BLOCK_N, HEAD_DIM]` block at `[offsetk_y, 0]` (the Python `0` an `int32`),
+    -- transposed
+    let k : Tensor [HEAD_DIM, BLOCK_N] F16 :=
+      (← tl.desc_load (bs := [BLOCK_N, HEAD_DIM]) desc_k [offsetk_y, (IntV.ofInt 0 : I32)]).trans
+    -- line 73: `tl.dot(q, k)` with no accumulator: the zero `float32` accumulator
+    let qk ← tl.dot cfg16 q k (tl.zeros [BLOCK_M, BLOCK_N] .f32)
+    -- lines 74–81: a compile-time `if` on `STAGE`
+    let (qk, m_ij) ← if STAGE = 2 then do
+        -- line 75: `offs_m[:, None] >= start_n + offs_n[None, :]`, `int32`, signed, broadcast to
+        -- `[BLOCK_M, BLOCK_N]`
+        let mask := (start_n + offs_n.row BLOCK_M).le (offs_m.col BLOCK_N)
+        -- line 76: `qk * qk_scale + tl.where(mask, 0, -1.0e6)`: an addition the product feeds
+        -- (`tl.mul_add`); the values of `tl.where` are built in its `float32` dtype (`+0` and
+        -- `float32(-1e6)`)
+        let qk ← tl.mul_add qk (bc qk_scale)
+          (Tensor.where_ mask (bc (FloatV.litF32 (FloatV.ofPat 0)))
+            (bc (FloatV.litF32 (FloatV.ofPat 0xC12E848000000000))))
+        -- line 77: the row maximum of the `float32` block (no widening), then `tl.maximum`
+        let m_ij ← tl.maximum m_i (← tl.max1 true qk)
+        -- line 78: `qk = qk - m_ij[:, None]`: no product feeds it (the IEEE `-`)
+        let qk ← tl.sub qk (m_ij.col BLOCK_N)
+        pure (qk, m_ij)
+      else do
+        -- line 80: the row maximum times the scalar (an IEEE product: it feeds `tl.maximum`)
+        let m_ij ← tl.maximum m_i (← tl.mul (← tl.max1 true qk) (bc qk_scale))
+        -- line 81: `qk * qk_scale - m_ij[:, None]`: a subtraction the product feeds (`tl.subc`)
+        let qk ← tl.subc (← tl.mul qk (bc qk_scale)) (m_ij.col BLOCK_N)
+        pure (qk, m_ij)
+    -- line 82
+    let p ← tl.exp2 qk
+    -- line 84: the IEEE `-` (no product feeds it), then `tl.math.exp2`
+    let alpha ← tl.exp2 (← tl.sub m_i m_ij)
+    -- line 85: `tl.sum(p, 1)` of a block that is not a product: IEEE additions
+    let l_ij ← tl.sum1 p
+    -- lines 87–95: `not IS_HOPPER` is false (compile time): line 95, the IEEE product
+    let acc ← tl.mul acc (alpha.col HEAD_DIM)
+    -- lines 97–100: `dtype == tl.float8e5` is false: line 100, the `[BLOCK_N, HEAD_DIM]` block
+    let v ← tl.desc_load (bs := [BLOCK_N, HEAD_DIM]) desc_v [offsetv_y, (IntV.ofInt 0 : I32)]
+    -- line 101: `float32` to `float16`, rounded to nearest even
+    let p : Tensor [BLOCK_M, BLOCK_N] F16 ← tl.cvt p
+    -- line 103: `tl.dot(p, v, acc)`
+    let acc ← tl.dot cfg16 p v acc
+    -- line 106: `l_i * alpha + l_ij`: an addition the product feeds (`tl.mul_add`)
+    let l_i ← tl.mul_add l_i alpha l_ij
+    -- line 107
+    let m_i := m_ij
+    -- lines 108–109: `int32` additions of the constexpr (built in `int32`)
+    let offsetk_y := offsetk_y + (IntV.ofNat BLOCK_N : I32)
+    let offsetv_y := offsetv_y + (IntV.ofNat BLOCK_N : I32)
+    pure (acc, l_i, m_i, offsetk_y, offsetv_y)
+  -- line 110
+  pure (acc, l_i, m_i)
+
+set_option linter.unusedVariables false in
+/-- `_attn_fwd` (source lines 176–245) with `FP8_OUTPUT = False` and `IS_HOPPER = True`, the values
+the host passes on covered launches. `sm_scale` is the runtime `float32` scalar (a Python `float`
+argument, `FloatV.hostF32` of the double); `M` is `*fp32`; `Z`, `H`, `N_CTX` are `int32` (an
+integer argument other than `1`; at `1` the compile-time constant `1`, which gives the same model:
+see `model`); the four descriptor parameters are host `TensorDescriptor`s; `HEAD_DIM`, `BLOCK_M`,
+`BLOCK_N`, `STAGE` are compile-time values (Lean parameters); `warp_specialize` (`False`) reaches only
+`_attn_fwd_inner`, whose model does not use it (see there), so `attn_fwd` has no parameter for it. -/
+def attn_fwd (sm_scale : F32) (M : Ptr .f32) (Z H : I32)
+    (desc_q desc_k desc_v desc_o : TensorDesc .f16) (N_CTX : I32)
+    (HEAD_DIM BLOCK_M BLOCK_N STAGE : Nat) : Kernel where
+  body ctx := do
+    -- line 187: `dtype = tl.float16` (compile time); line 188: `tl.static_assert(BLOCK_N <= HEAD_DIM)`
+    -- holds on covered launches and adds no step
+    -- lines 189–190
+    let start_m := tl.program_id ctx 0
+    let off_hz := tl.program_id ctx 1
+    -- lines 191–192: `int32` `//` and `%` (`tl.idiv`, `tl.irem`; undefined on a zero divisor)
+    let off_z := (← tl.idiv (Tensor.scalar off_hz) (Tensor.scalar H)).item
+    let off_h := (← tl.irem (Tensor.scalar off_hz) (Tensor.scalar H)).item
+    -- line 194: `int32` products (wrapping)
+    let y_dim := Z * H * N_CTX
+    -- lines 195–206: the four calls, in the source's order (`FP8_OUTPUT` false: line 201)
+    let desc_q ← maybe_make_tensor_desc desc_q [y_dim, (IntV.ofNat HEAD_DIM : I32)]
+      [(IntV.ofNat HEAD_DIM : I64), (IntV.ofNat 1 : I64)] [BLOCK_M, HEAD_DIM]
+    let desc_v ← maybe_make_tensor_desc desc_v [y_dim, (IntV.ofNat HEAD_DIM : I32)]
+      [(IntV.ofNat HEAD_DIM : I64), (IntV.ofNat 1 : I64)] [BLOCK_N, HEAD_DIM]
+    let desc_k ← maybe_make_tensor_desc desc_k [y_dim, (IntV.ofNat HEAD_DIM : I32)]
+      [(IntV.ofNat HEAD_DIM : I64), (IntV.ofNat 1 : I64)] [BLOCK_N, HEAD_DIM]
+    let desc_o ← maybe_make_tensor_desc desc_o [y_dim, (IntV.ofNat HEAD_DIM : I32)]
+      [(IntV.ofNat HEAD_DIM : I64), (IntV.ofNat 1 : I64)] [BLOCK_M, HEAD_DIM]
+    -- lines 208–209: `int32` arithmetic (the constexpr `BLOCK_M` built in `int32`)
+    let offset_y := off_z * (N_CTX * H) + off_h * N_CTX
+    let qo_offset_y := offset_y + start_m * (IntV.ofNat BLOCK_M : I32)
+    -- lines 211–212
+    let offs_m := start_m * (IntV.ofNat BLOCK_M : I32) + tl.arange 0 BLOCK_M
+    let offs_n := tl.arange 0 BLOCK_N
+    -- line 214: `float("inf")` is the Python `+∞`, built in `float32` as an operand of `-`
+    let m_i ← tl.sub (tl.zeros [BLOCK_M] .f32) (bc (FloatV.litF32 (FloatV.ofPat 0x7FF0000000000000)))
+    -- line 215: `1.0` built in `float32`
+    let l_i ← tl.add (tl.zeros [BLOCK_M] .f32) (bc (FloatV.litF32 (FloatV.ofPat 0x3FF0000000000000)))
+    -- line 216
+    let acc := tl.zeros [BLOCK_M, HEAD_DIM] .f32
+    -- line 218: the name holds the `float32` scalar
+    let qk_scale := sm_scale
+    -- line 219: `qk_scale * 1.44269504`, the constant built in `float32` (an IEEE product)
+    let qk_scale := (← tl.mul (Tensor.scalar qk_scale)
+      (Tensor.scalar (FloatV.litF32 (FloatV.ofPat 0x3FF7154764EE6C2F)))).item
+    -- line 221: the `[BLOCK_M, HEAD_DIM]` block at `[qo_offset_y, 0]`
+    let q ← tl.desc_load (bs := [BLOCK_M, HEAD_DIM]) desc_q [qo_offset_y, (IntV.ofInt 0 : I32)]
+    -- lines 225–231: `STAGE & 1` is computed at compile time; the helper with `STAGE = 4 - STAGE`
+    let (acc, l_i, m_i) ← if STAGE &&& 1 ≠ 0 then
+        attn_fwd_inner acc l_i m_i q desc_k desc_v offset_y start_m qk_scale (4 - STAGE) offs_m offs_n N_CTX
+      else pure (acc, l_i, m_i)
+    -- lines 233–239: `STAGE & 2`, the helper with `STAGE = 2`
+    let (acc, l_i, m_i) ← if STAGE &&& 2 ≠ 0 then
+        attn_fwd_inner acc l_i m_i q desc_k desc_v offset_y start_m qk_scale 2 offs_m offs_n N_CTX
+      else pure (acc, l_i, m_i)
+    -- line 241: `m_i + tl.math.log2(l_i)`: no product feeds it (the IEEE `+`)
+    let m_i ← tl.add m_i (← tl.log2 l_i)
+    -- line 242: `float32 / float32`, the platform's division
+    let acc ← tl.div acc (l_i.col HEAD_DIM)
+    -- line 243: `(M + off_hz * N_CTX) + offs_m`, the `int32` product
+    let m_ptrs := M + off_hz * N_CTX + offs_m
+    -- line 244: `m_i` is already `float32`, the pointer's dtype
+    tl.store m_ptrs m_i
+    -- line 245: `acc.to(dtype)`, `float32` to `float16` rounded to nearest even, evaluated before the
+    -- store; the block at `[qo_offset_y, 0]`
+    let o16 : Tensor [BLOCK_M, HEAD_DIM] F16 ← tl.cvt acc
+    tl.desc_store desc_o [qo_offset_y, (IntV.ofInt 0 : I32)] o16
+
+/-! ## The conditions -/
+
+/-- What the host chooses: one launch of `_attn_fwd` through `attention(q, k, v, causal, sm_scale,
+False)` (`_attention.forward`, lines 505–580, with `warp_specialize = False`: host descriptors), on
+`float16` tensors. -/
+structure Inst where
+  /-- `Z` (`q.shape[0]`, the batch). -/
+  Z : Nat
+  /-- `H` (`q.shape[1]`, the heads). -/
+  H : Nat
+  /-- `N_CTX` (`q.shape[2]`, the sequence length). -/
+  N_CTX : Nat
+  /-- `HEAD_DIM` (`k.shape[-1]`, which line 511 asserts equal to `q`'s and `v`'s). -/
+  HEAD_DIM : Nat
+  /-- `sm_scale`, the Python `float` (a double). -/
+  sm_scale : F64
+  /-- `causal`: the host passes `STAGE = 3` when true, `1` otherwise (line 514). -/
+  causal : Bool
+  /-- The storage of `q`, contiguous: element `(z, h, n, e)` is element
+  `((z·H + h)·N_CTX + n)·HEAD_DIM + e`. -/
+  q : Buf .f16
+  /-- The storage of `k`, as `q`. -/
+  k : Buf .f16
+  /-- The storage of `v`, as `q`. -/
+  v : Buf .f16
+  /-- The storage of `o` (`torch.empty_like(q)`, line 513), as `q`. -/
+  o : Buf .f16
+  /-- The storage of `M` (`float32`, `[Z, H, N_CTX]`, line 521): element `(z, h, n)` is element
+  `(z·H + h)·N_CTX + n`. -/
+  M : Buf .f32
+
+/-- The rows of the `[Z·H·N_CTX, HEAD_DIM]` view the descriptors address (line 194's `y_dim`). -/
+def rows (d : Inst) : Nat := d.Z * d.H * d.N_CTX
+
+/-- Element `(bh, n, e)` of `q`, `k`, `v` or `o`, for `bh = z·H + h`: `(bh·N_CTX + n)·HEAD_DIM + e`. -/
+def idx (d : Inst) (bh n e : Nat) : Nat := (bh * d.N_CTX + n) * d.HEAD_DIM + e
+
+/-- The elements below `n`. -/
+def below (n : Nat) : Set Nat := {i | i < n}
+
+/-- The instances covered. -/
+structure Inst.ok (d : Inst) : Prop where
+  /-- `HEAD_DIM` is `64`, `128` or `256`. The wrapper also allows `16` and `32` (line 512), which line
+  188's `tl.static_assert(BLOCK_N <= HEAD_DIM)` rejects on the host (no outcome). -/
+  head_dim : d.HEAD_DIM = 64 ∨ d.HEAD_DIM = 128 ∨ d.HEAD_DIM = 256
+  /-- `N_CTX` is a positive multiple of `BLOCK_M = 128`: otherwise the last query tile of a head runs
+  into the next head's rows (a race on `o`), and the last key block reads the next head's keys. -/
+  n_mul : 0 < d.N_CTX ∧ d.N_CTX % 128 = 0
+  /-- `N_CTX ≤ 2^16`, which keeps the tolerance meaningful (the host's largest is `2^14`). -/
+  n_le : d.N_CTX ≤ 2 ^ 16
+  /-- At least one batch and head. -/
+  zh_pos : 0 < d.Z ∧ 0 < d.H
+  /-- `Z` is a batch size (the batch's sequences): at most `8192`. -/
+  z_batch : d.Z ≤ 8192
+  /-- `Z·H < 2^16`: the grid's `y` is `Z·H` (line 549), below CUDA's limit. -/
+  zh_lt : d.Z * d.H < 2 ^ 16
+  /-- `Z·H·N_CTX < 2^31`: `y_dim` (line 194) and every row offset are `int32` values that do not
+  wrap, and the descriptors' shape entries are below `2^31`. -/
+  rows_lt : rows d < 2 ^ 31
+  /-- `sm_scale` is a finite double in `[2^-64, 2^64]` (the host passes `0.5` and `1.3`). -/
+  scale : d.sm_scale.isFinite = true ∧ 1 / 2 ^ 64 ≤ d.sm_scale.toRat ∧
+    d.sm_scale.toRat ≤ 2 ^ 64
+  /-- The tensors hold `Z·H·N_CTX·HEAD_DIM` elements each, and `M` holds `Z·H·N_CTX`. -/
+  lens : rows d * d.HEAD_DIM ≤ d.q.len ∧ rows d * d.HEAD_DIM ≤ d.k.len ∧
+    rows d * d.HEAD_DIM ≤ d.v.len ∧ rows d * d.HEAD_DIM ≤ d.o.len ∧ rows d ≤ d.M.len
+  /-- The four tensors' storage is 16-byte aligned (TMA's requirement; PyTorch's allocations are). -/
+  align : d.q.base % 16 = 0 ∧ d.k.base % 16 = 0 ∧ d.v.base % 16 = 0 ∧ d.o.base % 16 = 0
+  /-- `o`'s elements share no byte with `q`'s, `k`'s, `v`'s or `M`'s, and `M`'s none with `q`'s,
+  `k`'s or `v`'s (separate tensors). -/
+  disj : Disjoint (d.o.elems (below (rows d * d.HEAD_DIM))) (d.q.elems (below (rows d * d.HEAD_DIM))) ∧
+    Disjoint (d.o.elems (below (rows d * d.HEAD_DIM))) (d.k.elems (below (rows d * d.HEAD_DIM))) ∧
+    Disjoint (d.o.elems (below (rows d * d.HEAD_DIM))) (d.v.elems (below (rows d * d.HEAD_DIM))) ∧
+    Disjoint (d.o.elems (below (rows d * d.HEAD_DIM))) (d.M.elems (below (rows d))) ∧
+    Disjoint (d.M.elems (below (rows d))) (d.q.elems (below (rows d * d.HEAD_DIM))) ∧
+    Disjoint (d.M.elems (below (rows d))) (d.k.elems (below (rows d * d.HEAD_DIM))) ∧
+    Disjoint (d.M.elems (below (rows d))) (d.v.elems (below (rows d * d.HEAD_DIM)))
+
+/-- The host `TensorDescriptor` for the tensor `b` with block rows `BM` (lines 528, 533, 535, 536:
+`shape = [y_dim, HEAD_DIM]`, `strides = [HEAD_DIM, 1]`, the default padding `"zero"`, the block
+shape `[BM, HEAD_DIM]` that `_host_descriptor_pre_hook`, run by the host at line 557, sets:
+`[128, HEAD_DIM]` for `q` and `o`, `[64, HEAD_DIM]` for `k` and `v`). -/
+def hostDesc (d : Inst) (b : Buf .f16) (BM : Nat) : TensorDesc .f16 :=
+  ⟨b.ptr 0, [rows d, d.HEAD_DIM], [d.HEAD_DIM, 1], [BM, d.HEAD_DIM], .zero⟩
+
+/-- The model on an instance: the launch of lines 562–574 with `BLOCK_M = 128`, `BLOCK_N = 64`,
+`FP8_OUTPUT = False`, `STAGE = 3` when causal and `1` otherwise, `IS_HOPPER = True`. An integer
+argument equal to `1` (`Z = 1` in the test) is the compile-time constant `1`: line 194's `Z * H`
+builds it in `int32` (an operand of `*` with the `int32` `H`), so the model is the same; likewise
+`H = 1` (`off_hz // H`, `off_hz % H`, `N_CTX * H`, `Z * H`, each with an `int32` operand). -/
+def model (d : Inst) : Kernel :=
+  attn_fwd (FloatV.hostF32 d.sm_scale) (d.M.ptr 0) (IntV.ofNat d.Z) (IntV.ofNat d.H)
+    (hostDesc d d.q 128) (hostDesc d d.k 64) (hostDesc d d.v 64) (hostDesc d d.o 128)
+    (IntV.ofNat d.N_CTX) d.HEAD_DIM 128 64 (if d.causal then 3 else 1)
+
+/-- The host's launch (lines 548–549, 562–574): the grid `(cdiv(N_CTX, 128), Z·H, 1)`; the
+source's block shapes; `enable_fp_fusion` is Triton's default (`true`); `num_ctas = 1`, no
+`launch_pdl`, `debug = false`. `num_warps = 4` and `num_stages = 2` are not recorded
+(performance-only and harmless to a well-behaved model); `maxnreg` is given only on Blackwell. -/
+def launch (d : Inst) : Launch :=
+  { grid := ![(d.N_CTX + 127) / 128, d.Z * d.H, 1], fusion := true,
+    blocks := [[128], [64], [128, 1], [1, 64], [128, 64], [d.HEAD_DIM, 64], [64, d.HEAD_DIM],
+      [128, d.HEAD_DIM]] }
+
+/-- The inputs covered: the five buffers are valid (aligned, inside `[0, 2^64)`, every byte
+present). Any input values: `Post` says what holds for heads whose values are covered (`HeadOk`). -/
+def Pre (d : Inst) (init : Mem) : Prop :=
+  d.q.Valid init ∧ d.k.Valid init ∧ d.v.Valid init ∧ d.o.Valid init ∧ d.M.Valid init
+
+/-! ## The specification -/
+
+/-- The value of element `i` of a `float16` buffer in memory `m` (`0` when absent). -/
+def val16 (m : Mem) (b : Buf .f16) (i : Nat) : ℚ :=
+  match m.read .f16 (b.ptr (i : Int)).addr with
+  | some x => x.toRat
+  | none => 0
+
+/-- Element `i` of a `float16` buffer holds a finite value in memory `m`. -/
+def fin16 (m : Mem) (b : Buf .f16) (i : Nat) : Prop :=
+  ∃ x : F16, m.read .f16 (b.ptr (i : Int)).addr = some x ∧ x.isFinite = true
+
+/-- `sm_scale` as a rational number. -/
+def sigma (d : Inst) : ℚ := d.sm_scale.toRat
+
+/-- The keys query `n` attends to: `j < N_CTX`, and `j ≤ n` when causal. -/
+def keys (d : Inst) (n : Nat) : Finset Nat :=
+  (Finset.range d.N_CTX).filter (fun j => d.causal = false ∨ j ≤ n)
+
+/-- The exact score `q[bh, n] · k[bh, j]` of the input values. -/
+def score (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
+  ∑ e ∈ Finset.range d.HEAD_DIM, val16 m d.q (idx d bh n e) * val16 m d.k (idx d bh j e)
+
+/-- The score's magnitude, `Σ_e liftMag q[bh, n, e] · liftMag k[bh, j, e]`: the magnitude the error
+of the score's `tl.dot` is relative to (`Device.DotF16`, `Device.liftMag`). `liftMag` is `|x|`
+for a zero or normal `float16` value and the smallest normal magnitude `2^-14` for a subnormal one
+(the tensor core aligns a subnormal operand at it), so for zero and normal values this is
+`Σ_e |q·k|`, and in general it is at most `Σ_e |q·k| + 2^-14·(Σ_e |q| + Σ_e |k|) + HEAD_DIM·2^-28`. -/
+def scoreMag (d : Inst) (m : Mem) (bh n j : Nat) : ℚ :=
+  ∑ e ∈ Finset.range d.HEAD_DIM,
+    Device.liftMag .f16 (val16 m d.q (idx d bh n e)) * Device.liftMag .f16 (val16 m d.k (idx d bh j e))
+
+/-- The values of head `bh` are covered: every element of `q`, `k`, `v` in the head is a finite
+`float16`, every `|v| ≤ 2^15`, and every scaled score magnitude `sm_scale · scoreMag ≤ 2^10`. On the
+host's inputs, `sm_scale·Σ_e |q·k| = sm_scale·s²·Σ_e |X_e·Y_e|` with `X`, `Y` independent standard
+normals (the test: `s = 0.5`, `sm_scale = 0.5`; the benchmark: `s = 1`, `sm_scale = 1.3`); a Chernoff
+bound on the sum of `HEAD_DIM = 128` terms, with a union bound over every pair of the largest shape,
+keeps it below `22.7` (test) and `239.9` (benchmark) except with probability below `10^-6`, the means
+being about `10` and `106`. The lift adds at most `sm_scale·(2^-14·(Σ_e |q| + Σ_e |k|) + 128·2^-28)`;
+with `Σ_e |q| ≤ √128·|q|` and the `χ²` tail of `|q|²` (every row's `|q|² ≤ 288·s²` except with
+probability below `3·10^-6`) that is below `0.006` (test) and `0.031` (benchmark). So every
+`sm_scale · scoreMag` is below `23` (test) and `240` (benchmark), except with probability below
+`4·10^-6`. The bound on `v` leaves room for the
+output's tolerance in `float16`; the bound on the scores keeps the causal mask's `-1e6` below every
+unmasked score and the tolerance's linear bounds valid. -/
+def HeadOk (d : Inst) (m : Mem) (bh : Nat) : Prop :=
+  (∀ n e, n < d.N_CTX → e < d.HEAD_DIM →
+    fin16 m d.q (idx d bh n e) ∧ fin16 m d.k (idx d bh n e) ∧ fin16 m d.v (idx d bh n e)) ∧
+  (∀ n e, n < d.N_CTX → e < d.HEAD_DIM → |val16 m d.v (idx d bh n e)| ≤ 2 ^ 15) ∧
+  (∀ n j, n < d.N_CTX → j < d.N_CTX → sigma d * scoreMag d m bh n j ≤ 2 ^ 10)
+
+/-- The exact softmax weight of key `j` for query `n`, unnormalised: `exp(sm_scale · score)`. -/
+noncomputable def weight (d : Inst) (m : Mem) (bh n j : Nat) : ℝ :=
+  Real.exp ((sigma d : ℝ) * (score d m bh n j : ℝ))
+
+/-- The exact attention output: `Σ_j w_j · v[bh, j, e] / Σ_j w_j` over `keys d n`. -/
+noncomputable def attnRef (d : Inst) (m : Mem) (bh n e : Nat) : ℝ :=
+  (∑ j ∈ keys d n, weight d m bh n j * (val16 m d.v (idx d bh j e) : ℝ)) /
+    ∑ j ∈ keys d n, weight d m bh n j
+
+/-- The same weighted mean of `|v|`: the scale of the output's tolerance. -/
+noncomputable def attnAbs (d : Inst) (m : Mem) (bh n e : Nat) : ℝ :=
+  (∑ j ∈ keys d n, weight d m bh n j * |(val16 m d.v (idx d bh j e) : ℝ)|) /
+    ∑ j ∈ keys d n, weight d m bh n j
+
+/-- `Σ_j |v[bh, j, e]|` over `keys d n`. -/
+def vAbsSum (d : Inst) (m : Mem) (bh n e : Nat) : ℚ :=
+  ∑ j ∈ keys d n, |val16 m d.v (idx d bh j e)|
+
+/-- The exact log-sum-exp in base 2: `log₂ Σ_j exp(sm_scale · score)`. -/
+noncomputable def lseRef (d : Inst) (m : Mem) (bh n : Nat) : ℝ :=
+  Real.logb 2 (∑ j ∈ keys d n, weight d m bh n j)
+
+/-! ### The tolerances
+
+`X` bounds the row's scaled score magnitudes (`sm_scale · scoreMag ≤ X` over its keys), and `D`,
+`N` are `HEAD_DIM` and `N_CTX`. Each tolerance is `2^-20` times a size `D·X + N + 2^10` (for `M`:
+`D·X + 2^10`): the error grows with `D·X` through the score's `tl.dot` (`Device.DotF16`, relative
+to `scoreMag`), with `N` through the `N/64` key blocks of the accumulator, and has a floor from the
+roundings to `float16` of `p` and of the output (README, Tolerances, derives it). -/
+
+/-- The scale of the output's tolerance: the larger of `attnAbs` (the weighted mean of `|v|`) and
+the plain mean of `|v|` over the row's keys (`vAbsSum / |keys|`). -/
+noncomputable def attnMag (d : Inst) (m : Mem) (bh n e : Nat) : ℝ :=
+  max (attnAbs d m bh n e) ((vAbsSum d m bh n e : ℝ) / ((keys d n).card : ℝ))
+
+/-- **The output's relative tolerance**: `2^-20·(D·X + N + 2^10)`, times `attnMag`. -/
+def epsO (D N : Nat) (X : ℚ) : ℚ := (D * X + N + 2 ^ 10) / 2 ^ 20
+
+/-- **`M`'s tolerance** (absolute, in base-2 log space): `2^-20·(D·X + 2^10)`. -/
+def epsM (D : Nat) (X : ℚ) : ℚ := (D * X + 2 ^ 10) / 2 ^ 20
+
+/-- The bytes the launch may write: the elements of `o` and of `M`. -/
+def outBytes (d : Inst) : Set Int :=
+  d.o.elems (below (rows d * d.HEAD_DIM)) ∪ d.M.elems (below (rows d))
+
+/-- What the launch leaves:
+* every element `(bh, n, e)` of `o` holds a `float16` value `c`; when head `bh`'s values are covered
+  (`HeadOk`), `c` is finite and, for every bound `X ≤ 2^10` on the row's scaled score magnitudes,
+  within `epsO·attnMag + 2^-24` of the exact attention `attnRef`;
+* every element `(bh, n)` of `M` holds a `float32` value `c`; for a covered head, `c` is finite and
+  within `epsM` of the exact log-sum-exp `lseRef` (base 2);
+* every byte outside these elements is unchanged. -/
+def Post (d : Inst) (init fin : Mem) : Prop :=
+  (∀ bh n e, bh < d.Z * d.H → n < d.N_CTX → e < d.HEAD_DIM →
+    ∃ c : F16, fin.read .f16 (d.o.ptr (idx d bh n e : Int)).addr = some c ∧
+      (HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
+        (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
+        |c.toReal - attnRef d init bh n e| ≤
+          (epsO d.HEAD_DIM d.N_CTX X : ℝ) * attnMag d init bh n e + 1 / 2 ^ 24)) ∧
+  (∀ bh n, bh < d.Z * d.H → n < d.N_CTX →
+    ∃ c : F32, fin.read .f32 (d.M.ptr ((bh * d.N_CTX + n : Nat) : Int)).addr = some c ∧
+      (HeadOk d init bh → c.isFinite = true ∧ ∀ X : ℚ, X ≤ 2 ^ 10 →
+        (∀ j ∈ keys d n, sigma d * scoreMag d init bh n j ≤ X) →
+        |c.toReal - lseRef d init bh n| ≤
+          (epsM d.HEAD_DIM X : ℝ))) ∧
+  ∀ z, z ∉ outBytes d → fin z = init z
+
+/-! ## The claim -/
+
+/-- **The claim**: every covered launch of `_attn_fwd` ends normally with `Post`. -/
+def claim : TVA.Claim where
+  Inst := Inst
+  ok := Inst.ok
+  kernel := model
+  launch := launch
+  Pre := Pre
+  Post := Post
+
+/-- Disjoint byte ranges give disjoint elements. -/
+theorem disj_of_le {d1 d2 : DType} (b : Buf d1) (c : Buf d2)
+    (hbc : b.base + b.len * d1.bytes ≤ c.base ∨ c.base + c.len * d2.bytes ≤ b.base)
+    {S T : ℕ} (hS : S ≤ b.len) (hT : T ≤ c.len) : Disjoint (b.elems (below S)) (c.elems (below T)) := by
+  refine Buf.elems_disjoint_of b c (Set.disjoint_left.mpr fun x hx hy => ?_)
+    (fun j hj => lt_of_lt_of_le hj hS) (fun j hj => lt_of_lt_of_le hj hT)
+  simp only [Buf.bytes, Set.mem_ofPred_eq] at hx hy
+  omega
+
+/-! ## The host's layout
+
+`canon Z H N D sm causal` is the host's launch `attention(q, k, v, causal, sm_scale, False)` for
+those sizes (`SETUP.md`, "The launches"): contiguous `q`, `k`, `v` of `Z·H·N·D` elements, the fresh
+`o = empty_like(q)` and `M = empty((Z, H, N))`, the five storages at `2^40`, `2·2^40`, …, `5·2^40`
+(16-byte aligned, disjoint). -/
+
+def canon (Z H N D : Nat) (sm : F64) (causal : Bool) : Inst where
+  Z := Z
+  H := H
+  N_CTX := N
+  HEAD_DIM := D
+  sm_scale := sm
+  causal := causal
+  q := ⟨2 ^ 40, Z * H * N * D⟩
+  k := ⟨2 * 2 ^ 40, Z * H * N * D⟩
+  v := ⟨3 * 2 ^ 40, Z * H * N * D⟩
+  o := ⟨4 * 2 ^ 40, Z * H * N * D⟩
+  M := ⟨5 * 2 ^ 40, Z * H * N⟩
+
+/-- **Every host launch at these sizes is covered**: `HEAD_DIM ∈ {64, 128, 256}`, `N_CTX` a positive
+multiple of `128` up to `2^16`, `Z ≤ 8192`, `1 ≤ Z·H < 2^16` with `Z·H·N_CTX < 2^31`, `sm_scale` finite in
+`[2^-64, 2^64]`, both values of `causal`. -/
+theorem canon_ok (Z H N D : Nat) (sm : F64) (causal : Bool)
+    (hD : D = 64 ∨ D = 128 ∨ D = 256) (hN0 : 0 < N) (hN : N % 128 = 0) (hNle : N ≤ 2 ^ 16)
+    (hZ : 0 < Z) (hZb : Z ≤ 8192) (hH : 0 < H) (hZH : Z * H < 2 ^ 16) (hrows : Z * H * N < 2 ^ 31)
+    (hsm : sm.isFinite = true ∧ (1 / 2 ^ 64 : ℚ) ≤ sm.toRat ∧ sm.toRat ≤ 2 ^ 64) :
+    (canon Z H N D sm causal).ok := by
+  have hD256 : D ≤ 256 := by omega
+  have hel : Z * H * N * D ≤ 2 ^ 31 * 256 := Nat.mul_le_mul (le_of_lt hrows) hD256
+  have hM : Z * H * N ≤ Z * H * N * D := Nat.le_mul_of_pos_right _ (by omega)
+  refine
+    { head_dim := hD
+      n_mul := ⟨hN0, hN⟩
+      n_le := hNle
+      zh_pos := ⟨hZ, hH⟩
+      z_batch := hZb
+      zh_lt := hZH
+      rows_lt := hrows
+      scale := hsm
+      lens := by simp only [canon, rows]; omega
+      align := by simp only [canon]; omega
+      disj := ?_ }
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    exact disj_of_le _ _ (by simp only [canon, DType.bytes]; omega) (by simp [canon, rows])
+      (by simp [canon, rows])
+
+/-! ## Coverage: the test (source lines 631–695) and the benchmark (lines 698–780) -/
+
+/-- `0.5`, the test's `sm_scale` (the double `0x3FE0000000000000`). -/
+def smTest : F64 := FloatV.ofPat 0x3FE0000000000000
+/-- `1.3`, the benchmark's `sm_scale` (the double `0x3FF4CCCCCCCCCCCD`). -/
+def smBench : F64 := FloatV.ofPat 0x3FF4CCCCCCCCCCCD
+
+theorem smTest_ok : smTest.isFinite = true ∧ (1 / 2 ^ 64 : ℚ) ≤ smTest.toRat ∧ smTest.toRat ≤ 2 ^ 64 :=
+  ⟨by decide +kernel, by decide +kernel, by decide +kernel⟩
+theorem smBench_ok :
+    smBench.isFinite = true ∧ (1 / 2 ^ 64 : ℚ) ≤ smBench.toRat ∧ smBench.toRat ≤ 2 ^ 64 :=
+  ⟨by decide +kernel, by decide +kernel, by decide +kernel⟩
+
+/-- **Every launch of the test**: `Z ∈ {1, 4}`, `H ∈ {2, 48}`, `N_CTX ∈ {128, 1024, 4096}`,
+`HEAD_DIM ∈ {64, 128}`, both `causal`, `warp_specialize = False` (off Blackwell), `sm_scale = 0.5`
+(the `float16` forward of the `bwd` mode, line 677). -/
+theorem setup_test_ok (Z H N D : Nat) (causal : Bool) (hZ : Z = 1 ∨ Z = 4) (hH : H = 2 ∨ H = 48)
+    (hN : N = 128 ∨ N = 1024 ∨ N = 4096) (hD : D = 64 ∨ D = 128) :
+    (canon Z H N D smTest causal).ok := by
+  refine canon_ok Z H N D smTest causal (by omega) (by omega) (by omega) (by omega)
+    (by omega) (by omega) (by omega) ?_ ?_ smTest_ok
+  · rcases hZ with rfl | rfl <;> rcases hH with rfl | rfl <;> norm_num
+  · rcases hZ with rfl | rfl <;> rcases hH with rfl | rfl <;> rcases hN with rfl | rfl | rfl <;>
+      norm_num
+
+/-- **Every `float16` launch of the benchmark with `warp_specialize = False`**: `Z = 4`, `H = 32`,
+`N_CTX = 2^10 … 2^14`, `HEAD_DIM ∈ {64, 128}`, both `causal`, `sm_scale = 1.3` (the `triton-fp16`
+line in both modes, and the `triton-fp8` line's `bwd` mode, whose forward runs on `float16`). -/
+theorem setup_bench_ok (i D : Nat) (causal : Bool) (hi : 10 ≤ i ∧ i ≤ 14) (hD : D = 64 ∨ D = 128) :
+    (canon 4 32 (2 ^ i) D smBench causal).ok := by
+  have hN : 2 ^ 10 ≤ 2 ^ i ∧ 2 ^ i ≤ 2 ^ 14 :=
+    ⟨Nat.pow_le_pow_right (by norm_num) hi.1, Nat.pow_le_pow_right (by norm_num) hi.2⟩
+  have h128 : 2 ^ i % 128 = 0 := by
+    obtain ⟨j, rfl⟩ : ∃ j, i = j + 7 := ⟨i - 7, by omega⟩
+    rw [pow_add]; simp
+  exact canon_ok 4 32 (2 ^ i) D smBench causal (by omega) (by omega) h128 (by omega)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by omega) smBench_ok
+
+/-- The test's smallest launch: `Z = 1`, `H = 2`, `N_CTX = 128`, `HEAD_DIM = 64`, causal. -/
+def setup_test_small : Inst := canon 1 2 128 64 smTest true
+theorem setup_test_small_ok : setup_test_small.ok :=
+  setup_test_ok 1 2 128 64 true (by omega) (by omega) (by omega) (by omega)
+
+/-- The test's largest launch: `Z = 4`, `H = 48`, `N_CTX = 4096`, `HEAD_DIM = 128`, not causal. -/
+def setup_test_large : Inst := canon 4 48 4096 128 smTest false
+theorem setup_test_large_ok : setup_test_large.ok :=
+  setup_test_ok 4 48 4096 128 false (by omega) (by omega) (by omega) (by omega)
+
+/-- The benchmark's largest causal launch: `N_CTX = 2^14`, `HEAD_DIM = 128`. -/
+def setup_bench_causal : Inst := canon 4 32 (2 ^ 14) 128 smBench true
+theorem setup_bench_causal_ok : setup_bench_causal.ok :=
+  setup_bench_ok 14 128 true (by omega) (by omega)
+
+/-- The benchmark's largest non-causal launch: `N_CTX = 2^14`, `HEAD_DIM = 128`. -/
+def setup_bench_noncausal : Inst := canon 4 32 (2 ^ 14) 128 smBench false
+theorem setup_bench_noncausal_ok : setup_bench_noncausal.ok :=
+  setup_bench_ok 14 128 false (by omega) (by omega)
+
+/-! ## Satisfiable -/
+
+/-- A memory in which every byte is present (and `0`). -/
+def satMem : Mem := fun _ => some 0
+
+theorem claim_satisfiable : claim.Satisfiable := by
+  have hv : ∀ {dt : DType} (b : Buf dt), 0 ≤ b.base → b.base + b.len * dt.bytes ≤ 2 ^ 64 →
+      b.base % dt.bytes = 0 → b.Valid satMem := fun b h1 h2 h3 => ⟨h1, h2, h3, fun _ _ => by simp [satMem]⟩
+  refine ⟨setup_test_small, satMem, setup_test_small_ok, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    exact hv _ (by simp [setup_test_small, canon]) (by simp [setup_test_small, canon, DType.bytes])
+      (by simp [setup_test_small, canon, DType.bytes])
+
+end Claims.AttnFwd

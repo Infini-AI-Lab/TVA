@@ -1,0 +1,29 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA H200 NVL
+
+## Every float32 input, against the stated fact
+| function | fact | inputs where the fact applies | outside the bound | non-finite results | largest error / bound (at x) | largest relative error, normal reference (at x) |
+|---|---|---|---|---|---|---|
+| exp | ExpF32 | 3258020375 | 0 | 0 | 0.6028 (0.04332698509097099) | 2^-17.987 (88.14034271240234) |
+| exp2 | Exp2F32 | 3263168512 | 0 | 0 | 1.0000 (-126.00000762939453) | 2^-22.709 (0.06251108646392822) |
+| log | LogF32 | 2139095039 | 0 | 0 | 0.3365 (0.36711692810058594) | 2^-23.571 (0.36711692810058594) |
+| log2 | Log2F32 | 2139095039 | 0 | 0 | 0.4536 (0.7059793472290039) | 2^-23.141 (0.7059793472290039) |
+| sqrt | SqrtF32 | 2130706434 | 0 | 0 | 0.4195 (1.2168438659075842e-38) | 2^-23.253 (1.2168438659075842e-38) |
+| rsqrt | RsqrtF32 | 2130706432 | 0 | 0 | 0.5229 (2.3877229001077715e-38) | 2^-22.935 (2.3877229001077715e-38) |
+
+## Special values (result bits)
+| function | -inf | +inf | nan | +0 | -0 | -1 | 2^-149 | 2^-127 |
+|---|---|---|---|---|---|---|---|---|
+| exp | `00000000` (0) | `7f800000` (inf) | `7fffffff` (nan) | `3f800000` (1) | `3f800000` (1) | `3ebc5ab2` (0.367879) | `3f800000` (1) | `3f800000` (1) |
+| exp2 | `00000000` (0) | `7f800000` (inf) | `7fffffff` (nan) | `3f800000` (1) | `3f800000` (1) | `3f000000` (0.5) | `3f800000` (1) | `3f800000` (1) |
+| log | `7fffffff` (nan) | `7f800000` (inf) | `7fffffff` (nan) | `ff800000` (-inf) | `ff800000` (-inf) | `7fffffff` (nan) | `c2ce8ed0` (-103.279) | `c2b00f34` (-88.0297) |
+| log2 | `7fffffff` (nan) | `7f800000` (inf) | `7fffffff` (nan) | `ff800000` (-inf) | `ff800000` (-inf) | `7fffffff` (nan) | `c3150000` (-149) | `c2fe0000` (-127) |
+| sqrt | `7fffffff` (nan) | `7f800000` (inf) | `7fffffff` (nan) | `00000000` (0) | `80000000` (-0) | `7fffffff` (nan) | `00000000` (0) | `00000000` (0) |
+| rsqrt | `7fffffff` (nan) | `00000000` (0) | `7fffffff` (nan) | `7f800000` (inf) | `ff800000` (-inf) | `7fffffff` (nan) | `7f800000` (inf) | `7f800000` (inf) |
+
+## Instructions in the PTX (one function per kernel)
+- `exp`: `add.s64`, `ex2.approx.f32`, `mul.f32`, `mul.wide.s32`, `setp.eq.b32`, `setp.lt.s32`
+- `exp2`: `add.s64`, `ex2.approx.ftz.f32`, `mul.wide.s32`, `setp.eq.b32`, `setp.lt.s32`
+- `log`: `add.f32`, `add.s32`, `add.s64`, `fma.rn.ftz.f32`, `mul.f32`, `selp.b32`, `selp.f32`, `setp.eq.b32`, `setp.eq.f32`, `setp.lt.f32`, `setp.lt.s32`, `setp.lt.u32`, `sub.s32`
+- `log2`: `add.f32`, `add.s32`, `add.s64`, `fma.rn.ftz.f32`, `mul.f32`, `selp.b32`, `selp.f32`, `setp.eq.b32`, `setp.eq.f32`, `setp.lt.f32`, `setp.lt.s32`, `setp.lt.u32`, `sub.s32`
+- `sqrt`: `add.s64`, `mul.wide.s32`, `setp.eq.b32`, `setp.lt.s32`, `sqrt.approx.ftz.f32`
+- `rsqrt`: `add.s64`, `mul.wide.s32`, `rsqrt.approx.ftz.f32`, `setp.eq.b32`, `setp.lt.s32`

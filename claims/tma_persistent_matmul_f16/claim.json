@@ -1,0 +1,41 @@
+{
+  "kernel": "tma_persistent_matmul_f16",
+  "title": "Persistent matrix multiplication with host TMA descriptors, Triton tutorial 09 (`matmul_kernel_tma_persistent`, float16)",
+  "namespace": "Claims.TmaPersistentMatmul",
+  "lean": "Claim.lean",
+  "source": "source/09-persistent-matmul.py",
+  "source_sha256": "e36cf7558b20a0ad00298dd0f89e15950b44b1a591d55cbd95e061e90d629e27",
+  "kernel_lines": [
+    [
+      44,
+      45
+    ],
+    [
+      291,
+      298
+    ],
+    [
+      407,
+      463
+    ]
+  ],
+  "host_lines": [
+    [
+      19,
+      43
+    ],
+    [
+      46,
+      288
+    ],
+    [
+      301,
+      400
+    ],
+    [
+      466,
+      778
+    ]
+  ],
+  "claim_sha256": "5869d076be131959162b2cfe0921e6405c65a3dadd9218848b9236924268cd07"
+}

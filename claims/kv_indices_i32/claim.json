@@ -1,0 +1,25 @@
+{
+  "kernel": "kv_indices_i32",
+  "title": "KV indices for FlashInfer, gathered from `req_to_token`, with or without per-request start offsets (`create_flashinfer_kv_indices_triton`, int32), SGLang",
+  "namespace": "Claims.KvIndices",
+  "lean": "Claim.lean",
+  "source": "source/kv_indices.py",
+  "source_sha256": "44e7ae1ddfeec75d44cfd1661dac63bb87cc4ed8688075456ce43033754f0e6a",
+  "kernel_lines": [
+    [
+      65,
+      150
+    ]
+  ],
+  "host_lines": [
+    [
+      63,
+      63
+    ],
+    [
+      153,
+      236
+    ]
+  ],
+  "claim_sha256": "d76b5c31e692ee8fd14cb71d0a072e4308ed4d9b712934bb550369f723d48657"
+}

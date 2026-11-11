@@ -1,0 +1,65 @@
+{
+  "kernel": "attn_fwd_f16",
+  "title": "Fused attention, tutorial 06 (`_attn_fwd`, float16, host tensor descriptors)",
+  "namespace": "Claims.AttnFwd",
+  "lean": "Claim.lean",
+  "source": "source/06-fused-attention.py",
+  "source_sha256": "4ea8883061399de75d0ca973b446bed97abd9749bb9616aa7044e93256148db8",
+  "kernel_lines": [
+    [
+      20,
+      21
+    ],
+    [
+      47,
+      110
+    ],
+    [
+      168,
+      173
+    ],
+    [
+      176,
+      245
+    ]
+  ],
+  "host_lines": [
+    [
+      16,
+      18
+    ],
+    [
+      22,
+      44
+    ],
+    [
+      113,
+      149
+    ],
+    [
+      156,
+      156
+    ],
+    [
+      248,
+      253
+    ],
+    [
+      266,
+      278
+    ],
+    [
+      319,
+      330
+    ],
+    [
+      366,
+      380
+    ],
+    [
+      503,
+      780
+    ]
+  ],
+  "claim_sha256": "5af658ced4d15228f9c8c3da34f4b92caa2b5dee68a2edf26cd5fa9d19acb402"
+}

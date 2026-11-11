@@ -1,0 +1,104 @@
+{
+  "kernel": "prefill_attn_varlen_bf16",
+  "title": "Prefill attention over packed variable-length sequences, causal or not (`_fwd_kernel`, bfloat16), SGLang",
+  "namespace": "Claims.PrefillAttnVarlen",
+  "lean": "Claim.lean",
+  "source": "source/prefill_attention.py",
+  "source_sha256": "f28dc33ddaa1a6c7931aed48c71073c53675276e4d980e4360b0f5835f243d4d",
+  "kernel_lines": [
+    [
+      47,
+      48
+    ],
+    [
+      51,
+      77
+    ],
+    [
+      79,
+      79
+    ],
+    [
+      81,
+      82
+    ],
+    [
+      84,
+      84
+    ],
+    [
+      87,
+      96
+    ],
+    [
+      98,
+      98
+    ],
+    [
+      100,
+      104
+    ],
+    [
+      106,
+      107
+    ],
+    [
+      110,
+      112
+    ],
+    [
+      114,
+      114
+    ],
+    [
+      116,
+      122
+    ],
+    [
+      124,
+      128
+    ],
+    [
+      131,
+      133
+    ],
+    [
+      135,
+      145
+    ],
+    [
+      148,
+      150
+    ],
+    [
+      152,
+      155
+    ],
+    [
+      158,
+      159
+    ],
+    [
+      161,
+      162
+    ],
+    [
+      164,
+      168
+    ],
+    [
+      170,
+      171
+    ],
+    [
+      173,
+      174
+    ],
+    [
+      176,
+      184
+    ]
+  ],
+  "host_lines": [],
+  "claim_sha256": "1f00670bcf5ece5c57553482ab94458da7624696066f115d3b37bb6b7f23b27a"
+}

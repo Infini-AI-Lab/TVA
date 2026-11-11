@@ -1,0 +1,483 @@
+#!/usr/bin/env python3
+"""The one tool of a claim task, at /usr/local/bin/tva-check in the claim image.
+
+  tva-check check /app/claim [--json OUT]   is the claim proved? (exit 0 when it is)
+  tva-check grade /app/claim                the grader's procedure, here: the proof's build outputs deleted, a
+                                            fresh build, the check within the grader's time limit; prints the reward
+  tva-check verify                          the verifier: check, then /logs/verifier/reward.json (1 or 0) and
+                                            details.json
+  tva-check prepare                         at image build: Claim.lean read-only, `lake build Claim`
+  tva-check time                            the agent's time: used, left, and when the session ends
+  tva-check hook session-start|subagent-start|pre-tool|post-tool|stop
+                                            the prover's Claude Code hooks (/app/.claude/settings.json)
+
+The workspace is /app/claim: `Claim.lean` and `claim.json` (the fixed claim; `claim_sha256` is Claim.lean's
+sha256, `namespace` the claim's namespace) and the prover's proof, `Proof.lean` and `Proof/**.lean`, which must
+hold `theorem <namespace>.main : <namespace>.claim.Holds`. The check is a machine check, nothing else:
+
+  1. `Claim.lean` is the claim (its sha256);
+  2. the proof files pass the hygiene list below and import only `TVA`, `Mathlib`, `Claim` and `Proof` modules;
+  3. `lake build Claim Proof` succeeds;
+  4. `theorem tva_check : TVA.Claim.Holds <namespace>.claim := <namespace>.main` elaborates, and
+     `#print axioms tva_check` shows only `propext`, `Classical.choice` and `Quot.sound`;
+  5. `leanchecker` re-checks every declaration of `Claim` and `Proof` from the compiled files.
+"""
+import glob
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+sys.dont_write_bytecode = True
+APP = "/app"
+WS = os.path.join(APP, "claim")
+LEAN = os.path.join(APP, "lean")
+LAKE = shutil.which("lake") or "/usr/local/bin/lake"
+STD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
+LEAN_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*")
+IMPORT_OK = ("TVA", "Mathlib", "Proof")  # and these modules' submodules; `Claim` alone
+
+# ---- the hygiene list ----
+# Matched on the whole text of every proof file, comments and strings included, so that nothing hides behind a
+# comment marker inside a string. It runs before the build, since meta code would run during the build. Proof
+# escapes, kernel bypasses, and every common way to run code while Lean elaborates: commands, attributes that
+# install handlers, and the meta monads such code is written in. `leanchecker` re-checks every declaration
+# whatever this list misses.
+HYGIENE = [
+    ("a proof escape", r"\bsorry\b|\badmit\b|\bnative_decide\b|\+\s*native\b|\bofReduce(?:Bool|Nat)\b|^\s*axiom\b"),
+    ("a kernel or compiler bypass", r"\bimplemented_by\b|\bextern\b|\bunsafe\b|\bskipKernelTC\b|"
+     r"\bdoCheck\b|\baddDecl\w*|\baddAndCompile\b|\bmodifyEnv\b|\bsetEnv\b|\bEnvironment\b"),
+    ("meta code", r"#eval\b|#exit\b|\brun_(?:cmd|elab|meta|tac)\b|\bby_elab\b|\beval%|\belab(?:_rules)?\b|"
+     r"\bmacro(?:_rules)?\b|\bsyntax\b|\bdeclare_syntax_cat\b|\b(?:builtin_)?initialize\b|\bregister_\w+|"
+     r"\binclude_str\b|\b[d]?simproc\b|\bdelab\b|\bapp_unexpander\b|\b(?:command|term)_elab\b|\bcode_action\b"),
+    ("a meta type", r"\b(?:IO|EIO|BaseIO|CoreM|MetaM|TermElabM|CommandElabM|TacticM|MacroM)\b|"
+     r"\bLean\.(?:Elab|Meta|Syntax)\b"),
+    ("an attribute that installs a handler",
+     r"(?:@\[|\battribute\s*\[)[^\]]*\b(?:tactic|init|norm_num|positivity|aesop|export|env_linter)\b"),
+    ("a notation or alias that changes what a name means",
+     r"(?<![\w.])(?:notation\d?|infix[lr]?|prefix|postfix|binder_predicate|unif_hint)\b|\brenaming\b|^\s*export\b"),
+    ("a local or scoped instance, an instance attribute, or an erased attribute",
+     r"\b(?:local|scoped)\s+(?:instance|attribute|notation)\b|"
+     r"(?:@\[|\battribute\s*\[)[^\]]*(?:\b(?:instance|default_instance|coe)\b|(?:^|[\[,\s])-\s*[\w«])"),
+    ("an option other than the resource limits maxHeartbeats, maxRecDepth, synthInstance.maxHeartbeats",
+     r"\bset_option\s+(?!(?:maxHeartbeats|maxRecDepth|synthInstance\.maxHeartbeats)\s)[\w.]+"),
+]
+BRACE_STRING = ("a string literal holding `{` (Lean reads it as a plain or an interpolated string depending on "
+                "the syntax around it, so its comments cannot be told apart)")
+LINE_SEPARATORS = re.compile("\r(?!\n)|[\x0b\x0c\x1c\x1d\x1e\x85  ]")
+_CHAR_LIT = re.compile(r"'(?:\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|.)|[^\\'\n])'")
+_RAW_OPEN = re.compile(r"r(#*)\"")
+
+
+def lean_scan(text):
+    """`(code, strings)`: the text with its comments (nested `/- -/`, `--`) blanked, line breaks kept, and the
+    spans of its string literals. String, raw string and character literals and `«…»` names are read as Lean's
+    lexer reads them, so a `--` or `/-` inside one starts no comment. A string literal is read as a plain one;
+    the hygiene refuses a literal holding `{`, the only kind whose plain and interpolated readings differ."""
+    out, strings, i, n = [], [], 0, len(text)
+
+    def blank(a, b):
+        out.append("".join("\n" if c == "\n" else " " for c in text[a:b]))
+
+    while i < n:
+        c = text[i]
+        prev = text[i - 1] if i else " "
+        ident_before = prev.isalnum() or prev in "_'!?."
+        if text.startswith("--", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            blank(i, j)
+            i = j
+        elif text.startswith("/-", i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if text.startswith("/-", j):
+                    depth, j = depth + 1, j + 2
+                elif text.startswith("-/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            blank(i, j)
+            i = j
+        elif c == "r" and not ident_before and _RAW_OPEN.match(text, i):
+            m = _RAW_OPEN.match(text, i)
+            close = '"' + m.group(1)
+            j = text.find(close, m.end())
+            j = n if j < 0 else j + len(close)
+            out.append(text[i:j])
+            strings.append((i, j))
+            i = j
+        elif c == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            out.append(text[i:j + 1])
+            strings.append((i, min(j + 1, n)))
+            i = j + 1
+        elif c == "«":
+            j = text.find("»", i)
+            j = n if j < 0 else j + 1
+            out.append(text[i:j])
+            i = j
+        elif c == "'" and not ident_before and _CHAR_LIT.match(text, i):
+            m = _CHAR_LIT.match(text, i)
+            out.append(m.group(0))
+            i = m.end()
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out), strings
+
+
+def hygiene_problems(path, rel):
+    try:
+        text = open(path, encoding="utf-8", newline="").read()
+    except (UnicodeDecodeError, OSError):
+        return [f"{rel}: not readable UTF-8"]
+    line = lambda pos: text.count("\n", 0, pos) + 1
+    bad = []
+    for what, pat in HYGIENE:
+        for m in re.finditer(pat, text, re.M):
+            bad.append(f"{rel}:{line(m.start())}: {what} ({m.group(0).strip()[:30]})")
+    code, strings = lean_scan(text)
+    bad += [f"{rel}:{n}: {BRACE_STRING}" for n in sorted({line(a) for a, b in strings if "{" in text[a:b]})]
+    for m in LINE_SEPARATORS.finditer(text):
+        bad.append(f"{rel}:{line(m.start())}: a line break other than a line feed ({m.group(0)!r})")
+    for m in re.finditer(r"^\s*(?:public\s+)?(?:meta\s+)?import\s+(?:all\s+)?(\S+)", code, re.M):
+        mod = m.group(1).replace("«", "").replace("»", "")
+        if mod != "Claim" and mod.split(".")[0] not in IMPORT_OK:
+            bad.append(f"{rel}:{line(m.start(1))}: imports {mod} (only Claim, and TVA, Mathlib and Proof modules)")
+    return bad
+
+
+# ---- the workspace ----
+
+def claim_json():
+    cj = json.load(open(os.path.join(WS, "claim.json")))
+    if not LEAN_NAME.fullmatch(cj.get("namespace", "")) or cj.get("lean") != "Claim.lean":
+        sys.exit("claim.json: `namespace` must be a Lean name and `lean` must be \"Claim.lean\"")
+    return cj
+
+
+def claim_file(cj):
+    return os.path.join(WS, cj["lean"])
+
+
+def sha(p):
+    return hashlib.sha256(open(p, "rb").read()).hexdigest() if os.path.isfile(p) else None
+
+
+def proof_files():
+    root = os.path.join(WS, "Proof.lean")
+    fs = [root] if os.path.isfile(root) else []
+    return fs + sorted(glob.glob(os.path.join(WS, "Proof", "**", "*.lean"), recursive=True))
+
+
+def run(cmd, timeout, env=None):
+    try:
+        r = subprocess.run(cmd, cwd=LEAN, capture_output=True, text=True, timeout=timeout, env=env)
+        return r.returncode, r.stdout + r.stderr
+    except subprocess.TimeoutExpired:
+        return 124, f"timed out after {timeout} s"
+
+
+def leanchecker(mod):
+    rc, prefix = run([LAKE, "env", "lean", "--print-prefix"], 300)
+    prefix = prefix.strip()
+    exe = os.path.join(prefix, "bin", "leanchecker")
+    if rc != 0 or not os.path.exists(exe):
+        return False, "leanchecker not found in the Lean toolchain"
+    env = dict(os.environ, LEAN_SYSROOT=prefix, PATH=os.path.join(prefix, "bin") + os.pathsep + os.environ["PATH"])
+    rc, log = run([LAKE, "env", exe, mod], 3600, env)
+    if rc == 0:
+        return True, f"leanchecker {mod}: every declaration re-checked by Lean's kernel"
+    return False, f"leanchecker {mod} rejects it: " + " | ".join(l.strip() for l in log.splitlines() if l.strip())[:400]
+
+
+def check(out_json=None):
+    cj = claim_json()
+    ns = cj["namespace"]
+    statement = f"TVA.Claim.Holds {ns}.claim"
+    checks = []
+
+    def add(name, ok, detail):
+        checks.append({"check": name, "ok": bool(ok), "detail": detail})
+        print(f"[{'PASS' if ok else 'FAIL'}] {name}: {detail}", flush=True)
+        return ok
+
+    def done():
+        ok = bool(checks) and all(c["ok"] for c in checks)
+        print(f"PASS: {ns}.claim.Holds is proved" if ok else f"FAIL: {ns}.claim.Holds is not proved yet", flush=True)
+        if out_json:
+            json.dump({"pass": ok, "checks": checks}, open(out_json, "w"), indent=2)
+        return ok
+
+    good = sha(claim_file(cj)) == cj["claim_sha256"]
+    add("claim", good, "Claim.lean is the claim" if good else
+        "Claim.lean differs from the claim: restore it (the claim is fixed; the proof goes in Proof.lean)")
+    files = proof_files()
+    root = os.path.isfile(os.path.join(WS, "Proof.lean"))
+    if not add("files", root, f"{len(files)} proof file(s)" if root else
+               "no /app/claim/Proof.lean: the build starts there; it holds `main` (or imports the Proof/ module "
+               "that does)" + (f"; {len(files)} file(s) under Proof/ are not reached" if files else "")):
+        return done()
+    bad = [b for p in files for b in hygiene_problems(p, os.path.relpath(p, WS))]
+    if not add("hygiene", not bad, "; ".join(bad[:8]) + (f"; and {len(bad) - 8} more" if len(bad) > 8 else "")
+               if bad else "no proof escape, bypass, meta code, forbidden option or foreign import"):
+        return done()
+    if not good:
+        return done()  # the build would compile a changed claim
+    rc, log = run([LAKE, "build", "Claim", "Proof"], 3600)
+    errs = [l for l in log.splitlines() if "error" in l.lower()][:8]
+    if not add("build", rc == 0, "lake build Claim Proof succeeds" if rc == 0 else " | ".join(errs) or log[-600:]):
+        return done()
+    with tempfile.TemporaryDirectory() as d:
+        f = os.path.join(d, "TvaCheck.lean")
+        open(f, "w").write(f"import Claim\nimport Proof\n\ntheorem tva_check : {statement} := {ns}.main\n\n"
+                           f"#print axioms tva_check\n")
+        rc, log = run([LAKE, "env", "lean", f], 1800)
+    m = re.search(r"depends on axioms: \[([^\]]*)\]", log)
+    axioms = {a.strip() for a in m.group(1).split(",") if a.strip()} if m else set()
+    ok = rc == 0 and "error" not in log.lower() and \
+        ("does not depend on any axioms" in log or (m is not None and axioms <= STD_AXIOMS))
+    add("statement", ok, f"{ns}.main : {ns}.claim.Holds, axioms {sorted(axioms)}" if ok else
+        f"`theorem main : claim.Holds` in namespace {ns} is missing, has another type (it must be `{statement}`: "
+        f"`TVA.Claim.Holds` of the claim), or uses axioms other than {sorted(STD_AXIOMS)}: {log.strip()[:600]}")
+    for mod in ("Claim", "Proof"):
+        add(f"replay {mod}", *leanchecker(mod))
+    return done()
+
+
+def grade():
+    """What the grader does, in the agent's container: the proof's build outputs are deleted (the grader has none),
+    so the build starts from Proof.lean and Proof/ alone; the whole check runs within the grader's time limit."""
+    limit = int(os.environ.get("TVA_VERIFIER_TIMEOUT_SEC", "3600"))
+    lib = os.path.join(LEAN, ".lake", "build")
+    outs = [p for d in ("lib/lean", "ir") for p in
+            glob.glob(os.path.join(lib, d, "Proof")) + glob.glob(os.path.join(lib, d, "Proof.*"))]
+    if outs:  # under the build lock alone (the lake wrapper's), so no build of a subagent reads them meanwhile
+        subprocess.run(["flock", "-x", "/tmp/tva-lake.lock", "rm", "-rf", "--"] + outs, check=True)
+    print(f"grade: the proof's build outputs deleted; the check runs within {limit // 60} min, as the grader's",
+          flush=True)
+    t0 = time.time()
+    try:
+        r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "check", WS], timeout=limit)
+        ok = r.returncode == 0
+        print(f"grade: {int(time.time() - t0)} s", flush=True)
+    except subprocess.TimeoutExpired:
+        ok = False
+        print(f"FAIL: the check did not finish within {limit // 60} min (the grader's limit)", flush=True)
+    print(f"reward {1 if ok else 0}", flush=True)
+    sys.exit(0 if ok else 1)
+
+
+def verify():
+    out = "/logs/verifier"
+    os.makedirs(out, exist_ok=True)
+    for f in ("reward.json", "reward.txt"):
+        if os.path.exists(os.path.join(out, f)):
+            os.remove(os.path.join(out, f))
+    ok = False
+    try:
+        ok = check(os.path.join(out, "details.json"))
+    finally:  # a crash in the check leaves reward 0
+        json.dump({"reward": 1 if ok else 0}, open(os.path.join(out, "reward.json"), "w"))
+    print(json.dumps({"reward": 1 if ok else 0}))
+
+
+def prepare():
+    cj = claim_json()
+    if sha(claim_file(cj)) != cj.get("claim_sha256"):
+        sys.exit("/app/claim/Claim.lean does not match claim.json's claim_sha256")
+    os.chmod(claim_file(cj), 0o444)
+    rc, log = run([LAKE, "build", "Claim"], 3600)
+    if rc != 0:
+        sys.exit("lake build Claim failed:\n" + log[-3000:])
+    print("claim ready:", cj["kernel"])
+
+
+# ---- the agent's clock ----
+# The agent's time limit (task.toml's [agent] timeout_sec) comes from the prover image's environment; the clock
+# starts at the session's first start and survives a resume after an error.
+
+CLOCK = "/tmp/.tva-check-clock.json"
+REMIND = [(0.5, None), (0.75, None), (0.9, None), (None, 30 * 60), (None, 10 * 60)]  # a fraction used, or seconds left
+
+
+def clock(start=False):
+    try:
+        c = json.load(open(CLOCK))
+    except (OSError, ValueError):
+        if not start:
+            return None
+        c = {"start": time.time(), "limit": int(os.environ.get("TVA_AGENT_TIMEOUT_SEC", "28800")), "told": []}
+        json.dump(c, open(CLOCK, "w"))
+    return c
+
+
+def hm(s):
+    s = max(0, int(s))
+    return f"{s // 3600} h {s % 3600 // 60:02d} min"
+
+
+def time_line(c):
+    used = time.time() - c["start"]
+    end = time.strftime("%H:%M UTC", time.gmtime(c["start"] + c["limit"]))
+    return f"Time: {hm(used)} used, {hm(c['limit'] - used)} left of {hm(c['limit'])} (the session ends at {end})."
+
+
+def show_time():
+    print(time_line(clock(start=True)))
+
+
+# ---- the prover's hooks ----
+
+STATE = "/tmp/.tva-check-stop.json"
+PLAN = "/tmp/plan.md"
+CHECK_CMD = f"/usr/local/bin/tva-check check {WS}"
+BACKGROUND = ("Subagents run in the background here: this call returns at once, and the subagent's closing report "
+              "comes to you as a message when it ends. Work on something else meanwhile (not on its file), or end "
+              "your turn when only waiting is left: the next report starts a new turn.")
+
+
+def out(obj):
+    print(json.dumps(obj))
+    sys.exit(0)
+
+
+def deny(reason):
+    out({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                "permissionDecisionReason": reason}})
+
+
+def hook_pre_tool(inp):
+    tool, ti = inp.get("tool_name", ""), inp.get("tool_input") or {}
+    if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+        p = ti.get("file_path") or ti.get("notebook_path") or ""
+        if p and os.path.realpath(os.path.join(inp.get("cwd") or APP, p)) in (
+                os.path.join(WS, "Claim.lean"), os.path.join(WS, "claim.json")):
+            deny("The claim is fixed: Claim.lean and claim.json may not change. Write the proof in "
+                 "/app/claim/Proof.lean (and /app/claim/Proof/*.lean).")
+    elif tool == "Bash":
+        cmd = ti.get("command", "")
+        if re.search(r"Claim\.lean|claim\.json", cmd) and re.search(
+                r">|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\btee\b|\btruncate\b|\bperl\s+-i|\bpython|\bchmod\b|\bln\b", cmd):
+            deny("The claim is fixed: no command may change Claim.lean or claim.json (read them with cat, grep "
+                 "or sed -n).")
+    elif tool in ("Agent", "Task"):
+        out({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
+                                    "updatedInput": {**ti, "run_in_background": True},
+                                    "additionalContext": BACKGROUND}})
+    sys.exit(0)
+
+
+def hook_session_start(inp):
+    c = clock(start=True)
+    text = time_line(c) + (" Grading is all or nothing, and an unfinished proof scores 0: plan for the time you have. "
+                           "`/usr/local/bin/tva-check time` shows what is left.")
+    # after a compaction (or a resume) the plan the prover keeps comes back in full: what is proved, what is next
+    if inp.get("source") in ("compact", "resume") and os.path.isfile(PLAN):
+        plan = open(PLAN, errors="replace").read()
+        if len(plan) > 12000:
+            plan = plan[:12000] + "\n[... the rest of /tmp/plan.md is cut here: keep the plan short]"
+        text += f"\n\nYour plan ({PLAN}, kept by you; update it as lemmas change status):\n\n" + plan.strip()
+    elif inp.get("source") in ("compact", "resume"):
+        text += (f"\n\nYou keep no plan yet: write {PLAN} (the lemmas of your proof and each one's status); it comes "
+                 "back after each compaction.")
+    out({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}})
+
+
+def hook_subagent_start(inp):
+    text = ("You are a subagent of the prover. Work only on what your prompt names, in its files under "
+            "/app/claim/Proof/; never run `/usr/local/bin/tva-check grade` (it deletes the build outputs the "
+            "prover's other agents share). End with a short report: what builds, what you changed, what is left.")
+    out({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": text}})
+
+
+def hook_post_tool(inp):
+    c = clock()
+    if not c:
+        sys.exit(0)
+    used = time.time() - c["start"]
+    due = [i for i, (frac, left) in enumerate(REMIND) if i not in c["told"] and
+           ((frac is not None and used >= frac * c["limit"]) or
+            (left is not None and left < c["limit"] / 2 and c["limit"] - used <= left))]
+    if not due:
+        sys.exit(0)
+    c["told"] += due
+    json.dump(c, open(CLOCK, "w"))
+    out({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": time_line(c) + " When the "
+         f"time is up the session ends, and only a proof that passes `{CHECK_CMD}` scores."}})
+
+
+def files_key():
+    h = hashlib.sha256()
+    for p in proof_files():
+        h.update(p.encode() + open(p, "rb").read())
+    return h.hexdigest()
+
+
+def hook_stop(inp):
+    if any(t.get("type") == "subagent" and t.get("status") == "running" for t in inp.get("background_tasks") or []):
+        sys.exit(0)  # ending a turn to wait for subagents: Claude Code waits, and each report starts a new turn
+    key, st = files_key(), {}
+    try:
+        st = json.load(open(STATE))
+    except (OSError, ValueError):
+        pass
+    if st.get("key") == key and st.get("passed"):
+        sys.exit(0)
+    r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "check", WS], capture_output=True, text=True,
+                       timeout=3300)
+    if r.returncode == 0:
+        json.dump({"key": key, "passed": True}, open(STATE, "w"))
+        sys.exit(0)
+    n = st.get("blocked", 0) + 1 if st.get("key") == key else 1
+    json.dump({"key": key, "passed": False, "blocked": n}, open(STATE, "w"))
+    if n > 8:
+        sys.exit(0)  # eight blocked stops in a row with the proof unchanged: let it stop
+    fails = [l for l in r.stdout.splitlines() if l.startswith("[FAIL]")]
+    out({"decision": "block", "reason": f"Do not stop: the task succeeds only when `{CHECK_CMD}` passes, and it "
+         "fails:\n" + "\n".join(fails[:6]) + "\nKeep proving: the claim is fixed, so the way forward is a proof of "
+         "`claim.Holds` exactly as stated (split it into lemmas, delegate lemmas to subagents, build often). The "
+         "task is in /instruction.md." + (" " + time_line(clock()) if clock() else "")})
+
+
+def target(a, extra=()):
+    """The command's one argument, the workspace: anything else is refused, with what the command checks."""
+    rest = [x for x in a[1:] if x not in extra]
+    if len(rest) != 1 or os.path.normpath(rest[0]) != WS:
+        sys.exit(f"tva-check {a[0]}: give the workspace {WS} as its one argument ({' '.join(a[1:]) or 'none'} "
+                 f"given); it checks the whole workspace: the fixed Claim.lean and your proof, Proof.lean and Proof/ "
+                 f"(every file in it), never one file. Run exactly:\n  {CHECK_CMD}\n  /usr/local/bin/tva-check grade {WS}")
+
+
+def main():
+    a = sys.argv[1:]
+    if a[:1] == ["check"]:
+        js = a[a.index("--json") + 1] if "--json" in a and a.index("--json") + 1 < len(a) else None
+        target(a, extra=("--json", js) if js else ())
+        sys.exit(0 if check(js) else 1)
+    elif a[:1] == ["verify"]:
+        verify()
+    elif a[:1] == ["prepare"]:
+        prepare()
+    elif a[:1] == ["grade"]:
+        target(a)
+        grade()
+    elif a[:1] == ["time"]:
+        show_time()
+    elif a[:1] == ["hook"] and a[1:2] in (["session-start"], ["subagent-start"], ["pre-tool"], ["post-tool"], ["stop"]):
+        {"session-start": hook_session_start, "subagent-start": hook_subagent_start, "pre-tool": hook_pre_tool,
+         "post-tool": hook_post_tool, "stop": hook_stop}[a[1]](json.load(sys.stdin))
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

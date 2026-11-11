@@ -1,0 +1,28 @@
+{
+  "kernel": "chunk_cumsum_f32",
+  "title": "Chunk-local cumulative sum (`chunk_local_cumsum_scalar_kernel`, float32), fla",
+  "namespace": "Claims.ChunkCumsum",
+  "lean": "Claim.lean",
+  "source": "source/chunk_cumsum.py",
+  "source_sha256": "541eb7100f63070edf97c01e88dc3cfd0a62c0ff21395660a25a6ad9b7da8e7e",
+  "kernel_lines": [
+    [
+      66,
+      67
+    ],
+    [
+      70,
+      77
+    ],
+    [
+      80,
+      106
+    ],
+    [
+      108,
+      120
+    ]
+  ],
+  "host_lines": [],
+  "claim_sha256": "f8994d00553342d0b6e99b4689e2c79d3813ce39c70a9d95dcbde0392cdaeaf4"
+}

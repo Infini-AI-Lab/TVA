@@ -1,0 +1,25 @@
+{
+  "kernel": "ssd_chunk_state_bf16",
+  "title": "Mamba-2 SSD chunk states of a packed prefill batch (`_chunk_state_fwd_kernel`, bfloat16 x and B, float32 states), SGLang",
+  "namespace": "Claims.SsdChunkState",
+  "lean": "Claim.lean",
+  "source": "source/ssd_chunk_state.py",
+  "source_sha256": "f3be523c49631724940f126d7319ec20bb5b3bc6759d293ea50a1de10f86f2e6",
+  "kernel_lines": [
+    [
+      73,
+      224
+    ]
+  ],
+  "host_lines": [
+    [
+      71,
+      71
+    ],
+    [
+      227,
+      386
+    ]
+  ],
+  "claim_sha256": "f9d0292d864a238f415e9d4df3a29516ddc3b31c37af8bc1e72d8faafccab3d5"
+}

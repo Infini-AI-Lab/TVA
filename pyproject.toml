@@ -1,0 +1,10 @@
+[project]
+name = "tva"
+version = "3.0.0"
+description = "Python environment for TVA: the claims' GPU checks (claims/*/check_gpu.py) and the sandbox tools"
+# The host the trusted compiler statement covers (lean/TVA/Claim.lean): CPython 3.13 on x86-64.
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[project.optional-dependencies]
+triton = ["triton==3.8.0"]

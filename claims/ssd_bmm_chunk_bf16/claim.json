@@ -1,0 +1,25 @@
+{
+  "kernel": "ssd_bmm_chunk_bf16",
+  "title": "Mamba-2 SSD per-chunk C\u00b7B\u1d40 with sequence masking (`_bmm_chunk_fwd_kernel`, bfloat16 into float32), SGLang",
+  "namespace": "Claims.SsdBmm",
+  "lean": "Claim.lean",
+  "source": "source/ssd_bmm.py",
+  "source_sha256": "1fe08cd06ffddfb52c006b4f0b98447cc18db8f1819639dc8631465b720c06c1",
+  "kernel_lines": [
+    [
+      57,
+      190
+    ]
+  ],
+  "host_lines": [
+    [
+      53,
+      55
+    ],
+    [
+      193,
+      351
+    ]
+  ],
+  "claim_sha256": "d327ffb8dbc2af866f9854af91f12c18b18b43977779de41f9b432a984582c04"
+}

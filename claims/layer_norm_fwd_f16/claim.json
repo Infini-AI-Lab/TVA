@@ -1,0 +1,45 @@
+{
+  "kernel": "layer_norm_fwd_f16",
+  "title": "Layer normalization forward, tutorial 05 (`_layer_norm_fwd_fused`, float16)",
+  "namespace": "Claims.LayerNormFwdF16",
+  "lean": "Claim.lean",
+  "source": "source/05-layer-norm.py",
+  "source_sha256": "241f9f74e2f18567b26f3b4cf9b9873ae859150ccd10976d65d38fe24896d1d2",
+  "kernel_lines": [
+    [
+      34,
+      35
+    ],
+    [
+      48,
+      95
+    ]
+  ],
+  "host_lines": [
+    [
+      32,
+      32
+    ],
+    [
+      37,
+      45
+    ],
+    [
+      132,
+      144
+    ],
+    [
+      197,
+      204
+    ],
+    [
+      233,
+      297
+    ],
+    [
+      300,
+      375
+    ]
+  ],
+  "claim_sha256": "7244509c07754a3004f9b6854396ba5f53db159a2a8643d88a2b4ae1a4c37e3e"
+}
