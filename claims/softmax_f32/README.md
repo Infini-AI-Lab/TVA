@@ -1,8 +1,9 @@
 # `softmax_f32`
 
 **The kernel.** `softmax_kernel` of Triton 3.8.0's tutorial 02, "Fused Softmax"
-(`source/02-fused-softmax.py`, kernel lines 84–109; host `softmax` lines 124–175, which launches
-the `CompiledKernel` of `softmax_kernel.warmup(…)`). A 1-D grid of `num_programs` programs; program
+(`source/02-fused-softmax.py`, kernel lines 84–109; host `softmax` lines 124–175). The host launches
+the `CompiledKernel` of `softmax_kernel.warmup(…)`; the claim covers the same launches made directly
+(see Exclusions). A 1-D grid of `num_programs` programs; program
 `p` loops over rows `p, p + num_programs, …` below `n_rows`, and for each row loads one block of
 `BLOCK_SIZE` lanes (masked by `n_cols`, other lanes `-∞`), subtracts the row's max, applies
 `tl.exp`, sums, divides every lane by the sum and stores the row of `y`. The claim is
@@ -71,6 +72,11 @@ a column, fails `Post`.
 
 ## Exclusions
 
+- **The host's launch path.** `softmax` launches the `CompiledKernel` that `softmax_kernel.warmup(…)`
+  returns, which TVA does not cover (`docs/EXCLUSIONS.md`, H6: direct launches only). The claim
+  covers the same launches made directly, `softmax_kernel[(num_programs, 1, 1)](y, x, x.stride(0),
+  y.stride(0), n_rows, n_cols, BLOCK_SIZE, num_stages, num_warps=8)`: the same kernel, grid,
+  arguments and compile-time constants, so the same model.
 - **`n_cols` not a multiple of `128`, or above `2^17`**: the claim covers real model widths only.
   Among the file's launches this leaves out the test (`1823 × 781`).
 - **`BLOCK_SIZE > 2^14`**: outside the file's launches; the tolerances use `B ≤ 2^14`.

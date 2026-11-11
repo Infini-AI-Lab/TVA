@@ -647,8 +647,8 @@ definition); EXCLUSIONS.md says which.
 
 `TVA.Claim` lists it in full. In short: Triton 3.8.0 compiles the kernel so that every execution
 of a valid, well-behaved launch on the H200 ends in one of the outcomes of the model's launch, and
-touches no global memory beyond the bytes the launch is given. This covers a launch of the
-kernel's own `@triton.jit` function, directly or through `warmup`, with any performance options;
+touches no global memory beyond the bytes the launch is given. This covers a direct launch of
+the kernel's own `@triton.jit` function, `kernel[grid](…)`, with any performance options;
 Triton's knobs at their defaults, no autotuner or hook, the kernel compiled afresh from its source;
 an x86-64 host running CPython 3.13 without `-O`, in the default floating-point environment; and
 nothing else writing the launch's bytes until it ends.

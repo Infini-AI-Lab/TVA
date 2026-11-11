@@ -5,9 +5,13 @@ import TVA
 
 The kernel is `softmax_kernel` of `source/02-fused-softmax.py` (lines 84–109; it reads the
 module-level names `triton`, its decorator, and `tl`, bound by the imports of lines 26–27). Its
-host function `softmax` (lines 124–175) launches it, through the `CompiledKernel` of
-`softmax_kernel.warmup(…)`, on `float32` matrices: `1823 × 781` (the test, line 187) and `4096 × N`
-for `N = 256, 384, …, 12672` (the benchmark, lines 203–229); `SETUP.md` lists them. Each program
+host function `softmax` (lines 124–175) launches it on `float32` matrices: `1823 × 781` (the
+test, line 187) and `4096 × N` for `N = 256, 384, …, 12672` (the benchmark, lines 203–229);
+`SETUP.md` lists them. The host compiles the kernel with `softmax_kernel.warmup(…)` and launches
+the `CompiledKernel` it returns, a launch path TVA does not cover (`docs/EXCLUSIONS.md`, H6); the
+claim is about the same launches made directly, `softmax_kernel[(num_programs, 1, 1)](y, x,
+x.stride(0), y.stride(0), n_rows, n_cols, BLOCK_SIZE, num_stages, num_warps=8)`, which is what
+the model describes. Each program
 runs a strided loop over the rows; each row is one block of `BLOCK_SIZE` columns.
 
 What is claimed: every covered launch ends normally; every output element `y[r, j]` holds a

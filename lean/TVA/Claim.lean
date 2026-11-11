@@ -39,9 +39,9 @@ device facts: some platform satisfies them all, so `Device P` is not a contradic
 3. **The compiler and the environment.** Triton 3.8.0 compiles the kernel so that every execution
    of a valid, well-behaved launch on the H200 ends in one of the outcomes of the model's launch
    (`TVA.Launch`), and touches no global memory beyond the bytes the launch is given. This is
-   trusted for a launch of the kernel's own `@triton.jit` function, made directly, or through the
-   compiled kernel that `warmup` or `triton.compile` of the kernel's source (an `ASTSource`)
-   returns, with any performance options (`num_warps`, `num_stages`, …: they change speed, not
+   trusted for a direct launch of the kernel's own `@triton.jit` function, `kernel[grid](args…)`
+   (not a compiled kernel launched by hand, from `warmup` or `triton.compile`), with any
+   performance options (`num_warps`, `num_stages`, …: they change speed, not
    outcomes) and every option that changes meaning
    recorded in `Launch` (`enable_fp_fusion`, `num_ctas`, `launch_pdl`); Triton's knobs at their
    defaults, no autotuner or hook, the kernel compiled afresh from its source (a cache that returns
