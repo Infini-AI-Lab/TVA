@@ -14,7 +14,7 @@ Mathlib, the transcription, the compiler, and the device facts (each measured in
 | Path | What |
 |---|---|
 | `lean/` | the library. `import TVA` is the trusted part: values, tensors, memory, the `tl.*` operations, launches, the device facts and what a claim means. `import TVA.Proof` is the proof kit, which is proved, not trusted. |
-| `claims/` | 41 fixed claims, one folder per kernel; [claims/README.md](claims/README.md) says what a folder holds |
+| `claims/` | 41 fixed claims, one folder per kernel, each with its oracle proof (`oracle/`, kept from provers); [claims/README.md](claims/README.md) says what a folder holds |
 | `sandbox/` | the container a prover works in, and the tool that grades a proof; see [sandbox/README.md](sandbox/README.md) |
 | `evidence/` | TVA's own measurements on the H200 behind the device facts |
 | `tools/` | `make_index.py`, which generates `docs/index/` from the built library |

@@ -10,13 +10,14 @@ writes, for each KERNEL, OUT/tva3-claim-KERNEL/:
   environment/Dockerfile, environment/claim/,    the prover's image: the claim image, Claude Code, this claim
   environment/instruction.md                     in /app/claim, and the task at /instruction.md
   tests/Dockerfile, tests/claim/, tests/test.sh  the verifier's image: the same, with its own copy of the claim
-  solution/                                      with --oracle, where the sandbox has a proof (claim/oracle.py)
+  solution/                                      with --oracle: the claim's oracle proof (claims/KERNEL/oracle/)
 
 and OUT/run-tva3-claim-KERNEL.sh, which runs the task once on the host: the credit meter (meter.py, with
 --budget), then Harbor with the claim agent (harness/cc_agent.py) on --model, then the meter's report.
 
 Both images start from the claim image tva3-claim:<tag> (claim/build.sh; by default the newest one), whose /app
-holds the library (lean/), the docs, the worked example and the tool `tva-check`. The agent writes only the
+holds the library (lean/), the docs, the worked example and the tool `tva-check`. Each image gets only the claim's
+own files (claim_files.py), never a claim's oracle proof, which goes only to solution/. The agent writes only the
 proof (`/app/claim/Proof.lean`, `/app/claim/Proof/`); Harbor hands only those files to the verifier, a machine
 check (`tva-check verify`) whose reward is 1 or 0.
 """
@@ -33,6 +34,7 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 TVA = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+from claim_files import copy_claim  # noqa: E402
 from lean_hash import lean_hash  # noqa: E402
 
 EXAMPLE = "vec_add_f32"  # the claim image's worked example: not a task
@@ -53,15 +55,9 @@ def write(path, text, mode=0o644):
 
 
 def claim_copy(src, dst):
-    """The claim folder without its GPU check (the containers have no GPU) or any proof, with Claim.lean's sha256
-    in claim.json."""
-    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "check_gpu.py", "Proof.lean", "Proof"))
-    cj = json.load(open(os.path.join(dst, "claim.json")))
-    if cj.get("lean") != "Claim.lean":
-        sys.exit(f"{src}/claim.json: `lean` must be Claim.lean")
-    cj["claim_sha256"] = hashlib.sha256(open(os.path.join(dst, cj["lean"]), "rb").read()).hexdigest()
-    write(os.path.join(dst, "claim.json"), json.dumps(cj, indent=2) + "\n")
-    return cj
+    """The claim's own files (claim_files.py's allow list: never its GPU check or its oracle proof), with Claim.lean's
+    sha256 in claim.json."""
+    return copy_claim(src, dst)
 
 
 def hm(s):
@@ -325,7 +321,7 @@ COPY test.sh /tests/test.sh
         subprocess.run([sys.executable, "-I", os.path.join(HERE, "claim", "oracle.py"), k, S], check=True)
         os.remove(os.path.join(S, "claim.json"))
         write(os.path.join(S, "solve.sh"), """#!/bin/bash
-# The oracle: the sandbox's proof of the claim (claim/oracle.py).
+# The oracle: the claim's proof (claims/KERNEL/oracle/, written by claim/oracle.py).
 set -euo pipefail
 cp /solution/Proof.lean /app/claim/Proof.lean
 if [ -d /solution/Proof ]; then cp -r /solution/Proof /app/claim/; fi
@@ -344,7 +340,7 @@ def main():
     ap.add_argument("--out", default="tasks", help="the task folder (outside TVA; default ./tasks)")
     ap.add_argument("--runs", default="runs", help="where run-*.sh puts each run (default ./runs)")
     ap.add_argument("--image", help="the claim image (default: the newest tva3-claim)")
-    ap.add_argument("--oracle", action="store_true", help="add the sandbox's proof as the solution, where it has one")
+    ap.add_argument("--oracle", action="store_true", help="add the claim's oracle proof (claims/KERNEL/oracle/) as the task's solution")
     ap.add_argument("--agent-timeout", type=int, default=8 * 3600, help="the agent's time limit, seconds (8 h)")
     ap.add_argument("--model", default="accounts/fireworks/models/deepseek-v4p1-flash-1017",
                     help="the model run-*.sh gives Harbor (-m anthropic/MODEL)")

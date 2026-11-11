@@ -8,11 +8,13 @@
 #                               The prover starts in /app, so Claude Code loads both as the project's.
 #   /process_safety.md          what never to kill; each task adds /instruction.md
 #   /usr/local/bin/tva-check    the one tool (check, grade, verify, prepare, time, hooks)
+#   /usr/local/lib/tva/replay.lean  its last step: the kernel re-checks each module, one at a time
 #   /usr/local/bin/lake         the build lock in front of the toolchain's lake
 # The verifier's image is a task's image too, with its own copy of the claim.
 ARG BASE
 FROM ${BASE}
 COPY tva-check /usr/local/bin/tva-check
+COPY replay.lean /usr/local/lib/tva/replay.lean
 COPY lake /usr/local/bin/lake
 COPY settings.json /app/.claude/settings.json
 COPY lean-fixer.md /app/.claude/agents/lean-fixer.md
@@ -25,7 +27,7 @@ WORKDIR /app/lean
 # the lakefile change); the example's proof passes the check; then its build is removed, so a task's claim (the same
 # module names) starts clean.
 RUN printf '\n# the claim (/app/claim): the fixed Claim.lean and the proof, Proof.lean and Proof/\n[[lean_lib]]\nname = "ClaimTask"\nsrcDir = "../claim"\nroots = ["Claim", "Proof"]\n' >> lakefile.toml \
-    && chmod 755 /usr/local/bin/tva-check /usr/local/bin/lake \
+    && chmod 755 /usr/local/bin/tva-check /usr/local/bin/lake && chmod -R a+rX,go-w /usr/local/lib/tva \
     && touch /tmp/tva-lake.turn /tmp/tva-lake.lock && chmod 666 /tmp/tva-lake.turn /tmp/tva-lake.lock \
     && timeout 600 lake build TVA \
     && cp -a /app/examples/vec_add_f32 /app/claim && tva-check prepare && tva-check check /app/claim \
@@ -40,6 +42,6 @@ RUN useradd -m -u 2000 -s /bin/bash prover \
        /process_safety.md \
     && chmod 1777 /app/lean/.lake \
     && find /app/lean/.lake/build -type d -exec chmod 1777 {} + \
-    && test -z "$(find /app /opt/lean /process_safety.md /usr/local/bin/tva-check /usr/local/bin/lake \
+    && test -z "$(find /app /opt/lean /process_safety.md /usr/local/bin/tva-check /usr/local/bin/lake /usr/local/lib/tva \
        -not -user root -print -quit)"
 WORKDIR /app

@@ -57,7 +57,8 @@ lean/TVA/
                `Claim.Holds`, memory access patterns (1-D blocks, 2-D tiles), loops, integer
                width, float error, reductions, `tl.dot` accumulation, online softmax, decayed
                recurrences, scans, shared atomics, the reference platform
-claims/<kernel>/   one fixed claim per kernel: `Claim.lean`, the kernel's `source/`, `README.md`
+claims/<kernel>/   one fixed claim per kernel: `Claim.lean`, the kernel's `source/`, `README.md`, and its
+                   oracle proof `oracle/` (kept from provers)
 sandbox/           the container a prover works in, and the tool that grades a proof
 evidence/          TVA's own measurements behind the device facts
 docs/              how to read a claim, how to prove one, the library map

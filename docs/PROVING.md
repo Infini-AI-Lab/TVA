@@ -14,14 +14,14 @@ Lean checks the proof; nobody reads it. The checker (`sandbox/claim/tva-check`) 
 3. `Claim` and `Proof` build;
 4. `main` has exactly the type `claim.Holds`, and `#print axioms` shows only `propext`,
    `Classical.choice` and `Quot.sound`;
-5. `leanchecker` re-checks the compiled files.
+5. Lean's kernel re-checks the compiled files, one module at a time (leanchecker's replay).
 
 The claim is fixed. If it turns out false for the kernel, the proof cannot be finished; do not
 look for a way around a condition.
 
 Read first: `lean/TVA/Claim.lean` (what `claim.Holds` means), the claim's `README.md` and
 `Claim.lean`, and [SEMANTICS.md](SEMANTICS.md) for what each model line means. The worked example
-is `vec_add_f32`'s proof, `sandbox/claim/oracle/vec_add_f32/Proof.lean` (in a claim container,
+is `vec_add_f32`'s proof, `claims/vec_add_f32/oracle/Proof.lean` (in a claim container,
 `examples/vec_add_f32/` beside these docs); section 8 walks through it. To find a lemma, start
 with [INDEX.md](INDEX.md): a table of the lemmas each step needs, and `index/NAMES.tsv`, every
 declaration with its `file:line`, for `grep`.
@@ -270,7 +270,7 @@ The kernel (`claims/vec_add_f32/Claim.lean`): program `pid` loads `x` and `y` at
 `offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)` masked by `offsets < n`, adds them with
 `tl.add` and stores `output`. `Post` says that each `output[j]`, `j < n`, is `FloatV.add` of the
 initial `x[j]`, `y[j]` up to NaN payload, and that every other byte is unchanged. The proof is
-`sandbox/claim/oracle/vec_add_f32/Proof.lean`; its parts:
+`claims/vec_add_f32/oracle/Proof.lean`; its parts:
 
 **The footprints.** Program `p` owns the elements `blk d p = {j | p·B ≤ j < p·B + B, j < n}`. It
 reads `R d p = d.x.elems (blk d p) ∪ d.y.elems (blk d p)` and writes `W d p = d.output.elems (blk d

@@ -2,8 +2,9 @@
 
 Each folder `claims/<kernel>/` holds one fixed claim about one Triton kernel. A claim says that
 every launch of the kernel it covers ends normally (no fault, no race, no hang) and leaves memory
-satisfying a specification. It holds no proof: a prover proves `theorem main : claim.Holds`
-separately (see [../docs/PROVING.md](../docs/PROVING.md)).
+satisfying a specification. It also keeps one proof of it, the oracle (`oracle/`), which a prover
+never sees: a prover proves `theorem main : claim.Holds` on its own (see
+[../docs/PROVING.md](../docs/PROVING.md)).
 
 ## What a folder holds
 
@@ -15,6 +16,7 @@ separately (see [../docs/PROVING.md](../docs/PROVING.md)).
 | `source/` | the kernel's source files, unchanged, so that a reader can compare the model with them line by line |
 | `check_gpu.py` | a GPU test: runs the kernel on an H200 and checks `Post` on the launches of `SETUP.md` and on edges of `Inst.ok` |
 | `claim.json` | metadata: `kernel`, `title`, `namespace` (the Lean namespace of `claim`), `lean` (`Claim.lean`), `source` and its `source_sha256`, and the line ranges of the kernel and of the host code in the source |
+| `oracle/` | the oracle: a complete proof, `Proof.lean` and `Proof/**.lean` (`theorem main : claim.Holds`), passing the grader (`tva-check grade`). It is kept from provers: a task's images get only the files above but `check_gpu.py` (the sandbox's `claim_files.py`), and the oracle goes only to the task's `solution/` (`make_task.py --oracle`). The one a prover sees is `vec_add_f32`'s, the worked example of the claim image |
 
 Every `Claim.lean` imports `TVA`, the trusted part of the library (`attn_bwd_pre_f16` also imports
 `TVA.Proof.Float.Tree`, a proved module, for a lemma about its tolerance). Its module docstring

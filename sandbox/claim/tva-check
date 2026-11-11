@@ -20,7 +20,8 @@ hold `theorem <namespace>.main : <namespace>.claim.Holds`. The check is a machin
   3. `lake build Claim Proof` succeeds;
   4. `theorem tva_check : TVA.Claim.Holds <namespace>.claim := <namespace>.main` elaborates, and
      `#print axioms tva_check` shows only `propext`, `Classical.choice` and `Quot.sound`;
-  5. `leanchecker` re-checks every declaration of `Claim` and `Proof` from the compiled files.
+  5. Lean's kernel re-checks every declaration of `Claim`, then of `Proof` and each `Proof/` module, from the
+     compiled files, one module at a time (/usr/local/lib/tva/replay.lean, leanchecker's replay).
 """
 import glob
 import hashlib
@@ -38,15 +39,17 @@ APP = "/app"
 WS = os.path.join(APP, "claim")
 LEAN = os.path.join(APP, "lean")
 LAKE = shutil.which("lake") or "/usr/local/bin/lake"
+REPLAY = "/usr/local/lib/tva/replay.lean"
 STD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 LEAN_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*")
 IMPORT_OK = ("TVA", "Mathlib", "Proof")  # and these modules' submodules; `Claim` alone
+IMPORT = re.compile(r"^\s*(?:public\s+)?(?:meta\s+)?import\s+(?:all\s+)?(\S+)", re.M)  # on code, comments blanked
 
 # ---- the hygiene list ----
 # Matched on the whole text of every proof file, comments and strings included, so that nothing hides behind a
 # comment marker inside a string. It runs before the build, since meta code would run during the build. Proof
 # escapes, kernel bypasses, and every common way to run code while Lean elaborates: commands, attributes that
-# install handlers, and the meta monads such code is written in. `leanchecker` re-checks every declaration
+# install handlers, and the meta monads such code is written in. The kernel re-checks every declaration (step 5)
 # whatever this list misses.
 HYGIENE = [
     ("a proof escape", r"\bsorry\b|\badmit\b|\bnative_decide\b|\+\s*native\b|\bofReduce(?:Bool|Nat)\b|^\s*axiom\b"),
@@ -148,7 +151,7 @@ def hygiene_problems(path, rel):
     bad += [f"{rel}:{n}: {BRACE_STRING}" for n in sorted({line(a) for a, b in strings if "{" in text[a:b]})]
     for m in LINE_SEPARATORS.finditer(text):
         bad.append(f"{rel}:{line(m.start())}: a line break other than a line feed ({m.group(0)!r})")
-    for m in re.finditer(r"^\s*(?:public\s+)?(?:meta\s+)?import\s+(?:all\s+)?(\S+)", code, re.M):
+    for m in IMPORT.finditer(code):
         mod = m.group(1).replace("«", "").replace("»", "")
         if mod != "Claim" and mod.split(".")[0] not in IMPORT_OK:
             bad.append(f"{rel}:{line(m.start(1))}: imports {mod} (only Claim, and TVA, Mathlib and Proof modules)")
@@ -186,17 +189,33 @@ def run(cmd, timeout, env=None):
         return 124, f"timed out after {timeout} s"
 
 
-def leanchecker(mod):
-    rc, prefix = run([LAKE, "env", "lean", "--print-prefix"], 300)
-    prefix = prefix.strip()
-    exe = os.path.join(prefix, "bin", "leanchecker")
-    if rc != 0 or not os.path.exists(exe):
-        return False, "leanchecker not found in the Lean toolchain"
-    env = dict(os.environ, LEAN_SYSROOT=prefix, PATH=os.path.join(prefix, "bin") + os.pathsep + os.environ["PATH"])
-    rc, log = run([LAKE, "env", exe, mod], 3600, env)
+def proof_modules():
+    """The modules `lake build Proof` compiled: `Proof` and the `Proof.*` modules it imports, directly or not
+    (`Proof.A.B` is /app/claim/Proof/A/B.lean). A file under Proof/ that nothing imports is not among them."""
+    seen, todo = [], ["Proof"]
+    while todo:
+        mod = todo.pop()
+        if mod in seen:
+            continue
+        seen.append(mod)
+        path = os.path.join(WS, *mod.split(".")) + ".lean"
+        if os.path.isfile(path):
+            code, _ = lean_scan(open(path, encoding="utf-8", newline="").read())
+            todo += [m.replace("«", "").replace("»", "") for m in IMPORT.findall(code)
+                     if m.replace("«", "").replace("»", "").split(".")[0] == "Proof"]
+    return ["Proof"] + sorted(seen[1:])
+
+
+def replay(mods):
+    """Lean's kernel replays the declarations of each module in `mods` from its compiled file, one module at a time
+    (leanchecker's `replayFromImports`): only these modules, and memory that of one module."""
+    rc, log = run([LAKE, "env", "lean", "--run", REPLAY] + mods, 3600)
+    what = mods[0] if len(mods) == 1 else f"{len(mods)} modules"
     if rc == 0:
-        return True, f"leanchecker {mod}: every declaration re-checked by Lean's kernel"
-    return False, f"leanchecker {mod} rejects it: " + " | ".join(l.strip() for l in log.splitlines() if l.strip())[:400]
+        return True, f"{what}: every declaration re-checked by Lean's kernel"
+    msg = " | ".join(l.strip() for l in log.splitlines() if l.strip() and not l.startswith("replayed "))[:400]
+    return False, f"the kernel's replay of {what} fails (exit {rc}" + \
+        (", killed: out of memory?" if rc in (137, -9) else "") + f"): {msg}"
 
 
 def check(out_json=None):
@@ -248,8 +267,8 @@ def check(out_json=None):
     add("statement", ok, f"{ns}.main : {ns}.claim.Holds, axioms {sorted(axioms)}" if ok else
         f"`theorem main : claim.Holds` in namespace {ns} is missing, has another type (it must be `{statement}`: "
         f"`TVA.Claim.Holds` of the claim), or uses axioms other than {sorted(STD_AXIOMS)}: {log.strip()[:600]}")
-    for mod in ("Claim", "Proof"):
-        add(f"replay {mod}", *leanchecker(mod))
+    add("replay Claim", *replay(["Claim"]))
+    add("replay Proof", *replay(proof_modules()))
     return done()
 
 

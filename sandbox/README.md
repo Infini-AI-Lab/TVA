@@ -16,7 +16,8 @@ verifier checks the proof in another.
 | `claim/CLAUDE.md`, `claim/settings.json`, `claim/lean-fixer.md` | the prover's harness: how to work, the hooks, a subagent |
 | `claim/process_safety.md` | what the prover must never kill |
 | `claim/lake` | the build lock in front of the toolchain's `lake` (one build at a time; readers share) |
-| `claim/oracle.py`, `claim/oracle/vec_add_f32/` | the worked example's proof |
+| `claim/oracle.py` | writes a claim's oracle proof (`claims/<kernel>/oracle/`) where it is used: a task's `solution/` (`make_task.py --oracle`), and the worked example `vec_add_f32` in the claim image |
+| `claim_files.py` | the allow list of a claim's files that reach a prover: `Claim.lean`, `claim.json`, `README.md`, `SETUP.md`, `source/` (never `oracle/` or `check_gpu.py`) |
 | `make_task.py` | writes the Harbor task `tva3-claim-<kernel>/` and a script that runs it once |
 | `harness/cc_agent.py` | the Harbor agent `ClaudeCodeClaim`: Claude Code, resumed after an error exit |
 | `meter.py` | the credit meter: a proxy on the host that records each request's tokens and cost, stops at a budget, and keeps the endpoint's key out of the containers |
@@ -45,13 +46,30 @@ verifier checks the proof in another.
 3. `lake build Claim Proof` succeeds;
 4. `theorem tva_check : TVA.Claim.Holds <ns>.claim := <ns>.main` elaborates and `#print axioms` shows only
    `propext`, `Classical.choice`, `Quot.sound`;
-5. `leanchecker` re-checks `Claim` and `Proof` from the compiled files.
+5. Lean's kernel re-checks every declaration of `Claim` and of each proof module (`Proof` and the `Proof/`
+   modules it imports) from the compiled files, one module at a time (`claim/replay.lean`: leanchecker's
+   replay, run per module, so memory stays that of one module however many the proof has).
 
 `grade` deletes the proof's build outputs, builds afresh and checks within the grader's limit (1 h); `verify`
 writes `/logs/verifier/reward.json`. The hooks: `SessionStart` starts the clock and, after a compaction, shows
 `/tmp/plan.md` again; `PreToolUse` refuses changes to `Claim.lean`/`claim.json` and runs subagents in the
 background; `PostToolUse` reminds of the time (50%, 75%, 90%, 30 and 10 min left); `Stop` runs the check and
 holds the agent until it passes (or until eight stops in a row with the proof unchanged).
+
+## What a prover sees
+
+Every claim keeps its oracle proof (`claims/<kernel>/oracle/`), and a prover sees none of them but the worked
+example's:
+
+- a task's two images (the prover's and the verifier's) get the claim's own files only, through
+  `claim_files.py`'s allow list (`Claim.lean`, `claim.json`, `README.md`, `SETUP.md`, `source/`); the copy stops
+  on any other file;
+- the oracle goes only to the task's `solution/` (`--oracle`), which Harbor gives to its `oracle` agent alone,
+  never to an agent's container;
+- the claim image holds one proof, `vec_add_f32`'s, at `/app/examples/vec_add_f32/`; its `docs/` name no
+  other proof;
+- the repository is private, and the containers hold no credentials for it (the prover's container reaches the
+  network, through which it reaches the meter).
 
 ## Use
 
@@ -70,7 +88,7 @@ $TVA/sandbox/claim/build.sh         # tva3-claim:<hash>-<sub>
 python3 -I $TVA/sandbox/make_task.py softmax_f32 matmul_f16 --out tasks --runs runs \
     [--agent-timeout 28800] [--model <model-id>] [--budget 25] [--context-window 640000] [--oracle]
 
-# 3a. plumbing: the oracle (only where the sandbox has a proof: vec_add_f32) → reward 1 (about 3 minutes)
+# 3a. plumbing: the oracle (every claim has one, claims/<kernel>/oracle/) → reward 1 (vec_add_f32: about 3 minutes)
 python3 -I $TVA/sandbox/make_task.py vec_add_f32 --out tasks --oracle
 harbor run -p tasks/tva3-claim-vec_add_f32 -a oracle -e docker -o jobs
 

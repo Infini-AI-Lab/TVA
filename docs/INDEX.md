@@ -34,7 +34,7 @@ declaration of `lean/TVA/` is listed in [`index/`](index/), generated from the b
 
 ## What a proof usually needs
 
-A proof of `theorem main : claim.Holds` follows the worked example (`sandbox/claim/oracle/vec_add_f32/Proof.lean`,
+A proof of `theorem main : claim.Holds` follows the worked example (`claims/vec_add_f32/oracle/Proof.lean`,
 explained in [PROVING.md](PROVING.md)). The table lists, for each step, the lemmas to reach for first.
 Everything is in namespace `TVA`.
 

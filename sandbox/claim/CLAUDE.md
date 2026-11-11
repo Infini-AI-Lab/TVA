@@ -24,7 +24,7 @@ in modules under `/app/claim/Proof/`). The claim is fixed; Lean checks the proof
   uses, is only the trusted part: the semantics and what a claim means).
 - `/usr/local/bin/tva-check check /app/claim` runs the grader's five steps on the whole workspace (`Claim.lean`,
   `Proof.lean`, every file under `Proof/`; it never checks one file alone) and prints each as PASS or FAIL,
-  reusing your build. It re-checks everything with `leanchecker`, so it takes minutes: run it when you think the
+  reusing your build. Its last step re-checks every declaration with Lean's kernel, so it takes minutes: run it when you think the
   proof is done, not after every edit.
 - `/usr/local/bin/tva-check grade /app/claim` is the grader's procedure exactly: your proof's build outputs
   deleted, a fresh build, the five steps within the grader's time limit, then `reward 1` or `reward 0`. Run it
