@@ -12,7 +12,7 @@ def generated (env : Environment) (n : Name) : Bool :=
   (match n with
    | .str _ s => s ∈ ["eq_def", "inj", "injEq", "sizeOf_spec", "ctorIdx", "induct", "mutual_induct",
                       "rec", "recOn", "casesOn", "below", "brecOn", "binductionOn", "ibelow"] ||
-                 s.startsWith "eq_" || s.startsWith "proof_" || s.startsWith "match_" ||
+                 (s.startsWith "eq_" && (s.drop 3).all Char.isDigit) || s.startsWith "proof_" || s.startsWith "match_" ||
                  s.startsWith "_"
    | _ => false)
 

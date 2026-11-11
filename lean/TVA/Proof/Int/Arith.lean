@@ -17,7 +17,8 @@ proof can carry `x` and `y` from step to step. None needs `0 < w`.
 * `//` and `%` of a nonnegative value by a positive one (truncation agrees with floor division
   there): `div?_of_nonneg`, `rem?_of_nonneg` (defined, with the value), `toInt_of_div?`,
   `toInt_of_rem?` (the value of a given result, such as a lane of `tl.idiv`), and the natural forms
-  `div?_nat`, `rem?_nat`, `toInt_of_div?_nat`, `toInt_of_rem?_nat`.
+  `div?_nat`, `rem?_nat`, `toInt_of_div?_nat`, `toInt_of_rem?_nat`; of two constants,
+  `div?_ofNat`, `rem?_ofNat` (the result is the constant `n / m`, `n % m`).
 * `ofNat_toNat`: an integer rebuilt from its bit pattern read as a natural number is itself.
 
 The lanes of tensors are `TVA.Proof.Int.Lanes`.
@@ -236,6 +237,20 @@ theorem toInt_of_rem?_nat {a b q : IntV true w} {x y : Nat} (h : a.rem? b = some
     (ha : a.toInt = x) (hb : b.toInt = y) (hy : 0 < y) : q.toInt = ((x % y : Nat) : Int) := by
   rw [toInt_of_rem? h (by rw [ha]; positivity) (by rw [hb]; exact_mod_cast hy), ha, hb]
   norm_cast
+
+/-- Use for `//` of two constants (`IntV.ofNat n // IntV.ofNat m`, such as `N // BLOCK` with
+constant shapes), `m > 0`, both in range: it is the constant `n / m`. -/
+theorem div?_ofNat {n m : Nat} (hn : n < 2 ^ (w - 1)) (hm0 : 0 < m) (hm : m < 2 ^ (w - 1)) :
+    (IntV.ofNat n : IntV true w).div? (IntV.ofNat m) = some (IntV.ofNat (n / m)) := by
+  obtain ⟨q, hq, hv⟩ := div?_nat (toInt_ofNat hn) (toInt_ofNat hm) hm0
+  rw [hq, ext_toInt (hv.trans (toInt_ofNat (lt_of_le_of_lt (Nat.div_le_self n m) hn)).symm)]
+
+/-- Use for `%` of two constants (`IntV.ofNat n % IntV.ofNat m`), `m > 0`, both in range: it is
+the constant `n % m`. -/
+theorem rem?_ofNat {n m : Nat} (hn : n < 2 ^ (w - 1)) (hm0 : 0 < m) (hm : m < 2 ^ (w - 1)) :
+    (IntV.ofNat n : IntV true w).rem? (IntV.ofNat m) = some (IntV.ofNat (n % m)) := by
+  obtain ⟨q, hq, hv⟩ := rem?_nat (toInt_ofNat hn) (toInt_ofNat hm) hm0
+  rw [hq, ext_toInt (hv.trans (toInt_ofNat (lt_trans (Nat.mod_lt n hm0) hm)).symm)]
 
 /-! ## Bit patterns -/
 

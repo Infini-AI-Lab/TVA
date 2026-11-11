@@ -168,6 +168,9 @@ TVA.ConvRel.cvt_f8e4nv_f32	theorem	lean/TVA/Proof/Float/Widen.lean:377	`cvt x` i
 TVA.ConvRel.cvt_f8e5_bf16	theorem	lean/TVA/Proof/Float/Widen.lean:365	`cvt x` is a result of `x.to(tl.bfloat16)` of a `float8e5`.
 TVA.ConvRel.cvt_f8e5_f16	theorem	lean/TVA/Proof/Float/Widen.lean:362	`cvt x` is a result of `x.to(tl.float16)` of a `float8e5`.
 TVA.ConvRel.cvt_f8e5_f32	theorem	lean/TVA/Proof/Float/Widen.lean:368	`cvt x` is a result of `x.to(tl.float32)` of a `float8e5`.
+TVA.ConvRel.exists_i32_i64	theorem	lean/TVA/Proof/Int/Cast.lean:483	Use for the premise of the rule for `tl.convert .i32 .i64`: every `int32` has a conversion to `int64`.
+TVA.ConvRel.exists_i64_i32	theorem	lean/TVA/Proof/Int/Cast.lean:493	Use for the premise of the rule for `tl.convert .i64 .i32`: every `int64` has a conversion to `int32` (its value modulo `2^32`; `toInt_i64_i32` gives it when in range).
+TVA.ConvRel.exists_i64_i64	theorem	lean/TVA/Proof/Int/Cast.lean:488	Use for the premise of the rule for `tl.convert .i64 .i64` (`x.to(tl.int64)` of an `int64`): a conversion exists.
 TVA.ConvRel.f16_bf16_iff	theorem	lean/TVA/Proof/Float/Widen.lean:286	`x.to(tl.bfloat16)` of a `float16` returns exactly `cvt x`, up to NaN payload.
 TVA.ConvRel.f16_f32	theorem	lean/TVA/Proof/Float/Widen.lean:231	`x.to(tl.float32)` of a `float16`: `cvt x`, exact on a finite value.
 TVA.ConvRel.f16_f32_iff	theorem	lean/TVA/Proof/Float/Widen.lean:289	`x.to(tl.float32)` of a `float16` returns exactly `cvt x`, up to NaN payload.
@@ -186,79 +189,100 @@ TVA.ConvRel.f8e4nv_f32	theorem	lean/TVA/Proof/Float/Widen.lean:281	`x.to(tl.floa
 TVA.ConvRel.f8e5_bf16	theorem	lean/TVA/Proof/Float/Widen.lean:261	`x.to(tl.bfloat16)` of a `float8e5`: `cvt x`, exact on a finite value.
 TVA.ConvRel.f8e5_f16	theorem	lean/TVA/Proof/Float/Widen.lean:256	`x.to(tl.float16)` of a `float8e5`: `cvt x`, exact on a finite value.
 TVA.ConvRel.f8e5_f32	theorem	lean/TVA/Proof/Float/Widen.lean:266	`x.to(tl.float32)` of a `float8e5`: `cvt x`, exact on a finite value.
-TVA.ConvRel.iff_cast_i16_i16	theorem	lean/TVA/Proof/Int/Cast.lean:154	`x.to(tl.int16)` of an `int16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i16_i32	theorem	lean/TVA/Proof/Int/Cast.lean:158	`x.to(tl.int32)` of an `int16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i16_i64	theorem	lean/TVA/Proof/Int/Cast.lean:162	`x.to(tl.int64)` of an `int16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i16_i8	theorem	lean/TVA/Proof/Int/Cast.lean:150	`x.to(tl.int8)` of an `int16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i16_u16	theorem	lean/TVA/Proof/Int/Cast.lean:170	`x.to(tl.uint16)` of an `int16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i16_u32	theorem	lean/TVA/Proof/Int/Cast.lean:174	`x.to(tl.uint32)` of an `int16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i16_u64	theorem	lean/TVA/Proof/Int/Cast.lean:178	`x.to(tl.uint64)` of an `int16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i16_u8	theorem	lean/TVA/Proof/Int/Cast.lean:166	`x.to(tl.uint8)` of an `int16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i32_i16	theorem	lean/TVA/Proof/Int/Cast.lean:186	`x.to(tl.int16)` of an `int32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i32_i32	theorem	lean/TVA/Proof/Int/Cast.lean:190	`x.to(tl.int32)` of an `int32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i32_i64	theorem	lean/TVA/Proof/Int/Cast.lean:194	`x.to(tl.int64)` of an `int32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i32_i8	theorem	lean/TVA/Proof/Int/Cast.lean:182	`x.to(tl.int8)` of an `int32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i32_u16	theorem	lean/TVA/Proof/Int/Cast.lean:202	`x.to(tl.uint16)` of an `int32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i32_u32	theorem	lean/TVA/Proof/Int/Cast.lean:206	`x.to(tl.uint32)` of an `int32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i32_u64	theorem	lean/TVA/Proof/Int/Cast.lean:210	`x.to(tl.uint64)` of an `int32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i32_u8	theorem	lean/TVA/Proof/Int/Cast.lean:198	`x.to(tl.uint8)` of an `int32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i64_i16	theorem	lean/TVA/Proof/Int/Cast.lean:218	`x.to(tl.int16)` of an `int64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i64_i32	theorem	lean/TVA/Proof/Int/Cast.lean:222	`x.to(tl.int32)` of an `int64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i64_i64	theorem	lean/TVA/Proof/Int/Cast.lean:226	`x.to(tl.int64)` of an `int64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i64_i8	theorem	lean/TVA/Proof/Int/Cast.lean:214	`x.to(tl.int8)` of an `int64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i64_u16	theorem	lean/TVA/Proof/Int/Cast.lean:234	`x.to(tl.uint16)` of an `int64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i64_u32	theorem	lean/TVA/Proof/Int/Cast.lean:238	`x.to(tl.uint32)` of an `int64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i64_u64	theorem	lean/TVA/Proof/Int/Cast.lean:242	`x.to(tl.uint64)` of an `int64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i64_u8	theorem	lean/TVA/Proof/Int/Cast.lean:230	`x.to(tl.uint8)` of an `int64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i8_i16	theorem	lean/TVA/Proof/Int/Cast.lean:122	`x.to(tl.int16)` of an `int8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i8_i32	theorem	lean/TVA/Proof/Int/Cast.lean:126	`x.to(tl.int32)` of an `int8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i8_i64	theorem	lean/TVA/Proof/Int/Cast.lean:130	`x.to(tl.int64)` of an `int8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i8_i8	theorem	lean/TVA/Proof/Int/Cast.lean:118	`x.to(tl.int8)` of an `int8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i8_u16	theorem	lean/TVA/Proof/Int/Cast.lean:138	`x.to(tl.uint16)` of an `int8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i8_u32	theorem	lean/TVA/Proof/Int/Cast.lean:142	`x.to(tl.uint32)` of an `int8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i8_u64	theorem	lean/TVA/Proof/Int/Cast.lean:146	`x.to(tl.uint64)` of an `int8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_i8_u8	theorem	lean/TVA/Proof/Int/Cast.lean:134	`x.to(tl.uint8)` of an `int8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u16_i16	theorem	lean/TVA/Proof/Int/Cast.lean:282	`x.to(tl.int16)` of a `uint16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u16_i32	theorem	lean/TVA/Proof/Int/Cast.lean:286	`x.to(tl.int32)` of a `uint16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u16_i64	theorem	lean/TVA/Proof/Int/Cast.lean:290	`x.to(tl.int64)` of a `uint16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u16_i8	theorem	lean/TVA/Proof/Int/Cast.lean:278	`x.to(tl.int8)` of a `uint16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u16_u16	theorem	lean/TVA/Proof/Int/Cast.lean:298	`x.to(tl.uint16)` of a `uint16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u16_u32	theorem	lean/TVA/Proof/Int/Cast.lean:302	`x.to(tl.uint32)` of a `uint16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u16_u64	theorem	lean/TVA/Proof/Int/Cast.lean:306	`x.to(tl.uint64)` of a `uint16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u16_u8	theorem	lean/TVA/Proof/Int/Cast.lean:294	`x.to(tl.uint8)` of a `uint16`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u32_i16	theorem	lean/TVA/Proof/Int/Cast.lean:314	`x.to(tl.int16)` of a `uint32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u32_i32	theorem	lean/TVA/Proof/Int/Cast.lean:318	`x.to(tl.int32)` of a `uint32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u32_i64	theorem	lean/TVA/Proof/Int/Cast.lean:322	`x.to(tl.int64)` of a `uint32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u32_i8	theorem	lean/TVA/Proof/Int/Cast.lean:310	`x.to(tl.int8)` of a `uint32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u32_u16	theorem	lean/TVA/Proof/Int/Cast.lean:330	`x.to(tl.uint16)` of a `uint32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u32_u32	theorem	lean/TVA/Proof/Int/Cast.lean:334	`x.to(tl.uint32)` of a `uint32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u32_u64	theorem	lean/TVA/Proof/Int/Cast.lean:338	`x.to(tl.uint64)` of a `uint32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u32_u8	theorem	lean/TVA/Proof/Int/Cast.lean:326	`x.to(tl.uint8)` of a `uint32`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u64_i16	theorem	lean/TVA/Proof/Int/Cast.lean:346	`x.to(tl.int16)` of a `uint64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u64_i32	theorem	lean/TVA/Proof/Int/Cast.lean:350	`x.to(tl.int32)` of a `uint64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u64_i64	theorem	lean/TVA/Proof/Int/Cast.lean:354	`x.to(tl.int64)` of a `uint64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u64_i8	theorem	lean/TVA/Proof/Int/Cast.lean:342	`x.to(tl.int8)` of a `uint64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u64_u16	theorem	lean/TVA/Proof/Int/Cast.lean:362	`x.to(tl.uint16)` of a `uint64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u64_u32	theorem	lean/TVA/Proof/Int/Cast.lean:366	`x.to(tl.uint32)` of a `uint64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u64_u64	theorem	lean/TVA/Proof/Int/Cast.lean:370	`x.to(tl.uint64)` of a `uint64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u64_u8	theorem	lean/TVA/Proof/Int/Cast.lean:358	`x.to(tl.uint8)` of a `uint64`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u8_i16	theorem	lean/TVA/Proof/Int/Cast.lean:250	`x.to(tl.int16)` of a `uint8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u8_i32	theorem	lean/TVA/Proof/Int/Cast.lean:254	`x.to(tl.int32)` of a `uint8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u8_i64	theorem	lean/TVA/Proof/Int/Cast.lean:258	`x.to(tl.int64)` of a `uint8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u8_i8	theorem	lean/TVA/Proof/Int/Cast.lean:246	`x.to(tl.int8)` of a `uint8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u8_u16	theorem	lean/TVA/Proof/Int/Cast.lean:266	`x.to(tl.uint16)` of a `uint8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u8_u32	theorem	lean/TVA/Proof/Int/Cast.lean:270	`x.to(tl.uint32)` of a `uint8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u8_u64	theorem	lean/TVA/Proof/Int/Cast.lean:274	`x.to(tl.uint64)` of a `uint8`: its one result is `IntV.cast x`.
-TVA.ConvRel.iff_cast_u8_u8	theorem	lean/TVA/Proof/Int/Cast.lean:262	`x.to(tl.uint8)` of a `uint8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i16_i16	theorem	lean/TVA/Proof/Int/Cast.lean:177	`x.to(tl.int16)` of an `int16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i16_i32	theorem	lean/TVA/Proof/Int/Cast.lean:181	`x.to(tl.int32)` of an `int16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i16_i64	theorem	lean/TVA/Proof/Int/Cast.lean:185	`x.to(tl.int64)` of an `int16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i16_i8	theorem	lean/TVA/Proof/Int/Cast.lean:173	`x.to(tl.int8)` of an `int16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i16_u16	theorem	lean/TVA/Proof/Int/Cast.lean:193	`x.to(tl.uint16)` of an `int16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i16_u32	theorem	lean/TVA/Proof/Int/Cast.lean:197	`x.to(tl.uint32)` of an `int16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i16_u64	theorem	lean/TVA/Proof/Int/Cast.lean:201	`x.to(tl.uint64)` of an `int16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i16_u8	theorem	lean/TVA/Proof/Int/Cast.lean:189	`x.to(tl.uint8)` of an `int16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i32_i16	theorem	lean/TVA/Proof/Int/Cast.lean:209	`x.to(tl.int16)` of an `int32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i32_i32	theorem	lean/TVA/Proof/Int/Cast.lean:213	`x.to(tl.int32)` of an `int32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i32_i64	theorem	lean/TVA/Proof/Int/Cast.lean:217	`x.to(tl.int64)` of an `int32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i32_i8	theorem	lean/TVA/Proof/Int/Cast.lean:205	`x.to(tl.int8)` of an `int32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i32_u16	theorem	lean/TVA/Proof/Int/Cast.lean:225	`x.to(tl.uint16)` of an `int32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i32_u32	theorem	lean/TVA/Proof/Int/Cast.lean:229	`x.to(tl.uint32)` of an `int32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i32_u64	theorem	lean/TVA/Proof/Int/Cast.lean:233	`x.to(tl.uint64)` of an `int32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i32_u8	theorem	lean/TVA/Proof/Int/Cast.lean:221	`x.to(tl.uint8)` of an `int32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i64_i16	theorem	lean/TVA/Proof/Int/Cast.lean:241	`x.to(tl.int16)` of an `int64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i64_i32	theorem	lean/TVA/Proof/Int/Cast.lean:245	`x.to(tl.int32)` of an `int64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i64_i64	theorem	lean/TVA/Proof/Int/Cast.lean:249	`x.to(tl.int64)` of an `int64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i64_i8	theorem	lean/TVA/Proof/Int/Cast.lean:237	`x.to(tl.int8)` of an `int64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i64_u16	theorem	lean/TVA/Proof/Int/Cast.lean:257	`x.to(tl.uint16)` of an `int64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i64_u32	theorem	lean/TVA/Proof/Int/Cast.lean:261	`x.to(tl.uint32)` of an `int64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i64_u64	theorem	lean/TVA/Proof/Int/Cast.lean:265	`x.to(tl.uint64)` of an `int64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i64_u8	theorem	lean/TVA/Proof/Int/Cast.lean:253	`x.to(tl.uint8)` of an `int64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i8_i16	theorem	lean/TVA/Proof/Int/Cast.lean:145	`x.to(tl.int16)` of an `int8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i8_i32	theorem	lean/TVA/Proof/Int/Cast.lean:149	`x.to(tl.int32)` of an `int8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i8_i64	theorem	lean/TVA/Proof/Int/Cast.lean:153	`x.to(tl.int64)` of an `int8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i8_i8	theorem	lean/TVA/Proof/Int/Cast.lean:141	`x.to(tl.int8)` of an `int8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i8_u16	theorem	lean/TVA/Proof/Int/Cast.lean:161	`x.to(tl.uint16)` of an `int8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i8_u32	theorem	lean/TVA/Proof/Int/Cast.lean:165	`x.to(tl.uint32)` of an `int8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i8_u64	theorem	lean/TVA/Proof/Int/Cast.lean:169	`x.to(tl.uint64)` of an `int8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_i8_u8	theorem	lean/TVA/Proof/Int/Cast.lean:157	`x.to(tl.uint8)` of an `int8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u16_i16	theorem	lean/TVA/Proof/Int/Cast.lean:305	`x.to(tl.int16)` of a `uint16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u16_i32	theorem	lean/TVA/Proof/Int/Cast.lean:309	`x.to(tl.int32)` of a `uint16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u16_i64	theorem	lean/TVA/Proof/Int/Cast.lean:313	`x.to(tl.int64)` of a `uint16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u16_i8	theorem	lean/TVA/Proof/Int/Cast.lean:301	`x.to(tl.int8)` of a `uint16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u16_u16	theorem	lean/TVA/Proof/Int/Cast.lean:321	`x.to(tl.uint16)` of a `uint16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u16_u32	theorem	lean/TVA/Proof/Int/Cast.lean:325	`x.to(tl.uint32)` of a `uint16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u16_u64	theorem	lean/TVA/Proof/Int/Cast.lean:329	`x.to(tl.uint64)` of a `uint16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u16_u8	theorem	lean/TVA/Proof/Int/Cast.lean:317	`x.to(tl.uint8)` of a `uint16`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u32_i16	theorem	lean/TVA/Proof/Int/Cast.lean:337	`x.to(tl.int16)` of a `uint32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u32_i32	theorem	lean/TVA/Proof/Int/Cast.lean:341	`x.to(tl.int32)` of a `uint32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u32_i64	theorem	lean/TVA/Proof/Int/Cast.lean:345	`x.to(tl.int64)` of a `uint32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u32_i8	theorem	lean/TVA/Proof/Int/Cast.lean:333	`x.to(tl.int8)` of a `uint32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u32_u16	theorem	lean/TVA/Proof/Int/Cast.lean:353	`x.to(tl.uint16)` of a `uint32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u32_u32	theorem	lean/TVA/Proof/Int/Cast.lean:357	`x.to(tl.uint32)` of a `uint32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u32_u64	theorem	lean/TVA/Proof/Int/Cast.lean:361	`x.to(tl.uint64)` of a `uint32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u32_u8	theorem	lean/TVA/Proof/Int/Cast.lean:349	`x.to(tl.uint8)` of a `uint32`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u64_i16	theorem	lean/TVA/Proof/Int/Cast.lean:369	`x.to(tl.int16)` of a `uint64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u64_i32	theorem	lean/TVA/Proof/Int/Cast.lean:373	`x.to(tl.int32)` of a `uint64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u64_i64	theorem	lean/TVA/Proof/Int/Cast.lean:377	`x.to(tl.int64)` of a `uint64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u64_i8	theorem	lean/TVA/Proof/Int/Cast.lean:365	`x.to(tl.int8)` of a `uint64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u64_u16	theorem	lean/TVA/Proof/Int/Cast.lean:385	`x.to(tl.uint16)` of a `uint64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u64_u32	theorem	lean/TVA/Proof/Int/Cast.lean:389	`x.to(tl.uint32)` of a `uint64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u64_u64	theorem	lean/TVA/Proof/Int/Cast.lean:393	`x.to(tl.uint64)` of a `uint64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u64_u8	theorem	lean/TVA/Proof/Int/Cast.lean:381	`x.to(tl.uint8)` of a `uint64`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u8_i16	theorem	lean/TVA/Proof/Int/Cast.lean:273	`x.to(tl.int16)` of a `uint8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u8_i32	theorem	lean/TVA/Proof/Int/Cast.lean:277	`x.to(tl.int32)` of a `uint8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u8_i64	theorem	lean/TVA/Proof/Int/Cast.lean:281	`x.to(tl.int64)` of a `uint8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u8_i8	theorem	lean/TVA/Proof/Int/Cast.lean:269	`x.to(tl.int8)` of a `uint8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u8_u16	theorem	lean/TVA/Proof/Int/Cast.lean:289	`x.to(tl.uint16)` of a `uint8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u8_u32	theorem	lean/TVA/Proof/Int/Cast.lean:293	`x.to(tl.uint32)` of a `uint8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u8_u64	theorem	lean/TVA/Proof/Int/Cast.lean:297	`x.to(tl.uint64)` of a `uint8`: its one result is `IntV.cast x`.
+TVA.ConvRel.iff_cast_u8_u8	theorem	lean/TVA/Proof/Int/Cast.lean:285	`x.to(tl.uint8)` of a `uint8`: its one result is `IntV.cast x`.
 TVA.ConvRel.isFinite_bf16_f32	theorem	lean/TVA/Proof/Float/Widen.lean:387	`x.to(tl.float32)` of a `bfloat16` is finite exactly when `x` is.
 TVA.ConvRel.isFinite_bf16_f64	theorem	lean/TVA/Proof/Float/Widen.lean:399	`x.to(tl.float64)` of a `bfloat16` is finite exactly when `x` is.
 TVA.ConvRel.isFinite_f16_f32	theorem	lean/TVA/Proof/Float/Widen.lean:383	`x.to(tl.float32)` of a `float16` is finite exactly when `x` is.
 TVA.ConvRel.isFinite_f16_f64	theorem	lean/TVA/Proof/Float/Widen.lean:395	`x.to(tl.float64)` of a `float16` is finite exactly when `x` is.
 TVA.ConvRel.isFinite_f32_f64	theorem	lean/TVA/Proof/Float/Widen.lean:391	`x.to(tl.float64)` of a `float32` is finite exactly when `x` is.
-TVA.ConvRel.toInt_i1_i32	theorem	lean/TVA/Proof/Int/Cast.lean:102	`x.to(tl.int32)` of an `int1` is `1` for `true` and `0` for `false`.
-TVA.ConvRel.toInt_i1_i64	theorem	lean/TVA/Proof/Int/Cast.lean:109	`x.to(tl.int64)` of an `int1` is `1` for `true` and `0` for `false`.
-TVA.ConvRel.toInt_i32_i64	theorem	lean/TVA/Proof/Int/Cast.lean:91	`x.to(tl.int64)` of an `int32` keeps its value.
-TVA.ConvRel.toInt_i64_i32	theorem	lean/TVA/Proof/Int/Cast.lean:96	`x.to(tl.int32)` of an `int64` keeps its value when it fits `int32`.
+TVA.ConvRel.toInt_i16_i32	theorem	lean/TVA/Proof/Int/Cast.lean:415	Use for `x.to(tl.int32)` of an `int16` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_i16_i64	theorem	lean/TVA/Proof/Int/Cast.lean:423	Use for `x.to(tl.int64)` of an `int16` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_i1_i32	theorem	lean/TVA/Proof/Int/Cast.lean:125	`x.to(tl.int32)` of an `int1` is `1` for `true` and `0` for `false`.
+TVA.ConvRel.toInt_i1_i64	theorem	lean/TVA/Proof/Int/Cast.lean:132	`x.to(tl.int64)` of an `int1` is `1` for `true` and `0` for `false`.
+TVA.ConvRel.toInt_i32_i32	theorem	lean/TVA/Proof/Int/Cast.lean:399	Use for `x.to(tl.int32)` of an `int32` (no change of type): the result keeps the value.
+TVA.ConvRel.toInt_i32_i64	theorem	lean/TVA/Proof/Int/Cast.lean:114	`x.to(tl.int64)` of an `int32` keeps its value.
+TVA.ConvRel.toInt_i64_i32	theorem	lean/TVA/Proof/Int/Cast.lean:119	`x.to(tl.int32)` of an `int64` keeps its value when it fits `int32`.
+TVA.ConvRel.toInt_i64_i64	theorem	lean/TVA/Proof/Int/Cast.lean:403	Use for `x.to(tl.int64)` of an `int64` (no change of type): the result keeps the value.
+TVA.ConvRel.toInt_i8_i16	theorem	lean/TVA/Proof/Int/Cast.lean:407	Use for `x.to(tl.int16)` of an `int8` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_i8_i32	theorem	lean/TVA/Proof/Int/Cast.lean:411	Use for `x.to(tl.int32)` of an `int8` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_i8_i64	theorem	lean/TVA/Proof/Int/Cast.lean:419	Use for `x.to(tl.int64)` of an `int8` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u16_i32	theorem	lean/TVA/Proof/Int/Cast.lean:435	Use for `x.to(tl.int32)` of a `uint16` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u16_i64	theorem	lean/TVA/Proof/Int/Cast.lean:443	Use for `x.to(tl.int64)` of a `uint16` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u16_u32	theorem	lean/TVA/Proof/Int/Cast.lean:459	Use for `x.to(tl.uint32)` of a `uint16` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u16_u64	theorem	lean/TVA/Proof/Int/Cast.lean:467	Use for `x.to(tl.uint64)` of a `uint16` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u32_i64	theorem	lean/TVA/Proof/Int/Cast.lean:447	Use for `x.to(tl.int64)` of a `uint32` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u32_u32	theorem	lean/TVA/Proof/Int/Cast.lean:475	Use for `x.to(tl.uint32)` of a `uint32` (no change of type): the result keeps the value.
+TVA.ConvRel.toInt_u32_u64	theorem	lean/TVA/Proof/Int/Cast.lean:471	Use for `x.to(tl.uint64)` of a `uint32` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u64_u64	theorem	lean/TVA/Proof/Int/Cast.lean:479	Use for `x.to(tl.uint64)` of a `uint64` (no change of type): the result keeps the value.
+TVA.ConvRel.toInt_u8_i16	theorem	lean/TVA/Proof/Int/Cast.lean:427	Use for `x.to(tl.int16)` of a `uint8` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u8_i32	theorem	lean/TVA/Proof/Int/Cast.lean:431	Use for `x.to(tl.int32)` of a `uint8` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u8_i64	theorem	lean/TVA/Proof/Int/Cast.lean:439	Use for `x.to(tl.int64)` of a `uint8` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u8_u16	theorem	lean/TVA/Proof/Int/Cast.lean:451	Use for `x.to(tl.uint16)` of a `uint8` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u8_u32	theorem	lean/TVA/Proof/Int/Cast.lean:455	Use for `x.to(tl.uint32)` of a `uint8` (a widening conversion): the result keeps the value.
+TVA.ConvRel.toInt_u8_u64	theorem	lean/TVA/Proof/Int/Cast.lean:463	Use for `x.to(tl.uint64)` of a `uint8` (a widening conversion): the result keeps the value.
 TVA.Correct	def	lean/TVA/Launch/WellBehaved.lean:132	The launch `L` of kernel `k` from memory `init`, under environment `E`, is well behaved, and every way it can end is a normal end whose final memory satisfies `Q`.
 TVA.Ctx	structure	lean/TVA/Program.lean:191	What a running program knows about where it is in the grid: its index along each of the three grid axes (`tl.program_id(axis)`) and the grid's size along each (`tl.num_programs(axis)`).
 TVA.Ctx.grid	def	lean/TVA/Program.lean:198	`tl.num_programs(axis)` for `axis = 0, 1, 2`.
@@ -627,6 +651,7 @@ TVA.FirstsDiv	def	lean/TVA/Triton/Core.lean:95	`v` divides the first element of 
 TVA.FloatRel	def	lean/TVA/Triton/Convert.lean:128	A float `x` of format `f` converted to format `g` with the default rounding (`semantic.py:838-868`): the same bits when `f = g`; between standard formats one rounding to nearest even, up to NaN payload (`tl.cvt`); from `float16`, `bfloat...
 TVA.FloatRel.cvt_of_f8	theorem	lean/TVA/Proof/Float/Widen.lean:195	**`cvt x` is a result `semantic.cast` allows** out of fp8 into `float16`, `bfloat16` or `float32` (any value at all is allowed for a non-finite fp8 value).
 TVA.FloatRel.cvt_of_std	theorem	lean/TVA/Proof/Float/Widen.lean:190	**`cvt x` is a result `semantic.cast` allows** between distinct standard formats.
+TVA.FloatRel.eq_cvt_of_wider	theorem	lean/TVA/Proof/Float/Widen.lean:147	**A widening conversion is `cvt x`** on a finite value (formats differ; the target is not fp8): between standard formats `FloatRel` gives `cvt x` up to NaN payload, and `cvt x` of a finite value is finite; out of fp8 it gives `cvt x` on ...
 TVA.FloatRel.exact_of_wider	theorem	lean/TVA/Proof/Float/Widen.lean:159	**A widening conversion is exact** (formats equal or `Wider`; the target not fp8): every result `FloatRel` allows for a finite value is finite with the same value.
 TVA.FloatRel.iff_of_std	theorem	lean/TVA/Proof/Float/Widen.lean:170	**Between distinct standard formats `semantic.cast` is `cvt`** up to NaN payload.
 TVA.FloatRel.isFinite_eq_of_wider	theorem	lean/TVA/Proof/Float/Widen.lean:205	**A widening between standard formats keeps finiteness both ways**: every result `r` that `FloatRel` allows is finite exactly when `x` is (NaN stays NaN, `±∞` stays `±∞`).
@@ -649,6 +674,7 @@ TVA.FloatV.MaxRel.toReal_eq_max	theorem	lean/TVA/Proof/Float/Max.lean:457	`MaxRe
 TVA.FloatV.MaxRel.toReal_eq_min	theorem	lean/TVA/Proof/Float/Max.lean:462	`MaxRel.toRat_eq_min` in `ℝ`.
 TVA.FloatV.NaNEq	def	lean/TVA/Base/Float/Value.lean:71	`x` and `y` are equal or both NaN: equality up to NaN payload, which is what the device guarantees for a NaN result.
 TVA.FloatV.NaNEq.eq	theorem	lean/TVA/Proof/Float/Value.lean:125	A result `NaNEq` to a value that is not NaN is that value.
+TVA.FloatV.NaNEq.eq_of_isFinite	theorem	lean/TVA/Proof/Float/Value.lean:165	**A finite value is exact up to NaN payload**: `NaNEq x y` with `x` finite gives `y = x`.
 TVA.FloatV.NaNEq.equivalence	theorem	lean/TVA/Proof/Float/Value.lean:145	`NaNEq` is an equivalence.
 TVA.FloatV.NaNEq.exact_of_isFinite	theorem	lean/TVA/Proof/Float/Value.lean:169	**What a `tl.*` operation returns for a finite exact result**: from `NaNEq x y` (`y` the result, `x` the library's operation) and `x` finite, `y` is finite with `x`'s value.
 TVA.FloatV.NaNEq.isFinite_eq	theorem	lean/TVA/Proof/Float/Value.lean:155	Values equal up to NaN payload are both finite or both not.
@@ -698,6 +724,7 @@ TVA.FloatV.divRn	def	lean/TVA/Base/Float/Value.lean:88	`x / y`, correctly rounde
 TVA.FloatV.divRn_err	theorem	lean/TVA/Proof/Float/Error.lean:93	**`tl.div_rn(x, y)`**, `y ≠ 0`: finite, within `|x/y|·u + η`.
 TVA.FloatV.divRn_err_real	theorem	lean/TVA/Proof/Float/Error.lean:268	**`tl.div_rn(x, y)` on `toReal`**, `y` not a zero: finite, within `|x/y|·u + η`.
 TVA.FloatV.eq	def	lean/TVA/Base/Float/Value.lean:113	`x == y`: ordered (false when a NaN is involved); `-0 == +0`.
+TVA.FloatV.eq_iff	theorem	lean/TVA/Proof/Float/Max.lean:58	`x == y` on non-NaN values is the equality of their values (`-0 == +0`).
 TVA.FloatV.exists_nearest	theorem	lean/TVA/Device/Ref/Platform.lean:66	**The nearest float.** For a real `y` with `|y| ≤ maxVal`, some finite float is within `u·|y| + η` of it (the nearest one: it is at least as near as the rounding of every rational near `y`).
 TVA.FloatV.ext_pat	theorem	lean/TVA/Proof/Float/Value.lean:77	Two values with the same pattern are equal.
 TVA.FloatV.fma	def	lean/TVA/Base/Float/Value.lean:86	`x * y + z` with one rounding to nearest even (`tl.fma`).
@@ -919,6 +946,7 @@ TVA.Format.e5m2_u_real	theorem	lean/TVA/Proof/Float/Constants.lean:154	`u` of `e
 TVA.Format.emin	def	lean/TVA/Base/Float/Format.lean:81	The exponent of the smallest normal value, `1 - bias` (also that of the subnormals).
 TVA.Format.emin_eq	theorem	lean/TVA/Proof/Float/Encoding.lean:213	`emin = 1 - bias`, by definition.
 TVA.Format.encode	def	lean/TVA/Base/Float/Round.lean:73	The magnitude of a rounded value `N · 2^Q`: `pack` when it is at most `maxVal`; otherwise an overflow, which gives the largest finite magnitude when saturating or rounding toward zero, and otherwise the infinity (`.ieee`), the NaN (`.nan...
+TVA.Format.eq_setSign	theorem	lean/TVA/Proof/Float/Encoding.lean:109	A pattern is its sign bit plus its magnitude.
 TVA.Format.eta	def	lean/TVA/Base/Float/Format.lean:151	Half the smallest subnormal, `2^(emin - m - 1)`: the absolute error of one rounding to nearest below the normal range (`2^-150` in `binary32`).
 TVA.Format.eta_eq	theorem	lean/TVA/Proof/Float/Encoding.lean:74	`η = 2^(emin-m-1)` as a power of two.
 TVA.Format.eta_nonneg	theorem	lean/TVA/Proof/Float/Encoding.lean:79	`η ≥ 0`.
@@ -1132,6 +1160,7 @@ TVA.Idx.coord_ofCoords	theorem	lean/TVA/Tensor/Index.lean:121	Coordinate `k` of 
 TVA.Idx.coord_of_ge	theorem	lean/TVA/Tensor/Index.lean:51	A coordinate beyond the rank is `0`.
 TVA.Idx.coord_set_ne	theorem	lean/TVA/Tensor/Index.lean:66	Setting coordinate `k` leaves every other coordinate unchanged.
 TVA.Idx.coord_set_self	theorem	lean/TVA/Tensor/Index.lean:57	After setting coordinate `k` to a value below its dimension, coordinate `k` is that value.
+TVA.Idx.eq_set_of_coord	theorem	lean/TVA/Tensor/Index.lean:99	`i` and `j` lie on one line along axis `k` (they agree off `k`): `j` is `i` with its `k`-th coordinate set to `j`'s.
 TVA.Idx.ext_coord	theorem	lean/TVA/Tensor/Index.lean:91	Two indices with the same coordinates are equal.
 TVA.Idx.mem_all	theorem	lean/TVA/Tensor/Basic.lean:48	Every index is listed by `all`.
 TVA.Idx.nodup_all	theorem	lean/TVA/Tensor/Basic.lean:54	`all` lists each index once.
@@ -1158,40 +1187,50 @@ TVA.InputPrecision.ieee	constructor	lean/TVA/Platform.lean:67	Full `float32` pro
 TVA.InputPrecision.tf32	constructor	lean/TVA/Platform.lean:63	Operands rounded to TF32.
 TVA.InputPrecision.tf32x3	constructor	lean/TVA/Platform.lean:65	Three TF32 products, emulating full precision.
 TVA.IntV	structure	lean/TVA/Base/Int.lean:28	A value of a `w`-bit Triton integer dtype, signed (`tl.intW`) or unsigned (`tl.uintW`), held as its bit pattern.
-TVA.IntV.I32.add_nat	theorem	lean/TVA/Proof/Int/Arith.lean:143	`int32` `a + b` of natural values `x`, `y` has value `x + y` when `x + y < 2^31`.
-TVA.IntV.I32.mul_nat	theorem	lean/TVA/Proof/Int/Arith.lean:147	`int32` `a * b` of natural values `x`, `y` has value `x * y` when `x * y < 2^31`.
-TVA.IntV.I32.sfits_iff	theorem	lean/TVA/Proof/Int/Basic.lean:38	`SFits 32` written out: the range of `tl.int32`.
-TVA.IntV.I32.sub_nat	theorem	lean/TVA/Proof/Int/Arith.lean:151	`int32` `a - b` of natural values `y ≤ x < 2^31` has value `x - y`.
-TVA.IntV.I32.toInt_arange	theorem	lean/TVA/Proof/Int/Lanes.lean:82	Lane `i` of `Tensor.arange start n` (`tl.arange(start, start + n)`, `int32`) has value `start + i` when the whole range is in `int32`.
-TVA.IntV.I32.toInt_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:117	An `int32` constant `IntV.ofInt x` with `x` in `[-2^31, 2^31)` has value `x`.
-TVA.IntV.I32.toInt_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:121	An `int32` constant `IntV.ofNat n` with `n < 2^31` has value `n`.
-TVA.IntV.I32.toInt_sadd_arange	theorem	lean/TVA/Proof/Int/Lanes.lean:98	Lane `i` of `c + tl.arange(0, n)`, for an `int32` scalar `c` of natural value `r0`, has value `r0 + i` when `r0 + n ≤ 2^31` (`pid * BLOCK + tl.arange(0, BLOCK)`).
-TVA.IntV.I32.toInt_tl_arange	theorem	lean/TVA/Proof/Int/Lanes.lean:91	Lane `i` of `tl.arange(0, n)` has value `i` when `n ≤ 2^31`.
-TVA.IntV.I64.add_nat	theorem	lean/TVA/Proof/Int/Arith.lean:155	`int64` `a + b` of natural values `x`, `y` has value `x + y` when `x + y < 2^63`.
-TVA.IntV.I64.mul_nat	theorem	lean/TVA/Proof/Int/Arith.lean:159	`int64` `a * b` of natural values `x`, `y` has value `x * y` when `x * y < 2^63`.
-TVA.IntV.I64.sfits_iff	theorem	lean/TVA/Proof/Int/Basic.lean:41	`SFits 64` written out: the range of `tl.int64`.
-TVA.IntV.I64.sub_nat	theorem	lean/TVA/Proof/Int/Arith.lean:163	`int64` `a - b` of natural values `y ≤ x < 2^63` has value `x - y`.
-TVA.IntV.I64.toInt_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:125	An `int64` constant `IntV.ofInt x` with `x` in `[-2^63, 2^63)` has value `x`.
-TVA.IntV.I64.toInt_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:129	An `int64` constant `IntV.ofNat n` with `n < 2^63` has value `n`.
-TVA.IntV.SFits	def	lean/TVA/Proof/Int/Basic.lean:31	`x` lies in the range of signed `w`-bit integers, `[-2^(w-1), 2^(w-1))`: a computation in `tl.intW` whose exact result satisfies it does not wrap.
-TVA.IntV.SFits.mono	theorem	lean/TVA/Proof/Int/Basic.lean:52	A value that fits `w` signed bits fits every wider type (`int32` into `int64`).
-TVA.IntV.add_nat	theorem	lean/TVA/Proof/Int/Arith.lean:68	`a + b` of signed integers of natural values `x`, `y` has value `x + y` when `x + y < 2^(w-1)`.
-TVA.IntV.add_nat_unsigned	theorem	lean/TVA/Proof/Int/Arith.lean:120	`a + b` of unsigned integers of values `x`, `y` has value `x + y` when `x + y < 2^w`.
-TVA.IntV.add_ofNat	theorem	lean/TVA/Proof/Int/Arith.lean:89	`a + n` with a constant `n` (`IntV.ofNat n` or a numeral such as `(64 : I32)`) and `a` of natural value `x` has value `x + n` when `x + n < 2^(w-1)`.
+TVA.IntV.I32.add_nat	theorem	lean/TVA/Proof/Int/Arith.lean:144	`int32` `a + b` of natural values `x`, `y` has value `x + y` when `x + y < 2^31`.
+TVA.IntV.I32.mul_nat	theorem	lean/TVA/Proof/Int/Arith.lean:148	`int32` `a * b` of natural values `x`, `y` has value `x * y` when `x * y < 2^31`.
+TVA.IntV.I32.sfits	theorem	lean/TVA/Proof/Int/Basic.lean:99	Use to build `SFits 32 x` from its two `int32` bounds (each by `omega`).
+TVA.IntV.I32.sfits_iff	theorem	lean/TVA/Proof/Int/Basic.lean:42	`SFits 32` written out: the range of `tl.int32`.
+TVA.IntV.I32.sfits_natCast	theorem	lean/TVA/Proof/Int/Basic.lean:116	Use for a natural number (a shape, a lane index) below `2^31` used in `int32`: it fits.
+TVA.IntV.I32.sfits_of_nonneg	theorem	lean/TVA/Proof/Int/Basic.lean:108	Use for a nonnegative `int32` index or offset below `2^31`: it fits `int32`.
+TVA.IntV.I32.sub_nat	theorem	lean/TVA/Proof/Int/Arith.lean:152	`int32` `a - b` of natural values `y ≤ x < 2^31` has value `x - y`.
+TVA.IntV.I32.toInt_arange	theorem	lean/TVA/Proof/Int/Lanes.lean:120	Lane `i` of `Tensor.arange start n` (`tl.arange(start, start + n)`, `int32`) has value `start + i` when the whole range is in `int32`.
+TVA.IntV.I32.toInt_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:210	An `int32` constant `IntV.ofInt x` with `x` in `[-2^31, 2^31)` has value `x`.
+TVA.IntV.I32.toInt_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:214	An `int32` constant `IntV.ofNat n` with `n < 2^31` has value `n`.
+TVA.IntV.I32.toInt_sadd_arange	theorem	lean/TVA/Proof/Int/Lanes.lean:136	Lane `i` of `c + tl.arange(0, n)`, for an `int32` scalar `c` of natural value `r0`, has value `r0 + i` when `r0 + n ≤ 2^31` (`pid * BLOCK + tl.arange(0, BLOCK)`).
+TVA.IntV.I32.toInt_tl_arange	theorem	lean/TVA/Proof/Int/Lanes.lean:129	Lane `i` of `tl.arange(0, n)` has value `i` when `n ≤ 2^31`.
+TVA.IntV.I64.add_nat	theorem	lean/TVA/Proof/Int/Arith.lean:156	`int64` `a + b` of natural values `x`, `y` has value `x + y` when `x + y < 2^63`.
+TVA.IntV.I64.mul_nat	theorem	lean/TVA/Proof/Int/Arith.lean:160	`int64` `a * b` of natural values `x`, `y` has value `x * y` when `x * y < 2^63`.
+TVA.IntV.I64.sfits	theorem	lean/TVA/Proof/Int/Basic.lean:102	Use to build `SFits 64 x` from its two `int64` bounds (each by `omega`).
+TVA.IntV.I64.sfits_iff	theorem	lean/TVA/Proof/Int/Basic.lean:45	`SFits 64` written out: the range of `tl.int64`.
+TVA.IntV.I64.sfits_natCast	theorem	lean/TVA/Proof/Int/Basic.lean:120	Use for a natural number below `2^63` used in `int64`: it fits.
+TVA.IntV.I64.sfits_of_nonneg	theorem	lean/TVA/Proof/Int/Basic.lean:112	Use for a nonnegative `int64` index or offset below `2^63`: it fits `int64`.
+TVA.IntV.I64.sfits_of_sfits32	theorem	lean/TVA/Proof/Int/Basic.lean:105	Use when an `int32` value is widened to `int64`: what fits `int32` fits `int64`.
+TVA.IntV.I64.sub_nat	theorem	lean/TVA/Proof/Int/Arith.lean:164	`int64` `a - b` of natural values `y ≤ x < 2^63` has value `x - y`.
+TVA.IntV.I64.toInt_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:218	An `int64` constant `IntV.ofInt x` with `x` in `[-2^63, 2^63)` has value `x`.
+TVA.IntV.I64.toInt_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:222	An `int64` constant `IntV.ofNat n` with `n < 2^63` has value `n`.
+TVA.IntV.SFits	def	lean/TVA/Proof/Int/Basic.lean:35	`x` lies in the range of signed `w`-bit integers, `[-2^(w-1), 2^(w-1))`: a computation in `tl.intW` whose exact result satisfies it does not wrap.
+TVA.IntV.SFits.mono	theorem	lean/TVA/Proof/Int/Basic.lean:56	A value that fits `w` signed bits fits every wider type (`int32` into `int64`).
+TVA.IntV.SFits.of_le_of_le	theorem	lean/TVA/Proof/Int/Basic.lean:87	Use when a value lies between a smallest and a largest value already known to fit (the offsets of a tile between its first and last lane).
+TVA.IntV.add_nat	theorem	lean/TVA/Proof/Int/Arith.lean:69	`a + b` of signed integers of natural values `x`, `y` has value `x + y` when `x + y < 2^(w-1)`.
+TVA.IntV.add_nat_unsigned	theorem	lean/TVA/Proof/Int/Arith.lean:121	`a + b` of unsigned integers of values `x`, `y` has value `x + y` when `x + y < 2^w`.
+TVA.IntV.add_ofNat	theorem	lean/TVA/Proof/Int/Arith.lean:90	`a + n` with a constant `n` (`IntV.ofNat n` or a numeral such as `(64 : I32)`) and `a` of natural value `x` has value `x + n` when `x + n < 2^(w-1)`.
 TVA.IntV.and	def	lean/TVA/Base/Int.lean:71	`a & b`, bitwise.
 TVA.IntV.ashr?	def	lean/TVA/Base/Int.lean:112	`a >> n`, arithmetic (LLVM `ashr`, copies of the sign bit shifted in); `none` when `n ≥ w`.
 TVA.IntV.bits	def	lean/TVA/Base/Int.lean:32	The bit pattern (two's complement when signed).
 TVA.IntV.cast	def	lean/TVA/Base/Int.lean:121	`a.to(tl.intW')` between integer dtypes: sign-extended when the *source* is signed, zero-extended otherwise, truncated when narrower.
-TVA.IntV.cast_eq_ofInt	theorem	lean/TVA/Proof/Int/Cast.lean:32	The integer cast is the source's value modulo `2^w'`: rewrite `IntV.cast a` (or a lane of `Tensor.castInt`) into `IntV.ofInt a.toInt` to use the constant lemmas.
+TVA.IntV.cast_eq_ofInt	theorem	lean/TVA/Proof/Int/Cast.lean:37	The integer cast is the source's value modulo `2^w'`: rewrite `IntV.cast a` (or a lane of `Tensor.castInt`) into `IntV.ofInt a.toInt` to use the constant lemmas.
 TVA.IntV.cmpKey_eq	theorem	lean/TVA/Proof/Rules/ArgReduce.lean:142	`CmpKey`'s `==` on integers is the equality of their values.
 TVA.IntV.cmpKey_lt	theorem	lean/TVA/Proof/Rules/ArgReduce.lean:132	`CmpKey`'s `<` on integers is the order of their values.
 TVA.IntV.cmpKey_nan	theorem	lean/TVA/Proof/Rules/ArgReduce.lean:87	Integers have no NaN.
 TVA.IntV.div?	def	lean/TVA/Base/Int.lean:92	`a // b` on integer tensors: truncating toward zero (LLVM `sdiv`/`udiv`).
-TVA.IntV.div?_nat	theorem	lean/TVA/Proof/Int/Arith.lean:214	`a // b` of natural values `x`, `y > 0` is defined and has value `x / y`.
-TVA.IntV.div?_of_nonneg	theorem	lean/TVA/Proof/Int/Arith.lean:178	`a // b` of a nonnegative `a` by a positive `b` is defined and has value `a.toInt / b.toInt` (truncation and floor division agree there).
+TVA.IntV.div?_nat	theorem	lean/TVA/Proof/Int/Arith.lean:215	`a // b` of natural values `x`, `y > 0` is defined and has value `x / y`.
+TVA.IntV.div?_ofNat	theorem	lean/TVA/Proof/Int/Arith.lean:241	Use for `//` of two constants (`IntV.ofNat n // IntV.ofNat m`, such as `N // BLOCK` with constant shapes), `m > 0`, both in range: it is the constant `n / m`.
+TVA.IntV.div?_of_nonneg	theorem	lean/TVA/Proof/Int/Arith.lean:179	`a // b` of a nonnegative `a` by a positive `b` is defined and has value `a.toInt / b.toInt` (truncation and floor division agree there).
 TVA.IntV.eq	def	lean/TVA/Base/Int.lean:84	`a == b`: the patterns are equal (`a != b` is its negation).
+TVA.IntV.eq_eq	theorem	lean/TVA/Proof/Int/Basic.lean:304	`a == b` on integers compares values (`a != b` is its negation).
 TVA.IntV.ext	theorem	lean/TVA/Base/Int.lean:30	Two integer values of the same dtype with the same bit pattern are equal.
-TVA.IntV.ext_toInt	theorem	lean/TVA/Proof/Int/Basic.lean:191	Two integers of one type with the same value are equal: prove an `IntV` equation by values.
+TVA.IntV.ext_toInt	theorem	lean/TVA/Proof/Int/Basic.lean:292	Two integers of one type with the same value are equal: prove an `IntV` equation by values.
 TVA.IntV.instAdd	def	lean/TVA/Base/Int.lean:59	`a + b`, wrapping modulo `2^w`.
 TVA.IntV.instAddCommMonoid	def	lean/TVA/Base/Int.lean:126	Integers of a width form a commutative monoid under wrapping addition, so that sums of integer elements (`tl.sum`, atomic increments) can be written with `∑`.
 TVA.IntV.instMul	def	lean/TVA/Base/Int.lean:63	`a * b`, wrapping modulo `2^w`.
@@ -1199,68 +1238,84 @@ TVA.IntV.instNeg	def	lean/TVA/Base/Int.lean:65	`-a`, wrapping modulo `2^w`.
 TVA.IntV.instOfNat	def	lean/TVA/Base/Int.lean:67	A numeral `n` is `ofNat n`.
 TVA.IntV.instSub	def	lean/TVA/Base/Int.lean:61	`a - b`, wrapping modulo `2^w`.
 TVA.IntV.le	def	lean/TVA/Base/Int.lean:82	`a <= b`, signed or unsigned by the dtype.
-TVA.IntV.le_eq	theorem	lean/TVA/Proof/Int/Basic.lean:215	`a <= b` on integers, signed or unsigned, compares values.
+TVA.IntV.le_eq	theorem	lean/TVA/Proof/Int/Basic.lean:320	`a <= b` on integers, signed or unsigned, compares values.
 TVA.IntV.lshr?	def	lean/TVA/Base/Int.lean:117	`a >> n`, logical (LLVM `lshr`, zeros shifted in); `none` when `n ≥ w`.
 TVA.IntV.lt	def	lean/TVA/Base/Int.lean:80	`a < b`, signed or unsigned by the dtype.
-TVA.IntV.lt_eq	theorem	lean/TVA/Proof/Int/Basic.lean:207	`a < b` on integers, signed or unsigned, compares values (a mask `offs < n`).
+TVA.IntV.lt_eq	theorem	lean/TVA/Proof/Int/Basic.lean:312	`a < b` on integers, signed or unsigned, compares values (a mask `offs < n`).
 TVA.IntV.max	def	lean/TVA/Base/Int.lean:87	`tl.maximum(a, b)`, signed or unsigned by the dtype.
 TVA.IntV.maxInt	def	lean/TVA/Base/Int.lean:56	The largest value of the dtype: `2^(w-1) - 1` when signed, `2^w - 1` otherwise.
 TVA.IntV.min	def	lean/TVA/Base/Int.lean:89	`tl.minimum(a, b)`, signed or unsigned by the dtype.
 TVA.IntV.minInt	def	lean/TVA/Base/Int.lean:53	The smallest value of the dtype: `-2^(w-1)` when signed, `0` otherwise.
-TVA.IntV.mul_nat	theorem	lean/TVA/Proof/Int/Arith.lean:74	`a * b` of signed integers of natural values `x`, `y` has value `x * y` when `x * y < 2^(w-1)`.
-TVA.IntV.mul_nat_unsigned	theorem	lean/TVA/Proof/Int/Arith.lean:127	`a * b` of unsigned integers of values `x`, `y` has value `x * y` when `x * y < 2^w`.
-TVA.IntV.mul_ofNat	theorem	lean/TVA/Proof/Int/Arith.lean:100	`a * n` with a constant `n` and `a` of natural value `x` has value `x * n` when `x * n < 2^(w-1)` (`n` itself need not fit when `x = 0`).
-TVA.IntV.neg_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:185	The negation of the constant `IntV.ofInt a` is the constant `-a`.
+TVA.IntV.mul_nat	theorem	lean/TVA/Proof/Int/Arith.lean:75	`a * b` of signed integers of natural values `x`, `y` has value `x * y` when `x * y < 2^(w-1)`.
+TVA.IntV.mul_nat_unsigned	theorem	lean/TVA/Proof/Int/Arith.lean:128	`a * b` of unsigned integers of values `x`, `y` has value `x * y` when `x * y < 2^w`.
+TVA.IntV.mul_ofNat	theorem	lean/TVA/Proof/Int/Arith.lean:101	`a * n` with a constant `n` and `a` of natural value `x` has value `x * n` when `x * n < 2^(w-1)` (`n` itself need not fit when `x = 0`).
+TVA.IntV.neg_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:286	The negation of the constant `IntV.ofInt a` is the constant `-a`.
 TVA.IntV.not	def	lean/TVA/Base/Int.lean:77	`~a`, bitwise.
+TVA.IntV.not_eq_eq	theorem	lean/TVA/Proof/Int/Basic.lean:308	Use for `a != b` (written `!(a.eq b)`, a mask `offs != k`): it compares values.
 TVA.IntV.ofInt	def	lean/TVA/Base/Int.lean:42	The integer whose pattern is `v mod 2^w` (two's complement): what a Python integer becomes in an integer dtype, and the wrapped result of exact integer arithmetic.
-TVA.IntV.ofInt_add_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:169	The sum of the constants `IntV.ofInt a` and `IntV.ofInt b` is the constant `a + b`.
-TVA.IntV.ofInt_iff_cast	theorem	lean/TVA/Proof/Int/Cast.lean:77	The relation `ConvRel` gives between integer dtypes, `r = IntV.ofInt x.toInt`, is `r` being the cast; every `ConvRel.iff_cast_*` is this.
-TVA.IntV.ofInt_mul_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:180	The product of the constants `IntV.ofInt a` and `IntV.ofInt b` is the constant `a * b`.
-TVA.IntV.ofInt_natCast	theorem	lean/TVA/Proof/Int/Basic.lean:135	`IntV.ofInt (n : Int)` is `IntV.ofNat n`, in every integer type: rewrite with it to use the `ofNat` lemmas.
-TVA.IntV.ofInt_sub_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:174	The difference of the constants `IntV.ofInt a` and `IntV.ofInt b` is the constant `a - b`.
-TVA.IntV.ofInt_toInt	theorem	lean/TVA/Proof/Int/Basic.lean:140	Rebuilding an integer from its value gives it back, in every integer type.
+TVA.IntV.ofInt_add_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:270	The sum of the constants `IntV.ofInt a` and `IntV.ofInt b` is the constant `a + b`.
+TVA.IntV.ofInt_iff_cast	theorem	lean/TVA/Proof/Int/Cast.lean:100	The relation `ConvRel` gives between integer dtypes, `r = IntV.ofInt x.toInt`, is `r` being the cast; every `ConvRel.iff_cast_*` is this.
+TVA.IntV.ofInt_mul_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:281	The product of the constants `IntV.ofInt a` and `IntV.ofInt b` is the constant `a * b`.
+TVA.IntV.ofInt_natCast	theorem	lean/TVA/Proof/Int/Basic.lean:228	`IntV.ofInt (n : Int)` is `IntV.ofNat n`, in every integer type: rewrite with it to use the `ofNat` lemmas.
+TVA.IntV.ofInt_sub_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:275	The difference of the constants `IntV.ofInt a` and `IntV.ofInt b` is the constant `a - b`.
+TVA.IntV.ofInt_toInt	theorem	lean/TVA/Proof/Int/Basic.lean:241	Rebuilding an integer from its value gives it back, in every integer type.
 TVA.IntV.ofNat	def	lean/TVA/Base/Int.lean:46	The integer whose pattern is `v mod 2^w`.
-TVA.IntV.ofNat_add_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:159	The sum of the constants `IntV.ofNat a` and `IntV.ofNat b` is the constant `a + b`.
-TVA.IntV.ofNat_mul	theorem	lean/TVA/Proof/Int/Arith.lean:110	`n * a` with a constant `n` and `a` of natural value `x` has value `n * x` when `n * x < 2^(w-1)`.
-TVA.IntV.ofNat_mul_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:164	The product of the constants `IntV.ofNat a` and `IntV.ofNat b` is the constant `a * b`.
-TVA.IntV.ofNat_toInt_toNat	theorem	lean/TVA/Proof/Int/Basic.lean:148	Rebuilding a nonnegative integer from its value as a natural number gives it back.
-TVA.IntV.ofNat_toNat	theorem	lean/TVA/Proof/Int/Arith.lean:242	An integer rebuilt from its bit pattern read as a natural number (`IntV.ofNat x.bits.toNat`, as `DType.ofBits` does with the bytes of a load) is itself.
+TVA.IntV.ofNat_add_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:260	The sum of the constants `IntV.ofNat a` and `IntV.ofNat b` is the constant `a + b`.
+TVA.IntV.ofNat_mul	theorem	lean/TVA/Proof/Int/Arith.lean:111	`n * a` with a constant `n` and `a` of natural value `x` has value `n * x` when `n * x < 2^(w-1)`.
+TVA.IntV.ofNat_mul_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:265	The product of the constants `IntV.ofNat a` and `IntV.ofNat b` is the constant `a * b`.
+TVA.IntV.ofNat_toInt_toNat	theorem	lean/TVA/Proof/Int/Basic.lean:249	Rebuilding a nonnegative integer from its value as a natural number gives it back.
+TVA.IntV.ofNat_toNat	theorem	lean/TVA/Proof/Int/Arith.lean:257	An integer rebuilt from its bit pattern read as a natural number (`IntV.ofNat x.bits.toNat`, as `DType.ofBits` does with the bytes of a load) is itself.
 TVA.IntV.or	def	lean/TVA/Base/Int.lean:73	`a | b`, bitwise.
 TVA.IntV.rem?	def	lean/TVA/Base/Int.lean:100	`a % b` on integer tensors: the remainder of `div?`, with the sign of `a` (LLVM `srem`/`urem`).
-TVA.IntV.rem?_nat	theorem	lean/TVA/Proof/Int/Arith.lean:221	`a % b` of natural values `x`, `y > 0` is defined and has value `x % y`.
-TVA.IntV.rem?_of_nonneg	theorem	lean/TVA/Proof/Int/Arith.lean:187	`a % b` of a nonnegative `a` by a positive `b` is defined and has value `a.toInt % b.toInt`.
-TVA.IntV.sfits_iff	theorem	lean/TVA/Proof/Int/Basic.lean:35	`SFits` written out; rewrite with it to hand the two bounds to `omega` or `norm_num`.
-TVA.IntV.sfits_natCast	theorem	lean/TVA/Proof/Int/Basic.lean:48	A natural number below `2^(w-1)` fits `w` signed bits.
-TVA.IntV.sfits_of_nonneg	theorem	lean/TVA/Proof/Int/Basic.lean:44	A nonnegative integer below `2^(w-1)` fits `w` signed bits (an index or an offset).
-TVA.IntV.sfits_toInt	theorem	lean/TVA/Proof/Int/Basic.lean:57	The value of a signed integer is in its own range.
+TVA.IntV.rem?_nat	theorem	lean/TVA/Proof/Int/Arith.lean:222	`a % b` of natural values `x`, `y > 0` is defined and has value `x % y`.
+TVA.IntV.rem?_ofNat	theorem	lean/TVA/Proof/Int/Arith.lean:248	Use for `%` of two constants (`IntV.ofNat n % IntV.ofNat m`), `m > 0`, both in range: it is the constant `n % m`.
+TVA.IntV.rem?_of_nonneg	theorem	lean/TVA/Proof/Int/Arith.lean:188	`a % b` of a nonnegative `a` by a positive `b` is defined and has value `a.toInt % b.toInt`.
+TVA.IntV.sfits_iff	theorem	lean/TVA/Proof/Int/Basic.lean:39	`SFits` written out; rewrite with it to hand the two bounds to `omega` or `norm_num`.
+TVA.IntV.sfits_natCast	theorem	lean/TVA/Proof/Int/Basic.lean:52	A natural number below `2^(w-1)` fits `w` signed bits.
+TVA.IntV.sfits_nat_add	theorem	lean/TVA/Proof/Int/Basic.lean:61	Use when an `int32`/`int64` sum of two naturals must not wrap (`pid*B + i`): the sum of two naturals below `2^(w-1)` fits, for `IntV.toInt_add`.
+TVA.IntV.sfits_nat_add_of_le	theorem	lean/TVA/Proof/Int/Basic.lean:75	Use when each summand has its own bound (`r0 ≤ M - 1`, `i ≤ BM - 1`): `x + y` fits when the sum of the bounds is below `2^(w-1)`.
+TVA.IntV.sfits_nat_mul	theorem	lean/TVA/Proof/Int/Basic.lean:68	Use when a product of two naturals (`row * stride`) must not wrap: it fits when it is below `2^(w-1)`, for `IntV.toInt_mul`.
+TVA.IntV.sfits_nat_mul_of_le	theorem	lean/TVA/Proof/Int/Basic.lean:81	Use when each factor has its own bound (a row index times a stride, each bounded by the shape): `x * y` fits when the product of the bounds is below `2^(w-1)`.
+TVA.IntV.sfits_of_abs_lt	theorem	lean/TVA/Proof/Int/Basic.lean:93	Use when a bound on the magnitude `|x| < 2^(w-1)` is at hand (a signed difference or an error term): `x` fits.
+TVA.IntV.sfits_of_nonneg	theorem	lean/TVA/Proof/Int/Basic.lean:48	A nonnegative integer below `2^(w-1)` fits `w` signed bits (an index or an offset).
+TVA.IntV.sfits_toInt	theorem	lean/TVA/Proof/Int/Basic.lean:124	The value of a signed integer is in its own range.
 TVA.IntV.shl?	def	lean/TVA/Base/Int.lean:108	`a << n`; `none` (LLVM poison, undefined) when `n ≥ w`.
-TVA.IntV.sub_nat	theorem	lean/TVA/Proof/Int/Arith.lean:80	`a - b` of signed integers of natural values `y ≤ x` has value `x - y` when `x < 2^(w-1)`.
-TVA.IntV.sub_nat_unsigned	theorem	lean/TVA/Proof/Int/Arith.lean:134	`a - b` of unsigned integers of values `y ≤ x` has value `x - y`.
-TVA.IntV.sub_ofNat	theorem	lean/TVA/Proof/Int/Arith.lean:95	`a - n` with a constant `n ≤ x` and `a` of natural value `x < 2^(w-1)` has value `x - n`.
+TVA.IntV.sub_nat	theorem	lean/TVA/Proof/Int/Arith.lean:81	`a - b` of signed integers of natural values `y ≤ x` has value `x - y` when `x < 2^(w-1)`.
+TVA.IntV.sub_nat_unsigned	theorem	lean/TVA/Proof/Int/Arith.lean:135	`a - b` of unsigned integers of values `y ≤ x` has value `x - y`.
+TVA.IntV.sub_ofNat	theorem	lean/TVA/Proof/Int/Arith.lean:96	`a - n` with a constant `n ≤ x` and `a` of natural value `x < 2^(w-1)` has value `x - n`.
 TVA.IntV.toInt	def	lean/TVA/Base/Int.lean:49	The number the value stands for: the two's complement reading of the pattern when signed, the natural number otherwise.
-TVA.IntV.toInt_add	theorem	lean/TVA/Proof/Int/Arith.lean:33	`a + b` of signed integers of values `x`, `y` has value `x + y` when that fits.
-TVA.IntV.toInt_cast	theorem	lean/TVA/Proof/Int/Cast.lean:56	A widening cast of a signed integer keeps its value (`x.to(tl.int64)` of an `int32`).
-TVA.IntV.toInt_cast_of_lt	theorem	lean/TVA/Proof/Int/Cast.lean:50	A cast into an unsigned type keeps a value in `[0, 2^w')`.
-TVA.IntV.toInt_cast_of_sfits	theorem	lean/TVA/Proof/Int/Cast.lean:44	A cast into a signed type of positive width keeps a value that fits it (a narrowing `x.to(tl.int32)` of an `int64` index known to be small).
-TVA.IntV.toInt_cast_unsigned	theorem	lean/TVA/Proof/Int/Cast.lean:62	A widening cast of an unsigned integer into an unsigned type keeps its value.
-TVA.IntV.toInt_cast_unsigned_signed	theorem	lean/TVA/Proof/Int/Cast.lean:69	A cast of an unsigned integer into a strictly wider signed type keeps its value (`x.to(tl.int32)` of a `uint8`).
-TVA.IntV.toInt_inj	theorem	lean/TVA/Proof/Int/Basic.lean:199	Two integers of one type are equal exactly when their values are.
-TVA.IntV.toInt_max	theorem	lean/TVA/Proof/Int/Basic.lean:223	`tl.maximum(a, b)` of integers has the larger value.
-TVA.IntV.toInt_min	theorem	lean/TVA/Proof/Int/Basic.lean:231	`tl.minimum(a, b)` of integers has the smaller value.
-TVA.IntV.toInt_mul	theorem	lean/TVA/Proof/Int/Arith.lean:55	`a * b` of signed integers of values `x`, `y` has value `x * y` when that fits.
-TVA.IntV.toInt_neg_one	theorem	lean/TVA/Proof/Int/Basic.lean:110	The constant `-1` has value `-1` in a signed type of positive width.
-TVA.IntV.toInt_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:76	A Python integer `x` in the signed range, made a `w`-bit constant (`IntV.ofInt x`), keeps its value.
-TVA.IntV.toInt_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:83	`IntV.ofNat n` with `n < 2^(w-1)` has value `n` in a signed type of any width.
-TVA.IntV.toInt_ofNat_lit	theorem	lean/TVA/Proof/Int/Basic.lean:96	A numeral below `2^(w-1)` used as a signed constant (`(128 : I32)`) has its own value.
-TVA.IntV.toInt_ofNat_lit_unsigned	theorem	lean/TVA/Proof/Int/Basic.lean:101	A numeral below `2^w` used as an unsigned constant (`(255 : U8)`) has its own value.
-TVA.IntV.toInt_ofNat_unsigned	theorem	lean/TVA/Proof/Int/Basic.lean:91	`IntV.ofNat n` with `n < 2^w` has value `n` in an unsigned type.
-TVA.IntV.toInt_of_div?	theorem	lean/TVA/Proof/Int/Arith.lean:196	A given result `q` of `a // b` (`a.div? b = some q`, a lane of `tl.idiv`), `a ≥ 0`, `b > 0`, has value `a.toInt / b.toInt`.
-TVA.IntV.toInt_of_div?_nat	theorem	lean/TVA/Proof/Int/Arith.lean:228	A given result `q` of `a // b` of natural values `x`, `y > 0` has value `x / y`.
-TVA.IntV.toInt_of_rem?	theorem	lean/TVA/Proof/Int/Arith.lean:205	A given result `q` of `a % b` (a lane of `tl.irem`), `a ≥ 0`, `b > 0`, has value `a.toInt % b.toInt`.
-TVA.IntV.toInt_of_rem?_nat	theorem	lean/TVA/Proof/Int/Arith.lean:234	A given result `q` of `a % b` of natural values `x`, `y > 0` has value `x % y`.
-TVA.IntV.toInt_sub	theorem	lean/TVA/Proof/Int/Arith.lean:44	`a - b` of signed integers of values `x`, `y` has value `x - y` when that fits.
-TVA.IntV.toInt_width_zero	theorem	lean/TVA/Proof/Int/Basic.lean:70	`IntV s 0` has one value, whose value is `0`; the lemmas below use it to need no `0 < w`.
-TVA.IntV.toInt_zero	theorem	lean/TVA/Proof/Int/Basic.lean:106	The constant `0` has value `0`, in every integer type.
+TVA.IntV.toInt_add	theorem	lean/TVA/Proof/Int/Arith.lean:34	`a + b` of signed integers of values `x`, `y` has value `x + y` when that fits.
+TVA.IntV.toInt_cast	theorem	lean/TVA/Proof/Int/Cast.lean:61	A widening cast of a signed integer keeps its value (`x.to(tl.int64)` of an `int32`).
+TVA.IntV.toInt_cast_of_lt	theorem	lean/TVA/Proof/Int/Cast.lean:55	A cast into an unsigned type keeps a value in `[0, 2^w')`.
+TVA.IntV.toInt_cast_of_sfits	theorem	lean/TVA/Proof/Int/Cast.lean:49	A cast into a signed type of positive width keeps a value that fits it (a narrowing `x.to(tl.int32)` of an `int64` index known to be small).
+TVA.IntV.toInt_cast_unsigned	theorem	lean/TVA/Proof/Int/Cast.lean:67	A widening cast of an unsigned integer into an unsigned type keeps its value.
+TVA.IntV.toInt_cast_unsigned_signed	theorem	lean/TVA/Proof/Int/Cast.lean:74	A cast of an unsigned integer into a strictly wider signed type keeps its value (`x.to(tl.int32)` of a `uint8`).
+TVA.IntV.toInt_inj	theorem	lean/TVA/Proof/Int/Basic.lean:300	Two integers of one type are equal exactly when their values are.
+TVA.IntV.toInt_max	theorem	lean/TVA/Proof/Int/Basic.lean:328	`tl.maximum(a, b)` of integers has the larger value.
+TVA.IntV.toInt_min	theorem	lean/TVA/Proof/Int/Basic.lean:336	`tl.minimum(a, b)` of integers has the smaller value.
+TVA.IntV.toInt_mul	theorem	lean/TVA/Proof/Int/Arith.lean:56	`a * b` of signed integers of values `x`, `y` has value `x * y` when that fits.
+TVA.IntV.toInt_neg_one	theorem	lean/TVA/Proof/Int/Basic.lean:177	The constant `-1` has value `-1` in a signed type of positive width.
+TVA.IntV.toInt_ofInt	theorem	lean/TVA/Proof/Int/Basic.lean:143	A Python integer `x` in the signed range, made a `w`-bit constant (`IntV.ofInt x`), keeps its value.
+TVA.IntV.toInt_ofInt_neg_one	theorem	lean/TVA/Proof/Int/Basic.lean:203	Use for the constant `IntV.ofInt (-1)` (a sentinel index) in a signed type of positive width.
+TVA.IntV.toInt_ofInt_one	theorem	lean/TVA/Proof/Int/Basic.lean:233	Use for the constant `IntV.ofInt 1` (as `ConvRel` of `true` from `int1` gives) in a signed type of at least two bits.
+TVA.IntV.toInt_ofInt_toInt	theorem	lean/TVA/Proof/Int/Cast.lean:82	Use when a signed value is rebuilt as a constant of a type at least as wide (`IntV.ofInt a.toInt`, what `ConvRel` unfolds to): it keeps its value.
+TVA.IntV.toInt_ofInt_toInt_unsigned	theorem	lean/TVA/Proof/Int/Cast.lean:88	Use when an unsigned value is rebuilt in a strictly wider signed type (`IntV.ofInt a.toInt`, a `uint8` into `int32`): it keeps its value.
+TVA.IntV.toInt_ofInt_toInt_unsigned_le	theorem	lean/TVA/Proof/Int/Cast.lean:94	Use when an unsigned value is rebuilt in an unsigned type at least as wide (`IntV.ofInt a.toInt`): it keeps its value.
+TVA.IntV.toInt_ofInt_zero	theorem	lean/TVA/Proof/Int/Basic.lean:189	Use for the constant `IntV.ofInt 0` (as `ConvRel` of `false` from `int1` gives): its value is `0` in every integer type.
+TVA.IntV.toInt_ofNat	theorem	lean/TVA/Proof/Int/Basic.lean:150	`IntV.ofNat n` with `n < 2^(w-1)` has value `n` in a signed type of any width.
+TVA.IntV.toInt_ofNat_lit	theorem	lean/TVA/Proof/Int/Basic.lean:163	A numeral below `2^(w-1)` used as a signed constant (`(128 : I32)`) has its own value.
+TVA.IntV.toInt_ofNat_lit_unsigned	theorem	lean/TVA/Proof/Int/Basic.lean:168	A numeral below `2^w` used as an unsigned constant (`(255 : U8)`) has its own value.
+TVA.IntV.toInt_ofNat_unsigned	theorem	lean/TVA/Proof/Int/Basic.lean:158	`IntV.ofNat n` with `n < 2^w` has value `n` in an unsigned type.
+TVA.IntV.toInt_ofNat_zero	theorem	lean/TVA/Proof/Int/Basic.lean:184	Use for the constant `IntV.ofNat 0` (a zero offset or a loop's first index): its value is `0` in every integer type.
+TVA.IntV.toInt_of_div?	theorem	lean/TVA/Proof/Int/Arith.lean:197	A given result `q` of `a // b` (`a.div? b = some q`, a lane of `tl.idiv`), `a ≥ 0`, `b > 0`, has value `a.toInt / b.toInt`.
+TVA.IntV.toInt_of_div?_nat	theorem	lean/TVA/Proof/Int/Arith.lean:229	A given result `q` of `a // b` of natural values `x`, `y > 0` has value `x / y`.
+TVA.IntV.toInt_of_rem?	theorem	lean/TVA/Proof/Int/Arith.lean:206	A given result `q` of `a % b` (a lane of `tl.irem`), `a ≥ 0`, `b > 0`, has value `a.toInt % b.toInt`.
+TVA.IntV.toInt_of_rem?_nat	theorem	lean/TVA/Proof/Int/Arith.lean:235	A given result `q` of `a % b` of natural values `x`, `y > 0` has value `x % y`.
+TVA.IntV.toInt_one	theorem	lean/TVA/Proof/Int/Basic.lean:194	Use for the signed constant `1` (a step `i + 1`) in a type of at least two bits, without stating `1 < 2^(w-1)`.
+TVA.IntV.toInt_one_unsigned	theorem	lean/TVA/Proof/Int/Basic.lean:199	Use for the unsigned constant `1` in a type of positive width.
+TVA.IntV.toInt_sub	theorem	lean/TVA/Proof/Int/Arith.lean:45	`a - b` of signed integers of values `x`, `y` has value `x - y` when that fits.
+TVA.IntV.toInt_width_zero	theorem	lean/TVA/Proof/Int/Basic.lean:137	`IntV s 0` has one value, whose value is `0`; the lemmas below use it to need no `0 < w`.
+TVA.IntV.toInt_zero	theorem	lean/TVA/Proof/Int/Basic.lean:173	The constant `0` has value `0`, in every integer type.
 TVA.IntV.xor	def	lean/TVA/Base/Int.lean:75	`a ^ b`, bitwise.
 TVA.InterRace	def	lean/TVA/Launch/WellBehaved.lean:52	**A race between programs**: two conflicting steps of different programs, unless they are `Event.Strong` atomics, and not ordered by happens-before (which never orders steps of different programs, so this conjunct never excuses a pair).
 TVA.IntraRace	def	lean/TVA/Launch/WellBehaved.lean:63	**A conflict within a program**: two conflicting steps of the same program, unless both are atomics on exactly the same bytes.
@@ -1748,21 +1803,21 @@ TVA.Tensor.foldRows	def	lean/TVA/Tensor/Basic.lean:383	A rank-2 reduction along 
 TVA.Tensor.full	def	lean/TVA/Tensor/Basic.lean:87	The tensor with every element `a`: `tl.full`, and the implicit broadcast of a scalar.
 TVA.Tensor.get	def	lean/TVA/Tensor/Basic.lean:76	The element at an index.
 TVA.Tensor.get1	def	lean/TVA/Tensor/Basic.lean:130	The element `x[i]` of a rank-1 tensor.
-TVA.Tensor.get1_add	theorem	lean/TVA/Proof/Int/Lanes.lean:27	Lane `i` of `x + y` is the sum of the lanes `i`.
-TVA.Tensor.get1_adds	theorem	lean/TVA/Proof/Int/Lanes.lean:46	Lane `i` of `x + a`, for a scalar `a`, is `x.get1 i + a`.
+TVA.Tensor.get1_add	theorem	lean/TVA/Proof/Int/Lanes.lean:30	Lane `i` of `x + y` is the sum of the lanes `i`.
+TVA.Tensor.get1_adds	theorem	lean/TVA/Proof/Int/Lanes.lean:49	Lane `i` of `x + a`, for a scalar `a`, is `x.get1 i + a`.
 TVA.Tensor.get1_arange	theorem	lean/TVA/Tensor/Basic.lean:211	Lane `i` of `tl.arange(start, start + n)` holds `start + i` as a `tl.int32`.
-TVA.Tensor.get1_castInt	theorem	lean/TVA/Proof/Int/Lanes.lean:74	Lane `i` of `x.castInt` (`x.to(tl.int64)` of an integer vector) is the cast of lane `i`.
-TVA.Tensor.get1_eq	theorem	lean/TVA/Proof/Int/Lanes.lean:70	Lane `i` of `x == y` is `(x.get1 i).eq (y.get1 i)`.
-TVA.Tensor.get1_le	theorem	lean/TVA/Proof/Int/Lanes.lean:66	Lane `i` of `x <= y` is `(x.get1 i).le (y.get1 i)`.
-TVA.Tensor.get1_lt	theorem	lean/TVA/Proof/Int/Lanes.lean:58	Lane `i` of `x < y` is `(x.get1 i).lt (y.get1 i)`.
-TVA.Tensor.get1_ltS	theorem	lean/TVA/Proof/Int/Lanes.lean:62	Lane `i` of `x < a`, for a scalar `a` (the mask `offs < n`), is `(x.get1 i).lt a`.
-TVA.Tensor.get1_mul	theorem	lean/TVA/Proof/Int/Lanes.lean:35	Lane `i` of `x * y` is the product of the lanes `i`.
-TVA.Tensor.get1_muls	theorem	lean/TVA/Proof/Int/Lanes.lean:54	Lane `i` of `x * a`, for a scalar `a` (`offs * stride`), is `x.get1 i * a`.
-TVA.Tensor.get1_neg	theorem	lean/TVA/Proof/Int/Lanes.lean:39	Lane `i` of `-x` is `-(x.get1 i)`.
+TVA.Tensor.get1_castInt	theorem	lean/TVA/Proof/Int/Lanes.lean:77	Lane `i` of `x.castInt` (`x.to(tl.int64)` of an integer vector) is the cast of lane `i`.
+TVA.Tensor.get1_eq	theorem	lean/TVA/Proof/Int/Lanes.lean:73	Lane `i` of `x == y` is `(x.get1 i).eq (y.get1 i)`.
+TVA.Tensor.get1_le	theorem	lean/TVA/Proof/Int/Lanes.lean:69	Lane `i` of `x <= y` is `(x.get1 i).le (y.get1 i)`.
+TVA.Tensor.get1_lt	theorem	lean/TVA/Proof/Int/Lanes.lean:61	Lane `i` of `x < y` is `(x.get1 i).lt (y.get1 i)`.
+TVA.Tensor.get1_ltS	theorem	lean/TVA/Proof/Int/Lanes.lean:65	Lane `i` of `x < a`, for a scalar `a` (the mask `offs < n`), is `(x.get1 i).lt a`.
+TVA.Tensor.get1_mul	theorem	lean/TVA/Proof/Int/Lanes.lean:38	Lane `i` of `x * y` is the product of the lanes `i`.
+TVA.Tensor.get1_muls	theorem	lean/TVA/Proof/Int/Lanes.lean:57	Lane `i` of `x * a`, for a scalar `a` (`offs * stride`), is `x.get1 i * a`.
+TVA.Tensor.get1_neg	theorem	lean/TVA/Proof/Int/Lanes.lean:42	Lane `i` of `-x` is `-(x.get1 i)`.
 TVA.Tensor.get1_of1	theorem	lean/TVA/Tensor/Basic.lean:138	Element `i` of the rank-1 tensor `of1 f` is `f i`.
-TVA.Tensor.get1_sadd	theorem	lean/TVA/Proof/Int/Lanes.lean:42	Lane `i` of `a + x`, for a scalar `a` (`block_start + offs`), is `a + x.get1 i`.
-TVA.Tensor.get1_smul	theorem	lean/TVA/Proof/Int/Lanes.lean:50	Lane `i` of `a * x`, for a scalar `a`, is `a * x.get1 i`.
-TVA.Tensor.get1_sub	theorem	lean/TVA/Proof/Int/Lanes.lean:31	Lane `i` of `x - y` is the difference of the lanes `i`.
+TVA.Tensor.get1_sadd	theorem	lean/TVA/Proof/Int/Lanes.lean:45	Lane `i` of `a + x`, for a scalar `a` (`block_start + offs`), is `a + x.get1 i`.
+TVA.Tensor.get1_smul	theorem	lean/TVA/Proof/Int/Lanes.lean:53	Lane `i` of `a * x`, for a scalar `a`, is `a * x.get1 i`.
+TVA.Tensor.get1_sub	theorem	lean/TVA/Proof/Int/Lanes.lean:34	Lane `i` of `x - y` is the difference of the lanes `i`.
 TVA.Tensor.get2	def	lean/TVA/Tensor/Basic.lean:133	The element `x[i, j]` of a rank-2 tensor.
 TVA.Tensor.get2_bcastCols	theorem	lean/TVA/Tensor/Basic.lean:180	Every column of a `[m, 1]` tensor broadcast to `[m, n]` repeats its single column.
 TVA.Tensor.get2_bcastRows	theorem	lean/TVA/Tensor/Basic.lean:183	Every row of a `[1, n]` tensor broadcast to `[m, n]` repeats its single row.
@@ -1847,6 +1902,11 @@ TVA.Tensor.row	def	lean/TVA/Tensor/Basic.lean:147	`x[None, :]`, broadcast to `m`
 TVA.Tensor.scalar	def	lean/TVA/Tensor/Basic.lean:121	The rank-0 tensor of a value.
 TVA.Tensor.split	def	lean/TVA/Tensor/Layout.lean:33	`tl.split(x)`: the two halves along a last dimension of size 2 (`core.py:2198`).
 TVA.Tensor.split_join	theorem	lean/TVA/Tensor/Layout.lean:56	`tl.split` of `tl.join(a, b)` gives back `a` and `b`.
+TVA.Tensor.toInt_get1_add	theorem	lean/TVA/Proof/Int/Lanes.lean:81	Use for the lanes of `x + y` of signed vectors whose lanes have values `f i`, `g i`: lane `i` has value `f i + g i` when every such sum fits.
+TVA.Tensor.toInt_get1_mul	theorem	lean/TVA/Proof/Int/Lanes.lean:95	Use for the lanes of `x * y` of signed vectors whose lanes have values `f i`, `g i`: lane `i` has value `f i * g i` when every such product fits.
+TVA.Tensor.toInt_get1_muls	theorem	lean/TVA/Proof/Int/Lanes.lean:109	Use for `offs * stride` (a vector whose lanes have values `f i` times a signed scalar `a` of value `c`): lane `i` has value `f i * c` when every such product fits.
+TVA.Tensor.toInt_get1_sadd	theorem	lean/TVA/Proof/Int/Lanes.lean:102	Use for `start + offs` (a signed scalar `a` of value `c` plus a vector whose lanes have values `f i`): lane `i` has value `c + f i` when every such sum fits.
+TVA.Tensor.toInt_get1_sub	theorem	lean/TVA/Proof/Int/Lanes.lean:88	Use for the lanes of `x - y` of signed vectors whose lanes have values `f i`, `g i`: lane `i` has value `f i - g i` when every such difference fits.
 TVA.Tensor.toList	def	lean/TVA/Tensor/Basic.lean:101	The elements in row-major order.
 TVA.Tensor.trans	def	lean/TVA/Tensor/Basic.lean:164	`tl.trans(x)` (or `x.T`) of a rank-2 tensor.
 TVA.Tensor.unsqueeze0	def	lean/TVA/Tensor/Basic.lean:153	`x[None, :]` without broadcasting: shape `[1, n]`.
@@ -2029,8 +2089,8 @@ TVA.foldl_max_spec	theorem	lean/TVA/Proof/Shared/Replay.lean:269	**The `max` fol
 TVA.foldl_min_spec	theorem	lean/TVA/Proof/Shared/Replay.lean:294	**The `min` fold, in any order** (as `foldl_max_spec`, with `IntV.min`, `IntV.toInt_min`).
 TVA.good_snoc	theorem	lean/TVA/Proof/Shared/Launch.lean:53	A property of every event of a trace, extended by one more event that has it.
 TVA.hist_snoc	theorem	lean/TVA/Proof/Shared/Launch.lean:70	The history condition of program `i` after one more event of program `j`.
-TVA.idiv_ok	theorem	lean/TVA/Proof/Int/Lanes.lean:110	Every lane of `x // y` is defined when the lanes of `x` have natural values `f i` and every lane of `y` the value `M > 0` (the premise of the rule for `tl.idiv`).
-TVA.idiv_toInt	theorem	lean/TVA/Proof/Int/Lanes.lean:120	Lane `i` of a result `r` of `tl.idiv x y` (as in `idiv_ok`) has value `f i / M`.
+TVA.idiv_ok	theorem	lean/TVA/Proof/Int/Lanes.lean:148	Every lane of `x // y` is defined when the lanes of `x` have natural values `f i` and every lane of `y` the value `M > 0` (the premise of the rule for `tl.idiv`).
+TVA.idiv_toInt	theorem	lean/TVA/Proof/Int/Lanes.lean:158	Lane `i` of a result `r` of `tl.idiv x y` (as in `idiv_ok`) has value `f i / M`.
 TVA.img_block	theorem	lean/TVA/Proof/Pattern/Block.lean:195	The elements a block access touches are the block's (`Block.Tile`).
 TVA.img_tileAt	theorem	lean/TVA/Proof/Pattern/Tile.lean:315	The elements a tile access touches are the tile's (`Tile2.ElemAt`).
 TVA.independent	theorem	lean/TVA/Proof/Compose.lean:255	**Independent programs.** Programs that are each safe alone from the initial memory, with footprints no other program writes into and read footprints disjoint from their own write footprints, make a well-behaved launch.
@@ -2048,8 +2108,8 @@ TVA.invA_reach	theorem	lean/TVA/Proof/Shared/Launch.lean:265	The invariant holds
 TVA.invA_step	theorem	lean/TVA/Proof/Shared/Launch.lean:88	**One step keeps the invariant**: the stepping program's own view takes a step of its own (`SafeA.Next`), and the other programs' views do not change.
 TVA.inv_reach	theorem	lean/TVA/Proof/Compose.lean:224	The invariant holds along every trace from a state where it holds.
 TVA.inv_step	theorem	lean/TVA/Proof/Compose.lean:135	**One step keeps the invariant**: the stepping program's own view takes the step it would take alone (`Safe.Next`), and the other programs' views do not change.
-TVA.irem_ok	theorem	lean/TVA/Proof/Int/Lanes.lean:128	Every lane of `x % y` is defined when the lanes of `x` have natural values `f i` and every lane of `y` the value `M > 0` (the premise of the rule for `tl.irem`).
-TVA.irem_toInt	theorem	lean/TVA/Proof/Int/Lanes.lean:138	Lane `i` of a result `r` of `tl.irem x y` (as in `irem_ok`) has value `f i % M`, below `M`: rows wrapped by `% M` stay in the matrix.
+TVA.irem_ok	theorem	lean/TVA/Proof/Int/Lanes.lean:166	Every lane of `x % y` is defined when the lanes of `x` have natural values `f i` and every lane of `y` the value `M > 0` (the premise of the rule for `tl.irem`).
+TVA.irem_toInt	theorem	lean/TVA/Proof/Int/Lanes.lean:176	Lane `i` of a result `r` of `tl.irem x y` (as in `irem_ok`) has value `f i % M`, below `M`: rows wrapped by `% M` stay in the matrix.
 TVA.iterW	def	lean/TVA/Proof/Rules/Loop.lean:26	The bytes that iterations `0, …, n-1` may write, iteration `t` writing inside `Wt t`.
 TVA.iterW_empty	theorem	lean/TVA/Proof/Rules/Loop.lean:37	Iterations that write nothing write nothing.
 TVA.iterW_mono	theorem	lean/TVA/Proof/Rules/Loop.lean:29	More iterations write more.
@@ -2088,13 +2148,14 @@ TVA.safe_associative_scan	theorem	lean/TVA/Proof/Scan.lean:127	**`tl.associative
 TVA.safe_assume	theorem	lean/TVA/Proof/Rules/Core.lean:33	`tl.assume(c)`: `c` must hold.
 TVA.safe_atomic_buf	theorem	lean/TVA/Proof/Rules/Memory.lean:344	**A tensor atomic on owned buffer elements, result unused** (`let _ ← tl.atomic_…`).
 TVA.safe_convert	theorem	lean/TVA/Proof/Rules/Convert.lean:26	**`tl.convert d d' x`**: when every element has a result `ConvRel` allows on the platform, the rest must be safe for every tensor of such results.
+TVA.safe_convert_iff	theorem	lean/TVA/Proof/Rules/Convert.lean:39	**A conversion with one result**: when every element of `x` has exactly one result, the element of `y` (`ConvRel E.P d d' (x.get i) r ↔ r = y.get i`), `tl.convert d d' x` followed by `k` is safe exactly when `k y` is.
 TVA.safe_cumprod	theorem	lean/TVA/Proof/Scan.lean:175	**`tl.cumprod`** of floats: IEEE products along each position's tree.
 TVA.safe_cumsum	theorem	lean/TVA/Proof/Scan.lean:156	**`tl.cumsum`** of floats that are not products: IEEE additions along each position's tree.
 TVA.safe_cumsumWith	theorem	lean/TVA/Proof/Scan.lean:148	**A float cumulative sum** whose additions are `AddRel fusion` (`tl.cumsumWith`).
 TVA.safe_cumsumc	theorem	lean/TVA/Proof/Scan.lean:165	**`tl.cumsum` of products**: additions that may fuse with the products (`AddRel E.fusion`).
-TVA.safe_cvt	theorem	lean/TVA/Proof/Rules/Convert.lean:39	**`x.to(dtype, fp_downcast_rounding=rnd)` between standard float formats**: the pair is one Triton compiles (`hok`); each element is the rounding of `x`, up to NaN payload.
-TVA.safe_cvt8	theorem	lean/TVA/Proof/Rules/Convert.lean:49	**`x.to(fp8)`**: the pair is one Triton compiles (`hok`), a platform result exists for every element (`hex`, from the device facts); the rest must be safe for every result the platform allows.
-TVA.safe_cvtFrom8	theorem	lean/TVA/Proof/Rules/Convert.lean:63	**`x.to(dtype)` out of fp8**: finite elements convert exactly.
+TVA.safe_cvt	theorem	lean/TVA/Proof/Rules/Convert.lean:60	**`x.to(dtype, fp_downcast_rounding=rnd)` between standard float formats**: the pair is one Triton compiles (`hok`); each element is the rounding of `x`, up to NaN payload.
+TVA.safe_cvt8	theorem	lean/TVA/Proof/Rules/Convert.lean:70	**`x.to(fp8)`**: the pair is one Triton compiles (`hok`), a platform result exists for every element (`hex`, from the device facts); the rest must be safe for every result the platform allows.
+TVA.safe_cvtFrom8	theorem	lean/TVA/Proof/Rules/Convert.lean:84	**`x.to(dtype)` out of fp8**: finite elements convert exactly.
 TVA.safe_desc_atomic	theorem	lean/TVA/Proof/Pattern/Desc.lean:160	**`desc.atomic_add(offsets, vals)`** and the other reductions, on elements the program owns: each in-bounds lane reduces its own element once (`hinj`).
 TVA.safe_desc_gather	theorem	lean/TVA/Proof/Pattern/Desc.lean:186	**`desc.gather(xs, y)`** from a buffer: in-bounds lanes get their element (the others are unspecified).
 TVA.safe_desc_load	theorem	lean/TVA/Proof/Pattern/Desc.lean:121	**`desc.load(offsets)`** from a buffer: in-bounds lanes get their element, the others hold the descriptor's padding.
@@ -2112,7 +2173,7 @@ TVA.safe_fma	theorem	lean/TVA/Proof/Rules/Arith.lean:73	`tl.fma(x, y, z)`: one r
 TVA.safe_forN	theorem	lean/TVA/Proof/Rules/Loop.lean:41	**Loop invariant** for `tl.forN`: `I t st m` holds before iteration `t`; each iteration preserves it and writes only inside its own footprint `Wt t`, disjoint from the others'.
 TVA.safe_forN_bind	theorem	lean/TVA/Proof/Rules/Loop.lean:63	`tl.forN` followed by the rest of the program, which writes outside the loop's footprint.
 TVA.safe_forRange	theorem	lean/TVA/Proof/Rules/Loop.lean:74	**`for i in range(lo, hi, step)`** within `tl.RangeOk` (a positive step, no overflow of the last increment): an invariant over the trip number `t`, where the induction variable is `lo + t * step`; trip `t` writes inside `Wt t`.
-TVA.safe_ftoi	theorem	lean/TVA/Proof/Rules/Convert.lean:86	**`x.to(int)` of a float tensor**: every element is finite and in range (`FtoiRel` has a result); the result truncates each element toward zero.
+TVA.safe_ftoi	theorem	lean/TVA/Proof/Rules/Convert.lean:107	**`x.to(int)` of a float tensor**: every element is finite and in range (`FtoiRel` has a result); the result truncates each element toward zero.
 TVA.safe_histogram	theorem	lean/TVA/Proof/Scan.lean:334	**`tl.histogram`**: when every enabled value lies in `[0, bins)`, bin `b` counts the enabled values equal to `b`.
 TVA.safe_icumprod	theorem	lean/TVA/Proof/Scan.lean:200	**`tl.cumprod`** of integers: each position is the (wrapping) product of its leaves in order (`Tree.eval_fun_assoc`).
 TVA.safe_icumsum	theorem	lean/TVA/Proof/Scan.lean:186	**`tl.cumsum`** of integers: exact (wrapping) prefix sums, `j, …, n-1` for `reverse`.
@@ -2120,7 +2181,7 @@ TVA.safe_idiv	theorem	lean/TVA/Proof/Rules/Arith.lean:187	`x // y`: no lane divi
 TVA.safe_idiv1	theorem	lean/TVA/Proof/Rules/Arith.lean:237	**`x // y` of scalars** (rank-0 tensors) with `x ≥ 0`, `y > 0`: the integer quotient.
 TVA.safe_irem	theorem	lean/TVA/Proof/Rules/Arith.lean:196	`x % y`: no lane divides by zero or overflows; the result is `rem?` lane by lane.
 TVA.safe_irem1	theorem	lean/TVA/Proof/Rules/Arith.lean:251	**`x % y` of scalars** with `x ≥ 0`, `y > 0`: the integer remainder.
-TVA.safe_itof	theorem	lean/TVA/Proof/Rules/Convert.lean:74	**`x.to(float)` of an integer tensor**: each element is one of the roundings `tl.ItofRel` allows.
+TVA.safe_itof	theorem	lean/TVA/Proof/Rules/Convert.lean:95	**`x.to(float)` of an integer tensor**: each element is one of the roundings `tl.ItofRel` allows.
 TVA.safe_last	theorem	lean/TVA/Proof/Rules/Core.lean:29	The last line of a program: apply that line's rule with `pure` as the rest.
 TVA.safe_load	theorem	lean/TVA/Proof/Rules/Memory.lean:42	**`tl.load`**: every enabled lane's element can be read and lies in `R`; the rest must be safe for every result `LoadRes` allows.
 TVA.safe_load1	theorem	lean/TVA/Proof/Rules/Memory.lean:129	**`tl.load(p)` of one element** that memory can read: the rest runs with that element.

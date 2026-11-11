@@ -7,16 +7,20 @@ The facts about one `IntV` value that every integer proof starts from (the conve
 `TVA.Proof.Int`):
 
 * `SFits w x`, "`x` fits `w` signed bits", and how to establish it: `sfits_iff`,
-  `sfits_of_nonneg`, `sfits_natCast`, `SFits.mono`, `sfits_toInt`; `I32.sfits_iff`,
-  `I64.sfits_iff` with the bounds written out.
+  `sfits_of_nonneg`, `sfits_natCast`, `SFits.mono`, `sfits_toInt`; for sums and products of
+  naturals `sfits_nat_add`, `sfits_nat_mul` and their `_of_le` forms (a bound per operand);
+  `SFits.of_le_of_le` (between two values that fit), `sfits_of_abs_lt`; `I32.sfits_iff`,
+  `I64.sfits_iff`, `I32.sfits`, `I64.sfits`, `I32/I64.sfits_of_nonneg`, `I32/I64.sfits_natCast`
+  with the bounds written out, `I64.sfits_of_sfits32`.
 * The value of a constant: `toInt_ofInt` (`IntV.ofInt x` in range), `toInt_ofNat` (`IntV.ofNat n`
   in range), `toInt_ofNat_lit` (a numeral such as `(128 : I32)`), the unsigned forms, `toInt_zero`,
-  `toInt_neg_one`; `I32.toInt_ofInt`, `I32.toInt_ofNat` and the `I64` forms with the bounds written
-  out.
+  `toInt_neg_one`; by name without a bound: `toInt_ofNat_zero`, `toInt_ofInt_zero`, `toInt_one`,
+  `toInt_one_unsigned`, `toInt_ofInt_one`, `toInt_ofInt_neg_one`; `I32.toInt_ofInt`,
+  `I32.toInt_ofNat` and the `I64` forms with the bounds written out.
 * Building a constant: `ofInt_natCast`, `ofInt_toInt`, `ofNat_toInt_toNat`, and the wrapping
   arithmetic of constants (`ofNat_add_ofNat`, `ofInt_sub_ofInt`, …), true at every value.
-* Equality and order: `ext_toInt`, `toInt_inj`, `eq_eq` (`==`), `lt_eq` (`<`), `le_eq` (`<=`),
-  `toInt_max`, `toInt_min` (`tl.maximum`, `tl.minimum`), for either signedness.
+* Equality and order: `ext_toInt`, `toInt_inj`, `eq_eq` (`==`), `not_eq_eq` (`!=`), `lt_eq` (`<`),
+  `le_eq` (`<=`), `toInt_max`, `toInt_min` (`tl.maximum`, `tl.minimum`), for either signedness.
 
 Arithmetic (`+ - * // %`) is `TVA.Proof.Int.Arith`; casts and conversions `TVA.Proof.Int.Cast`.
 -/
@@ -53,6 +57,69 @@ theorem sfits_natCast {n : Nat} (h : n < 2 ^ (w - 1)) : SFits w (n : Int) :=
 theorem SFits.mono {w' : Nat} {x : Int} (hw : w ≤ w') (h : SFits w x) : SFits w' x := by
   have : (2 : Int) ^ (w - 1) ≤ 2 ^ (w' - 1) := pow_le_pow_right₀ (by norm_num) (by omega)
   exact ⟨by linarith [h.1], by linarith [h.2]⟩
+
+/-- Use when an `int32`/`int64` sum of two naturals must not wrap (`pid*B + i`): the sum of two
+naturals below `2^(w-1)` fits, for `IntV.toInt_add`. -/
+theorem sfits_nat_add {x y : Nat} (h : x + y < 2 ^ (w - 1)) : SFits w ((x : Int) + y) := by
+  have := sfits_natCast (w := w) h
+  push_cast at this
+  exact this
+
+/-- Use when a product of two naturals (`row * stride`) must not wrap: it fits when it is below
+`2^(w-1)`, for `IntV.toInt_mul`. -/
+theorem sfits_nat_mul {x y : Nat} (h : x * y < 2 ^ (w - 1)) : SFits w ((x : Int) * y) := by
+  have := sfits_natCast (w := w) h
+  push_cast at this
+  exact this
+
+/-- Use when each summand has its own bound (`r0 ≤ M - 1`, `i ≤ BM - 1`): `x + y` fits when the
+sum of the bounds is below `2^(w-1)`. -/
+theorem sfits_nat_add_of_le {x y a b : Nat} (hx : x ≤ a) (hy : y ≤ b) (h : a + b < 2 ^ (w - 1)) :
+    SFits w ((x : Int) + y) :=
+  sfits_nat_add (by omega)
+
+/-- Use when each factor has its own bound (a row index times a stride, each bounded by the
+shape): `x * y` fits when the product of the bounds is below `2^(w-1)`. -/
+theorem sfits_nat_mul_of_le {x y a b : Nat} (hx : x ≤ a) (hy : y ≤ b) (h : a * b < 2 ^ (w - 1)) :
+    SFits w ((x : Int) * y) :=
+  sfits_nat_mul (lt_of_le_of_lt (Nat.mul_le_mul hx hy) h)
+
+/-- Use when a value lies between a smallest and a largest value already known to fit (the
+offsets of a tile between its first and last lane). -/
+theorem SFits.of_le_of_le {lo hi x : Int} (hlo : SFits w lo) (hhi : SFits w hi) (h1 : lo ≤ x)
+    (h2 : x ≤ hi) : SFits w x :=
+  ⟨hlo.1.trans h1, lt_of_le_of_lt h2 hhi.2⟩
+
+/-- Use when a bound on the magnitude `|x| < 2^(w-1)` is at hand (a signed difference or an
+error term): `x` fits. -/
+theorem sfits_of_abs_lt {x : Int} (h : |x| < 2 ^ (w - 1)) : SFits w x := by
+  rw [abs_lt] at h
+  exact ⟨h.1.le, h.2⟩
+
+/-- Use to build `SFits 32 x` from its two `int32` bounds (each by `omega`). -/
+theorem I32.sfits {x : Int} (h0 : -(2 ^ 31 : Int) ≤ x) (h1 : x < 2 ^ 31) : SFits 32 x := ⟨h0, h1⟩
+
+/-- Use to build `SFits 64 x` from its two `int64` bounds (each by `omega`). -/
+theorem I64.sfits {x : Int} (h0 : -(2 ^ 63 : Int) ≤ x) (h1 : x < 2 ^ 63) : SFits 64 x := ⟨h0, h1⟩
+
+/-- Use when an `int32` value is widened to `int64`: what fits `int32` fits `int64`. -/
+theorem I64.sfits_of_sfits32 {x : Int} (h : SFits 32 x) : SFits 64 x := SFits.mono (by norm_num) h
+
+/-- Use for a nonnegative `int32` index or offset below `2^31`: it fits `int32`. -/
+theorem I32.sfits_of_nonneg {x : Int} (h0 : 0 ≤ x) (h : x < 2 ^ 31) : SFits 32 x :=
+  IntV.sfits_of_nonneg h0 h
+
+/-- Use for a nonnegative `int64` index or offset below `2^63`: it fits `int64`. -/
+theorem I64.sfits_of_nonneg {x : Int} (h0 : 0 ≤ x) (h : x < 2 ^ 63) : SFits 64 x :=
+  IntV.sfits_of_nonneg h0 h
+
+/-- Use for a natural number (a shape, a lane index) below `2^31` used in `int32`: it fits. -/
+theorem I32.sfits_natCast {n : Nat} (h : n < 2 ^ 31) : SFits 32 (n : Int) :=
+  IntV.sfits_natCast h
+
+/-- Use for a natural number below `2^63` used in `int64`: it fits. -/
+theorem I64.sfits_natCast {n : Nat} (h : n < 2 ^ 63) : SFits 64 (n : Int) :=
+  IntV.sfits_natCast h
 
 /-- The value of a signed integer is in its own range. -/
 theorem sfits_toInt (a : IntV true w) : SFits w a.toInt := by
@@ -114,6 +181,32 @@ theorem toInt_ofInt {x : Int} (hw : 0 < w) (h : SFits w x) :
     BitVec.toInt_allOnes]
   simp [hw]
 
+/-- Use for the constant `IntV.ofNat 0` (a zero offset or a loop's first index): its value is
+`0` in every integer type. -/
+theorem toInt_ofNat_zero : (IntV.ofNat 0 : IntV s w).toInt = 0 := by
+  cases s <;> simp [toInt, ofNat]
+
+/-- Use for the constant `IntV.ofInt 0` (as `ConvRel` of `false` from `int1` gives): its value is
+`0` in every integer type. -/
+theorem toInt_ofInt_zero : (IntV.ofInt 0 : IntV s w).toInt = 0 := by
+  cases s <;> simp [toInt, ofInt]
+
+/-- Use for the signed constant `1` (a step `i + 1`) in a type of at least two bits, without
+stating `1 < 2^(w-1)`. -/
+theorem toInt_one (hw : 2 ≤ w) : (1 : IntV true w).toInt = 1 :=
+  toInt_ofNat (Nat.one_lt_two_pow (by omega))
+
+/-- Use for the unsigned constant `1` in a type of positive width. -/
+theorem toInt_one_unsigned (hw : 0 < w) : (1 : IntV false w).toInt = 1 :=
+  toInt_ofNat_unsigned (Nat.one_lt_two_pow (by omega))
+
+/-- Use for the constant `IntV.ofInt (-1)` (a sentinel index) in a signed type of positive
+width. -/
+theorem toInt_ofInt_neg_one (hw : 0 < w) : (IntV.ofInt (-1) : IntV true w).toInt = -1 := by
+  show (BitVec.ofInt w (-1)).toInt = -1
+  rw [BitVec.ofInt_neg, show BitVec.ofInt w 1 = BitVec.ofNat w 1 from BitVec.ofInt_natCast w 1]
+  exact toInt_neg_one hw
+
 /-- An `int32` constant `IntV.ofInt x` with `x` in `[-2^31, 2^31)` has value `x`. -/
 theorem I32.toInt_ofInt {x : Int} (h : -(2 ^ 31 : Int) ≤ x ∧ x < 2 ^ 31) :
     (IntV.ofInt x : I32).toInt = x := IntV.toInt_ofInt (by norm_num) h
@@ -136,6 +229,14 @@ theorem I64.toInt_ofNat {n : Nat} (h : n < 2 ^ 63) : (IntV.ofNat n : I64).toInt 
 `ofNat` lemmas. -/
 theorem ofInt_natCast (n : Nat) : (IntV.ofInt (n : Int) : IntV s w) = IntV.ofNat n :=
   congrArg IntV.mk (BitVec.ofInt_natCast w n)
+
+/-- Use for the constant `IntV.ofInt 1` (as `ConvRel` of `true` from `int1` gives) in a signed type
+of at least two bits. -/
+theorem toInt_ofInt_one (hw : 2 ≤ w) : (IntV.ofInt 1 : IntV true w).toInt = 1 := by
+  have := ofInt_natCast (s := true) (w := w) 1
+  simp only [Nat.cast_one] at this
+  rw [this]
+  exact toInt_ofNat (Nat.one_lt_two_pow (by omega))
 
 /-- Rebuilding an integer from its value gives it back, in every integer type. -/
 theorem ofInt_toInt (a : IntV s w) : (IntV.ofInt a.toInt : IntV s w) = a := by
@@ -203,6 +304,10 @@ theorem toInt_inj {a b : IntV s w} : a.toInt = b.toInt ↔ a = b :=
 /-- `a == b` on integers compares values (`a != b` is its negation). -/
 theorem eq_eq (a b : IntV s w) : a.eq b = decide (a.toInt = b.toInt) := by
   rw [Bool.eq_iff_iff, decide_eq_true_iff, toInt_inj, IntV.eq, beq_iff_eq, IntV.ext_iff]
+
+/-- Use for `a != b` (written `!(a.eq b)`, a mask `offs != k`): it compares values. -/
+theorem not_eq_eq (a b : IntV s w) : (!a.eq b) = decide (a.toInt ≠ b.toInt) := by
+  rw [eq_eq]; simp
 
 /-- `a < b` on integers, signed or unsigned, compares values (a mask `offs < n`). -/
 theorem lt_eq (a b : IntV s w) : a.lt b = decide (a.toInt < b.toInt) := by

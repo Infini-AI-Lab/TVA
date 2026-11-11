@@ -20,8 +20,13 @@ The model writes such a conversion either as `tl.convert d d' x` (each element a
 `ConvRel.iff_cast_<d>_<d'>` says `ConvRel P d d' x r ↔ r = IntV.cast x`, for each of the 64 pairs
 of `int8` … `int64`, `uint8` … `uint64`. With the rule for `tl.convert` in `TVA.Proof` it turns
 `tl.convert .i32 .i64 x >>= k` into `k x.castInt`. `ConvRel.toInt_i32_i64` and
-`ConvRel.toInt_i64_i32` give the value of a result directly; `ConvRel.toInt_i1_i32` and
-`ConvRel.toInt_i1_i64` the value of a converted `int1` (`0` or `1`).
+`ConvRel.toInt_i64_i32` give the value of a result directly, and so does `ConvRel.toInt_<d>_<d'>`
+for every widening pair (`toInt_i8_i32`, `toInt_u8_i32`, `toInt_u32_u64`, …) and for
+`i32_i32`, `i64_i64`, `u32_u32`, `u64_u64`; `ConvRel.toInt_i1_i32` and `ConvRel.toInt_i1_i64`
+the value of a converted `int1` (`0` or `1`). `ConvRel.exists_i32_i64`, `exists_i64_i64`,
+`exists_i64_i32` give the existence premise of the rule for `tl.convert`.
+`IntV.toInt_ofInt_toInt`, `toInt_ofInt_toInt_unsigned` and `toInt_ofInt_toInt_unsigned_le` are
+the widening facts on `IntV.ofInt a.toInt`, the form `ConvRel` unfolds to.
 -/
 namespace TVA
 
@@ -73,6 +78,24 @@ theorem toInt_cast_unsigned_signed {w' : Nat} (a : IntV false w) (h : w < w') :
   have ha : a.toInt = (a.bits.toNat : Int) := rfl
   rw [cast_eq_ofInt, ha, ofInt_natCast]
   exact toInt_ofNat (lt_of_lt_of_le a.bits.isLt (Nat.pow_le_pow_right (by norm_num) (by omega)))
+
+/-- Use when a signed value is rebuilt as a constant of a type at least as wide
+(`IntV.ofInt a.toInt`, what `ConvRel` unfolds to): it keeps its value. -/
+theorem toInt_ofInt_toInt {w' : Nat} (a : IntV true w) (h : w ≤ w') :
+    (IntV.ofInt a.toInt : IntV true w').toInt = a.toInt := by
+  rw [← cast_eq_ofInt]; exact toInt_cast a h
+
+/-- Use when an unsigned value is rebuilt in a strictly wider signed type (`IntV.ofInt a.toInt`,
+a `uint8` into `int32`): it keeps its value. -/
+theorem toInt_ofInt_toInt_unsigned {w' : Nat} (a : IntV false w) (h : w < w') :
+    (IntV.ofInt a.toInt : IntV true w').toInt = a.toInt := by
+  rw [← cast_eq_ofInt]; exact toInt_cast_unsigned_signed a h
+
+/-- Use when an unsigned value is rebuilt in an unsigned type at least as wide
+(`IntV.ofInt a.toInt`): it keeps its value. -/
+theorem toInt_ofInt_toInt_unsigned_le {w' : Nat} (a : IntV false w) (h : w ≤ w') :
+    (IntV.ofInt a.toInt : IntV false w').toInt = a.toInt := by
+  rw [← cast_eq_ofInt]; exact toInt_cast_unsigned a h
 
 /-- The relation `ConvRel` gives between integer dtypes, `r = IntV.ofInt x.toInt`, is `r` being
 the cast; every `ConvRel.iff_cast_*` is this. -/
@@ -370,6 +393,107 @@ theorem iff_cast_u64_u32 {x : U64} {r : U32} : ConvRel P .u64 .u32 x r ↔ r = I
 /-- `x.to(tl.uint64)` of a `uint64`: its one result is `IntV.cast x`. -/
 theorem iff_cast_u64_u64 {x : U64} {r : U64} : ConvRel P .u64 .u64 x r ↔ r = IntV.cast x :=
   ofInt_iff_cast
+
+/-! ### Widening conversions keep the value, and conversions exist -/
+
+/-- Use for `x.to(tl.int32)` of an `int32` (no change of type): the result keeps the value. -/
+theorem toInt_i32_i32 {x : I32} {r : I32} (h : ConvRel P .i32 .i32 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_i32_i32.mp h]; exact toInt_cast x (by norm_num)
+
+/-- Use for `x.to(tl.int64)` of an `int64` (no change of type): the result keeps the value. -/
+theorem toInt_i64_i64 {x : I64} {r : I64} (h : ConvRel P .i64 .i64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_i64_i64.mp h]; exact toInt_cast x (by norm_num)
+
+/-- Use for `x.to(tl.int16)` of an `int8` (a widening conversion): the result keeps the value. -/
+theorem toInt_i8_i16 {x : I8} {r : I16} (h : ConvRel P .i8 .i16 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_i8_i16.mp h]; exact toInt_cast x (by norm_num)
+
+/-- Use for `x.to(tl.int32)` of an `int8` (a widening conversion): the result keeps the value. -/
+theorem toInt_i8_i32 {x : I8} {r : I32} (h : ConvRel P .i8 .i32 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_i8_i32.mp h]; exact toInt_cast x (by norm_num)
+
+/-- Use for `x.to(tl.int32)` of an `int16` (a widening conversion): the result keeps the value. -/
+theorem toInt_i16_i32 {x : I16} {r : I32} (h : ConvRel P .i16 .i32 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_i16_i32.mp h]; exact toInt_cast x (by norm_num)
+
+/-- Use for `x.to(tl.int64)` of an `int8` (a widening conversion): the result keeps the value. -/
+theorem toInt_i8_i64 {x : I8} {r : I64} (h : ConvRel P .i8 .i64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_i8_i64.mp h]; exact toInt_cast x (by norm_num)
+
+/-- Use for `x.to(tl.int64)` of an `int16` (a widening conversion): the result keeps the value. -/
+theorem toInt_i16_i64 {x : I16} {r : I64} (h : ConvRel P .i16 .i64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_i16_i64.mp h]; exact toInt_cast x (by norm_num)
+
+/-- Use for `x.to(tl.int16)` of a `uint8` (a widening conversion): the result keeps the value. -/
+theorem toInt_u8_i16 {x : U8} {r : I16} (h : ConvRel P .u8 .i16 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u8_i16.mp h]; exact toInt_cast_unsigned_signed x (by norm_num)
+
+/-- Use for `x.to(tl.int32)` of a `uint8` (a widening conversion): the result keeps the value. -/
+theorem toInt_u8_i32 {x : U8} {r : I32} (h : ConvRel P .u8 .i32 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u8_i32.mp h]; exact toInt_cast_unsigned_signed x (by norm_num)
+
+/-- Use for `x.to(tl.int32)` of a `uint16` (a widening conversion): the result keeps the value. -/
+theorem toInt_u16_i32 {x : U16} {r : I32} (h : ConvRel P .u16 .i32 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u16_i32.mp h]; exact toInt_cast_unsigned_signed x (by norm_num)
+
+/-- Use for `x.to(tl.int64)` of a `uint8` (a widening conversion): the result keeps the value. -/
+theorem toInt_u8_i64 {x : U8} {r : I64} (h : ConvRel P .u8 .i64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u8_i64.mp h]; exact toInt_cast_unsigned_signed x (by norm_num)
+
+/-- Use for `x.to(tl.int64)` of a `uint16` (a widening conversion): the result keeps the value. -/
+theorem toInt_u16_i64 {x : U16} {r : I64} (h : ConvRel P .u16 .i64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u16_i64.mp h]; exact toInt_cast_unsigned_signed x (by norm_num)
+
+/-- Use for `x.to(tl.int64)` of a `uint32` (a widening conversion): the result keeps the value. -/
+theorem toInt_u32_i64 {x : U32} {r : I64} (h : ConvRel P .u32 .i64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u32_i64.mp h]; exact toInt_cast_unsigned_signed x (by norm_num)
+
+/-- Use for `x.to(tl.uint16)` of a `uint8` (a widening conversion): the result keeps the value. -/
+theorem toInt_u8_u16 {x : U8} {r : U16} (h : ConvRel P .u8 .u16 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u8_u16.mp h]; exact toInt_cast_unsigned x (by norm_num)
+
+/-- Use for `x.to(tl.uint32)` of a `uint8` (a widening conversion): the result keeps the value. -/
+theorem toInt_u8_u32 {x : U8} {r : U32} (h : ConvRel P .u8 .u32 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u8_u32.mp h]; exact toInt_cast_unsigned x (by norm_num)
+
+/-- Use for `x.to(tl.uint32)` of a `uint16` (a widening conversion): the result keeps the value. -/
+theorem toInt_u16_u32 {x : U16} {r : U32} (h : ConvRel P .u16 .u32 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u16_u32.mp h]; exact toInt_cast_unsigned x (by norm_num)
+
+/-- Use for `x.to(tl.uint64)` of a `uint8` (a widening conversion): the result keeps the value. -/
+theorem toInt_u8_u64 {x : U8} {r : U64} (h : ConvRel P .u8 .u64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u8_u64.mp h]; exact toInt_cast_unsigned x (by norm_num)
+
+/-- Use for `x.to(tl.uint64)` of a `uint16` (a widening conversion): the result keeps the value. -/
+theorem toInt_u16_u64 {x : U16} {r : U64} (h : ConvRel P .u16 .u64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u16_u64.mp h]; exact toInt_cast_unsigned x (by norm_num)
+
+/-- Use for `x.to(tl.uint64)` of a `uint32` (a widening conversion): the result keeps the value. -/
+theorem toInt_u32_u64 {x : U32} {r : U64} (h : ConvRel P .u32 .u64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u32_u64.mp h]; exact toInt_cast_unsigned x (by norm_num)
+
+/-- Use for `x.to(tl.uint32)` of a `uint32` (no change of type): the result keeps the value. -/
+theorem toInt_u32_u32 {x : U32} {r : U32} (h : ConvRel P .u32 .u32 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u32_u32.mp h]; exact toInt_cast_unsigned x (by norm_num)
+
+/-- Use for `x.to(tl.uint64)` of a `uint64` (no change of type): the result keeps the value. -/
+theorem toInt_u64_u64 {x : U64} {r : U64} (h : ConvRel P .u64 .u64 x r) : r.toInt = x.toInt := by
+  rw [iff_cast_u64_u64.mp h]; exact toInt_cast_unsigned x (by norm_num)
+
+/-- Use for the premise of the rule for `tl.convert .i32 .i64`: every `int32` has a conversion
+to `int64`. -/
+theorem exists_i32_i64 (x : I32) : ∃ r : I64, ConvRel P .i32 .i64 x r :=
+  ⟨_, iff_cast_i32_i64.mpr rfl⟩
+
+/-- Use for the premise of the rule for `tl.convert .i64 .i64` (`x.to(tl.int64)` of an `int64`):
+a conversion exists. -/
+theorem exists_i64_i64 (x : I64) : ∃ r : I64, ConvRel P .i64 .i64 x r :=
+  ⟨_, iff_cast_i64_i64.mpr rfl⟩
+
+/-- Use for the premise of the rule for `tl.convert .i64 .i32`: every `int64` has a conversion to
+`int32` (its value modulo `2^32`; `toInt_i64_i32` gives it when in range). -/
+theorem exists_i64_i32 (x : I64) : ∃ r : I32, ConvRel P .i64 .i32 x r :=
+  ⟨_, iff_cast_i64_i32.mpr rfl⟩
 
 end ConvRel
 

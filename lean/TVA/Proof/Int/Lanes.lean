@@ -11,6 +11,9 @@ proof follows the value of each lane `i` (`x.get1 i`, which is `x.get (i, ())`):
   `get1_muls`, `get1_lt`, `get1_ltS`, `get1_le`, `get1_eq`, `get1_castInt` (`simp`): the
   `get1` forms of `Tensor`'s `get_*` lemmas, so that a lane of an expression is the expression of
   the lanes; `TVA.Proof.Int.Arith` then gives its value.
+* `Tensor.toInt_get1_add`, `toInt_get1_sub`, `toInt_get1_mul`, `toInt_get1_sadd`,
+  `toInt_get1_muls`: the value of a lane of `x + y`, `x - y`, `x * y`, `a + x`, `x * a` from the
+  values of the operands' lanes, when it fits.
 * `I32.toInt_arange`, `I32.toInt_tl_arange`, `I32.toInt_sadd_arange`: the lanes of `tl.arange` and
   of `start + tl.arange(0, n)`.
 * `idiv_ok`, `irem_ok`: every lane of `x // M`, `x % M` is defined when the lanes of `x` are
@@ -74,6 +77,41 @@ variable {n : Nat} {sg : Bool} {w : Nat}
 /-- Lane `i` of `x.castInt` (`x.to(tl.int64)` of an integer vector) is the cast of lane `i`. -/
 @[simp] theorem get1_castInt {sg' : Bool} {w' : Nat} (x : Tensor [n] (IntV sg w)) (i : Fin n) :
     (x.castInt : Tensor [n] (IntV sg' w')).get1 i = IntV.cast (x.get1 i) := rfl
+
+/-- Use for the lanes of `x + y` of signed vectors whose lanes have values `f i`, `g i`: lane `i`
+has value `f i + g i` when every such sum fits. -/
+theorem toInt_get1_add {x y : Tensor [n] (IntV true w)} {f g : Fin n → Int}
+    (hx : ∀ i, (x.get1 i).toInt = f i) (hy : ∀ i, (y.get1 i).toInt = g i)
+    (h : ∀ i, IntV.SFits w (f i + g i)) (i : Fin n) : ((x + y).get1 i).toInt = f i + g i := by
+  rw [get1_add]; exact IntV.toInt_add (hx i) (hy i) (h i)
+
+/-- Use for the lanes of `x - y` of signed vectors whose lanes have values `f i`, `g i`: lane `i`
+has value `f i - g i` when every such difference fits. -/
+theorem toInt_get1_sub {x y : Tensor [n] (IntV true w)} {f g : Fin n → Int}
+    (hx : ∀ i, (x.get1 i).toInt = f i) (hy : ∀ i, (y.get1 i).toInt = g i)
+    (h : ∀ i, IntV.SFits w (f i - g i)) (i : Fin n) : ((x - y).get1 i).toInt = f i - g i := by
+  rw [get1_sub]; exact IntV.toInt_sub (hx i) (hy i) (h i)
+
+/-- Use for the lanes of `x * y` of signed vectors whose lanes have values `f i`, `g i`: lane `i`
+has value `f i * g i` when every such product fits. -/
+theorem toInt_get1_mul {x y : Tensor [n] (IntV true w)} {f g : Fin n → Int}
+    (hx : ∀ i, (x.get1 i).toInt = f i) (hy : ∀ i, (y.get1 i).toInt = g i)
+    (h : ∀ i, IntV.SFits w (f i * g i)) (i : Fin n) : ((x * y).get1 i).toInt = f i * g i := by
+  rw [get1_mul]; exact IntV.toInt_mul (hx i) (hy i) (h i)
+
+/-- Use for `start + offs` (a signed scalar `a` of value `c` plus a vector whose lanes have values
+`f i`): lane `i` has value `c + f i` when every such sum fits. -/
+theorem toInt_get1_sadd {a : IntV true w} {x : Tensor [n] (IntV true w)} {c : Int}
+    {f : Fin n → Int} (ha : a.toInt = c) (hx : ∀ i, (x.get1 i).toInt = f i)
+    (h : ∀ i, IntV.SFits w (c + f i)) (i : Fin n) : ((a + x).get1 i).toInt = c + f i := by
+  rw [get1_sadd]; exact IntV.toInt_add ha (hx i) (h i)
+
+/-- Use for `offs * stride` (a vector whose lanes have values `f i` times a signed scalar `a` of
+value `c`): lane `i` has value `f i * c` when every such product fits. -/
+theorem toInt_get1_muls {a : IntV true w} {x : Tensor [n] (IntV true w)} {c : Int}
+    {f : Fin n → Int} (ha : a.toInt = c) (hx : ∀ i, (x.get1 i).toInt = f i)
+    (h : ∀ i, IntV.SFits w (f i * c)) (i : Fin n) : ((x * a).get1 i).toInt = f i * c := by
+  rw [get1_muls]; exact IntV.toInt_mul (hx i) ha (h i)
 
 end Tensor
 

@@ -36,6 +36,27 @@ theorem safe_convert {d d' : DType} {x : Tensor s d.Val} {k : Tensor s d'.Val �
   intro r hr
   simpa [Prog.bind] using hk r hr
 
+/-- **A conversion with one result**: when every element of `x` has exactly one result, the
+element of `y` (`ConvRel E.P d d' (x.get i) r ↔ r = y.get i`), `tl.convert d d' x` followed by `k`
+is safe exactly when `k y` is. Use it to replace a conversion by its value: between integer
+dtypes other than `int1`, `y = x.castInt` (`ConvRel.iff_cast_i32_i64` and the other pairs), so
+`x.to(tl.int64)` may be read as `tl.convert .i32 .i64 x` or as `x.castInt`. -/
+theorem safe_convert_iff {d d' : DType} {x : Tensor s d.Val} {y : Tensor s d'.Val}
+    {k : Tensor s d'.Val → Prog α} (h : ∀ i r, ConvRel E.P d d' (x.get i) r ↔ r = y.get i) :
+    Safe E R W Q m (tl.convert d d' x >>= k) ↔ Safe E R W Q m (k y) := by
+  constructor
+  · intro hs
+    simp only [tl.convert, bind_eq, Prog.bind] at hs
+    cases hs with
+    | env h1 =>
+      cases h1 with
+      | pick _ hall =>
+        simpa [Prog.bind] using hall y fun i => (h i (y.get i)).2 rfl
+  · intro hs
+    refine safe_convert (fun i => ⟨y.get i, (h i _).2 rfl⟩) fun r hr => ?_
+    have : r = y := Tensor.ext (funext fun i => (h i _).1 (hr i))
+    rw [this]; exact hs
+
 /-- **`x.to(dtype, fp_downcast_rounding=rnd)` between standard float formats**: the pair is one
 Triton compiles (`hok`); each element is the rounding of `x`, up to NaN payload. -/
 theorem safe_cvt {g : Format} {x : Tensor s (FloatV f)} {rnd : RoundMode}
