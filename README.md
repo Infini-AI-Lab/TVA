@@ -86,3 +86,8 @@ builds, `main : claim.Holds` has exactly that type, and only the standard axioms
 | `tma_persistent_matmul_f16` | Persistent matrix multiplication with host TMA descriptors, Triton tutorial 09 (`matmul_kernel_tma_persistent`, float16) |
 | `vec_add_f32` | Vector addition, Triton tutorial 01 (`add_kernel`, float32) |
 | `vocab_embedding_bf16` | Vocabulary-parallel embedding lookup (`_vocab_parallel_embedding_kernel`, bfloat16), SGLang |
+
+## License
+
+TVA is released under the [MIT License](LICENSE). The kernel sources copied into `claims/<k>/source/` keep the
+licenses of the projects they come from: Triton and flash-linear-attention (MIT), SGLang and vLLM (Apache-2.0).
