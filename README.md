@@ -19,6 +19,7 @@ Mathlib, the transcription, the compiler, and the device facts (each measured in
 | `evidence/` | TVA's own measurements on the H200 behind the device facts |
 | `tools/` | `make_index.py`, which generates `docs/index/` from the built library |
 | `docs/` | [DESIGN.md](docs/DESIGN.md) (the contract), [SEMANTICS.md](docs/SEMANTICS.md) (what a model means), [PROVING.md](docs/PROVING.md) (how to prove a claim), [LIBRARY.md](docs/LIBRARY.md) (a map of `lean/TVA/`), [EXCLUSIONS.md](docs/EXCLUSIONS.md) (what no claim covers), [INDEX.md](docs/INDEX.md) (every definition and lemma, searchable) |
+| `third_party/` | the licenses of the projects whose kernel sources the claims copy, and which claim comes from which; see [third_party/README.md](third_party/README.md) |
 
 ## Building
 
@@ -91,3 +92,4 @@ builds, `main : claim.Holds` has exactly that type, and only the standard axioms
 
 TVA is released under the [MIT License](LICENSE). The kernel sources copied into `claims/<k>/source/` keep the
 licenses of the projects they come from: Triton and flash-linear-attention (MIT), SGLang and vLLM (Apache-2.0).
+[third_party/](third_party/README.md) lists each claim's project and holds the license texts.

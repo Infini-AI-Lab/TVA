@@ -1,6 +1,6 @@
 # The approximate `float32` math functions on sm_90
 
-Library evidence (not a kernel's), for library issue L4. Triton 3.8.0 (`~/fpv/tva/.venv`, torch
+Library evidence (not a kernel's), for library issue L4. Triton 3.8.0 (a local virtualenv, torch
 2.11.0+cu130), NVIDIA H200 NVL (sm_90), GPU 0, 2026-10-28. Script: [run.py](run.py); output:
 [out.txt](out.txt).
 
