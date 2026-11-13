@@ -13,7 +13,12 @@ if ! docker image inspect "$base" >/dev/null 2>&1; then
   echo "$base is missing: building it" >&2
   base="$("$here/../build_base.sh" | tail -1)"
 fi
-# docs/index/ must describe this library: the image ships docs/ to provers
+# docs/index/ must describe this library: the image ships docs/ to provers. The check reads the built
+# library, TVA and TVA.Proof (lean/: lake build && lake build TVA.Proof).
+if [ ! -f "$tva/lean/.lake/build/lib/lean/TVA/Proof.olean" ]; then
+  echo "the library is not built: cd $tva/lean && lake build && lake build TVA.Proof, then build again" >&2
+  exit 1
+fi
 if ! PATH="$HOME/.elan/bin:$PATH" python3 -I "$tva/tools/make_index.py" --check >&2; then
   echo "docs/index/ is stale: run python3 -I tools/make_index.py, then build again" >&2
   exit 1

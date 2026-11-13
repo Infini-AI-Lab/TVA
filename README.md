@@ -26,7 +26,10 @@ Mathlib, the transcription, the compiler, and the device facts (each measured in
 Lean 4 `v4.35.0` with Mathlib `v4.35.0` (`lean/lean-toolchain`, `lean/lakefile.toml`):
 
 ```bash
-cd lean && lake build
+cd lean
+lake exe cache get        # Mathlib's prebuilt files; without them lake compiles Mathlib from source
+lake build                # TVA, the trusted part
+lake build TVA.Proof      # the proof kit, which proofs and sandbox/claim/build.sh need
 ```
 
 When several agents share the machine, serialise builds as [DESIGN.md](docs/DESIGN.md) says.
