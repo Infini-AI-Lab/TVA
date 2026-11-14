@@ -9,23 +9,26 @@ theorems are in [Exec.lean](Exec.lean); the change to `Prog` they need is descri
 - `Prog.pick P solve k`: `solve : Solve P` proposes a value with its proof (`Ans`), asking an
   oracle (`Hints`, the closed family `Query`: a tree, an order of lanes, an element, a number)
   for what it cannot compute. `Step.pick`/`Step.pickUB` ignore it.
-- `Prog.plat q k` (new): `q : PlatQ` is an operation the platform defines on concrete operands
-  (`math`, `div`, `cvt` into fp8, `dot`, `dotScaled`); `Step.plat` takes any result
-  `q.Rel E.P` allows, `Step.platUB` applies when there is none. `PlatQ.Rel` is the predicate the
-  old `env`-then-`pick` had, so the meaning is unchanged.
+- `Prog.plat q k` (a definition, not a constructor): `q : PlatQ` is an operation the platform
+  defines on concrete operands (`math`, `div`, `cvt` into fp8, `dot`, `dotScaled`), and
+  `Prog.plat q k` is `env fun e => pick (q.Rel e.P) (Solve.assume (.plat q)) k`, the old
+  `env`-then-`pick` pattern with the predicate `PlatQ.Rel`.
+- `Ans.assume b` (2026-11-13): a value with no proof, from the oracle, at a site whose
+  predicate mentions the platform. `Solve.assume q` asks a `Query` that carries the operands
+  (`plat`, `convert`, `atomicAdd`). `exec` reports each assumed value (`Assumed`), and its
+  soundness theorems are conditional on them (PLAN.md, "Assumed answers").
 - `Prog.rmw d a upd solve sem sc k`: `solve old : Solve (upd old)` proposes the new value.
   `tl.atomicWith` and `tl.rmwSeq` take one solver per lane.
-- `Safe` and `SafeA` gain a `plat` rule. `safe_div`, `safe_math`, `safe_cvt8`, `safe_dot`,
-  `safe_dot_scaled` keep their statements; their proofs use `Safe.plat`. The atomic rules take
+- `Safe.plat` and `SafeA.plat` are theorems (from `env` and `pick`); `safe_div`, `safe_math`,
+  `safe_cvt8`, `safe_dot`, `safe_dot_scaled` keep their statements and proofs. The atomic rules take
   the solver as an implicit argument. `UsesSharedAtomicResult` quantifies over the solver too.
 - Decidability instances for the guards' conditions (hints, `RoundOk`, block pointers,
   descriptors, `dot_scaled`'s checks), next to the definitions.
 
 **Claims and proofs.** No claim file changes (their sha256 are unchanged). All 41 oracle proofs
 check against the changed library (each claim's `Claim` and `Proof/**` compiled in import order,
-`main : claim.Holds`, axioms `propext`, `Classical.choice`, `Quot.sound`). Two needed one line
-each, a `plat` case in an `induction` over `Safe`: `recompute_wu_bf16/oracle/Proof/Stable.lean`
-and `streamk_matmul_f16/oracle/Proof/Iter.lean`.
+`main : claim.Holds`, axioms `propext`, `Classical.choice`, `Quot.sound`), with no proof file
+changed: since `plat` is a definition, no `induction` over `Safe` has a case to add.
 
 ## Status of each site
 
@@ -39,20 +42,20 @@ and `streamk_matmul_f16/oracle/Proof/Iter.lean`.
 | `upToNaN` (`add`, `sub`, `mul`, `neg`, `abs`, `fma`, `div_rn`, `sqrt_rn`, `cvt`), `maximum`, `minimum`, `cvtFrom8` | the exact value |
 | `addc`, `subc`, `mul_add` | the unfused IEEE value: one of the allowed results; a fused device result is not it (run with `enable_fp_fusion=False`, or choose inputs where both agree) |
 | `itof` | the direct rounding (`ItofRel` also allows two double roundings) |
-| `convert` (`ConvRel`) | computed for every pair of dtypes, "no result" where `ConvRel` has none; gives up into fp8 from a float, which is the platform's (`convAns`) |
-| `div`, `math`, `cvt8`, `dot`, `dot_scaled` | `plat`: the oracle's answer for its platform |
+| `convert` (`ConvRel`) | computed for every pair of dtypes, "no result" where `ConvRel` has none; into fp8 from a float, the platform's: assumed (`Query.convert`) |
+| `div`, `math`, `cvt8`, `dot`, `dot_scaled` (`Prog.plat`) | assumed: the oracle's answer (`Query.plat`), the device's value for those operands |
 | float reductions `sum*`, `max1`, `maxAll`, `max0`; `argmax*` | the oracle's tree (`Query.tree`), else the sequential tree, checked (`Covers`, and the depth bound `sumBound e.P n`, which is data); evaluated with the IEEE sum, `FloatV.max`/`min`, `argCombine` |
 | `pad` | `.zero`: zero; `.nan`: the all-ones pattern; `.undef`: the oracle's element, else zero |
 | atomics: disabled lanes' values, lane order | zero bits; the oracle's order (`Query.order`) if it is a permutation of the enabled lanes, else index order |
 | atomic updates: integer `add`, `xchg`, `cas`, `max`/`min`, bitwise; float `max`/`min`; `desc_atomic` | computed (float `max`/`min`: the candidate `fBound` accepts) |
-| float `atomic_add` | none: `addUpd` mentions `e.P.atomicAdd`, a platform relation, so no solver can certify a value. Open: an `rmw` whose update is a `PlatQ` |
-| mixed platform and fusion: `dot_add`, `sum_bcast_mul`, `dot_scaled_add` | none: a disjunction of a platform result and a platform result followed by a fused addition. Open: split into the choice of a branch, then `plat`, which must keep when undefined behaviour is reachable |
+| float `atomic_add` | assumed (`Query.atomicAdd`): `addUpd` mentions `e.P.atomicAdd`, a platform relation |
+| mixed platform and fusion: `dot_add`, `dot_scaled_add` | assumed: the oracle's dot (scaled dot) with `c` as the accumulator (`Query.plat`), the first branch |
+| `sum_bcast_mul` | none yet: its first branch (products, then a tree of additions) can be certified with the oracle's tree, as the reductions are; the second (`tl.dot`) assumed |
 | `associative_scan` (`cumsum`, `cumprod`, …), `sort`, `reshape_any` | none yet. A scan's combine is a relation given by the caller; `sort` and `reshape_any` need a permutation from the oracle and a check |
 
-`exec` gives up (`none`) at a site without an answer. Of the operations the models of the seven
-kernels phase 4 starts with use (`grep tl\.` in their `Claim.lean`), only `convert` into fp8
-(`kv_cache_write_bf16`'s fp8 cache) has no answer; the matmul and attention kernels need
-`dot_add`.
+`exec` gives up (`none`) at a site without an answer. Since `Ans.assume`, every site the 41
+claims use has one (by `grep tl\.` in their `Claim.lean`) except `cumsum` (`chunk_cumsum_f32`).
+Per operation: [COVERAGE.md](COVERAGE.md).
 
 ## Freedom outside `pick`: the effects
 

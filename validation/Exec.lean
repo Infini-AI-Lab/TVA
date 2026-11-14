@@ -13,16 +13,17 @@ Their soundness theorems say that whatever they report, the semantics can do:
   configuration where every program has finished, with the reported memory; a predicted
   undefined behaviour is a trace to a configuration that is `StuckUB`.
 
-Nothing here is trusted: `Step` stays the meaning, and every answer the executor uses carries its
-proof. Completeness is not claimed: the executor makes one choice where the semantics allows
+Nothing here is trusted: `Step` stays the meaning. Every answer the executor uses carries its
+proof, except the answers taken without one (`Ans.assume`, at platform sites): `exec` returns them
+(`Assumed`), and both theorems are conditional on each of them satisfying its site's predicate. Completeness is not claimed: the executor makes one choice where the semantics allows
 many (below), and gives up (`none`) where it has no answer.
 
 ## Where the answers come from
 
 * `pick P sv k`: the site's solver `sv` (`TVA.Solve`), given the oracle's `Hints` for what it
   cannot compute (a reduction tree, an order of lanes, a padding value).
-* `plat q k`: the oracle's `plat`, for the platform of `E`. For a platform calibrated on the
-  device (`P_dev`, a table), this is a lookup and a decision.
+  A platform operation (`Prog.plat q k`, an `env` then a `pick`) asks `Query.plat q` and assumes
+  the answer: the device's value for those operands (`P_dev`, a table).
 * `rmw d a upd sv …`: the atomic's solver `sv old`, given the old value.
 * `load`: the values of disabled lanes (`Oracle.fill`).
 
@@ -116,8 +117,6 @@ and claims nothing. -/
 structure Oracle (E : Env) where
   /-- What the solvers of `pick`s and atomics may ask for. -/
   hints : Hints
-  /-- An operation of `E`'s platform, with its proof. -/
-  plat : (q : PlatQ) → Option (Ans (q.Rel E.P))
   /-- The value of a disabled lane of a load. -/
   fill : (d : DType) → (s : Shape) → Idx s → d.Val
 
@@ -204,35 +203,66 @@ theorem not_storeOk_of_unwritable (m : Mem) (d : DType) (addrs : Idx s → Optio
 
 end Access
 
+/-- An answer `exec` took without a proof (`Ans.assume`): the value `b`, assumed to satisfy `P`. -/
+structure Assumed where
+  {β : Type}
+  /-- The site's predicate. -/
+  P : β → Prop
+  /-- The value taken. -/
+  b : β
+
+/-- The assumption holds. -/
+def Assumed.Holds (a : Assumed) : Prop := a.P a.b
+
+/-- All the assumptions hold. -/
+def Assumed.All (l : List Assumed) : Prop := ∀ a ∈ l, a.Holds
+
+theorem Assumed.All.tail {a : Assumed} {l : List Assumed} (h : All (a :: l)) : All l :=
+  fun x hx => h x (List.mem_cons_of_mem _ hx)
+
+theorem Assumed.All.head {a : Assumed} {l : List Assumed} (h : All (a :: l)) : a.Holds :=
+  h a List.mem_cons_self
+
+/-- Add an assumption to a run's log. -/
+def Assumed.cons {γ : Type} (a : Assumed) : Option (γ × List Assumed) → Option (γ × List Assumed)
+  | some (r, l) => some (r, a :: l)
+  | none => none
+
+theorem Assumed.cons_eq {γ : Type} {a : Assumed} {o : Option (γ × List Assumed)} {r : γ}
+    {l : List Assumed} (h : Assumed.cons a o = some (r, l)) :
+    ∃ l', o = some (r, l') ∧ l = a :: l' := by
+  cases o with
+  | none => cases h
+  | some p => obtain ⟨r', l'⟩ := p; simp only [Assumed.cons, Option.some.injEq, Prod.mk.injEq] at h
+              obtain ⟨rfl, rfl⟩ := h; exact ⟨l', rfl, rfl⟩
+
 /-- Run `p` from memory `m` for at most `fuel` steps. `none`: out of fuel, or no answer at a
-choice. -/
-def exec (E : Env) (O : Oracle E) : Nat → {α : Type} → CMem → Prog α → Option (Res α)
-  | _, _, m, .ret a => some (.done a m)
+choice. With the result, the answers taken without proof (`Ans.assume`), in order. -/
+def exec (E : Env) (O : Oracle E) : Nat → {α : Type} → CMem → Prog α →
+    Option (Res α × List Assumed)
+  | _, _, m, .ret a => some (.done a m, [])
   | 0, _, _, _ => none
   | n + 1, _, m, .load d _ addrs k =>
-    if ∃ i, BadLane m.toMem d addrs i then some .ub
+    if ∃ i, BadLane m.toMem d addrs i then some (.ub, [])
     else exec E O n m (k (loadVals O m.toMem d addrs))
   | n + 1, _, m, .store d _ addrs vals k =>
-    if ∃ i, UnwritableLane m.toMem d addrs i then some .ub
+    if ∃ i, UnwritableLane m.toMem d addrs i then some (.ub, [])
     else exec E O n (m.writeAll d addrs vals (enabled addrs)) k
-  | n + 1, _, m, .rmw d a _ sv _ _ k =>
+  | n + 1, _, m, .rmw d a upd sv _ _ k =>
     match m.toMem.read d a with
-    | none => some .ub
+    | none => some (.ub, [])
     | some old => match (sv old).run O.hints with
       | some (.ok new _) => exec E O n (m.write d a new) (k old)
-      | some (.empty _) => some .ub
+      | some (.empty _) => some (.ub, [])
+      | some (.assume new) => Assumed.cons ⟨upd old, new⟩ (exec E O n (m.write d a new) (k old))
       | none => none
-  | n + 1, _, m, .pick _ sv k =>
+  | n + 1, _, m, .pick P sv k =>
     match sv.run O.hints with
     | some (.ok b _) => exec E O n m (k b)
-    | some (.empty _) => some .ub
+    | some (.empty _) => some (.ub, [])
+    | some (.assume b) => Assumed.cons ⟨P, b⟩ (exec E O n m (k b))
     | none => none
-  | n + 1, _, m, .plat q k =>
-    match O.plat q with
-    | some (.ok r _) => exec E O n m (k r)
-    | some (.empty _) => some .ub
-    | none => none
-  | _ + 1, _, _, .ub => some .ub
+  | _ + 1, _, _, .ub => some (.ub, [])
   | n + 1, _, m, .loop init body k => exec E O n m (Prog.loopStep init body k)
   | n + 1, _, m, .env k => exec E O n m (k E)
 
@@ -250,64 +280,81 @@ theorem Sound.cons {E : Env} {α : Type} {m m₁ : Mem} {p p₁ : Prog α} {e : 
 theorem Sound.now {E : Env} {α : Type} {m : Mem} {p : Prog α} (h : Step E m p .ub) :
     Sound E m p .ub := ⟨m, p, Runs.refl m p, h⟩
 
-/-- **Soundness of `exec`.** If `exec` reports a result, the program can reach it under
-`Step`. -/
+/-- **Soundness of `exec`.** If `exec` reports a result, and every answer it took without proof
+satisfies its site's predicate, the program can reach the result under `Step`. -/
 theorem exec_sound (E : Env) (O : Oracle E) :
-    ∀ (fuel : Nat) {α : Type} (m : CMem) (p : Prog α) (r : Res α),
-      exec E O fuel m p = some r → Sound E m.toMem p r := by
+    ∀ (fuel : Nat) {α : Type} (m : CMem) (p : Prog α) (r : Res α) (l : List Assumed),
+      exec E O fuel m p = some (r, l) → Assumed.All l → Sound E m.toMem p r := by
   intro fuel
   induction fuel with
   | zero =>
-    intro α m p r h
+    intro α m p r l h _
     cases p <;> simp only [exec, reduceCtorEq] at h
-    cases h; exact Runs.refl _ _
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, -⟩ := h; exact Runs.refl _ _
   | succ n ih =>
-    intro α m p r h
+    intro α m p r l h hl
     cases p with
-    | ret a => simp only [exec, Option.some.injEq] at h; cases h; exact Runs.refl _ _
+    | ret a =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, -⟩ := h; exact Runs.refl _ _
     | load d s addrs k =>
       simp only [exec] at h
       split at h
-      · rename_i hb; cases h; exact Sound.now (Step.loadUB (loadBad_of_bad _ d addrs hb))
       · rename_i hb
-        exact Sound.cons (Step.load _ (loadOk_of_noBad O _ d addrs hb)) (ih _ _ _ h)
+        simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨rfl, -⟩ := h
+        exact Sound.now (Step.loadUB (loadBad_of_bad _ d addrs hb))
+      · rename_i hb
+        exact Sound.cons (Step.load _ (loadOk_of_noBad O _ d addrs hb)) (ih _ _ _ _ h hl)
     | store d s addrs vals k =>
       simp only [exec] at h
       split at h
       · rename_i hb
-        cases h; exact Sound.now (Step.storeUB (not_storeOk_of_unwritable _ d addrs hb))
+        simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨rfl, -⟩ := h
+        exact Sound.now (Step.storeUB (not_storeOk_of_unwritable _ d addrs hb))
       · rename_i hb
         have hs := Step.store (k := k) (vals := vals) _ (storeOk_of_noUnwritable _ d addrs hb)
           (List.Perm.refl (enabled addrs)) (E := E)
         rw [← CMem.toMem_writeAll] at hs
-        exact Sound.cons hs (ih _ _ _ h)
+        exact Sound.cons hs (ih _ _ _ _ h hl)
     | rmw d a upd sv sem sc k =>
       simp only [exec] at h
       split at h
-      · rename_i hr; cases h; exact Sound.now (Step.rmwUB (Or.inl hr))
+      · rename_i hr
+        simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨rfl, -⟩ := h
+        exact Sound.now (Step.rmwUB (Or.inl hr))
       · rename_i old hr
         split at h
         · rename_i new hu _
           have hs := Step.rmw (E := E) (sv := sv) (sem := sem) (sc := sc) (k := k) old new hr hu
           rw [← CMem.toMem_write] at hs
-          exact Sound.cons hs (ih _ _ _ h)
-        · rename_i hu _; cases h; exact Sound.now (Step.rmwUB (Or.inr ⟨old, hr, hu⟩))
+          exact Sound.cons hs (ih _ _ _ _ h hl)
+        · rename_i hu _
+          simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨rfl, -⟩ := h
+          exact Sound.now (Step.rmwUB (Or.inr ⟨old, hr, hu⟩))
+        · rename_i new _
+          obtain ⟨l', h', rfl⟩ := Assumed.cons_eq h
+          have hs := Step.rmw (E := E) (sv := sv) (sem := sem) (sc := sc) (k := k) old new hr
+            hl.head
+          rw [← CMem.toMem_write] at hs
+          exact Sound.cons hs (ih _ _ _ _ h' hl.tail)
         · cases h
     | pick P sv k =>
       simp only [exec] at h
       split at h
-      · rename_i b hb _; exact Sound.cons (Step.pick b hb) (ih _ _ _ h)
-      · rename_i hb _; cases h; exact Sound.now (Step.pickUB hb)
+      · rename_i b hb _; exact Sound.cons (Step.pick b hb) (ih _ _ _ _ h hl)
+      · rename_i hb _
+        simp only [Option.some.injEq, Prod.mk.injEq] at h; obtain ⟨rfl, -⟩ := h
+        exact Sound.now (Step.pickUB hb)
+      · rename_i b _
+        obtain ⟨l', h', rfl⟩ := Assumed.cons_eq h
+        exact Sound.cons (Step.pick b hl.head) (ih _ _ _ _ h' hl.tail)
       · cases h
-    | plat q k =>
-      simp only [exec] at h
-      split at h
-      · rename_i r hr _; exact Sound.cons (Step.plat r hr) (ih _ _ _ h)
-      · rename_i hr _; cases h; exact Sound.now (Step.platUB hr)
-      · cases h
-    | ub => simp only [exec, Option.some.injEq] at h; cases h; exact Sound.now Step.ub
-    | loop init body k => simp only [exec] at h; exact Sound.cons Step.loop (ih _ _ _ h)
-    | env k => simp only [exec] at h; exact Sound.cons Step.env (ih _ _ _ h)
+    | ub =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, -⟩ := h; exact Sound.now Step.ub
+    | loop init body k => simp only [exec] at h; exact Sound.cons Step.loop (ih _ _ _ _ h hl)
+    | env k => simp only [exec] at h; exact Sound.cons Step.env (ih _ _ _ _ h hl)
 
 /-! ## A launch, one program after another -/
 
@@ -355,13 +402,15 @@ inductive LRes (N : Nat) where
   /-- Some program reaches undefined behaviour. -/
   | ub
 
-/-- Run the programs `is`, one after another, each to its end, from configuration `c`. -/
+/-- Run the programs `is`, one after another, each to its end, from configuration `c`. With the
+result, the answers taken without proof. -/
 def execProgs (E : Env) (O : Oracle E) (fuel : Nat) {N : Nat} :
-    List (Fin N) → CConfig N → Option (LRes N)
-  | [], c => some (.done c)
+    List (Fin N) → CConfig N → Option (LRes N × List Assumed)
+  | [], c => some (.done c, [])
   | i :: is, c => match exec E O fuel c.mem (c.progs i) with
-    | some (.done () m') => execProgs E O fuel is ⟨m', Function.update c.progs i (.ret ())⟩
-    | some .ub => some .ub
+    | some (.done () m', l) => (execProgs E O fuel is ⟨m', Function.update c.progs i (.ret ())⟩).map
+        fun (r, l') => (r, l ++ l')
+    | some (.ub, l) => some (.ub, l)
     | none => none
 
 /-- What `execProgs` reports, the launch can do from `c`. -/
@@ -370,25 +419,32 @@ def LSound (E : Env) {N : Nat} (is : List (Fin N)) (c : CConfig N) : LRes N → 
       ∀ i, i ∉ is → c'.progs i = c.progs i
   | .ub => ∃ tr c', Reach E c.toConfig tr c' ∧ c'.StuckUB E
 
+theorem Assumed.All.append {l l' : List Assumed} (h : All (l ++ l')) : All l ∧ All l' :=
+  ⟨fun x hx => h x (List.mem_append_left _ hx), fun x hx => h x (List.mem_append_right _ hx)⟩
+
 theorem execProgs_sound (E : Env) (O : Oracle E) (fuel : Nat) {N : Nat} :
-    ∀ (is : List (Fin N)) (c : CConfig N) (r : LRes N),
-      execProgs E O fuel is c = some r → LSound E is c r := by
+    ∀ (is : List (Fin N)) (c : CConfig N) (r : LRes N) (l : List Assumed),
+      execProgs E O fuel is c = some (r, l) → Assumed.All l → LSound E is c r := by
   intro is
   induction is with
   | nil =>
-    intro c r h
-    simp only [execProgs, Option.some.injEq] at h
-    subst h
+    intro c r l h _
+    simp only [execProgs, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, -⟩ := h
     exact ⟨⟨[], .refl _⟩, fun _ h => absurd h List.not_mem_nil, fun _ _ => rfl⟩
   | cons i is ih =>
-    intro c r h
+    intro c r l h hl
     simp only [execProgs] at h
     split at h
-    · rename_i m' hex
-      have hs := exec_sound E O fuel c.mem (c.progs i) _ hex
+    · rename_i m' l₁ hex
+      obtain ⟨⟨r', l₂⟩, hrest, hrl⟩ := Option.map_eq_some_iff.mp h
+      simp only [Prod.mk.injEq] at hrl
+      obtain ⟨rfl, rfl⟩ := hrl
+      obtain ⟨hl₁, hl₂⟩ := hl.append
+      have hs := exec_sound E O fuel c.mem (c.progs i) _ _ hex hl₁
       obtain ⟨tr₁, htr₁⟩ := Runs.reach hs c.toConfig i rfl rfl
-      have hr := ih _ r h
-      cases r with
+      have hr := ih _ _ _ hrest hl₂
+      cases r' with
       | done c' =>
         obtain ⟨⟨tr₂, htr₂⟩, hin, hout⟩ := hr
         refine ⟨⟨tr₁ ++ tr₂, Reach.trans htr₁ htr₂⟩, fun j hj => ?_, fun j hj => ?_⟩
@@ -403,42 +459,48 @@ theorem execProgs_sound (E : Env) (O : Oracle E) (fuel : Nat) {N : Nat} :
       | ub =>
         obtain ⟨tr₂, c', htr₂, hu⟩ := hr
         exact ⟨tr₁ ++ tr₂, c', Reach.trans htr₁ htr₂, hu⟩
-    · rename_i hex
-      cases h
-      obtain ⟨m', p', hruns, hu⟩ := exec_sound E O fuel c.mem (c.progs i) _ hex
+    · rename_i l₁ hex
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      obtain ⟨m', p', hruns, hu⟩ := exec_sound E O fuel c.mem (c.progs i) _ _ hex hl
       obtain ⟨tr, htr⟩ := Runs.reach hruns c.toConfig i rfl rfl
       exact ⟨tr, _, htr, i, by simpa using hu⟩
     · cases h
 
 /-- Run the launch `L` of kernel `k` from `init`: programs `0, 1, …` in grid order, each for at
-most `fuel` steps. -/
+most `fuel` steps. With the result, the answers taken without proof. -/
 def execLaunch (E : Env) (O : Oracle E) (fuel : Nat) (k : Kernel) (L : Launch) (init : CMem) :
-    Option (Res Unit) :=
+    Option (Res Unit × List Assumed) :=
   match execProgs E O fuel (List.finRange L.size) ⟨init, fun i => k.body (L.ctx i)⟩ with
-  | some (.done c) => some (.done () c.mem)
-  | some .ub => some .ub
+  | some (.done c, l) => some (.done () c.mem, l)
+  | some (.ub, l) => some (.ub, l)
   | none => none
 
-/-- **Soundness of `execLaunch`.** A finished run is a trace of the launch to a configuration
-where every program has finished, with the reported memory; a reported undefined behaviour is a
-trace to a configuration where some program's next step can be undefined behaviour. -/
+/-- **Soundness of `execLaunch`.** If every answer taken without proof satisfies its site's
+predicate: a finished run is a trace of the launch to a configuration where every program has
+finished, with the reported memory; a reported undefined behaviour is a trace to a configuration
+where some program's next step can be undefined behaviour. -/
 theorem execLaunch_sound (E : Env) (O : Oracle E) (fuel : Nat) (k : Kernel) (L : Launch)
-    (init : CMem) :
-    (∀ m, execLaunch E O fuel k L init = some (.done () m) →
+    (init : CMem) (l : List Assumed) (hl : Assumed.All l) :
+    (∀ m, execLaunch E O fuel k L init = some (.done () m, l) →
       ∃ tr c, Reach E (Config.start k L (CMem.toMem init)) tr c ∧ c.Done ∧
         c.mem = CMem.toMem m) ∧
-    (execLaunch E O fuel k L init = some .ub →
+    (execLaunch E O fuel k L init = some (.ub, l) →
       ∃ tr c, Reach E (Config.start k L (CMem.toMem init)) tr c ∧ c.StuckUB E) := by
   unfold execLaunch
   have hs := execProgs_sound E O fuel (List.finRange L.size) ⟨init, fun i => k.body (L.ctx i)⟩
   split
-  · rename_i c hc
-    obtain ⟨⟨tr, htr⟩, hin, -⟩ := hs _ hc
-    refine ⟨fun m hm => ?_, fun h => nomatch h⟩
-    simp only [Option.some.injEq, Res.done.injEq, true_and] at hm
+  · rename_i c l' hc
+    refine ⟨fun m hm => ?_, fun h => by simp at h⟩
+    simp only [Option.some.injEq, Prod.mk.injEq, Res.done.injEq, true_and] at hm
+    obtain ⟨hm, rfl⟩ := hm
+    obtain ⟨⟨tr, htr⟩, hin, -⟩ := hs _ _ hc hl
     exact ⟨tr, c.toConfig, htr, fun i => hin i (List.mem_finRange i), by rw [← hm]; rfl⟩
-  · rename_i hc
-    exact ⟨fun _ h => (nomatch h), fun _ => hs _ hc⟩
+  · rename_i l' hc
+    refine ⟨fun _ h => by simp at h, fun h => ?_⟩
+    simp only [Option.some.injEq, Prod.mk.injEq, true_and] at h
+    subst h
+    exact hs _ _ hc hl
   · exact ⟨fun _ h => (nomatch h), fun h => (nomatch h)⟩
 
 end TVA.Validation

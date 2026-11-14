@@ -16,8 +16,8 @@ def P0 : Platform where
   atomicAdd _ _ _ _ := False
   dotScaled := @fun _ _ _ _ _ _ _ _ _ _ => False
 
-/-- An oracle with no hints and no platform answers; disabled lanes read zero bits. -/
-def O0 (E : Env) : Oracle E := ⟨fun _ => none, fun _ => none, fun d _ _ => d.ofBits 0⟩
+/-- An oracle with no hints; disabled lanes read zero bits. -/
+def O0 (E : Env) : Oracle E := ⟨fun _ => none, fun d _ _ => d.ofBits 0⟩
 
 /-- `n = 10` elements, `BLOCK_SIZE = 4`: three programs, the last one masked. -/
 def n : Nat := 10
@@ -32,11 +32,11 @@ def init : CMem :=
   let c := CMem.ofElems c .f32 ((List.range n).map fun j : Nat => ((d.y.ptr j).addr, ys j))
   CMem.ofElems c .f32 ((List.range n).map fun j => ((d.output.ptr j).addr, FloatV.ofRat 7))
 
-def run : Option (Res Unit) := execLaunch ((launch d).env P0) (O0 _) 1000 (model d) (launch d) init
+def run : Option (Res Unit × List Assumed) := execLaunch ((launch d).env P0) (O0 _) 1000 (model d) (launch d) init
 
 /-- The output's elements, as rationals, if the run finished. -/
 def outs : Option (List Rat) := match run with
-  | some (.done () m) =>
+  | some (.done () m, []) =>
     (List.range n).mapM fun j => ((CMem.toMem m).read .f32 (d.output.ptr j).addr).map (·.toRat)
   | _ => none
 
