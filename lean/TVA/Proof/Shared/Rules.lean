@@ -51,7 +51,7 @@ private theorem rmwSeq_shared {W : Set Int} {α : Type} {Q : α → List AtomicS
     obtain ⟨hal, hC⟩ := hcell i List.mem_cons_self
     simp only [tl.rmwSeq, Prog.bind]
     refine .shared hal hC hsem hsc (htot i)
-      (fun v w => tl.rmwSeq_bind_const ptrs upd sv sem sc K rest _ _) fun old new hon => ?_
+      (fun v w => .of_eq (tl.rmwSeq_bind_const ptrs upd sv sem sc K rest _ _)) fun old new hon => ?_
     refine rmwSeq_shared hsem hsc htot rest (List.nodup_cons.mp hnd).2
       (fun j hj => hcell j (List.mem_cons_of_mem _ hj)) (Function.update acc i old) _
       fun olds news hup => ?_

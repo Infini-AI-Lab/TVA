@@ -79,9 +79,9 @@ end Trace
 
 /-- **A program uses an atomic's result on a cell another access also reaches.** Some
 interleaving reaches a state in which program `i` is about to perform a read-modify-write of the
-element of dtype `d` at `a` whose continuation `kk` is not the same for every old value (the
-program uses the result; a continuation that does not depend on it stays so in every state,
-`Step.defer`), and some interleaving has a step of another program that touches a
+element of dtype `d` at `a` whose continuation `kk` is not the same for every old value, up to
+solvers (`Prog.SameUpToSolvers`: the program uses the result; a solver built from it is not a use;
+a continuation that does not depend on it stays so in every state, `Step.defer`), and some interleaving has a step of another program that touches a
 byte of that element, or two steps of program `i` that do.
 
 `Step.defer` lets later steps pass a pending atomic only when they do not depend on its result,
@@ -96,7 +96,7 @@ def UsesSharedAtomicResult (E : Env) (k : Kernel) (L : Launch) (init : Mem) : Pr
     (upd : d.Val → d.Val → Prop) (sv : (old : d.Val) → Solve (upd old)) (sem : MemSem)
     (sc : Scope) (kk : d.Val → Prog Unit),
     Reach E (Config.start k L init) tr c ∧ c.progs i = .rmw d a upd sv sem sc kk ∧
-    (∃ v w, kk v ≠ kk w) ∧
+    (∃ v w, ¬ (kk v).SameUpToSolvers (kk w)) ∧
     ∃ (tr' : List (Fin L.size × Event)) (c' : Config L.size),
       Reach E (Config.start k L init) tr' c' ∧ SharedIn tr' i (Mem.span d a)
 

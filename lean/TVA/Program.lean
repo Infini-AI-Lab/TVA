@@ -361,6 +361,72 @@ theorem bind_assoc {α β γ : Type} (p : Prog α) (f : α → Prog β) (g : β 
   | loop init body k _ ih => simp only [bind, ih]
   | env k ih => simp only [bind, ih]
 
+/-- **The same program up to solvers**: `p` and `q` differ at most in the solvers of their `rmw`s
+and `pick`s, which play no part in the meaning (`Solve`). The semantics compares programs with
+this, not `=` (`Step.defer`, `UsesSharedAtomicResult`), so that a solver, for instance one built
+from an atomic's old value, never changes what a program means. -/
+inductive SameUpToSolvers : {α : Type} → Prog α → Prog α → Prop where
+  /-- Two equal results. -/
+  | ret {α : Type} (a : α) : SameUpToSolvers (ret a) (ret a)
+  /-- The same `load`, with continuations the same up to solvers for every value read. -/
+  | load {α : Type} {d : DType} {s : Shape} {addrs : Idx s → Option Int}
+      {k k' : Tensor s d.Val → Prog α} :
+      (∀ v, SameUpToSolvers (k v) (k' v)) → SameUpToSolvers (load d s addrs k) (load d s addrs k')
+  /-- The same `store`, with continuations the same up to solvers. -/
+  | store {α : Type} {d : DType} {s : Shape} {addrs : Idx s → Option Int} {vals : Tensor s d.Val}
+      {k k' : Prog α} :
+      SameUpToSolvers k k' → SameUpToSolvers (store d s addrs vals k) (store d s addrs vals k')
+  /-- The same `rmw`, with any solvers, and continuations the same up to solvers for every old
+  value. -/
+  | rmw {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop}
+      {sv sv' : (old : d.Val) → Solve (upd old)} {sem : MemSem} {sc : Scope}
+      {k k' : d.Val → Prog α} :
+      (∀ v, SameUpToSolvers (k v) (k' v)) →
+      SameUpToSolvers (rmw d a upd sv sem sc k) (rmw d a upd sv' sem sc k')
+  /-- The same `pick`, with any solvers, and continuations the same up to solvers for every
+  value. -/
+  | pick {α β : Type} {P : β → Prop} {sv sv' : Solve P} {k k' : β → Prog α} :
+      (∀ b, SameUpToSolvers (k b) (k' b)) → SameUpToSolvers (pick P sv k) (pick P sv' k')
+  /-- `ub` is `ub`. -/
+  | ub {α : Type} : SameUpToSolvers (ub : Prog α) ub
+  /-- The same loop: the same initial state, bodies the same up to solvers for every state, and
+  continuations the same up to solvers for every result. -/
+  | loop {α σ β : Type} {init : σ} {body body' : σ → Prog (σ ⊕ β)} {k k' : β → Prog α} :
+      (∀ x, SameUpToSolvers (body x) (body' x)) → (∀ b, SameUpToSolvers (k b) (k' b)) →
+      SameUpToSolvers (loop init body k) (loop init body' k')
+  /-- `env`, with continuations the same up to solvers for every environment. -/
+  | env {α : Type} {k k' : Env → Prog α} :
+      (∀ e, SameUpToSolvers (k e) (k' e)) → SameUpToSolvers (env k) (env k')
+
+/-- Every program is the same as itself up to solvers. -/
+theorem SameUpToSolvers.refl {α : Type} (p : Prog α) : SameUpToSolvers p p := by
+  induction p with
+  | ret a => exact .ret a
+  | load d s addrs k ih => exact .load ih
+  | store d s addrs vals k ih => exact .store ih
+  | rmw d a upd sv sem sc k ih => exact .rmw ih
+  | pick P sv k ih => exact .pick ih
+  | ub => exact .ub
+  | loop init body k ihb ih => exact .loop ihb ih
+  | env k ih => exact .env ih
+
+/-- Equal programs are the same up to solvers. -/
+theorem SameUpToSolvers.of_eq {α : Type} {p q : Prog α} (h : p = q) : SameUpToSolvers p q :=
+  h ▸ refl p
+
+/-- Programs the same up to solvers stay so when followed by the same rest. -/
+theorem SameUpToSolvers.bind_left {α β : Type} {p q : Prog α} (h : SameUpToSolvers p q)
+    (f : α → Prog β) : SameUpToSolvers (p.bind f) (q.bind f) := by
+  induction h with
+  | ret a => exact refl _
+  | load _ ih => exact .load fun v => ih v f
+  | store _ ih => exact .store (ih f)
+  | rmw _ ih => exact .rmw fun v => ih v f
+  | pick _ ih => exact .pick fun b => ih b f
+  | ub => exact .ub
+  | loop hb _ _ ih => exact .loop hb fun b => ih b f
+  | env _ ih => exact .env fun e => ih e f
+
 /-- An operation the platform defines, on concrete operands (`PlatQ`: `tl.exp`, `/`, `tl.dot`, a
 conversion into fp8): read the environment, then any result `q.Rel` allows on its platform;
 undefined behaviour when there is none. Not a constructor: it is `env` then `pick`, whose solver

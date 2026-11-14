@@ -157,12 +157,13 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
   A step taken before the atomic cannot know its result, so when the continuation does not depend
   on the result at all, neither does the continuation after the step (a `pick` makes the same
   choice for every old value). This changes no outcome, and it keeps an unused result unused in
-  every reachable state, which `UsesSharedAtomicResult` reads. -/
+  every reachable state, which `UsesSharedAtomicResult` reads. "Does not depend" is up to solvers
+  (`Prog.SameUpToSolvers`): a solver built from the old value is not a use of it. -/
   | defer {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sv : (old : d.Val) → Solve (upd old)}
       {sem : MemSem} {sc : Scope}
       {k k' : d.Val → Prog α} {m' : Mem} {e : Event} :
       (∀ v, Step E m (k v) (.next m' (k' v) e)) →
-      ((∀ v w, k v = k w) → ∀ v w, k' v = k' w) →
+      ((∀ v w, (k v).SameUpToSolvers (k w)) → ∀ v w, (k' v).SameUpToSolvers (k' w)) →
       Step E m (.rmw d a upd sv sem sc k) (.next m' (.rmw d a upd sv sem sc k') e)
   /-- `pick`: continue with any value satisfying the predicate. -/
   | pick {α β : Type} {P : β → Prop} {sv : Solve P} {k : β → Prog α} (b : β) :

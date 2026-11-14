@@ -22,6 +22,12 @@ theorems are in [Exec.lean](Exec.lean); the change to `Prog` they need is descri
 - `Safe.plat` and `SafeA.plat` are theorems (from `env` and `pick`); `safe_div`, `safe_math`,
   `safe_cvt8`, `safe_dot`, `safe_dot_scaled` keep their statements and proofs. The atomic rules take
   the solver as an implicit argument. `UsesSharedAtomicResult` quantifies over the solver too.
+- `Prog.SameUpToSolvers` (2026-11-14, from PR review): programs compared up to their solvers.
+  With `=`, a continuation that uses an atomic's old value only in a solver (`Solve.ok old _`)
+  counted as using the result in `UsesSharedAtomicResult`, and made `Step.defer`'s premise
+  vacuous (a deferred `pick` could choose per old value). Both now use `SameUpToSolvers`, and so
+  do the "result unused" premises of `Safe.rmw`, `SafeA.rmw`, `SafeA.shared` (proofs that had `=`
+  pass `.of_eq`; `SameUpToSolvers.bind_left` replaces the `rw` in the sequencing rules).
 - Decidability instances for the guards' conditions (hints, `RoundOk`, block pointers,
   descriptors, `dot_scaled`'s checks), next to the definitions.
 
