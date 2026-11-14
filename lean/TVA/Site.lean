@@ -1,4 +1,5 @@
 import TVA.Core
+import TVA.Triton.Arith.Rel
 
 /-!
 # Triton's sites: what a Triton program may leave open
@@ -31,6 +32,18 @@ inductive Site : Type 1 where
   when some lane has no value (`//` and `%` by zero or overflowing, a shift by at least the
   width). -/
   | lanes (s : Shape) (α : Type) (g : Idx s → Option α)
+  /-- An exact float result `v`, up to NaN payload: every lane of `v` that is not NaN, and some
+  NaN where `v` has one (`tl.add`, `tl.mul`, `tl.fma`, `tl.div_rn`, `tl.sqrt_rn`, negation,
+  `tl.abs`, a conversion between standard formats). -/
+  | upToNaN (s : Shape) (f : Format) (v : Tensor s (FloatV f))
+  /-- An addition `x + y` that a product may feed (`AddRel`, with `fusion` the launch's
+  `enable_fp_fusion`). -/
+  | addc (s : Shape) (f : Format) (fusion : Bool) (x y : Tensor s (FloatV f))
+  /-- A source `a * b + c`: the two IEEE operations, or with `fusion` one `fma`, up to NaN
+  payload. -/
+  | mulAdd (s : Shape) (f : Format) (fusion : Bool) (a b c : Tensor s (FloatV f))
+  /-- `tl.maximum` (`isMax`) or `tl.minimum` of float tensors (`FloatV.MaxRel`). -/
+  | maxMin (s : Shape) (f : Format) (isMax : Bool) (x y : Tensor s (FloatV f))
   /-- Any value of type `β` satisfying `P`. -/
   | other (β : Type) (P : β → Prop)
 
@@ -39,6 +52,7 @@ inductive Site : Type 1 where
   | @guard _ _ => Unit
   | @hint β _ _ _ => β
   | .lanes s α _ => Tensor s α
+  | .upToNaN s f _ | .addc s f _ _ _ | .mulAdd s f _ _ _ _ | .maxMin s f _ _ _ => Tensor s (FloatV f)
   | .other β _ => β
 
 /-- The values a site allows. -/
@@ -46,6 +60,12 @@ inductive Site : Type 1 where
   | @guard c _ => fun _ => c
   | @hint _ x c _ => fun y => y = x ∧ c
   | .lanes _ _ g => fun r => ∀ i, g i = some (r.get i)
+  | .upToNaN _ _ v => fun r => ∀ i, FloatV.NaNEq (v.get i) (r.get i)
+  | .addc _ _ fusion x y => fun r => ∀ i, AddRel fusion (x.get i) (y.get i) (r.get i)
+  | .mulAdd _ _ fusion a b c => fun r => ∀ i,
+      FloatV.NaNEq (FloatV.add (FloatV.mul (a.get i) (b.get i)) (c.get i)) (r.get i) ∨
+      (fusion = true ∧ FloatV.NaNEq (FloatV.fma (a.get i) (b.get i) (c.get i)) (r.get i))
+  | .maxMin _ _ isMax x y => fun r => ∀ i, FloatV.MaxRel isMax (x.get i) (y.get i) (r.get i)
   | .other _ P => P
 
 /-- The update an atomic makes to one element of dtype `d`. -/
@@ -82,6 +102,27 @@ the `Site.other` it replaces. -/
 `fun r => ∀ i, g i = some (r.get i)` of the `Site.other` it replaces. -/
 @[simp] theorem Site.allows_lanes {s : Shape} {α : Type} {g : Idx s → Option α} {r : Tensor s α} :
     Sig.Allows (Site.lanes s α g) r ↔ ∀ i, g i = some (r.get i) := Iff.rfl
+
+/-- The float sites allow exactly the predicates of the `Site.other`s they replace. -/
+@[simp] theorem Site.allows_upToNaN {s : Shape} {f : Format} {v r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.upToNaN s f v) r ↔ ∀ i, FloatV.NaNEq (v.get i) (r.get i) := Iff.rfl
+
+@[simp] theorem Site.allows_addc {s : Shape} {f : Format} {fusion : Bool}
+    {x y r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.addc s f fusion x y) r ↔ ∀ i, AddRel fusion (x.get i) (y.get i) (r.get i) :=
+  Iff.rfl
+
+@[simp] theorem Site.allows_mulAdd {s : Shape} {f : Format} {fusion : Bool}
+    {a b c r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.mulAdd s f fusion a b c) r ↔ ∀ i,
+      FloatV.NaNEq (FloatV.add (FloatV.mul (a.get i) (b.get i)) (c.get i)) (r.get i) ∨
+      (fusion = true ∧ FloatV.NaNEq (FloatV.fma (a.get i) (b.get i) (c.get i)) (r.get i)) :=
+  Iff.rfl
+
+@[simp] theorem Site.allows_maxMin {s : Shape} {f : Format} {isMax : Bool}
+    {x y r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.maxMin s f isMax x y) r ↔
+      ∀ i, FloatV.MaxRel isMax (x.get i) (y.get i) (r.get i) := Iff.rfl
 
 @[simp] theorem Upd.allows_other {d : DType} {upd : d.Val → d.Val → Prop} {old new : d.Val} :
     Sig.UpdAllows (Upd.other upd) old new ↔ upd old new := Iff.rfl
