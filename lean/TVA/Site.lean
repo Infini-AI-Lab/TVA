@@ -106,6 +106,12 @@ inductive Site : Type 1 where
   /-- An order of the lanes `enabled`: a permutation of them (the order an atomic's lanes are
   performed in). -/
   | order (s : Shape) (enabled : List (Idx s))
+  /-- A float reduction on axis 1 of the products `x[i, k] * y[k, j]` on platform `P`: each
+  element the products (`tl.MulRel`) summed along a tree with `AccAdd fusion` additions, or, when
+  the additions are at most 32 bits wide and `M, N ≥ 16`, `tl.dot(x, y)` with
+  `input_precision="ieee"`. One site with both branches. -/
+  | sumBcastMul (P : Platform) (fusion : Bool) (d : DType) (M K N : Nat) (x : Tensor [M, K] d.Val)
+      (y : Tensor [K, N] d.Val)
   /-- Any value of type `β` satisfying `P`. -/
   | other (β : Type) (P : β → Prop)
 
@@ -131,6 +137,7 @@ inductive Site : Type 1 where
   | .pad s d _ _ _ => Tensor s d.Val
   | .anyVals s d => Idx s → d.Val
   | .order s _ => List (Idx s)
+  | .sumBcastMul _ _ d M _ N _ _ => Tensor [M, N] d.Val
   | .upToNaN s f _ | .addc s f _ _ _ | .mulAdd s f _ _ _ _ | .maxMin s f _ _ _ => Tensor s (FloatV f)
   | .other β _ => β
 
@@ -150,6 +157,12 @@ inductive Site : Type 1 where
   | .fromF8 _ _ _ x => fun r => ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)
   | .convert P _ d d' x => fun r => ∀ i, ConvRel P d d' (x.get i) (r.get i)
   | .plat P q => q.Rel P
+  | .sumBcastMul P fusion d M K N x y => fun r =>
+      (∀ i j, ∃ p : Nat → d.Val,
+        (∀ k (hk : k < K), tl.MulRel d (x.get2 i ⟨k, hk⟩) (y.get2 ⟨k, hk⟩ j) (p k)) ∧
+        ∃ t : Tree, t.Covers K ∧ t.Eval (AccAdd fusion d) p (r.get2 i j)) ∨
+      (d.bytes ≤ 4 ∧ 16 ≤ M ∧ 16 ≤ N ∧
+        P.dot { a := d, b := d, acc := d, precision := .ieee } x y (Tensor.full (d.ofBits 0)) r)
   | .pad _ _ p inb v => fun r => ∀ i, if inb i then r.get i = v.get i else p.Holds (r.get i)
   | .anyVals _ _ => fun _ => True
   | .order _ enabled => fun order => order.Perm enabled

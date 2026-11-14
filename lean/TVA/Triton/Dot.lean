@@ -59,13 +59,7 @@ products first is not this computation, nor is a `tl.reduce` whose combine adds 
 itself. -/
 def sum_bcast_mul (d : DType) {M K N : Nat} (x : Tensor [M, K] d.Val) (y : Tensor [K, N] d.Val) :
     Prog (Tensor [M, N] d.Val) :=
-  .env fun e => .pick (.other _ (fun r : Tensor [M, N] d.Val =>
-    (∀ i j, ∃ p : Nat → d.Val,
-      (∀ k (hk : k < K), MulRel d (x.get2 i ⟨k, hk⟩) (y.get2 ⟨k, hk⟩ j) (p k)) ∧
-      ∃ t : Tree, t.Covers K ∧ t.Eval (AccAdd e.fusion d) p (r.get2 i j)) ∨
-    (d.bytes ≤ 4 ∧ 16 ≤ M ∧ 16 ≤ N ∧
-      e.P.dot { a := d, b := d, acc := d, precision := .ieee } x y (Tensor.full (d.ofBits 0)) r)))
-    .ret
+  .env fun e => .pick (.sumBcastMul e.P e.fusion d M K N x y) .ret
 
 end tl
 
