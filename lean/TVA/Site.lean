@@ -1,5 +1,6 @@
 import TVA.Core
 import TVA.Triton.Arith.Rel
+import TVA.Triton.Convert.Rel
 
 /-!
 # Triton's sites: what a Triton program may leave open
@@ -44,6 +45,15 @@ inductive Site : Type 1 where
   | mulAdd (s : Shape) (f : Format) (fusion : Bool) (a b c : Tensor s (FloatV f))
   /-- `tl.maximum` (`isMax`) or `tl.minimum` of float tensors (`FloatV.MaxRel`). -/
   | maxMin (s : Shape) (f : Format) (isMax : Bool) (x y : Tensor s (FloatV f))
+  /-- `x.to(float dtype)` of an integer tensor into format `f` (`tl.ItofRel`, lane by lane). -/
+  | itof (s : Shape) (f : Format) (sg : Bool) (w : Nat) (x : Tensor s (IntV sg w))
+  /-- `x.to(int dtype)` of a float tensor (`FtoiRel`, lane by lane): no result when a lane is NaN,
+  infinite or out of range. -/
+  | ftoi (s : Shape) (f : Format) (sg : Bool) (w : Nat) (x : Tensor s (FloatV f))
+  /-- `x.to(dtype)` from fp8 into format `g`: exact on the finite lanes, any value on the others. -/
+  | fromF8 (s : Shape) (f g : Format) (x : Tensor s (FloatV f))
+  /-- `semantic.cast` from dtype `d` to `d'` on platform `P` (`ConvRel`, lane by lane). -/
+  | convert (P : Platform) (s : Shape) (d d' : DType) (x : Tensor s d.Val)
   /-- Any value of type `β` satisfying `P`. -/
   | other (β : Type) (P : β → Prop)
 
@@ -52,6 +62,10 @@ inductive Site : Type 1 where
   | @guard _ _ => Unit
   | @hint β _ _ _ => β
   | .lanes s α _ => Tensor s α
+  | .itof s f _ _ _ => Tensor s (FloatV f)
+  | .ftoi s _ sg w _ => Tensor s (IntV sg w)
+  | .fromF8 s _ g _ => Tensor s (FloatV g)
+  | .convert _ s _ d' _ => Tensor s d'.Val
   | .upToNaN s f _ | .addc s f _ _ _ | .mulAdd s f _ _ _ _ | .maxMin s f _ _ _ => Tensor s (FloatV f)
   | .other β _ => β
 
@@ -66,6 +80,10 @@ inductive Site : Type 1 where
       FloatV.NaNEq (FloatV.add (FloatV.mul (a.get i) (b.get i)) (c.get i)) (r.get i) ∨
       (fusion = true ∧ FloatV.NaNEq (FloatV.fma (a.get i) (b.get i) (c.get i)) (r.get i))
   | .maxMin _ _ isMax x y => fun r => ∀ i, FloatV.MaxRel isMax (x.get i) (y.get i) (r.get i)
+  | .itof _ f _ _ x => fun r => ∀ i, tl.ItofRel f (x.get i).toInt (r.get i)
+  | .ftoi _ _ sg w x => fun r => ∀ i, FtoiRel sg w (x.get i) (r.get i)
+  | .fromF8 _ _ _ x => fun r => ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)
+  | .convert P _ d d' x => fun r => ∀ i, ConvRel P d d' (x.get i) (r.get i)
   | .other _ P => P
 
 /-- The update an atomic makes to one element of dtype `d`. -/
@@ -123,6 +141,24 @@ the `Site.other` it replaces. -/
     {x y r : Tensor s (FloatV f)} :
     Sig.Allows (Site.maxMin s f isMax x y) r ↔
       ∀ i, FloatV.MaxRel isMax (x.get i) (y.get i) (r.get i) := Iff.rfl
+
+/-- The conversion sites allow exactly the predicates of the `Site.other`s they replace. -/
+@[simp] theorem Site.allows_itof {s : Shape} {f : Format} {sg : Bool} {w : Nat}
+    {x : Tensor s (IntV sg w)} {r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.itof s f sg w x) r ↔ ∀ i, tl.ItofRel f (x.get i).toInt (r.get i) := Iff.rfl
+
+@[simp] theorem Site.allows_ftoi {s : Shape} {f : Format} {sg : Bool} {w : Nat}
+    {x : Tensor s (FloatV f)} {r : Tensor s (IntV sg w)} :
+    Sig.Allows (Site.ftoi s f sg w x) r ↔ ∀ i, FtoiRel sg w (x.get i) (r.get i) := Iff.rfl
+
+@[simp] theorem Site.allows_fromF8 {s : Shape} {f g : Format} {x : Tensor s (FloatV f)}
+    {r : Tensor s (FloatV g)} :
+    Sig.Allows (Site.fromF8 s f g x) r ↔
+      ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i) := Iff.rfl
+
+@[simp] theorem Site.allows_convert {P : Platform} {s : Shape} {d d' : DType}
+    {x : Tensor s d.Val} {r : Tensor s d'.Val} :
+    Sig.Allows (Site.convert P s d d' x) r ↔ ∀ i, ConvRel P d d' (x.get i) (r.get i) := Iff.rfl
 
 @[simp] theorem Upd.allows_other {d : DType} {upd : d.Val → d.Val → Prop} {old new : d.Val} :
     Sig.UpdAllows (Upd.other upd) old new ↔ upd old new := Iff.rfl

@@ -144,7 +144,7 @@ TVA.Config.start	def	lean/TVA/Launch/Run.lean:110	The start of the launch `L` of
 TVA.ConstAlong	def	lean/TVA/Triton/Core.lean:102	Along dimension `k`, each group of `C` positions holds equal values.
 TVA.ContigAlong	def	lean/TVA/Triton/Core.lean:85	Along dimension `k`, each group of `C` positions (`Idx.SameGroup`) holds consecutive values, `HintVal.unit β` apart.
 TVA.ContigIs	def	lean/TVA/Triton/Core.lean:91	`C` is `x`'s contiguity along dimension `k`: each group of `C` positions holds consecutive values and, unless `2·C` exceeds the dimension's size, the groups of `2·C` positions do not all do so.
-TVA.ConvRel	def	lean/TVA/Triton/Convert.lean:157	`semantic.cast(x, d')` with the default rounding, for one element of dtype `d`: what the result `r` may be.
+TVA.ConvRel	def	lean/TVA/Triton/Convert/Rel.lean:75	`semantic.cast(x, d')` with the default rounding, for one element of dtype `d`: what the result `r` may be.
 TVA.ConvRel.bf16_f16_iff	theorem	lean/TVA/Proof/Float/Widen.lean:295	`x.to(tl.float16)` of a `bfloat16` returns exactly `cvt x`, up to NaN payload.
 TVA.ConvRel.bf16_f32	theorem	lean/TVA/Proof/Float/Widen.lean:236	`x.to(tl.float32)` of a `bfloat16`: `cvt x`, exact on a finite value.
 TVA.ConvRel.bf16_f32_iff	theorem	lean/TVA/Proof/Float/Widen.lean:298	`x.to(tl.float32)` of a `bfloat16` returns exactly `cvt x`, up to NaN payload.
@@ -292,7 +292,7 @@ TVA.DType.IsNaN	def	lean/TVA/Base/DType.lean:110	The value is a NaN (never, for 
 TVA.DType.Val	def	lean/TVA/Base/DType.lean:58	The Lean type of a value of the dtype.
 TVA.DType.all	def	lean/TVA/Triton/Promote.lean:51	Every dtype TVA covers.
 TVA.DType.bf16	constructor	lean/TVA/Base/DType.lean:44	`tl.bfloat16`.
-TVA.DType.bitwidth	def	lean/TVA/Triton/Convert.lean:169	A dtype's width in bits, Triton's `primitive_bitwidth`: `1` for `int1`, eight bits per byte for the others.
+TVA.DType.bitwidth	def	lean/TVA/Triton/Convert.lean:100	A dtype's width in bits, Triton's `primitive_bitwidth`: `1` for `int1`, eight bits per byte for the others.
 TVA.DType.bound	def	lean/TVA/Device/Shapes.lean:56	The largest magnitude a dtype holds: the format's `maxVal` for floats, `2^(w-1) - 1` or `2^w - 1` for integers, `0` for `tl.int1`.
 TVA.DType.bound_of_format?	theorem	lean/TVA/Device/Ref/Platform.lean:149	The bound of a float dtype is its format's `maxVal`.
 TVA.DType.bytes	def	lean/TVA/Base/DType.lean:66	The bytes an element occupies in memory (`tl.int1` takes a whole byte).
@@ -323,7 +323,7 @@ TVA.DType.ofBits_f32	theorem	lean/TVA/Proof/Float/Facts.lean:163	`DType.ofBits .
 TVA.DType.ofBits_f64	theorem	lean/TVA/Proof/Float/Facts.lean:165	`DType.ofBits .f64 n` is `ofPat n`.
 TVA.DType.ofBits_f8e4nv	theorem	lean/TVA/Proof/Float/Facts.lean:169	`DType.ofBits .f8e4nv n` is `ofPat n`.
 TVA.DType.ofBits_f8e5	theorem	lean/TVA/Proof/Float/Facts.lean:167	`DType.ofBits .f8e5 n` is `ofPat n`.
-TVA.DType.ofBits_toBits	theorem	lean/TVA/Triton/Convert.lean:173	Reading a value's bit pattern back in its own dtype gives the value.
+TVA.DType.ofBits_toBits	theorem	lean/TVA/Triton/Convert.lean:104	Reading a value's bit pattern back in its own dtype gives the value.
 TVA.DType.ofRat	def	lean/TVA/Device/Ref/Platform.lean:127	The element of a dtype for a rational: rounded to nearest for the floats, the floor (wrapped) for the integers, `q ≠ 0` for `tl.int1`.
 TVA.DType.regular_of_format?	theorem	lean/TVA/Device/Ref/Platform.lean:138	The format of a float dtype is regular.
 TVA.DType.tname	def	lean/TVA/Triton/Promote.lean:44	Triton's name of the dtype, as `tl.dtype` prints it.
@@ -648,7 +648,7 @@ TVA.F64	def	lean/TVA/Base/Float/Value.lean:147	`tl.float64` values.
 TVA.F8E4	def	lean/TVA/Base/Float/Value.lean:151	`tl.float8e4nv` values (OCP E4M3FN).
 TVA.F8E5	def	lean/TVA/Base/Float/Value.lean:149	`tl.float8e5` values (OCP E5M2).
 TVA.FirstsDiv	def	lean/TVA/Triton/Core.lean:97	`v` divides the first element of each group of `C` positions along dimension `k` (the elements whose coordinate `k` is a multiple of `C`); with `C = 1`, every element.
-TVA.FloatRel	def	lean/TVA/Triton/Convert.lean:134	A float `x` of format `f` converted to format `g` with the default rounding (`semantic.py:838-868`): the same bits when `f = g`; between standard formats one rounding to nearest even, up to NaN payload (`tl.cvt`); from `float16`, `bfloat...
+TVA.FloatRel	def	lean/TVA/Triton/Convert/Rel.lean:52	A float `x` of format `f` converted to format `g` with the default rounding (`semantic.py:838-868`): the same bits when `f = g`; between standard formats one rounding to nearest even, up to NaN payload (`tl.cvt`); from `float16`, `bfloat...
 TVA.FloatRel.cvt_of_f8	theorem	lean/TVA/Proof/Float/Widen.lean:195	**`cvt x` is a result `semantic.cast` allows** out of fp8 into `float16`, `bfloat16` or `float32` (any value at all is allowed for a non-finite fp8 value).
 TVA.FloatRel.cvt_of_std	theorem	lean/TVA/Proof/Float/Widen.lean:190	**`cvt x` is a result `semantic.cast` allows** between distinct standard formats.
 TVA.FloatRel.eq_cvt_of_wider	theorem	lean/TVA/Proof/Float/Widen.lean:147	**A widening conversion is `cvt x`** on a finite value (formats differ; the target is not fp8): between standard formats `FloatRel` gives `cvt x` up to NaN payload, and `cvt x` of a finite value is finite; out of fp8 it gives `cvt x` on ...
@@ -1142,7 +1142,7 @@ TVA.Format.wider_e5m2_binary32	theorem	lean/TVA/Proof/Float/Ops.lean:212	`float3
 TVA.Format.width	def	lean/TVA/Base/Float/Format.lean:77	Bits of a pattern: `1 + e + m`.
 TVA.Format.width_eq	theorem	lean/TVA/Proof/Float/Encoding.lean:395	The width of a pattern, `e + m + 1` bits, by definition.
 TVA.Format.zeroPat	def	lean/TVA/Base/Float/Arith.lean:38	The zero with sign `s`.
-TVA.FtoiRel	def	lean/TVA/Triton/Convert.lean:99	A float `x` converted to the integer type `IntV sg w` (`fptosi`/`fptoui`): truncation toward zero, from a standard format only; no result (undefined behaviour) when `x` is NaN, infinite or out of the type's range (LLVM gives poison).
+TVA.FtoiRel	def	lean/TVA/Triton/Convert/Rel.lean:29	A float `x` converted to the integer type `IntV sg w` (`fptosi`/`fptoui`): truncation toward zero, from a standard format only; no result (undefined behaviour) when `x` is NaN, infinite or out of the type's range (LLVM gives poison).
 TVA.HB	def	lean/TVA/Launch/WellBehaved.lean:33	Happens-before on the positions of a trace: program order only.
 TVA.HintVal	structure	lean/TVA/Triton/Core.lean:68	The integer a compiler hint speaks about: an integer's value, or a pointer's byte address.
 TVA.HintVal.unit	def	lean/TVA/Triton/Core.lean:75	The difference between consecutive values.
@@ -1537,8 +1537,8 @@ TVA.Prog.load	constructor	lean/TVA/Program.lean:126	`tl.load` of elements of dty
 TVA.Prog.loop	constructor	lean/TVA/Program.lean:144	A loop with state `σ`: run `body` from `init`; `inl s` goes round again from `s`, `inr b` leaves the loop and continues with `k b`.
 TVA.Prog.loopStep	def	lean/TVA/Program.lean:207	One unfolding of a loop: run the body once from `init`, then go round again or leave.
 TVA.Prog.pick	constructor	lean/TVA/Program.lean:139	A value the program cannot predict, one that site `s` allows (`Sig.Allows`).
-TVA.Prog.plat	def	lean/TVA/Site.lean:132	An operation the platform defines, on concrete operands (`PlatQ`: `tl.exp`, `/`, `tl.dot`, a conversion into fp8): read the environment, then any result `q.Rel` allows on its platform; undefined behaviour when there is none.
-TVA.Prog.plat_bind	theorem	lean/TVA/Site.lean:138	
+TVA.Prog.plat	def	lean/TVA/Site.lean:168	An operation the platform defines, on concrete operands (`PlatQ`: `tl.exp`, `/`, `tl.dot`, a conversion into fp8): read the environment, then any result `q.Rel` allows on its platform; undefined behaviour when there is none.
+TVA.Prog.plat_bind	theorem	lean/TVA/Site.lean:174	
 TVA.Prog.pure_eq	theorem	lean/TVA/Program.lean:169	`pure a` in `do` notation is the program `ret a`.
 TVA.Prog.ret	constructor	lean/TVA/Program.lean:124	The program ends with `a`.
 TVA.Prog.ret_bind	theorem	lean/TVA/Program.lean:174	Running `ret a` and then `f` is `f a`.
@@ -1705,26 +1705,34 @@ TVA.Sig.Out	def	lean/TVA/Program.lean:65	The type of a site's value.
 TVA.Sig.Site	def	lean/TVA/Program.lean:63	The kinds of value a program cannot predict (what a masked-out load returns, a reduction tree, a rounding choice, a platform result), each with its operands.
 TVA.Sig.Upd	def	lean/TVA/Program.lean:69	The kinds of update an atomic read-modify-write of an element of dtype `d` makes.
 TVA.Sig.UpdAllows	def	lean/TVA/Program.lean:71	The new values an update allows, given the old one.
-TVA.Site	inductive	lean/TVA/Site.lean:21	A site: a value a Triton program cannot predict, and what it may be.
-TVA.Site.Allows	def	lean/TVA/Site.lean:58	The values a site allows.
-TVA.Site.Out	def	lean/TVA/Site.lean:50	The type of a site's value.
-TVA.Site.addc	constructor	lean/TVA/Site.lean:39	An addition `x + y` that a product may feed (`AddRel`, with `fusion` the launch's `enable_fp_fusion`).
-TVA.Site.allows_addc	theorem	lean/TVA/Site.lean:110	
-TVA.Site.allows_guard	theorem	lean/TVA/Site.lean:91	A guard allows `()` exactly when its condition holds: the predicate `fun _ : Unit => c` of the `Site.other` it replaces.
-TVA.Site.allows_hint	theorem	lean/TVA/Site.lean:96	A hint allows `x` exactly when its promise holds: the predicate `fun y => y = x ∧ c` of the `Site.other` it replaces.
-TVA.Site.allows_lanes	theorem	lean/TVA/Site.lean:101	A lanewise site allows exactly the tensors of `g`'s values: the predicate `fun r => ∀ i, g i = some (r.get i)` of the `Site.other` it replaces.
-TVA.Site.allows_maxMin	theorem	lean/TVA/Site.lean:122	
-TVA.Site.allows_mulAdd	theorem	lean/TVA/Site.lean:115	
-TVA.Site.allows_other	theorem	lean/TVA/Site.lean:88	
-TVA.Site.allows_upToNaN	theorem	lean/TVA/Site.lean:106	The float sites allow exactly the predicates of the `Site.other`s they replace.
-TVA.Site.guard	constructor	lean/TVA/Site.lean:23	A guard: no value but `()`, allowed when `c` holds; undefined behaviour otherwise.
-TVA.Site.hint	constructor	lean/TVA/Site.lean:28	A compiler hint on `x`: the value is `x` itself, allowed when the promise `c` holds (`tl.max_contiguous`, `tl.multiple_of`); undefined behaviour otherwise.
-TVA.Site.lanes	constructor	lean/TVA/Site.lean:31	A partial lanewise computation: the tensor whose lane `i` is `g i`; undefined behaviour when some lane has no value (`//` and `%` by zero or overflowing, a shift by at least the width).
-TVA.Site.maxMin	constructor	lean/TVA/Site.lean:45	`tl.maximum` (`isMax`) or `tl.minimum` of float tensors (`FloatV.MaxRel`).
-TVA.Site.mulAdd	constructor	lean/TVA/Site.lean:42	A source `a * b + c`: the two IEEE operations, or with `fusion` one `fma`, up to NaN payload.
-TVA.Site.other	constructor	lean/TVA/Site.lean:47	Any value of type `β` satisfying `P`.
-TVA.Site.sig	def	lean/TVA/Site.lean:80	**Triton's signature**: its sites and its atomics' updates.
-TVA.Site.upToNaN	constructor	lean/TVA/Site.lean:35	An exact float result `v`, up to NaN payload: every lane of `v` that is not NaN, and some NaN where `v` has one (`tl.add`, `tl.mul`, `tl.fma`, `tl.div_rn`, `tl.sqrt_rn`, negation, `tl.abs`, a conversion between standard formats).
+TVA.Site	inductive	lean/TVA/Site.lean:22	A site: a value a Triton program cannot predict, and what it may be.
+TVA.Site.Allows	def	lean/TVA/Site.lean:72	The values a site allows.
+TVA.Site.Out	def	lean/TVA/Site.lean:60	The type of a site's value.
+TVA.Site.addc	constructor	lean/TVA/Site.lean:40	An addition `x + y` that a product may feed (`AddRel`, with `fusion` the launch's `enable_fp_fusion`).
+TVA.Site.allows_addc	theorem	lean/TVA/Site.lean:128	
+TVA.Site.allows_convert	theorem	lean/TVA/Site.lean:159	
+TVA.Site.allows_fromF8	theorem	lean/TVA/Site.lean:154	
+TVA.Site.allows_ftoi	theorem	lean/TVA/Site.lean:150	
+TVA.Site.allows_guard	theorem	lean/TVA/Site.lean:109	A guard allows `()` exactly when its condition holds: the predicate `fun _ : Unit => c` of the `Site.other` it replaces.
+TVA.Site.allows_hint	theorem	lean/TVA/Site.lean:114	A hint allows `x` exactly when its promise holds: the predicate `fun y => y = x ∧ c` of the `Site.other` it replaces.
+TVA.Site.allows_itof	theorem	lean/TVA/Site.lean:145	The conversion sites allow exactly the predicates of the `Site.other`s they replace.
+TVA.Site.allows_lanes	theorem	lean/TVA/Site.lean:119	A lanewise site allows exactly the tensors of `g`'s values: the predicate `fun r => ∀ i, g i = some (r.get i)` of the `Site.other` it replaces.
+TVA.Site.allows_maxMin	theorem	lean/TVA/Site.lean:140	
+TVA.Site.allows_mulAdd	theorem	lean/TVA/Site.lean:133	
+TVA.Site.allows_other	theorem	lean/TVA/Site.lean:106	
+TVA.Site.allows_upToNaN	theorem	lean/TVA/Site.lean:124	The float sites allow exactly the predicates of the `Site.other`s they replace.
+TVA.Site.convert	constructor	lean/TVA/Site.lean:55	`semantic.cast` from dtype `d` to `d'` on platform `P` (`ConvRel`, lane by lane).
+TVA.Site.fromF8	constructor	lean/TVA/Site.lean:53	`x.to(dtype)` from fp8 into format `g`: exact on the finite lanes, any value on the others.
+TVA.Site.ftoi	constructor	lean/TVA/Site.lean:50	`x.to(int dtype)` of a float tensor (`FtoiRel`, lane by lane): no result when a lane is NaN, infinite or out of range.
+TVA.Site.guard	constructor	lean/TVA/Site.lean:24	A guard: no value but `()`, allowed when `c` holds; undefined behaviour otherwise.
+TVA.Site.hint	constructor	lean/TVA/Site.lean:29	A compiler hint on `x`: the value is `x` itself, allowed when the promise `c` holds (`tl.max_contiguous`, `tl.multiple_of`); undefined behaviour otherwise.
+TVA.Site.itof	constructor	lean/TVA/Site.lean:48	`x.to(float dtype)` of an integer tensor into format `f` (`tl.ItofRel`, lane by lane).
+TVA.Site.lanes	constructor	lean/TVA/Site.lean:32	A partial lanewise computation: the tensor whose lane `i` is `g i`; undefined behaviour when some lane has no value (`//` and `%` by zero or overflowing, a shift by at least the width).
+TVA.Site.maxMin	constructor	lean/TVA/Site.lean:46	`tl.maximum` (`isMax`) or `tl.minimum` of float tensors (`FloatV.MaxRel`).
+TVA.Site.mulAdd	constructor	lean/TVA/Site.lean:43	A source `a * b + c`: the two IEEE operations, or with `fusion` one `fma`, up to NaN payload.
+TVA.Site.other	constructor	lean/TVA/Site.lean:57	Any value of type `β` satisfying `P`.
+TVA.Site.sig	def	lean/TVA/Site.lean:98	**Triton's signature**: its sites and its atomics' updates.
+TVA.Site.upToNaN	constructor	lean/TVA/Site.lean:36	An exact float result `v`, up to NaN payload: every lane of `v` that is not NaN, and some NaN where `v` has one (`tl.add`, `tl.mul`, `tl.fma`, `tl.div_rn`, `tl.sqrt_rn`, negation, `tl.abs`, a conversion between standard formats).
 TVA.Softmax.absErr	def	lean/TVA/Proof/Softmax/Error.lean:47	The absolute part of the running bound: `absErr 0 = 0`, `absErr (t+1) = (1 + ε)·α t·absErr t + η t`.
 TVA.Softmax.absErr_alpha	theorem	lean/TVA/Proof/Softmax/Error.lean:105	**The absolute part in closed form**, for the factors `alpha m` of references `m`: `absErr ε (alpha m) η t = Σ_{u<t} (1 + ε)^(t−1−u)·exp (m (u+1) − m t)·η u`.
 TVA.Softmax.absErr_le	theorem	lean/TVA/Proof/Softmax/Error.lean:79	**The absolute part when `α ≤ 1`:** if `0 ≤ α u ≤ 1` (for `0 < u`; `α 0` multiplies `0`) and `η u ≥ 0`, then `absErr ε α η t ≤ (1 + ε)^t·Σ_{u<t} η u`.
@@ -2096,10 +2104,10 @@ TVA.UnOp.neg	constructor	lean/TVA/Triton/Promote.lean:297
 TVA.UnOp.not	constructor	lean/TVA/Triton/Promote.lean:297	
 TVA.UnOp.pos	constructor	lean/TVA/Triton/Promote.lean:297	
 TVA.UnOp.typing?	def	lean/TVA/Triton/Promote.lean:300	How the front end types a unary operator on a tensor (`code_generator.py:1097-1114`): `-x` keeps the dtype (`tl.neg` on a float; `0 - x`, wrapping, on an integer); `~x` needs an integer; `not x` needs `int1`; `+x` is rejected.
-TVA.Upd	inductive	lean/TVA/Site.lean:71	The update an atomic makes to one element of dtype `d`.
-TVA.Upd.Allows	def	lean/TVA/Site.lean:76	The new values an update allows, given the old one.
-TVA.Upd.allows_other	theorem	lean/TVA/Site.lean:127	
-TVA.Upd.other	constructor	lean/TVA/Site.lean:73	Any new value `upd old` allows.
+TVA.Upd	inductive	lean/TVA/Site.lean:89	The update an atomic makes to one element of dtype `d`.
+TVA.Upd.Allows	def	lean/TVA/Site.lean:94	The new values an update allows, given the old one.
+TVA.Upd.allows_other	theorem	lean/TVA/Site.lean:163	
+TVA.Upd.other	constructor	lean/TVA/Site.lean:91	Any new value `upd old` allows.
 TVA.UsesSharedAtomicResult	def	lean/TVA/Launch/WellBehaved.lean:82	**A program uses an atomic's result on a cell another access also reaches.** Some interleaving reaches a state in which program `i` is about to perform a read-modify-write of the element of dtype `d` at `a` whose continuation `kk` is not...
 TVA.WellBehaved	structure	lean/TVA/Launch/WellBehaved.lean:106	**The launch `L` of kernel `k` from memory `init`, in environment `E`, is well behaved**: the semantics is its meaning.
 TVA.WellBehaved.exists_outcome	theorem	lean/TVA/Launch/Progress.lean:54	A well-behaved launch has an outcome: every program finishes, or some interleaving runs forever.
@@ -2174,8 +2182,8 @@ TVA.maxRel_total	theorem	lean/TVA/Proof/Rules/Reduce.lean:214	Every pair of floa
 TVA.mem_enabled	theorem	lean/TVA/Proof/Mem.lean:293	A lane with an address is enabled.
 TVA.no_interRace	theorem	lean/TVA/Proof/Compose.lean:235	No two events of a trace satisfying the invariant conflict across programs.
 TVA.no_interRaceA	theorem	lean/TVA/Proof/Shared/Launch.lean:278	No two programs race.
-TVA.ofFloatRel	def	lean/TVA/Triton/Convert.lean:145	A float `x` converted to dtype `d'`: `x != 0` for `int1` (unordered: a NaN gives `true`, `-0.0` gives `false`; `semantic.py:884-887`), `FtoiRel` for an integer, `FloatRel` for a float.
-TVA.ofIntRel	def	lean/TVA/Triton/Convert.lean:120	An integer value `z` (a source integer's value, or `0`/`1` for `int1`) converted to dtype `d'` (`semantic.py:870-898`): `z ≠ 0` for `int1`; `z` modulo `2^w` for an integer (sign- or zero-extension by the source's signedness, then truncat...
+TVA.ofFloatRel	def	lean/TVA/Triton/Convert/Rel.lean:63	A float `x` converted to dtype `d'`: `x != 0` for `int1` (unordered: a NaN gives `true`, `-0.0` gives `false`; `semantic.py:884-887`), `FtoiRel` for an integer, `FloatRel` for a float.
+TVA.ofIntRel	def	lean/TVA/Triton/Convert/Rel.lean:38	An integer value `z` (a source integer's value, or `0`/`1` for `int1`) converted to dtype `d'` (`semantic.py:870-898`): `z ≠ 0` for `int1`; `z` modulo `2^w` for an integer (sign- or zero-extension by the source's signedness, then truncat...
 TVA.ofRat_int_f64	theorem	lean/TVA/Proof/Random.lean:54	An integer of magnitude below `2^53` converts to `float64` exactly.
 TVA.proj	def	lean/TVA/Proof/Shared/Log.lean:112	Program `i`'s part of an interleaved log `G` (each step tagged with its program), in order.
 TVA.proj_snoc_other	theorem	lean/TVA/Proof/Shared/Log.lean:121	A step of program `j` appended to the interleaved log leaves another program's part.
@@ -2320,11 +2328,11 @@ TVA.tl.ArgRes.index_lt	theorem	lean/TVA/Proof/Rules/ArgReduce.lean:69	The index 
 TVA.tl.ArgRes.of_tree	theorem	lean/TVA/Proof/Rules/ArgReduce.lean:44	The pair a covering tree gives is a result `ArgRes` allows.
 TVA.tl.ArgRes.tree_of_noNaN	theorem	lean/TVA/Proof/Rules/ArgReduce.lean:58	**Without NaN** among the elements, the result is the pair some covering tree gives.
 TVA.tl.ArgRes.value	theorem	lean/TVA/Proof/Rules/ArgReduce.lean:78	The value is one of the elements, up to NaN payload.
-TVA.tl.ItofRel	def	lean/TVA/Triton/Convert.lean:79	The results an integer `z` may convert to in format `g`: rounded to nearest even once, or twice through a wider standard format.
+TVA.tl.ItofRel	def	lean/TVA/Triton/Convert/Rel.lean:14	The results an integer `z` may convert to in format `g`: rounded to nearest even once, or twice through a wider standard format.
 TVA.tl.MulRel	def	lean/TVA/Triton/Dot.lean:48	The product of a standard float dtype: the IEEE product up to NaN payload (nothing for other dtypes).
 TVA.tl.MulRel.total	theorem	lean/TVA/Proof/Rules/Dot.lean:49	Every pair of elements of a standard float dtype has a product `MulRel` allows.
 TVA.tl.RangeOk	def	lean/TVA/Triton/Loop.lean:36	The bounds `tl.forRange` covers: a positive step, and `lo`, `step` and `hi + step − 1` within the *signed* range of the width, so that the last increment does not overflow.
-TVA.tl.RoundOk	def	lean/TVA/Triton/Convert.lean:39	The rounding modes `x.to(dtype, fp_downcast_rounding=…)` allows from format `f` to `g`: `"rtne"` (`.rn`, the default) always; `"rtz"` (`.rz`) only from `float32` to `float16`, `bfloat16` (`cvt.rz`) or `float8e5`.
+TVA.tl.RoundOk	def	lean/TVA/Triton/Convert.lean:40	The rounding modes `x.to(dtype, fp_downcast_rounding=…)` allows from format `f` to `g`: `"rtne"` (`.rn`, the default) always; `"rtz"` (`.rz`) only from `float32` to `float16`, `bfloat16` (`cvt.rz`) or `float8e5`.
 TVA.tl.abs	def	lean/TVA/Triton/Arith.lean:146	`tl.abs(x)` on floats: exact (a NaN gives some NaN).
 TVA.tl.add	def	lean/TVA/Triton/Arith.lean:68	`x + y` on floats that no product feeds: the IEEE sum.
 TVA.tl.addUpd	def	lean/TVA/Triton/Memory.lean:171	The new value `n` of an `atomic_add` of `v` to a cell holding `o`: integers wrap; floats as the platform's memory system rounds (`Platform.atomicAdd`).
@@ -2360,19 +2368,19 @@ TVA.tl.atomic_xchg_unused	def	lean/TVA/Triton/Memory.lean:277	`tl.atomic_xchg(�
 TVA.tl.atomic_xor	def	lean/TVA/Triton/Memory.lean:262	`tl.atomic_xor(ptrs, vals, mask, sem, scope)` on integers.
 TVA.tl.atomic_xor_unused	def	lean/TVA/Triton/Memory.lean:318	`tl.atomic_xor(…)` whose result is unused (`MemSem.unused`).
 TVA.tl.bitUpd	def	lean/TVA/Triton/Memory.lean:205	The new value of a bitwise atomic (`op` on the bit vectors), on integers only.
-TVA.tl.bitcast	def	lean/TVA/Triton/Convert.lean:191	`x.to(d', bitcast=True)` of a tensor of dtype `d` (`semantic.py:793-809`): each element's bit pattern read as a value of `d'`, exact, NaN payloads included.
-TVA.tl.bitcast_self	theorem	lean/TVA/Triton/Convert.lean:199	A bit cast to the tensor's own dtype is the tensor itself, as Triton returns its input.
+TVA.tl.bitcast	def	lean/TVA/Triton/Convert.lean:120	`x.to(d', bitcast=True)` of a tensor of dtype `d` (`semantic.py:793-809`): each element's bit pattern read as a value of `d'`, exact, NaN payloads included.
+TVA.tl.bitcast_self	theorem	lean/TVA/Triton/Convert.lean:128	A bit cast to the tensor's own dtype is the tensor itself, as Triton returns its input.
 TVA.tl.broadcast_to	def	lean/TVA/Triton/Core.lean:163	`tl.broadcast_to(x, t)` of a block (`Tensor.broadcastTo`): each dimension of size `1` is repeated; Triton accepts only targets that `Shape.bcastOk` admits.
 TVA.tl.cdiv	def	lean/TVA/Triton/Arith.lean:196	`tl.cdiv(x, div)` with a tensor operand: Triton's `@triton.jit` body `(x + (div - 1)) // div` (`standard.py:32-43`), inlined, so the addition wraps and `//` truncates.
-TVA.tl.convert	def	lean/TVA/Triton/Convert.lean:183	`x.to(d')` with the default rounding, and every implicit conversion of an operand (the promotion of a mixed-dtype operator, the condition of `tl.where` to `int1`): each element as `ConvRel` allows; undefined behaviour if some element has...
+TVA.tl.convert	def	lean/TVA/Triton/Convert.lean:114	`x.to(d')` with the default rounding, and every implicit conversion of an operand (the promotion of a mixed-dtype operator, the condition of `tl.where` to `int1`): each element as `ConvRel` allows; undefined behaviour if some element has...
 TVA.tl.cos	def	lean/TVA/Triton/Arith.lean:134	`tl.cos(x)`.
 TVA.tl.cumprod	def	lean/TVA/Triton/Scan.lean:94	`tl.cumprod(x, axis, reverse)` of a float tensor: IEEE products.
 TVA.tl.cumsum	def	lean/TVA/Triton/Scan.lean:84	`tl.cumsum(x, axis, reverse)` of a float tensor that is not a product: IEEE additions.
 TVA.tl.cumsumWith	def	lean/TVA/Triton/Scan.lean:79	A float cumulative sum whose additions are `AddRel fusion`.
 TVA.tl.cumsumc	def	lean/TVA/Triton/Scan.lean:89	`tl.cumsum` of a product: the additions may be fused (as `tl.sumc`).
-TVA.tl.cvt	def	lean/TVA/Triton/Convert.lean:49	`x.to(dtype, fp_downcast_rounding=rnd)` between standard float formats (`float16`, `bfloat16`, `float32`, `float64`): one rounding (`.rn` to nearest even, the default; `.rz` toward zero), up to NaN payload; widening is exact.
-TVA.tl.cvt8	def	lean/TVA/Triton/Convert.lean:58	`x.to(dtype, fp_downcast_rounding=rnd)` from `float16`, `bfloat16` or `float32` into an fp8 format: as the platform converts (`Platform.cvt f g rnd`; whether it saturates, and how it treats NaN, is the lowering's).
-TVA.tl.cvtFrom8	def	lean/TVA/Triton/Convert.lean:67	`x.to(dtype)` from fp8 (`float8e5`, `float8e4nv`) to `float16`, `bfloat16` or `float32`: exact on finite elements.
+TVA.tl.cvt	def	lean/TVA/Triton/Convert.lean:50	`x.to(dtype, fp_downcast_rounding=rnd)` between standard float formats (`float16`, `bfloat16`, `float32`, `float64`): one rounding (`.rn` to nearest even, the default; `.rz` toward zero), up to NaN payload; widening is exact.
+TVA.tl.cvt8	def	lean/TVA/Triton/Convert.lean:59	`x.to(dtype, fp_downcast_rounding=rnd)` from `float16`, `bfloat16` or `float32` into an fp8 format: as the platform converts (`Platform.cvt f g rnd`; whether it saturates, and how it treats NaN, is the lowering's).
+TVA.tl.cvtFrom8	def	lean/TVA/Triton/Convert.lean:68	`x.to(dtype)` from fp8 (`float8e5`, `float8e4nv`) to `float16`, `bfloat16` or `float32`: exact on finite elements.
 TVA.tl.desc_atomic	def	lean/TVA/Triton/Desc.lean:185	`desc.atomic_add(offsets, value)` and the other reductions: one relaxed, `gpu`-scope reduction per lane inside the tensor, in an unspecified order; no result.
 TVA.tl.desc_gather	def	lean/TVA/Triton/Desc.lean:196	`desc.gather(x_offsets, y_offset)` with block `[1, BN]`: rows `x_offsets`, columns `y_offset + [0, BN)`; lanes outside the tensor hold unspecified values.
 TVA.tl.desc_load	def	lean/TVA/Triton/Desc.lean:170	`desc.load(offsets)`: the block at `offsets`; lanes outside the tensor hold the padding.
@@ -2393,7 +2401,7 @@ TVA.tl.fdiv	def	lean/TVA/Triton/Arith.lean:109	`tl.fdiv(x, y, ieee_rounding)`: `
 TVA.tl.fma	def	lean/TVA/Triton/Arith.lean:94	`tl.fma(x, y, z)`: `x * y + z` with one rounding.
 TVA.tl.forN	def	lean/TVA/Triton/Loop.lean:27	Run `body t` for `t = 0, …, n-1`, threading the state: a loop with a fixed trip count.
 TVA.tl.forRange	def	lean/TVA/Triton/Loop.lean:47	`for i in range(lo, hi, step)` (and `tl.range`) with a loop-carried state: the body runs with `i = lo, lo + step, …` below `hi`.
-TVA.tl.ftoi	def	lean/TVA/Triton/Convert.lean:108	`x.to(int dtype)` of a float tensor in a standard format: each element truncated toward zero (`FtoiRel`); undefined behaviour when an element is NaN, infinite or out of range.
+TVA.tl.ftoi	def	lean/TVA/Triton/Convert.lean:86	`x.to(int dtype)` of a float tensor in a standard format: each element truncated toward zero (`FtoiRel`); undefined behaviour when an element is NaN, infinite or out of range.
 TVA.tl.full	def	lean/TVA/Triton/Core.lean:148	`tl.full(shape, value, dtype)`: `value` at every index.
 TVA.tl.histogram	def	lean/TVA/Triton/Reduce.lean:183	`tl.histogram(x, bins, mask)` (`semantic.py:1764-1774`): bin `b` counts the enabled elements equal to `b`, an `int32`.
 TVA.tl.icumprod	def	lean/TVA/Triton/Scan.lean:106	`tl.cumprod` of an integer tensor (wrapping).
@@ -2401,10 +2409,10 @@ TVA.tl.icumsum	def	lean/TVA/Triton/Scan.lean:101	`tl.cumsum` of an integer tenso
 TVA.tl.idiv	def	lean/TVA/Triton/Arith.lean:188	`x // y` on integer tensors: truncating division (`IntV.div?`).
 TVA.tl.imaximum	def	lean/TVA/Triton/Arith.lean:181	`tl.maximum(x, y)` on integer tensors, and Python's `max(x, y)` in a kernel when an operand is a tensor: exact, signed or unsigned by the dtype (`arith.maxsi`/`maxui`, `semantic.py:366-398`).
 TVA.tl.iminimum	def	lean/TVA/Triton/Arith.lean:185	`tl.minimum(x, y)` on integer tensors, and Python's `min(x, y)` when an operand is a tensor.
-TVA.tl.intToPtr	def	lean/TVA/Triton/Convert.lean:205	`x.to(tl.pointer_type(d))` of an integer scalar (`inttoptr`, `semantic.py:909-910`): the pointer whose address is the integer's bits read unsigned (LLVM zero-extends a narrower integer to the 64-bit pointer size).
+TVA.tl.intToPtr	def	lean/TVA/Triton/Convert.lean:134	`x.to(tl.pointer_type(d))` of an integer scalar (`inttoptr`, `semantic.py:909-910`): the pointer whose address is the integer's bits read unsigned (LLVM zero-extends a narrower integer to the 64-bit pointer size).
 TVA.tl.interleave	def	lean/TVA/Triton/Core.lean:191	`tl.interleave(a, b)` (`Tensor.interleave`): `a` and `b` alternate along the last dimension.
 TVA.tl.irem	def	lean/TVA/Triton/Arith.lean:192	`x % y` on integer tensors: the remainder of truncating division (`IntV.rem?`).
-TVA.tl.itof	def	lean/TVA/Triton/Convert.lean:92	`x.to(float dtype)` of an integer tensor (`sitofp`/`uitofp`) into a standard format: each element as `ItofRel` allows.
+TVA.tl.itof	def	lean/TVA/Triton/Convert.lean:80	`x.to(float dtype)` of an integer tensor (`sitofp`/`uitofp`) into a standard format: each element as `ItofRel` allows.
 TVA.tl.itofRel_binary32	theorem	lean/TVA/Proof/Random.lean:94	**The alternatives of `tl.ItofRel .binary32 z` coincide below `2^53`**: an integer of magnitude below `2^53` is exact in `float64`, so its conversion through `float64` rounds once, as the direct conversion does.
 TVA.tl.join	def	lean/TVA/Triton/Core.lean:185	`tl.join(a, b)` (`Tensor.join`): a new last dimension of size 2.
 TVA.tl.load	def	lean/TVA/Triton/Memory.lean:119	`tl.load(ptrs, mask, other)`: each enabled lane reads its element.
