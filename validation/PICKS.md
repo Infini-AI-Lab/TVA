@@ -10,6 +10,24 @@ theorems are in [Exec.lean](Exec.lean); the change to `Prog` they need is descri
 > `Upd.other upd`, with no solver. `Exec.lean` does not build until stage 2. The sections after
 > the plan describe the previous design (commit `2d69b79`), whose solver code stage 2 reuses.
 
+## Stage 2 progress (2026-11-14)
+
+Done: (1) `validation/Solve.lean`: `Ans` with four outcomes (`assumed` needs a proof of
+`Solvers.Platform`), `Gap`, `Hints`/`Oracle` with occurrence numbers, typed `Record`s and
+`Record.Assumptions`. (2) The catalog (`TVA.Site`): `guard`, `hint`, `lanes`, `upToNaN`, `addc`,
+`mulAdd`, `maxMin`, `itof`, `ftoi`, `fromF8`, `convert`, `plat`, `dotAdd`, `dotScaledAdd`,
+`sumBcastMul`, `fsum`/`fsum1`/`fsum0`, `fmax`/`fmax1`/`fmax0`, `arg`/`arg1`/`arg0`, `histogram`,
+`pad`, `anyVals`, `order`; updates `add`, `xchg`, `cas`, `max`, `bit`, `red`. Each `Allows` is the
+old predicate by definition (`Site.allows_*`, `validation/Preserve.lean`). The relations the
+catalog needs moved, unchanged, to `TVA/Triton/<File>/Rel.lean`, imported before `TVA.Site`.
+`Safe.pick`/`SafeA.pick` take any `Site`; new kit rules `Safe.guard`, `Safe.hint`. Still
+`Site.other`: `reshape_any`, `max_constancy`/`max_constancyN`, the scans, and
+`make_tensor_descriptor` (in no claim). `Upd.other` is unused. Oracle edits: three lines
+(`upd :=` → `u :=` in `route_histogram_i32` and `streamk_matmul_f16`). All 41 pass after every
+family.
+
+Next: (3) solvers per constructor, (4) `Exec.lean` on `Ans`/`Record`, (5) verdicts.
+
 ## Stage 2 plan: the catalog, the solvers, replay
 
 **Catalog: one constructor per semantic family, not per `tl.*` function.** Start with the
