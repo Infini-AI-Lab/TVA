@@ -158,7 +158,8 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
   on the result at all, neither does the continuation after the step (a `pick` makes the same
   choice for every old value). This changes no outcome, and it keeps an unused result unused in
   every reachable state, which `UsesSharedAtomicResult` reads. "Does not depend" is up to solvers
-  (`Prog.SameUpToSolvers`): a solver built from the old value is not a use of it. -/
+  (`Prog.SameUpToSolvers`): a solver built from the old value is not a use of it, and kernels the
+  same up to solvers mean the same (`Correct.congr_solvers`). -/
   | defer {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sv : (old : d.Val) → Solve (upd old)}
       {sem : MemSem} {sc : Scope}
       {k k' : d.Val → Prog α} {m' : Mem} {e : Event} :

@@ -71,6 +71,7 @@ A claim's model is written with these; [SEMANTICS.md](SEMANTICS.md) explains eac
 | `TVA.Launch.Run` | `Kernel`, `Launch` (grid, options, block shapes), `Launch.grid1`, `Launch.ctx`, `Launch.Valid`, `Config`, `LStep`, `Reach` (interleaving). |
 | `TVA.Launch.WellBehaved` | `InterRace`, `IntraRace`, `UsesSharedAtomicResult`, `WellBehaved`, `Outcomes`, `Correct`. |
 | `TVA.Launch.Progress` | `Step.progress`, `WellBehaved.exists_outcome`: a well-behaved launch always has an outcome. |
+| `TVA.Launch.Solvers` | `Correct.congr_solvers`, `WellBehaved.congr_solvers`, `Outcomes.congr_solvers`: kernels the same up to solvers (`Kernel.SameUpToSolvers`) mean the same; `Step.sameUpToSolvers`, `Reach.sameUpToSolvers`, the simulation behind them. |
 
 ### Device facts: `TVA.Device`
 

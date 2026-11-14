@@ -55,7 +55,8 @@ whatever it reports. At a `pick P` it needs a value satisfying `P`, and in compi
 the value's type are erased: the executor cannot tell a bounds guard from a reduction tree. So
 each `pick` carries a `Solve P`, code that proposes a value, asking an oracle (`Hints`) for the
 parts it cannot compute, and returns it with its proof (`Ans`). The semantics ignores the
-solver: a `pick`'s meaning is `P` alone, so a reader of a model can skip every solver.
+solver: a `pick`'s meaning is `P` alone, so a reader of a model can skip every solver
+(`Correct.congr_solvers`, `TVA.Launch.Solvers`, proves it).
 
 An answer is certified (`Ans.ok`, `Ans.empty`: it carries its proof) or **assumed** (`Ans.assume`:
 a value with no proof). An assumed value comes from the oracle, at a site where `P` mentions the
