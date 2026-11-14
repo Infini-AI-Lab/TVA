@@ -4,12 +4,67 @@ Working notes for phase 3 of [PLAN.md](PLAN.md) (2026-11-13). The executor and i
 theorems are in [Exec.lean](Exec.lean); the change to `Prog` they need is described in PLAN.md
 ("The change to `Prog` that phase 3 needs") and is pending zhuominc's review.
 
-> **Status (2026-11-14, branch `validation-v3-sites`).** The solvers have left the library. The
-> semantics is now written for any signature `Sig` (`TVA.Program`), and Triton's is the catalog
-> `TVA.Site`, so far with only `Site.other P` and `Upd.other upd`: every `pick` and `rmw` below is
-> one of those, with no solver. `Exec.lean` does not build until stage 2, which adds a site per
-> row of the table below and moves the solvers here, keyed on sites (`validation/`, not the
-> library). The text below describes the previous design (commit `2d69b79`).
+> **Status (2026-11-14, branch `validation-v3-sites`, commit `6beae0a`).** Stage 1 is done: the
+> solvers have left the library. The semantics is written for any signature `Sig`
+> (`TVA.Program`); Triton's is the catalog `TVA.Site`, so far only `Site.other P` and
+> `Upd.other upd`, with no solver. `Exec.lean` does not build until stage 2. The sections after
+> the plan describe the previous design (commit `2d69b79`), whose solver code stage 2 reuses.
+
+## Stage 2 plan: the catalog, the solvers, replay
+
+**Catalog: one constructor per semantic family, not per `tl.*` function.** Start with the
+reusable families: guards (`guard c` with `Decidable c`), compiler hints, partial lanewise
+computations (`lanes g`: `idiv`, `irem`, shifts), values up to NaN (`upToNaN v`), platform requests
+(`plat q P`, including the mixed `dot_add`/`dot_scaled_add`), float and index reductions (tree
+sites), padding, atomic lane order and disabled-lane values, and the atomic updates (`Upd`). Add a
+constructor only when the allowed-result relation or the runtime data a solver needs differs.
+Keep `other P` for arbitrary relations (scans' caller-given combiners, `sort`, `reshape_any`,
+`max_constancy`); the executor reports them unsupported.
+
+Rules for a constructor:
+- It carries **executable** data enough to produce or check a witness (a `Decidable` instance, a
+  lanewise partial function, the operands of a platform request), never an erased predicate
+  wrapped in a constructor.
+- It carries **only** what its relation needs. Run-time bookkeeping (source location, occurrence
+  number, solver settings) lives in the executor's trace, outside the site.
+
+**Migration preserves meaning, and each step proves it.** For each migrated operation, a theorem
+that the new `Site.Allows` is equivalent to the old predicate (usually `Iff.rfl`), so the allowed
+results and the cases with no result (undefined behaviour) are both unchanged. Mixed operations stay
+one site with their original disjunctive relation (`dot_add`: platform dot, or the fused form):
+splitting into a free branch choice followed by an operation adds undefined behaviour through an
+empty branch. Equal `Allows` is not enough for atomics: `UsesSharedAtomicResult` and `Step.defer`
+compare continuations with `=`, so a site whose data depends on an atomic's old value while its
+relation does not makes the semantics more conservative; check each migrated family against the
+oracle proofs that use atomics (`streamk_matmul_f16`, `lora_shrink_bf16`, `route_histogram_i32`,
+`count_expert_tokens_i32`).
+
+**Solver answers: four outcomes.** A solver for site `s` (in `validation/`, keyed on the
+constructor) returns one of:
+1. a value with a proof that `s` allows it;
+2. a proof that `s` allows no value (predicted undefined behaviour);
+3. unsupported, or search failed: inconclusive, never undefined behaviour;
+4. an unproved answer, only at an explicitly platform-dependent site (`plat`, float
+   `atomic_add`, conversions into fp8).
+
+The same interface for `Upd`, given the old value. `exec_sound` stays conditional on outcome 4.
+
+**Typed replay records.** Replace the predicate-only assumption log with records of the operation,
+its operands, its configuration and the answer returned; occurrence numbers are added outside the
+site, so repeated requests may receive different answers. A supplied answer (a device value, a
+tree, a lane order) is checked against the actual request: an invalid tree, a non-permutation or
+mismatched operands is a diagnostic, and a default is used only when no answer was supplied (today
+`Solve.askOr` silently falls back, which hides operand swaps).
+
+**Verdicts are separate from the executor's correctness.** `exec_sound` is the executor's contract.
+The differential tests report, per case: agreement with a certified execution; agreement
+conditional on platform answers; a candidate discrepancy (to investigate, and bring to zhuominc);
+inconclusive search; unsupported operation or exhausted fuel.
+
+**Order of work.** (1) the solver-answer and replay types in `validation/`; (2) families one by
+one, each with its `Allows` equivalence theorem, the proof kit's rule, a rebuild and all 41
+oracles; (3) the solvers per family; (4) `Exec.lean` and `exec_sound` on the new types; (5) the
+verdict layer in the harness (`ops/`, `run_test.py`).
 
 ## What changed in the library
 
