@@ -65,7 +65,7 @@ theorem safe_cvt {g : Format} {x : Tensor s (FloatV f)} {rnd : RoundMode}
       (∀ i, FloatV.NaNEq (FloatV.cvtWith rnd (x.get i)) (r.get i)) → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.cvt x rnd >>= k) := by
   simp only [tl.cvt, tl.upToNaN, bind_eq, Prog.bind]
-  exact .pick ⟨(), hok⟩ fun _ _ => .pick ⟨_, fun _ => Or.inl rfl⟩ hk
+  exact .guard hok fun _ => .pick ⟨_, fun _ => Or.inl rfl⟩ hk
 
 /-- **`x.to(fp8)`**: the pair is one Triton compiles (`hok`), a platform result exists for every
 element (`hex`, from the device facts); the rest must be safe for every result the platform
@@ -78,7 +78,7 @@ theorem safe_cvt8 {g : Format} {x : Tensor s (FloatV f)} {rnd : RoundMode}
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.cvt8 x rnd >>= k) := by
   simp only [tl.cvt8, bind_eq, Prog.plat_bind, Prog.bind]
-  exact .pick ⟨(), hok⟩ fun _ _ =>
+  exact .guard hok fun _ =>
     .plat ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
 /-- **`x.to(dtype)` out of fp8**: finite elements convert exactly. -/
@@ -89,7 +89,7 @@ theorem safe_cvtFrom8 {g : Format} {x : Tensor s (FloatV f)} {k : Tensor s (Floa
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.cvtFrom8 x >>= k) := by
   simp only [tl.cvtFrom8, bind_eq, Prog.bind]
-  exact .pick ⟨(), hok⟩ fun _ _ =>
+  exact .guard hok fun _ =>
     .pick ⟨x.map FloatV.cvt, fun i _ => by simp [Tensor.get_map]⟩ hk
 
 /-- **`x.to(float)` of an integer tensor**: each element is one of the roundings `tl.ItofRel`
@@ -100,7 +100,7 @@ theorem safe_itof {sg : Bool} {w : Nat} {x : Tensor s (IntV sg w)}
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.itof x >>= k) := by
   simp only [tl.itof, bind_eq, Prog.bind]
-  exact .pick ⟨(), hstd⟩ fun _ _ =>
+  exact .guard hstd fun _ =>
     .pick ⟨x.map fun a => FloatV.ofRat (a.toInt : Rat),
       fun i => Or.inl (by simp [Tensor.get_map])⟩ hk
 
@@ -113,7 +113,7 @@ theorem safe_ftoi {sg : Bool} {w : Nat} {x : Tensor s (FloatV f)}
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.ftoi x >>= k) := by
   simp only [tl.ftoi, bind_eq, Prog.bind]
-  exact .pick ⟨(), hstd⟩ fun _ _ =>
+  exact .guard hstd fun _ =>
     .pick ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
 end TVA

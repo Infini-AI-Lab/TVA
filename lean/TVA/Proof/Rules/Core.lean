@@ -34,13 +34,13 @@ theorem safe_last {p : Prog α} (h : Safe E R W Q m (p >>= pure)) : Safe E R W Q
 theorem safe_assume {c : Bool} {k : Unit → Prog α} (hc : c = true) (hk : Safe E R W Q m (k ())) :
     Safe E R W Q m (tl.assume c >>= k) := by
   simp only [tl.assume, bind_eq, Prog.bind]
-  exact .pick ⟨(), hc⟩ fun _ _ => hk
+  exact .guard hc fun _ => hk
 
 /-- `tl.static_assert(c)`: `c` must hold (the claim's instances satisfy it). -/
 theorem safe_static_assert {c : Bool} {k : Unit → Prog α} (hc : c = true)
     (hk : Safe E R W Q m (k ())) : Safe E R W Q m (tl.static_assert c >>= k) := by
   simp only [tl.static_assert, bind_eq, Prog.bind]
-  exact .pick ⟨(), hc⟩ fun _ _ => hk
+  exact .guard hc fun _ => hk
 
 /-! ## Hints -/
 
@@ -52,21 +52,21 @@ theorem safe_multiple_of {n : Nat} [HintVal β] {x : Tensor [n] β} {v contig : 
     {k : Tensor [n] β → Prog α} (hv : FirstsDiv x 0 contig v) (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.multiple_of x v contig >>= k) := by
   simp only [tl.multiple_of, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hv⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint hv hk
 
 /-- `tl.multiple_of(x, v)` of a scalar: show `v ∣ x`; the value is `x`. -/
 theorem safe_multiple_of1 [HintVal β] {x : β} {v : Nat} {k : β → Prog α}
     (hv : (v : Int) ∣ HintVal.val x) (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.multiple_of1 x v >>= k) := by
   simp only [tl.multiple_of1, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hv⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint hv hk
 
 /-- `tl.max_contiguous(x, C)` of a rank-1 tensor: show the promise; the value is `x`. -/
 theorem safe_max_contiguous {n : Nat} [HintVal β] {x : Tensor [n] β} {C : Nat}
     {k : Tensor [n] β → Prog α} (hc : ContigIs x 0 C) (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_contiguous x C >>= k) := by
   simp only [tl.max_contiguous, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint hc hk
 
 /-- `tl.max_constancy(x, C)` of a rank-1 tensor: show the promise; the value is `x`. -/
 theorem safe_max_constancy {n : Nat} {x : Tensor [n] β} {C : Nat} {k : Tensor [n] β → Prog α}
@@ -81,7 +81,7 @@ theorem safe_max_contiguous_multiple_of {n : Nat} [HintVal β] {x : Tensor [n] �
     (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_contiguous_multiple_of x C v >>= k) := by
   simp only [tl.max_contiguous_multiple_of, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hc, hv⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint ⟨hc, hv⟩ hk
 
 /-- `tl.multiple_of(x, vs)` of any rank: show the promise along every dimension. -/
 theorem safe_multiple_ofN {s : Shape} [HintVal β] {x : Tensor s β} {vs contig : List Nat}
@@ -90,7 +90,7 @@ theorem safe_multiple_ofN {s : Shape} [HintVal β] {x : Tensor s β} {vs contig 
     (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.multiple_ofN x vs contig >>= k) := by
   simp only [tl.multiple_ofN, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hv⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint hv hk
 
 /-- `tl.max_contiguous(x, Cs)` of any rank: show the promise along every dimension. -/
 theorem safe_max_contiguousN {s : Shape} [HintVal β] {x : Tensor s β} {Cs : List Nat}
@@ -98,7 +98,7 @@ theorem safe_max_contiguousN {s : Shape} [HintVal β] {x : Tensor s β} {Cs : Li
     (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_contiguousN x Cs >>= k) := by
   simp only [tl.max_contiguousN, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint hc hk
 
 /-- `tl.max_contiguous(tl.multiple_of(x, vs), Cs)` of any rank: show both promises along every
 dimension. -/
@@ -109,7 +109,7 @@ theorem safe_max_contiguous_multiple_ofN {s : Shape} [HintVal β] {x : Tensor s 
     (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_contiguous_multiple_ofN x Cs vs >>= k) := by
   simp only [tl.max_contiguous_multiple_ofN, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hcv⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint hcv hk
 
 /-- `tl.max_constancy(x, Cs)` of any rank: show the promise along every dimension. -/
 theorem safe_max_constancyN {s : Shape} {x : Tensor s β} {Cs : List Nat}

@@ -265,18 +265,18 @@ values that are powers of two (at most the dimension's size for `max_contiguous`
 
 /-- `tl.assume(cond)`: a promise to the compiler that `cond` holds. A false `assume` is undefined
 behaviour (the compiler may have optimised on it). -/
-def assume (c : Bool) : Prog Unit := .pick (.other _ (fun _ : Unit => c = true)) .ret
+def assume (c : Bool) : Prog Unit := .pick (.guard (c = true)) .ret
 
 /-- `tl.static_assert(cond)`: Triton checks `cond` at compile time and rejects the kernel on the
 host when it is false, so no program runs. A claim's `ok` excludes such instances; the model
 makes a false one undefined behaviour, so that no claim covering it can be proved. -/
-def static_assert (c : Bool) : Prog Unit := .pick (.other _ (fun _ : Unit => c = true)) .ret
+def static_assert (c : Bool) : Prog Unit := .pick (.guard (c = true)) .ret
 
 /-- `tl.max_contiguous(x, C)` of a rank-1 tensor, with no `tl.multiple_of` on the same value:
 `C` is `x`'s contiguity (`ContigIs`). -/
 def max_contiguous {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C : Nat) :
     Prog (Tensor [n] β) :=
-  .pick (.other _ (fun y => y = x ∧ ContigIs x 0 C)) .ret
+  .pick (.hint _ x (ContigIs x 0 C)) .ret
 
 /-- `tl.max_constancy(x, C)` of a rank-1 tensor: `x` is runs of `C` equal values. -/
 def max_constancy {n : Nat} {β : Type} (x : Tensor [n] β) (C : Nat) : Prog (Tensor [n] β) :=
@@ -288,23 +288,23 @@ bound of the contiguity the compiler infers for `x` (`B` for `s + tl.arange(0, B
 element, by default. -/
 def multiple_of {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (v : Nat)
     (contig : Nat := 1) : Prog (Tensor [n] β) :=
-  .pick (.other _ (fun y => y = x ∧ FirstsDiv x 0 contig v)) .ret
+  .pick (.hint _ x (FirstsDiv x 0 contig v)) .ret
 
 /-- `tl.max_contiguous(tl.multiple_of(x, v), C)` of a rank-1 tensor (both hints on one value, in
 either order): groups of `C` positions hold consecutive values (`ContigAlong`) and `v` divides
 the first element of each group (`FirstsDiv`). -/
 def max_contiguous_multiple_of {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C v : Nat) :
     Prog (Tensor [n] β) :=
-  .pick (.other _ (fun y => y = x ∧ ContigAlong x 0 C ∧ FirstsDiv x 0 C v)) .ret
+  .pick (.hint _ x (ContigAlong x 0 C ∧ FirstsDiv x 0 C v)) .ret
 
 /-- `tl.multiple_of(x, v)` of a scalar: `v` divides it. -/
 def multiple_of1 {β : Type} [HintVal β] (x : β) (v : Nat) : Prog β :=
-  .pick (.other _ (fun y => y = x ∧ (v : Int) ∣ HintVal.val x)) .ret
+  .pick (.hint _ x ((v : Int) ∣ HintVal.val x)) .ret
 
 /-- `tl.max_contiguous(x, Cs)` for any rank, with no `tl.multiple_of` on the same value: along
 each dimension `k`, `Cs[k]` is `x`'s contiguity (`ContigIs`). -/
 def max_contiguousN {β : Type} [HintVal β] (x : Tensor s β) (Cs : List Nat) : Prog (Tensor s β) :=
-  .pick (.other _ (fun y => y = x ∧ ∀ k, k < s.length → ContigIs x k (Cs.getD k 1))) .ret
+  .pick (.hint _ x (∀ k, k < s.length → ContigIs x k (Cs.getD k 1))) .ret
 
 /-- `tl.max_constancy(x, Cs)` for any rank: along each dimension `k`, groups of `Cs[k]` positions
 hold equal values. -/
@@ -318,17 +318,15 @@ dimension `k`, `vs[k]` divides the first element of each group of `contig[k]` po
 promises that every pointer is 16-byte aligned. -/
 def multiple_ofN {β : Type} [HintVal β] (x : Tensor s β) (vs : List Nat) (contig : List Nat := []) :
     Prog (Tensor s β) :=
-  .pick (.other _ (fun y =>
-      y = x ∧ ∀ k, k < s.length → FirstsDiv x k (contig.getD k 1) (vs.getD k 1))) .ret
+  .pick (.hint _ x (∀ k, k < s.length → FirstsDiv x k (contig.getD k 1) (vs.getD k 1))) .ret
 
 /-- `tl.max_contiguous(tl.multiple_of(x, vs), Cs)` for any rank (both hints on one value): along
 each dimension `k`, groups of `Cs[k]` positions hold consecutive values and `vs[k]` divides the
 first element of each group. -/
 def max_contiguous_multiple_ofN {β : Type} [HintVal β] (x : Tensor s β) (Cs vs : List Nat) :
     Prog (Tensor s β) :=
-  .pick (.other _ (fun y => y = x ∧ ∀ k, k < s.length →
-    ContigAlong x k (Cs.getD k 1) ∧ FirstsDiv x k (Cs.getD k 1) (vs.getD k 1)))
-    .ret
+  .pick (.hint _ x (∀ k, k < s.length →
+    ContigAlong x k (Cs.getD k 1) ∧ FirstsDiv x k (Cs.getD k 1) (vs.getD k 1))) .ret
 
 end tl
 

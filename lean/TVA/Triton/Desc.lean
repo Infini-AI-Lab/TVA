@@ -170,7 +170,7 @@ def make_tensor_descriptor (base : Ptr d) (shape : List I32) (strides : List I64
 /-- `desc.load(offsets)`: the block at `offsets`; lanes outside the tensor hold the padding. -/
 def desc_load {bs : Shape} (D : TensorDesc d) (offsets : List I32) : Prog (Tensor bs d.Val) :=
   let o := offsets.map IntV.toInt
-  .pick (.other _ (fun _ : Unit => D.Access o bs)) fun _ => do
+  .pick (.guard (D.Access o bs)) fun _ => do
     let v ← tl.load (D.ptrsAt (TensorDesc.coord o)) (some (D.maskAt (TensorDesc.coord o)))
     tl.pad D.padding (fun i => D.inbAt (TensorDesc.coord o i)) v
 
@@ -179,7 +179,7 @@ The model converts `value` to the descriptor's dtype first, as Triton does impli
 def desc_store {bs : Shape} (D : TensorDesc d) (offsets : List I32) (vals : Tensor bs d.Val) :
     Prog Unit :=
   let o := offsets.map IntV.toInt
-  .pick (.other _ (fun _ : Unit => D.Access o bs)) fun _ =>
+  .pick (.guard (D.Access o bs)) fun _ =>
     tl.store (D.ptrsAt (TensorDesc.coord o)) vals (some (D.maskAt (TensorDesc.coord o)))
 
 /-- `desc.atomic_add(offsets, value)` and the other reductions: one relaxed, `gpu`-scope reduction
@@ -187,7 +187,7 @@ per lane inside the tensor, in an unspecified order; no result. -/
 def desc_atomic {bs : Shape} (op : RedOp) (D : TensorDesc d) (offsets : List I32)
     (vals : Tensor bs d.Val) : Prog Unit :=
   let o := offsets.map IntV.toInt
-  .pick (.other _ (fun _ : Unit => D.Access o bs ∧ op.Allowed d)) fun _ =>
+  .pick (.guard (D.Access o bs ∧ op.Allowed d)) fun _ =>
   .env fun e => do
     let _ ← tl.atomicWith (D.ptrsAt (TensorDesc.coord o)) (fun i => op.Upd e d (vals.get i))
       (some (D.maskAt (TensorDesc.coord o))) .relaxed .gpu
@@ -197,7 +197,7 @@ def desc_atomic {bs : Shape} (op : RedOp) (D : TensorDesc d) (offsets : List I32
 `y_offset + [0, BN)`; lanes outside the tensor hold unspecified values. -/
 def desc_gather {M BN : Nat} {w : Nat} (D : TensorDesc d) (xs : Tensor [M] (IntV true w)) (y : I32) :
     Prog (Tensor [M, BN] d.Val) :=
-  .pick (.other _ (fun _ : Unit => D.RowAccess BN y)) fun _ =>
+  .pick (.guard (D.RowAccess BN y)) fun _ =>
     tl.load (D.ptrsAt (TensorDesc.rowCoord xs y)) (some (D.maskAt (TensorDesc.rowCoord xs y)))
 
 /-- `desc.scatter(value, x_offsets, y_offset)`: the inverse of `desc_gather`; every lane must lie
@@ -205,7 +205,7 @@ inside the tensor (the documentation does not say what happens otherwise). Repea
 written in an unspecified order. -/
 def desc_scatter {M BN : Nat} {w : Nat} (D : TensorDesc d) (vals : Tensor [M, BN] d.Val)
     (xs : Tensor [M] (IntV true w)) (y : I32) : Prog Unit :=
-  .pick (.other _ (fun _ : Unit =>
+  .pick (.guard (
       D.RowAccess BN y ∧ ∀ l : Idx [M, BN], D.inbAt (TensorDesc.rowCoord xs y l) = true))
     fun _ =>
     tl.store (D.ptrsAt (TensorDesc.rowCoord xs y)) vals

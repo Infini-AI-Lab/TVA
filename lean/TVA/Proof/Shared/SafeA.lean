@@ -99,6 +99,20 @@ theorem pick {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → P
     SafeA E R W C Q log m (.pick (Site.other β P) k) :=
   .site hex hk
 
+/-- A guard (`Site.guard`): its condition holds, and the rest is safe. -/
+theorem guard {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
+    {log : List AtomicStep} {m : Mem} {c : Prop} [Decidable c]
+    {k : Unit → Prog α} (hc : c) (hk : ∀ u, SafeA E R W C Q log m (k u)) :
+    SafeA E R W C Q log m (.pick (Site.guard c) k) :=
+  .site ⟨(), hc⟩ fun u _ => hk u
+
+/-- A compiler hint on `x` (`Site.hint`): its promise holds, and the rest is safe for `x`. -/
+theorem hint {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
+    {log : List AtomicStep} {m : Mem} {β : Type} {x : β}
+    {c : Prop} [Decidable c] {k : β → Prog α} (hc : c) (hk : SafeA E R W C Q log m (k x)) :
+    SafeA E R W C Q log m (.pick (Site.hint β x c) k) :=
+  .site ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+
 /-- An operation of the platform, as in `Safe`. -/
 theorem plat {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {log : List AtomicStep} {m : Mem} {q : PlatQ} {k : q.Out → Prog α}

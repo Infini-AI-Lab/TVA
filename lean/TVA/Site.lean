@@ -19,15 +19,27 @@ namespace TVA
 
 /-- A site: a value a Triton program cannot predict, and what it may be. -/
 inductive Site : Type 1 where
+  /-- A guard: no value but `()`, allowed when `c` holds; undefined behaviour otherwise. The
+  checks Triton or the lowering makes and the promises a kernel makes (`tl.assume`,
+  `tl.static_assert`, the format checks of a conversion, a block pointer's or a descriptor's
+  validity, `tl.dot_scaled`'s shapes and types). -/
+  | guard (c : Prop) [dec : Decidable c]
+  /-- A compiler hint on `x`: the value is `x` itself, allowed when the promise `c` holds
+  (`tl.max_contiguous`, `tl.multiple_of`); undefined behaviour otherwise. -/
+  | hint (β : Type) (x : β) (c : Prop) [dec : Decidable c]
   /-- Any value of type `β` satisfying `P`. -/
   | other (β : Type) (P : β → Prop)
 
 /-- The type of a site's value. -/
 @[reducible] def Site.Out : Site → Type
+  | @guard _ _ => Unit
+  | @hint β _ _ _ => β
   | .other β _ => β
 
 /-- The values a site allows. -/
 @[reducible] def Site.Allows : (s : Site) → s.Out → Prop
+  | @guard c _ => fun _ => c
+  | @hint _ x c _ => fun y => y = x ∧ c
   | .other _ P => P
 
 /-- The update an atomic makes to one element of dtype `d`. -/
@@ -49,6 +61,16 @@ instance Site.sig : Sig where
 
 @[simp] theorem Site.allows_other {β : Type} {P : β → Prop} {b : β} :
     Sig.Allows (Site.other β P) b ↔ P b := Iff.rfl
+
+/-- A guard allows `()` exactly when its condition holds: the predicate `fun _ : Unit => c` of
+the `Site.other` it replaces. -/
+@[simp] theorem Site.allows_guard {c : Prop} [Decidable c] {u : Unit} :
+    Sig.Allows (Site.guard c) u ↔ c := Iff.rfl
+
+/-- A hint allows `x` exactly when its promise holds: the predicate `fun y => y = x ∧ c` of the
+`Site.other` it replaces. -/
+@[simp] theorem Site.allows_hint {β : Type} {x : β} {c : Prop} [Decidable c] {y : β} :
+    Sig.Allows (Site.hint β x c) y ↔ y = x ∧ c := Iff.rfl
 
 @[simp] theorem Upd.allows_other {d : DType} {upd : d.Val → d.Val → Prop} {old new : d.Val} :
     Sig.UpdAllows (Upd.other upd) old new ↔ upd old new := Iff.rfl

@@ -101,7 +101,7 @@ theorem safe_load_block_ptr (b : Buf d) {p : BlockPtr d} {bc : List Nat} {pad : 
       (∀ i, p.inb bc i = false → pad.Holds (v.get i)) → Safe E R W Q m (k v)) :
     Safe E R W Q m (tl.load_block p bc pad >>= k) := by
   simp only [tl.load_block, Prog.bind_eq, Prog.bind, Prog.bind_assoc]
-  refine .pick ⟨(), hok⟩ fun _ _ => ?_
+  refine .guard hok fun _ => ?_
   refine safe_load_buf b (p.addrs_buf b hbase bc fun i h => (hin i h).1) (fun i h => (hin i h).2)
     hv hR fun v hv1 _ => safe_pad hpad fun r hr hr' =>
       hk r (fun i hi => (hr i hi).symm ▸ hv1 i hi) hr'
@@ -122,7 +122,7 @@ theorem safe_store_block_ptr (b : Buf d) {p : BlockPtr d} {bc : List Nat}
       Safe E R (W \ b.elems (Buf.img (fun i => (p.elem i).toNat) (p.inb bc))) Q m' (k ())) :
     Safe E R W Q m (tl.store_block p vals bc >>= k) := by
   simp only [tl.store_block, Prog.bind_eq, Prog.bind]
-  refine .pick ⟨(), hok⟩ fun _ _ => ?_
+  refine .guard hok fun _ => ?_
   exact safe_store_buf b (p.addrs_buf b hbase bc fun i h => (hin i h).1)
     (fun i h => (hin i h).2) hinj hv hW hk
 

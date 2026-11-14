@@ -227,7 +227,7 @@ def dot_scaled (cfg : ScaledCfg) (M N K : Nat) {dl dr dsl dsr : DType} {Ra Ca Rb
     (lhs : Tensor [Ra, Ca] dl.Val) (lhs_scale : Option (Tensor [M, G] dsl.Val))
     (rhs : Tensor [Rb, Cb] dr.Val) (rhs_scale : Option (Tensor [N, G] dsr.Val))
     (acc : Tensor [M, N] F32) : Prog (Tensor [M, N] F32) :=
-  .pick (.other _ (fun _ : Unit =>
+  .pick (.guard (
       cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr)) fun _ =>
   .plat (.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) acc) .ret
@@ -240,7 +240,7 @@ def dot_scaled_add (cfg : ScaledCfg) (M N K : Nat) {dl dr dsl dsr : DType} {Ra C
     (rhs : Tensor [Rb, Cb] dr.Val) (rhs_scale : Option (Tensor [N, G] dsr.Val))
     (c : Tensor [M, N] F32) (z : Tensor [M, N] F32 := Tensor.full (FloatV.ofPat 0)) :
     Prog (Tensor [M, N] F32) :=
-  .pick (.other _ (fun _ : Unit =>
+  .pick (.guard (
       cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr)) fun _ =>
   .env fun e => .pick (.other _ (fun r =>
     e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))

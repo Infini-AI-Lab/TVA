@@ -52,7 +52,7 @@ zero), up to NaN payload; widening is exact. Undefined behaviour for other forma
 `tl.cvt8` (into fp8) and `tl.cvtFrom8` (out of fp8). -/
 def cvt {g : Format} (x : Tensor s (FloatV f)) (rnd : RoundMode := .rn) :
     Prog (Tensor s (FloatV g)) :=
-  .pick (.other _ (fun _ : Unit => f.Std ∧ g.Std ∧ RoundOk f g rnd)) fun _ =>
+  .pick (.guard (f.Std ∧ g.Std ∧ RoundOk f g rnd)) fun _ =>
     upToNaN (x.map (FloatV.cvtWith rnd))
 
 /-- `x.to(dtype, fp_downcast_rounding=rnd)` from `float16`, `bfloat16` or `float32` into an fp8
@@ -60,7 +60,7 @@ format: as the platform converts (`Platform.cvt f g rnd`; whether it saturates, 
 NaN, is the lowering's). -/
 def cvt8 {g : Format} (x : Tensor s (FloatV f)) (rnd : RoundMode := .rn) :
     Prog (Tensor s (FloatV g)) :=
-  .pick (.other _ (fun _ : Unit =>
+  .pick (.guard (
       (f = .binary16 ∨ f = .bfloat16 ∨ f = .binary32) ∧ g.F8 ∧ RoundOk f g rnd))
     fun _ => .plat (.cvt f g rnd x) .ret
 
@@ -69,7 +69,7 @@ exact on finite elements. An infinity or NaN may come out as any value: Triton c
 `float8e5` to `bfloat16` by a bit trick that turns them into finite numbers (`Fp8E5M2_to_Bf16`,
 `nvidia-ElementwiseOpToLLVM.cpp:68-121`). There is no fp8 → `float64` conversion. -/
 def cvtFrom8 {g : Format} (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV g)) :=
-  .pick (.other _ (fun _ : Unit => f.F8 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .binary32))) fun _ =>
+  .pick (.guard (f.F8 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .binary32))) fun _ =>
   .pick (.other _ (fun r : Tensor s (FloatV g) =>
     ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)))
     .ret
@@ -92,7 +92,7 @@ def ItofRel (g : Format) (z : Int) (r : FloatV g) : Prop :=
 /-- `x.to(float dtype)` of an integer tensor (`sitofp`/`uitofp`) into a standard format: each
 element as `ItofRel` allows. Into fp8 it does not compile (`semantic.py:916`). -/
 def itof {sg : Bool} {w : Nat} (x : Tensor s (IntV sg w)) : Prog (Tensor s (FloatV f)) :=
-  .pick (.other _ (fun _ : Unit => f.Std)) fun _ =>
+  .pick (.guard (f.Std)) fun _ =>
   .pick (.other _ (fun r : Tensor s (FloatV f) => ∀ i, ItofRel f (x.get i).toInt (r.get i)))
     .ret
 
@@ -109,7 +109,7 @@ def _root_.TVA.FtoiRel {f : Format} (sg : Bool) (w : Nat) (x : FloatV f) (r : In
 (`FtoiRel`); undefined behaviour when an element is NaN, infinite or out of range. From fp8 it does
 not compile (`semantic.py:916`). -/
 def ftoi {sg : Bool} {w : Nat} (x : Tensor s (FloatV f)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (.other _ (fun _ : Unit => f.Std)) fun _ =>
+  .pick (.guard (f.Std)) fun _ =>
   .pick (.other _ (fun r : Tensor s (IntV sg w) => ∀ i, FtoiRel sg w (x.get i) (r.get i)))
     .ret
 
