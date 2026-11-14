@@ -214,6 +214,39 @@ answers `q` with a proof of `q.Rel P_dev`. `rmw` needs the same for its `upd` re
 - **No executor**: phases 0–2 and 5 only. The transcriptions stay checked by reading and by
   `check_gpu.py`.
 
+## Scope, and the compiler's hidden parameters
+
+**Scope.** A claim is about one stack: an H200 (sm_90), Triton 3.8.0, the CUDA toolchain and
+driver of the evidence (torch 2.11.0+cu130, driver 610.57). `Device`'s docstring says so; the
+claims do not. Other GPUs or versions are out of scope for now: they would need their own
+`Device'`, and the `Platform` signature itself is untested beyond sm_90 (below).
+
+**Hidden parameters.** Within that stack the compiler's output depends on settings that the
+model does not name. Soundness needs each to be *covered*: modelled, absorbed by a free choice
+whose bound the evidence measured across the setting, or pinned. Status to be completed (`?`:
+not yet checked):
+
+| Setting | How the model covers it | Varied in the evidence |
+|---|---|---|
+| `enable_fp_fusion` | modelled (`Env`) | fusion itself: none (TRUST.md) |
+| `input_precision`, `max_num_imprecise_acc` | modelled (`DotCfg`) | ? |
+| tile shapes, other constexprs | part of the kernel | partly (`num-dot-int8`: 14 configs) |
+| `num_warps` | free: reduction trees, `tl.dot`'s chunking | `reduce-tree` 1–16; `num-dot-int8`; `num-dot-chunk` 4 only |
+| MMA instruction (`mma.sync` vs `wgmma`, chosen from `M`, `num_warps`) | free | `int8` both; float dots ? |
+| `num_stages`, `maxnreg`, `num_ctas`, cluster dims | assumed not to change values | ? |
+| surrounding code (fusion, rescheduling of `exp`, `/` inside a kernel) | relation per occurrence | none: measured standalone |
+| flush-to-zero defaults | stated in the facts (`ExpF32`, `SqrtF32`, …) | yes, `num-math-f32` |
+| environment variables (`TRITON_F32_DEFAULT`, …) | ? | ? |
+| autotuning (config picked at run time) | must fall inside `Inst.ok` | ? per claim |
+
+Each `?` is settled by reading the lowering or by varying the setting in the existing harnesses
+and checking the bounds still hold. A setting that cannot be covered is pinned in the claim.
+
+**Generality (later, no GPU).** Whether the `Platform` signature is the right cut beyond sm_90
+can be checked on paper: for another target's lowering (Blackwell, AMD), is every operation
+whose result differs from the IEEE one among `Platform`'s fields, or is some operation that
+`TVA.Base` treats as exact (subnormals in `+`/`*`, `div_rn`, conversions) lowered differently?
+
 ## To decide with zhuominc
 
 1. The change to `Prog` (solvers and `plat`), or one of the alternatives.
@@ -224,5 +257,7 @@ answers `q` with a proof of `q.Rel P_dev`. `rmw` needs the same for its `upd` re
 4. GPU: the H200 NVL the evidence ran on, or an AWS P5e (H200); do results from an H100 count?
    Phases 1, 2, 4 and 5 need one, with `compute-sanitizer` and a driver like the evidence's
    (610.57).
-5. Where the work lives: a `validation/` folder on a branch off `v3`, not merged into the library
+5. Scope: state the stack (device, Triton, toolchain) in `TVA/Claim.lean`'s trusted base, and
+   pin in the claims any hidden parameter the evidence does not cover.
+6. Where the work lives: a `validation/` folder on a branch off `v3`, not merged into the library
    until reviewed.
