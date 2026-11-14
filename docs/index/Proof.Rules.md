@@ -1397,9 +1397,9 @@ theorem · [lean/TVA/Proof/Rules/Memory.lean:255](../../lean/TVA/Proof/Rules/Mem
 
 ```lean
 TVA.tl.rmwSeq_bind_const {s : TVA.Shape} {d : TVA.DType} {β : Type} (ptrs : TVA.Tensor s (TVA.Ptr d))
-  (upd : TVA.Idx s → d.Val → d.Val → Prop) (sv : (i : TVA.Idx s) → (old : d.Val) → TVA.Solve (upd i old))
-  (sem : TVA.MemSem) (sc : TVA.Scope) (K : TVA.Prog β) (L : List (TVA.Idx s)) (acc acc' : TVA.Idx s → d.Val) :
-  ((TVA.tl.rmwSeq ptrs upd sv sem sc L acc).bind fun x => K) = (TVA.tl.rmwSeq ptrs upd sv sem sc L acc').bind fun x => K
+  (upd : TVA.Idx s → d.Val → d.Val → Prop) (sem : TVA.MemSem) (sc : TVA.Scope) (K : TVA.Prog β) (L : List (TVA.Idx s))
+  (acc acc' : TVA.Idx s → d.Val) :
+  ((TVA.tl.rmwSeq ptrs upd sem sc L acc).bind fun x => K) = (TVA.tl.rmwSeq ptrs upd sem sc L acc').bind fun x => K
 ```
 
 After the read-modify-writes of some lanes, a continuation that ignores their old values does
@@ -1407,14 +1407,14 @@ not depend on the values collected before.
 
 ### `TVA.safe_atomic_buf`
 
-theorem · [lean/TVA/Proof/Rules/Memory.lean:346](../../lean/TVA/Proof/Rules/Memory.lean#L346)
+theorem · [lean/TVA/Proof/Rules/Memory.lean:344](../../lean/TVA/Proof/Rules/Memory.lean#L344)
 
 ```lean
 TVA.safe_atomic_buf {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
   {d : TVA.DType} (b : TVA.Buf d) {ptrs : TVA.Tensor s (TVA.Ptr d)} {mask : Option (TVA.Tensor s Bool)}
-  {upd : TVA.Idx s → d.Val → d.Val → Prop} {sv : (i : TVA.Idx s) → (old : d.Val) → TVA.Solve (upd i old)}
-  {sem : TVA.MemSem} {sc : TVA.Scope} {g : TVA.Idx s → ℕ} {en : TVA.Idx s → Bool}
-  (hA : b.Addrs (TVA.tl.addrs ptrs mask) g en) (hin : ∀ (i : TVA.Idx s), en i = true → g i < b.len)
+  {upd : TVA.Idx s → d.Val → d.Val → Prop} {sem : TVA.MemSem} {sc : TVA.Scope} {g : TVA.Idx s → ℕ}
+  {en : TVA.Idx s → Bool} (hA : b.Addrs (TVA.tl.addrs ptrs mask) g en)
+  (hin : ∀ (i : TVA.Idx s), en i = true → g i < b.len)
   (hinj : ∀ (i j : TVA.Idx s), en i = true → en j = true → g i = g j → i = j)
   (htot : ∀ (i : TVA.Idx s) (o : d.Val), ∃ n, upd i o n) (hv : b.Valid m) (hW : b.elems (TVA.Buf.img g en) ⊆ W)
   (hRd : Disjoint (b.elems (TVA.Buf.img g en)) R) {k : TVA.Prog α}
@@ -1426,7 +1426,7 @@ TVA.safe_atomic_buf {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Me
         (∀ x ∉ b.elems (TVA.Buf.img g en), m' x = m x) →
           (∀ (x : ℤ), m x ≠ none → m' x ≠ none) → TVA.Safe E R (W \ b.elems (TVA.Buf.img g en)) Q m' k) :
   TVA.Safe E R W Q m do
-    let _ ← TVA.tl.atomicWith ptrs upd sv mask sem sc
+    let _ ← TVA.tl.atomicWith ptrs upd mask sem sc
     k
 ```
 

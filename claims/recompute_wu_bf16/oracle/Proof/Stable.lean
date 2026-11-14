@@ -32,7 +32,7 @@ theorem safe_and_inv {E : Env} {R W S : Set Int} {α : Type} {Q : α → Mem →
     refine .rmw hex hS hSR hc fun old new ho hn => ih old new ho hn ?_ (Set.sdiff_subset.trans hWS)
     refine hP _ _ (fun x hx => ?_) (fun x hx => Mem.write_present _ hx) hm
     exact Mem.write_frame _ _ _ _ (fun hxa => hx (hWS (hS hxa)))
-  | pick hex _ ih => exact .pick hex fun b hb => ih b hb hm hWS
+  | site hex _ ih => exact .site hex fun b hb => ih b hb hm hWS
   | loop _ ih => exact .loop (ih hm hWS)
   | env _ ih => exact .env (ih hm hWS)
 

@@ -2,7 +2,6 @@ import TVA.Launch.Step
 import TVA.Launch.Run
 import TVA.Launch.WellBehaved
 import TVA.Launch.Progress
-import TVA.Launch.Solvers
 
 /-!
 # The semantics of a launch
@@ -15,9 +14,8 @@ sharing global memory. This module says what such a launch does, when that meani
 
 * **The model.** A `Kernel` gives, for each program's `Ctx` (`tl.program_id`,
   `tl.num_programs`), the program it runs: a `Prog Unit` (`TVA.Program`), whose effects are
-  loads, stores, atomic read-modify-writes of one element (`rmw`), unpredictable values (`pick`),
-  operations the platform defines (`plat`), undefined behaviour, loops and reads of the
-  environment.
+  loads, stores, atomic read-modify-writes of one element (`rmw`), unpredictable values (`pick`,
+  at a site of the signature `Sig`), undefined behaviour, loops and reads of the environment.
 * **The launch.** A `Launch` gives the grid, the options that change the meaning
   (`enable_fp_fusion`, and `debug`, `num_ctas`, `launch_pdl`, which `Launch.Valid` requires at
   their defaults) and the source's block shapes. Program number `i` gets
@@ -48,7 +46,7 @@ The interleaving is the launch's meaning only when it is `WellBehaved`
 (`TVA.Launch.WellBehaved`):
 
 1. **No undefined behaviour**: no reachable state has a program whose next step is undefined
-   behaviour (an invalid access, a `pick` or `plat` nothing satisfies, an integer division by
+   behaviour (an invalid access, a `pick` whose site allows nothing, an integer division by
    zero, …).
 2. **No race between programs** (`InterRace`): no trace has two steps of different programs that
    touch a common byte, at least one writing it, unless both are `acq_rel` atomics at `gpu` or
@@ -97,6 +95,5 @@ states `Correct` for every covered instance; the proof kit (`TVA.Proof`) proves 
 
 Files: `Launch/Step` (one program's step), `Launch/Run` (kernels, launches, interleaving),
 `Launch/WellBehaved` (races, the atomic-result exclusion, `WellBehaved`, `Outcomes`, `Correct`),
-`Launch/Progress` (a launch never gets stuck), `Launch/Solvers` (the solvers of `pick` and `rmw`
-play no part in the meaning: `Correct.congr_solvers`).
+`Launch/Progress` (a launch never gets stuck).
 -/

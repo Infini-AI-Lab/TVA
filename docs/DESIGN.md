@@ -42,7 +42,9 @@ lean/TVA/
   Memory       `Mem` (a partial map from addresses to bytes), `Ptr`, `Buf` (a contiguous buffer)
   Platform     the relations Triton leaves to the device (`math`, `div`, `dot`, `cvt`,
                `atomicAdd`, `dotScaled`, `sumDepth`) and the environment a program reads
-  Program      `Prog α`: a program instance as a Lean value (effects are constructors)
+  Program      `Sig` (the choices a program may leave open) and `Prog α`: a program instance as a
+               Lean value (effects are constructors)
+  Site         Triton's signature: its sites and atomic updates, and `Prog.plat`
   Triton/      the `tl.*` vocabulary a model is written in, one file per family:
                Core (program ids, arange, full, where, shapes), Arith (integer and float
                arithmetic, comparisons, math functions), Convert (casts and dtype promotion),
@@ -100,8 +102,13 @@ bytes, a program makes no conflicting accesses to the same bytes itself (its thr
 them), and no program uses an atomic's result on a cell another access also reaches. Approximate
 operations (`exp`, `tl.dot`, fp8 conversion, float atomics) take their result from the platform's
 relation through `pick` (`Prog.plat`, an `env` then a `pick`), so a proof works for every result
-the device facts allow. Each `pick` and `rmw` also carries a solver (`Solve`), used only to run a
-model (`validation/Exec.lean`); the semantics ignores it.
+the device facts allow.
+
+The semantics is written for any *signature* `Sig` (`TVA.Program`): the kinds of value a program
+cannot predict (its *sites*), what each allows, and the kinds of update an atomic makes. A `pick`
+at site `s` continues with any value `s` allows; the semantics never looks inside a site.
+Triton's signature is `TVA.Site`, the catalog of the places a `tl.*` operation leaves a value
+open; every model uses it.
 
 ## Building, checking
 

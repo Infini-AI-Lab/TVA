@@ -346,7 +346,7 @@ theorem Safe.toSafeA {E : Env} {R W : Set Int} {C : Set (DType × Int)}
   | load hb hR _ ih => exact SafeA.load hb hR fun v hv => ih v hv
   | store hok hW _ ih => exact SafeA.store hok hW fun o hp => ih o hp
   | rmw hex hS hSR hc _ ih => exact SafeA.rmw hex hS hSR hc fun o n ho hn => ih o n ho hn
-  | pick hex _ ih => exact SafeA.pick hex fun b hb => ih b hb
+  | site hex _ ih => exact SafeA.site hex fun b hb => ih b hb
   | loop _ ih => exact SafeA.loop ih
   | env _ ih => exact SafeA.env ih
 

@@ -57,13 +57,13 @@ The conventions, stated in `TVA.Triton.Core`'s module docstring:
   `List Nat`. A compile-time `if` is a Lean `if` on the parameter.
 - **What the device chooses is a `pick`.** When Triton leaves a result open (a masked-out lane
   without `other`, the tree of a float reduction, the order of an atomic's lanes), the operation
-  is `Prog.pick P solve k`: the program continues with *some* value satisfying `P`, and a proof
-  must hold for each. When nothing satisfies `P`, the `pick` is undefined behaviour; that is how a
-  model states a precondition (`tl.assume`, a division by zero). An operation the platform
-  defines (an approximate `tl.exp`, `/`, a `tl.dot`, a conversion into fp8) is `Prog.plat q k`,
-  an `env` then a `pick` of the platform's relation `PlatQ.Rel`. `solve` (`Solve`) proposes a
-  value, with its proof or assumed, for running a model; the meaning ignores it, and so can a
-  reader.
+  is `Prog.pick s k` at a site `s` of Triton's catalog (`TVA.Site`): the program continues with
+  *some* value the site allows, and a proof must hold for each. When the site allows nothing,
+  the `pick` is undefined behaviour; that is how a model states a precondition (`tl.assume`, a
+  division by zero). An operation the platform defines (an approximate `tl.exp`, `/`, a `tl.dot`,
+  a conversion into fp8) is `Prog.plat q k`, an `env` then a `pick` of the platform's relation
+  `PlatQ.Rel`. The semantics itself is written for any signature `Sig` and never looks inside a
+  site.
 - **NaN payloads are unspecified.** Every exact float operation returns its IEEE result up to NaN
   payload (`tl.upToNaN`, `FloatV.NaNEq`), so a specification compares floats up to NaN payload.
 

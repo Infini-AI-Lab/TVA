@@ -4,6 +4,13 @@ Working notes for phase 3 of [PLAN.md](PLAN.md) (2026-11-13). The executor and i
 theorems are in [Exec.lean](Exec.lean); the change to `Prog` they need is described in PLAN.md
 ("The change to `Prog` that phase 3 needs") and is pending zhuominc's review.
 
+> **Status (2026-11-14, branch `validation-v3-sites`).** The solvers have left the library. The
+> semantics is now written for any signature `Sig` (`TVA.Program`), and Triton's is the catalog
+> `TVA.Site`, so far with only `Site.other P` and `Upd.other upd`: every `pick` and `rmw` below is
+> one of those, with no solver. `Exec.lean` does not build until stage 2, which adds a site per
+> row of the table below and moves the solvers here, keyed on sites (`validation/`, not the
+> library). The text below describes the previous design (commit `2d69b79`).
+
 ## What changed in the library
 
 - `Prog.pick P solve k`: `solve : Solve P` proposes a value with its proof (`Ans`), asking an

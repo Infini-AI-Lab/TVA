@@ -50,7 +50,7 @@ theorem safe_convert_iff {d d' : DType} {x : Tensor s d.Val} {y : Tensor s d'.Va
     cases hs with
     | env h1 =>
       cases h1 with
-      | pick _ hall =>
+      | site _ hall =>
         simpa [Prog.bind] using hall y fun i => (h i (y.get i)).2 rfl
   · intro hs
     refine safe_convert (fun i => ⟨y.get i, (h i _).2 rfl⟩) fun r hr => ?_
@@ -77,7 +77,7 @@ theorem safe_cvt8 {g : Format} {x : Tensor s (FloatV f)} {rnd : RoundMode}
     (hk : ∀ r : Tensor s (FloatV g), (∀ i, E.P.cvt f g rnd (x.get i) (r.get i)) →
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.cvt8 x rnd >>= k) := by
-  simp only [tl.cvt8, bind_eq, Prog.bind]
+  simp only [tl.cvt8, bind_eq, Prog.plat_bind, Prog.bind]
   exact .pick ⟨(), hok⟩ fun _ _ =>
     .plat ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 

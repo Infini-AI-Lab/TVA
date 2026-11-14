@@ -19,6 +19,8 @@ What makes a launch well behaved, and how it ends, is in `TVA.Launch.WellBehaved
 -/
 namespace TVA
 
+variable [Sig]
+
 /-- A kernel model: the program `body ctx` that the program instance with context `ctx` runs. -/
 structure Kernel where
   /-- The program of each grid point. -/

@@ -97,14 +97,15 @@ def advance (p : BlockPtr d) (deltas : List I64) : BlockPtr d :=
 padding on the lanes outside the checked bounds. -/
 def load_block (p : BlockPtr d) (bc : List Nat := []) (padding : Padding := .undef) :
     Prog (Tensor p.block d.Val) :=
-  .pick (fun _ : Unit => p.Valid ∧ p.CheckOk bc) .guard fun _ => do
+  .pick (.other _ (fun _ : Unit => p.Valid ∧ p.CheckOk bc)) fun _ => do
     let v ← tl.load p.ptrs (some (p.mask bc))
     tl.pad padding (p.inb bc) v
 
 /-- `tl.store(p, value, boundary_check=bc)` of a block pointer: a masked store. The model converts
 `value` to the element dtype first, as Triton does implicitly. -/
 def store_block (p : BlockPtr d) (vals : Tensor p.block d.Val) (bc : List Nat := []) : Prog Unit :=
-  .pick (fun _ : Unit => p.Valid ∧ p.CheckOk bc) .guard fun _ => tl.store p.ptrs vals (some (p.mask bc))
+  .pick (.other _ (fun _ : Unit =>
+      p.Valid ∧ p.CheckOk bc)) fun _ => tl.store p.ptrs vals (some (p.mask bc))
 
 end tl
 

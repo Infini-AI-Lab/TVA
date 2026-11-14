@@ -206,7 +206,7 @@ inductive PlatQ : Type where
 namespace PlatQ
 
 /-- The type of an answer. -/
-def Out : PlatQ → Type
+@[reducible] def Out : PlatQ → Type
   | @math _ f s _ => Tensor s (FloatV f)
   | @div f s _ _ => Tensor s (FloatV f)
   | @cvt _ g _ s _ => Tensor s (FloatV g)
@@ -214,7 +214,7 @@ def Out : PlatQ → Type
   | @dotScaled _ M N _ _ _ _ _ _ => Tensor [M, N] F32
 
 /-- The answers platform `P` allows. -/
-def Rel (P : Platform) : (q : PlatQ) → q.Out → Prop
+@[reducible] def Rel (P : Platform) : (q : PlatQ) → q.Out → Prop
   | @math fn f _ x => fun r => ∀ i, P.math fn f (x.get i) (r.get i)
   | @div f _ x y => fun r => ∀ i, P.div f (x.get i) (y.get i) (r.get i)
   | @cvt f g rnd _ x => fun r => ∀ i, P.cvt f g rnd (x.get i) (r.get i)
