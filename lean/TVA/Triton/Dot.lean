@@ -62,12 +62,13 @@ def dot (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [
 /-- A source `tl.dot(a, b, acc=z) + c` (or `c + tl.dot(…)`) with a zero accumulator `z` (the
 default, or any constant `±0`) and no other use of the product: either `tl.dot(a, b, c)` (the
 combine pass's rewrite, for a float dot only when `max_num_imprecise_acc` is `0`) or the product
-followed by the (fusable) addition. -/
+followed by the (fusable) addition. The solver assumes the oracle's `tl.dot(a, b, c)`. -/
 def dot_add (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
     (c : Tensor [M, N] cfg.acc.Val) (z : Tensor [M, N] cfg.acc.Val := Tensor.full (cfg.acc.ofBits 0)) :
     Prog (Tensor [M, N] cfg.acc.Val) :=
   .env fun e => .pick (fun r => e.P.dot cfg a b c r ∨
-    ∃ d, e.P.dot cfg a b z d ∧ ∀ i, AccAdd e.fusion cfg.acc (d.get i) (c.get i) (r.get i)) .none .ret
+    ∃ d, e.P.dot cfg a b z d ∧ ∀ i, AccAdd e.fusion cfg.acc (d.get i) (c.get i) (r.get i))
+    (.assume (.plat (.dot cfg a b c))) .ret
 
 /-- A float reduction on axis 1 of the products `x[i, k] * y[k, j]` (`x` expanded on its last axis,
 `y` on its first), in any spelling: each element is the products summed along a tree with fusable
@@ -244,7 +245,9 @@ def dot_scaled_add (cfg : ScaledCfg) (M N K : Nat) {dl dr dsl dsr : DType} {Ra C
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) c r ∨
     ∃ d, e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) z d ∧
-      ∀ i, AddRel e.fusion (d.get i) (c.get i) (r.get i)) .none .ret
+      ∀ i, AddRel e.fusion (d.get i) (c.get i) (r.get i))
+    (.assume (.plat (.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
+      (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) c))) .ret
 
 end tl
 

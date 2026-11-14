@@ -61,13 +61,14 @@ The conventions, stated in `TVA.Triton.Core`'s module docstring:
   must hold for each. When nothing satisfies `P`, the `pick` is undefined behaviour; that is how a
   model states a precondition (`tl.assume`, a division by zero). An operation the platform
   defines (an approximate `tl.exp`, `/`, a `tl.dot`, a conversion into fp8) is `Prog.plat q k`,
-  the same with the platform's relation `PlatQ.Rel`. `solve` (`Solve`) proposes a value with its
-  proof, for running a model; the meaning ignores it, and so can a reader.
+  an `env` then a `pick` of the platform's relation `PlatQ.Rel`. `solve` (`Solve`) proposes a
+  value, with its proof or assumed, for running a model; the meaning ignores it, and so can a
+  reader.
 - **NaN payloads are unspecified.** Every exact float operation returns its IEEE result up to NaN
   payload (`tl.upToNaN`, `FloatV.NaNEq`), so a specification compares floats up to NaN payload.
 
 The effects a program can have are the constructors of `Prog`: `load`, `store`, `rmw` (one
-element of an atomic), `pick`, `plat`, `ub`, `loop` and `env` (reading the platform and the
+element of an atomic), `pick`, `ub`, `loop` and `env` (reading the platform and the
 `enable_fp_fusion` flag). Their meaning is one step each, in `TVA.Launch.Step`.
 
 **A program is not sequential for global memory.** A program is many GPU threads with no barrier
@@ -498,8 +499,7 @@ assigns) are its state, a tuple; after the loop they hold what the last iteratio
 
 ## Undefined behaviour
 
-A program reaches undefined behaviour (`Prog.ub`, or a `pick` or `plat` that nothing satisfies)
-when:
+A program reaches undefined behaviour (`Prog.ub`, or a `pick` that nothing satisfies) when:
 
 - an enabled lane of a load, a store or an atomic accesses a misaligned address, an address
   outside `[0, 2^64)`, or a byte the launch was not given;
@@ -544,7 +544,7 @@ only of them. `Buf.Valid` says a buffer's elements are present and aligned.
 **Steps** (`Step`, in `Launch/Step`). One step of one program performs its next effect as one
 indivisible action and records an `Event` (the bytes read and written, and for an atomic its
 `sem`, `scope` and element). A load reads all its enabled lanes at once; a store writes them at once;
-an atomic is one step per element; a `pick` or a `plat` chooses; a `loop` unfolds once. A pending atomic may
+an atomic is one step per element; a `pick` chooses; a `loop` unfolds once. A pending atomic may
 be passed by a later step that does not depend on its result (`Step.defer`).
 
 **Interleaving** (`Launch/Run`). A launch step (`LStep`) is a step of any one program on the
@@ -588,10 +588,11 @@ Some operations have no exact meaning: the compiler lowers them to instructions 
 documented only up to an accuracy. TVA leaves each to a platform `P` (`TVA.Platform`), a relation
 per operation: `Platform.math` (`tl.exp`, …), `Platform.div` (the default `/`), `Platform.dot`,
 `Platform.cvt` (into fp8), `Platform.atomicAdd` (float), `Platform.dotScaled`, and
-`Platform.sumDepth` (how deep a float reduction's tree may be). A program asks the platform with
-`Prog.plat` (`PlatQ`: `math`, `div`, `cvt`, `dot`, `dotScaled`), or reads it through `Env`, with
-the launch's fusion flag (float atomics, `sumDepth`, and the operations that may be either a
-platform result or a fused addition, such as `tl.dot_add` and `tl.convert`). A relation rather than a function lets two
+`Platform.sumDepth` (how deep a float reduction's tree may be). A program reads the platform through
+`Env`, with the launch's fusion flag. `Prog.plat q k` (`PlatQ`: `math`, `div`, `cvt`, `dot`,
+`dotScaled`) is such a read followed by a `pick` of the results the relation allows; float
+atomics, `sumDepth`, and the operations that may be either a platform result or a fused addition
+(`tl.dot_add`, `tl.convert`) read `Env` directly. A relation rather than a function lets two
 occurrences of one operation on the same operands give different results, as the device may.
 
 Every claim quantifies over every `P` with `Device P` (`TVA.Device`): the conjunction of all the

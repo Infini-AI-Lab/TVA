@@ -76,11 +76,6 @@ inductive SafeA (E : Env) (R : Set Int) :
   | pick {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
       {log : List AtomicStep} {m : Mem} {β : Type} {P : β → Prop} {sv : Solve P} {k : β → Prog α} :
       (∃ b, P b) → (∀ b, P b → SafeA E R W C Q log m (k b)) → SafeA E R W C Q log m (.pick P sv k)
-  /-- An operation of the platform, as in `Safe`. -/
-  | plat {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
-      {log : List AtomicStep} {m : Mem} {q : PlatQ} {k : q.Out → Prog α} :
-      (∃ r, q.Rel E.P r) → (∀ r, q.Rel E.P r → SafeA E R W C Q log m (k r)) →
-      SafeA E R W C Q log m (.plat q k)
   /-- A loop: its first unfolding. -/
   | loop {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
       {log : List AtomicStep} {m : Mem} {σ β : Type} {init : σ} {body : σ → Prog (σ ⊕ β)}
@@ -93,7 +88,15 @@ inductive SafeA (E : Env) (R : Set Int) :
 
 namespace SafeA
 
+
 variable {E : Env} {R : Set Int} {C : Set (DType × Int)}
+
+/-- An operation of the platform, as in `Safe`. -/
+theorem plat {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
+    {log : List AtomicStep} {m : Mem} {q : PlatQ} {k : q.Out → Prog α}
+    (hex : ∃ r, q.Rel E.P r) (hk : ∀ r, q.Rel E.P r → SafeA E R W C Q log m (k r)) :
+    SafeA E R W C Q log m (.plat q k) :=
+  .env (.pick hex hk)
 
 /-- **Weakening**: a weaker post-condition and a larger private write footprint. -/
 theorem mono {α : Type} {Q Q' : α → List AtomicStep → Mem → Prop} {W W' : Set Int} {p : Prog α}
@@ -110,7 +113,6 @@ theorem mono {α : Type} {Q Q' : α → List AtomicStep → Mem → Prop} {W W' 
   | shared hal hC hsem hsc htot hc _ ih =>
     exact .shared hal hC hsem hsc htot hc fun o n h => ih o n h hQ hW
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hQ hW
-  | plat hex _ ih => exact .plat hex fun r hr => ih r hr hQ hW
   | loop _ ih => exact .loop (ih hQ hW)
   | env _ ih => exact .env (ih hQ hW)
 
@@ -136,7 +138,6 @@ theorem bind {α β : Type} {Q : β → List AtomicStep → Mem → Prop} {f : �
   | shared hal hC hsem hsc htot hc _ ih =>
     exact .shared hal hC hsem hsc htot (fun v w => by rw [hc v w]) fun o n h => ih o n h hd hQ'
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
-  | plat hex _ ih => exact .plat hex fun r hr => ih r hr hd hQ'
   | loop _ ih => exact .loop (by rw [← Safe.loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
 
@@ -161,7 +162,6 @@ theorem of_safe {α β : Type} {Q : β → List AtomicStep → Mem → Prop} {f 
     rw [Safe.union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
-  | plat hex _ ih => exact .plat hex fun r hr => ih r hr hd hQ'
   | loop _ ih => exact .loop (by rw [← Safe.loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
 
@@ -177,7 +177,6 @@ theorem perm {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → P
   | shared hal hC hsem hsc htot hc _ ih =>
     exact .shared hal hC hsem hsc htot hc fun o n h => ih o n h hQ (hp.append_right _)
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hQ hp
-  | plat hex _ ih => exact .plat hex fun r hr => ih r hr hQ hp
   | loop _ ih => exact .loop (ih hQ hp)
   | env _ ih => exact .env (ih hQ hp)
 
@@ -252,13 +251,6 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → 
       refine Or.inl ⟨by simp [Event.silent], by simp [Event.silent], ?_, ?_⟩
       · simpa [Event.silent] using Step.pick b hb
       · simpa [Event.silent] using hk b hb
-  | plat r hr =>
-    cases ho
-    cases h with
-    | plat _ hk =>
-      refine Or.inl ⟨by simp [Event.silent], by simp [Event.silent], ?_, ?_⟩
-      · simpa [Event.silent] using Step.plat r hr
-      · simpa [Event.silent] using hk r hr
   | loop =>
     cases ho
     cases h with
@@ -357,7 +349,6 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → 
   | storeUB => cases ho
   | rmwUB => cases ho
   | pickUB => cases ho
-  | platUB => cases ho
   | ub => cases ho
 
 /-- A `SafeA` program does not step into undefined behaviour against a memory that agrees with
@@ -389,7 +380,6 @@ theorem no_ub {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → 
       · rw [hv] at h1; cases h1
       · obtain ⟨new, hu⟩ := htot old'; exact hno new hu
   | pickUB hno => cases h with | pick hex _ => obtain ⟨b, hb⟩ := hex; exact hno b hb
-  | platUB hno => cases h with | plat hex _ => obtain ⟨r, hr⟩ := hex; exact hno r hr
   | ub => cases h
 
 end SafeA

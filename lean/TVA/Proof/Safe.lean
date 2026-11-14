@@ -70,11 +70,6 @@ inductive Safe (E : Env) (R : Set Int) :
   | pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {β : Type} {P : β → Prop}
       {sv : Solve P} {k : β → Prog α} :
       (∃ b, P b) → (∀ b, P b → Safe E R W Q m (k b)) → Safe E R W Q m (.pick P sv k)
-  /-- An operation of the platform: some result is allowed, and the rest is safe for every allowed
-  result. -/
-  | plat {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {q : PlatQ}
-      {k : q.Out → Prog α} :
-      (∃ r, q.Rel E.P r) → (∀ r, q.Rel E.P r → Safe E R W Q m (k r)) → Safe E R W Q m (.plat q k)
   /-- A loop: its first unfolding is safe. -/
   | loop {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {σ β : Type} {init : σ}
       {body : σ → Prog (σ ⊕ β)} {k : β → Prog α} :
@@ -85,7 +80,15 @@ inductive Safe (E : Env) (R : Set Int) :
 
 namespace Safe
 
+
 variable {E : Env} {R : Set Int}
+
+/-- An operation of the platform (`Prog.plat`, an `env` then a `pick`): some result is allowed,
+and the rest is safe for every allowed result. -/
+theorem plat {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {q : PlatQ}
+    {k : q.Out → Prog α} (hex : ∃ r, q.Rel E.P r) (hk : ∀ r, q.Rel E.P r → Safe E R W Q m (k r)) :
+    Safe E R W Q m (.plat q k) :=
+  .env (.pick hex hk)
 
 /-- Unfolding a loop and then binding is binding and then unfolding. -/
 theorem loopStep_bind {α β γ σ : Type} (init : σ) (body : σ → Prog (σ ⊕ β)) (k : β → Prog α)
@@ -111,7 +114,6 @@ theorem mono {α : Type} {Q Q' : α → Mem → Prop} {W W' : Set Int} {m : Mem}
     exact .rmw hex (hS.trans hW) hSR hc fun o n ho hn =>
       ih o n ho hn hQ (Set.sdiff_subset_sdiff_left hW)
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hQ hW
-  | plat hex _ ih => exact .plat hex fun r hr => ih r hr hQ hW
   | loop _ ih => exact .loop (ih hQ hW)
   | env _ ih => exact .env (ih hQ hW)
 
@@ -146,7 +148,6 @@ theorem bind {α β : Type} {Q : β → Mem → Prop} {f : α → Prog β} {p : 
     rw [union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
-  | plat hex _ ih => exact .plat hex fun r hr => ih r hr hd hQ'
   | loop _ ih => exact .loop (by rw [← loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
 
@@ -207,13 +208,6 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
       refine ⟨by simp [Event.silent], by simp [Event.silent], ?_, ?_⟩
       · simpa [Event.silent] using Step.pick b hb
       · simpa [Event.silent] using hk b hb
-  | plat r hr =>
-    cases ho
-    cases h with
-    | plat _ hk =>
-      refine ⟨by simp [Event.silent], by simp [Event.silent], ?_, ?_⟩
-      · simpa [Event.silent] using Step.plat r hr
-      · simpa [Event.silent] using hk r hr
   | loop =>
     cases ho
     cases h with
@@ -266,7 +260,6 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
   | storeUB => cases ho
   | rmwUB => cases ho
   | pickUB => cases ho
-  | platUB => cases ho
   | ub => cases ho
 
 /-- A safe program does not step into undefined behaviour, in any memory that agrees with its own
@@ -290,7 +283,6 @@ theorem no_ub {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
       · rw [hrd, hr] at h1; cases h1
       · rw [hrd, hr] at hr'; cases hr'; exact hno new hu
   | pickUB hno => cases h with | pick hex _ => obtain ⟨b, hb⟩ := hex; exact hno b hb
-  | platUB hno => cases h with | plat hex _ => obtain ⟨r, hr⟩ := hex; exact hno r hr
   | ub => cases h
 
 /-- **Progress and preservation.** Every step of a safe program is a normal step, within the
@@ -380,8 +372,6 @@ theorem acc {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {p : P
       fun new hnew => ih old new hr hnew
   | pick _ _ ih =>
     constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | pick b hb => exact ih b hb
-  | plat _ _ ih =>
-    constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | plat r hr => exact ih r hr
   | loop _ ih => constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | loop => exact ih
   | env _ ih => constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | env => exact ih
 

@@ -36,7 +36,7 @@ the compiler hints; the other families are in `TVA.Triton.Arith`, `Convert`, `Pr
   must work for each. When no value satisfies `P` the operation is undefined behaviour; that is
   how a model states a precondition (`tl.assume`, a division by zero, an out-of-range
   conversion). An operation the platform defines (an approximate `tl.exp`, `/`, a `tl.dot`) is a
-  `Prog.plat`, which is the same with the platform's relation. Each `pick` also carries a solver
+  `Prog.plat`: an `env` then a `pick` of the platform's relation. Each `pick` also carries a solver
   (`Solve`), used only to run a model; the meaning ignores it.
 * **NaN payloads are unspecified.** The device returns *some* NaN, not a particular one (PTX gives
   "an unspecified NaN" for `neg`, `abs` and arithmetic on NaN inputs, and MLIR folds such as

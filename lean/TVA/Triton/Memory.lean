@@ -159,7 +159,8 @@ def pad {d : DType} (p : Padding) (inb : Idx s → Bool) (v : Tensor s d.Val) :
       fun i => if h : inb i = true then some (.ok (v.get i) (by rw [ite_eq_left h]))
       else ((p.ans (d := d)).run H).map fun
         | .ok z hz => .ok z (by rw [ite_eq_right h]; exact hz)
-        | .empty hn => .empty fun z hz => hn z (by rw [ite_eq_right h] at hz; exact hz)).run H⟩ .ret
+        | .empty hn => .empty fun z hz => hn z (by rw [ite_eq_right h] at hz; exact hz)
+        | .assume z => .assume z).run H⟩ .ret
 
 /-! ## Atomics -/
 
@@ -228,7 +229,7 @@ def bitUpd (op : ∀ {sg : Bool} {w : Nat}, IntV sg w → IntV sg w → IntV sg 
   | _, _, _, _ => False
 
 /-! The solvers of the updates (`Solve`): integers computed; a float `atomic_add` is the
-platform's, so no answer. -/
+platform's, so `atomic_add` assumes the oracle's value (`Query.atomicAdd`). -/
 
 /-- `addUpd e d v o`, solved for integers. -/
 def addAns (e : Env) : (d : DType) → (v o : d.Val) → Option (Ans (addUpd e d v o))
@@ -280,7 +281,8 @@ def atomic_add {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
   .env fun e => atomicWith ptrs (fun i => addUpd e d (vals.get i))
-    (fun i o => ⟨fun _ => addAns e d (vals.get i) o⟩) mask sem scope
+    (fun i o => ⟨fun H => (addAns e d (vals.get i) o).orElse fun _ =>
+      (H (.atomicAdd d o (vals.get i))).map .assume⟩) mask sem scope
 
 /-- `tl.atomic_xchg(ptrs, vals, mask, sem, scope)`: writes `vals`, returns the old values. -/
 def atomic_xchg {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)

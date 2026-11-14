@@ -92,7 +92,6 @@ theorem Step.frame {α : Type} {E : Env} {m m' : Mem} {p p' : Prog α} {e : Even
   | rmw old new _ _ => cases ho; exact fun x hx => Mem.write_frame _ _ _ _ hx
   | load => cases ho; exact fun _ _ => rfl
   | pick => cases ho; exact fun _ _ => rfl
-  | plat => cases ho; exact fun _ _ => rfl
   | loop => cases ho; exact fun _ _ => rfl
   | env => cases ho; exact fun _ _ => rfl
   | defer _ _ ih => cases ho; exact ih default rfl
@@ -100,7 +99,6 @@ theorem Step.frame {α : Type} {E : Env} {m m' : Mem} {p p' : Prog α} {e : Even
   | storeUB => cases ho
   | rmwUB => cases ho
   | pickUB => cases ho
-  | platUB => cases ho
   | ub => cases ho
 
 /-- **Transfer of one step.** A step can be taken the same way in any memory that agrees on the
@@ -125,7 +123,6 @@ theorem Step.transfer {α : Type} {E : Env} {m m₀ m' : Mem} {p p' : Prog α} {
     rw [Mem.mix_write_self]
     exact .rmw old new ((Mem.read_congr fun x hx => hag x (Or.inl hx)).trans hr) hu
   | pick b hb => cases ho; simpa [Event.silent] using Step.pick b hb
-  | plat r hr => cases ho; simpa [Event.silent] using Step.plat r hr
   | loop => cases ho; simpa [Event.silent] using Step.loop
   | env => cases ho; simpa [Event.silent] using Step.env
   | defer _ hc ih => cases ho; exact .defer (fun v => ih v hag rfl) hc
@@ -133,7 +130,6 @@ theorem Step.transfer {α : Type} {E : Env} {m m₀ m' : Mem} {p p' : Prog α} {
   | storeUB => cases ho
   | rmwUB => cases ho
   | pickUB => cases ho
-  | platUB => cases ho
   | ub => cases ho
 
 end TVA

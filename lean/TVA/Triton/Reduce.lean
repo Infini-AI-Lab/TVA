@@ -61,6 +61,7 @@ def solve' {α : Type} (n : Nat) {rel : α → α → α → Prop} (op : α → 
   (solve n (fun _ => True) op h x H).map fun
     | .ok r hr => .ok r (by obtain ⟨t, h1, _, h2⟩ := hr; exact ⟨t, h1, h2⟩)
     | .empty hn => .empty fun r ⟨t, h1, h2⟩ => hn r ⟨t, h1, trivial, h2⟩
+    | .assume r => .assume r
 
 end Tree
 
@@ -207,6 +208,7 @@ def argAns [CmpKey α] (isMax tieLeft : Bool) (n : Nat) (g : Nat → α) (H : Hi
         obtain ⟨t, h1, h2⟩ := hp
         exact ⟨p, t, h1, h2, rfl⟩)))
     | .empty _ => none
+    | .assume p => some (.assume (p.1, IntV.ofNat p.2))
 
 /-- `tl.max(x, 0, return_indices=True, return_indices_tie_break_left=tieLeft)` (`isMax`) or
 `tl.min(…)` of a rank-1 tensor: a pair `ArgRes` allows. `tl.argmax(x, 0, tie_break_left=tieLeft)`

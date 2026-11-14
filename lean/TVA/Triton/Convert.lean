@@ -187,7 +187,8 @@ theorem DType.ofBits_toBits : (d : DType) → (v : d.Val) → d.ofBits (d.toBits
 /-! ### Solving a conversion
 
 What the solver of `tl.convert` computes for one element: the conversion's result, with its proof,
-or "no result". It gives up (`none`) only on a conversion into fp8, which is the platform's. -/
+or "no result". `convAns` gives up (`none`) only on a conversion into fp8, which is the
+platform's; there `tl.convert` assumes the oracle's value (`Query.convert`). -/
 
 /-- `ofIntRel z d'`, solved. -/
 def ofIntAns (z : Int) : (d' : DType) → Option (Ans (ofIntRel z d'))
@@ -243,7 +244,8 @@ promotion of a mixed-dtype operator, the condition of `tl.where` to `int1`): eac
 `ConvRel` allows; undefined behaviour if some element has no result. -/
 def convert {s : Shape} (d d' : DType) (x : Tensor s d.Val) : Prog (Tensor s d'.Val) :=
   .env fun e => .pick (fun r : Tensor s d'.Val => ∀ i, ConvRel e.P d d' (x.get i) (r.get i))
-    (.each fun i => convAns e.P d d' (x.get i)) .ret
+    ⟨fun H => (Solve.each fun i => (convAns e.P d d' (x.get i)).orElse fun _ =>
+      (H (.convert d d' (x.get i))).map .assume).run H⟩ .ret
 
 /-- `x.to(d', bitcast=True)` of a tensor of dtype `d` (`semantic.py:793-809`): each element's bit
 pattern read as a value of `d'`, exact, NaN payloads included. Triton requires the same width

@@ -234,10 +234,6 @@ theorem acc {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Pr
     constructor; rintro ⟨m', p'⟩ ⟨m₁, m₁', e, hag, hs, rfl⟩
     cases hs with
     | pick b hb => rw [mix_off hag]; exact ih b hb hQ hdA
-  | plat _ _ ih =>
-    constructor; rintro ⟨m', p'⟩ ⟨m₁, m₁', e, hag, hs, rfl⟩
-    cases hs with
-    | plat r hr => rw [mix_off hag]; exact ih r hr hQ hdA
   | loop _ ih =>
     constructor; rintro ⟨m', p'⟩ ⟨m₁, m₁', e, hag, hs, rfl⟩
     cases hs with

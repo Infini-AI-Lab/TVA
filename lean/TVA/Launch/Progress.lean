@@ -45,11 +45,6 @@ theorem Step.progress (E : Env) (m : Mem) {α : Type} (p : Prog α) (hp : ∀ a,
     · obtain ⟨b, hb⟩ := hb
       exact .inl ⟨_, _, _, Step.pick b hb⟩
     · exact .inr (.pickUB fun b h => hb ⟨b, h⟩)
-  | plat q k =>
-    by_cases hr : ∃ r, q.Rel E.P r
-    · obtain ⟨r, hr⟩ := hr
-      exact .inl ⟨_, _, _, Step.plat r hr⟩
-    · exact .inr (.platUB fun r h => hr ⟨r, h⟩)
   | ub => exact .inr .ub
   | loop init body k => exact .inl ⟨_, _, _, .loop⟩
   | env k => exact .inl ⟨_, _, _, .env⟩

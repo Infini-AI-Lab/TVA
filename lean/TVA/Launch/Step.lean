@@ -19,8 +19,6 @@ Each step does the program's next effect (`TVA.Program`) as one indivisible acti
 * `rmw`: one element of an atomic, read and written in one step; it continues with the old value.
 * `pick`: any value satisfying the predicate, or undefined behaviour when there is none. The
   `pick`'s solver plays no part.
-* `plat`: any result the platform's relation allows (`PlatQ.Rel`), or undefined behaviour when
-  there is none.
 * `loop`: one unfolding (`Prog.loopStep`); `env`: read the environment.
 
 The steps follow the program's text, with one exception: an atomic need not be performed before
@@ -50,7 +48,7 @@ structure Event where
 
 namespace Event
 
-/-- A step that touches no memory (`pick`, `plat`, `loop`, `env`). -/
+/-- A step that touches no memory (`pick`, `loop`, `env`). -/
 def silent : Event := {}
 
 /-- Two steps conflict when one writes a byte the other reads or writes. Conflicting steps of
@@ -172,12 +170,6 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
   /-- A `pick` that nothing satisfies is undefined behaviour. -/
   | pickUB {α β : Type} {P : β → Prop} {sv : Solve P} {k : β → Prog α} :
       (∀ b, ¬ P b) → Step E m (.pick P sv k) .ub
-  /-- An operation of the platform: continue with any result its relation allows. -/
-  | plat {α : Type} {q : PlatQ} {k : q.Out → Prog α} (r : q.Out) :
-      q.Rel E.P r → Step E m (.plat q k) (.next m (k r) .silent)
-  /-- An operation of the platform that allows no result is undefined behaviour. -/
-  | platUB {α : Type} {q : PlatQ} {k : q.Out → Prog α} :
-      (∀ r, ¬ q.Rel E.P r) → Step E m (.plat q k) .ub
   /-- `ub` is undefined behaviour. -/
   | ub {α : Type} : Step E m (.ub : Prog α) .ub
   /-- A loop unfolds one iteration (`Prog.loopStep`). -/

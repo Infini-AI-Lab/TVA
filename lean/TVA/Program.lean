@@ -16,7 +16,6 @@ effects are constructors, so that the semantics (`TVA.Launch`) and the proof kit
 | `store d s addrs vals k` | `tl.store`: write each enabled lane's value; the lanes land in an unspecified order (it matters only for duplicate addresses) |
 | `rmw d a upd solve sem scope k` | one element of a `tl.atomic_*`: read the old value, write a new one related to it by `upd`, continue with the old value. `solve` is for running the model, as for `pick` |
 | `pick P solve k` | a value the program cannot predict, constrained by `P`: what a masked-out load returns, a reduction tree, a rounding choice. Undefined behaviour when nothing satisfies `P`. `solve` is for running the model (`Solve`); the semantics ignores it |
-| `plat q k` | an operation the platform defines (`tl.exp`, `/`, `tl.dot`, a conversion into fp8): any result `PlatQ.Rel` allows on the environment's platform. Undefined behaviour when there is none |
 | `ub` | undefined behaviour (an invalid access, `//` by zero, an over-wide shift) |
 | `loop init body k` | a loop whose trip count is decided at run time: run `body` from state `init` until it returns `inr b`, then continue with `k b` |
 | `env k` | read the environment `Env`: the platform's relations and `enable_fp_fusion` |
@@ -56,15 +55,23 @@ whatever it reports. At a `pick P` it needs a value satisfying `P`, and in compi
 the value's type are erased: the executor cannot tell a bounds guard from a reduction tree. So
 each `pick` carries a `Solve P`, code that proposes a value, asking an oracle (`Hints`) for the
 parts it cannot compute, and returns it with its proof (`Ans`). The semantics ignores the
-solver: a `pick`'s meaning is `P` alone, so a reader of a model can skip every solver, and since
-every answer carries its proof, a wrong solver can only make the executor give up. -/
+solver: a `pick`'s meaning is `P` alone, so a reader of a model can skip every solver.
 
-/-- A certified answer to "some `b` with `P b`". -/
+An answer is certified (`Ans.ok`, `Ans.empty`: it carries its proof) or **assumed** (`Ans.assume`:
+a value with no proof). An assumed value comes from the oracle, at a site where `P` mentions the
+platform (`e.P`), which no solver can decide: the device's value of a `tl.dot` folded with an
+addition, of a float `atomic_add`, of a conversion into fp8. The executor records each assumed
+value, and what it reports is then conditional on every recorded value satisfying its `P`. With
+certified answers only, a wrong solver can only make the executor give up. -/
+
+/-- An answer to "some `b` with `P b`". -/
 inductive Ans {β : Type} (P : β → Prop) : Type where
   /-- A value satisfying `P`. -/
   | ok (b : β) (h : P b)
   /-- No value satisfies `P`: the step is undefined behaviour. -/
   | empty (h : ∀ b, ¬ P b)
+  /-- A value assumed to satisfy `P`, with no proof (from the oracle, at a platform site). -/
+  | assume (b : β)
 
 namespace Ans
 
@@ -78,6 +85,12 @@ def val? : Option (Ans P) → Option β
 theorem val?_spec : {o : Option (Ans P)} → {b : β} → val? o = some b → P b
   | some (.ok _ h), _, rfl => h
 
+/-- The value of an answer, certified or assumed, if it has one. -/
+def get? : Option (Ans P) → Option β
+  | some (.ok b _) => some b
+  | some (.assume b) => some b
+  | _ => none
+
 /-- The answer is "no value". -/
 def isEmpty : Option (Ans P) → Bool
   | some (.empty _) => true
@@ -86,6 +99,7 @@ def isEmpty : Option (Ans P) → Bool
 theorem isEmpty_spec : {o : Option (Ans P)} → isEmpty o = true → ∀ b, ¬ P b
   | some (.empty h), _ => h
   | some (.ok _ _), h => absurd h (by simp [isEmpty])
+  | some (.assume _), h => absurd h (by simp [isEmpty])
   | none, h => absurd h (by simp [isEmpty])
 
 end Ans
@@ -101,6 +115,12 @@ inductive Query : Type → Type where
   | val (d : DType) : Query d.Val
   /-- A choice among alternatives, by number. -/
   | nat : Query Nat
+  /-- The result of a platform operation on its operands (as the device computes it). -/
+  | plat (q : PlatQ) : Query q.Out
+  /-- An element `x` of dtype `d` converted to `d'` (a conversion into fp8). -/
+  | convert (d d' : DType) (x : d.Val) : Query d'.Val
+  /-- The new value of a float `atomic_add` of `v` to a cell holding `old`. -/
+  | atomicAdd (d : DType) (old v : d.Val) : Query d.Val
 
 /-- An oracle for `Query`: `none` when it has no answer. -/
 abbrev Hints := {τ : Type} → Query τ → Option τ
@@ -140,7 +160,8 @@ def ask {τ : Type} (q : Query τ) (f : τ → Solve P) : Solve P :=
   ⟨fun H => (H q).bind fun t => (f t).run H⟩
 
 /-- Lane by lane: a tensor whose lane `i` satisfies `R i`, from an answer for each lane. When
-every lane has a value, their tensor; when some lane has none, no tensor. -/
+every lane has a certified value, their tensor; when some lane has none, no tensor; when every
+lane has a value, some of them assumed, their tensor, assumed. -/
 def each {s : Shape} {α : Type} {R : Idx s → α → Prop} (f : (i : Idx s) → Option (Ans (R i))) :
     Solve (fun r : Tensor s α => ∀ i, R i (r.get i)) :=
   ⟨fun _ =>
@@ -151,6 +172,8 @@ def each {s : Shape} {α : Type} {R : Idx s → α → Prop} (f : (i : Idx s) �
       some (.empty fun r hr => by
         obtain ⟨i, hi⟩ := hex
         exact Ans.isEmpty_spec hi _ (hr i))
+    else if hget : ∀ i, (Ans.get? (f i)).isSome then
+      some (.assume ⟨fun i => (Ans.get? (f i)).get (hget i)⟩)
     else Option.none⟩
 
 /-- A lanewise partial function `g`: lane `i` of the result is `g i`, and there is no result when
@@ -186,19 +209,27 @@ def each1 {m : Nat} {α : Type} {R : Fin m → α → Prop} (f : Hints → (i : 
       some (.empty fun r hr => by
         obtain ⟨i, hi⟩ := hex
         exact Ans.isEmpty_spec hi _ (hr i))
+    else if hget : ∀ i, (Ans.get? (f H i)).isSome then
+      some (.assume (Tensor.of1 fun i => (Ans.get? (f H i)).get (hget i)))
     else Option.none⟩
 
 /-- A solver for `Q` from one for `P`, through `f`; gives up where `P` has no value. -/
 def conv {γ : Type} {Q : γ → Prop} (sv : Solve P) (f : β → γ) (hf : ∀ b, P b → Q (f b)) : Solve Q :=
   ⟨fun H => (sv.run H).bind fun
     | .ok b h => some (.ok (f b) (hf b h))
-    | .empty _ => Option.none⟩
+    | .empty _ => Option.none
+    | .assume b => some (.assume (f b))⟩
 
 /-- A solver for a weaker predicate. -/
 def mono {Q : β → Prop} (h : ∀ b, P b ↔ Q b) (sv : Solve P) : Solve Q :=
   ⟨fun H => (sv.run H).map fun
     | .ok b hb => .ok b ((h b).mp hb)
-    | .empty hn => .empty fun b hb => hn b ((h b).mpr hb)⟩
+    | .empty hn => .empty fun b hb => hn b ((h b).mpr hb)
+    | .assume b => .assume b⟩
+
+/-- Ask the oracle for `q` and assume its answer: no proof, so an executor's report is
+conditional on it. For a site whose `P` mentions the platform. -/
+def assume (q : Query β) : Solve P := ⟨fun H => (H q).map .assume⟩
 
 end Solve
 
@@ -272,9 +303,6 @@ inductive Prog : Type → Type 1 where
   /-- A value of type `β` satisfying `P`, which the program cannot predict. Undefined behaviour
   when no value satisfies `P`. `solve` plays no part in the meaning (`Solve`). -/
   | pick {α β : Type} (P : β → Prop) (solve : Solve P) (k : β → Prog α) : Prog α
-  /-- An operation the platform defines, on concrete operands (`PlatQ`): a result `q.Rel` allows
-  for the environment's platform. Undefined behaviour when there is none. -/
-  | plat {α : Type} (q : PlatQ) (k : q.Out → Prog α) : Prog α
   /-- Undefined behaviour. -/
   | ub {α : Type} : Prog α
   /-- A loop with state `σ`: run `body` from `init`; `inl s` goes round again from `s`, `inr b`
@@ -292,7 +320,6 @@ def bind {α β : Type} : Prog α → (α → Prog β) → Prog β
   | store d s addrs vals k, f => store d s addrs vals (k.bind f)
   | rmw d a upd sv sem sc k, f => rmw d a upd sv sem sc (fun v => (k v).bind f)
   | pick P sv k, f => pick P sv (fun b => (k b).bind f)
-  | plat q k, f => plat q (fun r => (k r).bind f)
   | ub, _ => ub
   | loop init body k, f => loop init body (fun b => (k b).bind f)
   | env k, f => env (fun e => (k e).bind f)
@@ -317,7 +344,6 @@ instance : Monad Prog where
   | store d s addrs vals k ih => simp only [bind, ih]
   | rmw d a upd sv sem sc k ih => simp only [bind, ih]
   | pick P sv k ih => simp only [bind, ih]
-  | plat q k ih => simp only [bind, ih]
   | ub => rfl
   | loop init body k _ ih => simp only [bind, ih]
   | env k ih => simp only [bind, ih]
@@ -331,10 +357,19 @@ theorem bind_assoc {α β γ : Type} (p : Prog α) (f : α → Prog β) (g : β 
   | store d s addrs vals k ih => simp only [bind, ih]
   | rmw d a upd sv sem sc k ih => simp only [bind, ih]
   | pick P sv k ih => simp only [bind, ih]
-  | plat q k ih => simp only [bind, ih]
   | ub => rfl
   | loop init body k _ ih => simp only [bind, ih]
   | env k ih => simp only [bind, ih]
+
+/-- An operation the platform defines, on concrete operands (`PlatQ`: `tl.exp`, `/`, `tl.dot`, a
+conversion into fp8): read the environment, then any result `q.Rel` allows on its platform;
+undefined behaviour when there is none. Not a constructor: it is `env` then `pick`, whose solver
+assumes the oracle's answer (`Query.plat`). -/
+def plat {α : Type} (q : PlatQ) (k : q.Out → Prog α) : Prog α :=
+  env fun e => pick (q.Rel e.P) (Solve.assume (.plat q)) k
+
+@[simp] theorem plat_bind {α β : Type} (q : PlatQ) (k : q.Out → Prog α) (f : α → Prog β) :
+    (plat q k).bind f = plat q (fun r => (k r).bind f) := rfl
 
 instance : LawfulMonad Prog := LawfulMonad.mk'
   (id_map := fun p => bind_ret p)
