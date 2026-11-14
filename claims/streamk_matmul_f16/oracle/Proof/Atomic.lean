@@ -391,7 +391,7 @@ theorem tail_atomic (hP : Device P) (hd : d.ok) {init : Mem} (hpre : Pre d init)
   refine SafeA.atomic (d := .f32)
     (ptrs := ptrsC (d.c.ptr 0) (offs1 pm 128) (offs1 pn 128) (IntV.ofNat d.stride_cm)
       (IntV.ofNat d.stride_cn))
-    (upd := fun k => tl.addUpd ((launch d).env P) .f32 (acc.get k))
+    (u := fun k => Upd.add (d := .f32) ((launch d).env P) (acc.get k))
     (mask := some (maskC (offs1 pm 128) (offs1 pn 128) (IntV.ofNat d.M) (IntV.ofNat d.N)))
     (sem := .acqRel) (sc := .gpu) (k := .ret (stv + (kl - kf)))
     ?_ rfl (by decide) ?_ ?_

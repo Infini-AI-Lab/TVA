@@ -4,6 +4,7 @@ import TVA.Triton.Convert.Rel
 import TVA.Triton.Dot.Rel
 import TVA.Triton.Reduce.Rel
 import TVA.Triton.Memory.Rel
+import TVA.Triton.Desc.Rel
 
 /-!
 # Triton's sites: what a Triton program may leave open
@@ -187,11 +188,31 @@ inductive Site : Type 1 where
 
 /-- The update an atomic makes to one element of dtype `d`. -/
 inductive Upd (d : DType) : Type 1 where
+  /-- `tl.atomic_add` of `v` (`tl.addUpd`: integers wrap; floats as the platform of `e` adds). -/
+  | add (e : Env) (v : d.Val)
+  /-- `tl.atomic_xchg` of `v`: the new value is `v`. -/
+  | xchg (v : d.Val)
+  /-- `tl.atomic_cas` with `cmp` and `v`: `v` when the old value equals `cmp`, the old value
+  otherwise. -/
+  | cas (cmp v : d.Val)
+  /-- `tl.atomic_max` (`isMax`) or `tl.atomic_min` of `v` (`tl.maxUpd`). -/
+  | max (isMax : Bool) (v : d.Val)
+  /-- A bitwise atomic (`tl.atomic_and`, `or`, `xor`) of `v`, with `op` on the bit vectors
+  (`tl.bitUpd`). -/
+  | bit (op : ∀ {sg : Bool} {w : Nat}, IntV sg w → IntV sg w → IntV sg w) (v : d.Val)
+  /-- The reduction `op` of `desc.atomic_*` with `v`, on the platform of `e` (`RedOp.Upd`). -/
+  | red (e : Env) (op : RedOp) (v : d.Val)
   /-- Any new value `upd old` allows. -/
   | other (upd : d.Val → d.Val → Prop)
 
 /-- The new values an update allows, given the old one. -/
 @[reducible] def Upd.Allows {d : DType} : Upd d → d.Val → d.Val → Prop
+  | .add e v => tl.addUpd e d v
+  | .xchg v => fun _ n => n = v
+  | .cas cmp v => fun o n => n = if o = cmp then v else o
+  | .max isMax v => tl.maxUpd isMax d v
+  | .bit op v => tl.bitUpd op d v
+  | .red e op v => RedOp.Upd e op d v
   | .other upd => upd
 
 /-- **Triton's signature**: its sites and its atomics' updates. -/

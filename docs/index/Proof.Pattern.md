@@ -617,7 +617,7 @@ result (`RedOp.upd_total_int`, `RedOp.upd_total_minmax`, the device's `atomicAdd
 
 ### `TVA.safe_desc_gather`
 
-theorem · [lean/TVA/Proof/Pattern/Desc.lean:186](../../lean/TVA/Proof/Pattern/Desc.lean#L186)
+theorem · [lean/TVA/Proof/Pattern/Desc.lean:187](../../lean/TVA/Proof/Pattern/Desc.lean#L187)
 
 ```lean
 TVA.safe_desc_gather {d : TVA.DType} {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem}
@@ -638,7 +638,7 @@ unspecified).
 
 ### `TVA.safe_desc_scatter`
 
-theorem · [lean/TVA/Proof/Pattern/Desc.lean:204](../../lean/TVA/Proof/Pattern/Desc.lean#L204)
+theorem · [lean/TVA/Proof/Pattern/Desc.lean:205](../../lean/TVA/Proof/Pattern/Desc.lean#L205)
 
 ```lean
 TVA.safe_desc_scatter {d : TVA.DType} {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem}

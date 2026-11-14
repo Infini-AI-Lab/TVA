@@ -1397,9 +1397,9 @@ theorem · [lean/TVA/Proof/Rules/Memory.lean:255](../../lean/TVA/Proof/Rules/Mem
 
 ```lean
 TVA.tl.rmwSeq_bind_const {s : TVA.Shape} {d : TVA.DType} {β : Type} (ptrs : TVA.Tensor s (TVA.Ptr d))
-  (upd : TVA.Idx s → d.Val → d.Val → Prop) (sem : TVA.MemSem) (sc : TVA.Scope) (K : TVA.Prog β) (L : List (TVA.Idx s))
+  (u : TVA.Idx s → TVA.Upd d) (sem : TVA.MemSem) (sc : TVA.Scope) (K : TVA.Prog β) (L : List (TVA.Idx s))
   (acc acc' : TVA.Idx s → d.Val) :
-  ((TVA.tl.rmwSeq ptrs upd sem sc L acc).bind fun x => K) = (TVA.tl.rmwSeq ptrs upd sem sc L acc').bind fun x => K
+  ((TVA.tl.rmwSeq ptrs u sem sc L acc).bind fun x => K) = (TVA.tl.rmwSeq ptrs u sem sc L acc').bind fun x => K
 ```
 
 After the read-modify-writes of some lanes, a continuation that ignores their old values does
@@ -1412,21 +1412,21 @@ theorem · [lean/TVA/Proof/Rules/Memory.lean:344](../../lean/TVA/Proof/Rules/Mem
 ```lean
 TVA.safe_atomic_buf {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
   {d : TVA.DType} (b : TVA.Buf d) {ptrs : TVA.Tensor s (TVA.Ptr d)} {mask : Option (TVA.Tensor s Bool)}
-  {upd : TVA.Idx s → d.Val → d.Val → Prop} {sem : TVA.MemSem} {sc : TVA.Scope} {g : TVA.Idx s → ℕ}
-  {en : TVA.Idx s → Bool} (hA : b.Addrs (TVA.tl.addrs ptrs mask) g en)
-  (hin : ∀ (i : TVA.Idx s), en i = true → g i < b.len)
+  {u : TVA.Idx s → TVA.Upd d} {sem : TVA.MemSem} {sc : TVA.Scope} {g : TVA.Idx s → ℕ} {en : TVA.Idx s → Bool}
+  (hA : b.Addrs (TVA.tl.addrs ptrs mask) g en) (hin : ∀ (i : TVA.Idx s), en i = true → g i < b.len)
   (hinj : ∀ (i j : TVA.Idx s), en i = true → en j = true → g i = g j → i = j)
-  (htot : ∀ (i : TVA.Idx s) (o : d.Val), ∃ n, upd i o n) (hv : b.Valid m) (hW : b.elems (TVA.Buf.img g en) ⊆ W)
+  (htot : ∀ (i : TVA.Idx s) (o : d.Val), ∃ n, (u i).Allows o n) (hv : b.Valid m) (hW : b.elems (TVA.Buf.img g en) ⊆ W)
   (hRd : Disjoint (b.elems (TVA.Buf.img g en)) R) {k : TVA.Prog α}
   (hk :
     ∀ (m' : TVA.Mem),
       (∀ (i : TVA.Idx s),
           en i = true →
-            ∃ old n, m.read d (b.ptr ↑(g i)).addr = some old ∧ upd i old n ∧ m'.read d (b.ptr ↑(g i)).addr = some n) →
+            ∃ old n,
+              m.read d (b.ptr ↑(g i)).addr = some old ∧ (u i).Allows old n ∧ m'.read d (b.ptr ↑(g i)).addr = some n) →
         (∀ x ∉ b.elems (TVA.Buf.img g en), m' x = m x) →
           (∀ (x : ℤ), m x ≠ none → m' x ≠ none) → TVA.Safe E R (W \ b.elems (TVA.Buf.img g en)) Q m' k) :
   TVA.Safe E R W Q m do
-    let _ ← TVA.tl.atomicWith ptrs upd mask sem sc
+    let _ ← TVA.tl.atomicWith ptrs u mask sem sc
     k
 ```
 
@@ -1435,8 +1435,9 @@ enabled lane updates its own element of `b` once, from the element's value befor
 rule gives each element's old and new value, and nothing outside the elements changes. The
 elements are outside the read footprint, and the rest of the program may not touch them again.
 The rule is about `tl.atomicWith`, which every `tl.atomic_*` is except `tl.atomic_add`: that is
-`.env fun e => tl.atomicWith ptrs (fun i => tl.addUpd e d (vals.get i)) mask sem sc`, so unfold
-it, apply `Safe.env`, then this rule with `upd := fun i => tl.addUpd E d (vals.get i)`.
+`.env fun e => tl.atomicWith ptrs (fun i => .add e (vals.get i)) mask sem sc`, so unfold it,
+apply `Safe.env`, then this rule with `u := fun i => .add E (vals.get i)` (whose `Upd.Allows` is
+`tl.addUpd E d (vals.get i)`).
 
 ## `TVA.Proof.Rules.Reduce`
 

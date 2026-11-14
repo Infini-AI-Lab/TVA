@@ -924,27 +924,27 @@ theorem · [lean/TVA/Proof/Shared/Rules.lean:72](../../lean/TVA/Proof/Shared/Rul
 ```lean
 TVA.SafeA.atomic {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
   {Q : α → List TVA.AtomicStep → TVA.Mem → Prop} {log : List TVA.AtomicStep} {m : TVA.Mem} {s : TVA.Shape}
-  {d : TVA.DType} {ptrs : TVA.Tensor s (TVA.Ptr d)} {upd : TVA.Idx s → d.Val → d.Val → Prop}
-  {mask : Option (TVA.Tensor s Bool)} {sem : TVA.MemSem} {sc : TVA.Scope} {k : TVA.Prog α}
+  {d : TVA.DType} {ptrs : TVA.Tensor s (TVA.Ptr d)} {u : TVA.Idx s → TVA.Upd d} {mask : Option (TVA.Tensor s Bool)}
+  {sem : TVA.MemSem} {sc : TVA.Scope} {k : TVA.Prog α}
   (hcell :
     ∀ (i : TVA.Idx s),
       (TVA.tl.addrs ptrs mask i).isSome = true → TVA.Mem.Aligned d (ptrs.get i).addr ∧ (d, (ptrs.get i).addr) ∈ C)
   (hsem : sem = TVA.MemSem.acqRel) (hsc : sc ≠ TVA.Scope.cta)
-  (htot : ∀ (i : TVA.Idx s) (old : d.Val), ∃ new, upd i old new)
+  (htot : ∀ (i : TVA.Idx s) (old : d.Val), ∃ new, (u i).Allows old new)
   (hk :
     ∀ (order : List (TVA.Idx s)),
       order.Perm (TVA.enabled (TVA.tl.addrs ptrs mask)) →
         ∀ (olds news : TVA.Idx s → d.Val),
-          (∀ i ∈ order, upd i (olds i) (news i)) →
+          (∀ i ∈ order, (u i).Allows (olds i) (news i)) →
             TVA.SafeA E R W C Q
               (log ++ List.map (fun i => { d := d, a := (ptrs.get i).addr, old := olds i, new := news i }) order) m k) :
   TVA.SafeA E R W C Q log m do
-    let _ ← TVA.tl.atomicWith ptrs upd mask sem sc
+    let _ ← TVA.tl.atomicWith ptrs u mask sem sc
     k
 ```
 
 **A tensor atomic on shared cells, result unused** (`let _ ← tl.atomic_…(ptrs, v, mask)`, as
-`tl.atomicWith ptrs upd mask`): every enabled lane's element is an aligned cell of `C`, the order
+`tl.atomicWith ptrs u mask`): every enabled lane's element is an aligned cell of `C`, the order
 is `acq_rel` at `gpu` or `sys` scope, and the update has a new value for every old value. For
 every order of the enabled lanes and all old and new values the update allows, the log grows by
 one step per enabled lane, in that order. For `tl.atomic_add`, use `SafeA.atomic_add`.
@@ -956,14 +956,15 @@ theorem · [lean/TVA/Proof/Shared/Rules.lean:95](../../lean/TVA/Proof/Shared/Rul
 ```lean
 TVA.SafeA.atomic1 {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
   {Q : α → List TVA.AtomicStep → TVA.Mem → Prop} {log : List TVA.AtomicStep} {m : TVA.Mem} {d : TVA.DType}
-  {ptrs : TVA.Tensor [] (TVA.Ptr d)} {upd : TVA.Idx [] → d.Val → d.Val → Prop} {sem : TVA.MemSem} {sc : TVA.Scope}
-  {k : TVA.Prog α} (hal : TVA.Mem.Aligned d (ptrs.get ()).addr) (hC : (d, (ptrs.get ()).addr) ∈ C)
-  (hsem : sem = TVA.MemSem.acqRel) (hsc : sc ≠ TVA.Scope.cta) (htot : ∀ (old : d.Val), ∃ new, upd () old new)
+  {ptrs : TVA.Tensor [] (TVA.Ptr d)} {u : TVA.Idx [] → TVA.Upd d} {sem : TVA.MemSem} {sc : TVA.Scope} {k : TVA.Prog α}
+  (hal : TVA.Mem.Aligned d (ptrs.get ()).addr) (hC : (d, (ptrs.get ()).addr) ∈ C) (hsem : sem = TVA.MemSem.acqRel)
+  (hsc : sc ≠ TVA.Scope.cta) (htot : ∀ (old : d.Val), ∃ new, (u ()).Allows old new)
   (hk :
     ∀ (old new : d.Val),
-      upd () old new → TVA.SafeA E R W C Q (log ++ [{ d := d, a := (ptrs.get ()).addr, old := old, new := new }]) m k) :
+      (u ()).Allows old new →
+        TVA.SafeA E R W C Q (log ++ [{ d := d, a := (ptrs.get ()).addr, old := old, new := new }]) m k) :
   TVA.SafeA E R W C Q log m do
-    let _ ← TVA.tl.atomicWith ptrs upd none sem sc
+    let _ ← TVA.tl.atomicWith ptrs u none sem sc
     k
 ```
 

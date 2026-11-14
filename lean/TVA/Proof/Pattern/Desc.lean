@@ -180,7 +180,8 @@ theorem safe_desc_atomic (b : Buf d) {bs : Shape} {op : RedOp} {D : TensorDesc d
     Safe E R W Q m (tl.desc_atomic op D offsets vals >>= k) := by
   simp only [tl.desc_atomic, Prog.bind_eq, Prog.bind, Prog.bind_assoc, Prog.pure_eq]
   refine .guard ⟨hacc, hop⟩ fun _ => .env ?_
-  exact safe_atomic_buf b (D.addrs_buf b hbase _) hin hinj (fun i => htot (vals.get i)) hv hW hRd
+  exact safe_atomic_buf (u := fun i => .red E op (vals.get i)) b (D.addrs_buf b hbase _) hin hinj
+    (fun i => htot (vals.get i)) hv hW hRd
     hk
 
 /-- **`desc.gather(xs, y)`** from a buffer: in-bounds lanes get their element (the others are
