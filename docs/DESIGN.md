@@ -93,13 +93,16 @@ its `Claim.lean` is pinned by its sha256.
 
 A launch runs one program instance per grid point. Each program is a `Prog` value: pure Lean for
 values, constructors for effects (`load`, `store`, `rmw` for one atomic element, `pick` for a
-value the program cannot predict, `ub`, `loop`, `env`). Programs interleave one step at a time
+value the program cannot predict, `plat` for an operation the platform defines, `ub`, `loop`,
+`env`). Programs interleave one step at a time
 over a shared memory (sequential consistency). The launch is *well behaved* when no program
 reaches undefined behaviour, no two programs make conflicting non-atomic accesses to the same
 bytes, a program makes no conflicting accesses to the same bytes itself (its threads do not order
 them), and no program uses an atomic's result on a cell another access also reaches. Approximate
-operations (`exp`, `tl.dot`, fp8 conversion, float atomics) take their result from the platform's
-relation through `pick`, so a proof works for every result the device facts allow.
+operations (`exp`, `/`, `tl.dot`, fp8 conversion) take their result from the platform's relation
+through `plat` (float atomics through `rmw`'s relation), so a proof works for every result the
+device facts allow. Each `pick` and `rmw` also carries a solver (`Solve`), used only to run a
+model (`validation/Exec.lean`); the semantics ignores it.
 
 ## Building, checking
 

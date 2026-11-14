@@ -255,21 +255,23 @@ theorem safe_pad {p : Padding} {inb : Idx s → Bool} {v : Tensor s d.Val}
 /-- After the read-modify-writes of some lanes, a continuation that ignores their old values does
 not depend on the values collected before. -/
 theorem tl.rmwSeq_bind_const {β : Type} (ptrs : Tensor s (Ptr d))
-    (upd : Idx s → d.Val → d.Val → Prop) (sem : MemSem) (sc : Scope) (K : Prog β) :
+    (upd : Idx s → d.Val → d.Val → Prop)
+    (sv : (i : Idx s) → (old : d.Val) → Solve (upd i old)) (sem : MemSem) (sc : Scope) (K : Prog β) :
     ∀ (L : List (Idx s)) (acc acc' : Idx s → d.Val),
-      (tl.rmwSeq ptrs upd sem sc L acc).bind (fun _ => K) =
-        (tl.rmwSeq ptrs upd sem sc L acc').bind (fun _ => K)
+      (tl.rmwSeq ptrs upd sv sem sc L acc).bind (fun _ => K) =
+        (tl.rmwSeq ptrs upd sv sem sc L acc').bind (fun _ => K)
   | [], _, _ => rfl
   | i :: rest, acc, acc' => by
     simp only [tl.rmwSeq, Prog.bind]
     congr 1
     funext old
-    exact tl.rmwSeq_bind_const ptrs upd sem sc K rest _ _
+    exact tl.rmwSeq_bind_const ptrs upd sv sem sc K rest _ _
 
 /-- The read-modify-writes of the lanes `L`, each on its own element of `b`, followed by a
 continuation that ignores their old values. -/
 private theorem safe_rmwSeq_buf (b : Buf d) {ptrs : Tensor s (Ptr d)}
-    {upd : Idx s → d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} {g : Idx s → Nat}
+    {upd : Idx s → d.Val → d.Val → Prop}
+    {sv : (i : Idx s) → (old : d.Val) → Solve (upd i old)} {sem : MemSem} {sc : Scope} {g : Idx s → Nat}
     {β : Type} {Q' : β → Mem → Prop} {K : Prog β} (htot : ∀ i o, ∃ n, upd i o n) :
     ∀ (L : List (Idx s)), L.Nodup →
     (∀ i ∈ L, (ptrs.get i).addr = (b.ptr (g i : Int)).addr ∧ g i < b.len) →
@@ -282,7 +284,7 @@ private theorem safe_rmwSeq_buf (b : Buf d) {ptrs : Tensor s (Ptr d)}
       (∀ x, (∀ i ∈ L, x ∉ Mem.span d (b.ptr (g i : Int)).addr) → m' x = m₀ x) →
       b.Valid m' → (∀ x, m₀ x ≠ none → m' x ≠ none) →
       Safe E R (W \ {x | ∃ i ∈ L, x ∈ Mem.span d (b.ptr (g i : Int)).addr}) Q' m' K) →
-    Safe E R W Q' m₀ ((tl.rmwSeq ptrs upd sem sc L acc).bind (fun _ => K))
+    Safe E R W Q' m₀ ((tl.rmwSeq ptrs upd sv sem sc L acc).bind (fun _ => K))
   | [], _, _, _, W, _, acc, m₀, hv, hf => by
     simp only [tl.rmwSeq, Prog.ret_bind]
     have h := hf m₀ (fun _ h => absurd h List.not_mem_nil) (fun _ _ => rfl) hv (fun _ h => h)
@@ -303,7 +305,7 @@ private theorem safe_rmwSeq_buf (b : Buf d) {ptrs : Tensor s (Ptr d)}
     obtain ⟨o, ho⟩ := b.read_some hv hi.2
     obtain ⟨n, hn⟩ := htot i o
     refine .rmw ⟨o, ho, n, hn⟩ (hRW i List.mem_cons_self).1 (hRW i List.mem_cons_self).2
-      (fun v w => tl.rmwSeq_bind_const ptrs upd sem sc K rest _ _) fun old new hold hnew => ?_
+      (fun v w => tl.rmwSeq_bind_const ptrs upd sv sem sc K rest _ _) fun old new hold hnew => ?_
     have hw := b.writable hv hi.2
     have hv₁ : b.Valid (m₀.write d (b.ptr (g i : Int)).addr new) :=
       Buf.valid_of_agree hv fun x hx => Mem.write_present _ (hv.2.2.2 x hx)
@@ -349,7 +351,8 @@ The rule is about `tl.atomicWith`, which every `tl.atomic_*` is except `tl.atomi
 `.env fun e => tl.atomicWith ptrs (fun i => tl.addUpd e d (vals.get i)) mask sem sc`, so unfold
 it, apply `Safe.env`, then this rule with `upd := fun i => tl.addUpd E d (vals.get i)`. -/
 theorem safe_atomic_buf (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Option (Tensor s Bool)}
-    {upd : Idx s → d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} {g : Idx s → Nat}
+    {upd : Idx s → d.Val → d.Val → Prop}
+    {sv : (i : Idx s) → (old : d.Val) → Solve (upd i old)} {sem : MemSem} {sc : Scope} {g : Idx s → Nat}
     {en : Idx s → Bool}
     (hA : b.Addrs (tl.addrs ptrs mask) g en) (hin : ∀ i, en i = true → g i < b.len)
     (hinj : ∀ i j, en i = true → en j = true → g i = g j → i = j)
@@ -361,7 +364,7 @@ theorem safe_atomic_buf (b : Buf d) {ptrs : Tensor s (Ptr d)} {mask : Option (Te
         upd i old n ∧ m'.read d (b.ptr (g i : Int)).addr = some n) →
       (∀ x, x ∉ b.elems (Buf.img g en) → m' x = m x) → (∀ x, m x ≠ none → m' x ≠ none) →
       Safe E R (W \ b.elems (Buf.img g en)) Q m' k) :
-    Safe E R W Q m (tl.atomicWith ptrs upd mask sem sc >>= fun _ => k) := by
+    Safe E R W Q m (tl.atomicWith ptrs upd sv mask sem sc >>= fun _ => k) := by
   have hen : ∀ i, i ∈ enabled (tl.addrs ptrs mask) ↔ en i = true := by
     intro i
     simp only [enabled, List.mem_filter, Idx.mem_all, true_and]

@@ -28,9 +28,9 @@ def Next {α : Type} (E : Env) (C : Set (DType × Int)) : Mem × Prog α → Mem
 /-- A shared atomic pending while its continuation steps: the run is as long as the
 continuation's, whatever old value the atomic finds. -/
 private theorem acc_shared {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop}
-    {sem : MemSem} {sc : Scope} (hC : (d, a) ∈ C) :
+    {sv : (old : d.Val) → Solve (upd old)} {sem : MemSem} {sc : Scope} (hC : (d, a) ∈ C) :
     ∀ s : Mem × Prog α, Acc (Next E C) s → ∀ (m : Mem) (k : d.Val → Prog α), s = (m, k default) →
-      (∀ old, Acc (Next E C) (m, k old)) → Acc (Next E C) (m, .rmw d a upd sem sc k) := by
+      (∀ old, Acc (Next E C) (m, k old)) → Acc (Next E C) (m, .rmw d a upd sv sem sc k) := by
   intro s hs
   induction hs with
   | intro s _ ih =>
@@ -54,7 +54,8 @@ private theorem acc_shared {α : Type} {d : DType} {a : Int} {upd : d.Val → d.
 
 /-- A private atomic pending while its continuation steps. -/
 private theorem acc_private {α : Type} {Q : α → List AtomicStep → Mem → Prop} {d : DType}
-    {a : Int} {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} (hQ : PermInv Q) :
+    {a : Int} {upd : d.Val → d.Val → Prop}
+    {sv : (old : d.Val) → Solve (upd old)} {sem : MemSem} {sc : Scope} (hQ : PermInv Q) :
     ∀ s : Mem × Prog α, Acc (Next E C) s → ∀ (W : Set Int) (log : List AtomicStep) (m : Mem)
       (k : d.Val → Prog α) (old n₀ : d.Val), Disjoint (cellBytes C) (R ∪ W) →
       s = (m.write d a n₀, k old) → m.read d a = some old → upd old n₀ →
@@ -62,7 +63,7 @@ private theorem acc_private {α : Type} {Q : α → List AtomicStep → Mem → 
       (∀ old new, m.read d a = some old → upd old new →
         SafeA E R (W \ Mem.span d a) C Q log (m.write d a new) (k old)) →
       (∀ new, upd old new → Acc (Next E C) (m.write d a new, k old)) →
-      Acc (Next E C) (m, .rmw d a upd sem sc k) := by
+      Acc (Next E C) (m, .rmw d a upd sv sem sc k) := by
   intro s hs
   induction hs with
   | intro s _ ih =>
@@ -110,7 +111,7 @@ private theorem acc_private {α : Type} {Q : α → List AtomicStep → Mem → 
           · exact hx.2
         rw [Mem.write_frame _ _ _ _ hxS]
         exact hagRW x (hx.elim Or.inl (fun h => Or.inr h.1))
-      have hrmw : SafeA E R W C Q log m (.rmw d a upd sem sc k) :=
+      have hrmw : SafeA E R W C Q log m (.rmw d a upd sv sem sc k) :=
         .rmw ⟨old, hr, n₀, hu⟩ hS hSR hconst hk
       rcases hrmw.stepT hQ hdA hagRW (.defer hk' hcd) with
         ⟨-, hW', -, hsafe'⟩ | ⟨s', hsC, -, -, hsw, hsre, hswe, -, hsafe'⟩
@@ -219,7 +220,7 @@ theorem acc {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Pr
           exact writeAll_agree (fun y hy => hag y hy) addrs vals order x hx
       rw [this]
       exact ih order hperm hQ (hdA.mono_right (Set.union_subset_union_right _ Set.sdiff_subset))
-  | @rmw W' C' α' Q' log' m₀ d a upd sem sc k hex hS hSR hc hk ih =>
+  | @rmw W' C' α' Q' log' m₀ d a upd sv sem sc k hex hS hSR hc hk ih =>
     obtain ⟨old, hr, n₀, hu⟩ := hex
     have hdA' : Disjoint (cellBytes C') (R ∪ (W' \ Mem.span d a)) :=
       hdA.mono_right (Set.union_subset_union_right R Set.sdiff_subset)
@@ -233,6 +234,10 @@ theorem acc {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Pr
     constructor; rintro ⟨m', p'⟩ ⟨m₁, m₁', e, hag, hs, rfl⟩
     cases hs with
     | pick b hb => rw [mix_off hag]; exact ih b hb hQ hdA
+  | plat _ _ ih =>
+    constructor; rintro ⟨m', p'⟩ ⟨m₁, m₁', e, hag, hs, rfl⟩
+    cases hs with
+    | plat r hr => rw [mix_off hag]; exact ih r hr hQ hdA
   | loop _ ih =>
     constructor; rintro ⟨m', p'⟩ ⟨m₁, m₁', e, hag, hs, rfl⟩
     cases hs with

@@ -107,6 +107,17 @@ def Padding.Holds {d : DType} : Padding → d.Val → Prop
   | .zero, x => x = d.ofBits 0
   | .nan, x => d.IsNaN x
 
+instance (d : DType) (x : d.Val) : Decidable (d.IsNaN x) := by
+  cases d <;> simp only [DType.IsNaN] <;> infer_instance
+
+/-- A padding value, for the solvers (`Solve`): the oracle's (`.undef`), zero, or the all-ones
+pattern for a NaN. -/
+def Padding.ans {d : DType} : (p : Padding) → Solve (p.Holds (d := d))
+  | .undef => @Solve.askOr _ _ (.val d) (fun _ => inferInstanceAs (Decidable True)) (d.ofBits 0) trivial
+  | .zero => .ok _ rfl
+  | .nan => @Solve.check _ _ (d.ofBits (2 ^ (8 * d.bytes) - 1))
+    (inferInstanceAs (Decidable (d.IsNaN _)))
+
 namespace tl
 
 variable {s : Shape} {α : Type}
@@ -143,25 +154,34 @@ def store1 {d : DType} (p : Ptr d) (v : d.Val) : Prog Unit :=
 the others keep their loaded value. -/
 def pad {d : DType} (p : Padding) (inb : Idx s → Bool) (v : Tensor s d.Val) :
     Prog (Tensor s d.Val) :=
-  .pick (fun r : Tensor s d.Val => ∀ i, if inb i then r.get i = v.get i else p.Holds (r.get i)) .ret
+  .pick (fun r : Tensor s d.Val => ∀ i, if inb i then r.get i = v.get i else p.Holds (r.get i))
+    ⟨fun H => (Solve.each (R := fun i b => if inb i = true then b = v.get i else p.Holds b)
+      fun i => if h : inb i = true then some (.ok (v.get i) (by rw [ite_eq_left h]))
+      else ((p.ans (d := d)).run H).map fun
+        | .ok z hz => .ok z (by rw [ite_eq_right h]; exact hz)
+        | .empty hn => .empty fun z hz => hn z (by rw [ite_eq_right h] at hz; exact hz)).run H⟩ .ret
 
 /-! ## Atomics -/
 
 /-- The read-modify-writes of the lanes `order`, in that order, collecting the old values. -/
 def rmwSeq {d : DType} (ptrs : Tensor s (Ptr d)) (upd : Idx s → d.Val → d.Val → Prop)
+    (sv : (i : Idx s) → (old : d.Val) → Solve (upd i old))
     (sem : MemSem) (scope : Scope) : List (Idx s) → (Idx s → d.Val) → Prog (Idx s → d.Val)
   | [], acc => .ret acc
-  | i :: rest, acc => .rmw d (ptrs.get i).addr (upd i) sem scope fun old =>
-      rmwSeq ptrs upd sem scope rest (Function.update acc i old)
+  | i :: rest, acc => .rmw d (ptrs.get i).addr (upd i) (sv i) sem scope fun old =>
+      rmwSeq ptrs upd sv sem scope rest (Function.update acc i old)
 
 /-- A tensor atomic whose lane `i` updates its element by the relation `upd i old new`: the enabled
-lanes in some order, each returning its old value; disabled lanes return unspecified values. -/
+lanes in some order, each returning its old value; disabled lanes return unspecified values.
+`sv` solves each lane's update, for running the model (`Solve`). -/
 def atomicWith {d : DType} (ptrs : Tensor s (Ptr d)) (upd : Idx s → d.Val → d.Val → Prop)
+    (sv : (i : Idx s) → (old : d.Val) → Solve (upd i old))
     (mask : Option (Tensor s Bool)) (sem : MemSem) (scope : Scope) : Prog (Tensor s d.Val) :=
   let enabled := (Idx.all s).filter (fun i => (addrs ptrs mask i).isSome)
-  .pick (fun (_ : Idx s → d.Val) => True) fun junk =>
-  .pick (fun (order : List (Idx s)) => order.Perm enabled) fun order => do
-    let old ← rmwSeq ptrs upd sem scope order junk
+  .pick (fun (_ : Idx s → d.Val) => True) (.ok (fun _ => d.ofBits 0) trivial) fun junk =>
+  .pick (fun (order : List (Idx s)) => order.Perm enabled) (.askOr (.order s) enabled (.refl _))
+    fun order => do
+    let old ← rmwSeq ptrs upd sv sem scope order junk
     return ⟨old⟩
 
 /-- The new value `n` of an `atomic_add` of `v` to a cell holding `o`: integers wrap; floats as the
@@ -207,54 +227,108 @@ def bitUpd (op : ∀ {sg : Bool} {w : Nat}, IntV sg w → IntV sg w → IntV sg 
   | .u64, v, o, n => n = op o v
   | _, _, _, _ => False
 
+/-! The solvers of the updates (`Solve`): integers computed; a float `atomic_add` is the
+platform's, so no answer. -/
+
+/-- `addUpd e d v o`, solved for integers. -/
+def addAns (e : Env) : (d : DType) → (v o : d.Val) → Option (Ans (addUpd e d v o))
+  | .i8, _, _ => some (.ok _ rfl) | .i16, _, _ => some (.ok _ rfl) | .i32, _, _ => some (.ok _ rfl)
+  | .i64, _, _ => some (.ok _ rfl)
+  | .u8, _, _ => some (.ok _ rfl) | .u16, _, _ => some (.ok _ rfl) | .u32, _, _ => some (.ok _ rfl)
+  | .u64, _, _ => some (.ok _ rfl)
+  | .f16, _, _ | .bf16, _, _ | .f32, _, _ | .f64, _, _ => none
+  | .i1, _, _ => some (.empty fun _ h => h)
+  | .f8e5, _, _ => some (.empty fun _ h => h) | .f8e4nv, _, _ => some (.empty fun _ h => h)
+
+instance {f : Format} (isMax : Bool) (o v n : FloatV f) : Decidable (fBound isMax o v n) := by
+  unfold fBound; cases isMax <;> simp only [Bool.false_eq_true, ite_false, ite_true] <;> infer_instance
+
+/-- `fBound`, solved: the new value is one of the two. -/
+def fBoundAns {f : Format} (isMax : Bool) (o v : FloatV f) : Option (Ans (fBound isMax o v)) :=
+  if h : fBound isMax o v o then some (.ok o h)
+  else if h' : fBound isMax o v v then some (.ok v h')
+  else some (.empty fun n hn => by
+    rcases hn.1 with rfl | rfl
+    · exact h hn
+    · exact h' hn)
+
+/-- `maxUpd isMax d v o`, solved. -/
+def maxAns (isMax : Bool) : (d : DType) → (v o : d.Val) → Option (Ans (maxUpd isMax d v o))
+  | .i8, _, _ => some (.ok _ rfl) | .i16, _, _ => some (.ok _ rfl) | .i32, _, _ => some (.ok _ rfl)
+  | .i64, _, _ => some (.ok _ rfl)
+  | .u8, _, _ => some (.ok _ rfl) | .u16, _, _ => some (.ok _ rfl) | .u32, _, _ => some (.ok _ rfl)
+  | .u64, _, _ => some (.ok _ rfl)
+  | .f16, v, o => fBoundAns isMax o v | .bf16, v, o => fBoundAns isMax o v
+  | .f32, v, o => fBoundAns isMax o v | .f64, v, o => fBoundAns isMax o v
+  | .i1, _, _ => some (.empty fun _ h => h)
+  | .f8e5, _, _ => some (.empty fun _ h => h) | .f8e4nv, _, _ => some (.empty fun _ h => h)
+
+/-- `bitUpd op d v o`, solved. -/
+def bitAns (op : ∀ {sg : Bool} {w : Nat}, IntV sg w → IntV sg w → IntV sg w) :
+    (d : DType) → (v o : d.Val) → Option (Ans (bitUpd op d v o))
+  | .i8, _, _ => some (.ok _ rfl) | .i16, _, _ => some (.ok _ rfl) | .i32, _, _ => some (.ok _ rfl)
+  | .i64, _, _ => some (.ok _ rfl)
+  | .u8, _, _ => some (.ok _ rfl) | .u16, _, _ => some (.ok _ rfl) | .u32, _, _ => some (.ok _ rfl)
+  | .u64, _, _ => some (.ok _ rfl)
+  | .i1, _, _ => some (.empty fun _ h => h)
+  | .f16, _, _ | .bf16, _, _ | .f32, _, _ | .f64, _, _ => some (.empty fun _ h => h)
+  | .f8e5, _, _ => some (.empty fun _ h => h) | .f8e4nv, _, _ => some (.empty fun _ h => h)
+
 /-- `tl.atomic_add(ptrs, vals, mask, sem, scope)`: adds `vals` lane by lane, returns the old
 values. -/
 def atomic_add {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  .env fun e => atomicWith ptrs (fun i => addUpd e d (vals.get i)) mask sem scope
+  .env fun e => atomicWith ptrs (fun i => addUpd e d (vals.get i))
+    (fun i o => ⟨fun _ => addAns e d (vals.get i) o⟩) mask sem scope
 
 /-- `tl.atomic_xchg(ptrs, vals, mask, sem, scope)`: writes `vals`, returns the old values. -/
 def atomic_xchg {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i _ n => n = vals.get i) mask sem scope
+  atomicWith ptrs (fun i _ n => n = vals.get i) (fun i _ => .ok _ rfl) mask sem scope
 
 /-- `tl.atomic_cas(ptrs, cmp, vals, sem, scope)`: the new value is `val` when the old bit pattern
 equals `cmp`'s, the old value otherwise; returns the old values. -/
 def atomic_cas {d : DType} (ptrs : Tensor s (Ptr d)) (cmp vals : Tensor s d.Val)
     (sem : MemSem := .acqRel) (scope : Scope := .gpu) : Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i o n => n = if o = cmp.get i then vals.get i else o) none sem scope
+  atomicWith ptrs (fun i o n => n = if o = cmp.get i then vals.get i else o) (fun _ _ => .ok _ rfl)
+    none sem scope
 
 /-- `tl.atomic_max(ptrs, vals, mask, sem, scope)` (`maxUpd`). -/
 def atomic_max {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => maxUpd true d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => maxUpd true d (vals.get i)) (fun i o => ⟨fun _ => maxAns true d (vals.get i) o⟩)
+    mask sem scope
 
 /-- `tl.atomic_min(ptrs, vals, mask, sem, scope)` (`maxUpd`). -/
 def atomic_min {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => maxUpd false d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => maxUpd false d (vals.get i))
+    (fun i o => ⟨fun _ => maxAns false d (vals.get i) o⟩) mask sem scope
 
 /-- `tl.atomic_and(ptrs, vals, mask, sem, scope)` on integers. -/
 def atomic_and {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => bitUpd IntV.and d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => bitUpd IntV.and d (vals.get i))
+    (fun i o => ⟨fun _ => bitAns IntV.and d (vals.get i) o⟩) mask sem scope
 
 /-- `tl.atomic_or(ptrs, vals, mask, sem, scope)` on integers. -/
 def atomic_or {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => bitUpd IntV.or d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => bitUpd IntV.or d (vals.get i))
+    (fun i o => ⟨fun _ => bitAns IntV.or d (vals.get i) o⟩) mask sem scope
 
 /-- `tl.atomic_xor(ptrs, vals, mask, sem, scope)` on integers. -/
 def atomic_xor {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => bitUpd IntV.xor d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => bitUpd IntV.xor d (vals.get i))
+    (fun i o => ⟨fun _ => bitAns IntV.xor d (vals.get i) o⟩) mask sem scope
 
 /-! ### Atomics whose result is unused -/
 

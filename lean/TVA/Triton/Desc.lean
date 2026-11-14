@@ -104,6 +104,17 @@ with block `[1, BN]` (`semantic.py:1150-1151`), and `y` a multiple of 16 bytes. 
 def RowAccess (D : TensorDesc d) (BN : Nat) (y : I32) : Prop :=
   D.Valid ∧ D.rank = 2 ∧ D.block = [1, BN] ∧ (y.toInt * d.bytes) % 16 = 0
 
+instance decForallSuccLt (n : Nat) (P : Nat → Prop) [DecidablePred P] :
+    Decidable (∀ k, k + 1 < n → P k) :=
+  decidable_of_iff (∀ k, k < n → k + 1 < n → P k)
+    ⟨fun h k hk => h k (by omega) hk, fun h k _ hk => h k hk⟩
+
+instance (D : TensorDesc d) : Decidable D.Valid := by unfold Valid; infer_instance
+instance (D : TensorDesc d) (offs : List Int) (bs : Shape) : Decidable (D.Access offs bs) := by
+  unfold Access; infer_instance
+instance (D : TensorDesc d) (BN : Nat) (y : I32) : Decidable (D.RowAccess BN y) := by
+  unfold RowAccess; infer_instance
+
 end TensorDesc
 
 /-- The reductions of `desc.atomic_*`. -/
@@ -118,6 +129,9 @@ def Allowed : RedOp → DType → Prop
   | .add, d => d ∈ [DType.u32, .i32, .u64, .f32, .f16, .bf16]
   | .min, d | .max, d => d ∈ [DType.u32, .i32, .u64, .i64, .f16, .bf16]
   | .and, d | .or, d | .xor, d => d ∈ [DType.u32, .i32, .u64, .i64]
+
+instance (op : RedOp) (d : DType) : Decidable (op.Allowed d) := by
+  cases op <;> unfold Allowed <;> infer_instance
 
 /-- The new value of an element under a float `min`/`max` reduction: as `tl.maximum`, or a NaN
 when an operand is NaN (the hardware may propagate it). -/
@@ -135,6 +149,43 @@ def Upd (e : Env) : RedOp → (d : DType) → d.Val → d.Val → d.Val → Prop
   | .or, d => tl.bitUpd IntV.or d
   | .xor, d => tl.bitUpd IntV.xor d
 
+/-- `Upd e op d v`, solved, for running the model (`Solve`). -/
+def updAns (e : Env) : (op : RedOp) → (d : DType) → (v o : d.Val) → Option (Ans (op.Upd e d v o))
+  | .add, d, v, o => tl.addAns e d v o
+  | .min, .f16, v, o => some (.ok (FloatV.min o v) (Or.inl (Or.inl (Or.inl rfl))))
+  | .min, .bf16, v, o => some (.ok (FloatV.min o v) (Or.inl (Or.inl (Or.inl rfl))))
+  | .max, .f16, v, o => some (.ok (FloatV.max o v) (Or.inl (Or.inl (Or.inl rfl))))
+  | .max, .bf16, v, o => some (.ok (FloatV.max o v) (Or.inl (Or.inl (Or.inl rfl))))
+  | .min, .i1, v, o => tl.maxAns false .i1 v o
+  | .min, .i8, v, o => tl.maxAns false .i8 v o
+  | .min, .i16, v, o => tl.maxAns false .i16 v o
+  | .min, .i32, v, o => tl.maxAns false .i32 v o
+  | .min, .i64, v, o => tl.maxAns false .i64 v o
+  | .min, .u8, v, o => tl.maxAns false .u8 v o
+  | .min, .u16, v, o => tl.maxAns false .u16 v o
+  | .min, .u32, v, o => tl.maxAns false .u32 v o
+  | .min, .u64, v, o => tl.maxAns false .u64 v o
+  | .min, .f32, v, o => tl.maxAns false .f32 v o
+  | .min, .f64, v, o => tl.maxAns false .f64 v o
+  | .min, .f8e5, v, o => tl.maxAns false .f8e5 v o
+  | .min, .f8e4nv, v, o => tl.maxAns false .f8e4nv v o
+  | .max, .i1, v, o => tl.maxAns true .i1 v o
+  | .max, .i8, v, o => tl.maxAns true .i8 v o
+  | .max, .i16, v, o => tl.maxAns true .i16 v o
+  | .max, .i32, v, o => tl.maxAns true .i32 v o
+  | .max, .i64, v, o => tl.maxAns true .i64 v o
+  | .max, .u8, v, o => tl.maxAns true .u8 v o
+  | .max, .u16, v, o => tl.maxAns true .u16 v o
+  | .max, .u32, v, o => tl.maxAns true .u32 v o
+  | .max, .u64, v, o => tl.maxAns true .u64 v o
+  | .max, .f32, v, o => tl.maxAns true .f32 v o
+  | .max, .f64, v, o => tl.maxAns true .f64 v o
+  | .max, .f8e5, v, o => tl.maxAns true .f8e5 v o
+  | .max, .f8e4nv, v, o => tl.maxAns true .f8e4nv v o
+  | .and, d, v, o => tl.bitAns IntV.and d v o
+  | .or, d, v, o => tl.bitAns IntV.or d v o
+  | .xor, d, v, o => tl.bitAns IntV.xor d v o
+
 end RedOp
 
 namespace tl
@@ -149,12 +200,14 @@ def make_tensor_descriptor (base : Ptr d) (shape : List I32) (strides : List I64
     (padding : Padding := .zero) : Prog (TensorDesc d) :=
   .pick (fun D : TensorDesc d => (∀ x ∈ shape, 0 ≤ x.toInt) ∧ (∀ x ∈ strides, 0 ≤ x.toInt) ∧
     D = ⟨base, shape.map (fun x => x.toInt.toNat), strides.map (fun x => x.toInt.toNat), block,
-      padding⟩) .ret
+      padding⟩)
+    ⟨fun _ => if h : (∀ x ∈ shape, 0 ≤ x.toInt) ∧ (∀ x ∈ strides, 0 ≤ x.toInt) then
+      some (.ok _ ⟨h.1, h.2, rfl⟩) else some (.empty fun _ hD => h ⟨hD.1, hD.2.1⟩)⟩ .ret
 
 /-- `desc.load(offsets)`: the block at `offsets`; lanes outside the tensor hold the padding. -/
 def desc_load {bs : Shape} (D : TensorDesc d) (offsets : List I32) : Prog (Tensor bs d.Val) :=
   let o := offsets.map IntV.toInt
-  .pick (fun _ : Unit => D.Access o bs) fun _ => do
+  .pick (fun _ : Unit => D.Access o bs) .guard fun _ => do
     let v ← tl.load (D.ptrsAt (TensorDesc.coord o)) (some (D.maskAt (TensorDesc.coord o)))
     tl.pad D.padding (fun i => D.inbAt (TensorDesc.coord o i)) v
 
@@ -163,7 +216,7 @@ The model converts `value` to the descriptor's dtype first, as Triton does impli
 def desc_store {bs : Shape} (D : TensorDesc d) (offsets : List I32) (vals : Tensor bs d.Val) :
     Prog Unit :=
   let o := offsets.map IntV.toInt
-  .pick (fun _ : Unit => D.Access o bs) fun _ =>
+  .pick (fun _ : Unit => D.Access o bs) .guard fun _ =>
     tl.store (D.ptrsAt (TensorDesc.coord o)) vals (some (D.maskAt (TensorDesc.coord o)))
 
 /-- `desc.atomic_add(offsets, value)` and the other reductions: one relaxed, `gpu`-scope reduction
@@ -171,9 +224,10 @@ per lane inside the tensor, in an unspecified order; no result. -/
 def desc_atomic {bs : Shape} (op : RedOp) (D : TensorDesc d) (offsets : List I32)
     (vals : Tensor bs d.Val) : Prog Unit :=
   let o := offsets.map IntV.toInt
-  .pick (fun _ : Unit => D.Access o bs ∧ op.Allowed d) fun _ =>
+  .pick (fun _ : Unit => D.Access o bs ∧ op.Allowed d) .guard fun _ =>
   .env fun e => do
     let _ ← tl.atomicWith (D.ptrsAt (TensorDesc.coord o)) (fun i => op.Upd e d (vals.get i))
+      (fun i old => ⟨fun _ => op.updAns e d (vals.get i) old⟩)
       (some (D.maskAt (TensorDesc.coord o))) .relaxed .gpu
     return ()
 
@@ -181,7 +235,7 @@ def desc_atomic {bs : Shape} (op : RedOp) (D : TensorDesc d) (offsets : List I32
 `y_offset + [0, BN)`; lanes outside the tensor hold unspecified values. -/
 def desc_gather {M BN : Nat} {w : Nat} (D : TensorDesc d) (xs : Tensor [M] (IntV true w)) (y : I32) :
     Prog (Tensor [M, BN] d.Val) :=
-  .pick (fun _ : Unit => D.RowAccess BN y) fun _ =>
+  .pick (fun _ : Unit => D.RowAccess BN y) .guard fun _ =>
     tl.load (D.ptrsAt (TensorDesc.rowCoord xs y)) (some (D.maskAt (TensorDesc.rowCoord xs y)))
 
 /-- `desc.scatter(value, x_offsets, y_offset)`: the inverse of `desc_gather`; every lane must lie
@@ -190,7 +244,7 @@ written in an unspecified order. -/
 def desc_scatter {M BN : Nat} {w : Nat} (D : TensorDesc d) (vals : Tensor [M, BN] d.Val)
     (xs : Tensor [M] (IntV true w)) (y : I32) : Prog Unit :=
   .pick (fun _ : Unit => D.RowAccess BN y ∧ ∀ l : Idx [M, BN], D.inbAt (TensorDesc.rowCoord xs y l) = true)
-    fun _ =>
+    .guard fun _ =>
     tl.store (D.ptrsAt (TensorDesc.rowCoord xs y)) vals
 
 end tl

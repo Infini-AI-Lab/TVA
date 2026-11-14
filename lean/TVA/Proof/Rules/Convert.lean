@@ -79,7 +79,7 @@ theorem safe_cvt8 {g : Format} {x : Tensor s (FloatV f)} {rnd : RoundMode}
     Safe E R W Q m (tl.cvt8 x rnd >>= k) := by
   simp only [tl.cvt8, bind_eq, Prog.bind]
   exact .pick ⟨(), hok⟩ fun _ _ =>
-    .env (.pick ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk)
+    .plat ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
 /-- **`x.to(dtype)` out of fp8**: finite elements convert exactly. -/
 theorem safe_cvtFrom8 {g : Format} {x : Tensor s (FloatV f)} {k : Tensor s (FloatV g) → Prog α}

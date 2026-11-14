@@ -57,7 +57,7 @@ def MulRel : (d : DType) → d.Val → d.Val → d.Val → Prop
 /-- `tl.dot(a, b, acc)` with configuration `cfg`: as the platform computes it. -/
 def dot (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
     (acc : Tensor [M, N] cfg.acc.Val) : Prog (Tensor [M, N] cfg.acc.Val) :=
-  .env fun e => .pick (e.P.dot cfg a b acc) .ret
+  .plat (.dot cfg a b acc) .ret
 
 /-- A source `tl.dot(a, b, acc=z) + c` (or `c + tl.dot(…)`) with a zero accumulator `z` (the
 default, or any constant `±0`) and no other use of the product: either `tl.dot(a, b, c)` (the
@@ -67,7 +67,7 @@ def dot_add (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tens
     (c : Tensor [M, N] cfg.acc.Val) (z : Tensor [M, N] cfg.acc.Val := Tensor.full (cfg.acc.ofBits 0)) :
     Prog (Tensor [M, N] cfg.acc.Val) :=
   .env fun e => .pick (fun r => e.P.dot cfg a b c r ∨
-    ∃ d, e.P.dot cfg a b z d ∧ ∀ i, AccAdd e.fusion cfg.acc (d.get i) (c.get i) (r.get i)) .ret
+    ∃ d, e.P.dot cfg a b z d ∧ ∀ i, AccAdd e.fusion cfg.acc (d.get i) (c.get i) (r.get i)) .none .ret
 
 /-- A float reduction on axis 1 of the products `x[i, k] * y[k, j]` (`x` expanded on its last axis,
 `y` on its first), in any spelling: each element is the products summed along a tree with fusable
@@ -82,7 +82,8 @@ def sum_bcast_mul (d : DType) {M K N : Nat} (x : Tensor [M, K] d.Val) (y : Tenso
       (∀ k (hk : k < K), MulRel d (x.get2 i ⟨k, hk⟩) (y.get2 ⟨k, hk⟩ j) (p k)) ∧
       ∃ t : Tree, t.Covers K ∧ t.Eval (AccAdd e.fusion d) p (r.get2 i j)) ∨
     (d.bytes ≤ 4 ∧ 16 ≤ M ∧ 16 ≤ N ∧
-      e.P.dot { a := d, b := d, acc := d, precision := .ieee } x y (Tensor.full (d.ofBits 0)) r)) .ret
+      e.P.dot { a := d, b := d, acc := d, precision := .ieee } x y (Tensor.full (d.ofBits 0)) r))
+    .none .ret
 
 end tl
 
@@ -182,6 +183,17 @@ dtype holds its scale format. -/
 def TypesOk (cfg : ScaledCfg) (dl dr dsl dsr : DType) : Prop :=
   cfg.lhs.StoredIn dl ∧ cfg.rhs.StoredIn dr ∧ cfg.lhsScale.Stores dsl ∧ cfg.rhsScale.Stores dsr
 
+instance (fmt : MXFmt) (d : DType) : Decidable (fmt.StoredIn d) := by
+  cases fmt <;> unfold MXFmt.StoredIn <;> infer_instance
+instance (sf : ScaleFmt) (d : DType) : Decidable (sf.Stores d) := by
+  cases sf <;> unfold ScaleFmt.Stores <;> infer_instance
+instance (fmt : MXFmt) (kpack kAlongCols : Bool) (rows cols R C : Nat) :
+    Decidable (StorageOk fmt kpack kAlongCols rows cols R C) := by unfold StorageOk; infer_instance
+instance (cfg : ScaledCfg) (M N K Ra Ca Rb Cb G : Nat) : Decidable (cfg.ShapeOk M N K Ra Ca Rb Cb G) := by
+  unfold ShapeOk; infer_instance
+instance (cfg : ScaledCfg) (dl dr dsl dsr : DType) : Decidable (cfg.TypesOk dl dr dsl dsr) := by
+  unfold TypesOk; infer_instance
+
 /-- The `lhs` element bits as a logical `[M, K]` tensor. -/
 def unpackL (cfg : ScaledCfg) (M K : Nat) {R C : Nat} {d : DType} (raw : Tensor [R, C] d.Val) :
     Tensor [M, K] Nat :=
@@ -214,9 +226,9 @@ def dot_scaled (cfg : ScaledCfg) (M N K : Nat) {dl dr dsl dsr : DType} {Ra Ca Rb
     (lhs : Tensor [Ra, Ca] dl.Val) (lhs_scale : Option (Tensor [M, G] dsl.Val))
     (rhs : Tensor [Rb, Cb] dr.Val) (rhs_scale : Option (Tensor [N, G] dsr.Val))
     (acc : Tensor [M, N] F32) : Prog (Tensor [M, N] F32) :=
-  .pick (fun _ : Unit => cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr) fun _ =>
-  .env fun e => .pick (fun r => e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
-      (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) acc r) .ret
+  .pick (fun _ : Unit => cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr) .guard fun _ =>
+  .plat (.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
+      (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) acc) .ret
 
 /-- A source `tl.dot_scaled(…, acc=z) + c` (or `c + tl.dot_scaled(…)`) with a zero accumulator `z`
 and no other use of the product: either `c` folded into the accumulator (the combine pass) or the
@@ -226,13 +238,13 @@ def dot_scaled_add (cfg : ScaledCfg) (M N K : Nat) {dl dr dsl dsr : DType} {Ra C
     (rhs : Tensor [Rb, Cb] dr.Val) (rhs_scale : Option (Tensor [N, G] dsr.Val))
     (c : Tensor [M, N] F32) (z : Tensor [M, N] F32 := Tensor.full (FloatV.ofPat 0)) :
     Prog (Tensor [M, N] F32) :=
-  .pick (fun _ : Unit => cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr) fun _ =>
+  .pick (fun _ : Unit => cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr) .guard fun _ =>
   .env fun e => .pick (fun r =>
     e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) c r ∨
     ∃ d, e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) z d ∧
-      ∀ i, AddRel e.fusion (d.get i) (c.get i) (r.get i)) .ret
+      ∀ i, AddRel e.fusion (d.get i) (c.get i) (r.get i)) .none .ret
 
 end tl
 

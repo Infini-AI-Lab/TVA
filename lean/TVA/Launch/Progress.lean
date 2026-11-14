@@ -32,7 +32,7 @@ theorem Step.progress (E : Env) (m : Mem) {α : Type} (p : Prog α) (hp : ∀ a,
     by_cases hs : StoreOk m d addrs
     · exact .inl ⟨_, _, _, Step.store (enabled addrs) hs (List.Perm.refl _)⟩
     · exact .inr (.storeUB hs)
-  | rmw d a upd sem sc k =>
+  | rmw d a upd sv sem sc k =>
     cases h : m.read d a with
     | none => exact .inr (.rmwUB (.inl h))
     | some old =>
@@ -40,11 +40,16 @@ theorem Step.progress (E : Env) (m : Mem) {α : Type} (p : Prog α) (hp : ∀ a,
       · obtain ⟨new, hnew⟩ := hn
         exact .inl ⟨_, _, _, Step.rmw old new h hnew⟩
       · exact .inr (.rmwUB (.inr ⟨old, h, fun new hnew => hn ⟨new, hnew⟩⟩))
-  | pick P k =>
+  | pick P sv k =>
     by_cases hb : ∃ b, P b
     · obtain ⟨b, hb⟩ := hb
       exact .inl ⟨_, _, _, Step.pick b hb⟩
     · exact .inr (.pickUB fun b h => hb ⟨b, h⟩)
+  | plat q k =>
+    by_cases hr : ∃ r, q.Rel E.P r
+    · obtain ⟨r, hr⟩ := hr
+      exact .inl ⟨_, _, _, Step.plat r hr⟩
+    · exact .inr (.platUB fun r h => hr ⟨r, h⟩)
   | ub => exact .inr .ub
   | loop init body k => exact .inl ⟨_, _, _, .loop⟩
   | env k => exact .inl ⟨_, _, _, .env⟩
