@@ -761,17 +761,18 @@ Reading the environment: the rest is safe for `E`.
 theorem · [lean/TVA/Proof/Safe.lean:87](../../lean/TVA/Proof/Safe.lean#L87)
 
 ```lean
-TVA.Safe.pick {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type} {P : β → Prop}
-  {k : β → TVA.Prog α} (hex : ∃ b, P b) (hk : ∀ (b : β), P b → TVA.Safe E R W Q m (k b)) :
-  TVA.Safe E R W Q m (TVA.Prog.pick (TVA.Site.other β P) k)
+TVA.Safe.pick {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Site}
+  {k : s.Out → TVA.Prog α} (hex : ∃ b, s.Allows b) (hk : ∀ (b : s.Out), s.Allows b → TVA.Safe E R W Q m (k b)) :
+  TVA.Safe E R W Q m (TVA.Prog.pick s k)
 ```
 
-A choice of any value satisfying `P` (`Site.other`): some value satisfies it, and the rest is
-safe for every one that does.
+A choice at a site of Triton's catalog: some value is allowed, and the rest is safe for every
+allowed value. Stated with `Site.Allows`, which reduces to the site's relation (for `Site.other β
+P`, `P`), so that `⟨b, h⟩` and `fun b hb => …` see the relation itself.
 
 ### `TVA.Safe.guard`
 
-theorem · [lean/TVA/Proof/Safe.lean:94](../../lean/TVA/Proof/Safe.lean#L94)
+theorem · [lean/TVA/Proof/Safe.lean:95](../../lean/TVA/Proof/Safe.lean#L95)
 
 ```lean
 TVA.Safe.guard {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {c : Prop} [Decidable c]
@@ -783,7 +784,7 @@ A guard (`Site.guard`): its condition holds, and the rest is safe.
 
 ### `TVA.Safe.hint`
 
-theorem · [lean/TVA/Proof/Safe.lean:100](../../lean/TVA/Proof/Safe.lean#L100)
+theorem · [lean/TVA/Proof/Safe.lean:101](../../lean/TVA/Proof/Safe.lean#L101)
 
 ```lean
 TVA.Safe.hint {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type} {x : β}
@@ -795,7 +796,7 @@ A compiler hint on `x` (`Site.hint`): its promise holds, and the rest is safe fo
 
 ### `TVA.Safe.plat`
 
-theorem · [lean/TVA/Proof/Safe.lean:106](../../lean/TVA/Proof/Safe.lean#L106)
+theorem · [lean/TVA/Proof/Safe.lean:107](../../lean/TVA/Proof/Safe.lean#L107)
 
 ```lean
 TVA.Safe.plat {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {q : TVA.PlatQ}
@@ -808,7 +809,7 @@ and the rest is safe for every allowed result.
 
 ### `TVA.Safe.loopStep_bind`
 
-theorem · [lean/TVA/Proof/Safe.lean:113](../../lean/TVA/Proof/Safe.lean#L113)
+theorem · [lean/TVA/Proof/Safe.lean:114](../../lean/TVA/Proof/Safe.lean#L114)
 
 ```lean
 TVA.Safe.loopStep_bind {α β γ σ : Type} (init : σ) (body : σ → TVA.Prog (σ ⊕ β)) (k : β → TVA.Prog α)
@@ -819,7 +820,7 @@ Unfolding a loop and then binding is binding and then unfolding.
 
 ### `TVA.Safe.mono`
 
-theorem · [lean/TVA/Proof/Safe.lean:123](../../lean/TVA/Proof/Safe.lean#L123)
+theorem · [lean/TVA/Proof/Safe.lean:124](../../lean/TVA/Proof/Safe.lean#L124)
 
 ```lean
 TVA.Safe.mono {E : TVA.Env} {R : Set ℤ} {α : Type} {Q Q' : α → TVA.Mem → Prop} {W W' : Set ℤ} {m : TVA.Mem}
@@ -832,7 +833,7 @@ cannot grow: an atomic's bytes must stay outside it.)
 
 ### `TVA.Safe.union_diff_of_sub`
 
-theorem · [lean/TVA/Proof/Safe.lean:140](../../lean/TVA/Proof/Safe.lean#L140)
+theorem · [lean/TVA/Proof/Safe.lean:141](../../lean/TVA/Proof/Safe.lean#L141)
 
 ```lean
 TVA.Safe.union_diff_of_sub {W₁ W₂ B : Set ℤ} (hd : Disjoint W₁ W₂) (hB : B ⊆ W₁) : (W₁ ∪ W₂) \ B = W₁ \ B ∪ W₂
@@ -842,7 +843,7 @@ Removing bytes of the first of two disjoint footprints from their union.
 
 ### `TVA.Safe.bind`
 
-theorem · [lean/TVA/Proof/Safe.lean:153](../../lean/TVA/Proof/Safe.lean#L153)
+theorem · [lean/TVA/Proof/Safe.lean:154](../../lean/TVA/Proof/Safe.lean#L154)
 
 ```lean
 TVA.Safe.bind {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem → Prop} {f : α → TVA.Prog β} {p : TVA.Prog α}
@@ -855,7 +856,7 @@ safe". The two parts write disjoint footprints.
 
 ### `TVA.Safe.seq`
 
-theorem · [lean/TVA/Proof/Safe.lean:174](../../lean/TVA/Proof/Safe.lean#L174)
+theorem · [lean/TVA/Proof/Safe.lean:175](../../lean/TVA/Proof/Safe.lean#L175)
 
 ```lean
 TVA.Safe.seq {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem → Prop} {f : α → TVA.Prog β} {p : TVA.Prog α}
@@ -867,7 +868,7 @@ TVA.Safe.seq {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem → 
 
 ### `TVA.Safe.bind_ro`
 
-theorem · [lean/TVA/Proof/Safe.lean:179](../../lean/TVA/Proof/Safe.lean#L179)
+theorem · [lean/TVA/Proof/Safe.lean:180](../../lean/TVA/Proof/Safe.lean#L180)
 
 ```lean
 TVA.Safe.bind_ro {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem → Prop} {f : α → TVA.Prog β} {p : TVA.Prog α}
@@ -879,7 +880,7 @@ TVA.Safe.bind_ro {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem 
 
 ### `TVA.Safe.stepT`
 
-theorem · [lean/TVA/Proof/Safe.lean:187](../../lean/TVA/Proof/Safe.lean#L187)
+theorem · [lean/TVA/Proof/Safe.lean:188](../../lean/TVA/Proof/Safe.lean#L188)
 
 ```lean
 TVA.Safe.stepT {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m₀ m : TVA.Mem} {p : TVA.Prog α}
@@ -898,7 +899,7 @@ the rest is safe there with the written bytes removed from the write footprint.
 
 ### `TVA.Safe.no_ub`
 
-theorem · [lean/TVA/Proof/Safe.lean:285](../../lean/TVA/Proof/Safe.lean#L285)
+theorem · [lean/TVA/Proof/Safe.lean:286](../../lean/TVA/Proof/Safe.lean#L286)
 
 ```lean
 TVA.Safe.no_ub {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m₀ m : TVA.Mem} {p : TVA.Prog α}
@@ -910,7 +911,7 @@ on the footprint.
 
 ### `TVA.Safe.step`
 
-theorem · [lean/TVA/Proof/Safe.lean:308](../../lean/TVA/Proof/Safe.lean#L308)
+theorem · [lean/TVA/Proof/Safe.lean:309](../../lean/TVA/Proof/Safe.lean#L309)
 
 ```lean
 TVA.Safe.step {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {p : TVA.Prog α}
@@ -923,7 +924,7 @@ footprint, to a program that is safe with the written bytes removed from its wri
 
 ### `TVA.Safe.Next`
 
-def · [lean/TVA/Proof/Safe.lean:323](../../lean/TVA/Proof/Safe.lean#L323)
+def · [lean/TVA/Proof/Safe.lean:324](../../lean/TVA/Proof/Safe.lean#L324)
 
 ```lean
 TVA.Safe.Next {α : Type} (E : TVA.Env) : TVA.Mem × TVA.Prog α → TVA.Mem × TVA.Prog α → Prop
@@ -934,7 +935,7 @@ after to the state before (so that `Acc` says every run is finite).
 
 ### `TVA.Safe.acc`
 
-theorem · [lean/TVA/Proof/Safe.lean:376](../../lean/TVA/Proof/Safe.lean#L376)
+theorem · [lean/TVA/Proof/Safe.lean:377](../../lean/TVA/Proof/Safe.lean#L377)
 
 ```lean
 TVA.Safe.acc {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {p : TVA.Prog α}

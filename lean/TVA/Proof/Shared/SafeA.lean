@@ -92,11 +92,11 @@ namespace SafeA
 
 variable {E : Env} {R : Set Int} {C : Set (DType × Int)}
 
-/-- A choice of any value satisfying `P` (`Site.other`), as in `Safe.pick`. -/
+/-- A choice at a site of Triton's catalog, as in `Safe.pick`. -/
 theorem pick {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
-    {log : List AtomicStep} {m : Mem} {β : Type} {P : β → Prop} {k : β → Prog α}
-    (hex : ∃ b, P b) (hk : ∀ b, P b → SafeA E R W C Q log m (k b)) :
-    SafeA E R W C Q log m (.pick (Site.other β P) k) :=
+    {log : List AtomicStep} {m : Mem} {s : Site} {k : s.Out → Prog α}
+    (hex : ∃ b, s.Allows b) (hk : ∀ b, s.Allows b → SafeA E R W C Q log m (k b)) :
+    SafeA E R W C Q log m (.pick s k) :=
   .site hex hk
 
 /-- A guard (`Site.guard`): its condition holds, and the rest is safe. -/

@@ -225,13 +225,11 @@ def iminimum (x y : Tensor s (IntV sg w)) : Tensor s (IntV sg w) := Tensor.map2 
 
 /-- `x // y` on integer tensors: truncating division (`IntV.div?`). -/
 def idiv (x y : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (.other _ (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).div? (y.get i) = some (r.get i)))
-    .ret
+  .pick (.lanes s _ fun i => (x.get i).div? (y.get i)) .ret
 
 /-- `x % y` on integer tensors: the remainder of truncating division (`IntV.rem?`). -/
 def irem (x y : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (.other _ (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).rem? (y.get i) = some (r.get i)))
-    .ret
+  .pick (.lanes s _ fun i => (x.get i).rem? (y.get i)) .ret
 
 /-- `tl.cdiv(x, div)` with a tensor operand: Triton's `@triton.jit` body `(x + (div - 1)) // div`
 (`standard.py:32-43`), inlined, so the addition wraps and `//` truncates. It is not ceiling
@@ -243,24 +241,18 @@ def cdiv (x div : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
 /-- `x << n`: both operands have the promoted type (`semantic.py:421-425`). Undefined when an
 amount, read as unsigned, is at least the width (a negative amount is a huge one). -/
 def shl (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (.other _ (fun r : Tensor s (IntV sg w) => ∀ i,
-    (x.get i).shl? (n.get i).bits.toNat = some (r.get i)))
-    .ret
+  .pick (.lanes s _ fun i => (x.get i).shl? (n.get i).bits.toNat) .ret
 
 /-- `x >> n`, arithmetic. Triton picks `ashr` or `lshr` by the source dtype of the tensor operand
 Python dispatches on, before promotion: the left one when it is a tensor (`__rshift__`), the right
 one when the left is a Python number (`__rrshift__`, `core.py:1012-1024`). So `int32 >> uint32` is an
 arithmetic shift of `uint32` values, and `0xF0 >> s` with `s : uint8` is a logical one. -/
 def ashr (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (.other _ (fun r : Tensor s (IntV sg w) => ∀ i,
-    (x.get i).ashr? (n.get i).bits.toNat = some (r.get i)))
-    .ret
+  .pick (.lanes s _ fun i => (x.get i).ashr? (n.get i).bits.toNat) .ret
 
 /-- `x >> n`, logical: the dispatching operand's source dtype is unsigned (see `ashr`). -/
 def lshr (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (.other _ (fun r : Tensor s (IntV sg w) => ∀ i,
-    (x.get i).lshr? (n.get i).bits.toNat = some (r.get i)))
-    .ret
+  .pick (.lanes s _ fun i => (x.get i).lshr? (n.get i).bits.toNat) .ret
 
 end Int
 

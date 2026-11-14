@@ -84,11 +84,12 @@ namespace Safe
 
 variable {E : Env} {R : Set Int}
 
-/-- A choice of any value satisfying `P` (`Site.other`): some value satisfies it, and the rest is
-safe for every one that does. -/
-theorem pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {β : Type} {P : β → Prop}
-    {k : β → Prog α} (hex : ∃ b, P b) (hk : ∀ b, P b → Safe E R W Q m (k b)) :
-    Safe E R W Q m (.pick (Site.other β P) k) :=
+/-- A choice at a site of Triton's catalog: some value is allowed, and the rest is safe for every
+allowed value. Stated with `Site.Allows`, which reduces to the site's relation (for `Site.other β
+P`, `P`), so that `⟨b, h⟩` and `fun b hb => …` see the relation itself. -/
+theorem pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Site}
+    {k : s.Out → Prog α} (hex : ∃ b, s.Allows b) (hk : ∀ b, s.Allows b → Safe E R W Q m (k b)) :
+    Safe E R W Q m (.pick s k) :=
   .site hex hk
 
 /-- A guard (`Site.guard`): its condition holds, and the rest is safe. -/

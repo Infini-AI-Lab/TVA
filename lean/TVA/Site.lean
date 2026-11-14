@@ -27,6 +27,10 @@ inductive Site : Type 1 where
   /-- A compiler hint on `x`: the value is `x` itself, allowed when the promise `c` holds
   (`tl.max_contiguous`, `tl.multiple_of`); undefined behaviour otherwise. -/
   | hint (β : Type) (x : β) (c : Prop) [dec : Decidable c]
+  /-- A partial lanewise computation: the tensor whose lane `i` is `g i`; undefined behaviour
+  when some lane has no value (`//` and `%` by zero or overflowing, a shift by at least the
+  width). -/
+  | lanes (s : Shape) (α : Type) (g : Idx s → Option α)
   /-- Any value of type `β` satisfying `P`. -/
   | other (β : Type) (P : β → Prop)
 
@@ -34,12 +38,14 @@ inductive Site : Type 1 where
 @[reducible] def Site.Out : Site → Type
   | @guard _ _ => Unit
   | @hint β _ _ _ => β
+  | .lanes s α _ => Tensor s α
   | .other β _ => β
 
 /-- The values a site allows. -/
 @[reducible] def Site.Allows : (s : Site) → s.Out → Prop
   | @guard c _ => fun _ => c
   | @hint _ x c _ => fun y => y = x ∧ c
+  | .lanes _ _ g => fun r => ∀ i, g i = some (r.get i)
   | .other _ P => P
 
 /-- The update an atomic makes to one element of dtype `d`. -/
@@ -71,6 +77,11 @@ the `Site.other` it replaces. -/
 `Site.other` it replaces. -/
 @[simp] theorem Site.allows_hint {β : Type} {x : β} {c : Prop} [Decidable c] {y : β} :
     Sig.Allows (Site.hint β x c) y ↔ y = x ∧ c := Iff.rfl
+
+/-- A lanewise site allows exactly the tensors of `g`'s values: the predicate
+`fun r => ∀ i, g i = some (r.get i)` of the `Site.other` it replaces. -/
+@[simp] theorem Site.allows_lanes {s : Shape} {α : Type} {g : Idx s → Option α} {r : Tensor s α} :
+    Sig.Allows (Site.lanes s α g) r ↔ ∀ i, g i = some (r.get i) := Iff.rfl
 
 @[simp] theorem Upd.allows_other {d : DType} {upd : d.Val → d.Val → Prop} {old new : d.Val} :
     Sig.UpdAllows (Upd.other upd) old new ↔ upd old new := Iff.rfl

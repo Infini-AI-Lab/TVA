@@ -1183,12 +1183,12 @@ theorem · [lean/TVA/Proof/Shared/SafeA.lean:95](../../lean/TVA/Proof/Shared/Saf
 
 ```lean
 TVA.SafeA.pick {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
-  {Q : α → List TVA.AtomicStep → TVA.Mem → Prop} {log : List TVA.AtomicStep} {m : TVA.Mem} {β : Type} {P : β → Prop}
-  {k : β → TVA.Prog α} (hex : ∃ b, P b) (hk : ∀ (b : β), P b → TVA.SafeA E R W C Q log m (k b)) :
-  TVA.SafeA E R W C Q log m (TVA.Prog.pick (TVA.Site.other β P) k)
+  {Q : α → List TVA.AtomicStep → TVA.Mem → Prop} {log : List TVA.AtomicStep} {m : TVA.Mem} {s : TVA.Site}
+  {k : s.Out → TVA.Prog α} (hex : ∃ b, s.Allows b) (hk : ∀ (b : s.Out), s.Allows b → TVA.SafeA E R W C Q log m (k b)) :
+  TVA.SafeA E R W C Q log m (TVA.Prog.pick s k)
 ```
 
-A choice of any value satisfying `P` (`Site.other`), as in `Safe.pick`.
+A choice at a site of Triton's catalog, as in `Safe.pick`.
 
 ### `TVA.SafeA.guard`
 
