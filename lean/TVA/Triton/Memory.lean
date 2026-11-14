@@ -89,26 +89,7 @@ theorem addrs_of_get_all (b : Buf d) {ptrs : Tensor s (Ptr d)} {g : Idx s → Na
 
 end Buf
 
-/-- `padding_option` of a block-pointer or descriptor load: what a lane outside the bounds holds.
-`undef` is an unspecified value (block pointers' default `""`), `zero` the zero bit pattern, `nan`
-a NaN (float dtypes only; Triton rejects it for integers). -/
-inductive Padding where
-  /-- An unspecified value. -/
-  | undef
-  /-- The zero bit pattern. -/
-  | zero
-  /-- A NaN. -/
-  | nan
-  deriving DecidableEq, Repr
-
-/-- A lane outside the bounds holds what the padding says. -/
-def Padding.Holds {d : DType} : Padding → d.Val → Prop
-  | .undef, _ => True
-  | .zero, x => x = d.ofBits 0
-  | .nan, x => d.IsNaN x
-
-instance (d : DType) (x : d.Val) : Decidable (d.IsNaN x) := by
-  cases d <;> simp only [DType.IsNaN] <;> infer_instance
+/-! `Padding` and `Padding.Holds` are in `TVA.Triton.Memory.Rel`, before the catalog of sites. -/
 
 namespace tl
 
@@ -146,8 +127,7 @@ def store1 {d : DType} (p : Ptr d) (v : d.Val) : Prog Unit :=
 the others keep their loaded value. -/
 def pad {d : DType} (p : Padding) (inb : Idx s → Bool) (v : Tensor s d.Val) :
     Prog (Tensor s d.Val) :=
-  .pick (.other _ fun r : Tensor s d.Val =>
-      ∀ i, if inb i then r.get i = v.get i else p.Holds (r.get i)) .ret
+  .pick (.pad s d p inb v) .ret
 
 /-! ## Atomics -/
 
@@ -163,8 +143,8 @@ lanes in some order, each returning its old value; disabled lanes return unspeci
 def atomicWith {d : DType} (ptrs : Tensor s (Ptr d)) (upd : Idx s → d.Val → d.Val → Prop)
     (mask : Option (Tensor s Bool)) (sem : MemSem) (scope : Scope) : Prog (Tensor s d.Val) :=
   let enabled := (Idx.all s).filter (fun i => (addrs ptrs mask i).isSome)
-  .pick (.other _ (fun (_ : Idx s → d.Val) => True)) fun junk =>
-  .pick (.other _ (fun (order : List (Idx s)) => order.Perm enabled)) fun order => do
+  .pick (.anyVals s d) fun junk =>
+  .pick (.order s enabled) fun order => do
     let old ← rmwSeq ptrs upd sem scope order junk
     return ⟨old⟩
 

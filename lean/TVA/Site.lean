@@ -3,6 +3,7 @@ import TVA.Triton.Arith.Rel
 import TVA.Triton.Convert.Rel
 import TVA.Triton.Dot.Rel
 import TVA.Triton.Reduce.Rel
+import TVA.Triton.Memory.Rel
 
 /-!
 # Triton's sites: what a Triton program may leave open
@@ -96,6 +97,14 @@ inductive Site : Type 1 where
   behaviour when an enabled element is outside `[0, bins)`. -/
   | histogram (n bins : Nat) (sg : Bool) (w : Nat) (x : Tensor [n] (IntV sg w))
       (mask : Option (Tensor [n] Bool))
+  /-- A loaded block `v` whose lanes outside the bounds (`inb i = false`) hold what the padding
+  `p` says; the others keep their loaded value. -/
+  | pad (s : Shape) (d : DType) (p : Padding) (inb : Idx s → Bool) (v : Tensor s d.Val)
+  /-- Any values of dtype `d`, one per lane: what the disabled lanes of an atomic return. -/
+  | anyVals (s : Shape) (d : DType)
+  /-- An order of the lanes `enabled`: a permutation of them (the order an atomic's lanes are
+  performed in). -/
+  | order (s : Shape) (enabled : List (Idx s))
   /-- Any value of type `β` satisfying `P`. -/
   | other (β : Type) (P : β → Prop)
 
@@ -118,6 +127,9 @@ inductive Site : Type 1 where
   | @arg1 α _ _ _ _ m _ _ => Tensor [m] α × Tensor [m] I32
   | @arg0 α _ _ _ _ _ n _ => Tensor [n] α × Tensor [n] I32
   | .histogram _ bins _ _ _ _ => Tensor [bins] I32
+  | .pad s d _ _ _ => Tensor s d.Val
+  | .anyVals s d => Idx s → d.Val
+  | .order s _ => List (Idx s)
   | .upToNaN s f _ | .addc s f _ _ _ | .mulAdd s f _ _ _ _ | .maxMin s f _ _ _ => Tensor s (FloatV f)
   | .other β _ => β
 
@@ -137,6 +149,9 @@ inductive Site : Type 1 where
   | .fromF8 _ _ _ x => fun r => ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)
   | .convert P _ d d' x => fun r => ∀ i, ConvRel P d d' (x.get i) (r.get i)
   | .plat P q => q.Rel P
+  | .pad _ _ p inb v => fun r => ∀ i, if inb i then r.get i = v.get i else p.Holds (r.get i)
+  | .anyVals _ _ => fun _ => True
+  | .order _ enabled => fun order => order.Perm enabled
   | .fsum _ fusion depth n x => fun r => ∃ t : Tree, t.Covers n ∧ t.depth ≤ depth ∧
       t.Eval (AddRel fusion) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r
   | .fsum1 _ fusion depth m n x => fun r : Tensor [m] _ => ∀ i, ∃ t : Tree, t.Covers n ∧
