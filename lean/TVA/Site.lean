@@ -1,6 +1,7 @@
 import TVA.Core
 import TVA.Triton.Arith.Rel
 import TVA.Triton.Convert.Rel
+import TVA.Triton.Dot.Rel
 
 /-!
 # Triton's sites: what a Triton program may leave open
@@ -54,6 +55,19 @@ inductive Site : Type 1 where
   | fromF8 (s : Shape) (f g : Format) (x : Tensor s (FloatV f))
   /-- `semantic.cast` from dtype `d` to `d'` on platform `P` (`ConvRel`, lane by lane). -/
   | convert (P : Platform) (s : Shape) (d d' : DType) (x : Tensor s d.Val)
+  /-- An operation the platform `P` defines, on concrete operands (`PlatQ`: `tl.exp`, `/`,
+  `tl.dot`, a conversion into fp8): any result `q.Rel P` allows. -/
+  | plat (P : Platform) (q : PlatQ)
+  /-- A source `tl.dot(a, b, acc=z) + c` on platform `P`: `tl.dot(a, b, c)`, or the product with
+  accumulator `z` followed by the addition of `c` (`AccAdd`, with `fusion`). One site with both
+  branches, so that it is undefined behaviour only when neither has a result. -/
+  | dotAdd (P : Platform) (fusion : Bool) (cfg : DotCfg) (M N K : Nat)
+      (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val) (c z : Tensor [M, N] cfg.acc.Val)
+  /-- A source `tl.dot_scaled(…, acc=z) + c` on platform `P`, on unpacked operands and scales:
+  as `dotAdd`, with `Platform.dotScaled` and the `float32` addition. -/
+  | dotScaledAdd (P : Platform) (fusion : Bool) (cfg : ScaledCfg) (M N K : Nat)
+      (a : Tensor [M, K] Nat) (sa : Option (Tensor [M, K] Nat)) (b : Tensor [K, N] Nat)
+      (sb : Option (Tensor [K, N] Nat)) (c z : Tensor [M, N] F32)
   /-- Any value of type `β` satisfying `P`. -/
   | other (β : Type) (P : β → Prop)
 
@@ -66,6 +80,9 @@ inductive Site : Type 1 where
   | .ftoi s _ sg w _ => Tensor s (IntV sg w)
   | .fromF8 s _ g _ => Tensor s (FloatV g)
   | .convert _ s _ d' _ => Tensor s d'.Val
+  | .plat _ q => q.Out
+  | .dotAdd _ _ cfg M N _ _ _ _ _ => Tensor [M, N] cfg.acc.Val
+  | .dotScaledAdd _ _ _ M N _ _ _ _ _ _ _ => Tensor [M, N] F32
   | .upToNaN s f _ | .addc s f _ _ _ | .mulAdd s f _ _ _ _ | .maxMin s f _ _ _ => Tensor s (FloatV f)
   | .other β _ => β
 
@@ -84,6 +101,11 @@ inductive Site : Type 1 where
   | .ftoi _ _ sg w x => fun r => ∀ i, FtoiRel sg w (x.get i) (r.get i)
   | .fromF8 _ _ _ x => fun r => ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)
   | .convert P _ d d' x => fun r => ∀ i, ConvRel P d d' (x.get i) (r.get i)
+  | .plat P q => q.Rel P
+  | .dotAdd P fusion cfg _ _ _ a b c z => fun r => P.dot cfg a b c r ∨
+      ∃ d, P.dot cfg a b z d ∧ ∀ i, AccAdd fusion cfg.acc (d.get i) (c.get i) (r.get i)
+  | .dotScaledAdd P fusion cfg _ _ _ a sa b sb c z => fun r => P.dotScaled cfg a sa b sb c r ∨
+      ∃ d, P.dotScaled cfg a sa b sb z d ∧ ∀ i, AddRel fusion (d.get i) (c.get i) (r.get i)
   | .other _ P => P
 
 /-- The update an atomic makes to one element of dtype `d`. -/
@@ -160,6 +182,23 @@ the `Site.other` it replaces. -/
     {x : Tensor s d.Val} {r : Tensor s d'.Val} :
     Sig.Allows (Site.convert P s d d' x) r ↔ ∀ i, ConvRel P d d' (x.get i) (r.get i) := Iff.rfl
 
+/-- The platform sites allow exactly the predicates of the `Site.other`s they replace. -/
+@[simp] theorem Site.allows_plat {P : Platform} {q : PlatQ} {r : q.Out} :
+    Sig.Allows (Site.plat P q) r ↔ q.Rel P r := Iff.rfl
+
+@[simp] theorem Site.allows_dotAdd {P : Platform} {fusion : Bool} {cfg : DotCfg} {M N K : Nat}
+    {a : Tensor [M, K] cfg.a.Val} {b : Tensor [K, N] cfg.b.Val} {c z r : Tensor [M, N] cfg.acc.Val} :
+    Sig.Allows (Site.dotAdd P fusion cfg M N K a b c z) r ↔ (P.dot cfg a b c r ∨
+      ∃ d, P.dot cfg a b z d ∧ ∀ i, AccAdd fusion cfg.acc (d.get i) (c.get i) (r.get i)) := Iff.rfl
+
+@[simp] theorem Site.allows_dotScaledAdd {P : Platform} {fusion : Bool} {cfg : ScaledCfg}
+    {M N K : Nat} {a : Tensor [M, K] Nat} {sa : Option (Tensor [M, K] Nat)} {b : Tensor [K, N] Nat}
+    {sb : Option (Tensor [K, N] Nat)} {c z r : Tensor [M, N] F32} :
+    Sig.Allows (Site.dotScaledAdd P fusion cfg M N K a sa b sb c z) r ↔
+      (P.dotScaled cfg a sa b sb c r ∨
+        ∃ d, P.dotScaled cfg a sa b sb z d ∧ ∀ i, AddRel fusion (d.get i) (c.get i) (r.get i)) :=
+  Iff.rfl
+
 @[simp] theorem Upd.allows_other {d : DType} {upd : d.Val → d.Val → Prop} {old new : d.Val} :
     Sig.UpdAllows (Upd.other upd) old new ↔ upd old new := Iff.rfl
 
@@ -169,7 +208,7 @@ namespace Prog
 conversion into fp8): read the environment, then any result `q.Rel` allows on its platform;
 undefined behaviour when there is none. -/
 def plat {α : Type} (q : PlatQ) (k : q.Out → Prog α) : Prog α :=
-  env fun e => pick (Site.other _ (q.Rel e.P)) k
+  env fun e => pick (Site.plat e.P q) k
 
 @[simp] theorem plat_bind {α β : Type} (q : PlatQ) (k : q.Out → Prog α) (f : α → Prog β) :
     (plat q k).bind f = plat q (fun r => (k r).bind f) := rfl

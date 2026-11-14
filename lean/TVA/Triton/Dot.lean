@@ -1,4 +1,5 @@
 import TVA.Triton.Arith
+import TVA.Triton.Dot.Rel
 
 /-!
 # Matrix products: `tl.dot`, `tl.dot_scaled`
@@ -32,27 +33,9 @@ the device facts speak about. 3-D (batched) operands are not covered.
 -/
 namespace TVA
 
-/-- The addition of an accumulator dtype: `AddRel` for the standard float formats, wrapping `+`
-for integers, nothing for others. -/
-def AccAdd (fusion : Bool) : (d : DType) → d.Val → d.Val → d.Val → Prop
-  | .f16, x, y, r => AddRel fusion x y r | .bf16, x, y, r => AddRel fusion x y r
-  | .f32, x, y, r => AddRel fusion x y r | .f64, x, y, r => AddRel fusion x y r
-  | .i8, x, y, r => r = x + y | .i16, x, y, r => r = x + y | .i32, x, y, r => r = x + y
-  | .i64, x, y, r => r = x + y
-  | .u8, x, y, r => r = x + y | .u16, x, y, r => r = x + y | .u32, x, y, r => r = x + y
-  | .u64, x, y, r => r = x + y
-  | _, _, _, _ => False
+/-! `AccAdd` and `tl.MulRel` are in `TVA.Triton.Dot.Rel`, before the catalog of sites. -/
 
 namespace tl
-
-/-- The product of a standard float dtype: the IEEE product up to NaN payload (nothing for other
-dtypes). -/
-def MulRel : (d : DType) → d.Val → d.Val → d.Val → Prop
-  | .f16, a, b, c => FloatV.NaNEq (FloatV.mul a b) c
-  | .bf16, a, b, c => FloatV.NaNEq (FloatV.mul a b) c
-  | .f32, a, b, c => FloatV.NaNEq (FloatV.mul a b) c
-  | .f64, a, b, c => FloatV.NaNEq (FloatV.mul a b) c
-  | _, _, _, _ => False
 
 /-- `tl.dot(a, b, acc)` with configuration `cfg`: as the platform computes it. -/
 def dot (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
@@ -62,13 +45,11 @@ def dot (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [
 /-- A source `tl.dot(a, b, acc=z) + c` (or `c + tl.dot(…)`) with a zero accumulator `z` (the
 default, or any constant `±0`) and no other use of the product: either `tl.dot(a, b, c)` (the
 combine pass's rewrite, for a float dot only when `max_num_imprecise_acc` is `0`) or the product
-followed by the (fusable) addition. The solver assumes the oracle's `tl.dot(a, b, c)`. -/
+followed by the (fusable) addition. -/
 def dot_add (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
     (c : Tensor [M, N] cfg.acc.Val) (z : Tensor [M, N] cfg.acc.Val := Tensor.full (cfg.acc.ofBits 0)) :
     Prog (Tensor [M, N] cfg.acc.Val) :=
-  .env fun e => .pick (.other _ (fun r => e.P.dot cfg a b c r ∨
-    ∃ d, e.P.dot cfg a b z d ∧ ∀ i, AccAdd e.fusion cfg.acc (d.get i) (c.get i) (r.get i)))
-    .ret
+  .env fun e => .pick (.dotAdd e.P e.fusion cfg M N K a b c z) .ret
 
 /-- A float reduction on axis 1 of the products `x[i, k] * y[k, j]` (`x` expanded on its last axis,
 `y` on its first), in any spelling: each element is the products summed along a tree with fusable
@@ -242,12 +223,8 @@ def dot_scaled_add (cfg : ScaledCfg) (M N K : Nat) {dl dr dsl dsr : DType} {Ra C
     Prog (Tensor [M, N] F32) :=
   .pick (.guard (
       cfg.ShapeOk M N K Ra Ca Rb Cb G ∧ cfg.TypesOk dl dr dsl dsr)) fun _ =>
-  .env fun e => .pick (.other _ (fun r =>
-    e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
-      (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) c r ∨
-    ∃ d, e.P.dotScaled cfg (cfg.unpackL M K lhs) (lhs_scale.map (cfg.scalesL M K))
-      (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) z d ∧
-      ∀ i, AddRel e.fusion (d.get i) (c.get i) (r.get i)))
+  .env fun e => .pick (.dotScaledAdd e.P e.fusion cfg M N K (cfg.unpackL M K lhs)
+    (lhs_scale.map (cfg.scalesL M K)) (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) c z)
     .ret
 
 end tl
