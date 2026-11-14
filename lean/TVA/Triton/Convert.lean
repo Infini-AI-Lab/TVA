@@ -43,13 +43,16 @@ variable {s : Shape} {f : Format}
 def RoundOk (f g : Format) (rnd : RoundMode) : Prop :=
   rnd = .rn ∨ (rnd = .rz ∧ f = .binary32 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .e5m2))
 
+instance (f g : Format) (rnd : RoundMode) : Decidable (RoundOk f g rnd) := by
+  unfold RoundOk; infer_instance
+
 /-- `x.to(dtype, fp_downcast_rounding=rnd)` between standard float formats (`float16`,
 `bfloat16`, `float32`, `float64`): one rounding (`.rn` to nearest even, the default; `.rz` toward
 zero), up to NaN payload; widening is exact. Undefined behaviour for other formats, which use
 `tl.cvt8` (into fp8) and `tl.cvtFrom8` (out of fp8). -/
 def cvt {g : Format} (x : Tensor s (FloatV f)) (rnd : RoundMode := .rn) :
     Prog (Tensor s (FloatV g)) :=
-  .pick (fun _ : Unit => f.Std ∧ g.Std ∧ RoundOk f g rnd) fun _ =>
+  .pick (fun _ : Unit => f.Std ∧ g.Std ∧ RoundOk f g rnd) .guard fun _ =>
     upToNaN (x.map (FloatV.cvtWith rnd))
 
 /-- `x.to(dtype, fp_downcast_rounding=rnd)` from `float16`, `bfloat16` or `float32` into an fp8
@@ -58,17 +61,17 @@ NaN, is the lowering's). -/
 def cvt8 {g : Format} (x : Tensor s (FloatV f)) (rnd : RoundMode := .rn) :
     Prog (Tensor s (FloatV g)) :=
   .pick (fun _ : Unit => (f = .binary16 ∨ f = .bfloat16 ∨ f = .binary32) ∧ g.F8 ∧ RoundOk f g rnd)
-    fun _ => .env fun e =>
-      .pick (fun r : Tensor s (FloatV g) => ∀ i, e.P.cvt f g rnd (x.get i) (r.get i)) .ret
+    .guard fun _ => .plat (.cvt f g rnd x) .ret
 
 /-- `x.to(dtype)` from fp8 (`float8e5`, `float8e4nv`) to `float16`, `bfloat16` or `float32`:
 exact on finite elements. An infinity or NaN may come out as any value: Triton converts
 `float8e5` to `bfloat16` by a bit trick that turns them into finite numbers (`Fp8E5M2_to_Bf16`,
 `nvidia-ElementwiseOpToLLVM.cpp:68-121`). There is no fp8 → `float64` conversion. -/
 def cvtFrom8 {g : Format} (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV g)) :=
-  .pick (fun _ : Unit => f.F8 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .binary32)) fun _ =>
+  .pick (fun _ : Unit => f.F8 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .binary32)) .guard fun _ =>
   .pick (fun r : Tensor s (FloatV g) =>
-    ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)) .ret
+    ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i))
+    (.ok (x.map FloatV.cvt) fun _ _ => rfl) .ret
 
 /-! ## Between integers and floats -/
 
@@ -88,8 +91,9 @@ def ItofRel (g : Format) (z : Int) (r : FloatV g) : Prop :=
 /-- `x.to(float dtype)` of an integer tensor (`sitofp`/`uitofp`) into a standard format: each
 element as `ItofRel` allows. Into fp8 it does not compile (`semantic.py:916`). -/
 def itof {sg : Bool} {w : Nat} (x : Tensor s (IntV sg w)) : Prog (Tensor s (FloatV f)) :=
-  .pick (fun _ : Unit => f.Std) fun _ =>
-  .pick (fun r : Tensor s (FloatV f) => ∀ i, ItofRel f (x.get i).toInt (r.get i)) .ret
+  .pick (fun _ : Unit => f.Std) .guard fun _ =>
+  .pick (fun r : Tensor s (FloatV f) => ∀ i, ItofRel f (x.get i).toInt (r.get i))
+    (.ok (x.map fun a => FloatV.ofRat (a.toInt : Rat)) fun _ => Or.inl rfl) .ret
 
 /-- A float `x` converted to the integer type `IntV sg w` (`fptosi`/`fptoui`): truncation toward
 zero, from a standard format only; no result (undefined behaviour) when `x` is NaN, infinite or out
@@ -100,12 +104,20 @@ def _root_.TVA.FtoiRel {f : Format} (sg : Bool) (w : Nat) (x : FloatV f) (r : In
     x.toRat.num.tdiv x.toRat.den ≤ IntV.maxInt sg w ∧
     r = IntV.ofInt (x.toRat.num.tdiv x.toRat.den)
 
+/-- The only candidate `FtoiRel` allows, decided (for the solvers of `ftoi` and `convert`). -/
+def ftoiAns {f : Format} (sg : Bool) (w : Nat) (x : FloatV f) : Option (Ans (FtoiRel sg w x)) :=
+  if h : f.Std ∧ x.isFinite = true ∧ IntV.minInt sg w ≤ x.toRat.num.tdiv x.toRat.den ∧
+      x.toRat.num.tdiv x.toRat.den ≤ IntV.maxInt sg w then
+    some (.ok _ ⟨h.1, h.2.1, h.2.2.1, h.2.2.2, rfl⟩)
+  else some (.empty fun _ hr => h ⟨hr.1, hr.2.1, hr.2.2.1, hr.2.2.2.1⟩)
+
 /-- `x.to(int dtype)` of a float tensor in a standard format: each element truncated toward zero
 (`FtoiRel`); undefined behaviour when an element is NaN, infinite or out of range. From fp8 it does
 not compile (`semantic.py:916`). -/
 def ftoi {sg : Bool} {w : Nat} (x : Tensor s (FloatV f)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (fun _ : Unit => f.Std) fun _ =>
-  .pick (fun r : Tensor s (IntV sg w) => ∀ i, FtoiRel sg w (x.get i) (r.get i)) .ret
+  .pick (fun _ : Unit => f.Std) .guard fun _ =>
+  .pick (fun r : Tensor s (IntV sg w) => ∀ i, FtoiRel sg w (x.get i) (r.get i))
+    (.each fun i => tl.ftoiAns sg w (x.get i)) .ret
 
 end tl
 
@@ -172,13 +184,68 @@ theorem DType.ofBits_toBits : (d : DType) → (v : d.Val) → d.ofBits (d.toBits
   | .f16, ⟨b⟩ | .bf16, ⟨b⟩ | .f32, ⟨b⟩ | .f64, ⟨b⟩ | .f8e5, ⟨b⟩ | .f8e4nv, ⟨b⟩ => by
       simp [DType.ofBits, DType.toBits, FloatV.ofPat, FloatV.pat]
 
+/-! ### Solving a conversion
+
+What the solver of `tl.convert` computes for one element: the conversion's result, with its proof,
+or "no result". `convAns` gives up (`none`) only on a conversion into fp8, which is the
+platform's; there `tl.convert` assumes the oracle's value (`Query.convert`). -/
+
+/-- `ofIntRel z d'`, solved. -/
+def ofIntAns (z : Int) : (d' : DType) → Option (Ans (ofIntRel z d'))
+  | .i1 => some (.ok _ rfl)
+  | .i8 => some (.ok _ rfl) | .i16 => some (.ok _ rfl) | .i32 => some (.ok _ rfl)
+  | .i64 => some (.ok _ rfl)
+  | .u8 => some (.ok _ rfl) | .u16 => some (.ok _ rfl) | .u32 => some (.ok _ rfl)
+  | .u64 => some (.ok _ rfl)
+  | .f16 => some (.ok _ (Or.inl rfl)) | .bf16 => some (.ok _ (Or.inl rfl))
+  | .f32 => some (.ok _ (Or.inl rfl)) | .f64 => some (.ok _ (Or.inl rfl))
+  | .f8e5 => some (.empty fun _ h => h) | .f8e4nv => some (.empty fun _ h => h)
+
+/-- `FloatRel P f g x`, solved, except into fp8 from a format the platform converts. -/
+def floatAns (P : Platform) (f g : Format) (x : FloatV f) : Option (Ans (FloatRel P f g x)) :=
+  if h : f = g then some (.ok (h ▸ x) (by subst h; simp [FloatRel]))
+  else if hs : f.Std ∧ g.Std then
+    some (.ok (FloatV.cvt x) (by rw [FloatRel, ite_eq_right h]; exact Or.inl ⟨hs.1, hs.2, Or.inl rfl⟩))
+  else if hp : (f = .binary16 ∨ f = .bfloat16 ∨ f = .binary32) ∧ g.F8 then none
+  else if h8 : f.F8 ∧ (g = .binary16 ∨ g = .bfloat16 ∨ g = .binary32) then
+    some (.ok (FloatV.cvt x) (by rw [FloatRel, ite_eq_right h]; exact Or.inr (Or.inr ⟨h8.1, h8.2, fun _ => rfl⟩)))
+  else some (.empty fun r hr => by
+    rw [FloatRel, ite_eq_right h] at hr
+    rcases hr with ⟨h1, h2, _⟩ | ⟨h1, h2, _⟩ | ⟨h1, h2, _⟩
+    · exact hs ⟨h1, h2⟩
+    · exact hp ⟨h1, h2⟩
+    · exact h8 ⟨h1, h2⟩)
+
+/-- `ofFloatRel P x d'`, solved, except into fp8. -/
+def ofFloatAns (P : Platform) {f : Format} (x : FloatV f) : (d' : DType) → Option (Ans (ofFloatRel P x d'))
+  | .i1 => some (.ok _ rfl)
+  | .i8 => tl.ftoiAns true 8 x | .i16 => tl.ftoiAns true 16 x | .i32 => tl.ftoiAns true 32 x
+  | .i64 => tl.ftoiAns true 64 x
+  | .u8 => tl.ftoiAns false 8 x | .u16 => tl.ftoiAns false 16 x | .u32 => tl.ftoiAns false 32 x
+  | .u64 => tl.ftoiAns false 64 x
+  | .f16 => floatAns P f _ x | .bf16 => floatAns P f _ x | .f32 => floatAns P f _ x
+  | .f64 => floatAns P f _ x | .f8e5 => floatAns P f _ x | .f8e4nv => floatAns P f _ x
+
+/-- `ConvRel P d d' x`, solved, except into fp8. -/
+def convAns (P : Platform) : (d d' : DType) → (x : d.Val) → Option (Ans (ConvRel P d d' x))
+  | .i1, d', x => ofIntAns (if x then 1 else 0) d'
+  | .i8, d', x => ofIntAns x.toInt d' | .i16, d', x => ofIntAns x.toInt d'
+  | .i32, d', x => ofIntAns x.toInt d' | .i64, d', x => ofIntAns x.toInt d'
+  | .u8, d', x => ofIntAns x.toInt d' | .u16, d', x => ofIntAns x.toInt d'
+  | .u32, d', x => ofIntAns x.toInt d' | .u64, d', x => ofIntAns x.toInt d'
+  | .f16, d', x => ofFloatAns P x d' | .bf16, d', x => ofFloatAns P x d'
+  | .f32, d', x => ofFloatAns P x d' | .f64, d', x => ofFloatAns P x d'
+  | .f8e5, d', x => ofFloatAns P x d' | .f8e4nv, d', x => ofFloatAns P x d'
+
 namespace tl
 
 /-- `x.to(d')` with the default rounding, and every implicit conversion of an operand (the
 promotion of a mixed-dtype operator, the condition of `tl.where` to `int1`): each element as
 `ConvRel` allows; undefined behaviour if some element has no result. -/
 def convert {s : Shape} (d d' : DType) (x : Tensor s d.Val) : Prog (Tensor s d'.Val) :=
-  .env fun e => .pick (fun r : Tensor s d'.Val => ∀ i, ConvRel e.P d d' (x.get i) (r.get i)) .ret
+  .env fun e => .pick (fun r : Tensor s d'.Val => ∀ i, ConvRel e.P d d' (x.get i) (r.get i))
+    ⟨fun H => (Solve.each fun i => (convAns e.P d d' (x.get i)).orElse fun _ =>
+      (H (.convert d d' (x.get i))).map .assume).run H⟩ .ret
 
 /-- `x.to(d', bitcast=True)` of a tensor of dtype `d` (`semantic.py:793-809`): each element's bit
 pattern read as a value of `d'`, exact, NaN payloads included. Triton requires the same width

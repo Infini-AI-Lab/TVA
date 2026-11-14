@@ -17,7 +17,8 @@ Each step does the program's next effect (`TVA.Program`) as one indivisible acti
 * `store`: every enabled lane writes its element, the lanes in some order (which matters only when
   two lanes have the same address: the later one wins). An invalid address is undefined behaviour.
 * `rmw`: one element of an atomic, read and written in one step; it continues with the old value.
-* `pick`: any value satisfying the predicate, or undefined behaviour when there is none.
+* `pick`: any value satisfying the predicate, or undefined behaviour when there is none. The
+  `pick`'s solver plays no part.
 * `loop`: one unfolding (`Prog.loopStep`); `env`: read the environment.
 
 The steps follow the program's text, with one exception: an atomic need not be performed before
@@ -132,19 +133,21 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
       ¬ StoreOk m d addrs → Step E m (.store d s addrs vals k) .ub
   /-- One atomic read-modify-write: read the old value, write any new value `upd` allows, and
   continue with the old value. -/
-  | rmw {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope}
+  | rmw {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sv : (old : d.Val) → Solve (upd old)}
+      {sem : MemSem} {sc : Scope}
       {k : d.Val → Prog α} (old new : d.Val) :
       m.read d a = some old → upd old new →
-      Step E m (.rmw d a upd sem sc k)
+      Step E m (.rmw d a upd sv sem sc k)
         (.next (m.write d a new) (k old)
           { reads := Mem.span d a, writes := Mem.span d a, atomic := some (sem, sc),
             cell := some (d, a) })
   /-- An atomic on an invalid address, or whose update allows no new value, is undefined
   behaviour. -/
-  | rmwUB {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope}
+  | rmwUB {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sv : (old : d.Val) → Solve (upd old)}
+      {sem : MemSem} {sc : Scope}
       {k : d.Val → Prog α} :
       (m.read d a = none ∨ ∃ old, m.read d a = some old ∧ ∀ new, ¬ upd old new) →
-      Step E m (.rmw d a upd sem sc k) .ub
+      Step E m (.rmw d a upd sv sem sc k) .ub
   /-- **An atomic is performed later.** The atomic stays pending while the program takes a later
   step first. That step must not depend on the atomic's result: whatever old value the atomic
   returns, the continuation takes that step, to the same memory with the same event. The atomic
@@ -155,17 +158,18 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
   on the result at all, neither does the continuation after the step (a `pick` makes the same
   choice for every old value). This changes no outcome, and it keeps an unused result unused in
   every reachable state, which `UsesSharedAtomicResult` reads. -/
-  | defer {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope}
+  | defer {α : Type} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop} {sv : (old : d.Val) → Solve (upd old)}
+      {sem : MemSem} {sc : Scope}
       {k k' : d.Val → Prog α} {m' : Mem} {e : Event} :
       (∀ v, Step E m (k v) (.next m' (k' v) e)) →
       ((∀ v w, k v = k w) → ∀ v w, k' v = k' w) →
-      Step E m (.rmw d a upd sem sc k) (.next m' (.rmw d a upd sem sc k') e)
+      Step E m (.rmw d a upd sv sem sc k) (.next m' (.rmw d a upd sv sem sc k') e)
   /-- `pick`: continue with any value satisfying the predicate. -/
-  | pick {α β : Type} {P : β → Prop} {k : β → Prog α} (b : β) :
-      P b → Step E m (.pick P k) (.next m (k b) .silent)
+  | pick {α β : Type} {P : β → Prop} {sv : Solve P} {k : β → Prog α} (b : β) :
+      P b → Step E m (.pick P sv k) (.next m (k b) .silent)
   /-- A `pick` that nothing satisfies is undefined behaviour. -/
-  | pickUB {α β : Type} {P : β → Prop} {k : β → Prog α} :
-      (∀ b, ¬ P b) → Step E m (.pick P k) .ub
+  | pickUB {α β : Type} {P : β → Prop} {sv : Solve P} {k : β → Prog α} :
+      (∀ b, ¬ P b) → Step E m (.pick P sv k) .ub
   /-- `ub` is undefined behaviour. -/
   | ub {α : Type} : Step E m (.ub : Prog α) .ub
   /-- A loop unfolds one iteration (`Prog.loopStep`). -/

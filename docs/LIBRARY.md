@@ -39,8 +39,8 @@ use [INDEX.md](INDEX.md) and the generated [index/](index/). The library has two
 | `TVA.Tensor.Layout` | `join`, `split`, `interleave`, `reshape`, `permute`, `broadcastTo`, with element lemmas. |
 | `TVA.Tensor.Tree` | Reduction trees (`Tree`, `Tree.Covers`, `Tree.Eval`): the order in which a float reduction combines. |
 | `TVA.Memory` | `Mem` (a partial map from addresses to bytes), `Ptr d` and pointer arithmetic, aligned reads and writes, `Buf d` (a host buffer: `ptr`, `elems`, `Valid`, `Holds`). Claims state footprints and specifications with `Buf`. |
-| `TVA.Platform` | `Platform`: the relations Triton leaves to the device (`math`, `div`, `dot`, `cvt`, `atomicAdd`, `dotScaled`, `sumDepth`), `DotCfg`, `ScaledCfg`, and `Env` (the platform with the fusion flag). |
-| `TVA.Program` | `Prog α`, one program as a value whose effects are constructors (`load`, `store`, `rmw`, `pick`, `ub`, `loop`, `env`); `Ctx`; `MemSem`, `Scope`, `MemSem.unused`. Its docstring says why a program is not sequential for global memory. |
+| `TVA.Platform` | `Platform`: the relations Triton leaves to the device (`math`, `div`, `dot`, `cvt`, `atomicAdd`, `dotScaled`, `sumDepth`), `DotCfg`, `ScaledCfg`, `Env` (the platform with the fusion flag), and `PlatQ` (one question to the platform on concrete operands, with `PlatQ.Rel`: what `Prog.plat` picks among). |
+| `TVA.Program` | `Prog α`, one program as a value whose effects are constructors (`load`, `store`, `rmw`, `pick`, `ub`, `loop`, `env`); `Prog.plat` (`env` then `pick`); `Ctx`; `MemSem`, `Scope`, `MemSem.unused`; `Solve`, `Ans`, `Query`, `Hints`, the solvers a `pick` or an `rmw` carries for running a model. Its docstring says why a program is not sequential for global memory. |
 
 ### The `tl.*` vocabulary: `TVA.Triton`
 

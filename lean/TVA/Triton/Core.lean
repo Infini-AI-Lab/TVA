@@ -31,11 +31,13 @@ the compiler hints; the other families are in `TVA.Triton.Arith`, `Convert`, `Pr
   numbers fixed by the claim's instance, and Python arithmetic on them is computed in Lean
   (`tl.py`). A shape is a `List Nat`.
 * **What the device chooses is a `pick`.** When Triton leaves a result to the device (a masked-out
-  lane without `other`, an approximate `tl.exp`, a `tl.dot`, the tree of a float reduction, the
-  order of an atomic's lanes), the operation is `Prog.pick P`: the program continues with *some*
-  value satisfying `P`, and a proof must work for each. When no value satisfies `P` the operation
-  is undefined behaviour; that is how a model states a precondition (`tl.assume`, a division by
-  zero, an out-of-range conversion).
+  lane without `other`, the tree of a float reduction, the order of an atomic's lanes), the
+  operation is `Prog.pick P`: the program continues with *some* value satisfying `P`, and a proof
+  must work for each. When no value satisfies `P` the operation is undefined behaviour; that is
+  how a model states a precondition (`tl.assume`, a division by zero, an out-of-range
+  conversion). An operation the platform defines (an approximate `tl.exp`, `/`, a `tl.dot`) is a
+  `Prog.plat`: an `env` then a `pick` of the platform's relation. Each `pick` also carries a solver
+  (`Solve`), used only to run a model; the meaning ignores it.
 * **NaN payloads are unspecified.** The device returns *some* NaN, not a particular one (PTX gives
   "an unspecified NaN" for `neg`, `abs` and arithmetic on NaN inputs, and MLIR folds such as
   `x * 1.0 → x` keep an input's payload). So every exact float operation returns its IEEE result
@@ -100,6 +102,28 @@ def FirstsDiv {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C v : Na
 /-- Along dimension `k`, each group of `C` positions holds equal values. -/
 def ConstAlong {s : Shape} {β : Type} (x : Tensor s β) (k C : Nat) : Prop :=
   ∀ i j : Idx s, Idx.SameGroup k C i j → x.get j = x.get i
+
+/-! Deciding the hints' conditions, for the solvers of their `pick`s (`Solve`). -/
+
+theorem Idx.sameGroup_iff {s : Shape} (k C : Nat) (i j : Idx s) :
+    Idx.SameGroup k C i j ↔
+      (∀ k', k' < s.length → k' ≠ k → i.coord k' = j.coord k') ∧ i.coord k / C = j.coord k / C := by
+  refine ⟨fun h => ⟨fun k' _ hk => h.1 k' hk, h.2⟩, fun h => ⟨fun k' hk => ?_, h.2⟩⟩
+  by_cases hl : k' < s.length
+  · exact h.1 k' hl hk
+  · rw [Idx.coord_of_ge i (Nat.le_of_not_lt hl), Idx.coord_of_ge j (Nat.le_of_not_lt hl)]
+
+instance {s : Shape} (k C : Nat) (i j : Idx s) : Decidable (Idx.SameGroup k C i j) :=
+  decidable_of_iff _ (Idx.sameGroup_iff k C i j).symm
+
+instance {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) :
+    Decidable (ContigAlong x k C) := by unfold ContigAlong; infer_instance
+
+instance {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) :
+    Decidable (ContigIs x k C) := by unfold ContigIs; infer_instance
+
+instance {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C v : Nat) :
+    Decidable (FirstsDiv x k C v) := by unfold FirstsDiv; infer_instance
 
 namespace tl
 
@@ -174,7 +198,7 @@ compiler chooses. A reshape to rank 1 whose only users are reductions or histogr
 since Triton's combine pass may then reorder it (and an index reduction of it pairs reordered
 values with the positions' indices). -/
 def reshape_any (x : Tensor s α) (s' : Shape) : Prog (Tensor s' α) :=
-  .pick (fun r : Tensor s' α => ∃ e : Idx s' ≃ Idx s, ∀ i, r.get i = x.get (e i)) .ret
+  .pick (fun r : Tensor s' α => ∃ e : Idx s' ≃ Idx s, ∀ i, r.get i = x.get (e i)) .none .ret
 
 /-! ## Compile-time Python arithmetic
 
@@ -241,22 +265,22 @@ values that are powers of two (at most the dimension's size for `max_contiguous`
 
 /-- `tl.assume(cond)`: a promise to the compiler that `cond` holds. A false `assume` is undefined
 behaviour (the compiler may have optimised on it). -/
-def assume (c : Bool) : Prog Unit := .pick (fun _ : Unit => c = true) .ret
+def assume (c : Bool) : Prog Unit := .pick (fun _ : Unit => c = true) .guard .ret
 
 /-- `tl.static_assert(cond)`: Triton checks `cond` at compile time and rejects the kernel on the
 host when it is false, so no program runs. A claim's `ok` excludes such instances; the model
 makes a false one undefined behaviour, so that no claim covering it can be proved. -/
-def static_assert (c : Bool) : Prog Unit := .pick (fun _ : Unit => c = true) .ret
+def static_assert (c : Bool) : Prog Unit := .pick (fun _ : Unit => c = true) .guard .ret
 
 /-- `tl.max_contiguous(x, C)` of a rank-1 tensor, with no `tl.multiple_of` on the same value:
 `C` is `x`'s contiguity (`ContigIs`). -/
 def max_contiguous {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C : Nat) :
     Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ContigIs x 0 C) .ret
+  .pick (fun y => y = x ∧ ContigIs x 0 C) (.hint x) .ret
 
 /-- `tl.max_constancy(x, C)` of a rank-1 tensor: `x` is runs of `C` equal values. -/
 def max_constancy {n : Nat} {β : Type} (x : Tensor [n] β) (C : Nat) : Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ConstAlong x 0 C) .ret
+  .pick (fun y => y = x ∧ ConstAlong x 0 C) .none .ret
 
 /-- `tl.multiple_of(x, v)` of a rank-1 tensor, with no `tl.max_contiguous` on the same value: `v`
 divides the first element of each group of `contig` positions (`FirstsDiv`). `contig` is a lower
@@ -264,28 +288,28 @@ bound of the contiguity the compiler infers for `x` (`B` for `s + tl.arange(0, B
 element, by default. -/
 def multiple_of {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (v : Nat)
     (contig : Nat := 1) : Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ FirstsDiv x 0 contig v) .ret
+  .pick (fun y => y = x ∧ FirstsDiv x 0 contig v) (.hint x) .ret
 
 /-- `tl.max_contiguous(tl.multiple_of(x, v), C)` of a rank-1 tensor (both hints on one value, in
 either order): groups of `C` positions hold consecutive values (`ContigAlong`) and `v` divides
 the first element of each group (`FirstsDiv`). -/
 def max_contiguous_multiple_of {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C v : Nat) :
     Prog (Tensor [n] β) :=
-  .pick (fun y => y = x ∧ ContigAlong x 0 C ∧ FirstsDiv x 0 C v) .ret
+  .pick (fun y => y = x ∧ ContigAlong x 0 C ∧ FirstsDiv x 0 C v) (.hint x) .ret
 
 /-- `tl.multiple_of(x, v)` of a scalar: `v` divides it. -/
 def multiple_of1 {β : Type} [HintVal β] (x : β) (v : Nat) : Prog β :=
-  .pick (fun y => y = x ∧ (v : Int) ∣ HintVal.val x) .ret
+  .pick (fun y => y = x ∧ (v : Int) ∣ HintVal.val x) (.hint x) .ret
 
 /-- `tl.max_contiguous(x, Cs)` for any rank, with no `tl.multiple_of` on the same value: along
 each dimension `k`, `Cs[k]` is `x`'s contiguity (`ContigIs`). -/
 def max_contiguousN {β : Type} [HintVal β] (x : Tensor s β) (Cs : List Nat) : Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → ContigIs x k (Cs.getD k 1)) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → ContigIs x k (Cs.getD k 1)) (.hint x) .ret
 
 /-- `tl.max_constancy(x, Cs)` for any rank: along each dimension `k`, groups of `Cs[k]` positions
 hold equal values. -/
 def max_constancyN {β : Type} (x : Tensor s β) (Cs : List Nat) : Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1)) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1)) .none .ret
 
 /-- `tl.multiple_of(x, vs)` for any rank, with no `tl.max_contiguous` on the same value: along each
 dimension `k`, `vs[k]` divides the first element of each group of `contig[k]` positions, where
@@ -294,7 +318,7 @@ dimension `k`, `vs[k]` divides the first element of each group of `contig[k]` po
 promises that every pointer is 16-byte aligned. -/
 def multiple_ofN {β : Type} [HintVal β] (x : Tensor s β) (vs : List Nat) (contig : List Nat := []) :
     Prog (Tensor s β) :=
-  .pick (fun y => y = x ∧ ∀ k, k < s.length → FirstsDiv x k (contig.getD k 1) (vs.getD k 1)) .ret
+  .pick (fun y => y = x ∧ ∀ k, k < s.length → FirstsDiv x k (contig.getD k 1) (vs.getD k 1)) (.hint x) .ret
 
 /-- `tl.max_contiguous(tl.multiple_of(x, vs), Cs)` for any rank (both hints on one value): along
 each dimension `k`, groups of `Cs[k]` positions hold consecutive values and `vs[k]` divides the
@@ -302,7 +326,8 @@ first element of each group. -/
 def max_contiguous_multiple_ofN {β : Type} [HintVal β] (x : Tensor s β) (Cs vs : List Nat) :
     Prog (Tensor s β) :=
   .pick (fun y => y = x ∧ ∀ k, k < s.length →
-    ContigAlong x k (Cs.getD k 1) ∧ FirstsDiv x k (Cs.getD k 1) (vs.getD k 1)) .ret
+    ContigAlong x k (Cs.getD k 1) ∧ FirstsDiv x k (Cs.getD k 1) (vs.getD k 1))
+    (.hint x) .ret
 
 end tl
 

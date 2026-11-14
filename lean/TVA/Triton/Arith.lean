@@ -90,7 +90,8 @@ variable {f : Format}
 
 /-- The results of an elementwise operation whose exact result is `v`: `v` up to NaN payload. -/
 def upToNaN (v : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.NaNEq (v.get i) (r.get i)) .ret
+  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.NaNEq (v.get i) (r.get i))
+    (.ok v fun _ => Or.inl rfl) .ret
 
 /-- `x + y` on floats that no product feeds: the IEEE sum. -/
 def add (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
@@ -109,13 +110,16 @@ the two operations. -/
 def mul_add (a b c : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
   .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i,
     FloatV.NaNEq (FloatV.add (FloatV.mul (a.get i) (b.get i)) (c.get i)) (r.get i) ∨
-    (e.fusion = true ∧ FloatV.NaNEq (FloatV.fma (a.get i) (b.get i) (c.get i)) (r.get i))) .ret
+    (e.fusion = true ∧ FloatV.NaNEq (FloatV.fma (a.get i) (b.get i) (c.get i)) (r.get i)))
+    (.ok ⟨fun i => FloatV.add (FloatV.mul (a.get i) (b.get i)) (c.get i)⟩ fun _ => Or.inl (Or.inl rfl))
+    .ret
 
 /-- A source `x + y` that a product may feed (whose product the model does not see, or with
 products on both sides): any result `AddRel` allows. -/
 def addc (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
   .env fun e => .pick (fun r : Tensor s (FloatV f) =>
-    ∀ i, AddRel e.fusion (x.get i) (y.get i) (r.get i)) .ret
+    ∀ i, AddRel e.fusion (x.get i) (y.get i) (r.get i))
+    (.ok (Tensor.map2 FloatV.add x y) fun _ => AddRel.ieee _ _ _) .ret
 
 /-- A source `x - y` that a product may feed: `x + (-y)` under `addc` (`a*b - c` and `c - a*b`
 both contract to an `fma`). -/
@@ -130,7 +134,7 @@ def fma (x y z : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
 and `bfloat16` operands in `float32` (`semantic.py:93-102`): the model converts first. A `float32`
 quotient is a product for a following addition. -/
 def div (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i, e.P.div f (x.get i) (y.get i) (r.get i)) .ret
+  .plat (.div f x y) .ret
 
 /-- `tl.div_rn(x, y)`: the IEEE quotient (`div.rn`), not a product. -/
 def div_rn (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
@@ -149,7 +153,7 @@ def sqrt_rn (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := upToNaN (x
 /-- An approximate elementwise function, as the platform computes it (`Platform.math`). Triton
 accepts these on `float32` and `float64` only (`math.py:94-98`); a model converts first. -/
 def math (fn : MathFn) (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .env fun e => .pick (fun r : Tensor s (FloatV f) => ∀ i, e.P.math fn f (x.get i) (r.get i)) .ret
+  .plat (.math fn f x) .ret
 
 /-- `tl.exp(x)`. -/
 def exp (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := math .exp x
@@ -180,11 +184,13 @@ def abs (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := upToNaN (x.map
 `bfloat16` operands to `float32` first (`core.py:2927`): the model converts, and the result is
 `float32`. -/
 def maximum (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel true (x.get i) (y.get i) (r.get i)) .ret
+  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel true (x.get i) (y.get i) (r.get i))
+    (.ok (Tensor.map2 FloatV.max x y) fun _ => Or.inl (Or.inl rfl)) .ret
 
 /-- `tl.minimum(x, y)` on floats: as `tl.maximum`, with the minimum. -/
 def minimum (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel false (x.get i) (y.get i) (r.get i)) .ret
+  .pick (fun r : Tensor s (FloatV f) => ∀ i, FloatV.MaxRel false (x.get i) (y.get i) (r.get i))
+    (.ok (Tensor.map2 FloatV.min x y) fun _ => Or.inl (Or.inl rfl)) .ret
 
 /-- `tl.sigmoid(x)`: Triton's `@triton.jit` body `1 / (1 + math.exp(-x))` (`standard.py:44-50`),
 inlined: the negation, `tl.exp`, the IEEE addition of the constant `1`, and the default float
@@ -217,11 +223,13 @@ def iminimum (x y : Tensor s (IntV sg w)) : Tensor s (IntV sg w) := Tensor.map2 
 
 /-- `x // y` on integer tensors: truncating division (`IntV.div?`). -/
 def idiv (x y : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).div? (y.get i) = some (r.get i)) .ret
+  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).div? (y.get i) = some (r.get i))
+    (.lanes fun i => (x.get i).div? (y.get i)) .ret
 
 /-- `x % y` on integer tensors: the remainder of truncating division (`IntV.rem?`). -/
 def irem (x y : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
-  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).rem? (y.get i) = some (r.get i)) .ret
+  .pick (fun r : Tensor s (IntV sg w) => ∀ i, (x.get i).rem? (y.get i) = some (r.get i))
+    (.lanes fun i => (x.get i).rem? (y.get i)) .ret
 
 /-- `tl.cdiv(x, div)` with a tensor operand: Triton's `@triton.jit` body `(x + (div - 1)) // div`
 (`standard.py:32-43`), inlined, so the addition wraps and `//` truncates. It is not ceiling
@@ -234,7 +242,8 @@ def cdiv (x div : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
 amount, read as unsigned, is at least the width (a negative amount is a huge one). -/
 def shl (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
   .pick (fun r : Tensor s (IntV sg w) => ∀ i,
-    (x.get i).shl? (n.get i).bits.toNat = some (r.get i)) .ret
+    (x.get i).shl? (n.get i).bits.toNat = some (r.get i))
+    (.lanes fun i => (x.get i).shl? (n.get i).bits.toNat) .ret
 
 /-- `x >> n`, arithmetic. Triton picks `ashr` or `lshr` by the source dtype of the tensor operand
 Python dispatches on, before promotion: the left one when it is a tensor (`__rshift__`), the right
@@ -242,12 +251,14 @@ one when the left is a Python number (`__rrshift__`, `core.py:1012-1024`). So `i
 arithmetic shift of `uint32` values, and `0xF0 >> s` with `s : uint8` is a logical one. -/
 def ashr (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
   .pick (fun r : Tensor s (IntV sg w) => ∀ i,
-    (x.get i).ashr? (n.get i).bits.toNat = some (r.get i)) .ret
+    (x.get i).ashr? (n.get i).bits.toNat = some (r.get i))
+    (.lanes fun i => (x.get i).ashr? (n.get i).bits.toNat) .ret
 
 /-- `x >> n`, logical: the dispatching operand's source dtype is unsigned (see `ashr`). -/
 def lshr (x n : Tensor s (IntV sg w)) : Prog (Tensor s (IntV sg w)) :=
   .pick (fun r : Tensor s (IntV sg w) => ∀ i,
-    (x.get i).lshr? (n.get i).bits.toNat = some (r.get i)) .ret
+    (x.get i).lshr? (n.get i).bits.toNat = some (r.get i))
+    (.lanes fun i => (x.get i).lshr? (n.get i).bits.toNat) .ret
 
 end Int
 

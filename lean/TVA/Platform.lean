@@ -26,8 +26,8 @@ facts allow. A relation, rather
 than a function, also lets two occurrences of one operation on the same operands return different
 results, as the device may (another instruction selection, another fusion).
 
-A program reads the platform through `Env` (`Prog.env`, `TVA.Program`), together with the
-kernel's `enable_fp_fusion` option.
+A program asks the platform for one operation with `Prog.plat` (`PlatQ`, below), or reads it
+through `Env` (`Prog.env`, `TVA.Program`), together with the kernel's `enable_fp_fusion` option.
 
 Used by `TVA.Triton.Arith`, `TVA.Triton.Convert`, `TVA.Triton.Memory` (float atomics),
 `TVA.Triton.Dot`, `TVA.Triton.Reduce`, and `TVA.Device`.
@@ -184,5 +184,43 @@ structure Env where
   /-- The kernel's `enable_fp_fusion` option (Triton's default: `True`): when set, the compiler
   may fuse a multiplication into a following addition (`fma`). -/
   fusion : Bool := true
+
+/-- One question to the platform: an operation `Platform` leaves to the device, on concrete
+operands, for a whole tensor. `Prog.plat q k` asks it, and `PlatQ.Rel` says which answers the
+platform allows: the relation of the field, lane by lane for the elementwise operations. -/
+inductive PlatQ : Type where
+  /-- `tl.exp(x)`, `tl.log(x)`, … (`Platform.math`). -/
+  | math (fn : MathFn) (f : Format) {s : Shape} (x : Tensor s (FloatV f))
+  /-- `x / y` on floats (`Platform.div`). -/
+  | div (f : Format) {s : Shape} (x y : Tensor s (FloatV f))
+  /-- A conversion of `x` into the fp8 format `g` (`Platform.cvt`). -/
+  | cvt (f g : Format) (rnd : RoundMode) {s : Shape} (x : Tensor s (FloatV f))
+  /-- `tl.dot(a, b, acc)` (`Platform.dot`). -/
+  | dot (cfg : DotCfg) {M N K : Nat} (a : Tensor [M, K] cfg.a.Val) (b : Tensor [K, N] cfg.b.Val)
+      (acc : Tensor [M, N] cfg.acc.Val)
+  /-- `tl.dot_scaled` on unpacked operands and scales (`Platform.dotScaled`). -/
+  | dotScaled (cfg : ScaledCfg) {M N K : Nat} (a : Tensor [M, K] Nat)
+      (sa : Option (Tensor [M, K] Nat)) (b : Tensor [K, N] Nat) (sb : Option (Tensor [K, N] Nat))
+      (acc : Tensor [M, N] F32)
+
+namespace PlatQ
+
+/-- The type of an answer. -/
+def Out : PlatQ → Type
+  | @math _ f s _ => Tensor s (FloatV f)
+  | @div f s _ _ => Tensor s (FloatV f)
+  | @cvt _ g _ s _ => Tensor s (FloatV g)
+  | @dot cfg M N _ _ _ _ => Tensor [M, N] cfg.acc.Val
+  | @dotScaled _ M N _ _ _ _ _ _ => Tensor [M, N] F32
+
+/-- The answers platform `P` allows. -/
+def Rel (P : Platform) : (q : PlatQ) → q.Out → Prop
+  | @math fn f _ x => fun r => ∀ i, P.math fn f (x.get i) (r.get i)
+  | @div f _ x y => fun r => ∀ i, P.div f (x.get i) (y.get i) (r.get i)
+  | @cvt f g rnd _ x => fun r => ∀ i, P.cvt f g rnd (x.get i) (r.get i)
+  | @dot cfg _ _ _ a b acc => fun r => P.dot cfg a b acc r
+  | @dotScaled cfg _ _ _ a sa b sb acc => fun r => P.dotScaled cfg a sa b sb acc r
+
+end PlatQ
 
 end TVA

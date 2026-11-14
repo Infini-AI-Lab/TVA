@@ -99,7 +99,9 @@ reaches undefined behaviour, no two programs make conflicting non-atomic accesse
 bytes, a program makes no conflicting accesses to the same bytes itself (its threads do not order
 them), and no program uses an atomic's result on a cell another access also reaches. Approximate
 operations (`exp`, `tl.dot`, fp8 conversion, float atomics) take their result from the platform's
-relation through `pick`, so a proof works for every result the device facts allow.
+relation through `pick` (`Prog.plat`, an `env` then a `pick`), so a proof works for every result
+the device facts allow. Each `pick` and `rmw` also carries a solver (`Solve`), used only to run a
+model (`validation/Exec.lean`); the semantics ignores it.
 
 ## Building, checking
 

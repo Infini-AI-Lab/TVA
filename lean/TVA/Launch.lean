@@ -15,7 +15,8 @@ sharing global memory. This module says what such a launch does, when that meani
 * **The model.** A `Kernel` gives, for each program's `Ctx` (`tl.program_id`,
   `tl.num_programs`), the program it runs: a `Prog Unit` (`TVA.Program`), whose effects are
   loads, stores, atomic read-modify-writes of one element (`rmw`), unpredictable values (`pick`),
-  undefined behaviour, loops and reads of the environment.
+  operations the platform defines (`plat`), undefined behaviour, loops and reads of the
+  environment.
 * **The launch.** A `Launch` gives the grid, the options that change the meaning
   (`enable_fp_fusion`, and `debug`, `num_ctas`, `launch_pdl`, which `Launch.Valid` requires at
   their defaults) and the source's block shapes. Program number `i` gets
@@ -46,7 +47,8 @@ The interleaving is the launch's meaning only when it is `WellBehaved`
 (`TVA.Launch.WellBehaved`):
 
 1. **No undefined behaviour**: no reachable state has a program whose next step is undefined
-   behaviour (an invalid access, a `pick` nothing satisfies, an integer division by zero, …).
+   behaviour (an invalid access, a `pick` or `plat` nothing satisfies, an integer division by
+   zero, …).
 2. **No race between programs** (`InterRace`): no trace has two steps of different programs that
    touch a common byte, at least one writing it, unless both are `acq_rel` atomics at `gpu` or
    `sys` scope on exactly the same bytes (`Event.Strong`).

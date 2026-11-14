@@ -74,7 +74,7 @@ theorem shared {k : Kernel} {L : Launch} {E : Env} {init : Mem}
       have : x ∈ R i ∪ W i := hx.elim Or.inl (fun h => Or.inr (hWc h))
       simp [localMem, this]) hI.present hub
   have hatom : ¬ UsesSharedAtomicResult E k L init := by
-    rintro ⟨tr, c, i, d, a, upd, sem, sc, kk, hr, hc, ⟨v, w, hne⟩, -⟩
+    rintro ⟨tr, c, i, d, a, upd, sv, sem, sc, kk, hr, hc, ⟨v, w, hne⟩, -⟩
     obtain ⟨G, hsafeG, -⟩ := (hinv tr c hr).safe
     obtain ⟨Wc, -, -, hs⟩ := hsafeG i
     rw [hc] at hs

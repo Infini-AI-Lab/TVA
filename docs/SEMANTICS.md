@@ -56,11 +56,14 @@ The conventions, stated in `TVA.Triton.Core`'s module docstring:
   (`tl.py.floordiv`, `tl.py.mod`, `tl.py.cdiv` for Python's floor division). A shape is a
   `List Nat`. A compile-time `if` is a Lean `if` on the parameter.
 - **What the device chooses is a `pick`.** When Triton leaves a result open (a masked-out lane
-  without `other`, an approximate `tl.exp`, a `tl.dot`, the tree of a float reduction, the order
-  of an atomic's lanes), the operation is `Prog.pick P k`: the program continues with *some* value
-  satisfying `P`, and a proof must hold for each. When nothing satisfies `P`, the `pick` is
-  undefined behaviour; that is how a model states a precondition (`tl.assume`, a division by
-  zero).
+  without `other`, the tree of a float reduction, the order of an atomic's lanes), the operation
+  is `Prog.pick P solve k`: the program continues with *some* value satisfying `P`, and a proof
+  must hold for each. When nothing satisfies `P`, the `pick` is undefined behaviour; that is how a
+  model states a precondition (`tl.assume`, a division by zero). An operation the platform
+  defines (an approximate `tl.exp`, `/`, a `tl.dot`, a conversion into fp8) is `Prog.plat q k`,
+  an `env` then a `pick` of the platform's relation `PlatQ.Rel`. `solve` (`Solve`) proposes a
+  value, with its proof or assumed, for running a model; the meaning ignores it, and so can a
+  reader.
 - **NaN payloads are unspecified.** Every exact float operation returns its IEEE result up to NaN
   payload (`tl.upToNaN`, `FloatV.NaNEq`), so a specification compares floats up to NaN payload.
 
@@ -585,8 +588,11 @@ Some operations have no exact meaning: the compiler lowers them to instructions 
 documented only up to an accuracy. TVA leaves each to a platform `P` (`TVA.Platform`), a relation
 per operation: `Platform.math` (`tl.exp`, …), `Platform.div` (the default `/`), `Platform.dot`,
 `Platform.cvt` (into fp8), `Platform.atomicAdd` (float), `Platform.dotScaled`, and
-`Platform.sumDepth` (how deep a float reduction's tree may be). A program reads the platform
-through `Env`, with the launch's fusion flag. A relation rather than a function lets two
+`Platform.sumDepth` (how deep a float reduction's tree may be). A program reads the platform through
+`Env`, with the launch's fusion flag. `Prog.plat q k` (`PlatQ`: `math`, `div`, `cvt`, `dot`,
+`dotScaled`) is such a read followed by a `pick` of the results the relation allows; float
+atomics, `sumDepth`, and the operations that may be either a platform result or a fused addition
+(`tl.dot_add`, `tl.convert`) read `Env` directly. A relation rather than a function lets two
 occurrences of one operation on the same operands give different results, as the device may.
 
 Every claim quantifies over every `P` with `Device P` (`TVA.Device`): the conjunction of all the

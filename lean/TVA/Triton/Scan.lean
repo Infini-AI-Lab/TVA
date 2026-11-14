@@ -71,7 +71,7 @@ def associative_scan (x : Tensor s α) (axis : Nat) (op : α → α → α → P
     (reverse : Bool := false) : Prog (Tensor s α) :=
   .pick (fun r : Tensor s α => ∀ i, ∃ t : Tree,
     ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
-    t.Eval op (fun j => x.get (i.set axis j)) (r.get i)) .ret
+    t.Eval op (fun j => x.get (i.set axis j)) (r.get i)) .none .ret
 
 section Float
 variable {f : Format}
@@ -116,7 +116,7 @@ def sort [SortKey α] (x : Tensor s α) (descending : Bool := false) : Prog (Ten
   .pick (fun r : Tensor s α => ∀ i,
     (∀ t, t < Shape.dim s (s.length - 1) → SortKey.Ordered (x.get (i.set (s.length - 1) t))) →
       PermAlong (s.length - 1) (Shape.dim s (s.length - 1)) x r i ∧
-      SortedAlong descending (s.length - 1) (Shape.dim s (s.length - 1)) r i) .ret
+      SortedAlong descending (s.length - 1) (Shape.dim s (s.length - 1)) r i) .none .ret
 
 end tl
 

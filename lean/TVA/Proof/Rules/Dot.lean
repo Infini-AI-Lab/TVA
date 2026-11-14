@@ -30,7 +30,7 @@ theorem safe_dot {cfg : DotCfg} {M N K : Nat} {a : Tensor [M, K] cfg.a.Val}
     (hk : ∀ r, E.P.dot cfg a b acc r → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.dot cfg a b acc >>= k) := by
   simp only [tl.dot, bind_eq, Prog.bind]
-  exact .env (.pick hex hk)
+  exact .plat hex hk
 
 /-- **`tl.dot(a, b) + c`**: given that the `tl.dot` with accumulator `c` has a result (`hex`), the
 rest must be safe for either form: the folded dot, or the dot with the zero accumulator `z` and
@@ -108,7 +108,7 @@ theorem safe_dot_scaled {acc : Tensor [M, N] F32} {k : Tensor [M, N] F32 → Pro
       (cfg.unpackR K N rhs) (rhs_scale.map (cfg.scalesR K N)) acc r → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.dot_scaled cfg M N K lhs lhs_scale rhs rhs_scale acc >>= k) := by
   simp only [tl.dot_scaled, bind_eq, Prog.bind]
-  exact .pick ⟨(), hshape, htypes⟩ fun _ _ => .env (.pick hex hk)
+  exact .pick ⟨(), hshape, htypes⟩ fun _ _ => .plat hex hk
 
 /-- **`tl.dot_scaled(…) + c`**: given that the folded form has a result, the rest must be safe
 for either form: `c` folded into the accumulator, or the product then the addition. -/

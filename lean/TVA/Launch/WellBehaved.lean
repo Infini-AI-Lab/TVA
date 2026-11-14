@@ -93,8 +93,9 @@ not tell the lanes of one `tl.atomic_*` call apart from separate calls, so a sec
 same call on the same cell counts as another access too. -/
 def UsesSharedAtomicResult (E : Env) (k : Kernel) (L : Launch) (init : Mem) : Prop :=
   ∃ (tr : List (Fin L.size × Event)) (c : Config L.size) (i : Fin L.size) (d : DType) (a : Int)
-    (upd : d.Val → d.Val → Prop) (sem : MemSem) (sc : Scope) (kk : d.Val → Prog Unit),
-    Reach E (Config.start k L init) tr c ∧ c.progs i = .rmw d a upd sem sc kk ∧
+    (upd : d.Val → d.Val → Prop) (sv : (old : d.Val) → Solve (upd old)) (sem : MemSem)
+    (sc : Scope) (kk : d.Val → Prog Unit),
+    Reach E (Config.start k L init) tr c ∧ c.progs i = .rmw d a upd sv sem sc kk ∧
     (∃ v w, kk v ≠ kk w) ∧
     ∃ (tr' : List (Fin L.size × Event)) (c' : Config L.size),
       Reach E (Config.start k L init) tr' c' ∧ SharedIn tr' i (Mem.span d a)

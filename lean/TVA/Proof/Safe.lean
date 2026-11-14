@@ -59,16 +59,17 @@ inductive Safe (E : Env) (R : Set Int) :
   constructor covers performing it now; performing it later (`Step.defer`) follows
   (`Safe.stepT`). -/
   | rmw {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {d : DType} {a : Int}
-      {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} {k : d.Val → Prog α} :
+      {upd : d.Val → d.Val → Prop} {sv : (old : d.Val) → Solve (upd old)} {sem : MemSem}
+      {sc : Scope} {k : d.Val → Prog α} :
       (∃ old, m.read d a = some old ∧ ∃ new, upd old new) →
       Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, k v = k w) →
       (∀ old new, m.read d a = some old → upd old new →
         Safe E R (W \ Mem.span d a) Q (m.write d a new) (k old)) →
-      Safe E R W Q m (.rmw d a upd sem sc k)
+      Safe E R W Q m (.rmw d a upd sv sem sc k)
   /-- A choice: some value is allowed, and the rest is safe for every allowed value. -/
   | pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {β : Type} {P : β → Prop}
-      {k : β → Prog α} :
-      (∃ b, P b) → (∀ b, P b → Safe E R W Q m (k b)) → Safe E R W Q m (.pick P k)
+      {sv : Solve P} {k : β → Prog α} :
+      (∃ b, P b) → (∀ b, P b → Safe E R W Q m (k b)) → Safe E R W Q m (.pick P sv k)
   /-- A loop: its first unfolding is safe. -/
   | loop {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {σ β : Type} {init : σ}
       {body : σ → Prog (σ ⊕ β)} {k : β → Prog α} :
@@ -79,7 +80,15 @@ inductive Safe (E : Env) (R : Set Int) :
 
 namespace Safe
 
+
 variable {E : Env} {R : Set Int}
+
+/-- An operation of the platform (`Prog.plat`, an `env` then a `pick`): some result is allowed,
+and the rest is safe for every allowed result. -/
+theorem plat {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {q : PlatQ}
+    {k : q.Out → Prog α} (hex : ∃ r, q.Rel E.P r) (hk : ∀ r, q.Rel E.P r → Safe E R W Q m (k r)) :
+    Safe E R W Q m (.plat q k) :=
+  .env (.pick hex hk)
 
 /-- Unfolding a loop and then binding is binding and then unfolding. -/
 theorem loopStep_bind {α β γ σ : Type} (init : σ) (body : σ → Prog (σ ⊕ β)) (k : β → Prog α)
@@ -217,7 +226,7 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
     cases ho
     cases h with
     | rmw hex hS hSR hconst hk =>
-      rename_i d a upd sem sc k k' m'' e''
+      rename_i d a upd sv sem sc k k' m'' e''
       obtain ⟨old, hr₀, n₀, hu₀⟩ := hex
       have hagw : ∀ n, ∀ x ∈ R ∪ (W \ Mem.span d a), m x = (m₀.write d a n) x := by
         intro n x hx
@@ -299,12 +308,13 @@ def Next {α : Type} (E : Env) : Mem × Prog α → Mem × Prog α → Prop
 /-- An atomic that stays pending only while its continuation takes steps: the run from the
 atomic's state is as long as the continuation's. -/
 private theorem acc_rmw {α : Type} {Q : α → Mem → Prop} {d : DType} {a : Int}
-    {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} :
+    {upd : d.Val → d.Val → Prop} {sv : (old : d.Val) → Solve (upd old)} {sem : MemSem}
+    {sc : Scope} :
     ∀ s : Mem × Prog α, Acc (Next E) s → ∀ (W : Set Int) (m : Mem) (k : d.Val → Prog α)
       (old n₀ : d.Val), s = (m.write d a n₀, k old) → m.read d a = some old → upd old n₀ →
-      Safe E R W Q m (.rmw d a upd sem sc k) →
+      Safe E R W Q m (.rmw d a upd sv sem sc k) →
       (∀ new, upd old new → Acc (Next E) (m.write d a new, k old)) →
-      Acc (Next E) (m, .rmw d a upd sem sc k) := by
+      Acc (Next E) (m, .rmw d a upd sv sem sc k) := by
   intro s hs
   induction hs with
   | intro s _ ih =>
