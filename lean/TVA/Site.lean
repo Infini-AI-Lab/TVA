@@ -2,6 +2,7 @@ import TVA.Core
 import TVA.Triton.Arith.Rel
 import TVA.Triton.Convert.Rel
 import TVA.Triton.Dot.Rel
+import TVA.Triton.Reduce.Rel
 
 /-!
 # Triton's sites: what a Triton program may leave open
@@ -68,6 +69,33 @@ inductive Site : Type 1 where
   | dotScaledAdd (P : Platform) (fusion : Bool) (cfg : ScaledCfg) (M N K : Nat)
       (a : Tensor [M, K] Nat) (sa : Option (Tensor [M, K] Nat)) (b : Tensor [K, N] Nat)
       (sb : Option (Tensor [K, N] Nat)) (c z : Tensor [M, N] F32)
+  /-- A float sum of a rank-1 tensor along some tree over its `n` positions of depth at most
+  `depth`, each node an `AddRel fusion` addition (`tl.sum`, `tl.sumc`). -/
+  | fsum (f : Format) (fusion : Bool) (depth n : Nat) (x : Tensor [n] (FloatV f))
+  /-- The row sums of a rank-2 tensor (`axis=1`), each along its own tree, as `fsum`. -/
+  | fsum1 (f : Format) (fusion : Bool) (depth m n : Nat) (x : Tensor [m, n] (FloatV f))
+  /-- The column sums of a rank-2 tensor (`axis=0`), each along its own tree, as `fsum`. -/
+  | fsum0 (f : Format) (fusion : Bool) (depth m n : Nat) (x : Tensor [m, n] (FloatV f))
+  /-- `tl.max(x)` (`isMax`) or `tl.min(x)` of a rank-1 float tensor: `MaxRel` along some tree. -/
+  | fmax (f : Format) (isMax : Bool) (n : Nat) (x : Tensor [n] (FloatV f))
+  /-- `tl.max(x, axis=1)` or `tl.min`: each row along its own tree, as `fmax`. -/
+  | fmax1 (f : Format) (isMax : Bool) (m n : Nat) (x : Tensor [m, n] (FloatV f))
+  /-- `tl.max(x, axis=0)` or `tl.min`: each column along its own tree, as `fmax`. -/
+  | fmax0 (f : Format) (isMax : Bool) (m n : Nat) (x : Tensor [m, n] (FloatV f))
+  /-- An index reduction of a rank-1 tensor (`tl.argmax`, `tl.max(…, return_indices=True)`, and
+  the minima): a pair `tl.ArgRes` allows. -/
+  | arg (α : Type) [cmp : CmpKey α] [inh : Inhabited α] (isMax tieLeft : Bool) (n : Nat)
+      (x : Tensor [n] α)
+  /-- An index reduction of each row of a rank-2 tensor (`axis=1`), as `arg`. -/
+  | arg1 (α : Type) [cmp : CmpKey α] [inh : Inhabited α] (isMax tieLeft : Bool) (m n : Nat)
+      (x : Tensor [m, n] α)
+  /-- An index reduction of each column of a rank-2 tensor (`axis=0`), as `arg`. -/
+  | arg0 (α : Type) [cmp : CmpKey α] [inh : Inhabited α] (isMax tieLeft : Bool) (m n : Nat)
+      (x : Tensor [m, n] α)
+  /-- `tl.histogram(x, bins, mask)`: the counts of the enabled elements per bin; undefined
+  behaviour when an enabled element is outside `[0, bins)`. -/
+  | histogram (n bins : Nat) (sg : Bool) (w : Nat) (x : Tensor [n] (IntV sg w))
+      (mask : Option (Tensor [n] Bool))
   /-- Any value of type `β` satisfying `P`. -/
   | other (β : Type) (P : β → Prop)
 
@@ -83,6 +111,13 @@ inductive Site : Type 1 where
   | .plat _ q => q.Out
   | .dotAdd _ _ cfg M N _ _ _ _ _ => Tensor [M, N] cfg.acc.Val
   | .dotScaledAdd _ _ _ M N _ _ _ _ _ _ _ => Tensor [M, N] F32
+  | .fsum f _ _ _ _ | .fmax f _ _ _ => FloatV f
+  | .fsum1 f _ _ m _ _ | .fmax1 f _ m _ _ => Tensor [m] (FloatV f)
+  | .fsum0 f _ _ _ n _ | .fmax0 f _ _ n _ => Tensor [n] (FloatV f)
+  | @arg α _ _ _ _ _ _ => α × I32
+  | @arg1 α _ _ _ _ m _ _ => Tensor [m] α × Tensor [m] I32
+  | @arg0 α _ _ _ _ _ n _ => Tensor [n] α × Tensor [n] I32
+  | .histogram _ bins _ _ _ _ => Tensor [bins] I32
   | .upToNaN s f _ | .addc s f _ _ _ | .mulAdd s f _ _ _ _ | .maxMin s f _ _ _ => Tensor s (FloatV f)
   | .other β _ => β
 
@@ -102,6 +137,33 @@ inductive Site : Type 1 where
   | .fromF8 _ _ _ x => fun r => ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i)
   | .convert P _ d d' x => fun r => ∀ i, ConvRel P d d' (x.get i) (r.get i)
   | .plat P q => q.Rel P
+  | .fsum _ fusion depth n x => fun r => ∃ t : Tree, t.Covers n ∧ t.depth ≤ depth ∧
+      t.Eval (AddRel fusion) (fun i => if h : i < n then x.get1 ⟨i, h⟩ else default) r
+  | .fsum1 _ fusion depth m n x => fun r : Tensor [m] _ => ∀ i, ∃ t : Tree, t.Covers n ∧
+      t.depth ≤ depth ∧
+      t.Eval (AddRel fusion) (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.get1 i)
+  | .fsum0 _ fusion depth m n x => fun r : Tensor [n] _ => ∀ j, ∃ t : Tree, t.Covers m ∧
+      t.depth ≤ depth ∧
+      t.Eval (AddRel fusion) (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.get1 j)
+  | .fmax _ isMax n x => fun r => ∃ t : Tree, t.Covers n ∧
+      t.Eval (FloatV.MaxRel isMax) (fun j => if h : j < n then x.get1 ⟨j, h⟩ else default) r
+  | .fmax1 _ isMax m n x => fun r : Tensor [m] _ => ∀ i, ∃ t : Tree, t.Covers n ∧
+      t.Eval (FloatV.MaxRel isMax) (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default)
+        (r.get1 i)
+  | .fmax0 _ isMax m n x => fun r : Tensor [n] _ => ∀ j, ∃ t : Tree, t.Covers m ∧
+      t.Eval (FloatV.MaxRel isMax) (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default)
+        (r.get1 j)
+  | @arg _ _ _ isMax tieLeft n x => fun r => tl.ArgRes isMax tieLeft n
+      (fun j => if h : j < n then x.get1 ⟨j, h⟩ else default) r
+  | @arg1 _ _ _ isMax tieLeft _ n x => fun r => ∀ i, tl.ArgRes isMax tieLeft n
+      (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.1.get1 i, r.2.get1 i)
+  | @arg0 _ _ _ isMax tieLeft m _ x => fun r => ∀ j, tl.ArgRes isMax tieLeft m
+      (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.1.get1 j, r.2.get1 j)
+  | .histogram n bins _ _ x mask => fun r =>
+      (∀ j, tl.enabledBy mask j = true → 0 ≤ (x.get1 j).toInt ∧ (x.get1 j).toInt < bins) ∧
+      ∀ b : Fin bins, r.get1 b =
+        IntV.ofNat (Finset.univ.filter fun j : Fin n =>
+          tl.enabledBy mask j = true ∧ (x.get1 j).toInt = b).card
   | .dotAdd P fusion cfg _ _ _ a b c z => fun r => P.dot cfg a b c r ∨
       ∃ d, P.dot cfg a b z d ∧ ∀ i, AccAdd fusion cfg.acc (d.get i) (c.get i) (r.get i)
   | .dotScaledAdd P fusion cfg _ _ _ a sa b sb c z => fun r => P.dotScaled cfg a sa b sb c r ∨
