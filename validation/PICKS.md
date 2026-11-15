@@ -26,7 +26,29 @@ catalog needs moved, unchanged, to `TVA/Triton/<File>/Rel.lean`, imported before
 (`upd :=` → `u :=` in `route_histogram_i32` and `streamk_matmul_f16`). All 41 pass after every
 family.
 
-Next: (3) solvers per constructor, (4) `Exec.lean` on `Ans`/`Record`, (5) verdicts.
+(3) (2026-11-15) `validation/Solvers.lean`: `instance Site.solvers : Solvers`, one solver per
+constructor of `Site` and `Upd`, ported from `2d69b79` onto the four-outcome `Ans`. The oracle's
+questions are `TQuery` (`tree`, `order`, `val`, `plat`, `convert`, `atomicAdd`; the old `nat` is
+gone, unused). Platform-dependent (`sitePlatform`, `updPlatform`): `plat`, `dotAdd`,
+`dotScaledAdd`, `sumBcastMul`, `convert` into fp8, float `add` and `red .add`. Changes from the
+old solvers:
+- A supplied answer that does not fit is `Gap.badAnswer`, never replaced by a default: a tree that
+  does not cover the leaves or breaks the depth bound, a lane order that is not a permutation, a
+  device dot at a `sumBcastMul` whose dot branch is closed. (The old `askOr` and `Tree.solve` fell
+  back silently.)
+- A device question with no answer is the new `Gap.noOracle` (was a bare `none`).
+- Float sums default to the sequential tree, then the balanced one (`balanced`, depth
+  `⌈log₂ n⌉ ≤ sumBound`), so a sum longer than the bound still runs without an oracle tree.
+- Proved empty where the old solvers gave up: reductions over `0` elements (`not_covers_zero`),
+  index reductions over `0`, a NaN padding of an integer dtype.
+- `sumBcastMul` has a solver: the oracle's tree, else the oracle's ieee dot (assumed), else the
+  sequential tree; the products and additions are IEEE (`ieeeOps`).
+- `Ans.pi` (lane by lane, in `Solve.lean`) prefers `empty` over `assumed`: one lane with no value
+  means no tensor, whatever the other lanes are.
+Still unsupported: `Site.other` and `Upd.other`. Smoke tests: `validation/tests/solvers.lean`
+(44 `#guard`s, every outcome). `lean/TVA` is unchanged.
+
+Next: (4) `Exec.lean` on `Ans`/`Record`, (5) verdicts.
 
 ## Stage 2 plan: the catalog, the solvers, replay
 
