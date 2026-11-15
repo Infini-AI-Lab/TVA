@@ -309,9 +309,11 @@ whose result differs from the IEEE one among `Platform`'s fields, or is some ope
 
 ## To decide with zhuominc
 
-1. The change to `Prog`: solvers on `pick` and `rmw`, and `Ans.assume`; `plat` a definition
-   (done, on `validation-v3`). Constraint (Yi): the change may touch the semantics, but must stay
-   small and easy to audit.
+1. The change to the semantics: generic over a signature `Sig` of choice sites, with Triton's
+   catalog `TVA.Site` (each `Allows` the old predicate, `Preserve.lean`), and the solvers outside
+   the library (`validation/Solvers.lean`); this replaces the earlier design of solvers on `pick`
+   and `rmw` (`validation-v3`, PR #1). Constraint (Yi): the change may touch the semantics, but
+   must stay small and easy to audit.
 2. The evidence that names the previous library: is redoing `float-layer` for v3 (phase 1)
    wanted, and are the `num-*` folders' bounds the v3 facts' bounds?
 3. `check_gpu.py` results: are runs recorded somewhere (date, driver, claim sha256)? Should
