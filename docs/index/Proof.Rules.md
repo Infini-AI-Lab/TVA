@@ -1407,7 +1407,7 @@ not depend on the values collected before.
 
 ### `TVA.safe_atomic_buf`
 
-theorem · [lean/TVA/Proof/Rules/Memory.lean:344](../../lean/TVA/Proof/Rules/Memory.lean#L344)
+theorem · [lean/TVA/Proof/Rules/Memory.lean:345](../../lean/TVA/Proof/Rules/Memory.lean#L345)
 
 ```lean
 TVA.safe_atomic_buf {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}

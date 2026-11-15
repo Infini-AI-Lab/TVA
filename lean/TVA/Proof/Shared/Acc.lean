@@ -58,7 +58,7 @@ private theorem acc_private {α : Type} {Q : α → List AtomicStep → Mem → 
     ∀ s : Mem × Prog α, Acc (Next E C) s → ∀ (W : Set Int) (log : List AtomicStep) (m : Mem)
       (k : d.Val → Prog α) (old n₀ : d.Val), Disjoint (cellBytes C) (R ∪ W) →
       s = (m.write d a n₀, k old) → m.read d a = some old → Sig.UpdAllows u old n₀ →
-      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, k v = k w) →
+      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, (k v).erase = (k w).erase) →
       (∀ old new, m.read d a = some old → Sig.UpdAllows u old new →
         SafeA E R (W \ Mem.span d a) C Q log (m.write d a new) (k old)) →
       (∀ new, Sig.UpdAllows u old new → Acc (Next E C) (m.write d a new, k old)) →

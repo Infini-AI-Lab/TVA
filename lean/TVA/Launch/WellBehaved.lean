@@ -97,7 +97,7 @@ def UsesSharedAtomicResult (E : Env) (k : Kernel) (L : Launch) (init : Mem) : Pr
   ∃ (tr : List (Fin L.size × Event)) (c : Config L.size) (i : Fin L.size) (d : DType) (a : Int)
     (u : Sig.Upd d) (sem : MemSem) (sc : Scope) (kk : d.Val → Prog Unit),
     Reach E (Config.start k L init) tr c ∧ c.progs i = .rmw d a u sem sc kk ∧
-    (∃ v w, kk v ≠ kk w) ∧
+    (∃ v w, (kk v).erase ≠ (kk w).erase) ∧
     ∃ (tr' : List (Fin L.size × Event)) (c' : Config L.size),
       Reach E (Config.start k L init) tr' c' ∧ SharedIn tr' i (Mem.span d a)
 

@@ -160,7 +160,7 @@ inductive Step (E : Env) (m : Mem) : {α : Type} → Prog α → Out α → Prop
   | defer {α : Type} {d : DType} {a : Int} {u : Sig.Upd d} {sem : MemSem} {sc : Scope}
       {k k' : d.Val → Prog α} {m' : Mem} {e : Event} :
       (∀ v, Step E m (k v) (.next m' (k' v) e)) →
-      ((∀ v w, k v = k w) → ∀ v w, k' v = k' w) →
+      ((∀ v w, (k v).erase = (k w).erase) → ∀ v w, (k' v).erase = (k' w).erase) →
       Step E m (.rmw d a u sem sc k) (.next m' (.rmw d a u sem sc k') e)
   /-- `pick`: continue with any value the site allows. -/
   | pick {α : Type} {s : Sig.Site} {k : Sig.Out s → Prog α} (b : Sig.Out s) :

@@ -104,7 +104,11 @@ structure Op where
   /-- The program, or `none` if the case does not fit (dtype, arity). -/
   prog : (dts : List DType) → (dims : List Nat) → (ins : List (Array Nat)) → Option (Prog (Array Nat))
   /-- Lane comparison, for the output dtype. -/
-  cmp : DType → Cmp := nanEq
+  cmp : (dts : List DType) → Cmp := fun dts => nanEq (dts.getLastD .i32)
+  /-- The number of elements of input `j`, from the case's dims. -/
+  inLen : (dims : List Nat) → (j : Nat) → Nat := fun dims _ => dims.headD 0
+  /-- The number of output elements. -/
+  outLen : (dims : List Nat) → Nat := fun dims => dims.headD 0
   /-- Elementwise: undefined behaviour can be localised by running lanes alone. -/
   lanewise : Bool := true
 
@@ -146,11 +150,25 @@ def int2 (g : ∀ {sg : Bool} {w n : Nat}, Tensor [n] (IntV sg w) → Tensor [n]
     | _, _, _ => none
   cmp _ := exact
 
+/-- `ConvRel` on the device's value, where the platform plays no part: the same bits within a
+dtype; up to NaN payload between standard float formats; from fp8, exact on finite inputs. -/
+def convCmp : List DType → Cmp
+  | [d, d'] => fun ins a b =>
+    if d == d' then a == b else
+    match d.format?, d'.format? with
+    | some f, some g =>
+      if f.F8 then !(FloatV.ofPat (f := f) (ins.headD 0)).isFinite || a == b
+      else if g.F8 then a == b
+      else nanEq d' ins a b
+    | _, _ => a == b
+  | _ => fun _ _ _ => false
+
 /-- `x.to(d')`. -/
 def convertOp : Op where
   prog
     | [d, d'], [n], [xs] => some (bitsOf d' <$> tl.convert d d' (vec d n xs))
     | _, _, _ => none
+  cmp := convCmp
 
 /-- `tl.sum(x)` of a rank-1 float tensor. -/
 def sumOp : Op where
@@ -160,6 +178,16 @@ def sumOp : Op where
       | none => none
     | _, _, _ => none
   lanewise := false
+  outLen _ := 1
+
+/-- The sizes of `a`, `b` and `acc` for dims `[M, N, K]`. -/
+def dotInLen : List Nat → Nat → Nat
+  | [M, N, K], j => [M * K, K * N, M * N].getD j 0
+  | _, _ => 0
+
+def dotOutLen : List Nat → Nat
+  | [M, N, _] => M * N
+  | _ => 0
 
 /-- `tl.dot(a, b, acc)` with `a : [M, K]`, `b : [K, N]`, `acc : [M, N]`; dtypes `a`, `b`, `acc`. -/
 def dotOp (precision : InputPrecision) : Op where
@@ -169,6 +197,8 @@ def dotOp (precision : InputPrecision) : Op where
       some (bitsOf dc <$> tl.dot cfg (mat da M K as) (mat db K N bs) (mat dc M N cs))
     | _, _, _ => none
   lanewise := false
+  inLen := dotInLen
+  outLen := dotOutLen
 
 /-- `tl.dot(a, b) + c`. -/
 def dotAddOp (precision : InputPrecision) : Op where
@@ -178,12 +208,14 @@ def dotAddOp (precision : InputPrecision) : Op where
       some (bitsOf dc <$> tl.dot_add cfg (mat da M K as) (mat db K N bs) (mat dc M N cs))
     | _, _, _ => none
   lanewise := false
+  inLen := dotInLen
+  outLen := dotOutLen
 
 def ops : List (String × Op) := [
   ("add", float2 tl.add), ("sub", float2 tl.sub), ("mul", float2 tl.mul),
   ("div_rn", float2 tl.div_rn), ("div", float2 tl.div), ("fma", float3 tl.fma),
-  ("maximum", { float2 tl.maximum with cmp := maxRel true }),
-  ("minimum", { float2 tl.minimum with cmp := maxRel false }),
+  ("maximum", { float2 tl.maximum with cmp := fun dts => maxRel true (dts.getLastD .i32) }),
+  ("minimum", { float2 tl.minimum with cmp := fun dts => maxRel false (dts.getLastD .i32) }),
   ("neg", float1 tl.neg), ("abs", float1 tl.abs), ("sqrt_rn", float1 tl.sqrt_rn),
   ("exp", float1 tl.exp), ("exp2", float1 tl.exp2), ("log", float1 tl.log),
   ("log2", float1 tl.log2), ("sqrt", float1 tl.sqrt), ("rsqrt", float1 tl.rsqrt),
@@ -290,7 +322,9 @@ def Case.lanes (c : Case) : Nat := c.dims.headD 0
 
 /-- The lanes where the model's outputs `out` and the device's `dev` are not related by `cmp`. -/
 def badLanes (cmp : Cmp) (ins : List (Array Nat)) (out dev : Array Nat) : List Nat :=
-  (List.range out.size).filter fun i => !cmp (ins.map (·.getD i 0)) (out.getD i 0) (dev.getD i 0)
+  (List.range (max out.size dev.size)).filter fun i => match out[i]?, dev[i]? with
+    | some a, some b => !cmp (ins.map (·.getD i 0)) a b
+    | _, _ => true
 
 /-- Up to 8 differing lanes, `lane` counting from `base`, as JSON. -/
 def examples (ins : List (Array Nat)) (out dev : Array Nat) (bad : List Nat) (base : Nat := 0) : List Json :=
@@ -322,11 +356,14 @@ def harness (c : Case) (status : String) : Json :=
   others' (`Verdict.join`). For any other operation, `inconclusive`: the device's output on
   inputs the model calls undefined is not evidence either way. -/
 def runCase (o : Op) (c : Case) (dev : Array Nat) : Json := Id.run do
-  let outD := c.dts.getLastD .i32
   let conv (x : Nat) : Option Nat := match (c.ins.headD #[]).findIdx? (· == x) with
     | some i => dev[i]?
     | none => none
-  let cmp := o.cmp outD
+  let cmp := o.cmp c.dts
+  let badIn := (List.range c.ins.length).any fun j => (c.ins.getD j #[]).size != o.inLen c.dims j
+  if c.ins.isEmpty || badIn then
+    return harness c "bad_case"
+  if dev.size != o.outLen c.dims then return harness c "bad_device"
   let some p := o.prog c.dts c.dims c.ins | return harness c "bad_case"
   let trees : List (Option Tree) := if c.op == "sum" then (candidates c.lanes).map some else [none]
   let mut last : Option (Verdict × List Json) := none
@@ -367,10 +404,12 @@ where
         if let .done out _ := x.1 then
           if ex.size < 8 then ex := ex ++ (examples ins1 out dev1 [0] i).toArray
       v := v.join v1
-    let vf := match v with
+    let vf := if ubLanes == c.lanes then .inconclusive "the model calls every lane undefined" else
+      match v with
       | .discrepancy n _ => .discrepancy n s!"{nbad} of {c.lanes} lanes differ from the device"
       | w => w
-    return report c vf [("lanes", toJson c.lanes), ("ub_lanes", toJson ubLanes), ("bad", toJson nbad),
+    return report c vf [("lanes", toJson c.lanes), ("ub_lanes", toJson ubLanes),
+      ("compared", toJson (c.lanes - ubLanes)), ("bad", toJson nbad),
       ("examples", Json.arr ex)]
 
 /-- The model's own outputs on a case (for `--self`): lanes the model calls undefined give `0`. -/
@@ -429,7 +468,7 @@ def main (args : List String) : IO UInt32 := do
     for (name, why, m) in mutants do
       if name == c.op then
         let s := (runCase m c dev).getObjValAs? String "status" |>.toOption.getD "?"
-        if s != "bad_case" then
+        if s != "bad_case" && s != "bad_device" then
           muts := muts.push (Json.mkObj [("id", c.id), ("op", name), ("mutant", why),
             ("caught", s == "discrepancy"), ("status", s)])
   let summary := Json.mkObj (counts.toList.map fun (k, n) => (k, toJson n))

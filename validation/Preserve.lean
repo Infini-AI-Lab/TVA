@@ -8,8 +8,8 @@ family of `TVA.Site`, the predicate the operation used before the catalog (copie
 bound names) is equivalent to the new `Allows`, by `Iff.rfl`: the same results, and undefined
 behaviour in the same cases.
 
-`UsesSharedAtomicResult` and `Step.defer` compare continuations with `=`, so each site's data must
-depend on the same operands as the old predicate. That holds by inspection of each operation.
+`UsesSharedAtomicResult` and `Step.defer` compare continuations after `Prog.erase`, which keeps only
+each site's relation, so data a site carries but its relation ignores is not a dependence there.
 -/
 namespace TVA.Validation.Preserve
 

@@ -707,7 +707,7 @@ TVA.Safe.rmw {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → P
   (∃ old, m.read d a = some old ∧ ∃ new, TVA.Sig.UpdAllows u old new) →
     TVA.Mem.span d a ⊆ W →
       Disjoint (TVA.Mem.span d a) R →
-        (∀ (v w : d.Val), k v = k w) →
+        (∀ (v w : d.Val), (k v).erase = (k w).erase) →
           (∀ (old new : d.Val),
               m.read d a = some old →
                 TVA.Sig.UpdAllows u old new → TVA.Safe E R (W \ TVA.Mem.span d a) Q (m.write d a new) (k old)) →
@@ -840,7 +840,7 @@ safe". The two parts write disjoint footprints.
 
 ### `TVA.Safe.seq`
 
-theorem · [lean/TVA/Proof/Safe.lean:165](../../lean/TVA/Proof/Safe.lean#L165)
+theorem · [lean/TVA/Proof/Safe.lean:166](../../lean/TVA/Proof/Safe.lean#L166)
 
 ```lean
 TVA.Safe.seq {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem → Prop} {f : α → TVA.Prog β} {p : TVA.Prog α}
@@ -852,7 +852,7 @@ TVA.Safe.seq {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem → 
 
 ### `TVA.Safe.bind_ro`
 
-theorem · [lean/TVA/Proof/Safe.lean:170](../../lean/TVA/Proof/Safe.lean#L170)
+theorem · [lean/TVA/Proof/Safe.lean:171](../../lean/TVA/Proof/Safe.lean#L171)
 
 ```lean
 TVA.Safe.bind_ro {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem → Prop} {f : α → TVA.Prog β} {p : TVA.Prog α}
@@ -864,7 +864,7 @@ TVA.Safe.bind_ro {E : TVA.Env} {R : Set ℤ} {α β : Type} {Q : β → TVA.Mem 
 
 ### `TVA.Safe.stepT`
 
-theorem · [lean/TVA/Proof/Safe.lean:178](../../lean/TVA/Proof/Safe.lean#L178)
+theorem · [lean/TVA/Proof/Safe.lean:179](../../lean/TVA/Proof/Safe.lean#L179)
 
 ```lean
 TVA.Safe.stepT {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m₀ m : TVA.Mem} {p : TVA.Prog α}
@@ -883,7 +883,7 @@ the rest is safe there with the written bytes removed from the write footprint.
 
 ### `TVA.Safe.no_ub`
 
-theorem · [lean/TVA/Proof/Safe.lean:276](../../lean/TVA/Proof/Safe.lean#L276)
+theorem · [lean/TVA/Proof/Safe.lean:277](../../lean/TVA/Proof/Safe.lean#L277)
 
 ```lean
 TVA.Safe.no_ub {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m₀ m : TVA.Mem} {p : TVA.Prog α}
@@ -895,7 +895,7 @@ on the footprint.
 
 ### `TVA.Safe.step`
 
-theorem · [lean/TVA/Proof/Safe.lean:299](../../lean/TVA/Proof/Safe.lean#L299)
+theorem · [lean/TVA/Proof/Safe.lean:300](../../lean/TVA/Proof/Safe.lean#L300)
 
 ```lean
 TVA.Safe.step {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {p : TVA.Prog α}
@@ -908,7 +908,7 @@ footprint, to a program that is safe with the written bytes removed from its wri
 
 ### `TVA.Safe.Next`
 
-def · [lean/TVA/Proof/Safe.lean:314](../../lean/TVA/Proof/Safe.lean#L314)
+def · [lean/TVA/Proof/Safe.lean:315](../../lean/TVA/Proof/Safe.lean#L315)
 
 ```lean
 TVA.Safe.Next {α : Type} (E : TVA.Env) : TVA.Mem × TVA.Prog α → TVA.Mem × TVA.Prog α → Prop
@@ -919,7 +919,7 @@ after to the state before (so that `Acc` says every run is finite).
 
 ### `TVA.Safe.acc`
 
-theorem · [lean/TVA/Proof/Safe.lean:367](../../lean/TVA/Proof/Safe.lean#L367)
+theorem · [lean/TVA/Proof/Safe.lean:368](../../lean/TVA/Proof/Safe.lean#L368)
 
 ```lean
 TVA.Safe.acc {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {p : TVA.Prog α}

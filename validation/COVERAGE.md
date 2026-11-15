@@ -55,7 +55,7 @@ the operations it calls): *pure*: Lean function, no choice; *effect*: memory eff
 | `tl.cvtFrom8` | `Convert.lean:71` | certified |  |  |
 | `tl.itof` | `Convert.lean:81` | certified |  |  |
 | `tl.ftoi` | `Convert.lean:88` | certified |  |  |
-| `tl.convert` | `Convert.lean:116` | assumed | 10: f16→f32, f16→f8e4nv, f32→bf16, f32→f16, f32→f8e4nv, f32→f8e5, f32→i1, f32→i32, i32→f32, i32→i8 | rounds toward zero between floats |
+| `tl.convert` | `Convert.lean:116` | assumed | 16: bf16→bf16, f16→f16, f16→f32, f16→f8e4nv, f32→bf16, f32→f16, f32→f32, f32→f8e4nv, f32→f8e5, f32→i1, f32→i32, f8e4nv→f16, f8e5→f32, i32→f32, i32→i32, i32→i8 | rounds toward zero between floats |
 | `tl.bitcast` | `Convert.lean:123` | pure |  |  |
 | `tl.intToPtr` | `Convert.lean:136` | pure |  |  |
 | `tl.program_id` | `Core.lean:138` | pure |  |  |

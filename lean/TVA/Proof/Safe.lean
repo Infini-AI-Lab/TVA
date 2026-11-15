@@ -61,7 +61,7 @@ inductive Safe (E : Env) (R : Set Int) :
   | rmw {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {d : DType} {a : Int}
       {u : Sig.Upd d} {sem : MemSem} {sc : Scope} {k : d.Val → Prog α} :
       (∃ old, m.read d a = some old ∧ ∃ new, Sig.UpdAllows u old new) →
-      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, k v = k w) →
+      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, (k v).erase = (k w).erase) →
       (∀ old new, m.read d a = some old → Sig.UpdAllows u old new →
         Safe E R (W \ Mem.span d a) Q (m.write d a new) (k old)) →
       Safe E R W Q m (.rmw d a u sem sc k)
@@ -155,7 +155,8 @@ theorem bind {α β : Type} {Q : β → Mem → Prop} {f : α → Prog β} {p : 
     rw [union_diff_of_sub hd hW]
     exact ih o hp (hd.mono_left Set.sdiff_subset) hQ'
   | rmw hex hS hSR hc _ ih =>
-    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => by rw [hc v w]) fun o n ho hn => ?_
+    refine .rmw hex (hS.trans Set.subset_union_left) hSR
+      (fun v w => Prog.erase_bind_congr (hc v w)) fun o n ho hn => ?_
     rw [union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'

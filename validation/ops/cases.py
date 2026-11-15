@@ -110,9 +110,15 @@ def cases():
             out.append(binary(op, d, int_edges))
         out.append(binary("ashr" if d[0] == "i" else "lshr", d, int_edges))
     for d, d2 in (("f32", "f16"), ("f32", "bf16"), ("f16", "f32"), ("f32", "i32"), ("i32", "f32"),
-                  ("f32", "f8e4nv"), ("f32", "f8e5"), ("f16", "f8e4nv"), ("i32", "i8"), ("f32", "i1")):
-        xs = (float_edges(d) if d in FMT else int_edges(d)) + rand_bits(d, NRAND)
-        (xs,), n = pad([xs], [lambda k, d=d: rand_bits(d, k)])
+                  ("f32", "f8e4nv"), ("f32", "f8e5"), ("f16", "f8e4nv"), ("i32", "i8"),
+                  ("f32", "i1"),
+                  ("f32", "f32"), ("f16", "f16"), ("bf16", "bf16"), ("i32", "i32"),
+                  ("f8e5", "f32"), ("f8e4nv", "f16")):
+        if d.startswith("f8"):
+            xs, n = list(range(256)), 256                        # every fp8 pattern
+        else:
+            xs = (float_edges(d) if d in FMT else int_edges(d)) + rand_bits(d, NRAND)
+            (xs,), n = pad([xs], [lambda k, d=d: rand_bits(d, k)])
         out.append(case(f"convert.{d}.{d2}", "convert", [d, d2], [n], [xs]))
     # Reductions: random values (rounding depends on the tree) and small integers (it does not).
     for d in ("f32", "f16"):

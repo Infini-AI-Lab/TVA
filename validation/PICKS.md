@@ -26,10 +26,9 @@ unchanged (`Preserve.lean`, mostly `Iff.rfl`).
 - A mixed operation stays one site with its disjunctive relation (`dotAdd`: the platform dot, or
   the fused form). Splitting it into a free branch choice followed by an operation adds undefined
   behaviour through an empty branch.
-- Equal `Allows` is not enough for atomics. `UsesSharedAtomicResult` and `Step.defer` compare
-  continuations with `=`. A site whose data depends on an atomic's old value, while its relation
-  does not, therefore makes the semantics more conservative. After changing a family, check it
-  against the oracle proofs that use atomics.
+- Where the semantics compares programs (`Step.defer`, `UsesSharedAtomicResult`), it compares
+  their erasures (`Prog.erase`): each site and update replaced by its relation. Data a constructor
+  carries but its relation ignores is therefore never a dependence, as in v3.
 
 ## Solvers (`Solve.lean`, `Solvers.lean`)
 

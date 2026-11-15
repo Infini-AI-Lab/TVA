@@ -620,7 +620,7 @@ constructor · [lean/TVA/Launch/Step.lean:150](../../lean/TVA/Launch/Step.lean#L
 TVA.Step.defer [TVA.Sig] {E : TVA.Env} {m : TVA.Mem} {α : Type} {d : TVA.DType} {a : ℤ} {u : TVA.Sig.Upd d}
   {sem : TVA.MemSem} {sc : TVA.Scope} {k k' : d.Val → TVA.Prog α} {m' : TVA.Mem} {e : TVA.Event} :
   (∀ (v : d.Val), TVA.Step E m (k v) (TVA.Out.next m' (k' v) e)) →
-    ((∀ (v w : d.Val), k v = k w) → ∀ (v w : d.Val), k' v = k' w) →
+    ((∀ (v w : d.Val), (k v).erase = (k w).erase) → ∀ (v w : d.Val), (k' v).erase = (k' w).erase) →
       TVA.Step E m (TVA.Prog.rmw d a u sem sc k) (TVA.Out.next m' (TVA.Prog.rmw d a u sem sc k') e)
 ```
 

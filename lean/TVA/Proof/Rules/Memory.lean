@@ -303,7 +303,8 @@ private theorem safe_rmwSeq_buf (b : Buf d) {ptrs : Tensor s (Ptr d)}
     obtain ⟨o, ho⟩ := b.read_some hv hi.2
     obtain ⟨n, hn⟩ := htot i o
     refine .rmw ⟨o, ho, n, hn⟩ (hRW i List.mem_cons_self).1 (hRW i List.mem_cons_self).2
-      (fun v w => tl.rmwSeq_bind_const ptrs u sem sc K rest _ _) fun old new hold hnew => ?_
+      (fun v w => congrArg Prog.erase (tl.rmwSeq_bind_const ptrs u sem sc K rest _ _))
+      fun old new hold hnew => ?_
     have hw := b.writable hv hi.2
     have hv₁ : b.Valid (m₀.write d (b.ptr (g i : Int)).addr new) :=
       Buf.valid_of_agree hv fun x hx => Mem.write_present _ (hv.2.2.2 x hx)

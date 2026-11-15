@@ -284,9 +284,9 @@ TVA.ConvRel.toInt_u8_u16	theorem	lean/TVA/Proof/Int/Cast.lean:451	Use for `x.to(
 TVA.ConvRel.toInt_u8_u32	theorem	lean/TVA/Proof/Int/Cast.lean:455	Use for `x.to(tl.uint32)` of a `uint8` (a widening conversion): the result keeps the value.
 TVA.ConvRel.toInt_u8_u64	theorem	lean/TVA/Proof/Int/Cast.lean:463	Use for `x.to(tl.uint64)` of a `uint8` (a widening conversion): the result keeps the value.
 TVA.Correct	def	lean/TVA/Launch/WellBehaved.lean:134	The launch `L` of kernel `k` from memory `init`, under environment `E`, is well behaved, and every way it can end is a normal end whose final memory satisfies `Q`.
-TVA.Ctx	structure	lean/TVA/Program.lean:216	What a running program knows about where it is in the grid: its index along each of the three grid axes (`tl.program_id(axis)`) and the grid's size along each (`tl.num_programs(axis)`).
-TVA.Ctx.grid	def	lean/TVA/Program.lean:223	`tl.num_programs(axis)` for `axis = 0, 1, 2`.
-TVA.Ctx.pid	def	lean/TVA/Program.lean:221	`tl.program_id(axis)` for `axis = 0, 1, 2`.
+TVA.Ctx	structure	lean/TVA/Program.lean:269	What a running program knows about where it is in the grid: its index along each of the three grid axes (`tl.program_id(axis)`) and the grid's size along each (`tl.num_programs(axis)`).
+TVA.Ctx.grid	def	lean/TVA/Program.lean:276	`tl.num_programs(axis)` for `axis = 0, 1, 2`.
+TVA.Ctx.pid	def	lean/TVA/Program.lean:274	`tl.program_id(axis)` for `axis = 0, 1, 2`.
 TVA.DType	inductive	lean/TVA/Base/DType.lean:22	The Triton scalar types TVA covers.
 TVA.DType.IsNaN	def	lean/TVA/Base/DType.lean:110	The value is a NaN (never, for the integer and boolean dtypes).
 TVA.DType.Val	def	lean/TVA/Base/DType.lean:58	The Lean type of a value of the dtype.
@@ -1527,12 +1527,20 @@ TVA.Platform.ref.sqrtF32	theorem	lean/TVA/Device/Ref/Sm90.lean:62	`SqrtF32` hold
 TVA.Platform.ref.sumDepth	theorem	lean/TVA/Device/Ref/Sm90.lean:242	`SumDepth` holds of the reference platform: its trees are balanced.
 TVA.Platform.refSpecial	def	lean/TVA/Device/Ref/Platform.lean:165	The special values of `Platform.ref`: `exp` and `exp2` of `-∞` are `+0`; `exp` in `float32` is `+∞` at `+∞` and at the finite inputs from `1453635/16384` (`88.72283935546875`), where no float is within one rounding of `e^x`; nothing else...
 TVA.Platform.sumDepth	def	lean/TVA/Platform.lean:178	How deep the tree of a float reduction over `n` positions may be (`tl.sum` and the other float reductions): the device combines along some tree of depth at most `max (sumDepth n) ⌈log₂ n⌉` (the `⌈log₂ n⌉` keeps a balanced tree always all...
+TVA.PredSite	structure	lean/TVA/Program.lean:216	A site seen only through its relation: the signature `Prog.erase` maps into.
+TVA.PredSite.Allows	def	lean/TVA/Program.lean:219	
+TVA.PredSite.Out	def	lean/TVA/Program.lean:218	
+TVA.PredUpd	structure	lean/TVA/Program.lean:221	An update seen only through its relation.
+TVA.PredUpd.Allows	def	lean/TVA/Program.lean:223	
 TVA.Prog	inductive	lean/TVA/Program.lean:121	What one Triton program instance does, ending with a value of type `α`.
 TVA.Prog.bind	def	lean/TVA/Program.lean:154	Sequential composition: run `p`, then `f` on its result.
 TVA.Prog.bind_assoc	theorem	lean/TVA/Program.lean:189	Sequential composition of programs is associative.
 TVA.Prog.bind_eq	theorem	lean/TVA/Program.lean:171	`p >>= f` in `do` notation is `p.bind f`.
 TVA.Prog.bind_ret	theorem	lean/TVA/Program.lean:177	Running `p` and then returning its result is `p`.
 TVA.Prog.env	constructor	lean/TVA/Program.lean:147	Read the environment (the platform and `enable_fp_fusion`).
+TVA.Prog.erase	def	lean/TVA/Program.lean:237	`p` with each site replaced by its relation (`Sig.Allows`) and each update by its (`Sig.UpdAllows`).
+TVA.Prog.erase_bind	theorem	lean/TVA/Program.lean:251	
+TVA.Prog.erase_bind_congr	theorem	lean/TVA/Program.lean:263	
 TVA.Prog.load	constructor	lean/TVA/Program.lean:126	`tl.load` of elements of dtype `d` in a tensor of shape `s`: lane `i` reads the element at byte address `a` when `addrs i = some a`, and is disabled when it is `none`.
 TVA.Prog.loop	constructor	lean/TVA/Program.lean:144	A loop with state `σ`: run `body` from `init`; `inl s` goes round again from `s`, `inr b` leaves the loop and continues with `k b`.
 TVA.Prog.loopStep	def	lean/TVA/Program.lean:207	One unfolding of a loop: run the body once from `init`, then go round again or leave.
@@ -1612,10 +1620,10 @@ TVA.RoundsTo	def	lean/TVA/Triton/Arith/Rel.lean:19	`q` is an exact value that ro
 TVA.RoundsTo.abs_le	theorem	lean/TVA/Proof/Float/Fused.lean:42	An exact value that rounds to a finite `x` is at most `(1 + u)·|x| + η` in magnitude.
 TVA.RoundsTo.err	theorem	lean/TVA/Proof/Float/Fused.lean:29	**An exact value that rounds to a finite `x` is within one rounding's bound of `x`**, `|x|·u + η`.
 TVA.Safe	inductive	lean/TVA/Proof/Safe.lean:35	The program `p`, run alone from `m` in environment `E`, is safe with read footprint `R`, write footprint `W` (each byte written at most once) and post-condition `Q` on its result and final memory.
-TVA.Safe.Next	def	lean/TVA/Proof/Safe.lean:314	One step of a program alone, on its state (memory, program), as a relation from the state after to the state before (so that `Acc` says every run is finite).
-TVA.Safe.acc	theorem	lean/TVA/Proof/Safe.lean:367	**Termination.** From a safe state, every sequence of steps of the program alone is finite.
+TVA.Safe.Next	def	lean/TVA/Proof/Safe.lean:315	One step of a program alone, on its state (memory, program), as a relation from the state after to the state before (so that `Acc` says every run is finite).
+TVA.Safe.acc	theorem	lean/TVA/Proof/Safe.lean:368	**Termination.** From a safe state, every sequence of steps of the program alone is finite.
 TVA.Safe.bind	theorem	lean/TVA/Proof/Safe.lean:144	**Sequencing.** To show `p.bind f` safe, show `p` safe with the post-condition "the rest is safe".
-TVA.Safe.bind_ro	theorem	lean/TVA/Proof/Safe.lean:170	`Safe.bind` when the first part writes nothing (it only loads and computes).
+TVA.Safe.bind_ro	theorem	lean/TVA/Proof/Safe.lean:171	`Safe.bind` when the first part writes nothing (it only loads and computes).
 TVA.Safe.env	constructor	lean/TVA/Proof/Safe.lean:77	Reading the environment: the rest is safe for `E`.
 TVA.Safe.guard	theorem	lean/TVA/Proof/Safe.lean:85	A guard (`Site.guard`): its condition holds, and the rest is safe.
 TVA.Safe.hint	theorem	lean/TVA/Proof/Safe.lean:91	A compiler hint on `x` (`Site.hint`): its promise holds, and the rest is safe for `x`.
@@ -1623,23 +1631,23 @@ TVA.Safe.load	constructor	lean/TVA/Proof/Safe.lean:43	A load: every enabled lane
 TVA.Safe.loop	constructor	lean/TVA/Proof/Safe.lean:73	A loop: its first unfolding is safe.
 TVA.Safe.loopStep_bind	theorem	lean/TVA/Proof/Safe.lean:104	Unfolding a loop and then binding is binding and then unfolding.
 TVA.Safe.mono	theorem	lean/TVA/Proof/Safe.lean:114	**Weakening**: a weaker post-condition and a larger write footprint.
-TVA.Safe.no_ub	theorem	lean/TVA/Proof/Safe.lean:276	A safe program does not step into undefined behaviour, in any memory that agrees with its own on the footprint.
+TVA.Safe.no_ub	theorem	lean/TVA/Proof/Safe.lean:277	A safe program does not step into undefined behaviour, in any memory that agrees with its own on the footprint.
 TVA.Safe.pick	constructor	lean/TVA/Proof/Safe.lean:68	A choice at a site: some value is allowed, and the rest is safe for every allowed value.
 TVA.Safe.plat	theorem	lean/TVA/Proof/Safe.lean:97	An operation of the platform (`Prog.plat`, an `env` then a `pick`): some result is allowed, and the rest is safe for every allowed result.
 TVA.Safe.ret	constructor	lean/TVA/Proof/Safe.lean:40	The program has ended with `a` in `m`: the post-condition holds.
 TVA.Safe.rmw	constructor	lean/TVA/Proof/Safe.lean:57	An atomic on bytes of `W` outside `R`, whose result the program does not use (the rest of the program is the same for every old value); the rest may not touch the bytes again.
-TVA.Safe.seq	theorem	lean/TVA/Proof/Safe.lean:165	`Safe.bind` for `p >>= f` (a line of a `do` block followed by the rest).
-TVA.Safe.step	theorem	lean/TVA/Proof/Safe.lean:299	**Progress and preservation.** Every step of a safe program is a normal step, within the footprint, to a program that is safe with the written bytes removed from its write footprint.
-TVA.Safe.stepT	theorem	lean/TVA/Proof/Safe.lean:178	**Steps of a safe program.** Run a program that is safe from its own memory `m₀` against a memory `m` that agrees with `m₀` on the footprint.
+TVA.Safe.seq	theorem	lean/TVA/Proof/Safe.lean:166	`Safe.bind` for `p >>= f` (a line of a `do` block followed by the rest).
+TVA.Safe.step	theorem	lean/TVA/Proof/Safe.lean:300	**Progress and preservation.** Every step of a safe program is a normal step, within the footprint, to a program that is safe with the written bytes removed from its write footprint.
+TVA.Safe.stepT	theorem	lean/TVA/Proof/Safe.lean:179	**Steps of a safe program.** Run a program that is safe from its own memory `m₀` against a memory `m` that agrees with `m₀` on the footprint.
 TVA.Safe.store	constructor	lean/TVA/Proof/Safe.lean:50	A store writes bytes of `W`; the rest of the program may not write them again.
 TVA.Safe.union_diff_of_sub	theorem	lean/TVA/Proof/Safe.lean:131	Removing bytes of the first of two disjoint footprints from their union.
 TVA.SafeA	inductive	lean/TVA/Proof/Shared/SafeA.lean:32	One program, alone, with private read footprint `R`, private write footprint `W` (each byte written at most once), and shared cells `C`, which it updates only with atomics.
 TVA.SafeA.Next	def	lean/TVA/Proof/Shared/Acc.lean:21	One step of a program in its own view: a step against a memory that agrees with its own off the shared cells, whose cells may hold anything (other programs change them); afterwards its own memory takes the step's writes off the cells.
 TVA.SafeA.acc	theorem	lean/TVA/Proof/Shared/Acc.lean:192	**Termination.** From a `SafeA` state, every sequence of the program's own steps is finite, whatever the shared cells hold at each step.
-TVA.SafeA.atomic	theorem	lean/TVA/Proof/Shared/Rules.lean:72	**A tensor atomic on shared cells, result unused** (`let _ ← tl.atomic_…(ptrs, v, mask)`, as `tl.atomicWith ptrs u mask`): every enabled lane's element is an aligned cell of `C`, the order is `acq_rel` at `gpu` or `sys` scope, and the up...
-TVA.SafeA.atomic1	theorem	lean/TVA/Proof/Shared/Rules.lean:95	**A scalar atomic on a shared cell, result unused** (`tl.atomic_…(ptr, v)` with a scalar pointer and no mask, as `tl.atomicWith`): one logged step.
-TVA.SafeA.atomic_add	theorem	lean/TVA/Proof/Shared/Rules.lean:112	**`tl.atomic_add` on shared cells, result unused** (`let _ ← tl.atomic_add(ptrs, vals, mask)`): `SafeA.atomic` with the update `tl.addUpd E d (vals.get i)` (integers wrap; a float addition rounds as the platform's `atomicAdd`, total by `...
-TVA.SafeA.atomic_add_unused	theorem	lean/TVA/Proof/Shared/Rules.lean:130	**`tl.atomic_add_unused` on shared cells**: `SafeA.atomic_add`, whatever the source's `sem`, at `gpu` or `sys` scope (where an unused atomic's order is `acq_rel`, `MemSem.unused`).
+TVA.SafeA.atomic	theorem	lean/TVA/Proof/Shared/Rules.lean:73	**A tensor atomic on shared cells, result unused** (`let _ ← tl.atomic_…(ptrs, v, mask)`, as `tl.atomicWith ptrs u mask`): every enabled lane's element is an aligned cell of `C`, the order is `acq_rel` at `gpu` or `sys` scope, and the up...
+TVA.SafeA.atomic1	theorem	lean/TVA/Proof/Shared/Rules.lean:96	**A scalar atomic on a shared cell, result unused** (`tl.atomic_…(ptr, v)` with a scalar pointer and no mask, as `tl.atomicWith`): one logged step.
+TVA.SafeA.atomic_add	theorem	lean/TVA/Proof/Shared/Rules.lean:113	**`tl.atomic_add` on shared cells, result unused** (`let _ ← tl.atomic_add(ptrs, vals, mask)`): `SafeA.atomic` with the update `tl.addUpd E d (vals.get i)` (integers wrap; a float addition rounds as the platform's `atomicAdd`, total by `...
+TVA.SafeA.atomic_add_unused	theorem	lean/TVA/Proof/Shared/Rules.lean:131	**`tl.atomic_add_unused` on shared cells**: `SafeA.atomic_add`, whatever the source's `sem`, at `gpu` or `sys` scope (where an unused atomic's order is `acq_rel`, `MemSem.unused`).
 TVA.SafeA.bind	theorem	lean/TVA/Proof/Shared/SafeA.lean:133	**Sequencing.** To show `p.bind f`, show `p` with the post-condition "the rest is `SafeA` from here, with this log".
 TVA.SafeA.env	constructor	lean/TVA/Proof/Shared/SafeA.lean:85	Reading the environment.
 TVA.SafeA.guard	theorem	lean/TVA/Proof/Shared/SafeA.lean:94	A guard (`Site.guard`): its condition holds, and the rest is safe.
@@ -1647,16 +1655,16 @@ TVA.SafeA.hint	theorem	lean/TVA/Proof/Shared/SafeA.lean:101	A compiler hint on `
 TVA.SafeA.load	constructor	lean/TVA/Proof/Shared/SafeA.lean:41	A private load, as in `Safe`.
 TVA.SafeA.loop	constructor	lean/TVA/Proof/Shared/SafeA.lean:80	A loop: its first unfolding.
 TVA.SafeA.mono	theorem	lean/TVA/Proof/Shared/SafeA.lean:115	**Weakening**: a weaker post-condition and a larger private write footprint.
-TVA.SafeA.no_ub	theorem	lean/TVA/Proof/Shared/SafeA.lean:368	A `SafeA` program does not step into undefined behaviour against a memory that agrees with its own on the private footprint and in which the shared cells' bytes are present.
-TVA.SafeA.of_safe	theorem	lean/TVA/Proof/Shared/SafeA.lean:158	**Private segments.** A segment with no shared atomic, proved with the ordinary `Safe` rules, followed by the rest, which writes a disjoint private footprint.
-TVA.SafeA.perm	theorem	lean/TVA/Proof/Shared/SafeA.lean:182	With a post-condition that ignores the log's order (`PermInv`), the log may be permuted.
+TVA.SafeA.no_ub	theorem	lean/TVA/Proof/Shared/SafeA.lean:369	A `SafeA` program does not step into undefined behaviour against a memory that agrees with its own on the private footprint and in which the shared cells' bytes are present.
+TVA.SafeA.of_safe	theorem	lean/TVA/Proof/Shared/SafeA.lean:159	**Private segments.** A segment with no shared atomic, proved with the ordinary `Safe` rules, followed by the rest, which writes a disjoint private footprint.
+TVA.SafeA.perm	theorem	lean/TVA/Proof/Shared/SafeA.lean:183	With a post-condition that ignores the log's order (`PermInv`), the log may be permuted.
 TVA.SafeA.pick	constructor	lean/TVA/Proof/Shared/SafeA.lean:75	A choice at a site, as in `Safe`.
 TVA.SafeA.plat	theorem	lean/TVA/Proof/Shared/SafeA.lean:108	An operation of the platform, as in `Safe`.
 TVA.SafeA.ret	constructor	lean/TVA/Proof/Shared/SafeA.lean:38	The program has ended: the post-condition holds of its result, its log and its memory.
 TVA.SafeA.rmw	constructor	lean/TVA/Proof/Shared/SafeA.lean:56	A private atomic, as in `Safe`: on bytes of `W` outside `R`, its result unused.
-TVA.SafeA.rmw_const	theorem	lean/TVA/Proof/Shared/SafeA.lean:197	A program about to perform an atomic does not use its result.
+TVA.SafeA.rmw_const	theorem	lean/TVA/Proof/Shared/SafeA.lean:198	A program about to perform an atomic does not use its result.
 TVA.SafeA.shared	constructor	lean/TVA/Proof/Shared/SafeA.lean:65	**A shared atomic**: an aligned cell of `C`, `acq_rel` at `gpu` or `sys` scope, an update with a new value for every old value, its result unused.
-TVA.SafeA.stepT	theorem	lean/TVA/Proof/Shared/SafeA.lean:217	**Steps.** Run against the launch's memory `m`, a program that is `SafeA` in its own memory `m₀` (which agrees with `m` on the private footprint) takes either a private step (as `Safe.stepT`), or a shared atomic step, which leaves its ow...
+TVA.SafeA.stepT	theorem	lean/TVA/Proof/Shared/SafeA.lean:218	**Steps.** Run against the launch's memory `m`, a program that is `SafeA` in its own memory `m₀` (which agrees with `m` on the private footprint) takes either a private step (as `Safe.stepT`), or a shared atomic step, which leaves its ow...
 TVA.SafeA.store	constructor	lean/TVA/Proof/Shared/SafeA.lean:48	A private store, as in `Safe`.
 TVA.ScaleFmt	inductive	lean/TVA/Platform.lean:109	The format of `tl.dot_scaled` scales.
 TVA.ScaleFmt.Stores	def	lean/TVA/Triton/Dot.lean:106	Scale tensors of dtype `d` hold this format: `uint8`/`int8` for `e8m0`, the float dtype itself otherwise.
@@ -1703,6 +1711,7 @@ TVA.Sig.Out	def	lean/TVA/Program.lean:65	The type of a site's value.
 TVA.Sig.Site	def	lean/TVA/Program.lean:63	The kinds of value a program cannot predict (what a masked-out load returns, a reduction tree, a rounding choice, a platform result), each with its operands.
 TVA.Sig.Upd	def	lean/TVA/Program.lean:69	The kinds of update an atomic read-modify-write of an element of dtype `d` makes.
 TVA.Sig.UpdAllows	def	lean/TVA/Program.lean:71	The new values an update allows, given the old one.
+TVA.Sig.pred	def	lean/TVA/Program.lean:225	The signature whose sites and updates are their relations.
 TVA.Site	inductive	lean/TVA/Site.lean:64	A site: a value a Triton program cannot predict, and what it may be.
 TVA.Site.Allows	def	lean/TVA/Site.lean:182	The values a site allows.
 TVA.Site.Out	def	lean/TVA/Site.lean:156	The type of a site's value.
@@ -2210,7 +2219,7 @@ TVA.safe_argmaxAll	theorem	lean/TVA/Proof/Rules/ArgReduce.lean:91	**`tl.argmax`/
 TVA.safe_ashr	theorem	lean/TVA/Proof/Rules/Arith.lean:213	`x >> n`, arithmetic: every shift amount is below the width.
 TVA.safe_associative_scan	theorem	lean/TVA/Proof/Scan.lean:127	**`tl.associative_scan`** with a total combine relation: each output position is the evaluation of some tree over its leaves (`ScanLeaves`).
 TVA.safe_assume	theorem	lean/TVA/Proof/Rules/Core.lean:33	`tl.assume(c)`: `c` must hold.
-TVA.safe_atomic_buf	theorem	lean/TVA/Proof/Rules/Memory.lean:344	**A tensor atomic on owned buffer elements, result unused** (`let _ ← tl.atomic_…`).
+TVA.safe_atomic_buf	theorem	lean/TVA/Proof/Rules/Memory.lean:345	**A tensor atomic on owned buffer elements, result unused** (`let _ ← tl.atomic_…`).
 TVA.safe_convert	theorem	lean/TVA/Proof/Rules/Convert.lean:26	**`tl.convert d d' x`**: when every element has a result `ConvRel` allows on the platform, the rest must be safe for every tensor of such results.
 TVA.safe_convert_iff	theorem	lean/TVA/Proof/Rules/Convert.lean:39	**A conversion with one result**: when every element of `x` has exactly one result, the element of `y` (`ConvRel E.P d d' (x.get i) r ↔ r = y.get i`), `tl.convert d d' x` followed by `k` is safe exactly when `k y` is.
 TVA.safe_cumprod	theorem	lean/TVA/Proof/Scan.lean:175	**`tl.cumprod`** of floats: IEEE products along each position's tree.

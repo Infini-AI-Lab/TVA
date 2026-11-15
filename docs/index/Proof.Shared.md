@@ -919,7 +919,7 @@ TVA.replay_min {d : TVA.DType} {a : ℤ} (op : d.Val → d.Val → d.Val) (key :
 
 ### `TVA.SafeA.atomic`
 
-theorem · [lean/TVA/Proof/Shared/Rules.lean:72](../../lean/TVA/Proof/Shared/Rules.lean#L72)
+theorem · [lean/TVA/Proof/Shared/Rules.lean:73](../../lean/TVA/Proof/Shared/Rules.lean#L73)
 
 ```lean
 TVA.SafeA.atomic {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
@@ -951,7 +951,7 @@ one step per enabled lane, in that order. For `tl.atomic_add`, use `SafeA.atomic
 
 ### `TVA.SafeA.atomic1`
 
-theorem · [lean/TVA/Proof/Shared/Rules.lean:95](../../lean/TVA/Proof/Shared/Rules.lean#L95)
+theorem · [lean/TVA/Proof/Shared/Rules.lean:96](../../lean/TVA/Proof/Shared/Rules.lean#L96)
 
 ```lean
 TVA.SafeA.atomic1 {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
@@ -973,7 +973,7 @@ pointer and no mask, as `tl.atomicWith`): one logged step.
 
 ### `TVA.SafeA.atomic_add`
 
-theorem · [lean/TVA/Proof/Shared/Rules.lean:112](../../lean/TVA/Proof/Shared/Rules.lean#L112)
+theorem · [lean/TVA/Proof/Shared/Rules.lean:113](../../lean/TVA/Proof/Shared/Rules.lean#L113)
 
 ```lean
 TVA.SafeA.atomic_add {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
@@ -1003,7 +1003,7 @@ addition rounds as the platform's `atomicAdd`, total by `Device.AtomicAddTotal`)
 
 ### `TVA.SafeA.atomic_add_unused`
 
-theorem · [lean/TVA/Proof/Shared/Rules.lean:130](../../lean/TVA/Proof/Shared/Rules.lean#L130)
+theorem · [lean/TVA/Proof/Shared/Rules.lean:131](../../lean/TVA/Proof/Shared/Rules.lean#L131)
 
 ```lean
 TVA.SafeA.atomic_add_unused {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
@@ -1105,7 +1105,7 @@ TVA.SafeA.rmw {E : TVA.Env} {R W : Set ℤ} {C : Set (TVA.DType × ℤ)} {α : T
   (∃ old, m.read d a = some old ∧ ∃ new, TVA.Sig.UpdAllows u old new) →
     TVA.Mem.span d a ⊆ W →
       Disjoint (TVA.Mem.span d a) R →
-        (∀ (v w : d.Val), k v = k w) →
+        (∀ (v w : d.Val), (k v).erase = (k w).erase) →
           (∀ (old new : d.Val),
               m.read d a = some old →
                 TVA.Sig.UpdAllows u old new → TVA.SafeA E R (W \ TVA.Mem.span d a) C Q log (m.write d a new) (k old)) →
@@ -1127,7 +1127,7 @@ TVA.SafeA.shared {E : TVA.Env} {R W : Set ℤ} {C : Set (TVA.DType × ℤ)} {α 
       sem = TVA.MemSem.acqRel →
         sc ≠ TVA.Scope.cta →
           (∀ (old : d.Val), ∃ new, TVA.Sig.UpdAllows u old new) →
-            (∀ (v w : d.Val), k v = k w) →
+            (∀ (v w : d.Val), (k v).erase = (k w).erase) →
               (∀ (old new : d.Val),
                   TVA.Sig.UpdAllows u old new →
                     TVA.SafeA E R W C Q (log ++ [{ d := d, a := a, old := old, new := new }]) m (k old)) →
@@ -1247,7 +1247,7 @@ from here, with this log". The two parts write disjoint private footprints.
 
 ### `TVA.SafeA.of_safe`
 
-theorem · [lean/TVA/Proof/Shared/SafeA.lean:158](../../lean/TVA/Proof/Shared/SafeA.lean#L158)
+theorem · [lean/TVA/Proof/Shared/SafeA.lean:159](../../lean/TVA/Proof/Shared/SafeA.lean#L159)
 
 ```lean
 TVA.SafeA.of_safe {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {α β : Type}
@@ -1262,7 +1262,7 @@ program between its shared atomics.
 
 ### `TVA.SafeA.perm`
 
-theorem · [lean/TVA/Proof/Shared/SafeA.lean:182](../../lean/TVA/Proof/Shared/SafeA.lean#L182)
+theorem · [lean/TVA/Proof/Shared/SafeA.lean:183](../../lean/TVA/Proof/Shared/SafeA.lean#L183)
 
 ```lean
 TVA.SafeA.perm {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
@@ -1274,20 +1274,20 @@ With a post-condition that ignores the log's order (`PermInv`), the log may be p
 
 ### `TVA.SafeA.rmw_const`
 
-theorem · [lean/TVA/Proof/Shared/SafeA.lean:197](../../lean/TVA/Proof/Shared/SafeA.lean#L197)
+theorem · [lean/TVA/Proof/Shared/SafeA.lean:198](../../lean/TVA/Proof/Shared/SafeA.lean#L198)
 
 ```lean
 TVA.SafeA.rmw_const {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
   {Q : α → List TVA.AtomicStep → TVA.Mem → Prop} {log : List TVA.AtomicStep} {m : TVA.Mem} {d : TVA.DType} {a : ℤ}
   {u : TVA.Sig.Upd d} {sem : TVA.MemSem} {sc : TVA.Scope} {k : d.Val → TVA.Prog α}
-  (h : TVA.SafeA E R W C Q log m (TVA.Prog.rmw d a u sem sc k)) (v w : d.Val) : k v = k w
+  (h : TVA.SafeA E R W C Q log m (TVA.Prog.rmw d a u sem sc k)) (v w : d.Val) : (k v).erase = (k w).erase
 ```
 
 A program about to perform an atomic does not use its result.
 
 ### `TVA.SafeA.stepT`
 
-theorem · [lean/TVA/Proof/Shared/SafeA.lean:217](../../lean/TVA/Proof/Shared/SafeA.lean#L217)
+theorem · [lean/TVA/Proof/Shared/SafeA.lean:218](../../lean/TVA/Proof/Shared/SafeA.lean#L218)
 
 ```lean
 TVA.SafeA.stepT {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}
@@ -1317,7 +1317,7 @@ An atomic performed later (`Step.defer`) is covered, with the log reordered (`Pe
 
 ### `TVA.SafeA.no_ub`
 
-theorem · [lean/TVA/Proof/Shared/SafeA.lean:368](../../lean/TVA/Proof/Shared/SafeA.lean#L368)
+theorem · [lean/TVA/Proof/Shared/SafeA.lean:369](../../lean/TVA/Proof/Shared/SafeA.lean#L369)
 
 ```lean
 TVA.SafeA.no_ub {E : TVA.Env} {R : Set ℤ} {C : Set (TVA.DType × ℤ)} {W : Set ℤ} {α : Type}

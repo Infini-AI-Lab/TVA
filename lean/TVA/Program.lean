@@ -213,6 +213,59 @@ def loopStep {α σ β : Type} (init : σ) (body : σ → Prog (σ ⊕ β)) (k :
 
 end Prog
 
+/-- A site seen only through its relation: the signature `Prog.erase` maps into. -/
+structure PredSite : Type 1 where
+  Out : Type
+  Allows : Out → Prop
+
+/-- An update seen only through its relation. -/
+structure PredUpd (d : DType) : Type 1 where
+  Allows : d.Val → d.Val → Prop
+
+/-- The signature whose sites and updates are their relations. -/
+def Sig.pred : Sig where
+  Site := PredSite
+  Out := PredSite.Out
+  Allows := PredSite.Allows
+  Upd := PredUpd
+  UpdAllows u := u.Allows
+
+namespace Prog
+
+variable [Sig]
+
+/-- `p` with each site replaced by its relation (`Sig.Allows`) and each update by its
+(`Sig.UpdAllows`). Two programs with the same erasure have the same meaning; `Step.defer` and
+`UsesSharedAtomicResult` compare continuations this way, so data a site carries but its relation
+ignores does not count as a dependence. -/
+def erase {α : Type} : Prog α → @Prog Sig.pred α
+  | ret a => @ret Sig.pred _ a
+  | load d s addrs k => @load Sig.pred _ d s addrs (fun v => (k v).erase)
+  | store d s addrs vals k => @store Sig.pred _ d s addrs vals k.erase
+  | rmw d a u sem sc k => @rmw Sig.pred _ d a ⟨Sig.UpdAllows u⟩ sem sc (fun v => (k v).erase)
+  | pick s k => @pick Sig.pred _ ⟨Sig.Out s, Sig.Allows s⟩ (fun b => (k b).erase)
+  | ub => @ub Sig.pred _
+  | loop init body k => @loop Sig.pred _ _ _ init (fun x => (body x).erase) (fun b => (k b).erase)
+  | env k => @env Sig.pred _ (fun e => (k e).erase)
+
+theorem erase_bind {α β : Type} (p : Prog α) (f : α → Prog β) :
+    (p.bind f).erase = @bind Sig.pred _ _ p.erase (fun a => (f a).erase) := by
+  induction p with
+  | ret a => rfl
+  | load d s addrs k ih => simp only [bind, erase, ih]
+  | store d s addrs vals k ih => simp only [bind, erase, ih]
+  | rmw d a u sem sc k ih => simp only [bind, erase, ih]
+  | pick s k ih => exact congrArg (@pick Sig.pred _ _) (funext fun b => ih b f)
+  | ub => rfl
+  | loop init body k _ ih => simp only [bind, erase, ih]
+  | env k ih => simp only [bind, erase, ih]
+
+theorem erase_bind_congr {α β : Type} {p q : Prog α} {f : α → Prog β} (h : p.erase = q.erase) :
+    (p.bind f).erase = (q.bind f).erase := by
+  rw [erase_bind, erase_bind, h]
+
+end Prog
+
 /-- What a running program knows about where it is in the grid: its index along each of the
 three grid axes (`tl.program_id(axis)`) and the grid's size along each (`tl.num_programs(axis)`).
 A launch gives each program its own `Ctx` (`TVA.Launch`). -/

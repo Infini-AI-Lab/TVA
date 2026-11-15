@@ -58,7 +58,7 @@ inductive SafeA (E : Env) (R : Set Int) :
       {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {u : Sig.Upd d}
       {sem : MemSem} {sc : Scope} {k : d.Val → Prog α} :
       (∃ old, m.read d a = some old ∧ ∃ new, Sig.UpdAllows u old new) →
-      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, k v = k w) →
+      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, (k v).erase = (k w).erase) →
       (∀ old new, m.read d a = some old → Sig.UpdAllows u old new →
         SafeA E R (W \ Mem.span d a) C Q log (m.write d a new) (k old)) →
       SafeA E R W C Q log m (.rmw d a u sem sc k)
@@ -69,7 +69,7 @@ inductive SafeA (E : Env) (R : Set Int) :
       {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {u : Sig.Upd d}
       {sem : MemSem} {sc : Scope} {k : d.Val → Prog α} :
       Mem.Aligned d a → (d, a) ∈ C → sem = .acqRel → sc ≠ .cta → (∀ old, ∃ new, Sig.UpdAllows u old new) →
-      (∀ v w, k v = k w) →
+      (∀ v w, (k v).erase = (k w).erase) →
       (∀ old new, Sig.UpdAllows u old new → SafeA E R W C Q (log ++ [⟨d, a, old, new⟩]) m (k old)) →
       SafeA E R W C Q log m (.rmw d a u sem sc k)
   /-- A choice at a site, as in `Safe`. -/
@@ -145,12 +145,13 @@ theorem bind {α β : Type} {Q : β → List AtomicStep → Mem → Prop} {f : �
     rw [Safe.union_diff_of_sub hd hW]
     exact ih o hp (hd.mono_left Set.sdiff_subset) hQ'
   | rmw hex hS hSR hc _ ih =>
-    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => by rw [hc v w])
+    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => Prog.erase_bind_congr (hc v w))
       fun o n ho hn => ?_
     rw [Safe.union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
   | shared hal hC hsem hsc htot hc _ ih =>
-    exact .shared hal hC hsem hsc htot (fun v w => by rw [hc v w]) fun o n h => ih o n h hd hQ'
+    exact .shared hal hC hsem hsc htot
+      (fun v w => Prog.erase_bind_congr (hc v w)) fun o n h => ih o n h hd hQ'
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
   | loop _ ih => exact .loop (by rw [← Safe.loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
@@ -171,7 +172,7 @@ theorem of_safe {α β : Type} {Q : β → List AtomicStep → Mem → Prop} {f 
     rw [Safe.union_diff_of_sub hd hW]
     exact ih o hp (hd.mono_left Set.sdiff_subset) hQ'
   | rmw hex hS hSR hc _ ih =>
-    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => by rw [hc v w])
+    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => Prog.erase_bind_congr (hc v w))
       fun o n ho hn => ?_
     rw [Safe.union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
@@ -198,7 +199,7 @@ theorem perm {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → P
 theorem rmw_const {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {u : Sig.Upd d}
     {sem : MemSem} {sc : Scope} {k : d.Val → Prog α}
-    (h : SafeA E R W C Q log m (.rmw d a u sem sc k)) : ∀ v w, k v = k w := by
+    (h : SafeA E R W C Q log m (.rmw d a u sem sc k)) : ∀ v w, (k v).erase = (k w).erase := by
   cases h with
   | rmw _ _ _ hc _ => exact hc
   | shared _ _ _ _ _ hc _ => exact hc
