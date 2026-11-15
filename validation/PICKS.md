@@ -46,9 +46,19 @@ old solvers:
 - `Ans.pi` (lane by lane, in `Solve.lean`) prefers `empty` over `assumed`: one lane with no value
   means no tensor, whatever the other lanes are.
 Still unsupported: `Site.other` and `Upd.other`. Smoke tests: `validation/tests/solvers.lean`
-(44 `#guard`s, every outcome). `lean/TVA` is unchanged.
+(every outcome). `lean/TVA` is unchanged.
 
-Next: (4) `Exec.lean` on `Ans`/`Record`, (5) verdicts.
+(4) (2026-11-15) `Exec.lean` builds again, for any `[Sig] [Solvers]`. `exec` is total: `Res` is
+`done`, `ub what`, `stuck occ gap` or `outOfFuel` (the last two claim nothing), with the log of
+every request answered (`Record`s, numbered in order across a launch; the `n`-th request gets
+hints `O n`). The disabled lanes of a load come from a `Fill`, outside the oracle. `exec_sound`
+and `execLaunch_sound` are conditional on `Record.Assumptions` (axioms `propext`,
+`Classical.choice`, `Quot.sound`). `execLaunch` reports `LRes`: `done`, `ub i what` (program
+`i`), or `stopped i r`. `run_test.py` compiles `Solve`, `Solvers`, `Exec`; `vec_add_f32` passes
+with every answer proved; `tests/solvers.lean` also runs `exec` on small programs (`ub`, `stuck`,
+an assumed float `atomic_add`, out of fuel).
+
+Next: (5) verdicts.
 
 ## Stage 2 plan: the catalog, the solvers, replay
 

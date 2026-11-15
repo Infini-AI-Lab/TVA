@@ -1,4 +1,5 @@
 import Solvers
+import Exec
 
 /-! Smoke tests of Triton's solvers (`validation/Solvers.lean`) on small concrete sites: each
 outcome (`ok` with the expected value, `empty`, `assumed`, and each gap) where a family can give
@@ -125,3 +126,29 @@ def utag {d : DType} (u : Upd d) (old : d.Val) (H : Hint := H0) : String := (sol
 #guard ((solveUpd (Upd.max (d := .f32) true (f32 5)) (f32 7) H0).val?.map FloatV.toRat) == some 7
 #guard utag (Upd.red (d := .i32) E0 .xor (i32 5)) (i32 3) == "ok"
 #guard utag (Upd.bit (d := .f32) IntV.and (f32 5)) (f32 3) == "empty"
+
+/-! `exec` on tiny programs: what it reports, and its log. -/
+
+def fill0 : Fill := fun d _ _ => d.ofBits 0
+def run1 {α : Type} (p : Prog α) (O : Oracle := Oracle.empty) : Res α × List Record :=
+  exec E0 O fill0 100 0 ∅ p
+def kind {α : Type} : Res α → String
+  | .done _ _ => "done" | .ub _ => "ub" | .stuck o _ => s!"stuck {o}" | .outOfFuel => "fuel"
+
+-- two guards, then one that fails: undefined behaviour at request 2, after two records
+def p3 : Prog Unit :=
+  .pick (.guard (1 < 2)) fun _ => .pick (.guard (2 < 3)) fun _ =>
+  .pick (.guard (3 < 3)) fun _ => .ret ()
+#guard kind (run1 p3).1 == "ub" && (run1 p3).2.map (·.occ) == [0, 1]
+-- an unsupported site: stuck at its occurrence
+#guard kind (run1 (.pick (.guard True) fun _ => .pick (.other Nat fun _ => True) fun _ => .ret ())).1
+  == "stuck 1"
+-- a float `atomic_add`: the oracle's value, recorded as assumed; without one, stuck
+def pAdd : Prog F32 := .rmw .f32 0 (Upd.add (d := .f32) E0 (f32 1)) .relaxed .gpu fun o => .ret o
+def mem1 : CMem := CMem.write ∅ .f32 0 (f32 2)
+#guard kind (exec E0 Oracle.empty fill0 10 0 mem1 pAdd).1 == "stuck 0"
+#guard (exec E0 (fun _ => Hdev) fill0 10 0 mem1 pAdd).2.map (·.proved) == [false]
+-- an atomic on an unmapped address is undefined behaviour
+#guard kind (run1 pAdd).1 == "ub"
+-- out of fuel
+#guard kind (exec E0 Oracle.empty fill0 1 0 ∅ p3).1 == "fuel"

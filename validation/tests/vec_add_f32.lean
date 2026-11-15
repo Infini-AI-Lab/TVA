@@ -1,4 +1,5 @@
 import Claim
+import Solvers
 import Exec
 
 /-! Smoke test: the model of `vec_add_f32` run by `execLaunch` on a small instance. Not a test
@@ -16,8 +17,8 @@ def P0 : Platform where
   atomicAdd _ _ _ _ := False
   dotScaled := @fun _ _ _ _ _ _ _ _ _ _ => False
 
-/-- An oracle with no hints; disabled lanes read zero bits. -/
-def O0 (E : Env) : Oracle E := ⟨fun _ => none, fun d _ _ => d.ofBits 0⟩
+/-- Disabled lanes read zero bits. -/
+def fill0 : Fill := fun d _ _ => d.ofBits 0
 
 /-- `n = 10` elements, `BLOCK_SIZE = 4`: three programs, the last one masked. -/
 def n : Nat := 10
@@ -32,13 +33,18 @@ def init : CMem :=
   let c := CMem.ofElems c .f32 ((List.range n).map fun j : Nat => ((d.y.ptr j).addr, ys j))
   CMem.ofElems c .f32 ((List.range n).map fun j => ((d.output.ptr j).addr, FloatV.ofRat 7))
 
-def run : Option (Res Unit × List Assumed) := execLaunch ((launch d).env P0) (O0 _) 1000 (model d) (launch d) init
+def run : LRes (launch d).size × List Record :=
+  execLaunch ((launch d).env P0) Oracle.empty fill0 1000 (model d) (launch d) init
 
-/-- The output's elements, as rationals, if the run finished. -/
+/-- The output's elements, as rationals, if the run finished with every answer proved. -/
 def outs : Option (List Rat) := match run with
-  | some (.done () m, []) =>
-    (List.range n).mapM fun j => ((CMem.toMem m).read .f32 (d.output.ptr j).addr).map (·.toRat)
+  | (.done c, l) => if l.all (·.proved) then
+      (List.range n).mapM fun j => ((CMem.toMem c.mem).read .f32 (d.output.ptr j).addr).map (·.toRat)
+    else none
   | _ => none
+
+-- The run answered some requests (the masks' guards, the additions), numbered in order.
+#guard run.2.length > 0 && run.2.map (·.occ) == List.range run.2.length
 
 #eval outs
 #guard outs == some ((List.range n).map fun j => ((101 * j : Nat) : Rat))
