@@ -58,7 +58,35 @@ and `execLaunch_sound` are conditional on `Record.Assumptions` (axioms `propext`
 with every answer proved; `tests/solvers.lean` also runs `exec` on small programs (`ub`, `stuck`,
 an assumed float `atomic_add`, out of fuel).
 
-Next: (5) verdicts.
+(5) (2026-11-15) `validation/Verdict.lean`: `Verdict` is `certified`, `conditional n` (agreement
+resting on `n` assumed platform answers), `discrepancy n what` (a candidate finding: one execution
+of the model disagrees, or predicts undefined behaviour), `inconclusive what` (`searchFailed`,
+`badAnswer`, `noOracle`, or no candidate of the test's own search agrees) and `unsupported what`
+(`Gap.unsupported`, out of fuel). `Verdict.ofRes`/`ofLaunch` compute it from `exec`'s and
+`execLaunch`'s report and an agreement check; what each claims is proved: `ofRes_certified`
+(a `Runs` to an agreeing state, no assumption), `ofRes_conditional` (the same under
+`Record.Assumptions`), `ofRes_discrepancy` (a `Runs` to a disagreeing state, or to a step that is
+undefined behaviour), `ofLaunch_certified` (a `Reach` from `Config.start` to a finished,
+agreeing configuration). `Verdict.join` combines the lanes of a localised case.
+- `ops/Ops.lean` runs on the new API: each case's `status` is its verdict (`summary` counts them);
+  a mutant is caught when its verdict is a discrepancy. `--self`, 85 cases (`cases.py --small`):
+  71 certified, 11 conditional (the platform operations, `tl.dot`, `dot_add`), 3 `no_device`
+  (conversions into fp8: with no device the oracle has no answer); every mutant caught except the
+  three equivalent ones (`//`, `%` on `uint32`, `f16 → f32`), as before. Checked on a forged
+  device file: a flipped bit is a discrepancy with its lane, a sum no tree explains is
+  inconclusive, `idiv` with undefined lanes stays certified.
+- `run_test.py TEST ...` compiles `Solve`, `Solvers`, `Exec`, `Verdict` once (`DIR/_lib`), runs
+  each test (a claim's, or one with no claim such as `solvers`), collects the verdict lines tests
+  print (`Verdict.line`) and exits 1 on a failed test or a discrepancy; `run_test.py --ops CASES
+  (DEVICE | --self) RESULTS` runs `Ops.lean` and summarises (verdict counts, inconclusive cases,
+  mutants not caught). `$TVA_LEAN` names a built `lean/` elsewhere (a worktree has none).
+  `tests/vec_add_f32.lean` reports its verdict: certified.
+- `coverage.py` reads the catalog (`Site.other` is "no solver"; `dotAdd`, `dotScaledAdd`,
+  `sumBcastMul`, `convert`, float atomic additions are "assumed") and the verdicts; COVERAGE.md
+  regenerated (it predated the catalog): 68 certified, 15 platform, 7 assumed, 11 no solver.
+
+Stage 2 is done. Next: phase 4 (each kernel's model against the device), which needs a GPU run of
+`device.py` and of the claims' kernels.
 
 ## Stage 2 plan: the catalog, the solvers, replay
 
@@ -193,8 +221,8 @@ Completeness is not claimed.
 
 ## Running it
 
-`python3 validation/run_test.py vec_add_f32` (after `lake build` in `lean/`) compiles the
-claim and `Exec.lean` into `/tmp/tva-validation` and elaborates `validation/tests/vec_add_f32.lean`:
+`python3 validation/run_test.py vec_add_f32 solvers` (after `lake build` in `lean/`) compiles the
+library modules and the claim into `/tmp/tva-validation` and elaborates `validation/tests/vec_add_f32.lean`:
 the claim's model on `n = 10`, `BLOCK_SIZE = 4` (three programs, the last masked), checked against
 `x + y` by `#guard`. With 1000 elements and 8 programs it takes about a second in the interpreter.
 

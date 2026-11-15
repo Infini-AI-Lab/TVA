@@ -6,7 +6,7 @@
 For each operation: what exec does at it (read from its definition, and from the tl operations
 it calls), which single-operation cases exercise it (ops/cases.py, through the op names of
 ops/Ops.lean), and which mutants are run on it. With RESULTS.json (Ops.lean against a device),
-the cases' status. Helpers (relations, solvers, bounds) are not operations and are left out.
+the cases' verdicts (`Verdict.lean`). Helpers (relations, solvers, bounds) are not operations and are left out.
 Standard library only. The table is generated: edit this script, not COVERAGE.md."""
 import json, os, re, sys
 from collections import defaultdict
@@ -56,8 +56,9 @@ def is_helper(name, text):
 RANK = ["pure", "effect", "certified", "platform", "assumed", "no solver"]
 def own(text):
     body = text.split(":=", 1)[1] if ":=" in text else ""
-    if re.search(r"\.none \.ret|Solve\.none|\(\.none\)", body): return "no solver"
-    if re.search(r"\.assume \(\.|map \.assume|Solve\.assume", body): return "assumed"
+    if re.search(r"\.other _", body): return "no solver"
+    if re.search(r"\.pick \(\.(dotAdd|dotScaledAdd|sumBcastMul|convert) |=> \.add e |=> \.red e ", body):
+        return "assumed"
     if ".plat " in body or ".plat (" in body: return "platform"
     if ".pick" in body: return "certified"
     if re.search(r"\.(load|store|rmw|loop) |atomicWith|rmwSeq", body): return "effect"
@@ -118,11 +119,14 @@ def cell_cases(n):
     ids = [i for i, _ in cs]
     s = f"{len(ids)}: " + ", ".join(sorted({d for _, d in cs}))
     if results:
-        bad = [i for i in ids if results.get(i) not in ("match", None)]
-        s += " — " + ("all match" if not bad else "**" + ", ".join(f"{i} {results[i]}" for i in bad) + "**")
+        bad = [i for i in ids if results.get(i) not in ("certified", "conditional", None)]
+        s += " — " + ("all agree" if not bad else "**" + ", ".join(f"{i} {results[i]}" for i in bad) + "**")
     return s
 
-NOTE = {"no solver": "exec gives up", "assumed": "another site whose value is assumed and logged",
+NOTE = {"no solver": "`Site.other`: exec stops (unsupported)",
+        "assumed": "a platform-dependent site of the catalog (`sitePlatform`, `updPlatform`): the "
+                   "device's value, assumed and logged, on some operands (`tl.dot(…) + c`, "
+                   "`sum_bcast_mul`'s dot branch, conversions into fp8, float atomic additions)",
         "platform": "`Prog.plat`: the device's value, assumed and logged", "certified": "computed, with proof",
         "effect": "memory effect", "pure": "Lean function, no choice"}
 rows = sorted(ops, key=lambda n: (ops[n]["file"], ops[n]["line"]))
@@ -136,7 +140,7 @@ out = ["# Coverage of the `tl.*` operations", "",
        "**exec**: what the executor does at the operation (the most demanding of its own sites and of",
        "the operations it calls): " + "; ".join(f"*{k}*: {NOTE[k]}" for k in RANK) + ".", "",
        "**single-op cases**: cases of `ops/` that run the definition (count: dtypes)" +
-       (", with their status against the device." if results else "; no device run recorded yet."), "",
+       (", with their verdicts against the device." if results else "; no device run recorded yet."), "",
        f"{len(rows)} operations: " + ", ".join(f"{counts[k]} {k}" for k in RANK if counts[k]) +
        f". {tested} have single-op cases. Not listed (builders the operations are written with): " +
        ", ".join(f"`{n}`" for n in sorted(INTERNAL & set(defs))) + ".", "",

@@ -1,4 +1,5 @@
-import Exec
+import Solvers
+import Verdict
 import Lean.Data.Json
 
 /-!
@@ -16,18 +17,24 @@ with what `exec` makes of the model's definition on the same inputs.
   again lane by lane: the lanes the model calls undefined are counted, not compared, and the
   others are compared.
 * **Platform operations** (`/`, `exp`, `tl.dot`, conversions into fp8, `dot_add`): the oracle
-  answers with the device's outputs, as `Ans.assume`, so the comparison holds by construction;
+  answers with the device's outputs, as `Ans.assumed`, so the comparison holds by construction;
   what such a case tests is everything around the platform value (shapes, the order of
   elements, promotions). The values themselves are the device facts' (`evidence/num-*`); the
-  assumption log says how many were taken.
-* **Reductions** (`sum`): the oracle offers the trees in `candidates`; a case matches when one of
-  them gives the device's value. No candidate matching is inconclusive, not a finding.
-* **Mutants** (`mutants`): wrong copies of a definition, run on the same cases. A mutant that
-  matches the device everywhere is a gap in the inputs. With `--self`, the original model's own
-  outputs stand in for the device (no GPU): a mutant is caught if the inputs tell it from the
-  original.
+  verdict is `conditional`, with the number of values assumed.
+* **Reductions** (`sum`): the oracle offers the trees in `candidates` (each checked by the
+  solver, so a match is certified); a case agrees when one of them gives the device's value. No
+  candidate agreeing is `inconclusive`, not a finding.
+* **Verdicts** (`Verdict`, `validation/Verdict.lean`): each case's `status` is its verdict,
+  `certified`, `conditional`, `discrepancy` (a candidate finding, with up to 8 example lanes),
+  `inconclusive` or `unsupported`; or, for a case the harness could not run, `bad_case`,
+  `no_device`, `unknown_op`. `summary` counts them.
+* **Mutants** (`mutants`): wrong copies of a definition, run on the same cases. A mutant is
+  caught when its verdict is a discrepancy; one that agrees with the device everywhere is a gap
+  in the inputs. With `--self`, the original model's own outputs stand in for the device (no
+  GPU): a mutant is caught if the inputs tell it from the original.
 
   lean --run Ops.lean CASES.json (DEVICE.json | --self) RESULTS.json
+  (or `run_test.py --ops …`, which compiles what it imports and summarises the results)
 -/
 
 open Lean TVA TVA.Validation
@@ -202,16 +209,12 @@ does not apply to a case (`bad_case`) is not counted. Some mutants are equivalen
 
 /-- `x // y` rounding toward negative infinity (Python's), not toward zero. -/
 def floorDiv {sg : Bool} {w n : Nat} (x y : Tensor [n] (IntV sg w)) : Prog (Tensor [n] (IntV sg w)) :=
-  .pick (fun r : Tensor [n] (IntV sg w) => ∀ i, (if (y.get i).toInt = 0 then none
-      else some (IntV.ofInt ((x.get i).toInt.fdiv (y.get i).toInt))) = some (r.get i))
-    (.lanes fun i => if (y.get i).toInt = 0 then none
+  .pick (.lanes [n] _ fun i => if (y.get i).toInt = 0 then none
       else some (IntV.ofInt ((x.get i).toInt.fdiv (y.get i).toInt))) .ret
 
 /-- `x % y` with the sign of the divisor (Python's), not of the dividend. -/
 def floorRem {sg : Bool} {w n : Nat} (x y : Tensor [n] (IntV sg w)) : Prog (Tensor [n] (IntV sg w)) :=
-  .pick (fun r : Tensor [n] (IntV sg w) => ∀ i, (if (y.get i).toInt = 0 then none
-      else some (IntV.ofInt ((x.get i).toInt.fmod (y.get i).toInt))) = some (r.get i))
-    (.lanes fun i => if (y.get i).toInt = 0 then none
+  .pick (.lanes [n] _ fun i => if (y.get i).toInt = 0 then none
       else some (IntV.ofInt ((x.get i).toInt.fmod (y.get i).toInt))) .ret
 
 /-- A result that is subnormal flushed to a zero of its sign. -/
@@ -266,25 +269,19 @@ def candidates (n : Nat) : List Tree :=
   let cs := (List.range 6).map (2 ^ ·) |>.filter (· ≤ n)
   [halves 0 n] ++ cs.map fun c => strided 0 1 (n / c) fun t => halves (t * c) c
 
-/-- The oracle: trees from `tree`, the device's values for platform questions. -/
-def oracle (dev : Array Nat) (conv : Nat → Option Nat) (tree : Option Tree) : Oracle E where
-  hints := fun
+/-- The oracle: trees from `tree`, the device's values for platform questions, at every request. -/
+def oracle (dev : Array Nat) (conv : Nat → Option Nat) (tree : Option Tree) : Oracle :=
+  fun _ _ q => match q with
     | .tree _ => tree
     | .plat q => platOut dev q
     | .convert _ d' x => (conv (DType.toBits _ x)).map d'.ofBits
     | _ => none
-  fill d _ _ := d.ofBits 0
 
-inductive Outcome where
-  | done (out : Array Nat) (assumed : Nat)
-  | ub
-  | gaveUp
+/-- Disabled lanes read zero bits (no case masks a load). -/
+def fill0 : Fill := fun d _ _ => d.ofBits 0
 
-def runProg (O : Oracle E) (p : Prog (Array Nat)) : Outcome :=
-  match exec E O 100 ∅ p with
-  | some (.done out _, l) => .done out l.length
-  | some (.ub, _) => .ub
-  | none => .gaveUp
+def runProg (O : Oracle) (p : Prog (Array Nat)) : Res (Array Nat) × List Record :=
+  exec E O fill0 100 0 ∅ p
 
 structure Case where
   id : String
@@ -295,73 +292,107 @@ structure Case where
 
 def Case.lanes (c : Case) : Nat := c.dims.headD 0
 
-/-- The result of a case against `dev`, as JSON. -/
+/-- The lanes where the model's outputs `out` and the device's `dev` are not related by `cmp`. -/
+def badLanes (cmp : Cmp) (ins : List (Array Nat)) (out dev : Array Nat) : List Nat :=
+  (List.range out.size).filter fun i => !cmp (ins.map (·.getD i 0)) (out.getD i 0) (dev.getD i 0)
+
+/-- Up to 8 differing lanes, `lane` counting from `base`, as JSON. -/
+def examples (ins : List (Array Nat)) (out dev : Array Nat) (bad : List Nat) (base : Nat := 0) : List Json :=
+  (bad.take 8).map fun i => Json.mkObj [("lane", toJson (base + i)),
+    ("in", toJson (ins.map (·.getD i 0))), ("model", toJson (out.getD i 0)), ("device", toJson (dev.getD i 0))]
+
+/-- The verdict of a run against `dev`. -/
+def verdictOf (cmp : Cmp) (ins : List (Array Nat)) (dev : Array Nat) (x : Res (Array Nat) × List Record) : Verdict :=
+  Verdict.ofRes (fun out _ =>
+    let bad := badLanes cmp ins out dev
+    if bad.isEmpty then none else some s!"{bad.length} of {out.size} lanes differ from the device") x
+
+/-- A case's report: its verdict (`status`, and `result` with its details), and `fields`. -/
+def report (c : Case) (v : Verdict) (fields : List (String × Json)) : Json :=
+  Json.mkObj ([("id", toJson c.id), ("op", toJson c.op), ("status", toJson v.name),
+    ("result", toJson v)] ++ fields)
+
+/-- A case the harness could not run (not a verdict): `bad_case`, `no_device`, `unknown_op`. -/
+def harness (c : Case) (status : String) : Json :=
+  Json.mkObj [("id", toJson c.id), ("op", toJson c.op), ("status", toJson status)]
+
+/-- The verdict of a case against `dev`, as JSON (`Verdict`, `validation/Verdict.lean`):
+
+* one run, with the oracle answering platform questions with `dev`: its verdict;
+* a reduction: one run per candidate tree; the first that agrees gives the verdict; if none
+  does, `inconclusive` (the device's tree is not among the candidates), never a discrepancy;
+* a predicted undefined behaviour, for an elementwise operation: each lane run alone; the lanes
+  the model calls undefined are counted (`ub_lanes`), not compared, and the verdict joins the
+  others' (`Verdict.join`). For any other operation, `inconclusive`: the device's output on
+  inputs the model calls undefined is not evidence either way. -/
 def runCase (o : Op) (c : Case) (dev : Array Nat) : Json := Id.run do
   let outD := c.dts.getLastD .i32
   let conv (x : Nat) : Option Nat := match (c.ins.headD #[]).findIdx? (· == x) with
     | some i => dev[i]?
     | none => none
   let cmp := o.cmp outD
-  let summary (status : String) (fields : List (String × Json)) : Json :=
-    Json.mkObj ([("id", toJson c.id), ("op", toJson c.op), ("status", toJson status)] ++ fields)
-  let some p := o.prog c.dts c.dims c.ins | return summary "bad_case" []
+  let some p := o.prog c.dts c.dims c.ins | return harness c "bad_case"
   let trees : List (Option Tree) := if c.op == "sum" then (candidates c.lanes).map some else [none]
-  let mut last := Outcome.gaveUp
+  let mut last : Option (Verdict × List Json) := none
+  let mut sawDiff := false
   for t in trees do
-    last := runProg (oracle dev conv t) p
-    match last with
-    | .done out a =>
-      let bad := (List.range out.size).filter fun i =>
-        !cmp (c.ins.map (·.getD i 0)) (out.getD i 0) (dev.getD i 0)
-      if bad.isEmpty then
-        return summary "match" [("lanes", toJson (out.size)), ("assumed", toJson (a))]
-      if t.isNone || some t == trees.getLast? then
-        let ex := (bad.take 8).map fun i => Json.mkObj [("lane", toJson (i)),
-          ("in", toJson (c.ins.map (·.getD i 0))), ("model", toJson (out.getD i 0)), ("device", toJson (dev.getD i 0))]
-        return summary (if c.op == "sum" then "no_tree" else "mismatch")
-          [("lanes", toJson (out.size)), ("bad", toJson (bad.length)), ("examples", Json.arr ex.toArray)]
-    | _ => pure ()
-  match last with
-  | .gaveUp => return summary "gave_up" []
-  | .done .. => return summary "no_tree" []
-  | .ub =>
-    if !o.lanewise then return summary "ub" []
-    -- localise: each lane alone
+    let x := runProg (oracle dev conv t) p
+    if let .ub _ := x.1 then
+      if !o.lanewise then
+        return report c (.inconclusive "the model predicts undefined behaviour (not localised)") []
+      return localise o c conv cmp dev
+    let v := verdictOf cmp c.ins dev x
+    if v.agrees then
+      return report c v [("lanes", toJson (match x.1 with | .done out _ => out.size | _ => 0))]
+    let ex := match x.1 with
+      | .done out _ => examples c.ins out dev (badLanes cmp c.ins out dev)
+      | _ => []
+    sawDiff := sawDiff || v.isDiscrepancy
+    last := some (v, ex)
+  let (v, ex) := last.getD (.inconclusive "no candidate", [])
+  let v := if trees.length > 1 && sawDiff then
+    Verdict.inconclusive s!"no candidate tree of {trees.length} gives the device's value" else v
+  return report c v [("examples", Json.arr ex.toArray)]
+where
+  localise (o : Op) (c : Case) (conv : Nat → Option Nat) (cmp : Cmp) (dev : Array Nat) : Json := Id.run do
+    let mut v := Verdict.certified
     let mut ubLanes : Nat := 0
-    let mut bad : Array Json := #[]
     let mut nbad : Nat := 0
+    let mut ex : Array Json := #[]
     for i in List.range c.lanes do
       let ins1 := c.ins.map fun bs => #[bs.getD i 0]
-      let some p1 := o.prog c.dts (1 :: c.dims.tail) ins1 | return summary "bad_case" []
-      match runProg (oracle #[dev.getD i 0] conv none) p1 with
-      | .ub => ubLanes := ubLanes + 1
-      | .done out _ =>
-        if !cmp (ins1.map (·.getD 0 0)) (out.getD 0 0) (dev.getD i 0) then
-          nbad := nbad + 1
-          if bad.size < 8 then
-            bad := bad.push (Json.mkObj [("lane", toJson (i)), ("in", toJson (ins1.map (·.getD 0 0))),
-              ("model", toJson (out.getD 0 0)), ("device", toJson (dev.getD i 0))])
-      | .gaveUp => return summary "gave_up" []
-    return summary (if nbad == 0 then "match" else "mismatch")
-      [("lanes", toJson (c.lanes)), ("ub_lanes", toJson (ubLanes)), ("bad", toJson (nbad)), ("examples", Json.arr bad)]
+      let dev1 := #[dev.getD i 0]
+      let some p1 := o.prog c.dts (1 :: c.dims.tail) ins1 | return harness c "bad_case"
+      let x := runProg (oracle dev1 conv none) p1
+      if let .ub _ := x.1 then ubLanes := ubLanes + 1; continue
+      let v1 := verdictOf cmp ins1 dev1 x
+      if v1.isDiscrepancy then
+        nbad := nbad + 1
+        if let .done out _ := x.1 then
+          if ex.size < 8 then ex := ex ++ (examples ins1 out dev1 [0] i).toArray
+      v := v.join v1
+    let vf := match v with
+      | .discrepancy n _ => .discrepancy n s!"{nbad} of {c.lanes} lanes differ from the device"
+      | w => w
+    return report c vf [("lanes", toJson c.lanes), ("ub_lanes", toJson ubLanes), ("bad", toJson nbad),
+      ("examples", Json.arr ex)]
 
 /-- The model's own outputs on a case (for `--self`): lanes the model calls undefined give `0`. -/
 def selfOut (o : Op) (c : Case) : Option (Array Nat) :=
   match o.prog c.dts c.dims c.ins with
   | none => none
   | some p =>
-  let dev0 : Array Nat := #[]
-  match runProg (oracle dev0 (fun _ => none) ((candidates c.lanes).head?)) p with
+  match (runProg (oracle #[] (fun _ => none) ((candidates c.lanes).head?)) p).1 with
   | .done out _ => some out
-  | .gaveUp => none
-  | .ub =>
+  | .ub _ =>
     if !o.lanewise then none else
     some <| (List.range c.lanes).toArray.map fun i =>
       match o.prog c.dts (1 :: c.dims.tail) (c.ins.map fun bs => #[bs.getD i 0]) with
-      | some p1 => match runProg (oracle #[] (fun _ => none) none) p1 with
+      | some p1 => match (runProg (oracle #[] (fun _ => none) none) p1).1 with
         | .done out _ => out.getD 0 0
         | _ => 0
       | none => 0
+  | _ => none
 
 def parseCase (j : Json) : Except String Case := do
   let id ← j.getObjValAs? String "id"
@@ -386,17 +417,26 @@ def main (args : List String) : IO UInt32 := do
     if self then selfOut o c else (devJ.getObjValAs? (Array Nat) c.id).toOption
   let mut results : Array Json := #[]
   let mut muts : Array Json := #[]
+  let mut counts : Std.HashMap String Nat := {}
   for c in cases do
-    let some o := ops.lookup c.op | results := results.push (Json.mkObj [("id", c.id), ("status", "unknown_op")]); continue
-    let some dev := device o c | results := results.push (Json.mkObj [("id", c.id), ("op", c.op), ("status", "no_device")]); continue
-    let r := runCase o c dev
-    IO.println s!"{c.id}: {(r.getObjValAs? String "status").toOption.getD "?"}"
+    let r := match ops.lookup c.op with
+      | none => harness c "unknown_op"
+      | some o => match device o c with
+        | none => harness c "no_device"
+        | some dev => runCase o c dev
+    let st := (r.getObjValAs? String "status").toOption.getD "?"
+    IO.println s!"{c.id}: {st}"
+    counts := counts.insert st (counts.getD st 0 + 1)
     results := results.push r
+    let some o := ops.lookup c.op | continue
+    let some dev := device o c | continue
     for (name, why, m) in mutants do
       if name == c.op then
         let s := (runCase m c dev).getObjValAs? String "status" |>.toOption.getD "?"
         if s != "bad_case" then
           muts := muts.push (Json.mkObj [("id", c.id), ("op", name), ("mutant", why),
-            ("caught", s == "mismatch" || s == "no_tree"), ("status", s)])
-  IO.FS.writeFile outF (Json.mkObj [("cases", Json.arr results), ("mutants", Json.arr muts)]).pretty
+            ("caught", s == "discrepancy"), ("status", s)])
+  let summary := Json.mkObj (counts.toList.map fun (k, n) => (k, toJson n))
+  IO.FS.writeFile outF (Json.mkObj [("summary", summary), ("cases", Json.arr results),
+    ("mutants", Json.arr muts)]).pretty
   return 0
