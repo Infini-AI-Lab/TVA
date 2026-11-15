@@ -1,6 +1,7 @@
 # Differential testing of TVA v3
 
-Draft for review with zhuominc (Yi Zhou, 2026-11-11). Nothing here is part of the library.
+The plan for testing the trusted base of the v3 claims against the real GPU. Nothing in
+`validation/` is part of the library or is trusted.
 
 ## Goal
 
@@ -93,15 +94,10 @@ have them (subnormal results flushed, operands swapped, `fma` rounded twice, `//
 toward −∞, `%` with the divisor's sign, arithmetic and logical shifts exchanged, `maximum`
 propagating NaN, a float conversion rounding toward zero). `--self` uses the model's own outputs
 in place of the device's, so that the inputs' power to tell each mutant from the definition is
-measured without a GPU. Status (2026-11-13, `--self`, 85 cases): every mutant is caught on every
-dtype where it differs from the definition; the three it is not caught on are equivalent there
-(`//` and `%` on `uint32`, the exact conversion `f16 → f32`).
+measured without a GPU. A mutant that is not caught should be equivalent to the definition on
+the dtypes tried.
 
-Still to add: the operations COVERAGE.md lists without cases (conversions `cvt`, `itof`, `ftoi`,
-`cvtFrom8`, the reductions `max`/`argmax`/`histogram`, `where`, `reshape`/`permute`/`join`,
-Philox, loads and stores with masks and `other`, atomics), and more mutants. The scalar float
-layer's evidence (`evidence/float-layer`, against the previous library's identical text) stands;
-rerunning it on v3's code is a cheap confirmation, not a priority.
+COVERAGE.md shows which operations still have no cases.
 
 ### 2. Undefined-behaviour predictions, under `compute-sanitizer` (GPU)
 
@@ -116,15 +112,23 @@ The cheapest phase with the most coverage: the 41 runners exist.
 
 ### 3. An executor for v3 models (no GPU)
 
-`exec : Prog α → Mem → Oracle → Option (Res α × List Assumed)` runs one program on a concrete
-memory, and `exec_sound` proves that whatever it reports (a final memory, or undefined
-behaviour), `Step` can reach, provided every value it took without proof (the `Assumed` list,
-platform sites only) satisfies its site's predicate. Nothing in it is trusted. It needs a change
-to `Prog`, described in the next section. Done: `validation/Exec.lean` (`exec_sound`,
-`execLaunch_sound`); the choice sites are in [PICKS.md](PICKS.md).
+`exec` (`Exec.lean`) runs one program on a concrete memory, and `execLaunch` runs a launch. The
+choice sites, their solvers, and what `exec_sound` and `execLaunch_sound` claim are described in
+[PICKS.md](PICKS.md). Nothing in the executor is trusted.
 
-The launch is run one program after another, in grid order. For a tile-parallel kernel this is
-one of the launch's interleavings; for kernels with atomics the order is the oracle's.
+**Assumed answers.** At a site whose relation mentions the platform (`/`, `exp`, `tl.dot`, fp8,
+float atomics, `dot_add`), no solver can produce or check a value, because the platform is a
+variable. The oracle answers with the device's value for those operands, and the soundness
+theorems are conditional on the logged answers. What remains to check is that *some* platform
+satisfying `Device` explains the device: take the platform whose relations are the logged
+answers, then check it against the device facts at the logged operands (for example, each `exp`
+result within `ExpF32`'s bound). That check is per value and decidable.
+
+Two caveats:
+- `dot_add` puts the device's value in the fused branch. A device that computed the dot and then
+  added can fail the dot's bound: a false alarm.
+- If the device gives two answers for the same operands, the logged platform is a relation, not
+  a function. Check whether some `Device` field requires determinism.
 
 ### 4. Each kernel's model against the device (GPU, needs phase 3)
 
@@ -164,116 +168,6 @@ Several claims use atomics (`streamk_matmul_f16`, `lora_shrink_bf16`, `route_his
 buffering, coherence on one cell), and of the argument of `MemSem.unused`: an atomic whose result
 is unused behaves as `acq_rel` at `gpu` scope, whatever its `sem`.
 
-## The change to `Prog` that phase 3 needs
-
-### The problem
-
-`Prog.pick P k` stores the predicate `P : β → Prop` and the continuation `k`. To run it, an
-executor must produce some `b` with `P b` and continue with `k b`. In compiled code `P` is
-erased (it is a proposition), and so is `β`: at run time the executor sees a `pick` node and a
-closure, and cannot tell an `upToNaN` from a reduction tree or a bounds guard. It can neither
-build a witness nor check one, and an oracle cannot answer a question it cannot see.
-
-Recording the values from the device instead does not work: most `pick`s have no value on the
-device (a guard picks `()`; the tree of a reduction is the shape of the computation, not a value;
-the order in which a store's lanes land), recording a value that exists changes what Triton
-compiles, and a recorded bit pattern still has to be given to `k` at an erased type.
-
-### The proposal
-
-Each `pick` carries a solver, which the semantics ignores:
-
-```lean
-| pick (P : β → Prop) (solve : Solve P) (k : β → Prog α) : Prog α
-
-/-- A certified answer to "some `b` with `P b`". -/
-inductive Ans (P : β → Prop) where
-  | ok    (b : β) (h : P b)     -- a witness, with its proof
-  | empty (h : ∀ b, ¬ P b)      -- no witness: undefined behaviour
-
-structure Solve (P : β → Prop) where
-  run : Hints → Option (Ans P)  -- `none`: no answer, the executor gives up
-```
-
-The solver is written next to `P`, by whoever writes the `pick`, in `TVA/Triton` (no claim
-contains a `pick`). At each site it either computes the witness or asks the oracle a typed
-question from a closed family that survives compilation, and returns the answer with its proof:
-
-| Kind of site (examples) | Solver |
-|---|---|
-| guards: block pointers, descriptors, `tl.assume`, `static_assert`, conversions' conditions | decides the condition; `empty` is a predicted undefined behaviour |
-| compiler hints: `multiple_of`, `max_contiguous`, `max_constancy` | the witness is the value itself, if the hint's condition holds |
-| partial functions: integer `//`, `%`, shifts | the only candidate, or `empty` |
-| `upToNaN`, IEEE operations, `maximum`/`minimum`, `addc`/`mul_add` without fusion | the IEEE result |
-| free choices: reduction and scan trees, `sort`, `histogram`, `reshape(can_reorder=True)`, disabled lanes, padding | asks the oracle (`Query.tree n`, `Query.perm s`, `Query.val d`, …), then evaluates `P` on the answer |
-
-Platform operations are written `env fun e => pick (fun r => e.P.math .exp f x r) k`: `P`
-mentions the platform `e.P`, which is a variable, so no solver can produce or check a result.
-Their solvers assume the oracle's answer instead (next section); `Prog.plat q k`, with
-`q : PlatQ` the operation on its operands (`math`, `div`, `cvt` into fp8, `dot`, `dotScaled`),
-is the abbreviation for this pattern. (A first version made `plat` a constructor of `Prog` with
-its own `Step` rules; it was replaced by the definition.)
-
-### Assumed answers: sites whose predicate mentions the platform
-
-Some sites mix a platform relation with something else, so neither a solver nor `plat` can answer
-them: `dot_add` and `dot_scaled_add` (`tl.dot(a, b) + c`: the platform's dot with `c` folded in,
-or the dot followed by a fusable addition), a float `atomic_add` (the update is
-`e.P.atomicAdd`), a conversion into fp8 inside `tl.convert`. Certifying them would mean
-restructuring the definitions (the first two would become a choice of branch, then `plat`, which
-changes when undefined behaviour is reachable, and eight proofs). Instead:
-
-- `Ans` has a third answer, `assume b`: a value with no proof. `Solve.assume q` asks the oracle a
-  question `q` that carries the operands (`Query.plat`, `Query.convert`, `Query.atomicAdd`) and
-  assumes its answer. `Step` ignores solvers, so meaning and proofs are unchanged.
-- `exec` returns, with its result, the list of values it took without proof (`Assumed`: the
-  site's predicate and the value); `exec_sound` and `execLaunch_sound` are conditional on each of
-  them satisfying its predicate.
-- The oracle does not choose one implementation: it answers each question with the device's value
-  for those operands (a single-operation kernel's output; in phase 4, `P_dev`, the same operation
-  run alone). What is then to check is that the device is explained by *some* platform
-  satisfying `Device`: take the platform whose relations are the logged answers (each assumption
-  then holds by construction) and check it against the device facts at the logged operands, for
-  example each `exp` result within `ExpF32`'s bound. That check is per value and decidable.
-- `dot_add`'s solver puts the device's value in the first branch (the dot with `c`). If the
-  device instead computed the dot and then added, the value may miss the dot's bound and the
-  check fails: a false alarm, which needs the unfused product to resolve, and a single-operation
-  kernel cannot observe it.
-- Open: if the device gives two answers for the same operands at different sites, the platform
-  built from the log is a relation, not a function; whether some `Device` field requires
-  determinism is to check.
-
-**`plat` is a definition, not a constructor** (2026-11-13). `Prog.plat q k` is
-`env fun e => pick (q.Rel e.P) (Solve.assume (.plat q)) k`: the old `env`-then-`pick` pattern,
-with a solver that assumes the oracle's answer. So `Step`, `Safe` and `SafeA` have no `plat`
-case (`Safe.plat` and `SafeA.plat` are theorems, from `env` and `pick`, with the statements the
-constructors had), no proof outside `lean/TVA/Program.lean`'s solvers changed, and the change
-to `Prog` is: a solver field on `pick` and on `rmw`, and the answer `Ans.assume`.
-
-### What it costs and what it does not change
-
-- **Meaning: unchanged.** `Step.pick` ignores `solve`; `Prog.plat` unfolds to the old pattern.
-  A reader of a claim can ignore solvers. A wrong certified answer cannot be built, since it
-  carries its proof, so a wrong solver can only make the executor give up or assume a value; and
-  every assumed value is reported, so `exec_sound` holds for every solver and every oracle, under
-  the reported assumptions.
-- **Claims: no statement changes.** No claim file contains `pick`. Whether the claims' sha256
-  change depends only on whether the claim files change, which they need not.
-- **Proofs.** No rule and no oracle proof changes: `Safe.plat` and `SafeA.plat` are theorems
-  with the statements the rules use. All 41 oracle proofs check unchanged.
-- **Size.** 68 `pick` sites in `TVA/Triton`, each given a solver (most are one word:
-  `Solve.guard`, `Solve.ok v rfl`); about a dozen platform sites (in `Arith`, `Convert`, `Dot`) are written `Prog.plat`.
-
-### Alternatives considered
-
-- **A copy of each model that the executor can run**, in `validation/`, with a proof that it
-  equals the original. No library change, but 41 copies to keep in sync and to prove equal.
-- **An executor over Lean's syntax trees** (`Expr`), recognising each `pick` by the shape of
-  its `P`. No library change, but slow (models build tensors of thousands of elements) and tied
-  to how each definition happens to be written.
-- **No executor**: phases 0–2 and 5 only. The transcriptions stay checked by reading and by
-  `check_gpu.py`.
-
 ## Scope, and the compiler's hidden parameters
 
 **Scope.** A claim is about one stack: an H200 (sm_90), Triton 3.8.0, the CUDA toolchain and
@@ -283,8 +177,7 @@ claims do not. Other GPUs or versions are out of scope for now: they would need 
 
 **Hidden parameters.** Within that stack the compiler's output depends on settings that the
 model does not name. Soundness needs each to be *covered*: modelled, absorbed by a free choice
-whose bound the evidence measured across the setting, or pinned. Status to be completed (`?`:
-not yet checked):
+whose bound the evidence measured across the setting, or pinned (`?`: not yet checked):
 
 | Setting | How the model covers it | Varied in the evidence |
 |---|---|---|
@@ -307,21 +200,13 @@ can be checked on paper: for another target's lowering (Blackwell, AMD), is ever
 whose result differs from the IEEE one among `Platform`'s fields, or is some operation that
 `TVA.Base` treats as exact (subnormals in `+`/`*`, `div_rn`, conversions) lowered differently?
 
-## To decide with zhuominc
+## Open questions
 
-1. The change to the semantics: generic over a signature `Sig` of choice sites, with Triton's
-   catalog `TVA.Site` (each `Allows` the old predicate, `Preserve.lean`), and the solvers outside
-   the library (`validation/Solvers.lean`); this replaces the earlier design of solvers on `pick`
-   and `rmw` (`validation-v3`, PR #1). Constraint (Yi): the change may touch the semantics, but
-   must stay small and easy to audit.
-2. The evidence that names the previous library: is redoing `float-layer` for v3 (phase 1)
-   wanted, and are the `num-*` folders' bounds the v3 facts' bounds?
-3. `check_gpu.py` results: are runs recorded somewhere (date, driver, claim sha256)? Should
-   they be?
-4. GPU: the H200 NVL the evidence ran on, or an AWS P5e (H200); do results from an H100 count?
-   Phases 1, 2, 4 and 5 need one, with `compute-sanitizer` and a driver like the evidence's
-   (610.57).
-5. Scope: state the stack (device, Triton, toolchain) in `TVA/Claim.lean`'s trusted base, and
-   pin in the claims any hidden parameter the evidence does not cover.
-6. Where the work lives: a `validation/` folder on a branch off `v3`, not merged into the library
-   until reviewed.
+1. The evidence that names the previous library: should `float-layer` be redone for v3, and are
+   the `num-*` folders' bounds the v3 facts' bounds?
+2. Should `check_gpu.py` runs be recorded (date, driver, claim sha256)?
+3. Which GPU: the H200 NVL the evidence ran on, or an AWS P5e (H200)? Do results from an H100
+   count? Phases 1, 2, 4 and 5 need one, with `compute-sanitizer` and a driver like the
+   evidence's (610.57).
+4. Should the stack (device, Triton, toolchain) be stated in `TVA/Claim.lean`'s trusted base, and
+   should every hidden parameter the evidence does not cover be pinned in the claims?

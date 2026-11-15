@@ -499,7 +499,7 @@ assigns) are its state, a tuple; after the loop they hold what the last iteratio
 
 ## Undefined behaviour
 
-A program reaches undefined behaviour (`Prog.ub`, or a `pick` that nothing satisfies) when:
+A program reaches undefined behaviour (`Prog.ub`, or a `pick` whose site allows nothing) when:
 
 - an enabled lane of a load, a store or an atomic accesses a misaligned address, an address
   outside `[0, 2^64)`, or a byte the launch was not given;

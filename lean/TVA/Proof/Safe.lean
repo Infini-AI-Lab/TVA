@@ -66,7 +66,7 @@ inductive Safe (E : Env) (R : Set Int) :
         Safe E R (W \ Mem.span d a) Q (m.write d a new) (k old)) →
       Safe E R W Q m (.rmw d a u sem sc k)
   /-- A choice at a site: some value is allowed, and the rest is safe for every allowed value
-  (for `Site.other`, `Safe.pick`). -/
+  (for a Triton site: `Safe.pick`, `Safe.guard`, `Safe.hint`). -/
   | site {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Sig.Site}
       {k : Sig.Out s → Prog α} :
       (∃ b, Sig.Allows s b) → (∀ b, Sig.Allows s b → Safe E R W Q m (k b)) →

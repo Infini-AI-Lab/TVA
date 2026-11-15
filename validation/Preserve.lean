@@ -3,14 +3,14 @@ import TVA
 /-!
 # The catalog preserves meaning
 
-Stage 2 of `validation/PICKS.md` replaced every `Site.other P` of an operation by a constructor
+The catalog replaced every `Site.other P` of an operation by a constructor
 of a semantic family (`TVA.Site`), and every atomic's relation by an `Upd` constructor. The
 semantics sees a site only through `Sig.Allows` (and an update through `Sig.UpdAllows`), so an
 operation's meaning is unchanged when the new site allows exactly what the old predicate did: the
 same results, and no result (undefined behaviour) in the same cases.
 
-Below, for each family, the old predicate as it was written in the operation (commit `6beae0a`,
-copied verbatim but for the bound names the operation gave its operands) is equivalent to the new
+Below, for each family, the old predicate as it was written in the operation (copied verbatim
+but for the bound names the operation gave its operands) is equivalent to the new
 `Allows`. Each is `Iff.rfl`: the new relation is the old one by definition. The families of
 guards, hints, lanewise computations, float elementwise operations, conversions and platform
 requests have the same theorems as simp lemmas next to the catalog (`Site.allows_guard`, …,

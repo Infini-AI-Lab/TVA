@@ -1151,7 +1151,7 @@ TVA.SafeA.site {E : TVA.Env} {R W : Set ℤ} {C : Set (TVA.DType × ℤ)} {α : 
       TVA.SafeA E R W C Q log m (TVA.Prog.pick s k)
 ```
 
-A choice at a site, as in `Safe` (for `Site.other`, `SafeA.pick`).
+A choice at a site, as in `Safe` (for a Triton site: `SafeA.pick`).
 
 ### `TVA.SafeA.loop`
 

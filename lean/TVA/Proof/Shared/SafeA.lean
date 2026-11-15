@@ -72,7 +72,7 @@ inductive SafeA (E : Env) (R : Set Int) :
       (∀ v w, k v = k w) →
       (∀ old new, Sig.UpdAllows u old new → SafeA E R W C Q (log ++ [⟨d, a, old, new⟩]) m (k old)) →
       SafeA E R W C Q log m (.rmw d a u sem sc k)
-  /-- A choice at a site, as in `Safe` (for `Site.other`, `SafeA.pick`). -/
+  /-- A choice at a site, as in `Safe` (for a Triton site: `SafeA.pick`). -/
   | site {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
       {log : List AtomicStep} {m : Mem} {s : Sig.Site} {k : Sig.Out s → Prog α} :
       (∃ b, Sig.Allows s b) → (∀ b, Sig.Allows s b → SafeA E R W C Q log m (k b)) →

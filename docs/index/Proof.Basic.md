@@ -731,7 +731,7 @@ TVA.Safe.site {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 ```
 
 A choice at a site: some value is allowed, and the rest is safe for every allowed value
-(for `Site.other`, `Safe.pick`).
+(for a Triton site: `Safe.pick`, `Safe.guard`, `Safe.hint`).
 
 ### `TVA.Safe.loop`
 

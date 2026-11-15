@@ -1,6 +1,6 @@
 # Trust inventory of TVA v3
 
-Phase 0 of [PLAN.md](PLAN.md) (Yi Zhou, 2026-11-11). For each part of what a reader of a proved
+Phase 0 of [PLAN.md](PLAN.md). For each part of what a reader of a proved
 claim trusts (`TVA/Claim.lean`: the transcription, the compiler with the meaning `TVA.Triton`
 gives each operation, the device facts), what validates it today against Triton and the GPU.
 
@@ -278,7 +278,7 @@ Checked, with a fix that is probably small:
 2. ✓ `lora_shrink_bf16/check_gpu.py:232`: a NaN output passes.
 3. ✓ `gdn_gating_bf16/check_gpu.py:188`: the input check is vacuous for finite values.
 4. ✓ `layer_norm_fwd_f16`: `SETUP.md:42` contradicts `Inst.ok` (`Claim.lean:198`).
-5. ✓ `Triton/Arith.lean:139-141`: the docstring of `fdiv` says the default compiles to
+5. ✓ `Triton/Arith.lean`: the docstring of `fdiv` says the default compiles to
    `tt.precise_divf`; `semantic.py:337-340` uses `create_fdiv` unless `ieee_rounding`. The
    definition follows the source.
 6. ✓ `Device/Dot16Chunk.lean` cites `num-dot-chunk16`, which tested the earlier statement.
@@ -288,8 +288,8 @@ Checked, with a fix that is probably small:
 
 Questions about meaning (not verdicts):
 
-9. `AddRel` (`Arith.lean:67`) was tightened in v3: a fused addition adds at most one unrounded
-   product ("sm_90 has no instruction that adds two unrounded products", `:59-60`). Nothing
+9. `AddRel` (`Triton/Arith/Rel.lean`) was tightened in v3: a fused addition adds at most one
+   unrounded product ("sm_90 has no instruction that adds two unrounded products", its docstring). Nothing
    measures it.
 10. `forRange` (`Loop.lean:41`) requires `0 < step`; Triton 3.8.0 allows a negative constexpr
     step. Such loops are undefined behaviour in the model (incomplete, not unsound).
@@ -298,7 +298,7 @@ Questions about meaning (not verdicts):
     model's `tl.convert` (which extends by the source's signedness) differs?
 12. `tl.dot_add` allows the rewritten and the plain form for every configuration; its docstring
     says the rewrite happens only when `max_num_imprecise_acc` is 0. Wider than stated: intended?
-13. fp8 ↔ `f64` conversion is undefined behaviour in the model (`Convert.lean:67, 132`);
+13. fp8 ↔ `f64` conversion is undefined behaviour in the model (`Triton/Convert/Rel.lean`);
     `semantic.cast` routes it to `create_fp_to_fp`. Was the rejection observed?
 14. `tl.maximum(…, propagate_nan=ALL)` has no model, although `FloatV.maxNaN` exists and is
     tested by FL.

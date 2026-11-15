@@ -1629,7 +1629,7 @@ TVA.Safe.plat	theorem	lean/TVA/Proof/Safe.lean:107	An operation of the platform 
 TVA.Safe.ret	constructor	lean/TVA/Proof/Safe.lean:40	The program has ended with `a` in `m`: the post-condition holds.
 TVA.Safe.rmw	constructor	lean/TVA/Proof/Safe.lean:57	An atomic on bytes of `W` outside `R`, whose result the program does not use (the rest of the program is the same for every old value); the rest may not touch the bytes again.
 TVA.Safe.seq	theorem	lean/TVA/Proof/Safe.lean:175	`Safe.bind` for `p >>= f` (a line of a `do` block followed by the rest).
-TVA.Safe.site	constructor	lean/TVA/Proof/Safe.lean:68	A choice at a site: some value is allowed, and the rest is safe for every allowed value (for `Site.other`, `Safe.pick`).
+TVA.Safe.site	constructor	lean/TVA/Proof/Safe.lean:68	A choice at a site: some value is allowed, and the rest is safe for every allowed value (for a Triton site: `Safe.pick`, `Safe.guard`, `Safe.hint`).
 TVA.Safe.step	theorem	lean/TVA/Proof/Safe.lean:309	**Progress and preservation.** Every step of a safe program is a normal step, within the footprint, to a program that is safe with the written bytes removed from its write footprint.
 TVA.Safe.stepT	theorem	lean/TVA/Proof/Safe.lean:188	**Steps of a safe program.** Run a program that is safe from its own memory `m₀` against a memory `m` that agrees with `m₀` on the footprint.
 TVA.Safe.store	constructor	lean/TVA/Proof/Safe.lean:50	A store writes bytes of `W`; the rest of the program may not write them again.
@@ -1657,7 +1657,7 @@ TVA.SafeA.ret	constructor	lean/TVA/Proof/Shared/SafeA.lean:38	The program has en
 TVA.SafeA.rmw	constructor	lean/TVA/Proof/Shared/SafeA.lean:56	A private atomic, as in `Safe`: on bytes of `W` outside `R`, its result unused.
 TVA.SafeA.rmw_const	theorem	lean/TVA/Proof/Shared/SafeA.lean:205	A program about to perform an atomic does not use its result.
 TVA.SafeA.shared	constructor	lean/TVA/Proof/Shared/SafeA.lean:65	**A shared atomic**: an aligned cell of `C`, `acq_rel` at `gpu` or `sys` scope, an update with a new value for every old value, its result unused.
-TVA.SafeA.site	constructor	lean/TVA/Proof/Shared/SafeA.lean:75	A choice at a site, as in `Safe` (for `Site.other`, `SafeA.pick`).
+TVA.SafeA.site	constructor	lean/TVA/Proof/Shared/SafeA.lean:75	A choice at a site, as in `Safe` (for a Triton site: `SafeA.pick`).
 TVA.SafeA.stepT	theorem	lean/TVA/Proof/Shared/SafeA.lean:225	**Steps.** Run against the launch's memory `m`, a program that is `SafeA` in its own memory `m₀` (which agrees with `m` on the private footprint) takes either a private step (as `Safe.stepT`), or a shared atomic step, which leaves its ow...
 TVA.SafeA.store	constructor	lean/TVA/Proof/Shared/SafeA.lean:48	A private store, as in `Safe`.
 TVA.ScaleFmt	inductive	lean/TVA/Platform.lean:109	The format of `tl.dot_scaled` scales.

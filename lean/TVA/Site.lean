@@ -13,7 +13,7 @@ The semantics (`TVA.Launch`) is written for any signature `Sig` (`TVA.Program`):
 value a program cannot predict, and what each allows. This module gives Triton's: the `Sig`
 instance that every `tl.*` operation, every model and every claim uses.
 
-* `Site`: where a `tl.*` operation leaves a value to the device or the compiler. `Site.other P`
+* `Site`: where a `tl.*` operation leaves a value to the device or the compiler. `Site.other β P`
   is any value of type `β` satisfying `P`.
 * `Upd d`: the update of one element of dtype `d` by an atomic. `Upd.other upd` is any new value
   `upd old` allows.

@@ -12,7 +12,8 @@ Everything a claim is stated in, and everything a reader of a proved claim trust
 
 * `TVA.Core`: values, tensors, memory, the platform and the program monad (`Base/`, `Tensor`,
   `Memory`, `Platform`, `Program`);
-* `TVA.Triton`: the meaning of each `tl.*` operation;
+* `TVA.Triton`: the meaning of each `tl.*` operation, and Triton's sites (`TVA.Site`, with the
+  relations in `Triton/*/Rel.lean`);
 * `TVA.Launch`: a launch of a grid of programs, its outcomes, and `Correct`;
 * `TVA.Device`: the device facts (`Device P`), shown satisfiable by `Device.ref_ok`, and the
   tolerance formulas specifications use (`TVA.Device.Tolerance`);
