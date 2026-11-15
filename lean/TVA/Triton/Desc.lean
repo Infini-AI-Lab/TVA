@@ -104,7 +104,7 @@ with block `[1, BN]` (`semantic.py:1150-1151`), and `y` a multiple of 16 bytes. 
 def RowAccess (D : TensorDesc d) (BN : Nat) (y : I32) : Prop :=
   D.Valid ∧ D.rank = 2 ∧ D.block = [1, BN] ∧ (y.toInt * d.bytes) % 16 = 0
 
-instance decForallSuccLt (n : Nat) (P : Nat → Prop) [DecidablePred P] :
+private instance decForallSuccLt (n : Nat) (P : Nat → Prop) [DecidablePred P] :
     Decidable (∀ k, k + 1 < n → P k) :=
   decidable_of_iff (∀ k, k < n → k + 1 < n → P k)
     ⟨fun h k hk => h k (by omega) hk, fun h k _ hk => h k hk⟩
@@ -173,8 +173,7 @@ inside the tensor (the documentation does not say what happens otherwise). Repea
 written in an unspecified order. -/
 def desc_scatter {M BN : Nat} {w : Nat} (D : TensorDesc d) (vals : Tensor [M, BN] d.Val)
     (xs : Tensor [M] (IntV true w)) (y : I32) : Prog Unit :=
-  .pick (.guard (
-      D.RowAccess BN y ∧ ∀ l : Idx [M, BN], D.inbAt (TensorDesc.rowCoord xs y l) = true))
+  .pick (.guard (D.RowAccess BN y ∧ ∀ l : Idx [M, BN], D.inbAt (TensorDesc.rowCoord xs y l) = true))
     fun _ =>
     tl.store (D.ptrsAt (TensorDesc.rowCoord xs y)) vals
 

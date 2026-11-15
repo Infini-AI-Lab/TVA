@@ -125,6 +125,9 @@ instance {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C : Nat) :
 instance {s : Shape} {β : Type} [HintVal β] (x : Tensor s β) (k C v : Nat) :
     Decidable (FirstsDiv x k C v) := by unfold FirstsDiv; infer_instance
 
+instance {s : Shape} {β : Type} [DecidableEq β] (x : Tensor s β) (k C : Nat) :
+    Decidable (ConstAlong x k C) := by unfold ConstAlong; infer_instance
+
 namespace tl
 
 variable {s : Shape} {α : Type}
@@ -279,8 +282,9 @@ def max_contiguous {n : Nat} {β : Type} [HintVal β] (x : Tensor [n] β) (C : N
   .pick (.hint _ x (ContigIs x 0 C)) .ret
 
 /-- `tl.max_constancy(x, C)` of a rank-1 tensor: `x` is runs of `C` equal values. -/
-def max_constancy {n : Nat} {β : Type} (x : Tensor [n] β) (C : Nat) : Prog (Tensor [n] β) :=
-  .pick (.other _ (fun y => y = x ∧ ConstAlong x 0 C)) .ret
+def max_constancy {n : Nat} {β : Type} [DecidableEq β] (x : Tensor [n] β) (C : Nat) :
+    Prog (Tensor [n] β) :=
+  .pick (.hint _ x (ConstAlong x 0 C)) .ret
 
 /-- `tl.multiple_of(x, v)` of a rank-1 tensor, with no `tl.max_contiguous` on the same value: `v`
 divides the first element of each group of `contig` positions (`FirstsDiv`). `contig` is a lower
@@ -308,8 +312,9 @@ def max_contiguousN {β : Type} [HintVal β] (x : Tensor s β) (Cs : List Nat) :
 
 /-- `tl.max_constancy(x, Cs)` for any rank: along each dimension `k`, groups of `Cs[k]` positions
 hold equal values. -/
-def max_constancyN {β : Type} (x : Tensor s β) (Cs : List Nat) : Prog (Tensor s β) :=
-  .pick (.other _ (fun y => y = x ∧ ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1))) .ret
+def max_constancyN {β : Type} [DecidableEq β] (x : Tensor s β) (Cs : List Nat) :
+    Prog (Tensor s β) :=
+  .pick (.hint _ x (∀ k, k < s.length → ConstAlong x k (Cs.getD k 1))) .ret
 
 /-- `tl.multiple_of(x, vs)` for any rank, with no `tl.max_contiguous` on the same value: along each
 dimension `k`, `vs[k]` divides the first element of each group of `contig[k]` positions, where

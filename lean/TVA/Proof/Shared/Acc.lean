@@ -54,8 +54,7 @@ private theorem acc_shared {α : Type} {d : DType} {a : Int} {u : Sig.Upd d}
 
 /-- A private atomic pending while its continuation steps. -/
 private theorem acc_private {α : Type} {Q : α → List AtomicStep → Mem → Prop} {d : DType}
-    {a : Int} {u : Sig.Upd d}
-    {sem : MemSem} {sc : Scope} (hQ : PermInv Q) :
+    {a : Int} {u : Sig.Upd d} {sem : MemSem} {sc : Scope} (hQ : PermInv Q) :
     ∀ s : Mem × Prog α, Acc (Next E C) s → ∀ (W : Set Int) (log : List AtomicStep) (m : Mem)
       (k : d.Val → Prog α) (old n₀ : d.Val), Disjoint (cellBytes C) (R ∪ W) →
       s = (m.write d a n₀, k old) → m.read d a = some old → Sig.UpdAllows u old n₀ →
@@ -230,7 +229,7 @@ theorem acc {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Pr
     obtain ⟨n₀, hu₀⟩ := htot default
     exact acc_shared hC _ (ih default n₀ hu₀ hQ hdA) _ _ rfl fun old => by
       obtain ⟨n, hu⟩ := htot old; exact ih old n hu hQ hdA
-  | site _ _ ih =>
+  | pick _ _ ih =>
     constructor; rintro ⟨m', p'⟩ ⟨m₁, m₁', e, hag, hs, rfl⟩
     cases hs with
     | pick b hb => rw [mix_off hag]; exact ih b hb hQ hdA

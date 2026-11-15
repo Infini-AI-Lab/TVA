@@ -119,7 +119,9 @@ def meta():
             "cuda": torch.version.cuda}
 
 def main():
-    cases = json.load(open(sys.argv[1])); out = sys.argv[2]; prefixes = sys.argv[3:]
+    with open(sys.argv[1]) as f:
+        cases = json.load(f)
+    out = sys.argv[2]; prefixes = sys.argv[3:]
     res = {"_meta": meta()}
     with tempfile.TemporaryDirectory() as tmp:
         for i, c in enumerate(cases):
@@ -130,7 +132,8 @@ def main():
             except Exception as e:  # a kernel Triton rejects is reported, not fatal
                 res[c["id"] + ".error"] = repr(e)
                 print(f"{c['id']}: {e!r}")
-    json.dump(res, open(out, "w"))
+    with open(out, "w") as f:
+        json.dump(res, f)
 
 if __name__ == "__main__":
     main()

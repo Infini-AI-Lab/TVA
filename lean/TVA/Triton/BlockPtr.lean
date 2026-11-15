@@ -104,8 +104,7 @@ def load_block (p : BlockPtr d) (bc : List Nat := []) (padding : Padding := .und
 /-- `tl.store(p, value, boundary_check=bc)` of a block pointer: a masked store. The model converts
 `value` to the element dtype first, as Triton does implicitly. -/
 def store_block (p : BlockPtr d) (vals : Tensor p.block d.Val) (bc : List Nat := []) : Prog Unit :=
-  .pick (.guard (
-      p.Valid ∧ p.CheckOk bc)) fun _ => tl.store p.ptrs vals (some (p.mask bc))
+  .pick (.guard (p.Valid ∧ p.CheckOk bc)) fun _ => tl.store p.ptrs vals (some (p.mask bc))
 
 end tl
 

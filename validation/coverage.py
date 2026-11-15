@@ -21,7 +21,8 @@ def strip_comments(s):
 defs = {}
 for fn in sorted(os.listdir(TRITON)):
     if not fn.endswith(".lean"): continue
-    raw = open(os.path.join(TRITON, fn)).read()
+    with open(os.path.join(TRITON, fn)) as f:
+        raw = f.read()
     src = strip_comments(raw).split("\n")
     ns, cur = [], None
     for i, line in enumerate(src):
@@ -50,7 +51,7 @@ def signature(text):
 
 def is_helper(name, text):
     sig = signature(text)
-    return (name[0].isupper() or name.startswith("_root_") or "Ans" in name or name in INTERNAL
+    return (name[0].isupper() or name.startswith("_root_") or name in INTERNAL
             or sig.endswith("Prop"))
 
 RANK = ["pure", "effect", "certified", "platform", "assumed", "no solver"]
@@ -88,7 +89,8 @@ def status(n, seen=()):
     return s
 
 # Single-operation cases: Ops.lean's op names and the tl definitions they call.
-opsrc = open(os.path.join(HERE, "ops", "Ops.lean")).read()
+with open(os.path.join(HERE, "ops", "Ops.lean")) as f:
+    opsrc = f.read()
 reg = re.search(r"def ops : List \(String × Op\) := \[(.*?)\]\n", opsrc, re.S).group(1)
 harness = defaultdict(set)   # tl def -> harness op names
 for name, body in re.findall(r'\("([a-z_0-9]+)", (.*?)\)(?=,\s*\(|\s*$)', reg, re.S):
@@ -109,7 +111,8 @@ for c in C.cases():
 
 results = {}
 if len(sys.argv) > 1:
-    r = json.load(open(sys.argv[1]))
+    with open(sys.argv[1]) as f:
+        r = json.load(f)
     for x in r["cases"]: results[x["id"]] = x["status"]
 
 def cell_cases(n):
@@ -149,5 +152,6 @@ for n in rows:
     d = ops[n]
     out.append(f"| `tl.{n}` | `{d['file']}:{d['line']}` | {status(n)} | {cell_cases(n)} | "
                f"{'; '.join(mutants.get(n, []))} |")
-open(os.path.join(HERE, "COVERAGE.md"), "w").write("\n".join(out) + "\n")
+with open(os.path.join(HERE, "COVERAGE.md"), "w") as f:
+    f.write("\n".join(out) + "\n")
 print(f"COVERAGE.md: {len(rows)} operations, {tested} with cases; " + ", ".join(f"{k} {counts[k]}" for k in RANK))

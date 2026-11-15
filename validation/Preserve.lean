@@ -3,29 +3,95 @@ import TVA
 /-!
 # The catalog preserves meaning
 
-The catalog replaced every `Site.other P` of an operation by a constructor
-of a semantic family (`TVA.Site`), and every atomic's relation by an `Upd` constructor. The
-semantics sees a site only through `Sig.Allows` (and an update through `Sig.UpdAllows`), so an
-operation's meaning is unchanged when the new site allows exactly what the old predicate did: the
-same results, and no result (undefined behaviour) in the same cases.
+The semantics sees a site only through `Sig.Allows` (an update through `Sig.UpdAllows`). For each
+family of `TVA.Site`, the predicate the operation used before the catalog (copied verbatim up to
+bound names) is equivalent to the new `Allows`, by `Iff.rfl`: the same results, and undefined
+behaviour in the same cases.
 
-Below, for each family, the old predicate as it was written in the operation (copied verbatim
-but for the bound names the operation gave its operands) is equivalent to the new
-`Allows`. Each is `Iff.rfl`: the new relation is the old one by definition. The families of
-guards, hints, lanewise computations, float elementwise operations, conversions and platform
-requests have the same theorems as simp lemmas next to the catalog (`Site.allows_guard`, …,
-`Site.allows_dotScaledAdd`).
-
-That the data of each new site depends on the same operands as the old predicate matters for
-`UsesSharedAtomicResult` and `Step.defer`, which compare continuations with `=`; it holds by
-inspection of each operation (the site's arguments are the operands its old predicate mentioned,
-or numbers computed from them, such as `tl.sumBound e.P n`).
+`UsesSharedAtomicResult` and `Step.defer` compare continuations with `=`, so each site's data must
+depend on the same operands as the old predicate. That holds by inspection of each operation.
 -/
 namespace TVA.Validation.Preserve
 
 open TVA
 
 variable {f : Format}
+
+/-! ## Guards, hints, lanewise, float, conversion and platform sites -/
+
+theorem other {β : Type} {P : β → Prop} {b : β} :
+    Sig.Allows (Site.other β P) b ↔ P b := Iff.rfl
+
+theorem guard {c : Prop} [Decidable c] {u : Unit} :
+    Sig.Allows (Site.guard c) u ↔ c := Iff.rfl
+
+theorem hint {β : Type} {x : β} {c : Prop} [Decidable c] {y : β} :
+    Sig.Allows (Site.hint β x c) y ↔ y = x ∧ c := Iff.rfl
+
+theorem lanes {s : Shape} {α : Type} {g : Idx s → Option α} {r : Tensor s α} :
+    Sig.Allows (Site.lanes s α g) r ↔ ∀ i, g i = some (r.get i) := Iff.rfl
+
+theorem upToNaN {s : Shape} {f : Format} {v r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.upToNaN s f v) r ↔ ∀ i, FloatV.NaNEq (v.get i) (r.get i) := Iff.rfl
+
+theorem addc {s : Shape} {f : Format} {fusion : Bool}
+    {x y r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.addc s f fusion x y) r ↔ ∀ i, AddRel fusion (x.get i) (y.get i) (r.get i) :=
+  Iff.rfl
+
+theorem mulAdd {s : Shape} {f : Format} {fusion : Bool}
+    {a b c r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.mulAdd s f fusion a b c) r ↔ ∀ i,
+      FloatV.NaNEq (FloatV.add (FloatV.mul (a.get i) (b.get i)) (c.get i)) (r.get i) ∨
+      (fusion = true ∧ FloatV.NaNEq (FloatV.fma (a.get i) (b.get i) (c.get i)) (r.get i)) :=
+  Iff.rfl
+
+theorem maxMin {s : Shape} {f : Format} {isMax : Bool}
+    {x y r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.maxMin s f isMax x y) r ↔
+      ∀ i, FloatV.MaxRel isMax (x.get i) (y.get i) (r.get i) := Iff.rfl
+
+theorem itof {s : Shape} {f : Format} {sg : Bool} {w : Nat}
+    {x : Tensor s (IntV sg w)} {r : Tensor s (FloatV f)} :
+    Sig.Allows (Site.itof s f sg w x) r ↔ ∀ i, tl.ItofRel f (x.get i).toInt (r.get i) := Iff.rfl
+
+theorem ftoi {s : Shape} {f : Format} {sg : Bool} {w : Nat}
+    {x : Tensor s (FloatV f)} {r : Tensor s (IntV sg w)} :
+    Sig.Allows (Site.ftoi s f sg w x) r ↔ ∀ i, FtoiRel sg w (x.get i) (r.get i) := Iff.rfl
+
+theorem fromF8 {s : Shape} {f g : Format} {x : Tensor s (FloatV f)}
+    {r : Tensor s (FloatV g)} :
+    Sig.Allows (Site.fromF8 s f g x) r ↔
+      ∀ i, (x.get i).isFinite = true → r.get i = FloatV.cvt (x.get i) := Iff.rfl
+
+theorem convert {P : Platform} {s : Shape} {d d' : DType}
+    {x : Tensor s d.Val} {r : Tensor s d'.Val} :
+    Sig.Allows (Site.convert P s d d' x) r ↔ ∀ i, ConvRel P d d' (x.get i) (r.get i) := Iff.rfl
+
+theorem plat {P : Platform} {q : PlatQ} {r : q.Out} :
+    Sig.Allows (Site.plat P q) r ↔ q.Rel P r := Iff.rfl
+
+theorem dotAdd {P : Platform} {fusion : Bool} {cfg : DotCfg} {M N K : Nat}
+    {a : Tensor [M, K] cfg.a.Val} {b : Tensor [K, N] cfg.b.Val} {c z r : Tensor [M, N] cfg.acc.Val} :
+    Sig.Allows (Site.dotAdd P fusion cfg M N K a b c z) r ↔ (P.dot cfg a b c r ∨
+      ∃ d, P.dot cfg a b z d ∧ ∀ i, AccAdd fusion cfg.acc (d.get i) (c.get i) (r.get i)) := Iff.rfl
+
+theorem dotScaledAdd {P : Platform} {fusion : Bool} {cfg : ScaledCfg}
+    {M N K : Nat} {a : Tensor [M, K] Nat} {sa : Option (Tensor [M, K] Nat)} {b : Tensor [K, N] Nat}
+    {sb : Option (Tensor [K, N] Nat)} {c z r : Tensor [M, N] F32} :
+    Sig.Allows (Site.dotScaledAdd P fusion cfg M N K a sa b sb c z) r ↔
+      (P.dotScaled cfg a sa b sb c r ∨
+        ∃ d, P.dotScaled cfg a sa b sb z d ∧ ∀ i, AddRel fusion (d.get i) (c.get i) (r.get i)) :=
+  Iff.rfl
+
+theorem max_constancy {n : Nat} {β : Type} [DecidableEq β] (x : Tensor [n] β) (C : Nat)
+    (y : Tensor [n] β) :
+    Sig.Allows (Site.hint _ x (ConstAlong x 0 C)) y ↔ y = x ∧ ConstAlong x 0 C := Iff.rfl
+
+theorem max_constancyN {s : Shape} {β : Type} [DecidableEq β] (x : Tensor s β) (Cs : List Nat)
+    (y : Tensor s β) :
+    Sig.Allows (Site.hint _ x (∀ k, k < s.length → ConstAlong x k (Cs.getD k 1))) y ↔
+      y = x ∧ ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1) := Iff.rfl
 
 /-! ## Reductions (`TVA.Triton.Reduce`) -/
 

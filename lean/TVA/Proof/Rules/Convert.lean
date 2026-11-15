@@ -50,7 +50,7 @@ theorem safe_convert_iff {d d' : DType} {x : Tensor s d.Val} {y : Tensor s d'.Va
     cases hs with
     | env h1 =>
       cases h1 with
-      | site _ hall =>
+      | pick _ hall =>
         simpa [Prog.bind] using hall y fun i => (h i (y.get i)).2 rfl
   · intro hs
     refine safe_convert (fun i => ⟨y.get i, (h i _).2 rfl⟩) fun r hr => ?_

@@ -72,10 +72,10 @@ inductive SafeA (E : Env) (R : Set Int) :
       (∀ v w, k v = k w) →
       (∀ old new, Sig.UpdAllows u old new → SafeA E R W C Q (log ++ [⟨d, a, old, new⟩]) m (k old)) →
       SafeA E R W C Q log m (.rmw d a u sem sc k)
-  /-- A choice at a site, as in `Safe` (for a Triton site: `SafeA.pick`). -/
-  | site {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
-      {log : List AtomicStep} {m : Mem} {s : Sig.Site} {k : Sig.Out s → Prog α} :
-      (∃ b, Sig.Allows s b) → (∀ b, Sig.Allows s b → SafeA E R W C Q log m (k b)) →
+  /-- A choice at a site, as in `Safe`. -/
+  | pick {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
+      {log : List AtomicStep} {m : Mem} {s : Site} {k : s.Out → Prog α} :
+      (∃ b, s.Allows b) → (∀ b, s.Allows b → SafeA E R W C Q log m (k b)) →
       SafeA E R W C Q log m (.pick s k)
   /-- A loop: its first unfolding. -/
   | loop {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
@@ -89,36 +89,28 @@ inductive SafeA (E : Env) (R : Set Int) :
 
 namespace SafeA
 
-
 variable {E : Env} {R : Set Int} {C : Set (DType × Int)}
-
-/-- A choice at a site of Triton's catalog, as in `Safe.pick`. -/
-theorem pick {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
-    {log : List AtomicStep} {m : Mem} {s : Site} {k : s.Out → Prog α}
-    (hex : ∃ b, s.Allows b) (hk : ∀ b, s.Allows b → SafeA E R W C Q log m (k b)) :
-    SafeA E R W C Q log m (.pick s k) :=
-  .site hex hk
 
 /-- A guard (`Site.guard`): its condition holds, and the rest is safe. -/
 theorem guard {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {log : List AtomicStep} {m : Mem} {c : Prop} [Decidable c]
     {k : Unit → Prog α} (hc : c) (hk : ∀ u, SafeA E R W C Q log m (k u)) :
     SafeA E R W C Q log m (.pick (Site.guard c) k) :=
-  .site ⟨(), hc⟩ fun u _ => hk u
+  .pick ⟨(), hc⟩ fun u _ => hk u
 
 /-- A compiler hint on `x` (`Site.hint`): its promise holds, and the rest is safe for `x`. -/
 theorem hint {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {log : List AtomicStep} {m : Mem} {β : Type} {x : β}
     {c : Prop} [Decidable c] {k : β → Prog α} (hc : c) (hk : SafeA E R W C Q log m (k x)) :
     SafeA E R W C Q log m (.pick (Site.hint β x c) k) :=
-  .site ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+  .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
 
 /-- An operation of the platform, as in `Safe`. -/
 theorem plat {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {log : List AtomicStep} {m : Mem} {q : PlatQ} {k : q.Out → Prog α}
     (hex : ∃ r, q.Rel E.P r) (hk : ∀ r, q.Rel E.P r → SafeA E R W C Q log m (k r)) :
     SafeA E R W C Q log m (.plat q k) :=
-  .env (.site hex hk)
+  .env (.pick hex hk)
 
 /-- **Weakening**: a weaker post-condition and a larger private write footprint. -/
 theorem mono {α : Type} {Q Q' : α → List AtomicStep → Mem → Prop} {W W' : Set Int} {p : Prog α}
@@ -134,7 +126,7 @@ theorem mono {α : Type} {Q Q' : α → List AtomicStep → Mem → Prop} {W W' 
       ih o n ho hn hQ (Set.sdiff_subset_sdiff_left hW)
   | shared hal hC hsem hsc htot hc _ ih =>
     exact .shared hal hC hsem hsc htot hc fun o n h => ih o n h hQ hW
-  | site hex _ ih => exact .site hex fun b hb => ih b hb hQ hW
+  | pick hex _ ih => exact .pick hex fun b hb => ih b hb hQ hW
   | loop _ ih => exact .loop (ih hQ hW)
   | env _ ih => exact .env (ih hQ hW)
 
@@ -159,7 +151,7 @@ theorem bind {α β : Type} {Q : β → List AtomicStep → Mem → Prop} {f : �
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
   | shared hal hC hsem hsc htot hc _ ih =>
     exact .shared hal hC hsem hsc htot (fun v w => by rw [hc v w]) fun o n h => ih o n h hd hQ'
-  | site hex _ ih => exact .site hex fun b hb => ih b hb hd hQ'
+  | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
   | loop _ ih => exact .loop (by rw [← Safe.loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
 
@@ -183,7 +175,7 @@ theorem of_safe {α β : Type} {Q : β → List AtomicStep → Mem → Prop} {f 
       fun o n ho hn => ?_
     rw [Safe.union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
-  | site hex _ ih => exact .site hex fun b hb => ih b hb hd hQ'
+  | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
   | loop _ ih => exact .loop (by rw [← Safe.loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
 
@@ -198,7 +190,7 @@ theorem perm {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → P
   | rmw hex hS hSR hc _ ih => exact .rmw hex hS hSR hc fun o n ho hn => ih o n ho hn hQ hp
   | shared hal hC hsem hsc htot hc _ ih =>
     exact .shared hal hC hsem hsc htot hc fun o n h => ih o n h hQ (hp.append_right _)
-  | site hex _ ih => exact .site hex fun b hb => ih b hb hQ hp
+  | pick hex _ ih => exact .pick hex fun b hb => ih b hb hQ hp
   | loop _ ih => exact .loop (ih hQ hp)
   | env _ ih => exact .env (ih hQ hp)
 
@@ -269,7 +261,7 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → 
   | pick b hb =>
     cases ho
     cases h with
-    | site _ hk =>
+    | pick _ hk =>
       refine Or.inl ⟨by simp [Event.silent], by simp [Event.silent], ?_, ?_⟩
       · simpa [Event.silent] using Step.pick b hb
       · simpa [Event.silent] using hk b hb
@@ -401,7 +393,7 @@ theorem no_ub {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → 
       rcases hbad with h1 | ⟨old', hr', hno⟩
       · rw [hv] at h1; cases h1
       · obtain ⟨new, hu⟩ := htot old'; exact hno new hu
-  | pickUB hno => cases h with | site hex _ => obtain ⟨b, hb⟩ := hex; exact hno b hb
+  | pickUB hno => cases h with | pick hex _ => obtain ⟨b, hb⟩ := hex; exact hno b hb
   | ub => cases h
 
 end SafeA

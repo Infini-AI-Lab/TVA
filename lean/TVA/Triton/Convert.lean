@@ -61,8 +61,7 @@ format: as the platform converts (`Platform.cvt f g rnd`; whether it saturates, 
 NaN, is the lowering's). -/
 def cvt8 {g : Format} (x : Tensor s (FloatV f)) (rnd : RoundMode := .rn) :
     Prog (Tensor s (FloatV g)) :=
-  .pick (.guard (
-      (f = .binary16 ∨ f = .bfloat16 ∨ f = .binary32) ∧ g.F8 ∧ RoundOk f g rnd))
+  .pick (.guard ((f = .binary16 ∨ f = .bfloat16 ∨ f = .binary32) ∧ g.F8 ∧ RoundOk f g rnd))
     fun _ => .plat (.cvt f g rnd x) .ret
 
 /-- `x.to(dtype)` from fp8 (`float8e5`, `float8e4nv`) to `float16`, `bfloat16` or `float32`:

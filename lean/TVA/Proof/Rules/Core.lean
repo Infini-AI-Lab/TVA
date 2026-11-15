@@ -69,11 +69,12 @@ theorem safe_max_contiguous {n : Nat} [HintVal β] {x : Tensor [n] β} {C : Nat}
   exact .hint hc hk
 
 /-- `tl.max_constancy(x, C)` of a rank-1 tensor: show the promise; the value is `x`. -/
-theorem safe_max_constancy {n : Nat} {x : Tensor [n] β} {C : Nat} {k : Tensor [n] β → Prog α}
+theorem safe_max_constancy {n : Nat} [DecidableEq β] {x : Tensor [n] β} {C : Nat}
+    {k : Tensor [n] β → Prog α}
     (hc : ConstAlong x 0 C) (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_constancy x C >>= k) := by
   simp only [tl.max_constancy, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint hc hk
 
 /-- `tl.max_contiguous(tl.multiple_of(x, v), C)` of a rank-1 tensor: show both promises. -/
 theorem safe_max_contiguous_multiple_of {n : Nat} [HintVal β] {x : Tensor [n] β} {C v : Nat}
@@ -112,12 +113,12 @@ theorem safe_max_contiguous_multiple_ofN {s : Shape} [HintVal β] {x : Tensor s 
   exact .hint hcv hk
 
 /-- `tl.max_constancy(x, Cs)` of any rank: show the promise along every dimension. -/
-theorem safe_max_constancyN {s : Shape} {x : Tensor s β} {Cs : List Nat}
+theorem safe_max_constancyN {s : Shape} [DecidableEq β] {x : Tensor s β} {Cs : List Nat}
     {k : Tensor s β → Prog α} (hc : ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1))
     (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (tl.max_constancyN x Cs >>= k) := by
   simp only [tl.max_constancyN, bind_eq, Prog.bind]
-  exact .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+  exact .hint hc hk
 
 end Hints
 

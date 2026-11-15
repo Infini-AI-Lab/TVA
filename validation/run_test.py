@@ -4,9 +4,9 @@
   run_test.py [--build DIR] TEST ...
   run_test.py [--build DIR] --ops CASES.json (DEVICE.json | --self) RESULTS.json
 
-The first form compiles validation/{Solve,Solvers,Exec,Verdict}.lean against the built library
+The first form compiles validation/{Solve,Solvers,Exec,Verdict,Preserve}.lean against the built library
 (lean/, after `lake build`; or the one in $TVA_LEAN, a built lean/ directory elsewhere) into DIR
-(default /tmp/tva-validation), then for each TEST the claim claims/TEST/Claim.lean (if there is
+(default: a directory in the system temp dir, per user and per library), then for each TEST the claim claims/TEST/Claim.lean (if there is
 one) and validation/tests/TEST.lean, whose `#guard`s are the test. A test may print verdict lines
 (`Verdict.line`: `verdict {"test": ..., "result": {"verdict": ...}}`).
 
@@ -18,20 +18,27 @@ Verdicts (validation/Verdict.lean): certified and conditional are agreements (th
 on assumed platform answers); discrepancy is a candidate finding; inconclusive and unsupported say
 nothing about the model. The exit status is 1 if a test fails to compile or a `#guard` fails, or
 if some verdict is a discrepancy; 0 otherwise. Standard library only."""
-import collections, json, os, subprocess, sys
+import collections, getpass, hashlib, json, os, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 LEAN = os.environ.get("TVA_LEAN") or os.path.join(ROOT, "lean")
-LIB = ["Solve", "Solvers", "Exec", "Verdict"]  # each may import the ones before it
+LIB = ["Solve", "Solvers", "Exec", "Verdict", "Preserve"]  # each may import the ones before it
 
 args = sys.argv[1:]
-build = "/tmp/tva-validation"
+key = hashlib.sha256(os.path.realpath(LEAN).encode()).hexdigest()[:8]
+build = os.path.join(tempfile.gettempdir(), f"tva-validation-{getpass.getuser()}-{key}")
 if args[:1] == ["--build"]:
+    if len(args) < 2:
+        sys.exit(__doc__)
     build, args = args[1], args[2:]
 if not args:
     sys.exit(__doc__)
-base = subprocess.run(["lake", "env", "printenv", "LEAN_PATH"], cwd=LEAN, capture_output=True, text=True, check=True).stdout.strip()
-lib_mtime = os.path.getmtime(os.path.join(LEAN, ".lake", "build", "lib", "lean", "TVA.olean"))
+tva_olean = os.path.join(LEAN, ".lake", "build", "lib", "lean", "TVA.olean")
+lp = subprocess.run(["lake", "env", "printenv", "LEAN_PATH"], cwd=LEAN, capture_output=True, text=True)
+if lp.returncode != 0 or not os.path.exists(tva_olean):
+    sys.exit(f"run_test.py: no built library in {LEAN} (run `lake build TVA TVA.Proof` there, or set $TVA_LEAN)\n" + lp.stderr)
+base = lp.stdout.strip()
+lib_mtime = os.path.getmtime(tva_olean)
 libdir = os.path.join(build, "_lib")
 os.makedirs(libdir, exist_ok=True)
 
@@ -101,7 +108,8 @@ def run_ops(cases, device, out):
     if r.returncode != 0:
         sys.stdout.write(r.stdout + r.stderr)
         sys.exit("run_test.py: Ops.lean failed")
-    res = json.load(open(out))
+    with open(out) as f:
+        res = json.load(f)
     vs = [{"test": c["id"], "result": c["result"]} for c in res["cases"] if "result" in c]
     other = collections.Counter(c["status"] for c in res["cases"] if "result" not in c)
     if other:

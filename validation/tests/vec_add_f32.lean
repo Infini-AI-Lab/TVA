@@ -60,5 +60,4 @@ def outs : Option (List Rat) := match run with
 -- The run answered some requests (the masks' guards, the additions), numbered in order.
 #guard run.2.length > 0 && run.2.map (·.occ) == List.range run.2.length
 
-#eval outs
 #guard outs == some ((List.range n).map fun j => ((101 * j : Nat) : Rat))

@@ -130,5 +130,6 @@ def cases():
 if __name__ == "__main__":
     path = next((a for a in sys.argv[1:] if not a.startswith("--")), "cases.json")
     cs = cases()
-    json.dump(cs, open(path, "w"))
+    with open(path, "w") as f:
+        json.dump(cs, f)
     print(f"{path}: {len(cs)} cases, {sum(len(c['inputs'][0]) for c in cs)} lanes")

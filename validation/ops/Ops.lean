@@ -66,14 +66,6 @@ def flat : (s : Shape) → Idx s → Nat
   | [], _ => 0
   | _ :: s, (i, j) => i.1 * s.foldr (· * ·) 1 + flat s j
 
-/-- A tensor of shape `s` from bit patterns in row-major order. -/
-def ofFlat {s : Shape} (d : DType) (bs : Array Nat) : Tensor s d.Val :=
-  ⟨fun i => d.ofBits (bs.getD (flat s i) 0)⟩
-
-/-- A float format's dtype. -/
-def fmtDType : Format → Option DType
-  | f => [DType.f16, .bf16, .f32, .f64, .f8e5, .f8e4nv].find? (·.format? == some f)
-
 /-- The device's answer to a platform question, read from the case's outputs. -/
 def platOut (dev : Array Nat) : (q : PlatQ) → Option q.Out
   | .math _ f _ => ofFloat f
@@ -258,12 +250,16 @@ instance : Inhabited Tree := ⟨.leaf 0⟩
 
 /-- Candidate trees for a reduction of `n` (a power of two) leaves: halves, and strides (the
 order of a warp's butterfly), with a chunk of `c` contiguous leaves reduced first by halves. -/
-partial def halves (base size : Nat) : Tree :=
+def halves (base size : Nat) : Tree :=
   if size ≤ 1 then .leaf base else .node (halves base (size / 2)) (halves (base + size / 2) (size / 2))
+termination_by size
+decreasing_by all_goals omega
 
-partial def strided (start step count : Nat) (leafT : Nat → Tree) : Tree :=
+def strided (start step count : Nat) (leafT : Nat → Tree) : Tree :=
   if count ≤ 1 then leafT start
   else .node (strided start (2 * step) (count / 2) leafT) (strided (start + step) (2 * step) (count / 2) leafT)
+termination_by count
+decreasing_by all_goals omega
 
 def candidates (n : Nat) : List Tree :=
   let cs := (List.range 6).map (2 ^ ·) |>.filter (· ≤ n)

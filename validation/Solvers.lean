@@ -70,10 +70,6 @@ def rows {m : Nat} {α : Type} {R : Fin m → α → Prop} (f : (i : Fin m) → 
     Ans (fun r : Tensor [m] α => ∀ i, R i (r.get1 i)) plat :=
   (Ans.pi (List.finRange m) f).transport Tensor.of1 Tensor.get1 (fun _ h => h) (fun _ h => h) id
 
-/-- An answer at a site with no platform freedom, at any site. -/
-def weaken {β : Type} {P : β → Prop} (a : Ans P False) : Ans P plat :=
-  a.cast (fun _ => Iff.rfl) False.elim
-
 end Ans
 
 /-- The oracle's answer to `q`. -/
@@ -468,7 +464,6 @@ def solveUpd {d : DType} (u : Upd d) (old : d.Val) (H : Hint) :
   | .max isMax v => maxAns isMax d v old
   | .bit op v => bitAns op d v old
   | .red e op v => redAns H e op d v old
-  | .other _ => .none (.unsupported "Upd.other")
 
 /-- **Triton's solvers.** -/
 instance Site.solvers : Solvers where

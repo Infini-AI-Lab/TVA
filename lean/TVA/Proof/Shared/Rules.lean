@@ -96,8 +96,7 @@ theorem atomic {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem →
 pointer and no mask, as `tl.atomicWith`): one logged step. -/
 theorem atomic1 {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {log : List AtomicStep} {m : Mem} {d : DType} {ptrs : Tensor [] (Ptr d)}
-    {u : Idx [] → Upd d}
-    {sem : MemSem} {sc : Scope} {k : Prog α}
+    {u : Idx [] → Upd d} {sem : MemSem} {sc : Scope} {k : Prog α}
     (hal : Mem.Aligned d (ptrs.get ()).addr) (hC : (d, (ptrs.get ()).addr) ∈ C)
     (hsem : sem = .acqRel) (hsc : sc ≠ .cta) (htot : ∀ old, ∃ new, (u ()).Allows old new)
     (hk : ∀ old new, (u ()).Allows old new →

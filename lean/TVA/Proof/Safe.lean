@@ -65,11 +65,10 @@ inductive Safe (E : Env) (R : Set Int) :
       (∀ old new, m.read d a = some old → Sig.UpdAllows u old new →
         Safe E R (W \ Mem.span d a) Q (m.write d a new) (k old)) →
       Safe E R W Q m (.rmw d a u sem sc k)
-  /-- A choice at a site: some value is allowed, and the rest is safe for every allowed value
-  (for a Triton site: `Safe.pick`, `Safe.guard`, `Safe.hint`). -/
-  | site {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Sig.Site}
-      {k : Sig.Out s → Prog α} :
-      (∃ b, Sig.Allows s b) → (∀ b, Sig.Allows s b → Safe E R W Q m (k b)) →
+  /-- A choice at a site: some value is allowed, and the rest is safe for every allowed value. -/
+  | pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Site}
+      {k : s.Out → Prog α} :
+      (∃ b, s.Allows b) → (∀ b, s.Allows b → Safe E R W Q m (k b)) →
       Safe E R W Q m (.pick s k)
   /-- A loop: its first unfolding is safe. -/
   | loop {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {σ β : Type} {init : σ}
@@ -81,28 +80,19 @@ inductive Safe (E : Env) (R : Set Int) :
 
 namespace Safe
 
-
 variable {E : Env} {R : Set Int}
-
-/-- A choice at a site of Triton's catalog: some value is allowed, and the rest is safe for every
-allowed value. Stated with `Site.Allows`, which reduces to the site's relation (for `Site.other β
-P`, `P`), so that `⟨b, h⟩` and `fun b hb => …` see the relation itself. -/
-theorem pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Site}
-    {k : s.Out → Prog α} (hex : ∃ b, s.Allows b) (hk : ∀ b, s.Allows b → Safe E R W Q m (k b)) :
-    Safe E R W Q m (.pick s k) :=
-  .site hex hk
 
 /-- A guard (`Site.guard`): its condition holds, and the rest is safe. -/
 theorem guard {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {c : Prop} [Decidable c]
     {k : Unit → Prog α} (hc : c) (hk : ∀ u, Safe E R W Q m (k u)) :
     Safe E R W Q m (.pick (Site.guard c) k) :=
-  .site ⟨(), hc⟩ fun u _ => hk u
+  .pick ⟨(), hc⟩ fun u _ => hk u
 
 /-- A compiler hint on `x` (`Site.hint`): its promise holds, and the rest is safe for `x`. -/
 theorem hint {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {β : Type} {x : β}
     {c : Prop} [Decidable c] {k : β → Prog α} (hc : c) (hk : Safe E R W Q m (k x)) :
     Safe E R W Q m (.pick (Site.hint β x c) k) :=
-  .site ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+  .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
 
 /-- An operation of the platform (`Prog.plat`, an `env` then a `pick`): some result is allowed,
 and the rest is safe for every allowed result. -/
@@ -134,7 +124,7 @@ theorem mono {α : Type} {Q Q' : α → Mem → Prop} {W W' : Set Int} {m : Mem}
   | rmw hex hS hSR hc _ ih =>
     exact .rmw hex (hS.trans hW) hSR hc fun o n ho hn =>
       ih o n ho hn hQ (Set.sdiff_subset_sdiff_left hW)
-  | site hex _ ih => exact .site hex fun b hb => ih b hb hQ hW
+  | pick hex _ ih => exact .pick hex fun b hb => ih b hb hQ hW
   | loop _ ih => exact .loop (ih hQ hW)
   | env _ ih => exact .env (ih hQ hW)
 
@@ -168,7 +158,7 @@ theorem bind {α β : Type} {Q : β → Mem → Prop} {f : α → Prog β} {p : 
     refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => by rw [hc v w]) fun o n ho hn => ?_
     rw [union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
-  | site hex _ ih => exact .site hex fun b hb => ih b hb hd hQ'
+  | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
   | loop _ ih => exact .loop (by rw [← loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
 
@@ -225,7 +215,7 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
   | pick b hb =>
     cases ho
     cases h with
-    | site _ hk =>
+    | pick _ hk =>
       refine ⟨by simp [Event.silent], by simp [Event.silent], ?_, ?_⟩
       · simpa [Event.silent] using Step.pick b hb
       · simpa [Event.silent] using hk b hb
@@ -303,7 +293,7 @@ theorem no_ub {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
       rcases hbad with h1 | ⟨old', hr', hno⟩
       · rw [hrd, hr] at h1; cases h1
       · rw [hrd, hr] at hr'; cases hr'; exact hno new hu
-  | pickUB hno => cases h with | site hex _ => obtain ⟨b, hb⟩ := hex; exact hno b hb
+  | pickUB hno => cases h with | pick hex _ => obtain ⟨b, hb⟩ := hex; exact hno b hb
   | ub => cases h
 
 /-- **Progress and preservation.** Every step of a safe program is a normal step, within the
@@ -390,7 +380,7 @@ theorem acc {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {p : P
     exact acc_rmw _ (ih old n₀ hr hu) _ _ _ old n₀ rfl hr hu
       (.rmw ⟨old, hr, n₀, hu⟩ hS hSR hc hk)
       fun new hnew => ih old new hr hnew
-  | site _ _ ih =>
+  | pick _ _ ih =>
     constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | pick b hb => exact ih b hb
   | loop _ ih => constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | loop => exact ih
   | env _ ih => constructor; rintro ⟨m', p'⟩ ⟨e, hs⟩; cases hs with | env => exact ih

@@ -9,7 +9,7 @@ the operations it calls): *pure*: Lean function, no choice; *effect*: memory eff
 
 **single-op cases**: cases of `ops/` that run the definition (count: dtypes); no device run recorded yet.
 
-121 operations: 15 pure, 5 effect, 68 certified, 15 platform, 7 assumed, 11 no solver. 26 have single-op cases. Not listed (builders the operations are written with): `addrs`, `atomicWith`, `cumsumWith`, `forN`, `math`, `rmwSeq`, `sum0With`, `sum1With`, `sumBound`, `sumWith`, `tripCount`, `upToNaN`.
+121 operations: 15 pure, 5 effect, 70 certified, 15 platform, 7 assumed, 9 no solver. 26 have single-op cases. Not listed (builders the operations are written with): `addrs`, `atomicWith`, `cumsumWith`, `forN`, `math`, `rmwSeq`, `sum0With`, `sum1With`, `sumBound`, `sumWith`, `tripCount`, `upToNaN`.
 
 | operation | defined | exec | single-op cases | mutants |
 |---|---|---|---|---|
@@ -52,30 +52,30 @@ the operations it calls): *pure*: Lean function, no choice; *effect*: memory eff
 | `tl.store_block` | `BlockPtr.lean:106` | certified |  |  |
 | `tl.cvt` | `Convert.lean:54` | certified |  |  |
 | `tl.cvt8` | `Convert.lean:62` | platform |  |  |
-| `tl.cvtFrom8` | `Convert.lean:72` | certified |  |  |
-| `tl.itof` | `Convert.lean:82` | certified |  |  |
-| `tl.ftoi` | `Convert.lean:89` | certified |  |  |
-| `tl.convert` | `Convert.lean:117` | assumed | 10: f16→f32, f16→f8e4nv, f32→bf16, f32→f16, f32→f8e4nv, f32→f8e5, f32→i1, f32→i32, i32→f32, i32→i8 | rounds toward zero between floats |
-| `tl.bitcast` | `Convert.lean:124` | pure |  |  |
-| `tl.intToPtr` | `Convert.lean:137` | pure |  |  |
-| `tl.program_id` | `Core.lean:135` | pure |  |  |
-| `tl.num_programs` | `Core.lean:138` | pure |  |  |
-| `tl.arange` | `Core.lean:143` | pure |  |  |
-| `tl.zeros` | `Core.lean:146` | pure |  |  |
-| `tl.full` | `Core.lean:151` | pure |  |  |
-| `tl.where` | `Core.lean:156` | pure |  |  |
-| `tl.reshape_any` | `Core.lean:200` | no solver |  |  |
-| `tl.assume` | `Core.lean:268` | certified |  |  |
-| `tl.static_assert` | `Core.lean:273` | certified |  |  |
-| `tl.max_contiguous` | `Core.lean:277` | certified |  |  |
-| `tl.max_constancy` | `Core.lean:282` | no solver |  |  |
-| `tl.multiple_of` | `Core.lean:289` | certified |  |  |
-| `tl.max_contiguous_multiple_of` | `Core.lean:296` | certified |  |  |
-| `tl.multiple_of1` | `Core.lean:301` | certified |  |  |
-| `tl.max_contiguousN` | `Core.lean:306` | certified |  |  |
-| `tl.max_constancyN` | `Core.lean:311` | no solver |  |  |
-| `tl.multiple_ofN` | `Core.lean:319` | certified |  |  |
-| `tl.max_contiguous_multiple_ofN` | `Core.lean:326` | certified |  |  |
+| `tl.cvtFrom8` | `Convert.lean:71` | certified |  |  |
+| `tl.itof` | `Convert.lean:81` | certified |  |  |
+| `tl.ftoi` | `Convert.lean:88` | certified |  |  |
+| `tl.convert` | `Convert.lean:116` | assumed | 10: f16→f32, f16→f8e4nv, f32→bf16, f32→f16, f32→f8e4nv, f32→f8e5, f32→i1, f32→i32, i32→f32, i32→i8 | rounds toward zero between floats |
+| `tl.bitcast` | `Convert.lean:123` | pure |  |  |
+| `tl.intToPtr` | `Convert.lean:136` | pure |  |  |
+| `tl.program_id` | `Core.lean:138` | pure |  |  |
+| `tl.num_programs` | `Core.lean:141` | pure |  |  |
+| `tl.arange` | `Core.lean:146` | pure |  |  |
+| `tl.zeros` | `Core.lean:149` | pure |  |  |
+| `tl.full` | `Core.lean:154` | pure |  |  |
+| `tl.where` | `Core.lean:159` | pure |  |  |
+| `tl.reshape_any` | `Core.lean:203` | no solver |  |  |
+| `tl.assume` | `Core.lean:271` | certified |  |  |
+| `tl.static_assert` | `Core.lean:276` | certified |  |  |
+| `tl.max_contiguous` | `Core.lean:280` | certified |  |  |
+| `tl.max_constancy` | `Core.lean:285` | certified |  |  |
+| `tl.multiple_of` | `Core.lean:293` | certified |  |  |
+| `tl.max_contiguous_multiple_of` | `Core.lean:300` | certified |  |  |
+| `tl.multiple_of1` | `Core.lean:305` | certified |  |  |
+| `tl.max_contiguousN` | `Core.lean:310` | certified |  |  |
+| `tl.max_constancyN` | `Core.lean:315` | certified |  |  |
+| `tl.multiple_ofN` | `Core.lean:324` | certified |  |  |
+| `tl.max_contiguous_multiple_ofN` | `Core.lean:331` | certified |  |  |
 | `tl.make_tensor_descriptor` | `Desc.lean:130` | no solver |  |  |
 | `tl.desc_load` | `Desc.lean:139` | certified |  |  |
 | `tl.desc_store` | `Desc.lean:147` | certified |  |  |
@@ -86,7 +86,7 @@ the operations it calls): *pure*: Lean function, no choice; *effect*: memory eff
 | `tl.dot_add` | `Dot.lean:49` | assumed | 2: f16→f16→f32 |  |
 | `tl.sum_bcast_mul` | `Dot.lean:60` | assumed |  |  |
 | `tl.dot_scaled` | `Dot.lean:201` | platform |  |  |
-| `tl.dot_scaled_add` | `Dot.lean:213` | assumed |  |  |
+| `tl.dot_scaled_add` | `Dot.lean:212` | assumed |  |  |
 | `tl.forRange` | `Loop.lean:49` | pure |  |  |
 | `tl.whileLoop` | `Loop.lean:58` | effect |  |  |
 | `tl.load` | `Memory.lean:104` | effect |  |  |

@@ -823,7 +823,7 @@ theorem · [lean/TVA/Proof/Rules/Core.lean:71](../../lean/TVA/Proof/Rules/Core.l
 
 ```lean
 TVA.safe_max_constancy {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type} {n : ℕ}
-  {x : TVA.Tensor [n] β} {C : ℕ} {k : TVA.Tensor [n] β → TVA.Prog α} (hc : TVA.ConstAlong x 0 C)
+  [DecidableEq β] {x : TVA.Tensor [n] β} {C : ℕ} {k : TVA.Tensor [n] β → TVA.Prog α} (hc : TVA.ConstAlong x 0 C)
   (hk : TVA.Safe E R W Q m (k x)) : TVA.Safe E R W Q m (TVA.tl.max_constancy x C >>= k)
 ```
 
@@ -831,7 +831,7 @@ TVA.safe_max_constancy {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA
 
 ### `TVA.safe_max_contiguous_multiple_of`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:78](../../lean/TVA/Proof/Rules/Core.lean#L78)
+theorem · [lean/TVA/Proof/Rules/Core.lean:79](../../lean/TVA/Proof/Rules/Core.lean#L79)
 
 ```lean
 TVA.safe_max_contiguous_multiple_of {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem}
@@ -844,7 +844,7 @@ TVA.safe_max_contiguous_multiple_of {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q
 
 ### `TVA.safe_multiple_ofN`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:86](../../lean/TVA/Proof/Rules/Core.lean#L86)
+theorem · [lean/TVA/Proof/Rules/Core.lean:87](../../lean/TVA/Proof/Rules/Core.lean#L87)
 
 ```lean
 TVA.safe_multiple_ofN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type}
@@ -857,7 +857,7 @@ TVA.safe_multiple_ofN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.
 
 ### `TVA.safe_max_contiguousN`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:95](../../lean/TVA/Proof/Rules/Core.lean#L95)
+theorem · [lean/TVA/Proof/Rules/Core.lean:96](../../lean/TVA/Proof/Rules/Core.lean#L96)
 
 ```lean
 TVA.safe_max_contiguousN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type}
@@ -870,7 +870,7 @@ TVA.safe_max_contiguousN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → T
 
 ### `TVA.safe_max_contiguous_multiple_ofN`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:103](../../lean/TVA/Proof/Rules/Core.lean#L103)
+theorem · [lean/TVA/Proof/Rules/Core.lean:104](../../lean/TVA/Proof/Rules/Core.lean#L104)
 
 ```lean
 TVA.safe_max_contiguous_multiple_ofN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem}
@@ -884,11 +884,11 @@ dimension.
 
 ### `TVA.safe_max_constancyN`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:114](../../lean/TVA/Proof/Rules/Core.lean#L114)
+theorem · [lean/TVA/Proof/Rules/Core.lean:115](../../lean/TVA/Proof/Rules/Core.lean#L115)
 
 ```lean
 TVA.safe_max_constancyN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type}
-  {s : TVA.Shape} {x : TVA.Tensor s β} {Cs : List ℕ} {k : TVA.Tensor s β → TVA.Prog α}
+  {s : TVA.Shape} [DecidableEq β] {x : TVA.Tensor s β} {Cs : List ℕ} {k : TVA.Tensor s β → TVA.Prog α}
   (hc : ∀ k < List.length s, TVA.ConstAlong x k (Cs.getD k 1)) (hk : TVA.Safe E R W Q m (k x)) :
   TVA.Safe E R W Q m (TVA.tl.max_constancyN x Cs >>= k)
 ```
@@ -897,7 +897,7 @@ TVA.safe_max_constancyN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TV
 
 ### `TVA.safe_reshape_any`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:124](../../lean/TVA/Proof/Rules/Core.lean#L124)
+theorem · [lean/TVA/Proof/Rules/Core.lean:125](../../lean/TVA/Proof/Rules/Core.lean#L125)
 
 ```lean
 TVA.safe_reshape_any {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
