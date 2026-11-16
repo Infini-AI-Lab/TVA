@@ -21,7 +21,8 @@ existing one.
 
 **Changes preserve meaning.** For every operation, the new `Allows` is equivalent to the
 predicate it replaced, so the allowed results and the cases of undefined behaviour are both
-unchanged (`Preserve.lean`, mostly `Iff.rfl`).
+unchanged (`Preserve.lean`, mostly `Iff.rfl`). The semantics sees a site only through its relation
+(`TVA.Launch.Erase`), so the meaning of every kernel is unchanged.
 
 - A mixed operation stays one site with its disjunctive relation (`dotAdd`: the platform dot, or
   the fused form). Splitting it into a free branch choice followed by an operation adds undefined

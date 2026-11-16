@@ -235,9 +235,9 @@ namespace Prog
 variable [Sig]
 
 /-- `p` with each site replaced by its relation (`Sig.Allows`) and each update by its
-(`Sig.UpdAllows`). Two programs with the same erasure have the same meaning; `Step.defer` and
-`UsesSharedAtomicResult` compare continuations this way, so data a site carries but its relation
-ignores does not count as a dependence. -/
+(`Sig.UpdAllows`). Two programs with the same erasure have the same meaning (`TVA.Launch.Erase`);
+`Step.defer` and `UsesSharedAtomicResult` compare continuations this way, so data a site carries
+but its relation ignores does not count as a dependence. -/
 def erase {α : Type} : Prog α → @Prog Sig.pred α
   | ret a => @ret Sig.pred _ a
   | load d s addrs k => @load Sig.pred _ d s addrs (fun v => (k v).erase)

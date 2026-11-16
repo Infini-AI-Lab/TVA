@@ -521,7 +521,7 @@ no launch that reaches it: a proof shows it is unreachable.
 ## Launches
 
 `TVA.Launch` explains this in its module docstring; the files are `Launch/Step`, `Launch/Run`,
-`Launch/WellBehaved` and `Launch/Progress`.
+`Launch/WellBehaved`, `Launch/Progress` and `Launch/Erase`.
 
 **A launch** (`Launch`) is the grid `(x, y, z)`, the options that change the meaning
 (`fusion` for `enable_fp_fusion`, and `debug`, `numCtas`, `pdl` for `launch_pdl`) and the

@@ -2,6 +2,7 @@ import TVA.Launch.Step
 import TVA.Launch.Run
 import TVA.Launch.WellBehaved
 import TVA.Launch.Progress
+import TVA.Launch.Erase
 
 /-!
 # The semantics of a launch
@@ -95,5 +96,6 @@ states `Correct` for every covered instance; the proof kit (`TVA.Proof`) proves 
 
 Files: `Launch/Step` (one program's step), `Launch/Run` (kernels, launches, interleaving),
 `Launch/WellBehaved` (races, the atomic-result exclusion, `WellBehaved`, `Outcomes`, `Correct`),
-`Launch/Progress` (a launch never gets stuck).
+`Launch/Progress` (a launch never gets stuck), `Launch/Erase` (the meaning sees a site only through
+its relation).
 -/

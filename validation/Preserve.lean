@@ -8,8 +8,11 @@ family of `TVA.Site`, the predicate the operation used before the catalog (copie
 bound names) is equivalent to the new `Allows`, by `Iff.rfl`: the same results, and undefined
 behaviour in the same cases.
 
-`UsesSharedAtomicResult` and `Step.defer` compare continuations after `Prog.erase`, which keeps only
-each site's relation, so data a site carries but its relation ignores is not a dependence there.
+So the meaning is unchanged: a kernel has the outcomes of its erasure (`Prog.erase`, each site
+replaced by its relation), is well behaved and `Correct` exactly when its erasure is, and two
+kernels with the same erasure mean the same (`TVA.Launch.Erase`). `Step.defer` and
+`UsesSharedAtomicResult` compare continuations after erasure too, so data a site carries but its
+relation ignores is not a dependence: `cas_self` below is the regression case.
 -/
 namespace TVA.Validation.Preserve
 
@@ -216,5 +219,39 @@ theorem atomic_bit {d : DType} (op : ∀ {sg : Bool} {w : Nat}, IntV sg w → In
 
 theorem desc_atomic (e : Env) (op : RedOp) {d : DType} (v o n : d.Val) :
     Sig.UpdAllows (Upd.red e op v) o n ↔ op.Upd e d v o n := Iff.rfl
+
+/-! ## Erasure
+
+`Upd.cas v v` allows only `new = old`, whatever `v`. A continuation that passes an atomic's old
+value to it does not depend on the value: its erasure is the same for every old value (so
+`Step.defer` may pass the atomic, and `UsesSharedAtomicResult` does not count it), although the
+programs differ. -/
+
+/-- A continuation that uses the old value only as `cas`'s compare and new value. -/
+def casSelf (d : DType) (b : Int) (sem : MemSem) (sc : Scope) (old : d.Val) : Prog Unit :=
+  .rmw d b (Upd.cas old old) sem sc fun _ => .ret ()
+
+theorem cas_self (d : DType) (b : Int) (sem : MemSem) (sc : Scope) (v w : d.Val) :
+    (casSelf d b sem sc v).erase = (casSelf d b sem sc w).erase := by
+  simp only [casSelf, Prog.erase]
+  congr 2
+  funext o n
+  show (n = if o = v then v else o) = (n = if o = w then w else o)
+  split_ifs <;> simp_all
+
+theorem cas_self_ne {d : DType} {b : Int} {sem : MemSem} {sc : Scope} {v w : d.Val} (h : v ≠ w) :
+    casSelf d b sem sc v ≠ casSelf d b sem sc w := by
+  intro he
+  simp only [casSelf, Prog.rmw.injEq, heq_eq_eq] at he
+  exact h (Upd.cas.inj he.2.2.1).1
+
+/-- So a kernel whose atomic feeds its old value to `cas old old` means the same as one that
+passes a constant. -/
+theorem cas_self_correct {E : Env} {L : Launch} {init : Mem} {Q : Mem → Prop} (d : DType)
+    (a b : Int) (sem sc : _) (sem' sc' : _) (c : d.Val) :
+    Correct E ⟨fun _ => .rmw d a (Upd.xchg c) sem sc (casSelf d b sem' sc')⟩ L init Q ↔
+      Correct E ⟨fun _ => .rmw d a (Upd.xchg c) sem sc fun _ => casSelf d b sem' sc' c⟩ L init Q :=
+  Correct.congr_erase (fun _ => by
+    simp only [Prog.erase]; congr 1; funext v; exact cas_self d b sem' sc' v c) Q
 
 end TVA.Validation.Preserve

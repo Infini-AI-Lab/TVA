@@ -1462,9 +1462,9 @@ TVA.Prog.erase [TVA.Sig] {α : Type} : TVA.Prog α → TVA.Prog α
 ```
 
 `p` with each site replaced by its relation (`Sig.Allows`) and each update by its
-(`Sig.UpdAllows`). Two programs with the same erasure have the same meaning; `Step.defer` and
-`UsesSharedAtomicResult` compare continuations this way, so data a site carries but its relation
-ignores does not count as a dependence.
+(`Sig.UpdAllows`). Two programs with the same erasure have the same meaning (`TVA.Launch.Erase`);
+`Step.defer` and `UsesSharedAtomicResult` compare continuations this way, so data a site carries
+but its relation ignores does not count as a dependence.
 
 ### `TVA.Prog.erase_bind`
 

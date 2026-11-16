@@ -72,6 +72,7 @@ A claim's model is written with these; [SEMANTICS.md](SEMANTICS.md) explains eac
 | `TVA.Launch.Run` | `Kernel`, `Launch` (grid, options, block shapes), `Launch.grid1`, `Launch.ctx`, `Launch.Valid`, `Config`, `LStep`, `Reach` (interleaving). |
 | `TVA.Launch.WellBehaved` | `InterRace`, `IntraRace`, `UsesSharedAtomicResult`, `WellBehaved`, `Outcomes`, `Correct`. |
 | `TVA.Launch.Progress` | `Step.progress`, `WellBehaved.exists_outcome`: a well-behaved launch always has an outcome. |
+| `TVA.Launch.Erase` | `Step.erase`/`Step.unerase`: erasure is a bisimulation; `Outcomes.congr_erase`, `WellBehaved.congr_erase`, `Correct.congr_erase`: kernels with the same erasure mean the same. |
 
 ### Device facts: `TVA.Device`
 

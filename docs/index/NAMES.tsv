@@ -138,6 +138,11 @@ TVA.CmpKey.nan	def	lean/TVA/Triton/Reduce/Rel.lean:22	The element is NaN.
 TVA.Config	structure	lean/TVA/Launch/Run.lean:100	A state of a launch of `N` programs: the global memory, and what each program has left to run (`ret ()` once it has finished).
 TVA.Config.Done	def	lean/TVA/Launch/Run.lean:115	Every program has finished.
 TVA.Config.StuckUB	def	lean/TVA/Launch/Run.lean:118	Some program's next step can be undefined behaviour.
+TVA.Config.erase	def	lean/TVA/Launch/Erase.lean:140	A state of a launch with each program's rest erased.
+TVA.Config.erase_done	theorem	lean/TVA/Launch/Erase.lean:195	
+TVA.Config.erase_start	theorem	lean/TVA/Launch/Erase.lean:144	
+TVA.Config.erase_stuckUB	theorem	lean/TVA/Launch/Erase.lean:186	
+TVA.Config.erase_update	theorem	lean/TVA/Launch/Erase.lean:147	
 TVA.Config.mem	def	lean/TVA/Launch/Run.lean:104	The global memory.
 TVA.Config.progs	def	lean/TVA/Launch/Run.lean:106	The rest of each program.
 TVA.Config.start	def	lean/TVA/Launch/Run.lean:110	The start of the launch `L` of kernel `k` from memory `init`: program `i` is the kernel's body for context `L.ctx i`.
@@ -284,6 +289,8 @@ TVA.ConvRel.toInt_u8_u16	theorem	lean/TVA/Proof/Int/Cast.lean:451	Use for `x.to(
 TVA.ConvRel.toInt_u8_u32	theorem	lean/TVA/Proof/Int/Cast.lean:455	Use for `x.to(tl.uint32)` of a `uint8` (a widening conversion): the result keeps the value.
 TVA.ConvRel.toInt_u8_u64	theorem	lean/TVA/Proof/Int/Cast.lean:463	Use for `x.to(tl.uint64)` of a `uint8` (a widening conversion): the result keeps the value.
 TVA.Correct	def	lean/TVA/Launch/WellBehaved.lean:134	The launch `L` of kernel `k` from memory `init`, under environment `E`, is well behaved, and every way it can end is a normal end whose final memory satisfies `Q`.
+TVA.Correct.congr_erase	theorem	lean/TVA/Launch/Erase.lean:308	**Two kernels with the same erasure are `Correct` together.**
+TVA.Correct.erase	theorem	lean/TVA/Launch/Erase.lean:287	**A kernel is `Correct` exactly when its erasure is.**
 TVA.Ctx	structure	lean/TVA/Program.lean:269	What a running program knows about where it is in the grid: its index along each of the three grid axes (`tl.program_id(axis)`) and the grid's size along each (`tl.num_programs(axis)`).
 TVA.Ctx.grid	def	lean/TVA/Program.lean:276	`tl.num_programs(axis)` for `axis = 0, 1, 2`.
 TVA.Ctx.pid	def	lean/TVA/Program.lean:274	`tl.program_id(axis)` for `axis = 0, 1, 2`.
@@ -1333,8 +1340,12 @@ TVA.InvA.present	theorem	lean/TVA/Proof/Shared/Launch.lean:41	The cells' bytes s
 TVA.InvA.safe	theorem	lean/TVA/Proof/Shared/Launch.lean:34	Some interleaving `G` of the programs' shared steps so far: program `i` is `SafeA` in its own view with its part of `G` as log and the private bytes it has not yet written as write footprint, and the launch's cells hold the replay of `G`...
 TVA.Kernel	structure	lean/TVA/Launch/Run.lean:24	A kernel model: the program `body ctx` that the program instance with context `ctx` runs.
 TVA.Kernel.body	def	lean/TVA/Launch/Run.lean:27	The program of each grid point.
+TVA.Kernel.erase	def	lean/TVA/Launch/Erase.lean:137	A kernel with each program erased.
+TVA.Kernel.erase_eq	theorem	lean/TVA/Launch/Erase.lean:293	Two kernels with the same erasure, as kernels over `Sig.pred`.
 TVA.LStep	inductive	lean/TVA/Launch/Run.lean:123	One step of the launch: program `i` takes a step from the shared memory, which becomes the step's memory; the step is labelled `(i, e)` with its event.
+TVA.LStep.erase	theorem	lean/TVA/Launch/Erase.lean:156	
 TVA.LStep.step	constructor	lean/TVA/Launch/Run.lean:126	Program `i` steps; the other programs are unchanged.
+TVA.LStep.unerase	theorem	lean/TVA/Launch/Erase.lean:161	
 TVA.Launch	structure	lean/TVA/Launch/Run.lean:34	A launch of a kernel: the grid, the compile and launch options that change what the model means, and the source's block shapes.
 TVA.Launch.Valid	def	lean/TVA/Launch/Run.lean:75	**The semantics describes the launch.** A launch that is not `Valid` either does not run its grid as the semantics runs it, or runs code the semantics does not model:
 TVA.Launch.blocks	def	lean/TVA/Launch/Run.lean:58	The shapes of the source's block values on this launch (every `tl.arange`, loaded tile, accumulator, …), as the claim lists them.
@@ -1426,6 +1437,9 @@ TVA.Operand.tensor	constructor	lean/TVA/Triton/Promote.lean:95	A tensor of dtype
 TVA.Operand.toF64?	def	lean/TVA/Triton/Promote.lean:147	A Python number's value as a double (`float(c)`); `none` for a tensor.
 TVA.Operand.toTensor?	def	lean/TVA/Triton/Promote.lean:138	`to_tensor`: a Python number as a scalar tensor of its own dtype; a tensor unchanged.
 TVA.Out	inductive	lean/TVA/Launch/Step.lean:66	The outcome of one step of a program whose final value has type `α`.
+TVA.Out.erase	def	lean/TVA/Launch/Erase.lean:55	A step's outcome with its program erased.
+TVA.Out.erase_eq_next	theorem	lean/TVA/Launch/Erase.lean:65	
+TVA.Out.erase_eq_ub	theorem	lean/TVA/Launch/Erase.lean:60	
 TVA.Out.next	constructor	lean/TVA/Launch/Step.lean:68	The step happened: memory is now `m`, the program continues as `p`, and `e` records what the step read and wrote.
 TVA.Out.ub	constructor	lean/TVA/Launch/Step.lean:71	The step is undefined behaviour.
 TVA.Outcome	inductive	lean/TVA/Launch/WellBehaved.lean:118	How a launch can end, in the semantics.
@@ -1433,6 +1447,8 @@ TVA.Outcome.hang	constructor	lean/TVA/Launch/WellBehaved.lean:124	Some interleav
 TVA.Outcome.ok	constructor	lean/TVA/Launch/WellBehaved.lean:120	Every program finished; the final memory is `fin`.
 TVA.Outcome.ub	constructor	lean/TVA/Launch/WellBehaved.lean:122	Some interleaving reaches undefined behaviour (on the device: a fault, garbage, anything).
 TVA.Outcomes	def	lean/TVA/Launch/WellBehaved.lean:127	The outcomes of the launch `L` of kernel `k` from memory `init` in environment `E`.
+TVA.Outcomes.congr_erase	theorem	lean/TVA/Launch/Erase.lean:298	**Two kernels with the same erasure have the same outcomes.**
+TVA.Outcomes.erase	theorem	lean/TVA/Launch/Erase.lean:219	**A kernel has the outcomes of its erasure.**
 TVA.PO	def	lean/TVA/Launch/WellBehaved.lean:28	Program order on the positions of a trace: `a` comes before `b` and both are steps of the same program.
 TVA.Padding	inductive	lean/TVA/Triton/Memory/Rel.lean:13	`padding_option` of a block-pointer or descriptor load: what a lane outside the bounds holds.
 TVA.Padding.Holds	def	lean/TVA/Triton/Memory/Rel.lean:25	A lane outside the bounds holds what the padding says.
@@ -1541,6 +1557,10 @@ TVA.Prog.env	constructor	lean/TVA/Program.lean:147	Read the environment (the pla
 TVA.Prog.erase	def	lean/TVA/Program.lean:237	`p` with each site replaced by its relation (`Sig.Allows`) and each update by its (`Sig.UpdAllows`).
 TVA.Prog.erase_bind	theorem	lean/TVA/Program.lean:251	
 TVA.Prog.erase_bind_congr	theorem	lean/TVA/Program.lean:263	
+TVA.Prog.erase_eq_ret	theorem	lean/TVA/Launch/Erase.lean:42	
+TVA.Prog.erase_eq_rmw	theorem	lean/TVA/Launch/Erase.lean:46	
+TVA.Prog.erase_loopStep	theorem	lean/TVA/Launch/Erase.lean:33	
+TVA.Prog.erase_pred	theorem	lean/TVA/Launch/Erase.lean:17	Over `Sig.pred` erasure changes nothing: its sites already are their relations.
 TVA.Prog.load	constructor	lean/TVA/Program.lean:126	`tl.load` of elements of dtype `d` in a tensor of shape `s`: lane `i` reads the element at byte address `a` when `addrs i = some a`, and is disabled when it is `none`.
 TVA.Prog.loop	constructor	lean/TVA/Program.lean:144	A loop with state `σ`: run `body` from `init`; `inl s` goes round again from `s`, `inr b` leaves the loop and continues with `k b`.
 TVA.Prog.loopStep	def	lean/TVA/Program.lean:207	One unfolding of a loop: run the body once from `init`, then go round again or leave.
@@ -1562,8 +1582,10 @@ TVA.Ptr.offset_offset	theorem	lean/TVA/Memory.lean:54	Moving a pointer by `i` el
 TVA.Ptr.sub_int	theorem	lean/TVA/Memory.lean:110	`p - k` for a scalar integer `k` moves `p` by the value of `-k`, wrapped in `k`'s type.
 TVA.Ptr.sub_int_of_signed	theorem	lean/TVA/Memory.lean:114	For a signed `k` above the type's minimum, `p - k` is `k` elements back.
 TVA.Reach	inductive	lean/TVA/Launch/Run.lean:131	`Reach E c tr c'`: from `c` the launch can take the steps labelled `tr`, in that order, and reach `c'`.
+TVA.Reach.erase	theorem	lean/TVA/Launch/Erase.lean:169	
 TVA.Reach.refl	constructor	lean/TVA/Launch/Run.lean:134	No step.
 TVA.Reach.tail	constructor	lean/TVA/Launch/Run.lean:136	One more step at the end.
+TVA.Reach.unerase	theorem	lean/TVA/Launch/Erase.lean:175	
 TVA.Recurrence.abs_le_run	theorem	lean/TVA/Proof/Recurrence.lean:303	**The exact state's size.** If `S (t + 1) = g t·S t + U t` with `|g t| ≤ G t` on the trips `t < n`, then `|S n| ≤ run G |U| |S 0| n`.
 TVA.Recurrence.abs_le_sum	theorem	lean/TVA/Proof/Recurrence.lean:315	**The exact state's size, decays at most `1`.** If `S (t + 1) = g t·S t + U t` with `|g t| ≤ 1` on the trips `t < n`, then `|S n| ≤ |S 0| + Σ_{t<n} |U t|`.
 TVA.Recurrence.abs_le_sum_of_le	theorem	lean/TVA/Proof/Recurrence.lean:322	**One bound for every trip.** If `S (t + 1) = g t·S t + U t` with `|g t| ≤ 1` on the trips `t < n`, then every `|S t|`, `t ≤ n`, is at most `|S 0| + Σ_{t<n} |U t|`: the `B` of `perturb_le_uniform` in one step.
@@ -1829,6 +1851,7 @@ TVA.SortedAlong	def	lean/TVA/Triton/Scan.lean:49	Row `i` of `r` along axis `a` (
 TVA.Step	inductive	lean/TVA/Launch/Step.lean:112	One step of a program: `Step E m p o` when `p`, in environment `E` against memory `m`, can take a step with outcome `o`.
 TVA.Step.defer	constructor	lean/TVA/Launch/Step.lean:150	**An atomic is performed later.** The atomic stays pending while the program takes a later step first.
 TVA.Step.env	constructor	lean/TVA/Launch/Step.lean:176	`env` reads the environment.
+TVA.Step.erase	theorem	lean/TVA/Launch/Erase.lean:73	**A step is a step of the erasure**: the same memory and event, the rest erased.
 TVA.Step.frame	theorem	lean/TVA/Proof/Step.lean:86	**A step changes only the bytes its event writes.**
 TVA.Step.load	constructor	lean/TVA/Launch/Step.lean:115	`tl.load`: every enabled lane reads its element at once; disabled lanes get any value.
 TVA.Step.loadUB	constructor	lean/TVA/Launch/Step.lean:120	A `tl.load` with an invalid enabled address is undefined behaviour.
@@ -1842,6 +1865,7 @@ TVA.Step.store	constructor	lean/TVA/Launch/Step.lean:124	`tl.store`: the enabled
 TVA.Step.storeUB	constructor	lean/TVA/Launch/Step.lean:131	A `tl.store` with an invalid enabled address is undefined behaviour.
 TVA.Step.transfer	theorem	lean/TVA/Proof/Step.lean:104	**Transfer of one step.** A step can be taken the same way in any memory that agrees on the bytes its event reads and writes; the result is that memory with the step's writes.
 TVA.Step.ub	constructor	lean/TVA/Launch/Step.lean:171	`ub` is undefined behaviour.
+TVA.Step.unerase	theorem	lean/TVA/Launch/Erase.lean:95	**A step of the erasure is the erasure of a step.**
 TVA.StepRel	def	lean/TVA/Proof/Shared/FloatAcc.lean:26	Step `s`, applied to the cell `(d, a)` holding `x`, leaves a value `y` with `r x y`.
 TVA.StoreOk	def	lean/TVA/Launch/Step.lean:97	Every enabled lane of a `tl.store` can write its element.
 TVA.StoreRes	def	lean/TVA/Proof/Rules/Memory.lean:81	What memory is after `tl.store ptrs vals mask` from `m`: each enabled lane's element holds its value; nothing else changed.
@@ -2124,7 +2148,10 @@ TVA.Upd.max	constructor	lean/TVA/Site.lean:249	`tl.atomic_max` (`isMax`) or `tl.
 TVA.Upd.red	constructor	lean/TVA/Site.lean:254	The reduction `op` of `desc.atomic_*` with `v`, on the platform of `e` (`RedOp.Upd`).
 TVA.Upd.xchg	constructor	lean/TVA/Site.lean:244	`tl.atomic_xchg` of `v`: the new value is `v`.
 TVA.UsesSharedAtomicResult	def	lean/TVA/Launch/WellBehaved.lean:82	**A program uses an atomic's result on a cell another access also reaches.** Some interleaving reaches a state in which program `i` is about to perform a read-modify-write of the element of dtype `d` at `a` whose continuation `kk` is not...
+TVA.UsesSharedAtomicResult.erase	theorem	lean/TVA/Launch/Erase.lean:246	**A kernel uses an atomic's result on a shared cell exactly when its erasure does.**
 TVA.WellBehaved	structure	lean/TVA/Launch/WellBehaved.lean:106	**The launch `L` of kernel `k` from memory `init`, in environment `E`, is well behaved**: the semantics is its meaning.
+TVA.WellBehaved.congr_erase	theorem	lean/TVA/Launch/Erase.lean:303	**Two kernels with the same erasure are well behaved together.**
+TVA.WellBehaved.erase	theorem	lean/TVA/Launch/Erase.lean:264	**A kernel is well behaved exactly when its erasure is.**
 TVA.WellBehaved.exists_outcome	theorem	lean/TVA/Launch/Progress.lean:54	A well-behaved launch has an outcome: every program finishes, or some interleaving runs forever.
 TVA.WellBehaved.noInterRace	theorem	lean/TVA/Launch/WellBehaved.lean:112	No interleaving has a race between programs.
 TVA.WellBehaved.noIntraRace	theorem	lean/TVA/Launch/WellBehaved.lean:114	No interleaving has a conflict within a program.
