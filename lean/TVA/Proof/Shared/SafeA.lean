@@ -55,27 +55,28 @@ inductive SafeA (E : Env) (R : Set Int) :
       SafeA E R W C Q log m (.store d s addrs vals k)
   /-- A private atomic, as in `Safe`: on bytes of `W` outside `R`, its result unused. -/
   | rmw {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
-      {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop}
+      {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {u : Sig.Upd d}
       {sem : MemSem} {sc : Scope} {k : d.Val → Prog α} :
-      (∃ old, m.read d a = some old ∧ ∃ new, upd old new) →
-      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, k v = k w) →
-      (∀ old new, m.read d a = some old → upd old new →
+      (∃ old, m.read d a = some old ∧ ∃ new, Sig.UpdAllows u old new) →
+      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, (k v).erase = (k w).erase) →
+      (∀ old new, m.read d a = some old → Sig.UpdAllows u old new →
         SafeA E R (W \ Mem.span d a) C Q log (m.write d a new) (k old)) →
-      SafeA E R W C Q log m (.rmw d a upd sem sc k)
+      SafeA E R W C Q log m (.rmw d a u sem sc k)
   /-- **A shared atomic**: an aligned cell of `C`, `acq_rel` at `gpu` or `sys` scope, an update
   with a new value for every old value, its result unused. Any old value may be found; the step
   is appended to the log. -/
   | shared {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
-      {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop}
+      {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {u : Sig.Upd d}
       {sem : MemSem} {sc : Scope} {k : d.Val → Prog α} :
-      Mem.Aligned d a → (d, a) ∈ C → sem = .acqRel → sc ≠ .cta → (∀ old, ∃ new, upd old new) →
-      (∀ v w, k v = k w) →
-      (∀ old new, upd old new → SafeA E R W C Q (log ++ [⟨d, a, old, new⟩]) m (k old)) →
-      SafeA E R W C Q log m (.rmw d a upd sem sc k)
-  /-- A choice, as in `Safe`. -/
+      Mem.Aligned d a → (d, a) ∈ C → sem = .acqRel → sc ≠ .cta → (∀ old, ∃ new, Sig.UpdAllows u old new) →
+      (∀ v w, (k v).erase = (k w).erase) →
+      (∀ old new, Sig.UpdAllows u old new → SafeA E R W C Q (log ++ [⟨d, a, old, new⟩]) m (k old)) →
+      SafeA E R W C Q log m (.rmw d a u sem sc k)
+  /-- A choice at a site, as in `Safe`. -/
   | pick {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
-      {log : List AtomicStep} {m : Mem} {β : Type} {P : β → Prop} {k : β → Prog α} :
-      (∃ b, P b) → (∀ b, P b → SafeA E R W C Q log m (k b)) → SafeA E R W C Q log m (.pick P k)
+      {log : List AtomicStep} {m : Mem} {s : Site} {k : s.Out → Prog α} :
+      (∃ b, s.Allows b) → (∀ b, s.Allows b → SafeA E R W C Q log m (k b)) →
+      SafeA E R W C Q log m (.pick s k)
   /-- A loop: its first unfolding. -/
   | loop {W : Set Int} {C : Set (DType × Int)} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
       {log : List AtomicStep} {m : Mem} {σ β : Type} {init : σ} {body : σ → Prog (σ ⊕ β)}
@@ -89,6 +90,27 @@ inductive SafeA (E : Env) (R : Set Int) :
 namespace SafeA
 
 variable {E : Env} {R : Set Int} {C : Set (DType × Int)}
+
+/-- A guard (`Site.guard`): its condition holds, and the rest is safe. -/
+theorem guard {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
+    {log : List AtomicStep} {m : Mem} {c : Prop} [Decidable c]
+    {k : Unit → Prog α} (hc : c) (hk : ∀ u, SafeA E R W C Q log m (k u)) :
+    SafeA E R W C Q log m (.pick (Site.guard c) k) :=
+  .pick ⟨(), hc⟩ fun u _ => hk u
+
+/-- A compiler hint on `x` (`Site.hint`): its promise holds, and the rest is safe for `x`. -/
+theorem hint {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
+    {log : List AtomicStep} {m : Mem} {β : Type} {x : β}
+    {c : Prop} [Decidable c] {k : β → Prog α} (hc : c) (hk : SafeA E R W C Q log m (k x)) :
+    SafeA E R W C Q log m (.pick (Site.hint β x c) k) :=
+  .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+
+/-- An operation of the platform, as in `Safe`. -/
+theorem plat {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
+    {log : List AtomicStep} {m : Mem} {q : PlatQ} {k : q.Out → Prog α}
+    (hex : ∃ r, q.Rel E.P r) (hk : ∀ r, q.Rel E.P r → SafeA E R W C Q log m (k r)) :
+    SafeA E R W C Q log m (.plat q k) :=
+  .env (.pick hex hk)
 
 /-- **Weakening**: a weaker post-condition and a larger private write footprint. -/
 theorem mono {α : Type} {Q Q' : α → List AtomicStep → Mem → Prop} {W W' : Set Int} {p : Prog α}
@@ -123,12 +145,13 @@ theorem bind {α β : Type} {Q : β → List AtomicStep → Mem → Prop} {f : �
     rw [Safe.union_diff_of_sub hd hW]
     exact ih o hp (hd.mono_left Set.sdiff_subset) hQ'
   | rmw hex hS hSR hc _ ih =>
-    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => by rw [hc v w])
+    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => Prog.erase_bind_congr (hc v w))
       fun o n ho hn => ?_
     rw [Safe.union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
   | shared hal hC hsem hsc htot hc _ ih =>
-    exact .shared hal hC hsem hsc htot (fun v w => by rw [hc v w]) fun o n h => ih o n h hd hQ'
+    exact .shared hal hC hsem hsc htot
+      (fun v w => Prog.erase_bind_congr (hc v w)) fun o n h => ih o n h hd hQ'
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
   | loop _ ih => exact .loop (by rw [← Safe.loopStep_bind]; exact ih hd hQ')
   | env _ ih => exact .env (ih hd hQ')
@@ -149,7 +172,7 @@ theorem of_safe {α β : Type} {Q : β → List AtomicStep → Mem → Prop} {f 
     rw [Safe.union_diff_of_sub hd hW]
     exact ih o hp (hd.mono_left Set.sdiff_subset) hQ'
   | rmw hex hS hSR hc _ ih =>
-    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => by rw [hc v w])
+    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => Prog.erase_bind_congr (hc v w))
       fun o n ho hn => ?_
     rw [Safe.union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
@@ -174,9 +197,9 @@ theorem perm {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → P
 
 /-- A program about to perform an atomic does not use its result. -/
 theorem rmw_const {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
-    {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {upd : d.Val → d.Val → Prop}
+    {log : List AtomicStep} {m : Mem} {d : DType} {a : Int} {u : Sig.Upd d}
     {sem : MemSem} {sc : Scope} {k : d.Val → Prog α}
-    (h : SafeA E R W C Q log m (.rmw d a upd sem sc k)) : ∀ v w, k v = k w := by
+    (h : SafeA E R W C Q log m (.rmw d a u sem sc k)) : ∀ v w, (k v).erase = (k w).erase := by
   cases h with
   | rmw _ _ _ hc _ => exact hc
   | shared _ _ _ _ _ hc _ => exact hc
@@ -259,14 +282,14 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → 
       · simpa [Event.silent] using hk
   | defer hk_step hcd ih =>
     cases ho
-    rename_i d a upd sem sc k k' m'' e''
+    rename_i d a u sem sc k k' m'' e''
     have hsh : ∀ {W' : Set Int} {s : AtomicStep}, W' ⊆ W → (s.d, s.a) ∈ C →
         e''.writes = Mem.span s.d s.a → ¬ e''.writes ⊆ W' := fun hW' hC hw =>
       shared_not_sub ((hdA.mono_right Set.subset_union_right).mono_right hW') hC hw
     -- the deferred step, taken from the agreeing memory
     have hdefer : ∀ {W' : Set Int}, W' ⊆ W → e''.reads ⊆ R ∪ e''.writes → e''.writes ⊆ W' →
-        Step E m₀ (.rmw d a upd sem sc k)
-          (.next (Mem.mix m₀ m'' e''.writes) (.rmw d a upd sem sc k') e'') := by
+        Step E m₀ (.rmw d a u sem sc k)
+          (.next (Mem.mix m₀ m'' e''.writes) (.rmw d a u sem sc k') e'') := by
       intro W' hW' hR' hW''
       refine .defer (fun v => Step.transfer (hk_step v) fun x hx => (hag x ?_).symm) hcd
       rcases hx with hx | hx

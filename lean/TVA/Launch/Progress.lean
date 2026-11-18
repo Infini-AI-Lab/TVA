@@ -10,6 +10,8 @@ has no outcome at all.
 -/
 namespace TVA
 
+variable [Sig]
+
 /-- A program that has not finished can take a step, or its next step is undefined behaviour.
 Use it to show a launch is not stuck. -/
 theorem Step.progress (E : Env) (m : Mem) {α : Type} (p : Prog α) (hp : ∀ a, p ≠ .ret a) :
@@ -32,16 +34,16 @@ theorem Step.progress (E : Env) (m : Mem) {α : Type} (p : Prog α) (hp : ∀ a,
     by_cases hs : StoreOk m d addrs
     · exact .inl ⟨_, _, _, Step.store (enabled addrs) hs (List.Perm.refl _)⟩
     · exact .inr (.storeUB hs)
-  | rmw d a upd sem sc k =>
+  | rmw d a u sem sc k =>
     cases h : m.read d a with
     | none => exact .inr (.rmwUB (.inl h))
     | some old =>
-      by_cases hn : ∃ new, upd old new
+      by_cases hn : ∃ new, Sig.UpdAllows u old new
       · obtain ⟨new, hnew⟩ := hn
         exact .inl ⟨_, _, _, Step.rmw old new h hnew⟩
       · exact .inr (.rmwUB (.inr ⟨old, h, fun new hnew => hn ⟨new, hnew⟩⟩))
-  | pick P k =>
-    by_cases hb : ∃ b, P b
+  | pick s k =>
+    by_cases hb : ∃ b, Sig.Allows s b
     · obtain ⟨b, hb⟩ := hb
       exact .inl ⟨_, _, _, Step.pick b hb⟩
     · exact .inr (.pickUB fun b h => hb ⟨b, h⟩)

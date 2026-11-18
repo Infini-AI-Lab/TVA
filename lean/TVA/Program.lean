@@ -5,7 +5,8 @@ import TVA.Memory
 # Programs
 
 A Triton kernel launch runs one *program instance* per point of the grid (one `tl.program_id`).
-TVA describes what one program does as a Lean value of type `Prog α`: a tree whose leaves return
+TVA describes what one program does as a Lean value of type `Prog α` (over a signature `Sig`, the
+kinds of choice it may leave open): a tree whose leaves return
 a value of type `α` and whose inner nodes are the program's *effects*. Pure computation (index
 arithmetic, `tl.where`, exact integer and float operations) is ordinary Lean on tensors; only the
 effects are constructors, so that the semantics (`TVA.Launch`) and the proof kit can see them:
@@ -14,8 +15,8 @@ effects are constructors, so that the semantics (`TVA.Launch`) and the proof kit
 |---|---|
 | `load d s addrs k` | `tl.load`: read the elements at the enabled addresses (`some a`); disabled lanes (`none`) are not accessed |
 | `store d s addrs vals k` | `tl.store`: write each enabled lane's value; the lanes land in an unspecified order (it matters only for duplicate addresses) |
-| `rmw d a upd sem scope k` | one element of a `tl.atomic_*`: read the old value, write a new one related to it by `upd`, continue with the old value |
-| `pick P k` | a value the program cannot predict, constrained by `P`: what a masked-out load returns, a platform result (`tl.exp`, `tl.dot`), a reduction tree. Undefined behaviour when nothing satisfies `P` |
+| `rmw d a u sem scope k` | one element of a `tl.atomic_*`: read the old value, write a new one the update `u` allows, continue with the old value |
+| `pick s k` | a value the program cannot predict, one that the site `s` allows: what a masked-out load returns, a reduction tree, a rounding choice. Undefined behaviour when `s` allows none |
 | `ub` | undefined behaviour (an invalid access, `//` by zero, an over-wide shift) |
 | `loop init body k` | a loop whose trip count is decided at run time: run `body` from state `init` until it returns `inr b`, then continue with `k b` |
 | `env k` | read the environment `Env`: the platform's relations and `enable_fp_fusion` |
@@ -46,6 +47,28 @@ Between programs there is no synchronisation: happens-before is program order on
 (`TVA.Launch`).
 -/
 namespace TVA
+
+/-! ## Signatures
+
+The semantics (`TVA.Launch`) is written for any `Sig`: the kinds of value a program cannot
+predict (`Sig.Site`), what each kind allows (`Sig.Allows`), and the kinds of update an atomic
+makes (`Sig.Upd`, `Sig.UpdAllows`). It never looks inside a site: a `pick` at site `s` continues
+with any value `s` allows. Triton's signature, the catalog of its sites, is `TVA.Site` (an
+instance of `Sig`), where each site says which `tl.*` operation it belongs to. -/
+
+/-- **A signature**: the choices a program may leave open, and what each allows. -/
+class Sig where
+  /-- The kinds of value a program cannot predict (what a masked-out load returns, a reduction
+  tree, a rounding choice, a platform result), each with its operands. -/
+  Site : Type 1
+  /-- The type of a site's value. -/
+  Out : Site → Type
+  /-- The values a site allows. No value: the `pick` is undefined behaviour. -/
+  Allows : (s : Site) → Out s → Prop
+  /-- The kinds of update an atomic read-modify-write of an element of dtype `d` makes. -/
+  Upd : DType → Type 1
+  /-- The new values an update allows, given the old one. -/
+  UpdAllows : {d : DType} → Upd d → d.Val → d.Val → Prop
 
 /-- The `sem` argument of a Triton atomic (`tl.atomic_add(…, sem=…)`; default `"acq_rel"`). -/
 inductive MemSem where
@@ -97,7 +120,7 @@ def MemSem.unused (sem : MemSem) : Scope → MemSem
 
 /-- What one Triton program instance does, ending with a value of type `α`. Each constructor but
 `ret` is an effect, followed by the rest of the program (`k`). -/
-inductive Prog : Type → Type 1 where
+inductive Prog [Sig] : Type → Type 1 where
   /-- The program ends with `a`. -/
   | ret {α : Type} (a : α) : Prog α
   /-- `tl.load` of elements of dtype `d` in a tensor of shape `s`: lane `i` reads the element
@@ -109,13 +132,13 @@ inductive Prog : Type → Type 1 where
   | store {α : Type} (d : DType) (s : Shape) (addrs : Idx s → Option Int) (vals : Tensor s d.Val)
       (k : Prog α) : Prog α
   /-- One element of a `tl.atomic_*`: read the element of dtype `d` at `addr`, write a new value
-  related to the old one by `upd`, and continue with the old value. `sem` and `scope` are the
-  atomic's arguments (`MemSem.unused` when the result is never used). -/
-  | rmw {α : Type} (d : DType) (addr : Int) (upd : d.Val → d.Val → Prop) (sem : MemSem)
-      (scope : Scope) (k : d.Val → Prog α) : Prog α
-  /-- A value of type `β` satisfying `P`, which the program cannot predict. Undefined behaviour
-  when no value satisfies `P`. -/
-  | pick {α β : Type} (P : β → Prop) (k : β → Prog α) : Prog α
+  the update `u` allows (`Sig.UpdAllows`), and continue with the old value. `sem` and `scope` are
+  the atomic's arguments (`MemSem.unused` when the result is never used). -/
+  | rmw {α : Type} (d : DType) (addr : Int) (u : Sig.Upd d) (sem : MemSem) (scope : Scope)
+      (k : d.Val → Prog α) : Prog α
+  /-- A value the program cannot predict, one that site `s` allows (`Sig.Allows`). Undefined
+  behaviour when `s` allows none. -/
+  | pick {α : Type} (s : Sig.Site) (k : Sig.Out s → Prog α) : Prog α
   /-- Undefined behaviour. -/
   | ub {α : Type} : Prog α
   /-- A loop with state `σ`: run `body` from `init`; `inl s` goes round again from `s`, `inr b`
@@ -126,13 +149,15 @@ inductive Prog : Type → Type 1 where
 
 namespace Prog
 
+variable [Sig]
+
 /-- Sequential composition: run `p`, then `f` on its result. -/
 def bind {α β : Type} : Prog α → (α → Prog β) → Prog β
   | ret a, f => f a
   | load d s addrs k, f => load d s addrs (fun v => (k v).bind f)
   | store d s addrs vals k, f => store d s addrs vals (k.bind f)
-  | rmw d a upd sem sc k, f => rmw d a upd sem sc (fun v => (k v).bind f)
-  | pick P k, f => pick P (fun b => (k b).bind f)
+  | rmw d a u sem sc k, f => rmw d a u sem sc (fun v => (k v).bind f)
+  | pick s k, f => pick s (fun b => (k b).bind f)
   | ub, _ => ub
   | loop init body k, f => loop init body (fun b => (k b).bind f)
   | env k, f => env (fun e => (k e).bind f)
@@ -155,8 +180,8 @@ instance : Monad Prog where
   | ret a => rfl
   | load d s addrs k ih => simp only [bind, ih]
   | store d s addrs vals k ih => simp only [bind, ih]
-  | rmw d a upd sem sc k ih => simp only [bind, ih]
-  | pick P k ih => simp only [bind, ih]
+  | rmw d a u sem sc k ih => simp only [bind, ih]
+  | pick s k ih => simp only [bind, ih]
   | ub => rfl
   | loop init body k _ ih => simp only [bind, ih]
   | env k ih => simp only [bind, ih]
@@ -168,8 +193,8 @@ theorem bind_assoc {α β γ : Type} (p : Prog α) (f : α → Prog β) (g : β 
   | ret a => rfl
   | load d s addrs k ih => simp only [bind, ih]
   | store d s addrs vals k ih => simp only [bind, ih]
-  | rmw d a upd sem sc k ih => simp only [bind, ih]
-  | pick P k ih => simp only [bind, ih]
+  | rmw d a u sem sc k ih => simp only [bind, ih]
+  | pick s k ih => simp only [bind, ih]
   | ub => rfl
   | loop init body k _ ih => simp only [bind, ih]
   | env k ih => simp only [bind, ih]
@@ -185,6 +210,59 @@ def loopStep {α σ β : Type} (init : σ) (body : σ → Prog (σ ⊕ β)) (k :
   (body init).bind (fun r => match r with
     | .inl s => loop s body k
     | .inr b => k b)
+
+end Prog
+
+/-- A site seen only through its relation: the signature `Prog.erase` maps into. -/
+structure PredSite : Type 1 where
+  Out : Type
+  Allows : Out → Prop
+
+/-- An update seen only through its relation. -/
+structure PredUpd (d : DType) : Type 1 where
+  Allows : d.Val → d.Val → Prop
+
+/-- The signature whose sites and updates are their relations. -/
+def Sig.pred : Sig where
+  Site := PredSite
+  Out := PredSite.Out
+  Allows := PredSite.Allows
+  Upd := PredUpd
+  UpdAllows u := u.Allows
+
+namespace Prog
+
+variable [Sig]
+
+/-- `p` with each site replaced by its relation (`Sig.Allows`) and each update by its
+(`Sig.UpdAllows`). Two programs with the same erasure have the same meaning (`TVA.Launch.Erase`);
+`Step.defer` and `UsesSharedAtomicResult` compare continuations this way, so data a site carries
+but its relation ignores does not count as a dependence. -/
+def erase {α : Type} : Prog α → @Prog Sig.pred α
+  | ret a => @ret Sig.pred _ a
+  | load d s addrs k => @load Sig.pred _ d s addrs (fun v => (k v).erase)
+  | store d s addrs vals k => @store Sig.pred _ d s addrs vals k.erase
+  | rmw d a u sem sc k => @rmw Sig.pred _ d a ⟨Sig.UpdAllows u⟩ sem sc (fun v => (k v).erase)
+  | pick s k => @pick Sig.pred _ ⟨Sig.Out s, Sig.Allows s⟩ (fun b => (k b).erase)
+  | ub => @ub Sig.pred _
+  | loop init body k => @loop Sig.pred _ _ _ init (fun x => (body x).erase) (fun b => (k b).erase)
+  | env k => @env Sig.pred _ (fun e => (k e).erase)
+
+theorem erase_bind {α β : Type} (p : Prog α) (f : α → Prog β) :
+    (p.bind f).erase = @bind Sig.pred _ _ p.erase (fun a => (f a).erase) := by
+  induction p with
+  | ret a => rfl
+  | load d s addrs k ih => simp only [bind, erase, ih]
+  | store d s addrs vals k ih => simp only [bind, erase, ih]
+  | rmw d a u sem sc k ih => simp only [bind, erase, ih]
+  | pick s k ih => exact congrArg (@pick Sig.pred _ _) (funext fun b => ih b f)
+  | ub => rfl
+  | loop init body k _ ih => simp only [bind, erase, ih]
+  | env k ih => simp only [bind, erase, ih]
+
+theorem erase_bind_congr {α β : Type} {p q : Prog α} {f : α → Prog β} (h : p.erase = q.erase) :
+    (p.bind f).erase = (q.bind f).erase := by
+  rw [erase_bind, erase_bind, h]
 
 end Prog
 

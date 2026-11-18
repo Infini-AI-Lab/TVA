@@ -89,23 +89,7 @@ theorem addrs_of_get_all (b : Buf d) {ptrs : Tensor s (Ptr d)} {g : Idx s → Na
 
 end Buf
 
-/-- `padding_option` of a block-pointer or descriptor load: what a lane outside the bounds holds.
-`undef` is an unspecified value (block pointers' default `""`), `zero` the zero bit pattern, `nan`
-a NaN (float dtypes only; Triton rejects it for integers). -/
-inductive Padding where
-  /-- An unspecified value. -/
-  | undef
-  /-- The zero bit pattern. -/
-  | zero
-  /-- A NaN. -/
-  | nan
-  deriving DecidableEq, Repr
-
-/-- A lane outside the bounds holds what the padding says. -/
-def Padding.Holds {d : DType} : Padding → d.Val → Prop
-  | .undef, _ => True
-  | .zero, x => x = d.ofBits 0
-  | .nan, x => d.IsNaN x
+/-! `Padding` and `Padding.Holds` are in `TVA.Triton.Memory.Rel`, before the catalog of sites. -/
 
 namespace tl
 
@@ -143,118 +127,78 @@ def store1 {d : DType} (p : Ptr d) (v : d.Val) : Prog Unit :=
 the others keep their loaded value. -/
 def pad {d : DType} (p : Padding) (inb : Idx s → Bool) (v : Tensor s d.Val) :
     Prog (Tensor s d.Val) :=
-  .pick (fun r : Tensor s d.Val => ∀ i, if inb i then r.get i = v.get i else p.Holds (r.get i)) .ret
+  .pick (.pad s d p inb v) .ret
 
 /-! ## Atomics -/
 
 /-- The read-modify-writes of the lanes `order`, in that order, collecting the old values. -/
-def rmwSeq {d : DType} (ptrs : Tensor s (Ptr d)) (upd : Idx s → d.Val → d.Val → Prop)
+def rmwSeq {d : DType} (ptrs : Tensor s (Ptr d)) (u : Idx s → Upd d)
     (sem : MemSem) (scope : Scope) : List (Idx s) → (Idx s → d.Val) → Prog (Idx s → d.Val)
   | [], acc => .ret acc
-  | i :: rest, acc => .rmw d (ptrs.get i).addr (upd i) sem scope fun old =>
-      rmwSeq ptrs upd sem scope rest (Function.update acc i old)
+  | i :: rest, acc => .rmw d (ptrs.get i).addr (u i) sem scope fun old =>
+      rmwSeq ptrs u sem scope rest (Function.update acc i old)
 
-/-- A tensor atomic whose lane `i` updates its element by the relation `upd i old new`: the enabled
+/-- A tensor atomic whose lane `i` updates its element by the update `u i` (`Upd`): the enabled
 lanes in some order, each returning its old value; disabled lanes return unspecified values. -/
-def atomicWith {d : DType} (ptrs : Tensor s (Ptr d)) (upd : Idx s → d.Val → d.Val → Prop)
+def atomicWith {d : DType} (ptrs : Tensor s (Ptr d)) (u : Idx s → Upd d)
     (mask : Option (Tensor s Bool)) (sem : MemSem) (scope : Scope) : Prog (Tensor s d.Val) :=
   let enabled := (Idx.all s).filter (fun i => (addrs ptrs mask i).isSome)
-  .pick (fun (_ : Idx s → d.Val) => True) fun junk =>
-  .pick (fun (order : List (Idx s)) => order.Perm enabled) fun order => do
-    let old ← rmwSeq ptrs upd sem scope order junk
+  .pick (.anyVals s d) fun junk =>
+  .pick (.order s enabled) fun order => do
+    let old ← rmwSeq ptrs u sem scope order junk
     return ⟨old⟩
 
-/-- The new value `n` of an `atomic_add` of `v` to a cell holding `o`: integers wrap; floats as the
-platform's memory system rounds (`Platform.atomicAdd`). -/
-def addUpd (e : Env) : (d : DType) → d.Val → d.Val → d.Val → Prop
-  | .i8, v, o, n => n = o + v | .i16, v, o, n => n = o + v | .i32, v, o, n => n = o + v
-  | .i64, v, o, n => n = o + v
-  | .u8, v, o, n => n = o + v | .u16, v, o, n => n = o + v | .u32, v, o, n => n = o + v
-  | .u64, v, o, n => n = o + v
-  | .f16, v, o, n => e.P.atomicAdd _ o v n | .bf16, v, o, n => e.P.atomicAdd _ o v n
-  | .f32, v, o, n => e.P.atomicAdd _ o v n | .f64, v, o, n => e.P.atomicAdd _ o v n
-  | _, _, _, _ => False
-
-/-- The new value `n` of a float `atomic_max` (`isMax`) or `atomic_min` of `v` on a cell holding
-`o`: one of the two, and, when neither is NaN, not below (above) either. Which zero wins between
-`-0.0` and `+0.0`, and which value with a NaN operand, are left open (Triton implements them with
-integer atomics on the bit pattern, `semantic.py:1292-1373`). -/
-def fBound {f : Format} (isMax : Bool) (o v n : FloatV f) : Prop :=
-  (n = o ∨ n = v) ∧ (o.isNaN = false → v.isNaN = false →
-    if isMax then o.le n = true ∧ v.le n = true else n.le o = true ∧ n.le v = true)
-
-/-- The new value of `atomic_max` (`isMax`) or `atomic_min`: integers compare as their signedness
-says, floats as `fBound`. -/
-def maxUpd (isMax : Bool) : (d : DType) → d.Val → d.Val → d.Val → Prop
-  | .i8, v, o, n => n = if isMax then o.max v else o.min v
-  | .i16, v, o, n => n = if isMax then o.max v else o.min v
-  | .i32, v, o, n => n = if isMax then o.max v else o.min v
-  | .i64, v, o, n => n = if isMax then o.max v else o.min v
-  | .u8, v, o, n => n = if isMax then o.max v else o.min v
-  | .u16, v, o, n => n = if isMax then o.max v else o.min v
-  | .u32, v, o, n => n = if isMax then o.max v else o.min v
-  | .u64, v, o, n => n = if isMax then o.max v else o.min v
-  | .f16, v, o, n => fBound isMax o v n | .bf16, v, o, n => fBound isMax o v n
-  | .f32, v, o, n => fBound isMax o v n | .f64, v, o, n => fBound isMax o v n
-  | _, _, _, _ => False
-
-/-- The new value of a bitwise atomic (`op` on the bit vectors), on integers only. -/
-def bitUpd (op : ∀ {sg : Bool} {w : Nat}, IntV sg w → IntV sg w → IntV sg w) :
-    (d : DType) → d.Val → d.Val → d.Val → Prop
-  | .i8, v, o, n => n = op o v | .i16, v, o, n => n = op o v | .i32, v, o, n => n = op o v
-  | .i64, v, o, n => n = op o v
-  | .u8, v, o, n => n = op o v | .u16, v, o, n => n = op o v | .u32, v, o, n => n = op o v
-  | .u64, v, o, n => n = op o v
-  | _, _, _, _ => False
+/-! The updates `tl.addUpd`, `tl.maxUpd` (with `tl.fBound`) and `tl.bitUpd` are in
+`TVA.Triton.Memory.Rel`, before the catalog of sites. -/
 
 /-- `tl.atomic_add(ptrs, vals, mask, sem, scope)`: adds `vals` lane by lane, returns the old
 values. -/
 def atomic_add {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  .env fun e => atomicWith ptrs (fun i => addUpd e d (vals.get i)) mask sem scope
+  .env fun e => atomicWith ptrs (fun i => .add e (vals.get i)) mask sem scope
 
 /-- `tl.atomic_xchg(ptrs, vals, mask, sem, scope)`: writes `vals`, returns the old values. -/
 def atomic_xchg {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i _ n => n = vals.get i) mask sem scope
+  atomicWith ptrs (fun i => .xchg (vals.get i)) mask sem scope
 
 /-- `tl.atomic_cas(ptrs, cmp, vals, sem, scope)`: the new value is `val` when the old bit pattern
 equals `cmp`'s, the old value otherwise; returns the old values. -/
 def atomic_cas {d : DType} (ptrs : Tensor s (Ptr d)) (cmp vals : Tensor s d.Val)
     (sem : MemSem := .acqRel) (scope : Scope := .gpu) : Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i o n => n = if o = cmp.get i then vals.get i else o) none sem scope
+  atomicWith ptrs (fun i => .cas (cmp.get i) (vals.get i)) none sem scope
 
 /-- `tl.atomic_max(ptrs, vals, mask, sem, scope)` (`maxUpd`). -/
 def atomic_max {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => maxUpd true d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => .max true (vals.get i)) mask sem scope
 
 /-- `tl.atomic_min(ptrs, vals, mask, sem, scope)` (`maxUpd`). -/
 def atomic_min {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => maxUpd false d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => .max false (vals.get i)) mask sem scope
 
 /-- `tl.atomic_and(ptrs, vals, mask, sem, scope)` on integers. -/
 def atomic_and {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => bitUpd IntV.and d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => .bit IntV.and (vals.get i)) mask sem scope
 
 /-- `tl.atomic_or(ptrs, vals, mask, sem, scope)` on integers. -/
 def atomic_or {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => bitUpd IntV.or d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => .bit IntV.or (vals.get i)) mask sem scope
 
 /-- `tl.atomic_xor(ptrs, vals, mask, sem, scope)` on integers. -/
 def atomic_xor {d : DType} (ptrs : Tensor s (Ptr d)) (vals : Tensor s d.Val)
     (mask : Option (Tensor s Bool) := none) (sem : MemSem := .acqRel) (scope : Scope := .gpu) :
     Prog (Tensor s d.Val) :=
-  atomicWith ptrs (fun i => bitUpd IntV.xor d (vals.get i)) mask sem scope
+  atomicWith ptrs (fun i => .bit IntV.xor (vals.get i)) mask sem scope
 
 /-! ### Atomics whose result is unused -/
 

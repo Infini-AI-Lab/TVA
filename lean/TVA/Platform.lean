@@ -26,11 +26,11 @@ facts allow. A relation, rather
 than a function, also lets two occurrences of one operation on the same operands return different
 results, as the device may (another instruction selection, another fusion).
 
-A program reads the platform through `Env` (`Prog.env`, `TVA.Program`), together with the
-kernel's `enable_fp_fusion` option.
+A program asks the platform for one operation with `Prog.plat` (`PlatQ`, in `TVA.Site`), or
+reads it through `Env` (`Prog.env`, `TVA.Program`), with the kernel's `enable_fp_fusion` option.
 
-Used by `TVA.Triton.Arith`, `TVA.Triton.Convert`, `TVA.Triton.Memory` (float atomics),
-`TVA.Triton.Dot`, `TVA.Triton.Reduce`, and `TVA.Device`.
+Used by `TVA.Site`, `TVA.Triton.Arith`, `TVA.Triton.Convert`, `TVA.Triton.Memory` (float
+atomics), `TVA.Triton.Dot`, `TVA.Triton.Reduce`, and `TVA.Device`.
 -/
 namespace TVA
 

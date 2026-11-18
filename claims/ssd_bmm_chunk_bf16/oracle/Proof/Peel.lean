@@ -39,6 +39,7 @@ theorem safe_wide_nat {E : Env} {R W : Set ℤ} {α : Type} {Q : α → Mem → 
     (hk : Safe E R W Q m (k (IntV.ofInt (n : ℤ)))) :
     Safe E R W Q m (wide (IntV.ofNat n : I32) >>= k) := by
   simp only [wide]
+  rw [bind_assoc]
   refine (safe_convert_iff (d := .i32) (d' := .i64) (x := Tensor.scalar (IntV.ofNat n : I32)) (y := Tensor.scalar (IntV.ofInt (IntV.ofNat n : I32).toInt)) (conv_scalar_iff (E := E) (IntV.ofNat n : I32))).2 ?_
   simp only [Tensor.item, Tensor.scalar]
   rw [IntV.toInt_ofNat hn]

@@ -164,7 +164,7 @@ theorem safe_add_counts {d : Inst} (hd : d.ok) {E : Env} {m : Mem} {p : Nat}
         rw [h]
       rw [hmap]
       exact Qset_steps_inc hd hp horder hptrs0 (fun i => rfl)
-    exact SafeA.atomic (C := cells d) (upd := fun i => tl.addUpd E DType.i32
+    exact SafeA.atomic (C := cells d) (u := fun i => Upd.add (d := .i32) E
         ((tl.full [d.block] (IntV.ofInt 1 : I32)).get i))
       (k := Prog.ret ()) hcell0 rfl (by decide) htot0 hk0
 
@@ -289,7 +289,7 @@ theorem safe_add_counts {d : Inst} (hd : d.ok) {E : Env} {m : Mem} {p : Nat}
       rw [hmap]
       exact Qset_steps_hist hd hbins
         (horder.nodup_iff.mpr ((Idx.nodup_all [d.bins]).filter _)) horder haddrH hcount
-    exact SafeA.atomic (C := cells d) (upd := fun i => tl.addUpd E DType.i32 (r.get i))
+    exact SafeA.atomic (C := cells d) (u := fun i => Upd.add (d := .i32) E (r.get i))
       (k := Prog.ret ()) hcellH rfl (by decide) htotH hkH
 
 end Claims.RouteHistogram

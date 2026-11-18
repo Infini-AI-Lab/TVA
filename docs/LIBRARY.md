@@ -39,8 +39,9 @@ use [INDEX.md](INDEX.md) and the generated [index/](index/). The library has two
 | `TVA.Tensor.Layout` | `join`, `split`, `interleave`, `reshape`, `permute`, `broadcastTo`, with element lemmas. |
 | `TVA.Tensor.Tree` | Reduction trees (`Tree`, `Tree.Covers`, `Tree.Eval`): the order in which a float reduction combines. |
 | `TVA.Memory` | `Mem` (a partial map from addresses to bytes), `Ptr d` and pointer arithmetic, aligned reads and writes, `Buf d` (a host buffer: `ptr`, `elems`, `Valid`, `Holds`). Claims state footprints and specifications with `Buf`. |
-| `TVA.Platform` | `Platform`: the relations Triton leaves to the device (`math`, `div`, `dot`, `cvt`, `atomicAdd`, `dotScaled`, `sumDepth`), `DotCfg`, `ScaledCfg`, and `Env` (the platform with the fusion flag). |
-| `TVA.Program` | `Prog α`, one program as a value whose effects are constructors (`load`, `store`, `rmw`, `pick`, `ub`, `loop`, `env`); `Ctx`; `MemSem`, `Scope`, `MemSem.unused`. Its docstring says why a program is not sequential for global memory. |
+| `TVA.Platform` | `Platform`: the relations Triton leaves to the device (`math`, `div`, `dot`, `cvt`, `atomicAdd`, `dotScaled`, `sumDepth`), `DotCfg`, `ScaledCfg`, `Env` (the platform with the fusion flag), and `PlatQ` (one question to the platform on concrete operands, with `PlatQ.Rel`: what `Prog.plat` picks among). |
+| `TVA.Program` | `Sig`, the choices a program may leave open (sites, what each allows, atomic updates); `Prog α`, one program as a value whose effects are constructors (`load`, `store`, `rmw`, `pick`, `ub`, `loop`, `env`); `Ctx`; `MemSem`, `Scope`, `MemSem.unused`. Solvers for running a model are in `validation/`, not here. Its docstring says why a program is not sequential for global memory. |
+| `TVA.Site` | Triton's signature (`Site.sig`): the sites `Site` (`Site.other P`: any value satisfying `P`), the atomic updates `Upd`, `Site.Allows`, `Upd.Allows`; `Prog.plat` (`env` then a `pick` of a platform relation). |
 
 ### The `tl.*` vocabulary: `TVA.Triton`
 
@@ -71,6 +72,7 @@ A claim's model is written with these; [SEMANTICS.md](SEMANTICS.md) explains eac
 | `TVA.Launch.Run` | `Kernel`, `Launch` (grid, options, block shapes), `Launch.grid1`, `Launch.ctx`, `Launch.Valid`, `Config`, `LStep`, `Reach` (interleaving). |
 | `TVA.Launch.WellBehaved` | `InterRace`, `IntraRace`, `UsesSharedAtomicResult`, `WellBehaved`, `Outcomes`, `Correct`. |
 | `TVA.Launch.Progress` | `Step.progress`, `WellBehaved.exists_outcome`: a well-behaved launch always has an outcome. |
+| `TVA.Launch.Erase` | `Step.erase`/`Step.unerase`: erasure is a bisimulation; `Outcomes.congr_erase`, `WellBehaved.congr_erase`, `Correct.congr_erase`: kernels with the same erasure mean the same. |
 
 ### Device facts: `TVA.Device`
 

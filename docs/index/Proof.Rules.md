@@ -435,7 +435,7 @@ the rest must be safe for every quotient the platform allows.
 
 ### `TVA.safe_fdiv`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:141](../../lean/TVA/Proof/Rules/Arith.lean#L141)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:140](../../lean/TVA/Proof/Rules/Arith.lean#L140)
 
 ```lean
 TVA.safe_fdiv {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -454,7 +454,7 @@ TVA.safe_fdiv {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_math`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:152](../../lean/TVA/Proof/Rules/Arith.lean#L152)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:151](../../lean/TVA/Proof/Rules/Arith.lean#L151)
 
 ```lean
 TVA.safe_math {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -472,7 +472,7 @@ result the platform allows.
 
 ### `TVA.safe_maximum`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:164](../../lean/TVA/Proof/Rules/Arith.lean#L164)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:162](../../lean/TVA/Proof/Rules/Arith.lean#L162)
 
 ```lean
 TVA.safe_maximum {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -487,7 +487,7 @@ TVA.safe_maximum {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem �
 
 ### `TVA.safe_minimum`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:172](../../lean/TVA/Proof/Rules/Arith.lean#L172)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:170](../../lean/TVA/Proof/Rules/Arith.lean#L170)
 
 ```lean
 TVA.safe_minimum {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -502,7 +502,7 @@ TVA.safe_minimum {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem �
 
 ### `TVA.safe_idiv`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:187](../../lean/TVA/Proof/Rules/Arith.lean#L187)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:185](../../lean/TVA/Proof/Rules/Arith.lean#L185)
 
 ```lean
 TVA.safe_idiv {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -518,7 +518,7 @@ TVA.safe_idiv {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_irem`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:196](../../lean/TVA/Proof/Rules/Arith.lean#L196)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:194](../../lean/TVA/Proof/Rules/Arith.lean#L194)
 
 ```lean
 TVA.safe_irem {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -534,7 +534,7 @@ TVA.safe_irem {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_shl`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:205](../../lean/TVA/Proof/Rules/Arith.lean#L205)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:203](../../lean/TVA/Proof/Rules/Arith.lean#L203)
 
 ```lean
 TVA.safe_shl {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -550,7 +550,7 @@ TVA.safe_shl {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → P
 
 ### `TVA.safe_ashr`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:215](../../lean/TVA/Proof/Rules/Arith.lean#L215)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:213](../../lean/TVA/Proof/Rules/Arith.lean#L213)
 
 ```lean
 TVA.safe_ashr {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -566,7 +566,7 @@ TVA.safe_ashr {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_lshr`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:225](../../lean/TVA/Proof/Rules/Arith.lean#L225)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:223](../../lean/TVA/Proof/Rules/Arith.lean#L223)
 
 ```lean
 TVA.safe_lshr {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -582,7 +582,7 @@ TVA.safe_lshr {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_idiv1`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:237](../../lean/TVA/Proof/Rules/Arith.lean#L237)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:235](../../lean/TVA/Proof/Rules/Arith.lean#L235)
 
 ```lean
 TVA.safe_idiv1 {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {w : ℕ}
@@ -595,7 +595,7 @@ TVA.safe_idiv1 {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem →
 
 ### `TVA.safe_irem1`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:251](../../lean/TVA/Proof/Rules/Arith.lean#L251)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:249](../../lean/TVA/Proof/Rules/Arith.lean#L249)
 
 ```lean
 TVA.safe_irem1 {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {w : ℕ}
@@ -823,7 +823,7 @@ theorem · [lean/TVA/Proof/Rules/Core.lean:71](../../lean/TVA/Proof/Rules/Core.l
 
 ```lean
 TVA.safe_max_constancy {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type} {n : ℕ}
-  {x : TVA.Tensor [n] β} {C : ℕ} {k : TVA.Tensor [n] β → TVA.Prog α} (hc : TVA.ConstAlong x 0 C)
+  [DecidableEq β] {x : TVA.Tensor [n] β} {C : ℕ} {k : TVA.Tensor [n] β → TVA.Prog α} (hc : TVA.ConstAlong x 0 C)
   (hk : TVA.Safe E R W Q m (k x)) : TVA.Safe E R W Q m (TVA.tl.max_constancy x C >>= k)
 ```
 
@@ -831,7 +831,7 @@ TVA.safe_max_constancy {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA
 
 ### `TVA.safe_max_contiguous_multiple_of`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:78](../../lean/TVA/Proof/Rules/Core.lean#L78)
+theorem · [lean/TVA/Proof/Rules/Core.lean:79](../../lean/TVA/Proof/Rules/Core.lean#L79)
 
 ```lean
 TVA.safe_max_contiguous_multiple_of {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem}
@@ -844,7 +844,7 @@ TVA.safe_max_contiguous_multiple_of {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q
 
 ### `TVA.safe_multiple_ofN`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:86](../../lean/TVA/Proof/Rules/Core.lean#L86)
+theorem · [lean/TVA/Proof/Rules/Core.lean:87](../../lean/TVA/Proof/Rules/Core.lean#L87)
 
 ```lean
 TVA.safe_multiple_ofN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type}
@@ -857,7 +857,7 @@ TVA.safe_multiple_ofN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.
 
 ### `TVA.safe_max_contiguousN`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:95](../../lean/TVA/Proof/Rules/Core.lean#L95)
+theorem · [lean/TVA/Proof/Rules/Core.lean:96](../../lean/TVA/Proof/Rules/Core.lean#L96)
 
 ```lean
 TVA.safe_max_contiguousN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type}
@@ -870,7 +870,7 @@ TVA.safe_max_contiguousN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → T
 
 ### `TVA.safe_max_contiguous_multiple_ofN`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:103](../../lean/TVA/Proof/Rules/Core.lean#L103)
+theorem · [lean/TVA/Proof/Rules/Core.lean:104](../../lean/TVA/Proof/Rules/Core.lean#L104)
 
 ```lean
 TVA.safe_max_contiguous_multiple_ofN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem}
@@ -884,11 +884,11 @@ dimension.
 
 ### `TVA.safe_max_constancyN`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:114](../../lean/TVA/Proof/Rules/Core.lean#L114)
+theorem · [lean/TVA/Proof/Rules/Core.lean:115](../../lean/TVA/Proof/Rules/Core.lean#L115)
 
 ```lean
 TVA.safe_max_constancyN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {β : Type}
-  {s : TVA.Shape} {x : TVA.Tensor s β} {Cs : List ℕ} {k : TVA.Tensor s β → TVA.Prog α}
+  {s : TVA.Shape} [DecidableEq β] {x : TVA.Tensor s β} {Cs : List ℕ} {k : TVA.Tensor s β → TVA.Prog α}
   (hc : ∀ k < List.length s, TVA.ConstAlong x k (Cs.getD k 1)) (hk : TVA.Safe E R W Q m (k x)) :
   TVA.Safe E R W Q m (TVA.tl.max_constancyN x Cs >>= k)
 ```
@@ -897,7 +897,7 @@ TVA.safe_max_constancyN {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TV
 
 ### `TVA.safe_reshape_any`
 
-theorem · [lean/TVA/Proof/Rules/Core.lean:124](../../lean/TVA/Proof/Rules/Core.lean#L124)
+theorem · [lean/TVA/Proof/Rules/Core.lean:125](../../lean/TVA/Proof/Rules/Core.lean#L125)
 
 ```lean
 TVA.safe_reshape_any {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -1397,9 +1397,9 @@ theorem · [lean/TVA/Proof/Rules/Memory.lean:255](../../lean/TVA/Proof/Rules/Mem
 
 ```lean
 TVA.tl.rmwSeq_bind_const {s : TVA.Shape} {d : TVA.DType} {β : Type} (ptrs : TVA.Tensor s (TVA.Ptr d))
-  (upd : TVA.Idx s → d.Val → d.Val → Prop) (sem : TVA.MemSem) (sc : TVA.Scope) (K : TVA.Prog β) (L : List (TVA.Idx s))
+  (u : TVA.Idx s → TVA.Upd d) (sem : TVA.MemSem) (sc : TVA.Scope) (K : TVA.Prog β) (L : List (TVA.Idx s))
   (acc acc' : TVA.Idx s → d.Val) :
-  ((TVA.tl.rmwSeq ptrs upd sem sc L acc).bind fun x => K) = (TVA.tl.rmwSeq ptrs upd sem sc L acc').bind fun x => K
+  ((TVA.tl.rmwSeq ptrs u sem sc L acc).bind fun x => K) = (TVA.tl.rmwSeq ptrs u sem sc L acc').bind fun x => K
 ```
 
 After the read-modify-writes of some lanes, a continuation that ignores their old values does
@@ -1407,26 +1407,26 @@ not depend on the values collected before.
 
 ### `TVA.safe_atomic_buf`
 
-theorem · [lean/TVA/Proof/Rules/Memory.lean:344](../../lean/TVA/Proof/Rules/Memory.lean#L344)
+theorem · [lean/TVA/Proof/Rules/Memory.lean:345](../../lean/TVA/Proof/Rules/Memory.lean#L345)
 
 ```lean
 TVA.safe_atomic_buf {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
   {d : TVA.DType} (b : TVA.Buf d) {ptrs : TVA.Tensor s (TVA.Ptr d)} {mask : Option (TVA.Tensor s Bool)}
-  {upd : TVA.Idx s → d.Val → d.Val → Prop} {sem : TVA.MemSem} {sc : TVA.Scope} {g : TVA.Idx s → ℕ}
-  {en : TVA.Idx s → Bool} (hA : b.Addrs (TVA.tl.addrs ptrs mask) g en)
-  (hin : ∀ (i : TVA.Idx s), en i = true → g i < b.len)
+  {u : TVA.Idx s → TVA.Upd d} {sem : TVA.MemSem} {sc : TVA.Scope} {g : TVA.Idx s → ℕ} {en : TVA.Idx s → Bool}
+  (hA : b.Addrs (TVA.tl.addrs ptrs mask) g en) (hin : ∀ (i : TVA.Idx s), en i = true → g i < b.len)
   (hinj : ∀ (i j : TVA.Idx s), en i = true → en j = true → g i = g j → i = j)
-  (htot : ∀ (i : TVA.Idx s) (o : d.Val), ∃ n, upd i o n) (hv : b.Valid m) (hW : b.elems (TVA.Buf.img g en) ⊆ W)
+  (htot : ∀ (i : TVA.Idx s) (o : d.Val), ∃ n, (u i).Allows o n) (hv : b.Valid m) (hW : b.elems (TVA.Buf.img g en) ⊆ W)
   (hRd : Disjoint (b.elems (TVA.Buf.img g en)) R) {k : TVA.Prog α}
   (hk :
     ∀ (m' : TVA.Mem),
       (∀ (i : TVA.Idx s),
           en i = true →
-            ∃ old n, m.read d (b.ptr ↑(g i)).addr = some old ∧ upd i old n ∧ m'.read d (b.ptr ↑(g i)).addr = some n) →
+            ∃ old n,
+              m.read d (b.ptr ↑(g i)).addr = some old ∧ (u i).Allows old n ∧ m'.read d (b.ptr ↑(g i)).addr = some n) →
         (∀ x ∉ b.elems (TVA.Buf.img g en), m' x = m x) →
           (∀ (x : ℤ), m x ≠ none → m' x ≠ none) → TVA.Safe E R (W \ b.elems (TVA.Buf.img g en)) Q m' k) :
   TVA.Safe E R W Q m do
-    let _ ← TVA.tl.atomicWith ptrs upd mask sem sc
+    let _ ← TVA.tl.atomicWith ptrs u mask sem sc
     k
 ```
 
@@ -1435,8 +1435,9 @@ enabled lane updates its own element of `b` once, from the element's value befor
 rule gives each element's old and new value, and nothing outside the elements changes. The
 elements are outside the read footprint, and the rest of the program may not touch them again.
 The rule is about `tl.atomicWith`, which every `tl.atomic_*` is except `tl.atomic_add`: that is
-`.env fun e => tl.atomicWith ptrs (fun i => tl.addUpd e d (vals.get i)) mask sem sc`, so unfold
-it, apply `Safe.env`, then this rule with `upd := fun i => tl.addUpd E d (vals.get i)`.
+`.env fun e => tl.atomicWith ptrs (fun i => .add e (vals.get i)) mask sem sc`, so unfold it,
+apply `Safe.env`, then this rule with `u := fun i => .add E (vals.get i)` (whose `Upd.Allows` is
+`tl.addUpd E d (vals.get i)`).
 
 ## `TVA.Proof.Rules.Reduce`
 

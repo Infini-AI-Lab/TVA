@@ -59,16 +59,17 @@ inductive Safe (E : Env) (R : Set Int) :
   constructor covers performing it now; performing it later (`Step.defer`) follows
   (`Safe.stepT`). -/
   | rmw {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {d : DType} {a : Int}
-      {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} {k : d.Val → Prog α} :
-      (∃ old, m.read d a = some old ∧ ∃ new, upd old new) →
-      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, k v = k w) →
-      (∀ old new, m.read d a = some old → upd old new →
+      {u : Sig.Upd d} {sem : MemSem} {sc : Scope} {k : d.Val → Prog α} :
+      (∃ old, m.read d a = some old ∧ ∃ new, Sig.UpdAllows u old new) →
+      Mem.span d a ⊆ W → Disjoint (Mem.span d a) R → (∀ v w, (k v).erase = (k w).erase) →
+      (∀ old new, m.read d a = some old → Sig.UpdAllows u old new →
         Safe E R (W \ Mem.span d a) Q (m.write d a new) (k old)) →
-      Safe E R W Q m (.rmw d a upd sem sc k)
-  /-- A choice: some value is allowed, and the rest is safe for every allowed value. -/
-  | pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {β : Type} {P : β → Prop}
-      {k : β → Prog α} :
-      (∃ b, P b) → (∀ b, P b → Safe E R W Q m (k b)) → Safe E R W Q m (.pick P k)
+      Safe E R W Q m (.rmw d a u sem sc k)
+  /-- A choice at a site: some value is allowed, and the rest is safe for every allowed value. -/
+  | pick {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {s : Site}
+      {k : s.Out → Prog α} :
+      (∃ b, s.Allows b) → (∀ b, s.Allows b → Safe E R W Q m (k b)) →
+      Safe E R W Q m (.pick s k)
   /-- A loop: its first unfolding is safe. -/
   | loop {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {σ β : Type} {init : σ}
       {body : σ → Prog (σ ⊕ β)} {k : β → Prog α} :
@@ -80,6 +81,25 @@ inductive Safe (E : Env) (R : Set Int) :
 namespace Safe
 
 variable {E : Env} {R : Set Int}
+
+/-- A guard (`Site.guard`): its condition holds, and the rest is safe. -/
+theorem guard {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {c : Prop} [Decidable c]
+    {k : Unit → Prog α} (hc : c) (hk : ∀ u, Safe E R W Q m (k u)) :
+    Safe E R W Q m (.pick (Site.guard c) k) :=
+  .pick ⟨(), hc⟩ fun u _ => hk u
+
+/-- A compiler hint on `x` (`Site.hint`): its promise holds, and the rest is safe for `x`. -/
+theorem hint {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {β : Type} {x : β}
+    {c : Prop} [Decidable c] {k : β → Prog α} (hc : c) (hk : Safe E R W Q m (k x)) :
+    Safe E R W Q m (.pick (Site.hint β x c) k) :=
+  .pick ⟨x, rfl, hc⟩ fun y hy => by rw [hy.1]; exact hk
+
+/-- An operation of the platform (`Prog.plat`, an `env` then a `pick`): some result is allowed,
+and the rest is safe for every allowed result. -/
+theorem plat {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem} {q : PlatQ}
+    {k : q.Out → Prog α} (hex : ∃ r, q.Rel E.P r) (hk : ∀ r, q.Rel E.P r → Safe E R W Q m (k r)) :
+    Safe E R W Q m (.plat q k) :=
+  .env (.pick hex hk)
 
 /-- Unfolding a loop and then binding is binding and then unfolding. -/
 theorem loopStep_bind {α β γ σ : Type} (init : σ) (body : σ → Prog (σ ⊕ β)) (k : β → Prog α)
@@ -135,7 +155,8 @@ theorem bind {α β : Type} {Q : β → Mem → Prop} {f : α → Prog β} {p : 
     rw [union_diff_of_sub hd hW]
     exact ih o hp (hd.mono_left Set.sdiff_subset) hQ'
   | rmw hex hS hSR hc _ ih =>
-    refine .rmw hex (hS.trans Set.subset_union_left) hSR (fun v w => by rw [hc v w]) fun o n ho hn => ?_
+    refine .rmw hex (hS.trans Set.subset_union_left) hSR
+      (fun v w => Prog.erase_bind_congr (hc v w)) fun o n ho hn => ?_
     rw [union_diff_of_sub hd hS]
     exact ih o n ho hn (hd.mono_left Set.sdiff_subset) hQ'
   | pick hex _ ih => exact .pick hex fun b hb => ih b hb hd hQ'
@@ -217,7 +238,7 @@ theorem stepT {W : Set Int} {α : Type} {Q : α → Mem → Prop} {m₀ m : Mem}
     cases ho
     cases h with
     | rmw hex hS hSR hconst hk =>
-      rename_i d a upd sem sc k k' m'' e''
+      rename_i d a u sem sc k k' m'' e''
       obtain ⟨old, hr₀, n₀, hu₀⟩ := hex
       have hagw : ∀ n, ∀ x ∈ R ∪ (W \ Mem.span d a), m x = (m₀.write d a n) x := by
         intro n x hx
@@ -299,12 +320,12 @@ def Next {α : Type} (E : Env) : Mem × Prog α → Mem × Prog α → Prop
 /-- An atomic that stays pending only while its continuation takes steps: the run from the
 atomic's state is as long as the continuation's. -/
 private theorem acc_rmw {α : Type} {Q : α → Mem → Prop} {d : DType} {a : Int}
-    {upd : d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} :
+    {u : Sig.Upd d} {sem : MemSem} {sc : Scope} :
     ∀ s : Mem × Prog α, Acc (Next E) s → ∀ (W : Set Int) (m : Mem) (k : d.Val → Prog α)
-      (old n₀ : d.Val), s = (m.write d a n₀, k old) → m.read d a = some old → upd old n₀ →
-      Safe E R W Q m (.rmw d a upd sem sc k) →
-      (∀ new, upd old new → Acc (Next E) (m.write d a new, k old)) →
-      Acc (Next E) (m, .rmw d a upd sem sc k) := by
+      (old n₀ : d.Val), s = (m.write d a n₀, k old) → m.read d a = some old →
+      Sig.UpdAllows u old n₀ → Safe E R W Q m (.rmw d a u sem sc k) →
+      (∀ new, Sig.UpdAllows u old new → Acc (Next E) (m.write d a new, k old)) →
+      Acc (Next E) (m, .rmw d a u sem sc k) := by
   intro s hs
   induction hs with
   | intro s _ ih =>
@@ -333,7 +354,7 @@ private theorem acc_rmw {α : Type} {Q : α → Mem → Prop} {d : DType} {a : I
         have hWS : Disjoint (Mem.span d a) e.writes := by
           obtain ⟨-, hW', -, -⟩ := (hk old n₀ hr hu).stepT (hagw n₀) (hk' old)
           exact Set.disjoint_left.mpr fun x hx hw => (hW' hw).2 hx
-        have hcomm : ∀ n, upd old n → Next E (m'.write d a n, k' old) (m.write d a n, k old) := by
+        have hcomm : ∀ n, Sig.UpdAllows u old n → Next E (m'.write d a n, k' old) (m.write d a n, k old) := by
           intro n hn
           obtain ⟨-, -, hst, -⟩ := (hk old n hr hn).stepT (hagw n) (hk' old)
           rw [Mem.mix_write n hWS, Mem.mix_of_frame (Step.frame (hk' old))] at hst

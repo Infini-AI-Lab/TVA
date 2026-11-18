@@ -32,7 +32,7 @@ AREAS = [
     ("Claim.md", "Claim", "what a claim is and what `claim.Holds` means", ["TVA.Claim"]),
     ("Base.md", "Base", "bytes, integer widths, float formats and rounding, dtypes", ["TVA.Base"]),
     ("Core.md", "Core", "tensors, memory, the platform, the program monad", ["TVA.Tensor", "TVA.Memory", "TVA.Platform", "TVA.Program", "TVA.Core"]),
-    ("Triton.md", "Triton", "the meaning of each `tl.*` operation", ["TVA.Triton"]),
+    ("Triton.md", "Triton", "the meaning of each `tl.*` operation, and Triton's sites", ["TVA.Site", "TVA.Triton"]),
     ("Launch.md", "Launch", "a launch of a grid of programs, its outcomes, `WellBehaved`, `Correct`", ["TVA.Launch"]),
     ("Device.md", "Device", "the device facts `Device P`, the reference platform, tolerance formulas", ["TVA.Device"]),
     ("Proof.Rules.md", "Proof.Rules", "the rule of each `tl.*` operation for `Safe`", ["TVA.Proof.Rules"]),

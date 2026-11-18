@@ -69,9 +69,9 @@ variable {s : Shape} {α : Type}
 relation `op a b c` (`c` is a possible result of `combine_fn(a, b)`). -/
 def associative_scan (x : Tensor s α) (axis : Nat) (op : α → α → α → Prop)
     (reverse : Bool := false) : Prog (Tensor s α) :=
-  .pick (fun r : Tensor s α => ∀ i, ∃ t : Tree,
+  .pick (.other _ (fun r : Tensor s α => ∀ i, ∃ t : Tree,
     ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
-    t.Eval op (fun j => x.get (i.set axis j)) (r.get i)) .ret
+    t.Eval op (fun j => x.get (i.set axis j)) (r.get i))) .ret
 
 section Float
 variable {f : Format}
@@ -113,10 +113,10 @@ def icumprod {sg : Bool} {w : Nat} (x : Tensor s (IntV sg w)) (axis : Nat := 0)
 /-- `tl.sort(x, descending=…)` along the last dimension: each row without NaN comes out as a
 permutation of itself (up to `==`), sorted; a row with a NaN is unconstrained. -/
 def sort [SortKey α] (x : Tensor s α) (descending : Bool := false) : Prog (Tensor s α) :=
-  .pick (fun r : Tensor s α => ∀ i,
+  .pick (.other _ (fun r : Tensor s α => ∀ i,
     (∀ t, t < Shape.dim s (s.length - 1) → SortKey.Ordered (x.get (i.set (s.length - 1) t))) →
       PermAlong (s.length - 1) (Shape.dim s (s.length - 1)) x r i ∧
-      SortedAlong descending (s.length - 1) (Shape.dim s (s.length - 1)) r i) .ret
+      SortedAlong descending (s.length - 1) (Shape.dim s (s.length - 1)) r i)) .ret
 
 end tl
 

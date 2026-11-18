@@ -134,9 +134,8 @@ theorem safe_div {x y : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog �
     (hk : ∀ r : Tensor s (FloatV f), (∀ i, E.P.div f (x.get i) (y.get i) (r.get i)) →
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.div x y >>= k) := by
-  simp only [tl.div, bind_eq, Prog.bind]
-  exact .env (.pick ⟨⟨fun i => Classical.choose (hex i)⟩,
-    fun i => Classical.choose_spec (hex i)⟩ hk)
+  simp only [tl.div, bind_eq, Prog.plat_bind, Prog.bind]
+  exact .plat ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
 /-- `tl.fdiv(x, y, ieee_rounding)`: `safe_div_rn` with `ieee_rounding`, `safe_div` without. -/
 theorem safe_fdiv {x y : Tensor s (FloatV f)} {ieee : Bool} {k : Tensor s (FloatV f) → Prog α}
@@ -157,9 +156,8 @@ theorem safe_math {fn : MathFn} {x : Tensor s (FloatV f)} {k : Tensor s (FloatV 
     (hk : ∀ r : Tensor s (FloatV f), (∀ i, E.P.math fn f (x.get i) (r.get i)) →
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.math fn x >>= k) := by
-  simp only [tl.math, bind_eq, Prog.bind]
-  exact .env (.pick ⟨⟨fun i => Classical.choose (hex i)⟩,
-    fun i => Classical.choose_spec (hex i)⟩ hk)
+  simp only [tl.math, bind_eq, Prog.plat_bind, Prog.bind]
+  exact .plat ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
 /-- `tl.maximum(x, y)` on floats: any result `MaxRel true` allows. -/
 theorem safe_maximum {x y : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog α}

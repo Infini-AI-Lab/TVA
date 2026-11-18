@@ -132,7 +132,7 @@ theorem safe_desc_load (b : Buf d) {bs : Shape} {D : TensorDesc d} {offsets : Li
       Safe E R W Q m (k v)) :
     Safe E R W Q m (tl.desc_load D offsets >>= k) := by
   simp only [tl.desc_load, Prog.bind_eq, Prog.bind, Prog.bind_assoc]
-  refine .pick ⟨(), hacc⟩ fun _ _ => ?_
+  refine .guard hacc fun _ => ?_
   have hpad := D.padding.exists_holds (d := d) hacc.1.2.2.2.2.2.2.2.2.2
   exact safe_load_buf b (D.addrs_buf b hbase _) hin hv hR fun v hv1 _ =>
     safe_pad hpad fun r hr hr' => hk r (fun i hi => (hr i hi).symm ▸ hv1 i hi) hr'
@@ -154,7 +154,7 @@ theorem safe_desc_store (b : Buf d) {bs : Shape} {D : TensorDesc d} {offsets : L
       Safe E R (W \ b.elems (Buf.img (D.lane (bs := bs) offsets) (D.laneIn offsets))) Q m' (k ())) :
     Safe E R W Q m (tl.desc_store D offsets vals >>= k) := by
   simp only [tl.desc_store, Prog.bind_eq, Prog.bind]
-  refine .pick ⟨(), hacc⟩ fun _ _ => ?_
+  refine .guard hacc fun _ => ?_
   exact safe_store_buf b (D.addrs_buf b hbase _) hin hinj hv hW hk
 
 /-- **`desc.atomic_add(offsets, vals)`** and the other reductions, on elements the program owns:
@@ -179,8 +179,9 @@ theorem safe_desc_atomic (b : Buf d) {bs : Shape} {op : RedOp} {D : TensorDesc d
       Safe E R (W \ b.elems (Buf.img (D.lane (bs := bs) offsets) (D.laneIn offsets))) Q m' (k ())) :
     Safe E R W Q m (tl.desc_atomic op D offsets vals >>= k) := by
   simp only [tl.desc_atomic, Prog.bind_eq, Prog.bind, Prog.bind_assoc, Prog.pure_eq]
-  refine .pick ⟨(), hacc, hop⟩ fun _ _ => .env ?_
-  exact safe_atomic_buf b (D.addrs_buf b hbase _) hin hinj (fun i => htot (vals.get i)) hv hW hRd
+  refine .guard ⟨hacc, hop⟩ fun _ => .env ?_
+  exact safe_atomic_buf (u := fun i => .red E op (vals.get i)) b (D.addrs_buf b hbase _) hin hinj
+    (fun i => htot (vals.get i)) hv hW hRd
     hk
 
 /-- **`desc.gather(xs, y)`** from a buffer: in-bounds lanes get their element (the others are
@@ -198,7 +199,7 @@ theorem safe_desc_gather (b : Buf d) {M BN w : Nat} {D : TensorDesc d}
       Safe E R W Q m (k v)) :
     Safe E R W Q m (tl.desc_gather (BN := BN) D xs y >>= k) := by
   simp only [tl.desc_gather, Prog.bind_eq, Prog.bind]
-  refine .pick ⟨(), hacc⟩ fun _ _ => ?_
+  refine .guard hacc fun _ => ?_
   exact safe_load_buf b (D.addrs_buf b hbase _) hin hv hR fun v hv1 _ => hk v hv1
 
 /-- **`desc.scatter(vals, xs, y)`** to a buffer: every lane lies inside the tensor (`hall`), on
@@ -218,7 +219,7 @@ theorem safe_desc_scatter (b : Buf d) {M BN w : Nat} {D : TensorDesc d}
       Safe E R (W \ b.elems (Buf.img (D.rowLane (BN := BN) xs y) (fun _ => true))) Q m' (k ())) :
     Safe E R W Q m (tl.desc_scatter D vals xs y >>= k) := by
   simp only [tl.desc_scatter, Prog.bind_eq, Prog.bind]
-  refine .pick ⟨(), hacc, hall⟩ fun _ _ => ?_
+  refine .guard ⟨hacc, hall⟩ fun _ => ?_
   exact safe_store_buf b (D.addrs_buf_all b hbase _ hall) (fun l _ => hin l)
     (fun l l' _ _ h => hinj l l' h) hv hW fun m' h1 h2 h3 => hk m' (fun l => h1 l rfl) h2 h3
 

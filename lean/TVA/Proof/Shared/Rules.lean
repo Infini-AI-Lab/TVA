@@ -10,7 +10,7 @@ The `SafeA` rules for a `tl.atomic_*` whose elements are shared cells, its resul
   histograms);
 * `SafeA.atomic_add_unused`: the same written `tl.atomic_add_unused` (a source `sem` other than
   `acq_rel`, whose result is unused);
-* `SafeA.atomic`: any `tl.atomicWith ptrs upd mask`, which every other `tl.atomic_*` is
+* `SafeA.atomic`: any `tl.atomicWith ptrs u mask`, which every other `tl.atomic_*` is
   (`atomic_max`, `atomic_min`, `atomic_xchg`, …);
 * `SafeA.atomic1`: a scalar pointer without a mask.
 
@@ -34,14 +34,14 @@ variable {E : Env} {R : Set Int} {C : Set (DType × Int)}
 continuation that ignores their old values. -/
 private theorem rmwSeq_shared {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {m : Mem} {s : Shape} {d : DType} {ptrs : Tensor s (Ptr d)}
-    {upd : Idx s → d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} {K : Prog α}
-    (hsem : sem = .acqRel) (hsc : sc ≠ .cta) (htot : ∀ i old, ∃ new, upd i old new) :
+    {u : Idx s → Upd d} {sem : MemSem} {sc : Scope} {K : Prog α}
+    (hsem : sem = .acqRel) (hsc : sc ≠ .cta) (htot : ∀ i old, ∃ new, (u i).Allows old new) :
     ∀ (order : List (Idx s)), order.Nodup →
       (∀ i ∈ order, Mem.Aligned d (ptrs.get i).addr ∧ (d, (ptrs.get i).addr) ∈ C) →
       ∀ (acc : Idx s → d.Val) (log : List AtomicStep),
-      (∀ olds news : Idx s → d.Val, (∀ i ∈ order, upd i (olds i) (news i)) →
+      (∀ olds news : Idx s → d.Val, (∀ i ∈ order, (u i).Allows (olds i) (news i)) →
         SafeA E R W C Q (log ++ order.map fun i => ⟨d, (ptrs.get i).addr, olds i, news i⟩) m K) →
-      SafeA E R W C Q log m ((tl.rmwSeq ptrs upd sem sc order acc).bind fun _ => K)
+      SafeA E R W C Q log m ((tl.rmwSeq ptrs u sem sc order acc).bind fun _ => K)
   | [], _, _, acc, log, hk => by
     have := hk acc acc (by simp)
     simpa [tl.rmwSeq] using this
@@ -50,14 +50,15 @@ private theorem rmwSeq_shared {W : Set Int} {α : Type} {Q : α → List AtomicS
     obtain ⟨hal, hC⟩ := hcell i List.mem_cons_self
     simp only [tl.rmwSeq, Prog.bind]
     refine .shared hal hC hsem hsc (htot i)
-      (fun v w => tl.rmwSeq_bind_const ptrs upd sem sc K rest _ _) fun old new hon => ?_
+      (fun v w => congrArg Prog.erase (tl.rmwSeq_bind_const ptrs u sem sc K rest _ _))
+      fun old new hon => ?_
     refine rmwSeq_shared hsem hsc htot rest (List.nodup_cons.mp hnd).2
       (fun j hj => hcell j (List.mem_cons_of_mem _ hj)) (Function.update acc i old) _
       fun olds news hup => ?_
     have hk' := hk (Function.update olds i old) (Function.update news i new) (by
       intro j hj
       rcases List.mem_cons.mp hj with rfl | hj
-      · simpa using hon
+      · simp only [Function.update_self]; exact hon
       · have hne : j ≠ i := fun h => hi (h ▸ hj)
         simpa [Function.update_of_ne hne] using hup j hj)
     have hmap : (rest.map fun j => (⟨d, (ptrs.get j).addr, Function.update olds i old j,
@@ -70,21 +71,21 @@ private theorem rmwSeq_shared {W : Set Int} {α : Type} {Q : α → List AtomicS
     simpa [List.append_assoc] using hk'
 
 /-- **A tensor atomic on shared cells, result unused** (`let _ ← tl.atomic_…(ptrs, v, mask)`, as
-`tl.atomicWith ptrs upd mask`): every enabled lane's element is an aligned cell of `C`, the order
+`tl.atomicWith ptrs u mask`): every enabled lane's element is an aligned cell of `C`, the order
 is `acq_rel` at `gpu` or `sys` scope, and the update has a new value for every old value. For
 every order of the enabled lanes and all old and new values the update allows, the log grows by
 one step per enabled lane, in that order. For `tl.atomic_add`, use `SafeA.atomic_add`. -/
 theorem atomic {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {log : List AtomicStep} {m : Mem} {s : Shape} {d : DType} {ptrs : Tensor s (Ptr d)}
-    {upd : Idx s → d.Val → d.Val → Prop} {mask : Option (Tensor s Bool)} {sem : MemSem}
+    {u : Idx s → Upd d} {mask : Option (Tensor s Bool)} {sem : MemSem}
     {sc : Scope} {k : Prog α}
     (hcell : ∀ i, (tl.addrs ptrs mask i).isSome = true →
       Mem.Aligned d (ptrs.get i).addr ∧ (d, (ptrs.get i).addr) ∈ C)
-    (hsem : sem = .acqRel) (hsc : sc ≠ .cta) (htot : ∀ i old, ∃ new, upd i old new)
+    (hsem : sem = .acqRel) (hsc : sc ≠ .cta) (htot : ∀ i old, ∃ new, (u i).Allows old new)
     (hk : ∀ order : List (Idx s), order.Perm (enabled (tl.addrs ptrs mask)) →
-      ∀ olds news : Idx s → d.Val, (∀ i ∈ order, upd i (olds i) (news i)) →
+      ∀ olds news : Idx s → d.Val, (∀ i ∈ order, (u i).Allows (olds i) (news i)) →
       SafeA E R W C Q (log ++ order.map fun i => ⟨d, (ptrs.get i).addr, olds i, news i⟩) m k) :
-    SafeA E R W C Q log m (tl.atomicWith ptrs upd mask sem sc >>= fun _ => k) := by
+    SafeA E R W C Q log m (tl.atomicWith ptrs u mask sem sc >>= fun _ => k) := by
   simp only [tl.atomicWith, Prog.bind_eq, Prog.bind, Prog.bind_assoc, Prog.pure_eq]
   refine .pick ⟨fun _ => default, trivial⟩ fun junk _ => ?_
   refine .pick ⟨_, List.Perm.refl _⟩ fun order horder => ?_
@@ -96,12 +97,12 @@ theorem atomic {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem →
 pointer and no mask, as `tl.atomicWith`): one logged step. -/
 theorem atomic1 {W : Set Int} {α : Type} {Q : α → List AtomicStep → Mem → Prop}
     {log : List AtomicStep} {m : Mem} {d : DType} {ptrs : Tensor [] (Ptr d)}
-    {upd : Idx [] → d.Val → d.Val → Prop} {sem : MemSem} {sc : Scope} {k : Prog α}
+    {u : Idx [] → Upd d} {sem : MemSem} {sc : Scope} {k : Prog α}
     (hal : Mem.Aligned d (ptrs.get ()).addr) (hC : (d, (ptrs.get ()).addr) ∈ C)
-    (hsem : sem = .acqRel) (hsc : sc ≠ .cta) (htot : ∀ old, ∃ new, upd () old new)
-    (hk : ∀ old new, upd () old new →
+    (hsem : sem = .acqRel) (hsc : sc ≠ .cta) (htot : ∀ old, ∃ new, (u ()).Allows old new)
+    (hk : ∀ old new, (u ()).Allows old new →
       SafeA E R W C Q (log ++ [⟨d, (ptrs.get ()).addr, old, new⟩]) m k) :
-    SafeA E R W C Q log m (tl.atomicWith ptrs upd none sem sc >>= fun _ => k) := by
+    SafeA E R W C Q log m (tl.atomicWith ptrs u none sem sc >>= fun _ => k) := by
   have hen : enabled (tl.addrs ptrs none) = [(() : Idx [])] := by
     simp [enabled, Idx.all, tl.addrs]; rfl
   refine atomic (fun i _ => ⟨hal, hC⟩) hsem hsc (fun i => htot) fun order horder olds news hup => ?_

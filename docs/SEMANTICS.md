@@ -56,11 +56,14 @@ The conventions, stated in `TVA.Triton.Core`'s module docstring:
   (`tl.py.floordiv`, `tl.py.mod`, `tl.py.cdiv` for Python's floor division). A shape is a
   `List Nat`. A compile-time `if` is a Lean `if` on the parameter.
 - **What the device chooses is a `pick`.** When Triton leaves a result open (a masked-out lane
-  without `other`, an approximate `tl.exp`, a `tl.dot`, the tree of a float reduction, the order
-  of an atomic's lanes), the operation is `Prog.pick P k`: the program continues with *some* value
-  satisfying `P`, and a proof must hold for each. When nothing satisfies `P`, the `pick` is
-  undefined behaviour; that is how a model states a precondition (`tl.assume`, a division by
-  zero).
+  without `other`, the tree of a float reduction, the order of an atomic's lanes), the operation
+  is `Prog.pick s k` at a site `s` of Triton's catalog (`TVA.Site`): the program continues with
+  *some* value the site allows, and a proof must hold for each. When the site allows nothing,
+  the `pick` is undefined behaviour; that is how a model states a precondition (`tl.assume`, a
+  division by zero). An operation the platform defines (an approximate `tl.exp`, `/`, a `tl.dot`,
+  a conversion into fp8) is `Prog.plat q k`, an `env` then a `pick` of the platform's relation
+  `PlatQ.Rel`. The semantics itself is written for any signature `Sig` and never looks inside a
+  site.
 - **NaN payloads are unspecified.** Every exact float operation returns its IEEE result up to NaN
   payload (`tl.upToNaN`, `FloatV.NaNEq`), so a specification compares floats up to NaN payload.
 
@@ -496,7 +499,7 @@ assigns) are its state, a tuple; after the loop they hold what the last iteratio
 
 ## Undefined behaviour
 
-A program reaches undefined behaviour (`Prog.ub`, or a `pick` that nothing satisfies) when:
+A program reaches undefined behaviour (`Prog.ub`, or a `pick` whose site allows nothing) when:
 
 - an enabled lane of a load, a store or an atomic accesses a misaligned address, an address
   outside `[0, 2^64)`, or a byte the launch was not given;
@@ -518,7 +521,7 @@ no launch that reaches it: a proof shows it is unreachable.
 ## Launches
 
 `TVA.Launch` explains this in its module docstring; the files are `Launch/Step`, `Launch/Run`,
-`Launch/WellBehaved` and `Launch/Progress`.
+`Launch/WellBehaved`, `Launch/Progress` and `Launch/Erase`.
 
 **A launch** (`Launch`) is the grid `(x, y, z)`, the options that change the meaning
 (`fusion` for `enable_fp_fusion`, and `debug`, `numCtas`, `pdl` for `launch_pdl`) and the
@@ -585,8 +588,11 @@ Some operations have no exact meaning: the compiler lowers them to instructions 
 documented only up to an accuracy. TVA leaves each to a platform `P` (`TVA.Platform`), a relation
 per operation: `Platform.math` (`tl.exp`, …), `Platform.div` (the default `/`), `Platform.dot`,
 `Platform.cvt` (into fp8), `Platform.atomicAdd` (float), `Platform.dotScaled`, and
-`Platform.sumDepth` (how deep a float reduction's tree may be). A program reads the platform
-through `Env`, with the launch's fusion flag. A relation rather than a function lets two
+`Platform.sumDepth` (how deep a float reduction's tree may be). A program reads the platform through
+`Env`, with the launch's fusion flag. `Prog.plat q k` (`PlatQ`: `math`, `div`, `cvt`, `dot`,
+`dotScaled`) is such a read followed by a `pick` of the results the relation allows; float
+atomics, `sumDepth`, and the operations that may be either a platform result or a fused addition
+(`tl.dot_add`, `tl.convert`) read `Env` directly. A relation rather than a function lets two
 occurrences of one operation on the same operands give different results, as the device may.
 
 Every claim quantifies over every `P` with `Device P` (`TVA.Device`): the conjunction of all the
