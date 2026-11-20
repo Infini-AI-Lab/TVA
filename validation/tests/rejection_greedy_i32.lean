@@ -153,8 +153,7 @@ example : mixed.inst.ok := mk_ok _ _ _ _ (by decide) (by decide) (by decide) (by
 example : maskedAllOn.inst.ok := mk_ok _ _ _ _ (by decide) (by decide) (by decide) (by decide)
 def Case.preOk (c : Case) : Bool :=
   let d := c.inst
-  -- `Buf.Valid`'s alignment: `mk` places `target` at `4 * (B * (S + 2) + N)` bytes (plus
-  -- multiples of `8`) past an aligned address, so it is `8`-aligned only when that count is even
+  -- `Buf.Valid`'s alignment (`mk` reserves 8 bytes per element, so every base is a multiple of 8)
   (d.out.base % 4 == 0 && d.cu.base % 4 == 0 && d.draft.base % 4 == 0 && d.target.base % 8 == 0 &&
     d.bonus.base % 4 == 0) &&
   c.cu.getLast? == some c.N && c.N ≤ 2 ^ 22 && c.reqs.all (·.length ≤ c.S) &&

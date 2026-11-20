@@ -311,12 +311,13 @@ theorem bytes_disjoint_of_ge {d d' : DType} {b : Buf d} {c : Buf d'}
 
 /-- An instance of `B` requests, `max_spec_len = S` and `N` packed drafts, with the buffers laid
 out one after another from `2^30` with `2^20`-byte gaps (the output first); with `masked`, an
-`is_greedy` mask of `B` bytes after the bonus tokens, else `is_greedy = None`. -/
+`is_greedy` mask of `B` bytes after the bonus tokens, else `is_greedy = None`. The buffers up to
+`target` take 8 bytes per element, so every base is a multiple of 8 (`target` holds `int64`). -/
 def mk (B S N : Nat) (masked : Bool := false) : Inst :=
   let o : Int := 2 ^ 30
-  let c : Int := o + B * (S + 1) * 4 + 2 ^ 20
-  let dr : Int := c + B * 4 + 2 ^ 20
-  let t : Int := dr + N * 4 + 2 ^ 20
+  let c : Int := o + B * (S + 1) * 8 + 2 ^ 20
+  let dr : Int := c + B * 8 + 2 ^ 20
+  let t : Int := dr + N * 8 + 2 ^ 20
   let bo : Int := t + N * 8 + 2 ^ 20
   let g : Int := bo + B * 4 + 2 ^ 20
   { B := B, S := S, out := ⟨o, B * (S + 1)⟩, cu := ⟨c, B⟩, draft := ⟨dr, N⟩,

@@ -288,13 +288,14 @@ theorem bytes_disjoint_of_le {d d' : DType} {b : Buf d} {c : Buf d'}
 
 /-- An instance with the host's layout: `slots × ctx` table, `bs` requests with index dtypes `dp`,
 `dl`, `kv_start_idx` of dtype `ds` when `hs`, an output of `total` elements; the storages one after
-another from `2^30` with `2^20`-byte gaps, the output last. -/
+another from `2^30` with `2^20`-byte gaps, the output last. Each storage takes 8 bytes per element,
+so every base is a multiple of 8 (the index buffers may hold `int64`). -/
 def mk (slots ctx bs : Nat) (dp dl ds : DType) (hs : Bool) (total : Nat) : Inst :=
   let t0 : Int := 2 ^ 30
-  let p0 : Int := t0 + slots * ctx * 4 + 2 ^ 20
+  let p0 : Int := t0 + slots * ctx * 8 + 2 ^ 20
   let l0 : Int := p0 + bs * 8 + 2 ^ 20
   let i0 : Int := l0 + bs * 8 + 2 ^ 20
-  let s0 : Int := i0 + (bs + 1) * 4 + 2 ^ 20
+  let s0 : Int := i0 + (bs + 1) * 8 + 2 ^ 20
   let o0 : Int := s0 + bs * 8 + 2 ^ 20
   { max_context_len := ctx, bs := bs, dP := dp, dL := dl, hasStart := hs, dS := ds,
     req_to_token := ⟨t0, slots * ctx⟩, req_pool_indices := ⟨p0, bs⟩, seq_lens := ⟨l0, bs⟩,
