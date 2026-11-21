@@ -122,7 +122,8 @@ def run_ops(cases, device, out):
             print(f"  {c['status']}: {c['id']}: {c['result'].get('what', '')}")
         elif c.get("status") == "device_error":
             last = [l for l in c.get("what", "").splitlines() if l.strip()][-1:] or [""]
-            who = "Triton rejects, the model accepts" if c.get("model_runs") else "both reject"
+            who = {"done": "Triton rejects, the model accepts", "ub": "both reject"}.get(
+                c.get("model"), f"the model's outcome: {c.get('model', '?')}")
             print(f"  device_error ({who}): {c['id']}: {last[0].strip()[:200]}")
     missed = [m for m in res["mutants"] if not m["caught"]]
     print(f"mutants: {len(res['mutants']) - len(missed)} of {len(res['mutants'])} caught" +

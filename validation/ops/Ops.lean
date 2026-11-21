@@ -28,8 +28,8 @@ with what `exec` makes of the model's definition on the same inputs.
   `certified`, `conditional`, `discrepancy` (a candidate finding, with up to 8 example lanes),
   `inconclusive` or `unsupported`; or, for a case the harness could not run, `bad_case`,
   `no_device`, `unknown_op`, or `device_error` (`device.py` raised, usually because Triton
-  rejects the kernel; `model_runs` says whether the model gives the case a result, in which case
-  the model accepts what Triton rejects). `summary` counts them.
+  rejects the kernel; `model` is the model's own outcome on the case, `modelOutcome`: `done`
+  means the model accepts what Triton rejects). `summary` counts them.
 * **Mutants** (`mutants`): wrong copies of a definition, run on the same cases. A mutant is
   caught when its verdict is a discrepancy; one that agrees with the device everywhere is a gap
   in the inputs. With `--self`, the original model's own outputs stand in for the device (no
@@ -434,6 +434,38 @@ def selfOut (o : Op) (c : Case) : Option (Array Nat) :=
       | none => 0
   | _ => none
 
+/-- The model's outcome on a case, without a device: `done` (it gives a result), `ub` (undefined
+behaviour: the model rejects the case too), `inconclusive` (the run stopped without either, for
+example a platform value no oracle supplied), or `bad_case`. From the run itself, not `selfOut`,
+which stands in zeros for undefined lanes. -/
+def modelOutcome (o : Op) (c : Case) : String :=
+  match o.prog c.dts c.dims c.ins with
+  | none => "bad_case"
+  | some p => match (runProg (oracle #[] (fun _ => none) ((candidates c.lanes).head?)) p).1 with
+    | .done _ _ => "done"
+    | .ub _ => "ub"
+    | .stuck _ _ | .outOfFuel => "inconclusive"
+
+/-- `modelOutcome` of `op` on two lanes of `dt` with inputs `x` (one operand per element). -/
+def outcomeOf (op : String) (dt : DType) (x : List Nat) : String :=
+  match ops.lookup op with
+  | none => "unknown_op"
+  | some o => modelOutcome o ⟨"t", op, [dt], [2], x.map fun v => #[v, v]⟩
+
+-- `tl.div_rn` and `tl.sqrt_rn` are undefined off `float32` (as Triton rejects them), defined on
+-- it; `+` is defined on `float16`; `tl.exp` is `done` on an assumed platform value.
+#guard outcomeOf "div_rn" .f16 [0x3c00, 0x3c00] == "ub"
+#guard outcomeOf "div_rn" .bf16 [0x3f80, 0x3f80] == "ub"
+#guard outcomeOf "sqrt_rn" .f16 [0x3c00] == "ub"
+#guard outcomeOf "sqrt_rn" .bf16 [0x3f80] == "ub"
+#guard outcomeOf "div_rn" .f32 [0x3f800000, 0x3f800000] == "done"
+#guard outcomeOf "sqrt_rn" .f32 [0x3f800000] == "done"
+#guard outcomeOf "add" .f16 [0x3c00, 0x3c00] == "done"
+#guard outcomeOf "exp" .f32 [0x3f800000] == "done"
+-- `selfOut` is no measure of acceptance: it fills the undefined lanes with zeros.
+#guard ((ops.lookup "div_rn").bind fun o =>
+  selfOut o ⟨"t", "div_rn", [.f16], [2], [#[0x3c00, 0x3c00], #[0x3c00, 0x3c00]]⟩).isSome
+
 def parseCase (j : Json) : Except String Case := do
   let id ← j.getObjValAs? String "id"
   let op ← j.getObjValAs? String "op"
@@ -465,7 +497,7 @@ def main (args : List String) : IO UInt32 := do
       | none => harness c "unknown_op"
       | some o => match device o c with
         | none => match devError c with
-          | some e => harness c "device_error" e [("model_runs", toJson (selfOut o c).isSome)]
+          | some e => harness c "device_error" e [("model", toJson (modelOutcome o c))]
           | none => harness c "no_device"
         | some dev => runCase o c dev
     let st := (r.getObjValAs? String "status").toOption.getD "?"
