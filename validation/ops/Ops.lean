@@ -27,7 +27,9 @@ with what `exec` makes of the model's definition on the same inputs.
 * **Verdicts** (`Verdict`, `validation/Verdict.lean`): each case's `status` is its verdict,
   `certified`, `conditional`, `discrepancy` (a candidate finding, with up to 8 example lanes),
   `inconclusive` or `unsupported`; or, for a case the harness could not run, `bad_case`,
-  `no_device`, `unknown_op`. `summary` counts them.
+  `no_device`, `unknown_op`, or `device_error` (`device.py` raised, usually because Triton
+  rejects the kernel; `model_runs` says whether the model gives the case a result, in which case
+  the model accepts what Triton rejects). `summary` counts them.
 * **Mutants** (`mutants`): wrong copies of a definition, run on the same cases. A mutant is
   caught when its verdict is a discrepancy; one that agrees with the device everywhere is a gap
   in the inputs. With `--self`, the original model's own outputs stand in for the device (no
@@ -342,9 +344,12 @@ def report (c : Case) (v : Verdict) (fields : List (String × Json)) : Json :=
   Json.mkObj ([("id", toJson c.id), ("op", toJson c.op), ("status", toJson v.name),
     ("result", toJson v)] ++ fields)
 
-/-- A case the harness could not run (not a verdict): `bad_case`, `no_device`, `unknown_op`. -/
-def harness (c : Case) (status : String) : Json :=
-  Json.mkObj [("id", toJson c.id), ("op", toJson c.op), ("status", toJson status)]
+/-- A case the harness could not run (not a verdict): `bad_case`, `no_device`, `unknown_op`,
+`device_error` (with the error in `what`, and other `fields`). -/
+def harness (c : Case) (status : String) (what : Option String := none)
+    (fields : List (String × Json) := []) : Json :=
+  Json.mkObj ([("id", toJson c.id), ("op", toJson c.op), ("status", toJson status)] ++
+    ((what.map fun w => [("what", toJson w)]).getD []) ++ fields)
 
 /-- The verdict of a case against `dev`, as JSON (`Verdict`, `validation/Verdict.lean`):
 
@@ -450,6 +455,8 @@ def main (args : List String) : IO UInt32 := do
   let devJ ← if self then pure Json.null else IO.ofExcept (Json.parse (← IO.FS.readFile devF))
   let device (o : Op) (c : Case) : Option (Array Nat) :=
     if self then selfOut o c else (devJ.getObjValAs? (Array Nat) c.id).toOption
+  let devError (c : Case) : Option String :=
+    if self then none else (devJ.getObjValAs? String (c.id ++ ".error")).toOption
   let mut results : Array Json := #[]
   let mut muts : Array Json := #[]
   let mut counts : Std.HashMap String Nat := {}
@@ -457,7 +464,9 @@ def main (args : List String) : IO UInt32 := do
     let r := match ops.lookup c.op with
       | none => harness c "unknown_op"
       | some o => match device o c with
-        | none => harness c "no_device"
+        | none => match devError c with
+          | some e => harness c "device_error" e [("model_runs", toJson (selfOut o c).isSome)]
+          | none => harness c "no_device"
         | some dev => runCase o c dev
     let st := (r.getObjValAs? String "status").toOption.getD "?"
     IO.println s!"{c.id}: {st}"

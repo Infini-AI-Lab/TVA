@@ -315,32 +315,34 @@ theorem · [lean/TVA/Proof/Rules/Arith.lean:80](../../lean/TVA/Proof/Rules/Arith
 ```lean
 TVA.safe_div_rn {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
   {f : TVA.Format} {x y : TVA.Tensor s (TVA.FloatV f)} {k : TVA.Tensor s (TVA.FloatV f) → TVA.Prog α}
+  (hf : f = TVA.Format.binary32)
   (hk :
     ∀ (r : TVA.Tensor s (TVA.FloatV f)),
       (∀ (i : TVA.Idx s), ((x.get i).divRn (y.get i)).NaNEq (r.get i)) → TVA.Safe E R W Q m (k r)) :
   TVA.Safe E R W Q m (TVA.tl.div_rn x y >>= k)
 ```
 
-`tl.div_rn(x, y)`: the IEEE quotient, up to NaN payload.
+`tl.div_rn(x, y)` on `float32`: the IEEE quotient, up to NaN payload.
 
 ### `TVA.safe_sqrt_rn`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:86](../../lean/TVA/Proof/Rules/Arith.lean#L86)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:89](../../lean/TVA/Proof/Rules/Arith.lean#L89)
 
 ```lean
 TVA.safe_sqrt_rn {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
   {f : TVA.Format} {x : TVA.Tensor s (TVA.FloatV f)} {k : TVA.Tensor s (TVA.FloatV f) → TVA.Prog α}
+  (hf : f = TVA.Format.binary32)
   (hk :
     ∀ (r : TVA.Tensor s (TVA.FloatV f)),
       (∀ (i : TVA.Idx s), (x.get i).sqrtRn.NaNEq (r.get i)) → TVA.Safe E R W Q m (k r)) :
   TVA.Safe E R W Q m (TVA.tl.sqrt_rn x >>= k)
 ```
 
-`tl.sqrt_rn(x)`: the IEEE square root, up to NaN payload.
+`tl.sqrt_rn(x)` on `float32`: the IEEE square root, up to NaN payload.
 
 ### `TVA.safe_neg`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:92](../../lean/TVA/Proof/Rules/Arith.lean#L92)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:98](../../lean/TVA/Proof/Rules/Arith.lean#L98)
 
 ```lean
 TVA.safe_neg {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -355,7 +357,7 @@ TVA.safe_neg {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → P
 
 ### `TVA.safe_abs`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:98](../../lean/TVA/Proof/Rules/Arith.lean#L98)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:104](../../lean/TVA/Proof/Rules/Arith.lean#L104)
 
 ```lean
 TVA.safe_abs {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -370,7 +372,7 @@ TVA.safe_abs {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → P
 
 ### `TVA.safe_mul_add`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:104](../../lean/TVA/Proof/Rules/Arith.lean#L104)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:110](../../lean/TVA/Proof/Rules/Arith.lean#L110)
 
 ```lean
 TVA.safe_mul_add {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -388,7 +390,7 @@ TVA.safe_mul_add {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem �
 
 ### `TVA.safe_addc`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:115](../../lean/TVA/Proof/Rules/Arith.lean#L115)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:121](../../lean/TVA/Proof/Rules/Arith.lean#L121)
 
 ```lean
 TVA.safe_addc {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -403,7 +405,7 @@ TVA.safe_addc {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_subc`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:123](../../lean/TVA/Proof/Rules/Arith.lean#L123)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:129](../../lean/TVA/Proof/Rules/Arith.lean#L129)
 
 ```lean
 TVA.safe_subc {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -418,7 +420,7 @@ TVA.safe_subc {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_div`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:130](../../lean/TVA/Proof/Rules/Arith.lean#L130)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:136](../../lean/TVA/Proof/Rules/Arith.lean#L136)
 
 ```lean
 TVA.safe_div {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -435,11 +437,12 @@ the rest must be safe for every quotient the platform allows.
 
 ### `TVA.safe_fdiv`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:140](../../lean/TVA/Proof/Rules/Arith.lean#L140)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:146](../../lean/TVA/Proof/Rules/Arith.lean#L146)
 
 ```lean
 TVA.safe_fdiv {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
   {f : TVA.Format} {x y : TVA.Tensor s (TVA.FloatV f)} {ieee : Bool} {k : TVA.Tensor s (TVA.FloatV f) → TVA.Prog α}
+  (hf : ieee = true → f = TVA.Format.binary32)
   (hex : ieee = false → ∀ (i : TVA.Idx s), ∃ r, E.P.div f (x.get i) (y.get i) r)
   (hk :
     ∀ (r : TVA.Tensor s (TVA.FloatV f)),
@@ -454,7 +457,7 @@ TVA.safe_fdiv {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_math`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:151](../../lean/TVA/Proof/Rules/Arith.lean#L151)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:158](../../lean/TVA/Proof/Rules/Arith.lean#L158)
 
 ```lean
 TVA.safe_math {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -472,7 +475,7 @@ result the platform allows.
 
 ### `TVA.safe_maximum`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:162](../../lean/TVA/Proof/Rules/Arith.lean#L162)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:169](../../lean/TVA/Proof/Rules/Arith.lean#L169)
 
 ```lean
 TVA.safe_maximum {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -487,7 +490,7 @@ TVA.safe_maximum {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem �
 
 ### `TVA.safe_minimum`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:170](../../lean/TVA/Proof/Rules/Arith.lean#L170)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:177](../../lean/TVA/Proof/Rules/Arith.lean#L177)
 
 ```lean
 TVA.safe_minimum {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape}
@@ -502,7 +505,7 @@ TVA.safe_minimum {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem �
 
 ### `TVA.safe_idiv`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:185](../../lean/TVA/Proof/Rules/Arith.lean#L185)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:192](../../lean/TVA/Proof/Rules/Arith.lean#L192)
 
 ```lean
 TVA.safe_idiv {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -518,7 +521,7 @@ TVA.safe_idiv {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_irem`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:194](../../lean/TVA/Proof/Rules/Arith.lean#L194)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:201](../../lean/TVA/Proof/Rules/Arith.lean#L201)
 
 ```lean
 TVA.safe_irem {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -534,7 +537,7 @@ TVA.safe_irem {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_shl`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:203](../../lean/TVA/Proof/Rules/Arith.lean#L203)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:210](../../lean/TVA/Proof/Rules/Arith.lean#L210)
 
 ```lean
 TVA.safe_shl {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -550,7 +553,7 @@ TVA.safe_shl {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → P
 
 ### `TVA.safe_ashr`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:213](../../lean/TVA/Proof/Rules/Arith.lean#L213)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:220](../../lean/TVA/Proof/Rules/Arith.lean#L220)
 
 ```lean
 TVA.safe_ashr {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -566,7 +569,7 @@ TVA.safe_ashr {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_lshr`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:223](../../lean/TVA/Proof/Rules/Arith.lean#L223)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:230](../../lean/TVA/Proof/Rules/Arith.lean#L230)
 
 ```lean
 TVA.safe_lshr {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {s : TVA.Shape} {sg : Bool}
@@ -582,7 +585,7 @@ TVA.safe_lshr {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → 
 
 ### `TVA.safe_idiv1`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:235](../../lean/TVA/Proof/Rules/Arith.lean#L235)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:242](../../lean/TVA/Proof/Rules/Arith.lean#L242)
 
 ```lean
 TVA.safe_idiv1 {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {w : ℕ}
@@ -595,7 +598,7 @@ TVA.safe_idiv1 {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem →
 
 ### `TVA.safe_irem1`
 
-theorem · [lean/TVA/Proof/Rules/Arith.lean:249](../../lean/TVA/Proof/Rules/Arith.lean#L249)
+theorem · [lean/TVA/Proof/Rules/Arith.lean:256](../../lean/TVA/Proof/Rules/Arith.lean#L256)
 
 ```lean
 TVA.safe_irem1 {E : TVA.Env} {R W : Set ℤ} {α : Type} {Q : α → TVA.Mem → Prop} {m : TVA.Mem} {w : ℕ}
