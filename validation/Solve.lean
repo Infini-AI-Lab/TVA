@@ -133,12 +133,33 @@ theorem ok_spec : {a : Ans P plat} → a.isOk = true → (h : a.val?.isSome = tr
 theorem plat_of : {a : Ans P plat} → a.val?.isSome = true → a.isOk = false → plat
   | .assumed _ hp, _, _ => hp
 
+/-- The values of `f` at `elems`, computed once (`memo`, read with `Memo.get`). Data rather
+than a function: a function `memo` would be compiled with the lookup's argument added to its
+own, and would rebuild the array at every read. -/
+structure Memo {ι : Type} (β : ι → Type) where
+  vals : Array ((i : ι) × β i)
+
+/-- `f` at each of `elems`, computed now. -/
+def memo {ι : Type} {β : ι → Type} (elems : List ι) (f : (i : ι) → β i) : Memo β :=
+  ⟨(elems.map fun i => ⟨i, f i⟩).toArray⟩
+
+/-- `f i`, from the memo when its place `pos i` holds `i`; computed again otherwise. -/
+def Memo.get {ι : Type} [DecidableEq ι] {β : ι → Type} (m : Memo β) (pos : ι → Nat)
+    (f : (i : ι) → β i) (i : ι) : β i :=
+  match m.vals[pos i]? with
+  | some ⟨j, b⟩ => if h : j = i then h ▸ b else f i
+  | Option.none => f i
+
 /-- **Lane by lane**: a function whose value at `i` satisfies `R i`, from an answer at each `i`.
 Empty when some lane is empty (no lane value, so no function); `ok` when every lane is; assumed
 when every lane has a value and some are assumed; otherwise the gap of the first lane of `elems`
-(the indices in order, used only to report) without an answer. -/
-def pi {ι α : Type} [Fintype ι] {R : ι → α → Prop} (elems : List ι)
-    (f : (i : ι) → Ans (R i) plat) : Ans (fun g : ι → α => ∀ i, R i (g i)) plat :=
+without an answer. `elems` lists the indices in order and `pos` gives each one's place in it:
+each answer is computed once (`memo`). -/
+def pi {ι α : Type} [Fintype ι] [DecidableEq ι] {R : ι → α → Prop} (elems : List ι)
+    (pos : ι → Nat) (f₀ : (i : ι) → Ans (R i) plat) :
+    Ans (fun g : ι → α => ∀ i, R i (g i)) plat :=
+  let m := memo elems f₀
+  let f := m.get pos f₀
   if hex : ∃ i, (f i).isEmpty = true then
     .empty fun g hg => by
       obtain ⟨i, hi⟩ := hex

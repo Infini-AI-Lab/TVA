@@ -102,9 +102,10 @@ quotient is a product for a following addition. -/
 def div (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
   .plat (.div f x y) .ret
 
-/-- `tl.div_rn(x, y)`: the IEEE quotient (`div.rn`), not a product. -/
+/-- `tl.div_rn(x, y)`: the IEEE quotient (`div.rn`), not a product. Triton accepts `float32`
+operands only (`math.py`, `_check_dtype(dtypes=["fp32"])`); undefined behaviour otherwise. -/
 def div_rn (x y : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
-  upToNaN (Tensor.map2 FloatV.divRn x y)
+  .pick (.guard (f = .binary32)) fun _ => upToNaN (Tensor.map2 FloatV.divRn x y)
 
 /-- `tl.fdiv(x, y, ieee_rounding)`: `tl.div` by default, `tl.div_rn` with `ieee_rounding=True`
 (both compile to `tt.precise_divf`, `div.rn.f32`, which accepts `float32` operands only;
@@ -113,8 +114,9 @@ def fdiv (x y : Tensor s (FloatV f)) (ieee_rounding : Bool := false) :
     Prog (Tensor s (FloatV f)) :=
   if ieee_rounding then div_rn x y else div x y
 
-/-- `tl.sqrt_rn(x)`: the IEEE square root. -/
-def sqrt_rn (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) := upToNaN (x.map FloatV.sqrtRn)
+/-- `tl.sqrt_rn(x)`: the IEEE square root. `float32` only, as `tl.div_rn`. -/
+def sqrt_rn (x : Tensor s (FloatV f)) : Prog (Tensor s (FloatV f)) :=
+  .pick (.guard (f = .binary32)) fun _ => upToNaN (x.map FloatV.sqrtRn)
 
 /-- An approximate elementwise function, as the platform computes it (`Platform.math`). Triton
 accepts these on `float32` and `float64` only (`math.py:94-98`); a model converts first. -/

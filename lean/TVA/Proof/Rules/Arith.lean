@@ -77,17 +77,23 @@ theorem safe_fma {x y z : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.fma x y z >>= k) := safe_upToNaN hk
 
-/-- `tl.div_rn(x, y)`: the IEEE quotient, up to NaN payload. -/
+/-- `tl.div_rn(x, y)` on `float32`: the IEEE quotient, up to NaN payload. -/
 theorem safe_div_rn {x y : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog α}
+    (hf : f = .binary32)
     (hk : ∀ r : Tensor s (FloatV f),
       (∀ i, FloatV.NaNEq (FloatV.divRn (x.get i) (y.get i)) (r.get i)) → Safe E R W Q m (k r)) :
-    Safe E R W Q m (tl.div_rn x y >>= k) := safe_upToNaN hk
+    Safe E R W Q m (tl.div_rn x y >>= k) := by
+  simp only [tl.div_rn, tl.upToNaN, bind_eq, Prog.bind]
+  exact .guard hf fun _ => .pick ⟨_, fun _ => Or.inl rfl⟩ hk
 
-/-- `tl.sqrt_rn(x)`: the IEEE square root, up to NaN payload. -/
+/-- `tl.sqrt_rn(x)` on `float32`: the IEEE square root, up to NaN payload. -/
 theorem safe_sqrt_rn {x : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog α}
+    (hf : f = .binary32)
     (hk : ∀ r : Tensor s (FloatV f),
       (∀ i, FloatV.NaNEq (FloatV.sqrtRn (x.get i)) (r.get i)) → Safe E R W Q m (k r)) :
-    Safe E R W Q m (tl.sqrt_rn x >>= k) := safe_upToNaN hk
+    Safe E R W Q m (tl.sqrt_rn x >>= k) := by
+  simp only [tl.sqrt_rn, tl.upToNaN, bind_eq, Prog.bind]
+  exact .guard hf fun _ => .pick ⟨_, fun _ => Or.inl rfl⟩ hk
 
 /-- `-x`: exact, up to NaN payload. -/
 theorem safe_neg {x : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog α}
@@ -139,13 +145,14 @@ theorem safe_div {x y : Tensor s (FloatV f)} {k : Tensor s (FloatV f) → Prog �
 
 /-- `tl.fdiv(x, y, ieee_rounding)`: `safe_div_rn` with `ieee_rounding`, `safe_div` without. -/
 theorem safe_fdiv {x y : Tensor s (FloatV f)} {ieee : Bool} {k : Tensor s (FloatV f) → Prog α}
+    (hf : ieee = true → f = .binary32)
     (hex : ieee = false → ∀ i, ∃ r, E.P.div f (x.get i) (y.get i) r)
     (hk : ∀ r : Tensor s (FloatV f),
       (∀ i, if ieee then FloatV.NaNEq (FloatV.divRn (x.get i) (y.get i)) (r.get i)
         else E.P.div f (x.get i) (y.get i) (r.get i)) → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.fdiv x y ieee >>= k) := by
   cases ieee with
-  | true => exact safe_div_rn fun r hr => hk r fun i => by simpa using hr i
+  | true => exact safe_div_rn (hf rfl) fun r hr => hk r fun i => by simpa using hr i
   | false => exact safe_div (hex rfl) fun r hr => hk r fun i => by simpa using hr i
 
 /-- An approximate function (`tl.exp`, `tl.log`, `tl.sqrt`, …, all `tl.math fn`): a platform

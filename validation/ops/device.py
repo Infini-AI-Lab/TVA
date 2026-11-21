@@ -113,10 +113,11 @@ def run(case, kernel):
     return to_bits(z, out_d)
 
 def meta():
-    smi = subprocess.run(["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"],
-                         capture_output=True, text=True).stdout.strip()
-    return {"gpu": smi, "torch": torch.__version__, "triton": triton.__version__,
-            "cuda": torch.version.cuda}
+    """The stack, with the GPU the cases run on (torch's current device), not every GPU."""
+    drv = subprocess.run(["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+                         capture_output=True, text=True).stdout.split("\n")[0].strip()
+    return {"gpu": torch.cuda.get_device_name(torch.cuda.current_device()), "driver": drv,
+            "torch": torch.__version__, "triton": triton.__version__, "cuda": torch.version.cuda}
 
 def main():
     with open(sys.argv[1]) as f:
@@ -129,9 +130,9 @@ def main():
             try:
                 res[c["id"]] = run(c, load_kernel(source(c), tmp, f"k{i}"))
                 print(f"{c['id']}: ok")
-            except Exception as e:  # a kernel Triton rejects is reported, not fatal
-                res[c["id"] + ".error"] = repr(e)
-                print(f"{c['id']}: {e!r}")
+            except Exception as e:  # a kernel Triton rejects is reported (`device_error`), not fatal
+                res[c["id"] + ".error"] = f"{type(e).__name__}: {e}"
+                print(f"{c['id']}: {type(e).__name__}: {(str(e).strip().splitlines() or [''])[-1]}")
     with open(out, "w") as f:
         json.dump(res, f)
 
