@@ -22,6 +22,9 @@ import collections, getpass, hashlib, json, os, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 LEAN = os.environ.get("TVA_LEAN") or os.path.join(ROOT, "lean")
+# `lean` runs outside lean/, where elan would not see lean-toolchain: pin it here.
+with open(os.path.join(LEAN, "lean-toolchain")) as f:
+    os.environ.setdefault("ELAN_TOOLCHAIN", f.read().strip())
 LIB = ["Solve", "Solvers", "Exec", "Verdict", "Preserve"]  # each may import the ones before it
 
 args = sys.argv[1:]
@@ -117,6 +120,11 @@ def run_ops(cases, device, out):
     for c in res["cases"]:
         if c.get("status") in ("inconclusive", "unsupported"):
             print(f"  {c['status']}: {c['id']}: {c['result'].get('what', '')}")
+        elif c.get("status") == "device_error":
+            last = [l for l in c.get("what", "").splitlines() if l.strip()][-1:] or [""]
+            who = {"done": "Triton rejects, the model accepts", "ub": "both reject"}.get(
+                c.get("model"), f"the model's outcome: {c.get('model', '?')}")
+            print(f"  device_error ({who}): {c['id']}: {last[0].strip()[:200]}")
     missed = [m for m in res["mutants"] if not m["caught"]]
     print(f"mutants: {len(res['mutants']) - len(missed)} of {len(res['mutants'])} caught" +
           "".join(f"\n  not caught: {m['id']}: {m['mutant']} ({m['status']})" for m in missed))

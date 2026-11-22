@@ -692,11 +692,12 @@ TVA.tl.div_rn {s : TVA.Shape} {f : TVA.Format} (x y : TVA.Tensor s (TVA.FloatV f
   TVA.Prog (TVA.Tensor s (TVA.FloatV f))
 ```
 
-`tl.div_rn(x, y)`: the IEEE quotient (`div.rn`), not a product.
+`tl.div_rn(x, y)`: the IEEE quotient (`div.rn`), not a product. Triton accepts `float32`
+operands only (`math.py`, `_check_dtype(dtypes=["fp32"])`); undefined behaviour otherwise.
 
 ### `TVA.tl.fdiv`
 
-def · [lean/TVA/Triton/Arith.lean:109](../../lean/TVA/Triton/Arith.lean#L109)
+def · [lean/TVA/Triton/Arith.lean:110](../../lean/TVA/Triton/Arith.lean#L110)
 
 ```lean
 TVA.tl.fdiv {s : TVA.Shape} {f : TVA.Format} (x y : TVA.Tensor s (TVA.FloatV f)) (ieee_rounding : Bool := false) :
@@ -709,18 +710,18 @@ TVA.tl.fdiv {s : TVA.Shape} {f : TVA.Format} (x y : TVA.Tensor s (TVA.FloatV f))
 
 ### `TVA.tl.sqrt_rn`
 
-def · [lean/TVA/Triton/Arith.lean:116](../../lean/TVA/Triton/Arith.lean#L116)
+def · [lean/TVA/Triton/Arith.lean:117](../../lean/TVA/Triton/Arith.lean#L117)
 
 ```lean
 TVA.tl.sqrt_rn {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) :
   TVA.Prog (TVA.Tensor s (TVA.FloatV f))
 ```
 
-`tl.sqrt_rn(x)`: the IEEE square root.
+`tl.sqrt_rn(x)`: the IEEE square root. `float32` only, as `tl.div_rn`.
 
 ### `TVA.tl.math`
 
-def · [lean/TVA/Triton/Arith.lean:119](../../lean/TVA/Triton/Arith.lean#L119)
+def · [lean/TVA/Triton/Arith.lean:121](../../lean/TVA/Triton/Arith.lean#L121)
 
 ```lean
 TVA.tl.math {s : TVA.Shape} {f : TVA.Format} (fn : TVA.MathFn) (x : TVA.Tensor s (TVA.FloatV f)) :
@@ -732,7 +733,7 @@ accepts these on `float32` and `float64` only (`math.py:94-98`); a model convert
 
 ### `TVA.tl.exp`
 
-def · [lean/TVA/Triton/Arith.lean:124](../../lean/TVA/Triton/Arith.lean#L124)
+def · [lean/TVA/Triton/Arith.lean:126](../../lean/TVA/Triton/Arith.lean#L126)
 
 ```lean
 TVA.tl.exp {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -742,7 +743,7 @@ TVA.tl.exp {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : 
 
 ### `TVA.tl.exp2`
 
-def · [lean/TVA/Triton/Arith.lean:126](../../lean/TVA/Triton/Arith.lean#L126)
+def · [lean/TVA/Triton/Arith.lean:128](../../lean/TVA/Triton/Arith.lean#L128)
 
 ```lean
 TVA.tl.exp2 {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -752,7 +753,7 @@ TVA.tl.exp2 {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) :
 
 ### `TVA.tl.log`
 
-def · [lean/TVA/Triton/Arith.lean:128](../../lean/TVA/Triton/Arith.lean#L128)
+def · [lean/TVA/Triton/Arith.lean:130](../../lean/TVA/Triton/Arith.lean#L130)
 
 ```lean
 TVA.tl.log {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -762,7 +763,7 @@ TVA.tl.log {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : 
 
 ### `TVA.tl.log2`
 
-def · [lean/TVA/Triton/Arith.lean:130](../../lean/TVA/Triton/Arith.lean#L130)
+def · [lean/TVA/Triton/Arith.lean:132](../../lean/TVA/Triton/Arith.lean#L132)
 
 ```lean
 TVA.tl.log2 {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -772,7 +773,7 @@ TVA.tl.log2 {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) :
 
 ### `TVA.tl.sin`
 
-def · [lean/TVA/Triton/Arith.lean:132](../../lean/TVA/Triton/Arith.lean#L132)
+def · [lean/TVA/Triton/Arith.lean:134](../../lean/TVA/Triton/Arith.lean#L134)
 
 ```lean
 TVA.tl.sin {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -782,7 +783,7 @@ TVA.tl.sin {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : 
 
 ### `TVA.tl.cos`
 
-def · [lean/TVA/Triton/Arith.lean:134](../../lean/TVA/Triton/Arith.lean#L134)
+def · [lean/TVA/Triton/Arith.lean:136](../../lean/TVA/Triton/Arith.lean#L136)
 
 ```lean
 TVA.tl.cos {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -792,7 +793,7 @@ TVA.tl.cos {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : 
 
 ### `TVA.tl.sqrt`
 
-def · [lean/TVA/Triton/Arith.lean:136](../../lean/TVA/Triton/Arith.lean#L136)
+def · [lean/TVA/Triton/Arith.lean:138](../../lean/TVA/Triton/Arith.lean#L138)
 
 ```lean
 TVA.tl.sqrt {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -802,7 +803,7 @@ TVA.tl.sqrt {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) :
 
 ### `TVA.tl.rsqrt`
 
-def · [lean/TVA/Triton/Arith.lean:138](../../lean/TVA/Triton/Arith.lean#L138)
+def · [lean/TVA/Triton/Arith.lean:140](../../lean/TVA/Triton/Arith.lean#L140)
 
 ```lean
 TVA.tl.rsqrt {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -812,7 +813,7 @@ TVA.tl.rsqrt {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) 
 
 ### `TVA.tl.erf`
 
-def · [lean/TVA/Triton/Arith.lean:140](../../lean/TVA/Triton/Arith.lean#L140)
+def · [lean/TVA/Triton/Arith.lean:142](../../lean/TVA/Triton/Arith.lean#L142)
 
 ```lean
 TVA.tl.erf {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -822,7 +823,7 @@ TVA.tl.erf {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : 
 
 ### `TVA.tl.neg`
 
-def · [lean/TVA/Triton/Arith.lean:143](../../lean/TVA/Triton/Arith.lean#L143)
+def · [lean/TVA/Triton/Arith.lean:145](../../lean/TVA/Triton/Arith.lean#L145)
 
 ```lean
 TVA.tl.neg {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -832,7 +833,7 @@ TVA.tl.neg {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : 
 
 ### `TVA.tl.abs`
 
-def · [lean/TVA/Triton/Arith.lean:146](../../lean/TVA/Triton/Arith.lean#L146)
+def · [lean/TVA/Triton/Arith.lean:148](../../lean/TVA/Triton/Arith.lean#L148)
 
 ```lean
 TVA.tl.abs {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : TVA.Prog (TVA.Tensor s (TVA.FloatV f))
@@ -842,7 +843,7 @@ TVA.tl.abs {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) : 
 
 ### `TVA.tl.maximum`
 
-def · [lean/TVA/Triton/Arith.lean:149](../../lean/TVA/Triton/Arith.lean#L149)
+def · [lean/TVA/Triton/Arith.lean:151](../../lean/TVA/Triton/Arith.lean#L151)
 
 ```lean
 TVA.tl.maximum {s : TVA.Shape} {f : TVA.Format} (x y : TVA.Tensor s (TVA.FloatV f)) :
@@ -855,7 +856,7 @@ TVA.tl.maximum {s : TVA.Shape} {f : TVA.Format} (x y : TVA.Tensor s (TVA.FloatV 
 
 ### `TVA.tl.minimum`
 
-def · [lean/TVA/Triton/Arith.lean:155](../../lean/TVA/Triton/Arith.lean#L155)
+def · [lean/TVA/Triton/Arith.lean:157](../../lean/TVA/Triton/Arith.lean#L157)
 
 ```lean
 TVA.tl.minimum {s : TVA.Shape} {f : TVA.Format} (x y : TVA.Tensor s (TVA.FloatV f)) :
@@ -866,7 +867,7 @@ TVA.tl.minimum {s : TVA.Shape} {f : TVA.Format} (x y : TVA.Tensor s (TVA.FloatV 
 
 ### `TVA.tl.sigmoid`
 
-def · [lean/TVA/Triton/Arith.lean:159](../../lean/TVA/Triton/Arith.lean#L159)
+def · [lean/TVA/Triton/Arith.lean:161](../../lean/TVA/Triton/Arith.lean#L161)
 
 ```lean
 TVA.tl.sigmoid {s : TVA.Shape} {f : TVA.Format} (x : TVA.Tensor s (TVA.FloatV f)) :
@@ -880,7 +881,7 @@ narrower tensor first. On `float32` its result is a product for a following addi
 
 ### `TVA.tl.imaximum`
 
-def · [lean/TVA/Triton/Arith.lean:181](../../lean/TVA/Triton/Arith.lean#L181)
+def · [lean/TVA/Triton/Arith.lean:183](../../lean/TVA/Triton/Arith.lean#L183)
 
 ```lean
 TVA.tl.imaximum {s : TVA.Shape} {sg : Bool} {w : ℕ} (x y : TVA.Tensor s (TVA.IntV sg w)) : TVA.Tensor s (TVA.IntV sg w)
@@ -891,7 +892,7 @@ tensor: exact, signed or unsigned by the dtype (`arith.maxsi`/`maxui`, `semantic
 
 ### `TVA.tl.iminimum`
 
-def · [lean/TVA/Triton/Arith.lean:185](../../lean/TVA/Triton/Arith.lean#L185)
+def · [lean/TVA/Triton/Arith.lean:187](../../lean/TVA/Triton/Arith.lean#L187)
 
 ```lean
 TVA.tl.iminimum {s : TVA.Shape} {sg : Bool} {w : ℕ} (x y : TVA.Tensor s (TVA.IntV sg w)) : TVA.Tensor s (TVA.IntV sg w)
@@ -901,7 +902,7 @@ TVA.tl.iminimum {s : TVA.Shape} {sg : Bool} {w : ℕ} (x y : TVA.Tensor s (TVA.I
 
 ### `TVA.tl.idiv`
 
-def · [lean/TVA/Triton/Arith.lean:188](../../lean/TVA/Triton/Arith.lean#L188)
+def · [lean/TVA/Triton/Arith.lean:190](../../lean/TVA/Triton/Arith.lean#L190)
 
 ```lean
 TVA.tl.idiv {s : TVA.Shape} {sg : Bool} {w : ℕ} (x y : TVA.Tensor s (TVA.IntV sg w)) :
@@ -912,7 +913,7 @@ TVA.tl.idiv {s : TVA.Shape} {sg : Bool} {w : ℕ} (x y : TVA.Tensor s (TVA.IntV 
 
 ### `TVA.tl.irem`
 
-def · [lean/TVA/Triton/Arith.lean:192](../../lean/TVA/Triton/Arith.lean#L192)
+def · [lean/TVA/Triton/Arith.lean:194](../../lean/TVA/Triton/Arith.lean#L194)
 
 ```lean
 TVA.tl.irem {s : TVA.Shape} {sg : Bool} {w : ℕ} (x y : TVA.Tensor s (TVA.IntV sg w)) :
@@ -923,7 +924,7 @@ TVA.tl.irem {s : TVA.Shape} {sg : Bool} {w : ℕ} (x y : TVA.Tensor s (TVA.IntV 
 
 ### `TVA.tl.cdiv`
 
-def · [lean/TVA/Triton/Arith.lean:196](../../lean/TVA/Triton/Arith.lean#L196)
+def · [lean/TVA/Triton/Arith.lean:198](../../lean/TVA/Triton/Arith.lean#L198)
 
 ```lean
 TVA.tl.cdiv {s : TVA.Shape} {sg : Bool} {w : ℕ} (x div : TVA.Tensor s (TVA.IntV sg w)) :
@@ -937,7 +938,7 @@ compile-time values it is Python's (`tl.py.cdiv`).
 
 ### `TVA.tl.shl`
 
-def · [lean/TVA/Triton/Arith.lean:203](../../lean/TVA/Triton/Arith.lean#L203)
+def · [lean/TVA/Triton/Arith.lean:205](../../lean/TVA/Triton/Arith.lean#L205)
 
 ```lean
 TVA.tl.shl {s : TVA.Shape} {sg : Bool} {w : ℕ} (x n : TVA.Tensor s (TVA.IntV sg w)) :
@@ -949,7 +950,7 @@ amount, read as unsigned, is at least the width (a negative amount is a huge one
 
 ### `TVA.tl.ashr`
 
-def · [lean/TVA/Triton/Arith.lean:208](../../lean/TVA/Triton/Arith.lean#L208)
+def · [lean/TVA/Triton/Arith.lean:210](../../lean/TVA/Triton/Arith.lean#L210)
 
 ```lean
 TVA.tl.ashr {s : TVA.Shape} {sg : Bool} {w : ℕ} (x n : TVA.Tensor s (TVA.IntV sg w)) :
@@ -963,7 +964,7 @@ arithmetic shift of `uint32` values, and `0xF0 >> s` with `s : uint8` is a logic
 
 ### `TVA.tl.lshr`
 
-def · [lean/TVA/Triton/Arith.lean:215](../../lean/TVA/Triton/Arith.lean#L215)
+def · [lean/TVA/Triton/Arith.lean:217](../../lean/TVA/Triton/Arith.lean#L217)
 
 ```lean
 TVA.tl.lshr {s : TVA.Shape} {sg : Bool} {w : ℕ} (x n : TVA.Tensor s (TVA.IntV sg w)) :

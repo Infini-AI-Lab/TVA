@@ -21,31 +21,31 @@ the operations it calls): *pure*: Lean function, no choice; *effect*: memory eff
 | `tl.subc` | `Arith.lean:92` | certified |  |  |
 | `tl.fma` | `Arith.lean:95` | certified | 3: bf16, f16, f32 | two roundings, not one |
 | `tl.div` | `Arith.lean:102` | platform | 1: f32 |  |
-| `tl.div_rn` | `Arith.lean:106` | certified | 3: bf16, f16, f32 |  |
-| `tl.fdiv` | `Arith.lean:112` | platform |  |  |
-| `tl.sqrt_rn` | `Arith.lean:117` | certified | 3: bf16, f16, f32 |  |
-| `tl.exp` | `Arith.lean:125` | platform | 1: f32 |  |
-| `tl.exp2` | `Arith.lean:127` | platform | 1: f32 |  |
-| `tl.log` | `Arith.lean:129` | platform | 1: f32 |  |
-| `tl.log2` | `Arith.lean:131` | platform | 1: f32 |  |
-| `tl.sin` | `Arith.lean:133` | platform |  |  |
-| `tl.cos` | `Arith.lean:135` | platform |  |  |
-| `tl.sqrt` | `Arith.lean:137` | platform | 1: f32 |  |
-| `tl.rsqrt` | `Arith.lean:139` | platform | 1: f32 |  |
-| `tl.erf` | `Arith.lean:141` | platform |  |  |
-| `tl.neg` | `Arith.lean:144` | certified | 3: bf16, f16, f32 |  |
-| `tl.abs` | `Arith.lean:147` | certified | 3: bf16, f16, f32 |  |
-| `tl.maximum` | `Arith.lean:152` | certified | 3: bf16, f16, f32 | propagates NaN |
-| `tl.minimum` | `Arith.lean:156` | certified | 3: bf16, f16, f32 | the maximum |
-| `tl.sigmoid` | `Arith.lean:163` | platform |  |  |
-| `tl.imaximum` | `Arith.lean:183` | pure |  |  |
-| `tl.iminimum` | `Arith.lean:186` | pure |  |  |
-| `tl.idiv` | `Arith.lean:189` | certified | 4: i32, i64, i8, u32 | rounds toward -∞ |
-| `tl.irem` | `Arith.lean:193` | certified | 4: i32, i64, i8, u32 | sign of the divisor |
-| `tl.cdiv` | `Arith.lean:200` | certified |  |  |
-| `tl.shl` | `Arith.lean:205` | certified | 4: i32, i64, i8, u32 |  |
-| `tl.ashr` | `Arith.lean:212` | certified | 3: i32, i64, i8 | logical shift |
-| `tl.lshr` | `Arith.lean:216` | certified | 1: u32 | arithmetic shift |
+| `tl.div_rn` | `Arith.lean:107` | certified | 3: bf16, f16, f32 |  |
+| `tl.fdiv` | `Arith.lean:113` | platform |  |  |
+| `tl.sqrt_rn` | `Arith.lean:118` | certified | 3: bf16, f16, f32 |  |
+| `tl.exp` | `Arith.lean:127` | platform | 1: f32 |  |
+| `tl.exp2` | `Arith.lean:129` | platform | 1: f32 |  |
+| `tl.log` | `Arith.lean:131` | platform | 1: f32 |  |
+| `tl.log2` | `Arith.lean:133` | platform | 1: f32 |  |
+| `tl.sin` | `Arith.lean:135` | platform |  |  |
+| `tl.cos` | `Arith.lean:137` | platform |  |  |
+| `tl.sqrt` | `Arith.lean:139` | platform | 1: f32 |  |
+| `tl.rsqrt` | `Arith.lean:141` | platform | 1: f32 |  |
+| `tl.erf` | `Arith.lean:143` | platform |  |  |
+| `tl.neg` | `Arith.lean:146` | certified | 3: bf16, f16, f32 |  |
+| `tl.abs` | `Arith.lean:149` | certified | 3: bf16, f16, f32 |  |
+| `tl.maximum` | `Arith.lean:154` | certified | 3: bf16, f16, f32 | propagates NaN |
+| `tl.minimum` | `Arith.lean:158` | certified | 3: bf16, f16, f32 | the maximum |
+| `tl.sigmoid` | `Arith.lean:165` | platform |  |  |
+| `tl.imaximum` | `Arith.lean:185` | pure |  |  |
+| `tl.iminimum` | `Arith.lean:188` | pure |  |  |
+| `tl.idiv` | `Arith.lean:191` | certified | 4: i32, i64, i8, u32 | rounds toward -∞ |
+| `tl.irem` | `Arith.lean:195` | certified | 4: i32, i64, i8, u32 | sign of the divisor |
+| `tl.cdiv` | `Arith.lean:202` | certified |  |  |
+| `tl.shl` | `Arith.lean:207` | certified | 4: i32, i64, i8, u32 |  |
+| `tl.ashr` | `Arith.lean:214` | certified | 3: i32, i64, i8 | logical shift |
+| `tl.lshr` | `Arith.lean:218` | certified | 1: u32 | arithmetic shift |
 | `tl.make_block_ptr` | `BlockPtr.lean:88` | pure |  |  |
 | `tl.advance` | `BlockPtr.lean:93` | pure |  |  |
 | `tl.load_block` | `BlockPtr.lean:98` | certified |  |  |

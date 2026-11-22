@@ -60,15 +60,21 @@ namespace Ans
 
 variable {plat : Prop}
 
+/-- The place of an index in `Idx.all s` (row-major). -/
+def idxPos : (s : Shape) → Idx s → Nat
+  | [], _ => 0
+  | _ :: s, (i, j) => i.val * s.prod + idxPos s j
+
 /-- Lane by lane over a tensor (`Ans.pi` over `Idx s`, read as a tensor). -/
 def lanes {s : Shape} {α : Type} {R : Idx s → α → Prop} (f : (i : Idx s) → Ans (R i) plat) :
     Ans (fun r : Tensor s α => ∀ i, R i (r.get i)) plat :=
-  (Ans.pi (Idx.all s) f).transport Tensor.mk Tensor.get (fun _ h => h) (fun _ h => h) id
+  (Ans.pi (Idx.all s) (idxPos s) f).transport Tensor.mk Tensor.get (fun _ h => h) (fun _ h => h) id
 
 /-- Row by row of a rank-1 tensor (`Ans.pi` over `Fin m`, read as a tensor). -/
 def rows {m : Nat} {α : Type} {R : Fin m → α → Prop} (f : (i : Fin m) → Ans (R i) plat) :
     Ans (fun r : Tensor [m] α => ∀ i, R i (r.get1 i)) plat :=
-  (Ans.pi (List.finRange m) f).transport Tensor.of1 Tensor.get1 (fun _ h => h) (fun _ h => h) id
+  (Ans.pi (List.finRange m) Fin.val f).transport Tensor.of1 Tensor.get1 (fun _ h => h)
+    (fun _ h => h) id
 
 end Ans
 

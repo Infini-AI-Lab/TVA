@@ -223,7 +223,7 @@ structure PredUpd (d : DType) : Type 1 where
   Allows : d.Val → d.Val → Prop
 
 /-- The signature whose sites and updates are their relations. -/
-def Sig.pred : Sig where
+@[instance_reducible] def Sig.pred : Sig where
   Site := PredSite
   Out := PredSite.Out
   Allows := PredSite.Allows

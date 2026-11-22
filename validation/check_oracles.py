@@ -7,6 +7,9 @@ import os, re, subprocess, sys, json
 from concurrent.futures import ThreadPoolExecutor
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEAN = os.path.join(ROOT, "lean")
+# `lean` runs outside lean/, where elan would not see lean-toolchain: pin it here.
+with open(os.path.join(LEAN, "lean-toolchain")) as f:
+    os.environ.setdefault("ELAN_TOOLCHAIN", f.read().strip())
 AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 if len(sys.argv) < 2: sys.exit(__doc__)
 out = sys.argv[1]
