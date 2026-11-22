@@ -218,6 +218,8 @@ kernel does.
 
 - **Exact operations, up to NaN payload:** `tl.add`, `tl.sub`, `tl.mul`, `tl.fma`, `tl.div_rn`,
   `tl.sqrt_rn`, `tl.neg`, `tl.abs`. Each returns the IEEE result, any NaN in place of a NaN.
+  `tl.div_rn` and `tl.sqrt_rn` take `float32` operands only, as Triton does (`math.py`,
+  `_check_dtype(dtypes=["fp32"])`); on any other format they are undefined behaviour.
 - **Division.** `/` and `tl.fdiv(x, y)` are `tl.div`, the platform's division (`Platform.div`:
   `div.full.f32` on `float32`, not the IEEE quotient; IEEE on `float64`). `tl.fdiv(…,
   ieee_rounding=True)` is `tl.div_rn` (`tl.fdiv` has the flag). Triton divides `float16` and

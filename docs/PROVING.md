@@ -116,7 +116,8 @@ each `?_` being the next line. Start by unfolding the model for program `i`
 | block pointer | `safe_load_block_ptr`, `safe_store_block_ptr` | `Proof.Pattern.BlockPtr` |
 | descriptor | `safe_desc_load`, `safe_desc_store`, `safe_desc_atomic` | `Proof.Pattern.Desc` |
 | block-pointer or descriptor padding | `safe_pad`, `Padding.exists_holds` | `Proof.Rules.Memory` |
-| `tl.add`, `sub`, `mul`, `fma`, `div_rn`, `sqrt_rn`, `neg`, `abs` | `safe_add`, …; `safe_upToNaN`, `safe_exact` | `Proof.Rules.Arith` |
+| `tl.add`, `sub`, `mul`, `fma`, `neg`, `abs` | `safe_add`, …; `safe_upToNaN`, `safe_exact` | `Proof.Rules.Arith` |
+| `tl.div_rn`, `tl.sqrt_rn` (`float32` only) | `safe_div_rn`, `safe_sqrt_rn` | `Proof.Rules.Arith` |
 | `tl.mul_add`, `tl.addc`, `tl.subc` | `safe_mul_add`, `safe_addc`, `safe_subc` | `Proof.Rules.Arith` |
 | `/`, `tl.fdiv`, `tl.exp` and the other math functions | `safe_div`, `safe_fdiv`, `safe_math` | `Proof.Rules.Arith` |
 | `tl.maximum`, `tl.minimum` | `safe_maximum`, `safe_minimum` | `Proof.Rules.Arith` |
