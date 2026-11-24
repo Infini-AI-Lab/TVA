@@ -59,7 +59,7 @@ A claim's model is written with these; [SEMANTICS.md](SEMANTICS.md) explains eac
 | `TVA.Triton.BlockPtr` | `BlockPtr`, `tl.make_block_ptr`, `tl.advance`, `tl.load_block`, `tl.store_block`. |
 | `TVA.Triton.Desc` | `TensorDesc` and its requirements (`TensorDesc.Access`), `tl.desc_load`, `tl.desc_store`, `tl.desc_atomic`, `tl.desc_gather`, `tl.desc_scatter`. |
 | `TVA.Triton.Reduce` | Float sums along trees (`tl.sum`, `tl.sumc` and the axis forms, `tl.sumBound`), `tl.max`, index reductions (`tl.argmaxAll`, `tl.ArgRes`), `tl.histogram`. |
-| `TVA.Triton.Scan` | `tl.associative_scan` (`ScanLeaves`), `tl.cumsum`, `tl.cumsumc`, `tl.cumprod`, the integer scans, `tl.sort`. |
+| `TVA.Triton.Scan` | `tl.associative_scan` (`Site.scan`; `ScanLeaves` and the combine `Combine`, with `Combine.ofFn`, in `TVA.Triton.Scan.Rel`), `tl.associative_scanRel` (a combine given only as a relation), `tl.cumsum`, `tl.cumsumc`, `tl.cumprod` (`Combine.addRel`, `Combine.mulRn`; `Combine.maxRel` for a running maximum or minimum), the integer scans, `tl.sort`. |
 | `TVA.Triton.Dot` | `tl.dot`, `tl.dot_add`, `tl.sum_bcast_mul` (the combine pass's rewrites), `tl.dot_scaled` and its unpacking (`ScaledCfg.lhsBits`, `scaledValue`). |
 | `TVA.Triton.Random` | Philox (`Philox.impl`, `Philox.randint4x`), `tl.randint`, `tl.rand`. |
 
@@ -193,7 +193,7 @@ A claim's model is written with these; [SEMANTICS.md](SEMANTICS.md) explains eac
 
 | Module | What it holds; when to use it |
 |---|---|
-| `TVA.Proof.Scan` | `safe_associative_scan`, `safe_cumsum`, `safe_cumsumc`, `safe_cumprod`, `safe_icumsum` (an integer cumulative sum is the prefix sum), `safe_icumprod`; `sum_err_list`; `safe_sort`; `safe_histogram`. |
+| `TVA.Proof.Scan` | `safe_associative_scan`, `safe_associative_scanRel`, `safe_cumsum`, `safe_cumsumc`, `safe_cumprod`, `safe_icumsum` (an integer cumulative sum is the prefix sum), `safe_icumprod`; `sum_err_list`; `safe_sort`; `safe_histogram`. |
 | `TVA.Proof.Random` | `safe_rand`, `safe_uint_to_uniform_float`; `tl.itofRel_binary32` (the conversion of a Philox integer is one rounding). |
 | `TVA.Proof.Softmax` | Umbrella of the online softmax (mathematics over `ℝ`, namespace `TVA.Softmax`). |
 | `TVA.Proof.Softmax.Exp` | Bounds on `exp` of a rounded argument (`abs_exp_round_le`); `exp2` as `exp` (`two_rpow_eq_exp`). |

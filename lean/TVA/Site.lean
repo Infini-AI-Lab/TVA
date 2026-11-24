@@ -5,6 +5,7 @@ import TVA.Triton.Dot.Rel
 import TVA.Triton.Reduce.Rel
 import TVA.Triton.Memory.Rel
 import TVA.Triton.Desc.Rel
+import TVA.Triton.Scan.Rel
 
 /-!
 # Triton's sites: what a Triton program may leave open
@@ -132,6 +133,10 @@ inductive Site : Type 1 where
   /-- An index reduction of each column of a rank-2 tensor (`axis=0`), as `arg`. -/
   | arg0 (α : Type) [cmp : CmpKey α] [inh : Inhabited α] (isMax tieLeft : Bool) (m n : Nat)
       (x : Tensor [m, n] α)
+  /-- `tl.associative_scan(x, axis, combine_fn, reverse)` (`tl.cumsum`, `tl.cumprod`): each output
+  position `i` is the evaluation, with `c.rel` at each node, of some tree over the leaves
+  `ScanLeaves` gives for its coordinate along `axis`. -/
+  | scan (s : Shape) (α : Type) (axis : Nat) (reverse : Bool) (c : Combine α) (x : Tensor s α)
   /-- `tl.histogram(x, bins, mask)`: the counts of the enabled elements per bin; undefined
   behaviour when an enabled element is outside `[0, bins)`. -/
   | histogram (n bins : Nat) (sg : Bool) (w : Nat) (x : Tensor [n] (IntV sg w))
@@ -171,6 +176,7 @@ inductive Site : Type 1 where
   | @arg α _ _ _ _ _ _ => α × I32
   | @arg1 α _ _ _ _ m _ _ => Tensor [m] α × Tensor [m] I32
   | @arg0 α _ _ _ _ _ n _ => Tensor [n] α × Tensor [n] I32
+  | .scan s α _ _ _ _ => Tensor s α
   | .histogram _ bins _ _ _ _ => Tensor [bins] I32
   | .pad s d _ _ _ => Tensor s d.Val
   | .anyVals s d => Idx s → d.Val
@@ -226,6 +232,9 @@ inductive Site : Type 1 where
       (fun j => if h : j < n then x.get2 i ⟨j, h⟩ else default) (r.1.get1 i, r.2.get1 i)
   | @arg0 _ _ _ isMax tieLeft m _ x => fun r => ∀ j, tl.ArgRes isMax tieLeft m
       (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) (r.1.get1 j, r.2.get1 j)
+  | .scan s _ axis reverse c x => fun r => ∀ i, ∃ t : Tree,
+      ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
+      t.Eval c.rel (fun j => x.get (i.set axis j)) (r.get i)
   | .histogram n bins _ _ x mask => fun r =>
       (∀ j, tl.enabledBy mask j = true → 0 ≤ (x.get1 j).toInt ∧ (x.get1 j).toInt < bins) ∧
       ∀ b : Fin bins, r.get1 b =

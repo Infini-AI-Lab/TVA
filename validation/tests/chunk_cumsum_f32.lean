@@ -19,13 +19,8 @@ The gates are small integers and the scales powers of two, so every `float32` pa
 scaled result are exact whatever the scan's tree: `Post` allows the exact value (distance `0`).
 `chunk_cumsum_f32` uses no platform operation, so the expected verdict is `certified`.
 
-**`exec` cannot run this kernel yet.** `tl.cumsum` is `tl.associative_scan`, whose site is
-`Site.other` (`TVA/Triton/Scan.lean:70`): the executor has no solver for it (`COVERAGE.md`: "no
-solver"; `PICKS.md`: `other` (scans, …) unsupported). Each run therefore stops in program `0` at the
-scan, after the program's loads, with the verdict `unsupported`; the guards below record that
-(and that nothing before the scan is a predicted undefined behaviour or a discrepancy). When a scan
-solver exists, the guards on the verdicts become `== .certified`, and the non-vacuity guard at the
-end becomes meaningful. -/
+`tl.cumsum` is `tl.associative_scan` (`Site.scan`): the executor evaluates each position along the
+sequential tree over its leaves (no oracle tree is supplied), with IEEE additions. -/
 
 open TVA TVA.Validation
 
@@ -240,20 +235,11 @@ def verdictVarlen : Verdict := varlenRev.verdict
 #eval IO.println (verdictFixed.line "chunk_cumsum_f32/fixed_fwd")
 #eval IO.println (verdictVarlen.line "chunk_cumsum_f32/varlen_rev")
 
-/-- The verdict until scans have a solver: `unsupported`, stopped at the scan (`Site.other`). -/
-def stoppedAtScan : Verdict → Bool
-  | .unsupported w => (w.splitOn "Site.other").length > 1
-  | _ => false
+#guard verdictFixed == .certified
+#guard verdictVarlen == .certified
 
--- No discrepancy, and the reason the run stops is the scan, nothing earlier. (With a scan
--- solver: `verdictFixed == .certified`, `verdictVarlen == .certified`.)
-#guard stoppedAtScan verdictFixed || verdictFixed == .certified
-#guard stoppedAtScan verdictVarlen || verdictVarlen == .certified
-
--- A wrong expectation is caught, once the runs finish: the scale forgotten. (While the runs stop
--- at the scan, both verdicts are `unsupported`, and this guard only checks that.)
+-- A wrong expectation is caught: the scale forgotten.
 #guard
-  let v := Verdict.ofLaunch (fixedFwd.agree (fixedFwd.outs.map fun (j, q) => (j, q / 2))) fixedFwd.run
-  v.isDiscrepancy || stoppedAtScan v
+  (Verdict.ofLaunch (fixedFwd.agree (fixedFwd.outs.map fun (j, q) => (j, q / 2))) fixedFwd.run).isDiscrepancy
 
 end CumsumTest

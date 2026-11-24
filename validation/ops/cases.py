@@ -94,6 +94,64 @@ def small_ints(d, k):
         return s | ((ex + bias) << m) | ((v - (1 << ex)) << (m - ex) if ex <= m else 0)
     return [enc(R.randint(-8, 8)) for _ in range(k)]
 
+def moderate(d, k):
+    """Random finite floats of moderate size (`[-4, 4]`, full mantissas): rounding happens."""
+    def enc(v):
+        if d == "f32": return f32(v)
+        if d == "f16": return struct.unpack("<H", struct.pack("<e", v))[0]
+        return f32(v) >> 16                                      # bf16: truncated f32
+    return [enc(R.uniform(-4, 4)) for _ in range(k)]
+
+def pow2s(d, k, choices):
+    """Floats drawn from `choices` (powers of two and their negatives): exact products."""
+    def enc(v):
+        if d == "f32": return f32(v)
+        if d == "f16": return struct.unpack("<H", struct.pack("<e", v))[0]
+        return f32(v) >> 16
+    return [enc(R.choice(choices)) for _ in range(k)]
+
+SCAN_OUT = {"bf16": "f32", "i8": "i32", "u8": "u32"}             # tl.cumsum's promotions
+
+def scans():
+    """Scans. Axes of at most 8 elements: random values, every tree searched (Ops.lean). Longer
+    axes: values whose partial sums or products are exact, so that every tree agrees."""
+    out = []
+    def add(op, d, dims, xs, w=4):
+        d2 = SCAN_OUT.get(d, d) if op.startswith("cumsum") else ("f32" if d == "bf16" else d)
+        if op.startswith(("cummax", "cummin")): d2 = d
+        c = case(f"{op}.{d}.{'x'.join(map(str, dims))}.w{w}", op, [d, d2], dims, [xs])
+        c["num_warps"] = w; out.append(c)
+    for kind in ("cumsum", "cumprod"):
+        for rev in ("", "_rev"):
+            for d in ("f32", "f16", "bf16"):
+                for n in (4, 8):
+                    for w in (1, 4):
+                        add(kind + rev, d, [n], moderate(d, n), w)
+                for ax, (m, n) in (("", (8, 4)), ("_ax1", (4, 8))):
+                    add(kind + ax + rev, d, [m, n], moderate(d, m * n))
+            for n in (64, 1024):
+                xs = small_ints("f32", n) if kind == "cumsum" else pow2s("f32", n, [1, -1, 2, 0.5])
+                add(kind + rev, "f32", [n], xs, 8)
+            add(kind + "_ax1" + rev, "f16", [4, 64],
+                small_ints("f16", 256) if kind == "cumsum" else pow2s("f16", 256, [1, -1]))
+            for d in ("i32", "i8", "u8", "i64"):
+                add(kind + rev, d, [64], rand_bits(d, 64))
+                add(kind + "_ax1" + rev, d, [4, 16], rand_bits(d, 64))
+    # Running maxima and minima (`tl.associative_scan` with `tl.maximum` / `tl.minimum`): exact,
+    # so any tree agrees, and longer axes need no search. Moderate values with infinities and
+    # NaNs, no zeros (`MaxRel` lets either zero of a `-0`/`+0` pair win).
+    special = {"f32": [0x7f800000, 0xff800000, 0x7fc00000, 0xffc00001],
+               "f16": [0x7c00, 0xfc00, 0x7e00, 0xfe01]}
+    def mixed(d, k):
+        return [R.choice(special[d]) if R.random() < 0.2 else v for v in moderate(d, k)]
+    for kind in ("cummax", "cummin"):
+        for d in ("f32", "f16"):
+            for rev in ("", "_rev"):
+                add(kind + rev, d, [8], mixed(d, 8), 1)
+                add(kind + rev, d, [1024], mixed(d, 1024), 8)
+            add(kind + "_ax1", d, [4, 64], mixed(d, 256))
+    return out
+
 def cases():
     out = []
     for d in ("f16", "bf16", "f32"):
@@ -127,6 +185,7 @@ def cases():
             for w in (1, 4, 8):                                  # num_warps changes the tree
                 c = case(f"sum.{d}.{n}.w{w}", "sum", [d], [n], [xs]); c["num_warps"] = w
                 out.append(c)
+    out += scans()
     for M, N, K in ((16, 16, 16), (32, 16, 64)):
         a, b, c = rand_bits("f16", M * K), rand_bits("f16", K * N), small_ints("f32", M * N)
         out.append(case(f"dot_ieee.f16.{M}x{N}x{K}", "dot_ieee", ["f16", "f16", "f32"], [M, N, K], [a, b, c]))

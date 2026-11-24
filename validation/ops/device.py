@@ -70,6 +70,38 @@ def kernel(x_ptr, z_ptr, N: tl.constexpr):
     x = tl.load(x_ptr + tl.arange(0, N))
     tl.store(z_ptr, tl.sum(x, axis=0))
 """
+    if op.startswith("cum"):
+        kind = op.split("_")[0]
+        fn = {"cumsum": "tl.cumsum", "cumprod": "tl.cumprod"}.get(kind)
+        ax, rev = (1 if "_ax1" in op else 0), op.endswith("_rev")
+        out = TL[dts[1]]
+        head = ""
+        if fn is None:                       # cummax, cummin: tl.associative_scan with tl.maximum
+            head = f"""
+@triton.jit
+def _combine(a, b):
+    return tl.{'maximum' if kind == 'cummax' else 'minimum'}(a, b)
+"""
+            fn = "_assoc"
+        call = (lambda x, a: f"tl.associative_scan({x}, {a}, _combine, reverse={rev})") if fn == "_assoc" \
+            else (lambda x, a: f"{fn}({x}, axis={a}, reverse={rev})")
+        if len(case["dims"]) == 1:
+            return head + f"""
+@triton.jit
+def kernel(x_ptr, z_ptr, M: tl.constexpr, N: tl.constexpr):
+    o = tl.arange(0, N)
+    r = {call("tl.load(x_ptr + o)", 0)}
+    tl.static_assert(r.dtype == {out})
+    tl.store(z_ptr + o, r)
+"""
+        return head + f"""
+@triton.jit
+def kernel(x_ptr, z_ptr, M: tl.constexpr, N: tl.constexpr):
+    o = tl.arange(0, M)[:, None] * N + tl.arange(0, N)[None, :]
+    r = {call("tl.load(x_ptr + o)", ax)}
+    tl.static_assert(r.dtype == {out})
+    tl.store(z_ptr + o, r)
+"""
     if op.startswith("dot"):
         prec = op.rsplit("_", 1)[1]
         call = (f"tl.dot(a, b, c, input_precision='{prec}', out_dtype={TL[dts[2]]})" if op.startswith("dot_ieee") or op.startswith("dot_tf32")
@@ -102,6 +134,11 @@ def run(case, kernel):
         z = torch.empty(M * N, dtype=TORCH[dts[2]], device="cuda")
         kernel[(1,)](a, b, c, z, M, N, K, num_warps=nw)
         return to_bits(z, dts[2])
+    if op.startswith("cum"):
+        M, N = dims if len(dims) == 2 else (1, dims[0])
+        x = to_tensor(ins[0], dts[0]); z = torch.empty(M * N, dtype=TORCH[dts[1]], device="cuda")
+        kernel[(1,)](x, z, M, N, num_warps=nw)
+        return to_bits(z, dts[1])
     if op == "sum":
         x = to_tensor(ins[0], dts[0]); z = torch.empty(1, dtype=TORCH[dts[0]], device="cuda")
         kernel[(1,)](x, z, dims[0], num_warps=nw)

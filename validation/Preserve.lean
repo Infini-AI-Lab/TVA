@@ -96,6 +96,37 @@ theorem max_constancyN {s : Shape} {β : Type} [DecidableEq β] (x : Tensor s β
     Sig.Allows (Site.hint _ x (∀ k, k < s.length → ConstAlong x k (Cs.getD k 1))) y ↔
       y = x ∧ ∀ k, k < s.length → ConstAlong x k (Cs.getD k 1) := Iff.rfl
 
+/-! ## Scans (`TVA.Triton.Scan`)
+
+`tl.associative_scan` was a `Site.other` with the predicate below and a relation `op`; it is now
+`Site.scan` with a `Combine` whose `rel` is that relation. Its erasure is the old operation's
+(`associative_scan_erase`, by `rfl`), and each scan of the library keeps its relation. -/
+
+theorem scan {s : Shape} {α : Type} {axis : Nat} {reverse : Bool} {c : Combine α}
+    {x r : Tensor s α} :
+    Sig.Allows (Site.scan s α axis reverse c x) r ↔ ∀ i, ∃ t : Tree,
+      ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
+      t.Eval c.rel (fun j => x.get (i.set axis j)) (r.get i) := Iff.rfl
+
+/-- The scan with a combine means what the relation-only scan (the old `tl.associative_scan`,
+`Site.other`) means with the combine's relation: the same program after erasure. -/
+theorem associative_scan_erase {s : Shape} {α : Type} (x : Tensor s α) (axis : Nat)
+    (c : Combine α) (reverse : Bool) :
+    (tl.associative_scan x axis c reverse).erase =
+      (tl.associative_scanRel x axis c.rel reverse).erase := rfl
+
+theorem cumsumWith_rel (fusion : Bool) : (Combine.addRel (f := f) fusion).rel = AddRel fusion :=
+  rfl
+
+theorem cumprod_rel :
+    (Combine.mulRn (f := f)).rel = fun a b c => FloatV.NaNEq (FloatV.mul a b) c := rfl
+
+theorem icumsum_rel {sg : Bool} {w : Nat} :
+    (Combine.ofFn (· + ·) : Combine (IntV sg w)).rel = fun a b c => c = a + b := rfl
+
+theorem icumprod_rel {sg : Bool} {w : Nat} :
+    (Combine.ofFn (· * ·) : Combine (IntV sg w)).rel = fun a b c => c = a * b := rfl
+
 /-! ## Reductions (`TVA.Triton.Reduce`) -/
 
 theorem sumWith {fusion : Bool} {n : Nat} (P : Platform) (x : Tensor [n] (FloatV f)) (r : FloatV f) :

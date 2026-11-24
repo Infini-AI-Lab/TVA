@@ -24,6 +24,9 @@ with what `exec` makes of the model's definition on the same inputs.
 * **Reductions** (`sum`): the oracle offers the trees in `candidates` (each checked by the
   solver, so a match is certified); a case agrees when one of them gives the device's value. No
   candidate agreeing is `inconclusive`, not a finding.
+* **Scans** (`cumsum`, `cumprod`, `cummax`, `cummin`, with `_ax1` and `_rev`): on an axis of at most 8 elements the
+  oracle searches every tree a position allows for the device's value (`scanTrees`), so a
+  position no tree explains is a discrepancy; longer axes are run on exact inputs.
 * **Verdicts** (`Verdict`, `validation/Verdict.lean`): each case's `status` is its verdict,
   `certified`, `conditional`, `discrepancy` (a candidate finding, with up to 8 example lanes),
   `inconclusive` or `unsupported`; or, for a case the harness could not run, `bad_case`,
@@ -113,6 +116,10 @@ structure Op where
   outLen : (dims : List Nat) → Nat := fun dims => dims.headD 0
   /-- Elementwise: undefined behaviour can be localised by running lanes alone. -/
   lanewise : Bool := true
+  /-- For a scan, the oracle's tree for the output element at each place, from the case's dtypes,
+  dims, inputs and the device's outputs (`TQuery.scanTree`); `none` for the solver's default. -/
+  trees : (dts : List DType) → (dims : List Nat) → (ins : List (Array Nat)) → (dev : Array Nat) →
+    Nat → Option Tree := fun _ _ _ _ _ => none
 
 /-- An elementwise operation on float tensors. -/
 def floatN (k : Nat) (g : ∀ {f : Format} {n : Nat}, List (Tensor [n] (FloatV f)) → Option (Prog (Tensor [n] (FloatV f)))) :
@@ -213,6 +220,93 @@ def dotAddOp (precision : InputPrecision) : Op where
   inLen := dotInLen
   outLen := dotOutLen
 
+/-! ### Scans: `tl.cumsum`, `tl.cumprod`, running maxima and minima
+
+A case `[d, d']` scans an input of dtype `d` after Triton's promotion to `d'` (`standard.py`:
+`bfloat16` to `float32`; for `tl.cumsum`, integers narrower than 32 bits to 32 bits of the same
+signedness), along `axis` of a rank-1 (`[n]`) or rank-2 (`[m, n]`, row-major) block.
+
+**The trees.** The model allows, at each output position, any tree over its leaves in order
+(`ScanLeaves`). On an axis of at most `scanSearchMax` elements the oracle tries every such tree
+(every bracketing of the leaves) for the device's value at that position and supplies the first
+that gives it (`TQuery.scanTree`); the solver checks it. The search is exhaustive, so a position no
+tree explains is a discrepancy, not a missing candidate. Longer axes get the solver's sequential
+tree, and their cases use inputs whose partial results are exact (`cases.py`), on which every tree
+gives the same value. -/
+
+/-- Every tree over the leaves `l` in order (Catalan many). -/
+partial def bracketings : List Nat → List Tree
+  | [] => []
+  | [a] => [.leaf a]
+  | l => (List.range (l.length - 1)).flatMap fun k =>
+      (bracketings (l.take (k + 1))).flatMap fun a => (bracketings (l.drop (k + 1))).map (.node a)
+
+/-- The longest axis on which the oracle searches every tree. -/
+def scanSearchMax : Nat := 8
+
+/-- For the element at place `L` of a block of dims `[n]` or `[m, n]` scanned along `axis`: the
+axis' size, the element's coordinate along it, and the place of coordinate `k` on its line. -/
+def scanLine : List Nat → Nat → Nat → Option (Nat × Nat × (Nat → Nat))
+  | [n], 0, L => some (n, L, id)
+  | [_, n], 1, L => some (n, L % n, fun k => L / n * n + k)
+  | [m, n], 0, L => some (m, L / n, fun k => k * n + L % n)
+  | _, _, _ => none
+
+/-- A scan's combine: `+` (`tl.cumsum`), `*` (`tl.cumprod`), or `tl.maximum`/`tl.minimum`
+(`tl.associative_scan(x, axis, combine)` with a `@triton.jit` combine calling it). -/
+inductive ScanKind | sum | prod | max | min
+  deriving BEq
+
+/-- The float combine of a scan kind (`Combine`), and its function. -/
+def ScanKind.fcombine {f : Format} : ScanKind → Combine (FloatV f)
+  | .sum => Combine.addRel false | .prod => Combine.mulRn
+  | .max => Combine.maxRel true | .min => Combine.maxRel false
+
+/-- The scan of kind `k` along `axis`, reversed with `rev`, of an input of dtype `d` promoted to
+`d'`: `tl.cumsum`, `tl.cumprod`, or `tl.associative_scan` with `Combine.maxRel`. Integer inputs
+for `+` and `*` only. -/
+def scanProg (k : ScanKind) (axis : Nat) (rev : Bool) (d d' : DType) (dims : List Nat)
+    (xs : Array Nat) : Option (Prog (Array Nat)) :=
+  if !(dims.length == 1 && axis == 0 || dims.length == 2 && axis < 2) then none else
+  match d.format?, d'.format?, intT d, intT d' with
+  | some f, some g, _, _ =>
+    let x : Tensor dims (FloatV g) := ⟨fun i => FloatV.cvt (FloatV.ofPat (f := f) (xs.getD (flat dims i) 0))⟩
+    let p := match k with
+      | .sum => tl.cumsum x axis rev | .prod => tl.cumprod x axis rev
+      | _ => tl.associative_scan x axis k.fcombine rev
+    some ((fun t : Tensor dims (FloatV g) => (t.toList.map (·.pat)).toArray) <$> p)
+  | _, _, some (sg, w), some (sg', w') =>
+    if k == .max || k == .min then none else
+    let x : Tensor dims (IntV sg' w') :=
+      ⟨fun i => IntV.ofInt (IntV.ofNat (s := sg) (w := w) (xs.getD (flat dims i) 0)).toInt⟩
+    let p := if k == .prod then tl.icumprod x axis rev else tl.icumsum x axis rev
+    some ((fun t : Tensor dims (IntV sg' w') => (t.toList.map (·.bits.toNat)).toArray) <$> p)
+  | _, _, _, _ => none
+
+/-- The oracle's trees for a float scan: at each place, the first bracketing of the position's
+leaves whose IEEE evaluation is the device's value (up to NaN payload), when the axis has at most
+`scanSearchMax` elements. Integer scans need none (every tree gives the same value). -/
+def scanTrees (k : ScanKind) (axis : Nat) (rev : Bool) (dts : List DType) (dims : List Nat)
+    (ins : List (Array Nat)) (dev : Array Nat) (L : Nat) : Option Tree :=
+  match dts, ins with
+  | [d, d'], [xs] => match d.format?, d'.format?, scanLine dims axis L with
+    | some f, some g, some (n, j, place) =>
+      if n > scanSearchMax then none else
+      let leaf (k : Nat) : FloatV g := FloatV.cvt (FloatV.ofPat (f := f) (xs.getD (place k) 0))
+      (bracketings (scanLeaves rev n j)).find? fun t =>
+        nanEq d' [] (treeEval (k.fcombine (f := g)).fn leaf t).pat (dev.getD L 0)
+    | _, _, _ => none
+  | _, _ => none
+
+def scanOp (k : ScanKind) (axis : Nat) (rev : Bool) : Op where
+  prog
+    | [d, d'], dims, [xs] => scanProg k axis rev d d' dims xs
+    | _, _, _ => none
+  inLen dims _ := dims.foldr (· * ·) 1
+  outLen dims := dims.foldr (· * ·) 1
+  lanewise := false
+  trees := scanTrees k axis rev
+
 def ops : List (String × Op) := [
   ("add", float2 tl.add), ("sub", float2 tl.sub), ("mul", float2 tl.mul),
   ("div_rn", float2 tl.div_rn), ("div", float2 tl.div), ("fma", float3 tl.fma),
@@ -225,7 +319,14 @@ def ops : List (String × Op) := [
   ("shl", int2 tl.shl), ("ashr", int2 tl.ashr), ("lshr", int2 tl.lshr),
   ("convert", convertOp), ("sum", sumOp),
   ("dot_ieee", dotOp .ieee), ("dot_tf32", dotOp .tf32),
-  ("dot_add_ieee", dotAddOp .ieee), ("dot_add_tf32", dotAddOp .tf32)]
+  ("dot_add_ieee", dotAddOp .ieee), ("dot_add_tf32", dotAddOp .tf32),
+  ("cumsum", scanOp .sum 0 false), ("cumsum_rev", scanOp .sum 0 true),
+  ("cumsum_ax1", scanOp .sum 1 false), ("cumsum_ax1_rev", scanOp .sum 1 true),
+  ("cumprod", scanOp .prod 0 false), ("cumprod_rev", scanOp .prod 0 true),
+  ("cumprod_ax1", scanOp .prod 1 false), ("cumprod_ax1_rev", scanOp .prod 1 true),
+  ("cummax", scanOp .max 0 false), ("cummax_rev", scanOp .max 0 true),
+  ("cummax_ax1", scanOp .max 1 false), ("cummin", scanOp .min 0 false),
+  ("cummin_rev", scanOp .min 0 true), ("cummin_ax1", scanOp .min 1 false)]
 
 /-! ## Mutants: wrong copies of definitions, as a transcription might have them
 
@@ -263,7 +364,11 @@ def mutants : List (String × String × Op) := [
       | some f, some g => some (pure (bitsOf d' (vec d' n ((vec d n xs).toList.map fun v =>
           (Format.cvt f g .rz false (d.toBits v))).toArray)))
       | _, _ => none
-    | _, _, _ => none })]
+    | _, _, _ => none }),
+  ("cumsum_rev", "reverse ignored", scanOp .sum 0 false),
+  ("cumsum_ax1", "the other axis", scanOp .sum 0 false),
+  ("cumprod", "the sum, not the product", scanOp .sum 0 false),
+  ("cummax", "the minimum", scanOp .min 0 false)]
 
 /-! ## Running a case -/
 
@@ -299,10 +404,13 @@ def candidates (n : Nat) : List Tree :=
   let cs := (List.range 6).map (2 ^ ·) |>.filter (· ≤ n)
   [halves 0 n] ++ cs.map fun c => strided 0 1 (n / c) fun t => halves (t * c) c
 
-/-- The oracle: trees from `tree`, the device's values for platform questions, at every request. -/
-def oracle (dev : Array Nat) (conv : Nat → Option Nat) (tree : Option Tree) : Oracle :=
+/-- The oracle: trees from `tree`, a scan position's tree from `scanT` (by the element's place),
+the device's values for platform questions, at every request. -/
+def oracle (dev : Array Nat) (conv : Nat → Option Nat) (tree : Option Tree)
+    (scanT : Nat → Option Tree := fun _ => none) : Oracle :=
   fun _ _ q => match q with
     | .tree _ => tree
+    | .scanTree _ _ _ lane => scanT lane
     | .plat q => platOut dev q
     | .convert _ d' x => (conv (DType.toBits _ x)).map d'.ofBits
     | _ => none
@@ -356,6 +464,7 @@ def harness (c : Case) (status : String) (what : Option String := none)
 * one run, with the oracle answering platform questions with `dev`: its verdict;
 * a reduction: one run per candidate tree; the first that agrees gives the verdict; if none
   does, `inconclusive` (the device's tree is not among the candidates), never a discrepancy;
+* a scan: one run, with each position's tree found by the oracle (`scanTrees`);
 * a predicted undefined behaviour, for an elementwise operation: each lane run alone; the lanes
   the model calls undefined are counted (`ub_lanes`), not compared, and the verdict joins the
   others' (`Verdict.join`). For any other operation, `inconclusive`: the device's output on
@@ -374,7 +483,7 @@ def runCase (o : Op) (c : Case) (dev : Array Nat) : Json := Id.run do
   let mut last : Option (Verdict × List Json) := none
   let mut sawDiff := false
   for t in trees do
-    let x := runProg (oracle dev conv t) p
+    let x := runProg (oracle dev conv t (o.trees c.dts c.dims c.ins dev)) p
     if let .ub _ := x.1 then
       if !o.lanewise then
         return report c (.inconclusive "the model predicts undefined behaviour (not localised)") []

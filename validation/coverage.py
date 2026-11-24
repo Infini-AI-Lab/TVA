@@ -99,6 +99,10 @@ for name, body in re.findall(r'\("([a-z_0-9]+)", (.*?)\)(?=,\s*\(|\s*$)', reg, r
 for fnm, tln in (("dotOp", "dot"), ("dotAddOp", "dot_add"), ("sumOp", "sum"), ("convertOp", "convert")):
     for name in re.findall(r'\("([a-z_0-9]+)", %s' % fnm, reg):
         harness[tln].add(name)
+for name in re.findall(r'\("([a-z_0-9]+)", scanOp', reg):     # float and integer scans
+    kind = name.split("_")[0]
+    for tln in {"cumprod": ("cumprod", "icumprod"), "cumsum": ("cumsum", "icumsum")}.get(kind, ()) + ("associative_scan",):
+        harness[tln].add(name)
 mutants = defaultdict(list)
 for name, why in re.findall(r'\("([a-z_0-9]+)", "([^"]+)", ', opsrc.split("def mutants", 1)[1].split("/-! ## Running", 1)[0]):
     mutants[name].append(why)
@@ -115,10 +119,18 @@ if len(sys.argv) > 1:
         r = json.load(f)
     for x in r["cases"]: results[x["id"]] = x["status"]
 
+# The scan ops run the float or the integer definition by the case's dtype (float: True).
+SCAN_DT = {"cumsum": True, "cumprod": True, "icumsum": False, "icumprod": False}
+
+def mut_of(n):
+    """The mutants of `n`: those named after it, and those of the other harness ops that run it."""
+    return mutants.get(n, []) + [f"{h}: {w}" for h in sorted(harness.get(n, ())) if h != n for w in mutants.get(h, [])]
+
 def cell_cases(n):
     hs = sorted(harness.get(n, ()))
     if not hs: return ""
     cs = [c for h in hs for c in case_ids.get(h, [])]
+    if n in SCAN_DT: cs = [c for c in cs if c[1].startswith(("f", "bf")) == SCAN_DT[n]]
     ids = [i for i, _ in cs]
     s = f"{len(ids)}: " + ", ".join(sorted({d for _, d in cs}))
     if results:
@@ -151,7 +163,7 @@ out = ["# Coverage of the `tl.*` operations", "",
 for n in rows:
     d = ops[n]
     out.append(f"| `tl.{n}` | `{d['file']}:{d['line']}` | {status(n)} | {cell_cases(n)} | "
-               f"{'; '.join(mutants.get(n, []))} |")
+               f"{'; '.join(mut_of(n))} |")
 with open(os.path.join(HERE, "COVERAGE.md"), "w") as f:
     f.write("\n".join(out) + "\n")
 print(f"COVERAGE.md: {len(rows)} operations, {tested} with cases; " + ", ".join(f"{k} {counts[k]}" for k in RANK))

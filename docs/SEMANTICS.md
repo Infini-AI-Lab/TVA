@@ -407,12 +407,16 @@ their asynchrony and barriers are the compiler's, which TVA trusts.
 
 `TVA.Triton.Scan`.
 
-- **`tl.associative_scan(x, axis, combine_fn, reverse)`** is `tl.associative_scan x axis op
-  reverse`: output position `j` is some binary tree over the leaves `0, …, j` in order
-  (`ScanLeaves`); with `reverse=True` the leaves are `n-1, …, j`, so the left operand covers the
-  higher indices. The combine function is a relation, the model's reading of `combine_fn`:
-  `fun a b c => c = a + b` for an integer addition, `AddRel` for a float one, `FloatV.MaxRel` for
-  `tl.maximum`.
+- **`tl.associative_scan(x, axis, combine_fn, reverse)`** is `tl.associative_scan x axis c
+  reverse` (`Site.scan`): output position `j` is some binary tree over the leaves `0, …, j` in
+  order (`ScanLeaves`); with `reverse=True` the leaves are `n-1, …, j`, so the left operand covers
+  the higher indices. Each node is a result of `c.rel`, the model's reading of `combine_fn`
+  (`Combine`, `TVA.Triton.Scan.Rel`): `Combine.ofFn (· + ·)` for an integer addition,
+  `Combine.addRel` (`AddRel`) for a float one, `Combine.maxRel` (`FloatV.MaxRel`) for
+  `tl.maximum` or `tl.minimum` (a running maximum or minimum). A `Combine` also carries a function `fn` with `c.rel a b (c.fn a b)`: only `rel`
+  is the meaning; `fn` shows that a result exists and lets the executor compute one. A scan of
+  several tensors is a scan of their zipped tuples. `tl.associative_scanRel x axis op reverse`
+  is the same scan for a combine given only as a relation (`Site.other`; not executable).
 - `tl.cumsum` (IEEE additions), `tl.cumsumc` (fusable), `tl.cumprod`, `tl.icumsum`, `tl.icumprod`
   (wrapping integers). `tl.cumsum` converts `bfloat16` to `float32` and integers narrower than 32
   bits to 32 bits; with `dtype=d` it converts `bfloat16` to `float32`, then the input to `d`, and

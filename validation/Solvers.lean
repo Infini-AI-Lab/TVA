@@ -28,6 +28,9 @@ open TVA
 inductive TQuery : Type → Type where
   /-- A reduction tree over `n` leaves. -/
   | tree (n : Nat) : TQuery Tree
+  /-- The tree of position `j` of a scan along an axis of size `n` (`ScanLeaves`), for the
+  output element at place `lane` of the tensor (row-major). -/
+  | scanTree (n j : Nat) (reverse : Bool) (lane : Nat) : TQuery Tree
   /-- An order of the lanes of a block of shape `s`. -/
   | order (s : Shape) : TQuery (List (Idx s))
   /-- An element of dtype `d` (an undefined padding value). -/
@@ -207,6 +210,33 @@ def solveTree {α : Type} (n : Nat) (C : Tree → Prop) [DecidablePred C] {rel :
     | some t => (try1 t).getD (.none (.badAnswer s!"the oracle's tree does not fit {n} leaves"))
     | Option.none => ((try1 (Tree.seq n)).orElse fun _ => try1 (balanced 0 n)).getD
         (.none (.searchFailed s!"no default tree over {n} leaves within the bound"))
+
+/-- The tree `((l₀ ⊕ l₁) ⊕ l₂) ⊕ …` over the leaves `l` in order (a single leaf `0` for none). -/
+def foldTree : List Nat → Tree
+  | [] => .leaf 0
+  | a :: l => l.foldl (fun t i => .node t (.leaf i)) (.leaf a)
+
+/-- The leaves of position `j` of a scan along an axis of size `n`, in the order `ScanLeaves`
+requires. -/
+def scanLeaves (reverse : Bool) (n j : Nat) : List Nat :=
+  if reverse then (List.range' j (n - j)).reverse else List.range (j + 1)
+
+/-- **A scan position**: position `j` of a scan along an axis of size `n` whose elements are `x`,
+each node evaluated with `c.fn` (which `c.rel` allows): along the oracle's tree if it supplied one
+(`badAnswer` if its leaves are not those `ScanLeaves` requires), else along the sequential tree
+over those leaves. -/
+def solveScan {α : Type} (n j : Nat) (reverse : Bool) (lane : Nat) (c : Combine α) (x : Nat → α)
+    (H : Hint) {plat : Prop} :
+    Ans (fun r => ∃ t : Tree, ScanLeaves reverse n j t ∧ t.Eval c.rel x r) plat :=
+  let try1 (t : Tree) : Option (Ans (fun r => ∃ t : Tree, ScanLeaves reverse n j t ∧
+      t.Eval c.rel x r) plat) :=
+    if h : ScanLeaves reverse n j t then some (.ok _ ⟨t, h, eval_treeEval c.fn_rel x t⟩)
+    else Option.none
+  match H (.scanTree n j reverse lane) with
+  | some t => (try1 t).getD
+      (.none (.badAnswer s!"the oracle's tree for scan position {j} of {n} has other leaves"))
+  | Option.none => (try1 (foldTree (scanLeaves reverse n j))).getD
+      (.none (.searchFailed s!"no tree for scan position {j} of {n}"))
 
 /-- `solveTree` without a condition on the tree. -/
 def solveTree' {α : Type} (n : Nat) {rel : α → α → α → Prop} (op : α → α → α)
@@ -447,6 +477,9 @@ def solveSite (s : Site) (H : Hint) : Ans (Site.Allows s) (sitePlatform s) :=
       (fun i => if h : i < m then x.get2 ⟨i, h⟩ j else default) H).transport
       (fun r => (r.map Prod.fst, r.map Prod.snd)) (fun r => Tensor.map2 Prod.mk r.1 r.2)
       (fun _ h i => h i) (fun _ h i => h i) id
+  | .scan s _ axis reverse c x => Ans.lanes fun i =>
+    solveScan (Shape.dim s axis) (i.coord axis) reverse (Ans.idxPos s i) c
+      (fun j => x.get (i.set axis j)) H
   | .histogram n bins _ _ x mask => histAns n bins x mask
   | .pad _ d p inb v =>
     Ans.lanes (R := fun i b => if inb i = true then b = v.get i else p.Holds b) fun i =>

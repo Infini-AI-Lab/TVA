@@ -9,7 +9,7 @@ the operations it calls): *pure*: Lean function, no choice; *effect*: memory eff
 
 **single-op cases**: cases of `ops/` that run the definition (count: dtypes); no device run recorded yet.
 
-121 operations: 15 pure, 5 effect, 70 certified, 15 platform, 7 assumed, 9 no solver. 26 have single-op cases. Not listed (builders the operations are written with): `addrs`, `atomicWith`, `cumsumWith`, `forN`, `math`, `rmwSeq`, `sum0With`, `sum1With`, `sumBound`, `sumWith`, `tripCount`, `upToNaN`.
+122 operations: 15 pure, 5 effect, 76 certified, 15 platform, 7 assumed, 4 no solver. 31 have single-op cases. Not listed (builders the operations are written with): `addrs`, `atomicWith`, `cumsumWith`, `forN`, `math`, `rmwSeq`, `sum0With`, `sum1With`, `sumBound`, `sumWith`, `tripCount`, `upToNaN`.
 
 | operation | defined | exec | single-op cases | mutants |
 |---|---|---|---|---|
@@ -127,10 +127,11 @@ the operations it calls): *pure*: Lean function, no choice; *effect*: memory eff
 | `tl.argmax1` | `Reduce.lean:111` | certified |  |  |
 | `tl.argmax0` | `Reduce.lean:117` | certified |  |  |
 | `tl.histogram` | `Reduce.lean:128` | certified |  |  |
-| `tl.associative_scan` | `Scan.lean:70` | no solver |  |  |
-| `tl.cumsum` | `Scan.lean:85` | no solver |  |  |
-| `tl.cumsumc` | `Scan.lean:90` | no solver |  |  |
-| `tl.cumprod` | `Scan.lean:95` | no solver |  |  |
-| `tl.icumsum` | `Scan.lean:102` | no solver |  |  |
-| `tl.icumprod` | `Scan.lean:107` | no solver |  |  |
-| `tl.sort` | `Scan.lean:115` | no solver |  |  |
+| `tl.associative_scan` | `Scan.lean:83` | certified | 136: bf16→f32, f16→f16, f32→f32, i32→i32, i64→i64, i8→i32, i8→i8, u8→u32, u8→u8 | cummax: the minimum; cumprod: the sum, not the product; cumsum_ax1: the other axis; cumsum_rev: reverse ignored |
+| `tl.associative_scanRel` | `Scan.lean:90` | no solver |  |  |
+| `tl.cumsum` | `Scan.lean:105` | certified | 42: bf16→f32, f16→f16, f32→f32 | cumsum_ax1: the other axis; cumsum_rev: reverse ignored |
+| `tl.cumsumc` | `Scan.lean:110` | certified |  |  |
+| `tl.cumprod` | `Scan.lean:115` | certified | 42: bf16→f32, f16→f16, f32→f32 | the sum, not the product |
+| `tl.icumsum` | `Scan.lean:122` | certified | 16: i32→i32, i64→i64, i8→i32, u8→u32 | cumsum_ax1: the other axis; cumsum_rev: reverse ignored |
+| `tl.icumprod` | `Scan.lean:127` | certified | 16: i32→i32, i64→i64, i8→i8, u8→u8 | cumprod: the sum, not the product |
+| `tl.sort` | `Scan.lean:135` | no solver |  |  |

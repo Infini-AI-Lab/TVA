@@ -1,4 +1,5 @@
 import TVA.Triton.Arith
+import TVA.Triton.Scan.Rel
 
 /-!
 # Scans and sorting: `tl.associative_scan`, `tl.cumsum`, `tl.sort`
@@ -9,9 +10,12 @@ across lanes and warps. Every combination is `combine_fn(acc, cur)` with `acc` t
 (an empty accumulator gives `cur` itself; there is no identity element). So output position `j` is
 the evaluation of some binary tree whose leaves are `0, …, j` in order (`ScanLeaves`).
 `reverse=True` is lowered as `flip(scan(flip(x)))`, so its leaves are `n-1, …, j` in that order:
-the left operand covers the higher indices. The combine function is a relation, the model's
-reading of the source's `combine_fn` (`fun a b c => c = a + b` for an integer addition, `AddRel`
-for a float one, `FloatV.MaxRel` for `tl.maximum`).
+the left operand covers the higher indices. The combine is a `Combine` (`TVA.Triton.Scan.Rel`):
+a relation, the model's reading of the source's `combine_fn` (`Combine.ofFn (· + ·)` for an
+integer addition, `Combine.addRel` for a float one, `Combine.maxRel` for `tl.maximum`), with a function
+that always gives one of its results. A combine given only as a relation is
+`tl.associative_scanRel`, the same scan, which the executor cannot run. A scan of several tensors
+(`tl.associative_scan((x, y), …)`) is a scan of their zipped pairs.
 
 Triton's promotions are written in the model: `tl.cumsum` converts `bfloat16` to `float32` and
 integers narrower than 32 bits to 32 bits (keeping signedness); with `dtype=d` it converts
@@ -26,11 +30,20 @@ a NaN may come out as anything.
 -/
 namespace TVA
 
-/-- The leaves a scan combines for position `j` of an axis of size `n`: `0, …, j` in order;
-reversed, `n-1, …, j` in that order. -/
-def ScanLeaves (reverse : Bool) (n j : Nat) (t : Tree) : Prop :=
-  if reverse then t.leaves = (List.range' j (n - j)).reverse
-  else t.leaves = List.range (j + 1)
+/-- The float addition of a scan: `AddRel fusion`, with the IEEE sum as its function. -/
+def Combine.addRel {f : Format} (fusion : Bool) : Combine (FloatV f) :=
+  ⟨AddRel fusion, FloatV.add, AddRel.ieee fusion⟩
+
+/-- `tl.maximum` (`isMax`) or `tl.minimum` as a scan's combine (a running maximum or minimum of
+floats, `tl.associative_scan(x, axis, tl.maximum)`): `FloatV.MaxRel`, with the IEEE
+`maxNum`/`minNum` as its function. -/
+def Combine.maxRel {f : Format} (isMax : Bool) : Combine (FloatV f) :=
+  ⟨FloatV.MaxRel isMax, fun a b => if isMax then FloatV.max a b else FloatV.min a b,
+    fun _ _ => by cases isMax <;> exact Or.inl (Or.inl rfl)⟩
+
+/-- The float product of a scan: the IEEE product, up to NaN payload. -/
+def Combine.mulRn {f : Format} : Combine (FloatV f) :=
+  ⟨fun a b c => FloatV.NaNEq (FloatV.mul a b) c, FloatV.mul, fun _ _ => Or.inl rfl⟩
 
 /-- How `tl.sort` compares elements: `lt` is Triton's `<`; `Ordered` elements are those `lt`
 orders totally (not NaN); `Same` is equality for `lt` (`==`: `-0 == +0` for floats). -/
@@ -65,9 +78,16 @@ variable {s : Shape} {α : Type}
 
 /-! ## Scans -/
 
-/-- `tl.associative_scan(x, axis, combine_fn, reverse)`, with the combine function given as the
-relation `op a b c` (`c` is a possible result of `combine_fn(a, b)`). -/
-def associative_scan (x : Tensor s α) (axis : Nat) (op : α → α → α → Prop)
+/-- `tl.associative_scan(x, axis, combine_fn, reverse)`, with the combine `c` (`c.rel a b r`:
+`r` is a possible result of `combine_fn(a, b)`). -/
+def associative_scan (x : Tensor s α) (axis : Nat) (c : Combine α)
+    (reverse : Bool := false) : Prog (Tensor s α) :=
+  .pick (.scan s α axis reverse c x) .ret
+
+/-- `tl.associative_scan` with the combine given only as the relation `op` (no function that
+gives one of its results): the same results as `associative_scan`, as `Site.other`, which the
+executor does not run. -/
+def associative_scanRel (x : Tensor s α) (axis : Nat) (op : α → α → α → Prop)
     (reverse : Bool := false) : Prog (Tensor s α) :=
   .pick (.other _ (fun r : Tensor s α => ∀ i, ∃ t : Tree,
     ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
@@ -79,7 +99,7 @@ variable {f : Format}
 /-- A float cumulative sum whose additions are `AddRel fusion`. -/
 def cumsumWith (fusion : Bool) (x : Tensor s (FloatV f)) (axis : Nat := 0)
     (reverse : Bool := false) : Prog (Tensor s (FloatV f)) :=
-  associative_scan x axis (AddRel fusion) reverse
+  associative_scan x axis (Combine.addRel fusion) reverse
 
 /-- `tl.cumsum(x, axis, reverse)` of a float tensor that is not a product: IEEE additions. -/
 def cumsum (x : Tensor s (FloatV f)) (axis : Nat := 0) (reverse : Bool := false) :
@@ -94,19 +114,19 @@ def cumsumc (x : Tensor s (FloatV f)) (axis : Nat := 0) (reverse : Bool := false
 /-- `tl.cumprod(x, axis, reverse)` of a float tensor: IEEE products. -/
 def cumprod (x : Tensor s (FloatV f)) (axis : Nat := 0) (reverse : Bool := false) :
     Prog (Tensor s (FloatV f)) :=
-  associative_scan x axis (fun a b c => FloatV.NaNEq (FloatV.mul a b) c) reverse
+  associative_scan x axis Combine.mulRn reverse
 
 end Float
 
 /-- `tl.cumsum` of an integer tensor (wrapping). -/
 def icumsum {sg : Bool} {w : Nat} (x : Tensor s (IntV sg w)) (axis : Nat := 0)
     (reverse : Bool := false) : Prog (Tensor s (IntV sg w)) :=
-  associative_scan x axis (fun a b c => c = a + b) reverse
+  associative_scan x axis (Combine.ofFn (· + ·)) reverse
 
 /-- `tl.cumprod` of an integer tensor (wrapping). -/
 def icumprod {sg : Bool} {w : Nat} (x : Tensor s (IntV sg w)) (axis : Nat := 0)
     (reverse : Bool := false) : Prog (Tensor s (IntV sg w)) :=
-  associative_scan x axis (fun a b c => c = a * b) reverse
+  associative_scan x axis (Combine.ofFn (· * ·)) reverse
 
 /-! ## Sorting -/
 

@@ -124,21 +124,37 @@ theorem sum_err_list (hf : f.Regular) (x : Nat → FloatV f) {t : Tree} {L : Lis
 section Rules
 variable {s : Shape} {E : Env} {R W : Set Int} {α : Type} {Q : α → Mem → Prop} {m : Mem}
 
-/-- **`tl.associative_scan`** with a total combine relation: each output position is the
-evaluation of some tree over its leaves (`ScanLeaves`). The specialised rules below
-(`safe_cumsum`, `safe_icumsum`, …) are this with Triton's combine. -/
-theorem safe_associative_scan {β : Type} {x : Tensor s β} {axis : Nat} {op : β → β → β → Prop}
+/-- **`tl.associative_scanRel`** with a total combine relation: each output position is the
+evaluation of some tree over its leaves (`ScanLeaves`). -/
+theorem safe_associative_scanRel {β : Type} {x : Tensor s β} {axis : Nat} {op : β → β → β → Prop}
     {reverse : Bool} (haxis : axis < s.length) (htot : ∀ a b, ∃ c, op a b c)
     {k : Tensor s β → Prog α}
     (hk : ∀ r : Tensor s β, (∀ i, ∃ t : Tree, ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
         t.Eval op (fun j => x.get (i.set axis j)) (r.get i)) → Safe E R W Q m (k r)) :
-    Safe E R W Q m (tl.associative_scan x axis op reverse >>= k) := by
-  simp only [tl.associative_scan, Prog.bind_eq, Prog.bind]
+    Safe E R W Q m (tl.associative_scanRel x axis op reverse >>= k) := by
+  simp only [tl.associative_scanRel, Prog.bind_eq, Prog.bind]
   have hex : ∀ i : Idx s, ∃ v t, ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
       t.Eval op (fun j => x.get (i.set axis j)) v := by
     intro i
     obtain ⟨t, ht⟩ := ScanLeaves.exists reverse (Idx.coord_lt i haxis)
     obtain ⟨v, hv⟩ := Tree.eval_exists htot (fun j => x.get (i.set axis j)) t
+    exact ⟨v, t, ht, hv⟩
+  exact .pick ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
+
+/-- **`tl.associative_scan`**: each output position is the evaluation, with `c.rel` at each node,
+of some tree over its leaves (`ScanLeaves`). A combine always has a result (`c.fn_rel`). The
+specialised rules below (`safe_cumsum`, `safe_icumsum`, …) are this with Triton's combine. -/
+theorem safe_associative_scan {β : Type} {x : Tensor s β} {axis : Nat} {c : Combine β}
+    {reverse : Bool} (haxis : axis < s.length) {k : Tensor s β → Prog α}
+    (hk : ∀ r : Tensor s β, (∀ i, ∃ t : Tree, ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
+        t.Eval c.rel (fun j => x.get (i.set axis j)) (r.get i)) → Safe E R W Q m (k r)) :
+    Safe E R W Q m (tl.associative_scan x axis c reverse >>= k) := by
+  simp only [tl.associative_scan, Prog.bind_eq, Prog.bind]
+  have hex : ∀ i : Idx s, ∃ v t, ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
+      t.Eval c.rel (fun j => x.get (i.set axis j)) v := by
+    intro i
+    obtain ⟨t, ht⟩ := ScanLeaves.exists reverse (Idx.coord_lt i haxis)
+    obtain ⟨v, hv⟩ := Tree.eval_exists (fun a b => ⟨_, c.fn_rel a b⟩) (fun j => x.get (i.set axis j)) t
     exact ⟨v, t, ht, hv⟩
   exact .pick ⟨⟨fun i => Classical.choose (hex i)⟩, fun i => Classical.choose_spec (hex i)⟩ hk
 
@@ -151,7 +167,7 @@ theorem safe_cumsumWith (fusion : Bool) {x : Tensor s (FloatV f)} {axis : Nat} {
     (hk : ∀ r : Tensor s (FloatV f), (∀ i, ∃ t : Tree, ScanLeaves reverse (Shape.dim s axis) (i.coord axis) t ∧
         t.Eval (AddRel fusion) (fun j => x.get (i.set axis j)) (r.get i)) → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.cumsumWith fusion x axis reverse >>= k) :=
-  safe_associative_scan haxis (addRel_total fusion) hk
+  safe_associative_scan (c := Combine.addRel fusion) haxis hk
 
 /-- **`tl.cumsum`** of floats that are not products: IEEE additions along each position's
 tree. `sum_err_list` (with `ScanLeaves.perm`) bounds the error. -/
@@ -179,7 +195,7 @@ theorem safe_cumprod {x : Tensor s (FloatV f)} {axis : Nat} {reverse : Bool}
         t.Eval (fun a b c => FloatV.NaNEq (FloatV.mul a b) c) (fun j => x.get (i.set axis j)) (r.get i)) →
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.cumprod x axis reverse >>= k) :=
-  safe_associative_scan haxis (fun _ _ => ⟨_, FloatV.NaNEq.refl _⟩) hk
+  safe_associative_scan (c := Combine.mulRn) haxis hk
 
 end Float
 
@@ -192,7 +208,7 @@ theorem safe_icumsum {sg : Bool} {w : Nat} {x : Tensor s (IntV sg w)} {axis : Na
       Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.icumsum x axis reverse >>= k) := by
   unfold tl.icumsum
-  refine safe_associative_scan (op := fun a b c => c = a + b) haxis (fun a b => ⟨a + b, rfl⟩) fun r hr => hk r fun i => ?_
+  refine safe_associative_scan (c := Combine.ofFn (· + ·)) haxis fun r hr => hk r fun i => ?_
   obtain ⟨t, hl, he⟩ := hr i
   rw [Tree.eval_add_sum (β := IntV sg w) he]
   exact (hl.perm.map _).sum_eq
@@ -205,7 +221,7 @@ theorem safe_icumprod {sg : Bool} {w : Nat} {x : Tensor s (IntV sg w)} {axis : N
         t.Eval (fun a b c => c = a * b) (fun j => x.get (i.set axis j)) (r.get i)) → Safe E R W Q m (k r)) :
     Safe E R W Q m (tl.icumprod x axis reverse >>= k) := by
   unfold tl.icumprod
-  exact safe_associative_scan (op := fun a b c => c = a * b) haxis (fun a b => ⟨a * b, rfl⟩) hk
+  exact safe_associative_scan (c := Combine.ofFn (· * ·)) haxis hk
 
 end Rules
 

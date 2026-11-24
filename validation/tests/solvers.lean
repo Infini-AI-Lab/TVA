@@ -114,6 +114,46 @@ def m2 : Tensor [2, 2] DType.f32.Val := Tensor.of2 fun i j => f32 (i.1 + j.1)
 #guard tag (.sumBcastMul P0 false .f32 2 2 2 m2 m2) Hdev == "ok"
 #guard (tag (.other Nat fun _ => True)).startsWith "none: TVA.Validation.Gap.unsupported"
 
+-- scans (`tl.associative_scan`, `tl.cumsum`, …): each position along the sequential tree over its
+-- leaves, or the oracle's tree for it
+def scanVals {s : Shape} {α : Type} (axis : Nat) (rev : Bool) (c : Combine α) (x : Tensor s α)
+    (g : α → Int) (H : Hint := H0) : Option (List Int) :=
+  (solveSite (.scan s α axis rev c x) H).val?.map fun r : Tensor s α => (Idx.all s).map fun i => g (r.get i)
+def ratInt (q : F32) : Int := q.toRat.floor
+#guard scanVals 0 false (Combine.addRel false) x4 ratInt == some [1, 3, 6, 10]
+#guard scanVals 0 true (Combine.addRel false) x4 ratInt == some [10, 9, 7, 4]
+#guard scanVals 0 false Combine.mulRn x4 ratInt == some [1, 2, 6, 24]
+-- a rank-2 tensor `[[0, 1, 2], [3, 4, 5]]` along each axis
+def m23 : Tensor [2, 3] F32 := Tensor.of2 fun i j => f32 (3 * i.1 + j.1)
+#guard scanVals 1 false (Combine.addRel false) m23 ratInt == some [0, 1, 3, 3, 7, 12]
+#guard scanVals 0 false (Combine.addRel false) m23 ratInt == some [0, 1, 2, 3, 5, 7]
+#guard scanVals 1 true (Combine.addRel false) m23 ratInt == some [3, 3, 2, 12, 9, 5]
+-- integers wrap; a deterministic combine of the model's own (a running maximum)
+def big : Tensor [3] I32 := Tensor.of1 fun i => i32 ([2 ^ 31 - 1, 1, 5].getD i.1 0)
+#guard scanVals 0 false (Combine.ofFn (· + ·)) big IntV.toInt == some [2 ^ 31 - 1, -2 ^ 31, -2 ^ 31 + 5]
+#guard scanVals 0 false (Combine.ofFn fun a b : I32 => if IntV.lt a b then b else a) y4 IntV.toInt ==
+  some [3, 7, 7, 7]
+-- the tree matters in `float32`: `(2^24 + 1) + 1` rounds to `2^24`, `2^24 + (1 + 1)` is exact; the
+-- oracle's tree for position 2 is used, and a tree with other leaves is a bad answer
+def t24 : Tensor [3] F32 := Tensor.of1 fun i => f32 ([2 ^ 24, 1, 1].getD i.1 0)
+def Hright : Hint := fun q => match q with
+  | .scanTree _ 2 false _ => some (.node (.leaf 0) (.node (.leaf 1) (.leaf 2)))
+  | _ => none
+def Hswap : Hint := fun q => match q with
+  | .scanTree _ 2 false _ => some (.node (.leaf 1) (.node (.leaf 0) (.leaf 2)))
+  | _ => none
+#guard scanVals 0 false (Combine.addRel false) t24 ratInt == some [2 ^ 24, 2 ^ 24, 2 ^ 24]
+#guard scanVals 0 false (Combine.addRel false) t24 ratInt Hright == some [2 ^ 24, 2 ^ 24, 2 ^ 24 + 2]
+#guard (tag (.scan [3] F32 0 false (Combine.addRel false) t24) Hswap).startsWith
+  "none: TVA.Validation.Gap.badAnswer"
+-- a running maximum and minimum of floats (`tl.associative_scan(x, 0, tl.maximum)`): a NaN loses
+-- (`maxNum`), infinities win
+def mx : Tensor [4] F32 := Tensor.of1 fun i => [f32 1, FloatV.ofPat 0x7fc00000, f32 3, FloatV.ofPat 0xff800000].getD i.1 (f32 0)
+#guard ((solveSite (.scan [4] F32 0 false (Combine.maxRel true) mx) H0).val?.map fun r : Tensor [4] F32 =>
+  r.toList.map (·.pat)) == some ([f32 1, f32 1, f32 3, f32 3].map (·.pat))
+#guard ((solveSite (.scan [4] F32 0 false (Combine.maxRel false) mx) H0).val?.map fun r : Tensor [4] F32 =>
+  r.toList.map (·.pat)) == some [(f32 1).pat, (f32 1).pat, (f32 1).pat, 0xff800000]
+
 -- updates
 def utag {d : DType} (u : Upd d) (old : d.Val) (H : Hint := H0) : String := (solveUpd u old H).tag
 #guard ((solveUpd (Upd.add (d := .i32) E0 (i32 5)) (i32 7) H0).val?.map IntV.toInt) == some 12

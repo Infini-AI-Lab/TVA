@@ -129,7 +129,7 @@ each `?_` being the next line. Start by unfolding the model for program `i`
 | `tl.dot`, `tl.dot(a, b) + c` | `safe_dot`, `safe_dot_add` | `Proof.Rules.Dot` |
 | `tl.sum(x[:, :, None] * y[None, :, :], 1)` | `safe_sum_bcast_mul` (with `tl.MulRel.total`, `AccAdd.total`) | `Proof.Rules.Dot` |
 | `tl.dot_scaled` | `safe_dot_scaled`, `safe_dot_scaled_add` | `Proof.Rules.Dot` |
-| scans | `safe_associative_scan`, `safe_cumsum`, `safe_cumsumc`, `safe_cumprod`, `safe_icumsum`, `safe_icumprod` | `Proof.Scan` |
+| scans | `safe_associative_scan` (`safe_associative_scanRel` for a relation-only combine), `safe_cumsum`, `safe_cumsumc`, `safe_cumprod`, `safe_icumsum`, `safe_icumprod` | `Proof.Scan` |
 | `tl.sort`, `tl.histogram` | `safe_sort`, `safe_histogram` | `Proof.Scan` |
 | `tl.rand` | `safe_rand`, `safe_uint_to_uniform_float` (`tl.randint` is an exact function) | `Proof.Random` |
 | `tl.assume`, `tl.static_assert` | `safe_assume`, `safe_static_assert` | `Proof.Rules.Core` |
