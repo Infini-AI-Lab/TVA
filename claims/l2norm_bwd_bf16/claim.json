@@ -1,0 +1,25 @@
+{
+  "kernel": "l2norm_bwd_bf16",
+  "title": "L2 normalisation, backward (`l2norm_bwd_kernel`, bfloat16 or float32 y, dy and dx), fla",
+  "namespace": "Claims.L2NormBwd",
+  "lean": "Claim.lean",
+  "source": "source/l2norm.py",
+  "source_sha256": "e3e1cc561e0d1bffaf46b280e71b71e781961cf64be5252d75a506ef0aeb67e2",
+  "kernel_lines": [
+    [
+      47,
+      67
+    ]
+  ],
+  "host_lines": [
+    [
+      45,
+      45
+    ],
+    [
+      70,
+      131
+    ]
+  ],
+  "claim_sha256": "971003468e8027f96f1fdcd85bfde47e954b5d4c282e25c402ebcfb5eac6a7f2"
+}

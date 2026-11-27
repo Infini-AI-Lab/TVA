@@ -1,0 +1,29 @@
+{
+  "kernel": "write_req_to_token_pool_i32",
+  "title": "A batch's KV indices (cached prefixes and new locations) written into its rows of `req_to_token` (`write_req_to_token_pool_triton`, int32), SGLang",
+  "namespace": "Claims.WriteReqToTokenPool",
+  "lean": "Claim.lean",
+  "source": "source/write_req_to_token_pool.py",
+  "source_sha256": "3f0869397009e003de0c7f8fa27e9bb958ff061b8cbd9a417f44653b7b755c70",
+  "kernel_lines": [
+    [
+      52,
+      53
+    ],
+    [
+      56,
+      104
+    ]
+  ],
+  "host_lines": [
+    [
+      51,
+      51
+    ],
+    [
+      107,
+      136
+    ]
+  ],
+  "claim_sha256": "3fe74b2b84c65aee9203bd1f9bb76d1937b595b16c5866d414c2de6f3567aa5c"
+}

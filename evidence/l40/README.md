@@ -61,7 +61,7 @@ output of `evidence/<folder>/<script>.py` on the L40. The scripts are the H200's
 ## The swap test
 
 With `Device` set to `Device.L40.Facts` (`lean/TVA/Device.lean`, three lines), the library and `TVA.Proof`
-build, and 40 of the 41 claims' oracle proofs check. The one that does not is `kv_cache_write_bf16`: its fp8
+build, and 59 of the 60 claims' oracle proofs check. The one that does not is `kv_cache_write_bf16`: its fp8
 configuration promises the single saturating rounding of `key / k_scale`, which the L40 does not give.
 `num-cvt8/example.py` runs the claim's operation on one input (`key = 1.0625`, `k_scale = 1 - 2^-12`): the
 L40 stores `1.0`, the claim says `1.125` (`num-cvt8/example.out`). So the claim is false on the L40, and the

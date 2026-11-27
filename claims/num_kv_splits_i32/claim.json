@@ -1,0 +1,25 @@
+{
+  "kernel": "num_kv_splits_i32",
+  "title": "Number of KV splits per request for split-K decode attention, from the batch's lengths, with a float32 core-count term (`get_num_kv_splits_triton`, int32), SGLang",
+  "namespace": "Claims.NumKvSplits",
+  "lean": "Claim.lean",
+  "source": "source/metadata.py",
+  "source_sha256": "316ea6c2d6370ea4bcc488aceda3d5410baf6ce79bcc23d563ab0b187d717326",
+  "kernel_lines": [
+    [
+      56,
+      108
+    ]
+  ],
+  "host_lines": [
+    [
+      52,
+      53
+    ],
+    [
+      111,
+      149
+    ]
+  ],
+  "claim_sha256": "d9d2a8744737f97706eb816641206247e35c3479c68be9f77dc5d03494af6aab"
+}

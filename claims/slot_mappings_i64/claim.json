@@ -1,0 +1,25 @@
+{
+  "kernel": "slot_mappings_i64",
+  "title": "KV-cache slot mappings of a batch's tokens, per KV-cache group, with decode context parallelism (`_compute_slot_mappings_kernel`, int64), vLLM",
+  "namespace": "Claims.SlotMappings",
+  "lean": "Claim.lean",
+  "source": "source/block_table.py",
+  "source_sha256": "3950fd155397007c01e493e7520b9cd996fd4ea2cffce52f07572b78a24ee2d5",
+  "kernel_lines": [
+    [
+      66,
+      154
+    ]
+  ],
+  "host_lines": [
+    [
+      63,
+      63
+    ],
+    [
+      157,
+      264
+    ]
+  ],
+  "claim_sha256": "dc5336a0944703383e7e6120db1a5ac87cb74e23f80690e9dc43a57a52e5cff2"
+}

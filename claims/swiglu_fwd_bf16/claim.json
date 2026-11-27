@@ -1,0 +1,25 @@
+{
+  "kernel": "swiglu_fwd_bf16",
+  "title": "SwiGLU forward, `x * sigmoid(x) * y` (`swiglu_fwd_kernel`, bfloat16), fla",
+  "namespace": "Claims.SwigluFwd",
+  "lean": "Claim.lean",
+  "source": "source/swiglu.py",
+  "source_sha256": "e6854013d1b431ce44b74a4d1c6b481cf95ad2c21381777eb5cfe7e2a2210a44",
+  "kernel_lines": [
+    [
+      92,
+      102
+    ]
+  ],
+  "host_lines": [
+    [
+      58,
+      89
+    ],
+    [
+      105,
+      174
+    ]
+  ],
+  "claim_sha256": "d3b39856fe0cfeb667b15f4509f36a76810852c1272fc62170dddd8c220f0e38"
+}

@@ -1,0 +1,25 @@
+{
+  "kernel": "rejection_expand_f32",
+  "title": "Per-request sampling parameters expanded to draft tokens, with a value substitution (`expand_kernel`, float32 and int32), vLLM",
+  "namespace": "Claims.RejectionExpand",
+  "lean": "Claim.lean",
+  "source": "source/rejection_expand.py",
+  "source_sha256": "6c2e7b047ec3454be4719eaaa5ec092a2c81696eedce3967db3c55ad132a22c2",
+  "kernel_lines": [
+    [
+      107,
+      128
+    ]
+  ],
+  "host_lines": [
+    [
+      63,
+      104
+    ],
+    [
+      131,
+      148
+    ]
+  ],
+  "claim_sha256": "6f708929f53fb449b670d2e2934d183a1a3bb04556842f9588d50ccb27eb0b29"
+}

@@ -1,0 +1,29 @@
+{
+  "kernel": "gelu_and_mul_sparse_bf16",
+  "title": "Gaussian-sparse GELU-and-multiply, Gemma 3n activation sparsity (`_gelu_and_mul_sparse_kernel`, bfloat16), vLLM",
+  "namespace": "Claims.GeluAndMulSparse",
+  "lean": "Claim.lean",
+  "source": "source/activation.py",
+  "source_sha256": "b8a2a89374b6a840bdc79d1bb6a4e1a751026ce99dcf75513c9de784e33dc486",
+  "kernel_lines": [
+    [
+      49,
+      50
+    ],
+    [
+      56,
+      92
+    ]
+  ],
+  "host_lines": [
+    [
+      52,
+      53
+    ],
+    [
+      95,
+      141
+    ]
+  ],
+  "claim_sha256": "e9a682702703f06c4860b1abf789ff8832f02f451e23a8ddf058d6dfbe95aab8"
+}

@@ -1,0 +1,49 @@
+{
+  "kernel": "mean_pooling_fwd_bf16",
+  "title": "Mean pooling over chunks of tokens (`mean_pooling_fwd_kernel`, bfloat16), fla",
+  "namespace": "Claims.MeanPoolingFwd",
+  "lean": "Claim.lean",
+  "source": "source/pooling.py",
+  "source_sha256": "d8f0c1151e0d53f1579e1b8b4ae5bdecbd6a86ea24c934cea26f66f0ff2cd818",
+  "kernel_lines": [
+    [
+      67,
+      68
+    ],
+    [
+      71,
+      78
+    ],
+    [
+      81,
+      117
+    ]
+  ],
+  "host_lines": [
+    [
+      65,
+      65
+    ],
+    [
+      120,
+      121
+    ],
+    [
+      124,
+      145
+    ],
+    [
+      148,
+      156
+    ],
+    [
+      159,
+      188
+    ],
+    [
+      191,
+      211
+    ]
+  ],
+  "claim_sha256": "97579c85ae5f1dd3aa5accb2d37cc431696e7f2699c843e1dbadc2d68b533e73"
+}

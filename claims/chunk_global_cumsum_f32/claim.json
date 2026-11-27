@@ -1,0 +1,29 @@
+{
+  "kernel": "chunk_global_cumsum_f32",
+  "title": "Global cumulative sum (`chunk_global_cumsum_scalar_kernel`, float32), fla",
+  "namespace": "Claims.ChunkGlobalCumsum",
+  "lean": "Claim.lean",
+  "source": "source/chunk_global_cumsum.py",
+  "source_sha256": "eab0c241c69d94a64774ac522d1293541d555e9bc1836dcea2b75df933500aca",
+  "kernel_lines": [
+    [
+      56,
+      57
+    ],
+    [
+      60,
+      101
+    ]
+  ],
+  "host_lines": [
+    [
+      104,
+      139
+    ],
+    [
+      142,
+      173
+    ]
+  ],
+  "claim_sha256": "083f2275979c0df6fc730291c1998bc6f0862aabecafb2dcef33ed0c4bf79a4c"
+}

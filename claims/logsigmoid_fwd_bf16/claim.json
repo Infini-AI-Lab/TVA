@@ -1,0 +1,33 @@
+{
+  "kernel": "logsigmoid_fwd_bf16",
+  "title": "Log-sigmoid with a temperature, forward (`logsigmoid_fwd_kernel`, bfloat16), fla",
+  "namespace": "Claims.LogsigmoidFwd",
+  "lean": "Claim.lean",
+  "source": "source/logsigmoid.py",
+  "source_sha256": "80269a741f21163569229a7058051a47a30f85aa19a7a3e88f348dc2d8fe1332",
+  "kernel_lines": [
+    [
+      49,
+      56
+    ],
+    [
+      92,
+      103
+    ]
+  ],
+  "host_lines": [
+    [
+      47,
+      47
+    ],
+    [
+      59,
+      89
+    ],
+    [
+      106,
+      121
+    ]
+  ],
+  "claim_sha256": "1b9e515137843954093362539aa2de7b972ccbebe7c0f62a6f9c7daa72565f71"
+}

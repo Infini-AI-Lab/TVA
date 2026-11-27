@@ -1,0 +1,29 @@
+{
+  "kernel": "layer_norm_gated_fwd_bf16",
+  "title": "Gated RMS norm, forward (`layer_norm_gated_fwd_kernel`, RMS norm with weight, swish or sigmoid gate, bfloat16), fla",
+  "namespace": "Claims.LayerNormGatedFwd",
+  "lean": "Claim.lean",
+  "source": "source/fused_norm_gate.py",
+  "source_sha256": "8e449da99b3f0acdd4e640795241ed1952201e255ca612c81ab4c8d5cad52846",
+  "kernel_lines": [
+    [
+      51,
+      52
+    ],
+    [
+      55,
+      127
+    ]
+  ],
+  "host_lines": [
+    [
+      49,
+      49
+    ],
+    [
+      131,
+      200
+    ]
+  ],
+  "claim_sha256": "933866a245b0ec6b3235e0100f0cfd3052f9201acbdc0f7fbad433e7d6c5903e"
+}

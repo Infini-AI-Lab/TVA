@@ -1,0 +1,29 @@
+{
+  "kernel": "compute_position_i64",
+  "title": "Positions of an extend batch, each request's prefix plus token offset at its running start, with or without prefixes (`compute_position_kernel`, int64), SGLang",
+  "namespace": "Claims.ComputePosition",
+  "lean": "Claim.lean",
+  "source": "source/position.py",
+  "source_sha256": "4a125ee064970344c17408ef6c949d6e28ba2e75d1733f73145d4bba8151d26c",
+  "kernel_lines": [
+    [
+      34,
+      35
+    ],
+    [
+      64,
+      91
+    ]
+  ],
+  "host_lines": [
+    [
+      33,
+      33
+    ],
+    [
+      38,
+      61
+    ]
+  ],
+  "claim_sha256": "fd1c3436a4c89db7fdeb4cfca921e151b5ff1b73ea085d8c19d9d88f0bc10c93"
+}

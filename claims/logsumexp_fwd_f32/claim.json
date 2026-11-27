@@ -1,0 +1,29 @@
+{
+  "kernel": "logsumexp_fwd_f32",
+  "title": "Block-wise log-sum-exp of rows, forward (`logsumexp_fwd_kernel`, float32, without softcapping), fla",
+  "namespace": "Claims.LogsumexpFwd",
+  "lean": "Claim.lean",
+  "source": "source/ops.py",
+  "source_sha256": "93fa96a0c5c6aacb4183c58f114f9ca873dec53d3c9256ecf059067c04b02daf",
+  "kernel_lines": [
+    [
+      55,
+      60
+    ],
+    [
+      67,
+      91
+    ]
+  ],
+  "host_lines": [
+    [
+      50,
+      51
+    ],
+    [
+      94,
+      108
+    ]
+  ],
+  "claim_sha256": "3f5b55187660eb9369885327b3f299f3985840fbc5c051c338549c1cef248fbc"
+}

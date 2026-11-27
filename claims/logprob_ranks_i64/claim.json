@@ -1,0 +1,25 @@
+{
+  "kernel": "logprob_ranks_i64",
+  "title": "Ranks of the sampled tokens over the vocabulary (`_ranks_kernel`, int64), vLLM",
+  "namespace": "Claims.LogprobRanks",
+  "lean": "Claim.lean",
+  "source": "source/logprob_ranks.py",
+  "source_sha256": "349ad6e6319f3e78514c64e94d496d9abe77ab6a106beb0b89f58547f20e07a9",
+  "kernel_lines": [
+    [
+      43,
+      44
+    ],
+    [
+      47,
+      67
+    ]
+  ],
+  "host_lines": [
+    [
+      70,
+      85
+    ]
+  ],
+  "claim_sha256": "f859afc4ff57948b13143cf51b7be9a1678bbb7fd32efa063a6efe1b591bdb28"
+}

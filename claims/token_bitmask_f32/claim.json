@@ -1,0 +1,33 @@
+{
+  "kernel": "token_bitmask_f32",
+  "title": "Grammar token bitmask applied to logits in place (`apply_token_bitmask_inplace_kernel`, float32), SGLang",
+  "namespace": "Claims.TokenBitmask",
+  "lean": "Claim.lean",
+  "source": "source/bitmask_ops.py",
+  "source_sha256": "ff3d2e3e561db667fa3737edd7726c676d1e9c92ee4f5412dceca1a3fa3b7959",
+  "kernel_lines": [
+    [
+      45,
+      46
+    ],
+    [
+      56,
+      124
+    ]
+  ],
+  "host_lines": [
+    [
+      44,
+      44
+    ],
+    [
+      49,
+      53
+    ],
+    [
+      127,
+      184
+    ]
+  ],
+  "claim_sha256": "ec87efeec74f22115adfee5052b469bb1ee79f5b3d03e8ec5c96bf072dcd5400"
+}

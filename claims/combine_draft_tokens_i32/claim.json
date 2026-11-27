@@ -1,0 +1,21 @@
+{
+  "kernel": "combine_draft_tokens_i32",
+  "title": "Input ids and logits indices for speculative decoding (`_combine_sampled_and_draft_tokens_kernel`, int32), vLLM",
+  "namespace": "Claims.CombineDraftTokens",
+  "lean": "Claim.lean",
+  "source": "source/combine_draft_tokens.py",
+  "source_sha256": "65cb4580063b04ec0070477f9bc4b76aa34739afc162b910066f4775030872eb",
+  "kernel_lines": [
+    [
+      60,
+      118
+    ]
+  ],
+  "host_lines": [
+    [
+      121,
+      159
+    ]
+  ],
+  "claim_sha256": "2cddaae429d1f153ca28e5891c36cbd25b75e4e7784cbe7280e5caba7d847489"
+}

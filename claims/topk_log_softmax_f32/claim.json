@@ -1,0 +1,29 @@
+{
+  "kernel": "topk_log_softmax_f32",
+  "title": "Log-softmax at selected token ids (`_topk_log_softmax_kernel`, float32), vLLM",
+  "namespace": "Claims.TopkLogSoftmax",
+  "lean": "Claim.lean",
+  "source": "source/logprob.py",
+  "source_sha256": "767d2d9528297d6bcad8bb75810f424f1bbf1f788ff5b351ceb1c56b65ca2d4a",
+  "kernel_lines": [
+    [
+      23,
+      24
+    ],
+    [
+      30,
+      72
+    ]
+  ],
+  "host_lines": [
+    [
+      27,
+      27
+    ],
+    [
+      75,
+      116
+    ]
+  ],
+  "claim_sha256": "f83584e3cd6d20ab68c0f4c7a1ce329f31b1d36a9be60f384d1b0f19cc782b9d"
+}

@@ -1,0 +1,25 @@
+{
+  "kernel": "prepare_pos_seq_lens_i32",
+  "title": "Positions and sequence lengths of a batch, with the unused sequence lengths zeroed by an extra program (`_prepare_pos_seq_lens_kernel`, int32/int64), vLLM",
+  "namespace": "Claims.PreparePosSeqLens",
+  "lean": "Claim.lean",
+  "source": "source/prepare_pos_seq_lens.py",
+  "source_sha256": "e2921f682374f90911fdd84cdb19fdad1e6db56ea11e087f1f9810f71605f365",
+  "kernel_lines": [
+    [
+      50,
+      87
+    ]
+  ],
+  "host_lines": [
+    [
+      48,
+      48
+    ],
+    [
+      90,
+      165
+    ]
+  ],
+  "claim_sha256": "df0dfa57d31c39e99a4ed7730751594ba3e167e5e47606eca356a9cc2520ab5d"
+}
