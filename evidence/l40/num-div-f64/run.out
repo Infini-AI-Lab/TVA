@@ -1,0 +1,45 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA L40
+
+| family | mode | pairs | differ from IEEE division (up to NaN payload) | first difference (x, y, device, IEEE) |
+|---|---|---|---|---|
+| uniform | div | 67108864 | 0 | None |
+| struct | div | 67108864 | 0 | None |
+| near1 | div | 33554432 | 0 | None |
+| binade1 | div | 33554432 | 0 | None |
+| subnormal-dividend | div | 33554432 | 0 | None |
+| subnormal-quotient | div | 67108864 | 0 | None |
+| subnormal-divisor | div | 16777216 | 0 | None |
+| pow2 | div | 16777216 | 0 | None |
+| overflow | div | 16777216 | 0 | None |
+| near-exact | div | 33554432 | 0 | None |
+| midpoint | div | 4194304 | 0 | None |
+| specials | div | 1296 | 0 | None |
+| struct, tl.fdiv | fdiv | 16777216 | 0 | None |
+| x / 1.0 | const | 4194304 | 0 | None |
+| x / -1.0 | const | 4194304 | 0 | None |
+| x / 2.0 | const | 4194304 | 0 | None |
+| x / 0.5 | const | 4194304 | 0 | None |
+| x / 3.0 | const | 4194304 | 0 | None |
+| x / 0.1 | const | 4194304 | 0 | None |
+| x / 7.0 | const | 4194304 | 0 | None |
+| x / 5e-324 | const | 4194304 | 0 | None |
+| x / 8.98846567431158e+307 | const | 4194304 | 0 | None |
+| x / 1e+308 | const | 4194304 | 0 | None |
+| x / 0.3333333333333333 | const | 4194304 | 0 | None |
+
+Total pairs: 452986128; differing from IEEE division: 0
+
+PTX division instructions:
+- const -1.0: div.rn.f64
+- const 0.1: div.rn.f64
+- const 0.3333333333333333: div.rn.f64
+- const 0.5: div.rn.f64
+- const 1.0: 
+- const 1e+308: div.rn.f64
+- const 2.0: div.rn.f64
+- const 3.0: div.rn.f64
+- const 5e-324: div.rn.f64
+- const 7.0: div.rn.f64
+- const 8.98846567431158e+307: div.rn.f64
+- div: div.rn.f64
+- fdiv: div.rn.f64

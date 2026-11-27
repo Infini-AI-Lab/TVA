@@ -1,0 +1,375 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA L40
+
+## Part 1: the accumulation window (one output element)
+Row of `a`: products as listed, `b` all ones, `acc` as listed. `kept(t)`: the result minus the large term, in units of the small terms' sum (1 = every small term kept, 0 = all dropped).
+
+| operands | path | K | small terms 2^-t against one term 1 (largest t kept fully) | K terms 1 against acc 2^s (largest s kept) | acc 1+2^-23, no products: result - 1 |
+|---|---|---|---|---|---|
+| float16 | mma.sync | 16 | t <= 23 | s <= 24 | 1.19e-07 |
+| float16 | mma.sync | 16 | t <= 23 | s <= 24 | 1.19e-07 |
+| bfloat16 | mma.sync | 16 | t <= 23 | s <= 24 | 1.19e-07 |
+| bfloat16 | mma.sync | 16 | t <= 23 | s <= 24 | 1.19e-07 |
+| float8e4nv | mma.sync | 32 | t <= 9 | s <= 13 | 0 |
+| float8e4nv | mma.sync | 32 | t <= 9 | s <= 13 | 0 |
+| float8e5 | mma.sync | 32 | t <= 13 | s <= 13 | 0 |
+| float8e5 | mma.sync | 32 | t <= 13 | s <= 13 | 0 |
+
+## Part 3: input_precision with 16-bit and fp8 operands
+| operands | M x N, num_warps | K | value | result bits equal to the default (tf32) |
+|---|---|---|---|---|
+| float16 | 16 x 16, 1 | 64 | ieee | True |
+| float16 | 16 x 16, 1 | 64 | tf32x3 | True |
+| float16 | 16 x 16, 1 | 64 | bf16x3 | True |
+| float16 | 16 x 16, 1 | 64 | bf16x6 | True |
+| float16 | 64 x 64, 4 | 64 | ieee | True |
+| float16 | 64 x 64, 4 | 64 | tf32x3 | True |
+| float16 | 64 x 64, 4 | 64 | bf16x3 | True |
+| float16 | 64 x 64, 4 | 64 | bf16x6 | True |
+| bfloat16 | 16 x 16, 1 | 64 | ieee | True |
+| bfloat16 | 16 x 16, 1 | 64 | tf32x3 | True |
+| bfloat16 | 16 x 16, 1 | 64 | bf16x3 | True |
+| bfloat16 | 16 x 16, 1 | 64 | bf16x6 | True |
+| bfloat16 | 64 x 64, 4 | 64 | ieee | True |
+| bfloat16 | 64 x 64, 4 | 64 | tf32x3 | True |
+| bfloat16 | 64 x 64, 4 | 64 | bf16x3 | True |
+| bfloat16 | 64 x 64, 4 | 64 | bf16x6 | True |
+| float8e4nv | 16 x 16, 1 | 64 | ieee | True |
+| float8e4nv | 16 x 16, 1 | 64 | tf32x3 | True |
+| float8e4nv | 16 x 16, 1 | 64 | bf16x3 | True |
+| float8e4nv | 16 x 16, 1 | 64 | bf16x6 | True |
+| float8e4nv | 64 x 64, 4 | 64 | ieee | True |
+| float8e4nv | 64 x 64, 4 | 64 | tf32x3 | True |
+| float8e4nv | 64 x 64, 4 | 64 | bf16x3 | True |
+| float8e4nv | 64 x 64, 4 | 64 | bf16x6 | True |
+| float8e5 | 16 x 16, 1 | 64 | ieee | True |
+| float8e5 | 16 x 16, 1 | 64 | tf32x3 | True |
+| float8e5 | 16 x 16, 1 | 64 | bf16x3 | True |
+| float8e5 | 16 x 16, 1 | 64 | bf16x6 | True |
+| float8e5 | 64 x 64, 4 | 64 | ieee | True |
+| float8e5 | 64 x 64, 4 | 64 | tf32x3 | True |
+| float8e5 | 64 x 64, 4 | 64 | bf16x3 | True |
+| float8e5 | 64 x 64, 4 | 64 | bf16x6 | True |
+
+## Part 4: the ieee float32 dot against the sequential fma, bit for bit
+| M x N, num_warps | path | K | elements compared | equal to fma over k = 0..K-1 from acc |
+|---|---|---|---|---|
+| 16 x 16, 1 | fma | 8 | 64 | 64 |
+| 16 x 16, 1 | fma | 32 | 64 | 64 |
+| 16 x 16, 1 | fma | 64 | 64 | 64 |
+| 64 x 64, 4 | fma | 8 | 64 | 64 |
+| 64 x 64, 4 | fma | 32 | 64 | 64 |
+| 64 x 64, 4 | fma | 64 | 64 | 64 |
+| 128 x 128, 8 | fma | 8 | 64 | 64 |
+| 128 x 128, 8 | fma | 32 | 64 | 64 |
+| 128 x 128, 8 | fma | 64 | 64 | 64 |
+
+## Part 2: adversarial inputs against the facts
+`ratio`: the largest (error + reference error) / bound over all elements and inputs (must be below 1); `err/u`: the largest error relative to |acc| + sum |a b|, in units of 2^-24.
+
+| operands | fact | M x N, num_warps | path | K | elements in range | outside the bound | ratio | err/u (worst input kind) |
+|---|---|---|---|---|---|---|---|---|
+| float16 x float16 | DotF16 | 16 x 16, 1 | mma.sync | 16 | 4096 | 0 | 0.1803 | 13.0 (allones) |
+| float16 x float16 | DotF16 | 16 x 16, 1 | mma.sync | 32 | 4096 | 0 | 0.2130 | 29.0 (allones) |
+| float16 x float16 | DotF16 | 16 x 16, 1 | mma.sync | 64 | 4096 | 0 | 0.2308 | 60.9 (allones) |
+| float16 x float16 | DotF16 | 16 x 16, 1 | mma.sync | 128 | 4096 | 0 | 0.2401 | 124.9 (allones) |
+| float16 x float16 | DotF16 | 16 x 16, 1 | mma.sync | 256 | 4096 | 0 | 0.2449 | 252.7 (allones) |
+| float16 x float16 | DotF16 | 16 x 16, 1 | mma.sync | 512 | 4096 | 0 | 0.2473 | 508.5 (allones) |
+| float16 x float16 | DotF16 | 16 x 16, 1 | mma.sync | 1024 | 4096 | 0 | 0.2485 | 1019.9 (allones) |
+| float16 x float16 | DotF16 | 16 x 16, 1 | rejected | 2048 | (out of resources: Required: 131072) | | | |
+| float16 x float16 | DotF16 | 32 x 32, 2 | mma.sync | 16 | 16384 | 0 | 0.1803 | 13.0 (allones) |
+| float16 x float16 | DotF16 | 32 x 32, 2 | mma.sync | 32 | 16384 | 0 | 0.2130 | 29.0 (allones) |
+| float16 x float16 | DotF16 | 32 x 32, 2 | mma.sync | 64 | 16384 | 0 | 0.2308 | 60.9 (allones) |
+| float16 x float16 | DotF16 | 32 x 32, 2 | mma.sync | 128 | 16384 | 0 | 0.2401 | 124.9 (allones) |
+| float16 x float16 | DotF16 | 32 x 32, 2 | mma.sync | 256 | 16384 | 0 | 0.2449 | 252.7 (allones) |
+| float16 x float16 | DotF16 | 32 x 32, 2 | mma.sync | 512 | 16384 | 0 | 0.2473 | 508.5 (allones) |
+| float16 x float16 | DotF16 | 32 x 32, 2 | rejected | 1024 | (out of resources: Required: 133120) | | | |
+| float16 x float16 | DotF16 | 16 x 64, 4 | mma.sync | 16 | 16384 | 0 | 0.1803 | 13.0 (allones) |
+| float16 x float16 | DotF16 | 16 x 64, 4 | mma.sync | 32 | 16384 | 0 | 0.2130 | 29.0 (allones) |
+| float16 x float16 | DotF16 | 16 x 64, 4 | mma.sync | 64 | 16384 | 0 | 0.2308 | 60.9 (allones) |
+| float16 x float16 | DotF16 | 16 x 64, 4 | mma.sync | 128 | 16384 | 0 | 0.2401 | 124.9 (allones) |
+| float16 x float16 | DotF16 | 16 x 64, 4 | mma.sync | 256 | 16384 | 0 | 0.2449 | 252.7 (allones) |
+| float16 x float16 | DotF16 | 16 x 64, 4 | mma.sync | 512 | 16384 | 0 | 0.2473 | 508.5 (allones) |
+| float16 x float16 | DotF16 | 16 x 64, 4 | rejected | 1024 | (out of resources: Required: 167936) | | | |
+| float16 x float16 | DotF16 | 64 x 64, 4 | mma.sync | 16 | 65536 | 0 | 0.1803 | 13.0 (allones) |
+| float16 x float16 | DotF16 | 64 x 64, 4 | mma.sync | 32 | 65536 | 0 | 0.2130 | 29.0 (allones) |
+| float16 x float16 | DotF16 | 64 x 64, 4 | mma.sync | 64 | 65536 | 0 | 0.2308 | 60.9 (allones) |
+| float16 x float16 | DotF16 | 64 x 64, 4 | mma.sync | 128 | 65536 | 0 | 0.2401 | 124.9 (allones) |
+| float16 x float16 | DotF16 | 64 x 64, 4 | mma.sync | 256 | 65536 | 0 | 0.2449 | 252.7 (allones) |
+| float16 x float16 | DotF16 | 64 x 64, 4 | rejected | 512 | (out of resources: Required: 139264) | | | |
+| float16 x float16 | DotF16 | 128 x 64, 4 | mma.sync | 16 | 131072 | 0 | 0.1803 | 13.0 (allones) |
+| float16 x float16 | DotF16 | 128 x 64, 4 | mma.sync | 32 | 131072 | 0 | 0.2130 | 29.0 (allones) |
+| float16 x float16 | DotF16 | 128 x 64, 4 | mma.sync | 64 | 131072 | 0 | 0.2308 | 60.9 (allones) |
+| float16 x float16 | DotF16 | 128 x 64, 4 | mma.sync | 128 | 131072 | 0 | 0.2401 | 124.9 (allones) |
+| float16 x float16 | DotF16 | 128 x 64, 4 | rejected | 256 | (out of resources: Required: 106496) | | | |
+| float16 x float16 | DotF16 | 64 x 128, 8 | mma.sync | 16 | 131072 | 0 | 0.1803 | 13.0 (allones) |
+| float16 x float16 | DotF16 | 64 x 128, 8 | mma.sync | 32 | 131072 | 0 | 0.2130 | 29.0 (allones) |
+| float16 x float16 | DotF16 | 64 x 128, 8 | mma.sync | 64 | 131072 | 0 | 0.2308 | 60.9 (allones) |
+| float16 x float16 | DotF16 | 64 x 128, 8 | mma.sync | 128 | 131072 | 0 | 0.2401 | 124.9 (allones) |
+| float16 x float16 | DotF16 | 64 x 128, 8 | rejected | 256 | (out of resources: Required: 114688) | | | |
+| float16 x float16 | DotF16 | 128 x 128, 8 | mma.sync | 16 | 262144 | 0 | 0.1803 | 13.0 (allones) |
+| float16 x float16 | DotF16 | 128 x 128, 8 | mma.sync | 32 | 262144 | 0 | 0.2130 | 29.0 (allones) |
+| float16 x float16 | DotF16 | 128 x 128, 8 | mma.sync | 64 | 262144 | 0 | 0.2308 | 60.9 (allones) |
+| float16 x float16 | DotF16 | 128 x 128, 8 | mma.sync | 128 | 262144 | 0 | 0.2401 | 124.9 (allones) |
+| float16 x float16 | DotF16 | 128 x 128, 8 | rejected | 256 | (out of resources: Required: 147456) | | | |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 16, 1 | mma.sync | 16 | 4096 | 0 | 0.1788 | 15056475.9 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 16, 1 | mma.sync | 32 | 4096 | 0 | 0.2114 | 9659609.2 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 16, 1 | mma.sync | 64 | 4096 | 0 | 0.2292 | 9906546.6 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 16, 1 | mma.sync | 128 | 4096 | 0 | 0.2385 | 6333761.7 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 16, 1 | mma.sync | 256 | 4096 | 0 | 0.2432 | 4631456.8 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 16, 1 | mma.sync | 512 | 4096 | 0 | 0.2456 | 2478955.4 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 16, 1 | mma.sync | 1024 | 4096 | 0 | 0.2468 | 1605367.0 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 16, 1 | rejected | 2048 | (out of resources: Required: 131072) | | | |
+| bfloat16 x bfloat16 | DotBF16 | 32 x 32, 2 | mma.sync | 16 | 16384 | 0 | 0.1788 | 15252014.5 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 32 x 32, 2 | mma.sync | 32 | 16384 | 0 | 0.2114 | 10526880.6 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 32 x 32, 2 | mma.sync | 64 | 16384 | 0 | 0.2292 | 7355528.2 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 32 x 32, 2 | mma.sync | 128 | 16384 | 0 | 0.2385 | 5931339.0 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 32 x 32, 2 | mma.sync | 256 | 16384 | 0 | 0.2432 | 5219578.3 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 32 x 32, 2 | mma.sync | 512 | 16384 | 0 | 0.2456 | 3459452.9 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 32 x 32, 2 | rejected | 1024 | (out of resources: Required: 133120) | | | |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 64, 4 | mma.sync | 16 | 16384 | 0 | 0.1788 | 14463117.2 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 64, 4 | mma.sync | 32 | 16384 | 0 | 0.2114 | 11344593.7 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 64, 4 | mma.sync | 64 | 16384 | 0 | 0.2292 | 8535776.6 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 64, 4 | mma.sync | 128 | 16384 | 0 | 0.2385 | 5592405.3 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 64, 4 | mma.sync | 256 | 16384 | 0 | 0.2432 | 4144371.8 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 64, 4 | mma.sync | 512 | 16384 | 0 | 0.2456 | 2816612.9 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 16 x 64, 4 | rejected | 1024 | (out of resources: Required: 167936) | | | |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 64, 4 | mma.sync | 16 | 65536 | 0 | 0.1788 | 16777216.0 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 64, 4 | mma.sync | 32 | 65536 | 0 | 0.2114 | 13335735.8 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 64, 4 | mma.sync | 64 | 65536 | 0 | 0.2292 | 8434953.9 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 64, 4 | mma.sync | 128 | 65536 | 0 | 0.2385 | 6812094.7 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 64, 4 | mma.sync | 256 | 65536 | 0 | 0.2432 | 4648146.6 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 64, 4 | rejected | 512 | (out of resources: Required: 139264) | | | |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 64, 4 | mma.sync | 16 | 131072 | 0 | 0.1788 | 16777216.0 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 64, 4 | mma.sync | 32 | 131072 | 0 | 0.2114 | 13503612.9 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 64, 4 | mma.sync | 64 | 131072 | 0 | 0.2292 | 9033885.5 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 64, 4 | mma.sync | 128 | 131072 | 0 | 0.2385 | 6796923.4 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 64, 4 | rejected | 256 | (out of resources: Required: 106496) | | | |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 128, 8 | mma.sync | 16 | 131072 | 0 | 0.1788 | 16777216.0 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 128, 8 | mma.sync | 32 | 131072 | 0 | 0.2114 | 13921519.7 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 128, 8 | mma.sync | 64 | 131072 | 0 | 0.2292 | 10844940.7 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 128, 8 | mma.sync | 128 | 131072 | 0 | 0.2385 | 6657625.4 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 64 x 128, 8 | rejected | 256 | (out of resources: Required: 114688) | | | |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 128, 8 | mma.sync | 16 | 262144 | 0 | 0.1788 | 16777216.0 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 128, 8 | mma.sync | 32 | 262144 | 0 | 0.2114 | 13901121.8 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 128, 8 | mma.sync | 64 | 262144 | 0 | 0.2292 | 10893263.5 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 128, 8 | mma.sync | 128 | 262144 | 0 | 0.2385 | 7520821.0 (tiny) |
+| bfloat16 x bfloat16 | DotBF16 | 128 x 128, 8 | rejected | 256 | (out of resources: Required: 147456) | | | |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 16, 1 | mma.sync | 32 | 4096 | 0 | 0.3289 | 43115.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 16, 1 | mma.sync | 64 | 4096 | 0 | 0.3807 | 100175.2 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 16, 1 | mma.sync | 128 | 4096 | 0 | 0.4018 | 213136.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 16, 1 | mma.sync | 256 | 4096 | 0 | 0.4032 | 434528.3 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 16, 1 | mma.sync | 512 | 4096 | 0 | 0.3866 | 860020.7 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 16, 1 | mma.sync | 1024 | 4096 | 0 | 0.3473 | 1647827.4 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 16, 1 | mma.sync | 2048 | 4096 | 0 | 0.2780 | 3010562.6 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 16, 1 | rejected | 4096 | (out of resources: Required: 131072) | | | |
+| float8e4nv x float8e4nv | DotE4m3 | 32 x 32, 2 | mma.sync | 32 | 16384 | 0 | 0.3289 | 43115.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 32 x 32, 2 | mma.sync | 64 | 16384 | 0 | 0.3807 | 100175.2 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 32 x 32, 2 | mma.sync | 128 | 16384 | 0 | 0.4018 | 213136.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 32 x 32, 2 | mma.sync | 256 | 16384 | 0 | 0.4032 | 434528.3 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 32 x 32, 2 | mma.sync | 512 | 16384 | 0 | 0.3866 | 860020.7 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 32 x 32, 2 | mma.sync | 1024 | 16384 | 0 | 0.3473 | 1647827.4 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 32 x 32, 2 | rejected | 2048 | (out of resources: Required: 133120) | | | |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 64, 4 | mma.sync | 32 | 16384 | 0 | 0.3289 | 43115.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 64, 4 | mma.sync | 64 | 16384 | 0 | 0.3807 | 100175.2 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 64, 4 | mma.sync | 128 | 16384 | 0 | 0.4018 | 213136.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 64, 4 | mma.sync | 256 | 16384 | 0 | 0.4032 | 434528.3 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 64, 4 | mma.sync | 512 | 16384 | 0 | 0.3866 | 860020.7 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 64, 4 | mma.sync | 1024 | 16384 | 0 | 0.3473 | 1647827.4 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 16 x 64, 4 | rejected | 2048 | (out of resources: Required: 167936) | | | |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 64, 4 | mma.sync | 32 | 65536 | 0 | 0.3289 | 43115.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 64, 4 | mma.sync | 64 | 65536 | 0 | 0.3807 | 100175.2 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 64, 4 | mma.sync | 128 | 65536 | 0 | 0.4018 | 213136.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 64, 4 | mma.sync | 256 | 65536 | 0 | 0.4032 | 434528.3 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 64, 4 | mma.sync | 512 | 65536 | 0 | 0.3866 | 860020.7 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 64, 4 | rejected | 1024 | (out of resources: Required: 139264) | | | |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 64, 4 | mma.sync | 32 | 131072 | 0 | 0.3289 | 43115.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 64, 4 | mma.sync | 64 | 131072 | 0 | 0.3807 | 100175.2 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 64, 4 | mma.sync | 128 | 131072 | 0 | 0.4018 | 213136.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 64, 4 | mma.sync | 256 | 131072 | 0 | 0.4032 | 434528.3 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 64, 4 | rejected | 512 | (out of resources: Required: 106496) | | | |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 128, 8 | mma.sync | 32 | 131072 | 0 | 0.3289 | 43115.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 128, 8 | mma.sync | 64 | 131072 | 0 | 0.3807 | 100175.2 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 128, 8 | mma.sync | 128 | 131072 | 0 | 0.4018 | 213136.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 128, 8 | mma.sync | 256 | 131072 | 0 | 0.4032 | 434528.3 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 64 x 128, 8 | rejected | 512 | (out of resources: Required: 114688) | | | |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 128, 8 | mma.sync | 32 | 262144 | 0 | 0.3289 | 43115.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 128, 8 | mma.sync | 64 | 262144 | 0 | 0.3807 | 100175.2 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 128, 8 | mma.sync | 128 | 262144 | 0 | 0.4018 | 213136.0 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 128, 8 | mma.sync | 256 | 262144 | 0 | 0.4032 | 434528.3 (allones) |
+| float8e4nv x float8e4nv | DotE4m3 | 128 x 128, 8 | rejected | 512 | (out of resources: Required: 147456) | | | |
+| float8e5 x float8e5 | DotE5m2 | 16 x 16, 1 | mma.sync | 32 | 4096 | 0 | 0.2726 | 35732.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 16, 1 | mma.sync | 64 | 4096 | 0 | 0.3249 | 85503.6 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 16, 1 | mma.sync | 128 | 4096 | 0 | 0.3472 | 184163.9 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 16, 1 | mma.sync | 256 | 4096 | 0 | 0.3508 | 378026.4 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 16, 1 | mma.sync | 512 | 4096 | 0 | 0.3382 | 752472.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 16, 1 | mma.sync | 1024 | 4096 | 0 | 0.3061 | 1452305.0 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 16, 1 | mma.sync | 2048 | 4096 | 0 | 0.2478 | 2683322.5 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 16, 1 | rejected | 4096 | (out of resources: Required: 131072) | | | |
+| float8e5 x float8e5 | DotE5m2 | 32 x 32, 2 | mma.sync | 32 | 16384 | 0 | 0.2726 | 35732.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 32 x 32, 2 | mma.sync | 64 | 16384 | 0 | 0.3249 | 85503.6 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 32 x 32, 2 | mma.sync | 128 | 16384 | 0 | 0.3472 | 184163.9 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 32 x 32, 2 | mma.sync | 256 | 16384 | 0 | 0.3508 | 378026.4 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 32 x 32, 2 | mma.sync | 512 | 16384 | 0 | 0.3382 | 752472.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 32 x 32, 2 | mma.sync | 1024 | 16384 | 0 | 0.3061 | 1452305.0 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 32 x 32, 2 | rejected | 2048 | (out of resources: Required: 133120) | | | |
+| float8e5 x float8e5 | DotE5m2 | 16 x 64, 4 | mma.sync | 32 | 16384 | 0 | 0.2726 | 35732.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 64, 4 | mma.sync | 64 | 16384 | 0 | 0.3249 | 85503.6 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 64, 4 | mma.sync | 128 | 16384 | 0 | 0.3472 | 184163.9 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 64, 4 | mma.sync | 256 | 16384 | 0 | 0.3508 | 378026.4 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 64, 4 | mma.sync | 512 | 16384 | 0 | 0.3382 | 752472.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 64, 4 | mma.sync | 1024 | 16384 | 0 | 0.3061 | 1452305.0 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 16 x 64, 4 | rejected | 2048 | (out of resources: Required: 167936) | | | |
+| float8e5 x float8e5 | DotE5m2 | 64 x 64, 4 | mma.sync | 32 | 65536 | 0 | 0.2726 | 35732.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 64, 4 | mma.sync | 64 | 65536 | 0 | 0.3249 | 85503.6 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 64, 4 | mma.sync | 128 | 65536 | 0 | 0.3472 | 184163.9 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 64, 4 | mma.sync | 256 | 65536 | 0 | 0.3508 | 378026.4 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 64, 4 | mma.sync | 512 | 65536 | 0 | 0.3382 | 752472.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 64, 4 | rejected | 1024 | (out of resources: Required: 139264) | | | |
+| float8e5 x float8e5 | DotE5m2 | 128 x 64, 4 | mma.sync | 32 | 131072 | 0 | 0.2726 | 35732.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 128 x 64, 4 | mma.sync | 64 | 131072 | 0 | 0.3249 | 85503.6 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 128 x 64, 4 | mma.sync | 128 | 131072 | 0 | 0.3472 | 184163.9 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 128 x 64, 4 | mma.sync | 256 | 131072 | 0 | 0.3508 | 378026.4 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 128 x 64, 4 | rejected | 512 | (out of resources: Required: 106496) | | | |
+| float8e5 x float8e5 | DotE5m2 | 64 x 128, 8 | mma.sync | 32 | 131072 | 0 | 0.2726 | 35732.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 128, 8 | mma.sync | 64 | 131072 | 0 | 0.3249 | 85503.6 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 128, 8 | mma.sync | 128 | 131072 | 0 | 0.3472 | 184163.9 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 128, 8 | mma.sync | 256 | 131072 | 0 | 0.3508 | 378026.4 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 64 x 128, 8 | rejected | 512 | (out of resources: Required: 114688) | | | |
+| float8e5 x float8e5 | DotE5m2 | 128 x 128, 8 | mma.sync | 32 | 262144 | 0 | 0.2726 | 35732.1 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 128 x 128, 8 | mma.sync | 64 | 262144 | 0 | 0.3249 | 85503.6 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 128 x 128, 8 | mma.sync | 128 | 262144 | 0 | 0.3472 | 184163.9 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 128 x 128, 8 | mma.sync | 256 | 262144 | 0 | 0.3508 | 378026.4 (allones) |
+| float8e5 x float8e5 | DotE5m2 | 128 x 128, 8 | rejected | 512 | (out of resources: Required: 147456) | | | |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 16, 1 | mma.sync | 32 | 4096 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 16, 1 | mma.sync | 64 | 4096 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 16, 1 | mma.sync | 128 | 4096 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 16, 1 | mma.sync | 256 | 4096 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 16, 1 | mma.sync | 512 | 4096 | 0 | 0.3617 | 804573.0 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 16, 1 | mma.sync | 1024 | 4096 | 0 | 0.3261 | 1547322.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 16, 1 | mma.sync | 2048 | 4096 | 0 | 0.2625 | 2843220.8 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 16, 1 | rejected | 4096 | (out of resources: Required: 131072) | | | |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 32 x 32, 2 | mma.sync | 32 | 16384 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 32 x 32, 2 | mma.sync | 64 | 16384 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 32 x 32, 2 | mma.sync | 128 | 16384 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 32 x 32, 2 | mma.sync | 256 | 16384 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 32 x 32, 2 | mma.sync | 512 | 16384 | 0 | 0.3617 | 804573.0 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 32 x 32, 2 | mma.sync | 1024 | 16384 | 0 | 0.3261 | 1547322.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 32 x 32, 2 | rejected | 2048 | (out of resources: Required: 133120) | | | |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 64, 4 | mma.sync | 32 | 16384 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 64, 4 | mma.sync | 64 | 16384 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 64, 4 | mma.sync | 128 | 16384 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 64, 4 | mma.sync | 256 | 16384 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 64, 4 | mma.sync | 512 | 16384 | 0 | 0.3617 | 804573.0 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 64, 4 | mma.sync | 1024 | 16384 | 0 | 0.3261 | 1547322.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 16 x 64, 4 | rejected | 2048 | (out of resources: Required: 167936) | | | |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 64, 4 | mma.sync | 32 | 65536 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 64, 4 | mma.sync | 64 | 65536 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 64, 4 | mma.sync | 128 | 65536 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 64, 4 | mma.sync | 256 | 65536 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 64, 4 | mma.sync | 512 | 65536 | 0 | 0.3617 | 804573.0 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 64, 4 | rejected | 1024 | (out of resources: Required: 139264) | | | |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 64, 4 | mma.sync | 32 | 131072 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 64, 4 | mma.sync | 64 | 131072 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 64, 4 | mma.sync | 128 | 131072 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 64, 4 | mma.sync | 256 | 131072 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 64, 4 | rejected | 512 | (out of resources: Required: 106496) | | | |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 128, 8 | mma.sync | 32 | 131072 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 128, 8 | mma.sync | 64 | 131072 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 128, 8 | mma.sync | 128 | 131072 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 128, 8 | mma.sync | 256 | 131072 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 64 x 128, 8 | rejected | 512 | (out of resources: Required: 114688) | | | |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 128, 8 | mma.sync | 32 | 262144 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 128, 8 | mma.sync | 64 | 262144 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 128, 8 | mma.sync | 128 | 262144 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 128, 8 | mma.sync | 256 | 262144 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e4nv x float8e5 | DotE4m3E5m2 | 128 x 128, 8 | rejected | 512 | (out of resources: Required: 147456) | | | |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 16, 1 | mma.sync | 32 | 4096 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 16, 1 | mma.sync | 64 | 4096 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 16, 1 | mma.sync | 128 | 4096 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 16, 1 | mma.sync | 256 | 4096 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 16, 1 | mma.sync | 512 | 4096 | 0 | 0.3617 | 804573.0 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 16, 1 | mma.sync | 1024 | 4096 | 0 | 0.3261 | 1547322.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 16, 1 | mma.sync | 2048 | 4096 | 0 | 0.2625 | 2843220.8 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 16, 1 | rejected | 4096 | (out of resources: Required: 131072) | | | |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 32 x 32, 2 | mma.sync | 32 | 16384 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 32 x 32, 2 | mma.sync | 64 | 16384 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 32 x 32, 2 | mma.sync | 128 | 16384 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 32 x 32, 2 | mma.sync | 256 | 16384 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 32 x 32, 2 | mma.sync | 512 | 16384 | 0 | 0.3617 | 804573.0 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 32 x 32, 2 | mma.sync | 1024 | 16384 | 0 | 0.3261 | 1547322.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 32 x 32, 2 | rejected | 2048 | (out of resources: Required: 133120) | | | |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 64, 4 | mma.sync | 32 | 16384 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 64, 4 | mma.sync | 64 | 16384 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 64, 4 | mma.sync | 128 | 16384 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 64, 4 | mma.sync | 256 | 16384 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 64, 4 | mma.sync | 512 | 16384 | 0 | 0.3617 | 804573.0 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 64, 4 | mma.sync | 1024 | 16384 | 0 | 0.3261 | 1547322.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 16 x 64, 4 | rejected | 2048 | (out of resources: Required: 167936) | | | |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 64, 4 | mma.sync | 32 | 65536 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 64, 4 | mma.sync | 64 | 65536 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 64, 4 | mma.sync | 128 | 65536 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 64, 4 | mma.sync | 256 | 65536 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 64, 4 | mma.sync | 512 | 65536 | 0 | 0.3617 | 804573.0 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 64, 4 | rejected | 1024 | (out of resources: Required: 139264) | | | |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 64, 4 | mma.sync | 32 | 131072 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 64, 4 | mma.sync | 64 | 131072 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 64, 4 | mma.sync | 128 | 131072 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 64, 4 | mma.sync | 256 | 131072 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 64, 4 | rejected | 512 | (out of resources: Required: 106496) | | | |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 128, 8 | mma.sync | 32 | 131072 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 128, 8 | mma.sync | 64 | 131072 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 128, 8 | mma.sync | 128 | 131072 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 128, 8 | mma.sync | 256 | 131072 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 64 x 128, 8 | rejected | 512 | (out of resources: Required: 114688) | | | |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 128, 8 | mma.sync | 32 | 262144 | 0 | 0.2998 | 39297.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 128, 8 | mma.sync | 64 | 262144 | 0 | 0.3518 | 92589.6 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 128, 8 | mma.sync | 128 | 262144 | 0 | 0.3736 | 198163.1 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 128, 8 | mma.sync | 256 | 262144 | 0 | 0.3761 | 405351.9 (allones) |
+| float8e5 x float8e4nv | DotE5m2E4m3 | 128 x 128, 8 | rejected | 512 | (out of resources: Required: 147456) | | | |
+| float32 x float32 | DotF32Ieee | 16 x 16, 1 | fma | 8 | 4096 | 0 | 0.3889 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 16, 1 | fma | 16 | 4096 | 0 | 0.4412 | 14196105.8 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 16, 1 | fma | 32 | 4096 | 0 | 0.4697 | 9761289.3 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 16, 1 | fma | 64 | 4096 | 0 | 0.4846 | 6505451.1 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 16, 1 | fma | 128 | 4096 | 0 | 0.4922 | 6026766.9 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 16, 1 | fma | 256 | 4096 | 0 | 0.4961 | 3294156.6 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 16, 1 | fma | 512 | 4096 | 0 | 0.4980 | 2273918.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 16, 1 | rejected | 1024 | (out of resources: Required: 131072) | | | |
+| float32 x float32 | DotF32Ieee | 32 x 32, 2 | fma | 8 | 16384 | 0 | 0.3889 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 32 x 32, 2 | fma | 16 | 16384 | 0 | 0.4412 | 16198691.3 (tiny) |
+| float32 x float32 | DotF32Ieee | 32 x 32, 2 | fma | 32 | 16384 | 0 | 0.4697 | 12676118.8 (tiny) |
+| float32 x float32 | DotF32Ieee | 32 x 32, 2 | fma | 64 | 16384 | 0 | 0.4846 | 7703823.7 (tiny) |
+| float32 x float32 | DotF32Ieee | 32 x 32, 2 | fma | 128 | 16384 | 0 | 0.4922 | 7020900.2 (tiny) |
+| float32 x float32 | DotF32Ieee | 32 x 32, 2 | fma | 256 | 16384 | 0 | 0.4961 | 3804498.8 (tiny) |
+| float32 x float32 | DotF32Ieee | 32 x 32, 2 | rejected | 512 | (out of resources: Required: 131072) | | | |
+| float32 x float32 | DotF32Ieee | 16 x 64, 4 | fma | 8 | 16384 | 0 | 0.3889 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 64, 4 | fma | 16 | 16384 | 0 | 0.4412 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 64, 4 | fma | 32 | 16384 | 0 | 0.4697 | 10513722.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 64, 4 | fma | 64 | 16384 | 0 | 0.4846 | 8246428.2 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 64, 4 | fma | 128 | 16384 | 0 | 0.4922 | 6009031.5 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 64, 4 | fma | 256 | 16384 | 0 | 0.4961 | 4249059.9 (tiny) |
+| float32 x float32 | DotF32Ieee | 16 x 64, 4 | rejected | 512 | (out of resources: Required: 163840) | | | |
+| float32 x float32 | DotF32Ieee | 64 x 64, 4 | fma | 8 | 65536 | 0 | 0.3889 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 64, 4 | fma | 16 | 65536 | 0 | 0.4412 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 64, 4 | fma | 32 | 65536 | 0 | 0.4697 | 13555990.5 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 64, 4 | fma | 64 | 65536 | 0 | 0.4846 | 9644873.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 64, 4 | fma | 128 | 65536 | 0 | 0.4922 | 7081292.5 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 64, 4 | rejected | 256 | (out of resources: Required: 131072) | | | |
+| float32 x float32 | DotF32Ieee | 128 x 64, 4 | fma | 8 | 131072 | 0 | 0.3889 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 64, 4 | fma | 16 | 131072 | 0 | 0.4412 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 64, 4 | fma | 32 | 131072 | 0 | 0.4697 | 12803664.8 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 64, 4 | fma | 64 | 131072 | 0 | 0.4846 | 10225167.1 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 64, 4 | fma | 128 | 131072 | 0 | 0.4922 | 6483948.2 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 64, 4 | rejected | 256 | (out of resources: Required: 196608) | | | |
+| float32 x float32 | DotF32Ieee | 64 x 128, 8 | fma | 8 | 131072 | 0 | 0.3889 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 128, 8 | fma | 16 | 131072 | 0 | 0.4412 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 128, 8 | fma | 32 | 131072 | 0 | 0.4697 | 12942423.8 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 128, 8 | fma | 64 | 131072 | 0 | 0.4846 | 11491243.8 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 128, 8 | fma | 128 | 131072 | 0 | 0.4922 | 7851963.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 64 x 128, 8 | rejected | 256 | (out of resources: Required: 196608) | | | |
+| float32 x float32 | DotF32Ieee | 128 x 128, 8 | fma | 8 | 262144 | 0 | 0.3889 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 128, 8 | fma | 16 | 262144 | 0 | 0.4412 | 16777216.0 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 128, 8 | fma | 32 | 262144 | 0 | 0.4697 | 13772341.5 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 128, 8 | fma | 64 | 262144 | 0 | 0.4846 | 9688251.5 (tiny) |
+| float32 x float32 | DotF32Ieee | 128 x 128, 8 | rejected | 128 | (out of resources: Required: 131072) | | | |
+
+Total elements outside the bound: 0

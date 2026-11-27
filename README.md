@@ -1,7 +1,9 @@
 # TVA
 
 TVA is a Lean 4 library for proving that Triton 3.8.0 kernels do what a fixed claim says, on an
-NVIDIA H200 (sm_90).
+NVIDIA H200 (sm_90). The device is a module that can be swapped: `lean/TVA/Device.lean` selects
+the facts of the H200 (`TVA.Device.H200`, the default) or of an NVIDIA L40 (sm_89,
+`TVA.Device.L40`).
 
 A claim is written by hand once. It transcribes the kernel into TVA's `tl.*` vocabulary (the
 *model*), says which launches it covers, and states what every covered launch leaves in memory. A
@@ -16,7 +18,7 @@ Mathlib, the transcription, the compiler, and the device facts (each measured in
 | `lean/` | the library. `import TVA` is the trusted part: values, tensors, memory, the `tl.*` operations, launches, the device facts and what a claim means. `import TVA.Proof` is the proof kit, which is proved, not trusted. |
 | `claims/` | 41 fixed claims, one folder per kernel, each with its oracle proof (`oracle/`, kept from provers); [claims/README.md](claims/README.md) says what a folder holds |
 | `sandbox/` | the container a prover works in, and the tool that grades a proof; see [sandbox/README.md](sandbox/README.md) |
-| `evidence/` | TVA's own measurements on the H200 behind the device facts |
+| `evidence/` | TVA's own measurements behind the device facts: on the H200, and on the L40 in `evidence/l40/` ([evidence/l40/README.md](evidence/l40/README.md)) |
 | `tools/` | `make_index.py`, which generates `docs/index/` from the built library |
 | `docs/` | [DESIGN.md](docs/DESIGN.md) (the contract), [SEMANTICS.md](docs/SEMANTICS.md) (what a model means), [PROVING.md](docs/PROVING.md) (how to prove a claim), [LIBRARY.md](docs/LIBRARY.md) (a map of `lean/TVA/`), [EXCLUSIONS.md](docs/EXCLUSIONS.md) (what no claim covers), [INDEX.md](docs/INDEX.md) (every definition and lemma, searchable) |
 | `third_party/` | the licenses of the projects whose kernel sources the claims copy, and which claim comes from which; see [third_party/README.md](third_party/README.md) |

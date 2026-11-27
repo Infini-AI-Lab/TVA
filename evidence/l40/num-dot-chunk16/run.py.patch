@@ -1,0 +1,213 @@
+--- num-dot-chunk16/run.py.orig	2026-11-24 14:34:11.573258738 -0500
++++ num-dot-chunk16/run.py	2026-11-24 14:34:11.585258794 -0500
+@@ -626,24 +626,29 @@
+     tot = {}
+     for f in FORMATS:
+         for (M, N, nw) in SHAPES2:
+-            for (use_acc, a_reg, b_t, label) in [(True, False, False, "acc"), (False, False, False, "no acc"),
+-                                                  (True, True, True, "a in registers, b transposed")]:
+-                if QUICK and label != "acc":
+-                    continue
+-                agg = Agg2(); path = None
+-                for kind in KINDS2:
+-                    for _ in range(reps2(kind) * 2):
+-                        A, B, C = gen2(kind, M, N, 16, f)
+-                        R, path = run_dot(A, B, C, f, nw, use_acc, a_reg, b_t)
+-                        Ad, Bd, Cd, Rd = A.double(), B.double(), C.double(), R.double()
+-                        C0 = Cd if use_acc else torch.zeros_like(Cd)
+-                        sim = model(Ad, Bd, Cd, f, use_acc)
+-                        agg.add(Ad, Bd, C0, Rd, f, [C0, Rd], kind, sim, composed=False)
+-                wk = agg.worst[0] if agg.worst else "-"
+-                out(f"| {NAME[f]} | {M} x {N}, {nw} | {label} | {path} | {agg.n} | {agg.viol + agg.nonfin} | {agg.sim_eq}/{agg.sim_n} | {agg.r:.4f} | {agg.r1:.4f} | {agg.r2:.4f} | {wk} |")
+-                t = tot.setdefault((f, path), [0, 0, 0, 0, 0.0, 0.0, 0.0, 0])
+-                t[0] += agg.n; t[1] += agg.viol + agg.nonfin; t[2] += agg.sim_eq; t[3] += agg.sim_n
+-                t[4] = max(t[4], agg.r); t[5] = max(t[5], agg.r1); t[6] = max(t[6], agg.r2); t[7] += agg.exact_checked
++            try:
++                for (use_acc, a_reg, b_t, label) in [(True, False, False, "acc"), (False, False, False, "no acc"),
++                                                      (True, True, True, "a in registers, b transposed")]:
++                    if QUICK and label != "acc":
++                        continue
++                    agg = Agg2(); path = None
++                    for kind in KINDS2:
++                        for _ in range(reps2(kind) * 2):
++                            A, B, C = gen2(kind, M, N, 16, f)
++                            R, path = run_dot(A, B, C, f, nw, use_acc, a_reg, b_t)
++                            Ad, Bd, Cd, Rd = A.double(), B.double(), C.double(), R.double()
++                            C0 = Cd if use_acc else torch.zeros_like(Cd)
++                            sim = model(Ad, Bd, Cd, f, use_acc)
++                            agg.add(Ad, Bd, C0, Rd, f, [C0, Rd], kind, sim, composed=False)
++                    wk = agg.worst[0] if agg.worst else "-"
++                    out(f"| {NAME[f]} | {M} x {N}, {nw} | {label} | {path} | {agg.n} | {agg.viol + agg.nonfin} | {agg.sim_eq}/{agg.sim_n} | {agg.r:.4f} | {agg.r1:.4f} | {agg.r2:.4f} | {wk} |")
++                    t = tot.setdefault((f, path), [0, 0, 0, 0, 0.0, 0.0, 0.0, 0])
++                    t[0] += agg.n; t[1] += agg.viol + agg.nonfin; t[2] += agg.sim_eq; t[3] += agg.sim_n
++                    t[4] = max(t[4], agg.r); t[5] = max(t[5], agg.r1); t[6] = max(t[6], agg.r2); t[7] += agg.exact_checked
++            except triton.runtime.errors.OutOfResources:
++                _r = "| rejected: out of resources on this device | " + ", ".join(f"{k} = {locals()[k]}" for k in ("f", "M", "N", "nw", "K", "D", "T", "pk") if k in locals()) + " |"
++                (locals().get("out") or print)(_r)
++                continue
+     out("\nTotals:\n")
+     out("| operands | path | elements in range | outside | model = device | largest ratio | arm 1 | arm 2 | exact rechecks |")
+     out("|---|---|---|---|---|---|---|---|---|")
+@@ -668,25 +673,30 @@
+     tot = {}
+     for f in FORMATS:
+         for (M, N, nw) in SHAPES2:
+-            for K in ks2(M, N):
+-                agg = Agg2(); path = None
+-                try:
+-                    for kind in KINDS2:
+-                        if kind == "bits" and K > 512:
+-                            continue
+-                        for _ in range(reps2(kind)):
+-                            A, B, C = gen2(kind, M, N, K, f)
+-                            R, path = run_dot(A, B, C, f, nw, True)
+-                            Ad, Bd, Cd, Rd = A.double(), B.double(), C.double(), R.double()
+-                            sim, ps = model(Ad, Bd, Cd, f, True, partials=True)
+-                            agg.add(Ad, Bd, Cd, Rd, f, ps, kind, sim)
+-                except triton.runtime.errors.OutOfResources:
+-                    out(f"| {NAME[f]} | {M} x {N}, {nw} | rejected | {K} | (out of resources) | | | | | |")
+-                    break
+-                out(f"| {NAME[f]} | {M} x {N}, {nw} | {path} | {K} | {agg.n} | {agg.viol + agg.nonfin} | {agg.sim_eq}/{agg.sim_n} | {agg.r:.4f} | {agg.rm:.4f} | {agg.rold:.4f} |")
+-                t = tot.setdefault((f, path), [0, 0, 0, 0, 0.0, 0.0])
+-                t[0] += agg.n; t[1] += agg.viol + agg.nonfin; t[2] += agg.sim_eq; t[3] += agg.sim_n
+-                t[4] = max(t[4], agg.r); t[5] = max(t[5], agg.rm)
++            try:
++                for K in ks2(M, N):
++                    agg = Agg2(); path = None
++                    try:
++                        for kind in KINDS2:
++                            if kind == "bits" and K > 512:
++                                continue
++                            for _ in range(reps2(kind)):
++                                A, B, C = gen2(kind, M, N, K, f)
++                                R, path = run_dot(A, B, C, f, nw, True)
++                                Ad, Bd, Cd, Rd = A.double(), B.double(), C.double(), R.double()
++                                sim, ps = model(Ad, Bd, Cd, f, True, partials=True)
++                                agg.add(Ad, Bd, Cd, Rd, f, ps, kind, sim)
++                    except triton.runtime.errors.OutOfResources:
++                        out(f"| {NAME[f]} | {M} x {N}, {nw} | rejected | {K} | (out of resources) | | | | | |")
++                        break
++                    out(f"| {NAME[f]} | {M} x {N}, {nw} | {path} | {K} | {agg.n} | {agg.viol + agg.nonfin} | {agg.sim_eq}/{agg.sim_n} | {agg.r:.4f} | {agg.rm:.4f} | {agg.rold:.4f} |")
++                    t = tot.setdefault((f, path), [0, 0, 0, 0, 0.0, 0.0])
++                    t[0] += agg.n; t[1] += agg.viol + agg.nonfin; t[2] += agg.sim_eq; t[3] += agg.sim_n
++                    t[4] = max(t[4], agg.r); t[5] = max(t[5], agg.rm)
++            except triton.runtime.errors.OutOfResources:
++                _r = "| rejected: out of resources on this device | " + ", ".join(f"{k} = {locals()[k]}" for k in ("f", "M", "N", "nw", "K", "D", "T", "pk") if k in locals()) + " |"
++                (locals().get("out") or print)(_r)
++                continue
+     out("\nTotals:\n")
+     out("| operands | path | elements in range | outside | model = device | step ratio | errM ratio |")
+     out("|---|---|---|---|---|---|---|")
+@@ -711,57 +721,62 @@
+     shapes = [(128, 64, 4), (32, 64, 2)] if QUICK else [(128, 64, 4), (128, 128, 8), (64, 64, 4), (32, 64, 2), (16, 64, 1)]
+     for f in FORMATS:
+         for (M, N, nw) in shapes:
+-            for pk in ["K loop normal", "K loop accdom", "p.to softmax"]:
+-                a_reg = pk.startswith("p.to")
+-                for scale in ((False,) if not a_reg else (False, True)):
+-                    for T in ([1, 8] if QUICK else ([4, 32, 256] if not scale else [32])):
+-                        P = torch.zeros(T, M, KC, device=DEV); V = torch.zeros(T, KC, N, device=DEV)
+-                        c0 = torch.randn(M, N, device=DEV)
+-                        for t in range(T):
+-                            if pk == "p.to softmax":
+-                                p, _, _ = gen("softmax", M, N, KC, f)
+-                                v = q16(torch.randn(KC, N, device=DEV), f)
+-                            elif pk == "K loop accdom":
+-                                p, v, cc = gen2("accdom", M, N, KC, f)
+-                                if t == 0:
+-                                    c0 = cc
+-                            else:
+-                                p, v, _ = gen("normal", M, N, KC, f)
+-                            P[t] = p; V[t] = v
+-                        al = (torch.rand(T, device=DEV) * 0.75 + 0.25) if scale else torch.ones(T, device=DEV)
+-                        accs = torch.empty(T, M, N, device=DEV); o = torch.empty(M, N, device=DEV)
+-                        V16 = V.to(FMT[f][0]).contiguous()
+-                        Pin = P.contiguous() if a_reg else P.to(FMT[f][0]).contiguous()
+-                        h = chain[(1,)](Pin, V16, c0, al, accs, o, T, M, N, KC, FMT[f][1], a_reg, scale, True, num_warps=nw)
+-                        path = path_of(h)
+-                        assert torch.equal(o, accs[T - 1])
+-                        agg = Agg2(); prev = c0
+-                        for t in range(T):
+-                            vc = prev * al[t] if scale else prev
+-                            Ad, Bd, Cd, Rd = P[t].double(), V[t].double(), vc.double(), accs[t].double()
+-                            sim, ps = model(Ad, Bd, Cd, f, True, partials=True)
+-                            agg.add(Ad, Bd, Cd, Rd, f, ps, ("chain", t), sim)
+-                            prev = accs[t]
+-                        whole = cmp_ = "-"
+-                        if not scale:
+-                            Aall = torch.cat([P[t] for t in range(T)], 1).double()
+-                            Ball = torch.cat([V[t] for t in range(T)], 0).double()
+-                            e, S, delta, _, _ = errm_bound(Aall, Ball, c0.double(), f)
+-                            err = (o.double() - S).abs() + delta
+-                            fin = torch.isfinite(o)
+-                            rw = float(torch.where(fin, err / e, torch.zeros_like(e)).max())
+-                            viol += int(((err / e) > 1).sum())
+-                            mr = max(mr, rw)
+-                            # DotF16 composed step by step from the exact partial sums
+-                            eo = torch.zeros_like(e); St = c0.double()
++            try:
++                for pk in ["K loop normal", "K loop accdom", "p.to softmax"]:
++                    a_reg = pk.startswith("p.to")
++                    for scale in ((False,) if not a_reg else (False, True)):
++                        for T in ([1, 8] if QUICK else ([4, 32, 256] if not scale else [32])):
++                            P = torch.zeros(T, M, KC, device=DEV); V = torch.zeros(T, KC, N, device=DEV)
++                            c0 = torch.randn(M, N, device=DEV)
++                            for t in range(T):
++                                if pk == "p.to softmax":
++                                    p, _, _ = gen("softmax", M, N, KC, f)
++                                    v = q16(torch.randn(KC, N, device=DEV), f)
++                                elif pk == "K loop accdom":
++                                    p, v, cc = gen2("accdom", M, N, KC, f)
++                                    if t == 0:
++                                        c0 = cc
++                                else:
++                                    p, v, _ = gen("normal", M, N, KC, f)
++                                P[t] = p; V[t] = v
++                            al = (torch.rand(T, device=DEV) * 0.75 + 0.25) if scale else torch.ones(T, device=DEV)
++                            accs = torch.empty(T, M, N, device=DEV); o = torch.empty(M, N, device=DEV)
++                            V16 = V.to(FMT[f][0]).contiguous()
++                            Pin = P.contiguous() if a_reg else P.to(FMT[f][0]).contiguous()
++                            h = chain[(1,)](Pin, V16, c0, al, accs, o, T, M, N, KC, FMT[f][1], a_reg, scale, True, num_warps=nw)
++                            path = path_of(h)
++                            assert torch.equal(o, accs[T - 1])
++                            agg = Agg2(); prev = c0
+                             for t in range(T):
+-                                Lt = lift(P[t].double(), f) @ lift(V[t].double(), f)
+-                                eo = eo + rel16(KC) * (St.abs() + eo + Lt) + abs16(KC)
+-                                St = St + P[t].double() @ V[t].double()
+-                            whole = f"{rw:.4f}"
+-                            cmp_ = f"{float((e / eo).max()):.4f}"
+-                        viol += agg.viol + agg.nonfin
+-                        out(f"| {NAME[f]} | {M} x {N}, {nw} | {path} | {pk} | {'yes' if scale else 'no'} | {T} | {M * N} | {agg.viol + agg.nonfin} | {agg.sim_eq}/{agg.sim_n} | {agg.r:.4f} | {agg.rm:.4f} | {whole} | {cmp_} |")
++                                vc = prev * al[t] if scale else prev
++                                Ad, Bd, Cd, Rd = P[t].double(), V[t].double(), vc.double(), accs[t].double()
++                                sim, ps = model(Ad, Bd, Cd, f, True, partials=True)
++                                agg.add(Ad, Bd, Cd, Rd, f, ps, ("chain", t), sim)
++                                prev = accs[t]
++                            whole = cmp_ = "-"
++                            if not scale:
++                                Aall = torch.cat([P[t] for t in range(T)], 1).double()
++                                Ball = torch.cat([V[t] for t in range(T)], 0).double()
++                                e, S, delta, _, _ = errm_bound(Aall, Ball, c0.double(), f)
++                                err = (o.double() - S).abs() + delta
++                                fin = torch.isfinite(o)
++                                rw = float(torch.where(fin, err / e, torch.zeros_like(e)).max())
++                                viol += int(((err / e) > 1).sum())
++                                mr = max(mr, rw)
++                                # DotF16 composed step by step from the exact partial sums
++                                eo = torch.zeros_like(e); St = c0.double()
++                                for t in range(T):
++                                    Lt = lift(P[t].double(), f) @ lift(V[t].double(), f)
++                                    eo = eo + rel16(KC) * (St.abs() + eo + Lt) + abs16(KC)
++                                    St = St + P[t].double() @ V[t].double()
++                                whole = f"{rw:.4f}"
++                                cmp_ = f"{float((e / eo).max()):.4f}"
++                            viol += agg.viol + agg.nonfin
++                            out(f"| {NAME[f]} | {M} x {N}, {nw} | {path} | {pk} | {'yes' if scale else 'no'} | {T} | {M * N} | {agg.viol + agg.nonfin} | {agg.sim_eq}/{agg.sim_n} | {agg.r:.4f} | {agg.rm:.4f} | {whole} | {cmp_} |")
++            except triton.runtime.errors.OutOfResources:
++                _r = "| rejected: out of resources on this device | " + ", ".join(f"{k} = {locals()[k]}" for k in ("f", "M", "N", "nw", "K", "D", "T", "pk") if k in locals()) + " |"
++                (locals().get("out") or print)(_r)
++                continue
+     out(f"\nElements outside in Part L: {viol}; largest whole-chain errM ratio {mr:.4f}")
+     return viol
+ 

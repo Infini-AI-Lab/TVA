@@ -1,0 +1,1 @@
+1409006 float32 inputs; the library's two roundings (cvtSat .rn of cvtWith .rz into binary16) differ from the device on 0; one rounding (cvtSat .rn x) differs on 208664

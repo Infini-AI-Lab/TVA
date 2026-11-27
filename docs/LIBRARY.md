@@ -78,7 +78,9 @@ A claim's model is written with these; [SEMANTICS.md](SEMANTICS.md) explains eac
 
 | Module | What it holds |
 |---|---|
-| `TVA.Device` | `Device P`, the conjunction of every device fact; the facts implied by others (`Device.cvtF32E4m3`, `Device.dotE4m3Chunk`, …); `Device.ref_ok`. |
+| `TVA.Device` | The selector: `Device P`, the target device's facts (`H200.Facts P` by default, or `L40.Facts P`); `Device.refPlatform`, `Device.ref_ok`; the facts implied by others on every device (`Device.cvtF16E4m3`, `Device.dotE4m3Chunk`, …). |
+| `TVA.Device.H200` | The H200's facts: `structure Facts P`, one field per fact, statements from `Sm90`, `Dot8Chunk`, `Dot16Chunk`; `refPlatform` (`Platform.ref`), `ref_ok`; `Facts.cvtF32E4m3`, `cvtF32E5m2`. |
+| `TVA.Device.L40` | The L40's facts (sm_89; evidence in `evidence/l40/`): the same fields; `float32 → fp8` rounds twice (`CvtSatF32Two`), the rest the H200's statements; `refPlatform`, `ref_ok`. |
 | `TVA.Device.Shapes` | The shapes a fact takes: totality (`MathTotal`, …), accuracy (`MathAcc`, `DivAcc`, `DotAcc`, `DotLiftAcc`, `DotScaledAcc`, `AtomicAddAcc`), exact results (`MathAt`, `DivRn`, `CvtRn`, `CvtSat`); `liftMag`. |
 | `TVA.Device.Sm90` | The H200 facts with their constants and evidence: `ExpF32`, `DivFull`, `CvtSatF32E4m3`, `DotF16`, `DotI8`, `AtomicAddF32`, `SumDepth`, …; `relDot16`, `absDot16`. |
 | `TVA.Device.Dot8Chunk` | The fp8 `tl.dot` facts, chunk by chunk (`DotE4m3ChunkLoss`, …; shapes `DotChunkAcc`, `DotChunkLoss`). |
@@ -88,7 +90,7 @@ A claim's model is written with these; [SEMANTICS.md](SEMANTICS.md) explains eac
 | `TVA.Device.Ref.Platform` | Proved: `Platform.ref`, IEEE arithmetic rounded once, and its general properties. |
 | `TVA.Device.Ref.Ops` | Proved: `Platform.ref` meets each shape with one rounding's constants. |
 | `TVA.Device.Ref.Chunk` | Proved: `Platform.ref` meets the chunk shapes. |
-| `TVA.Device.Ref.Sm90` | Proved: `Platform.ref` meets each fact; `TVA.Device` assembles them into `Device.ref_ok`. |
+| `TVA.Device.Ref.Sm90` | Proved: `Platform.ref` meets each fact of `Sm90`, `Dot8Chunk`, `Dot16Chunk`; `TVA.Device.H200`, `L40` assemble them into their `ref_ok`. |
 
 ### Claims
 

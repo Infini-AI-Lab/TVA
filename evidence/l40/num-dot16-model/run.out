@@ -1,0 +1,571 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA L40
+
+## Part A: the window (one output element, one chunk)
+
+Each row: one element of `tl.dot(a, b, acc)` with K = 16, on `wgmma` (64 x 64 block, 4 warps) and `mma.sync` (16 x 16, 1 warp); the products and the accumulator as listed, the rest zero. `model`: the bit-level model (module docstring). E is the largest field, u = 2^(E-25) the window's unit.
+
+| operands | path | accumulator | products | exact | device | model | what it shows |
+|---|---|---|---|---|---|---|---|
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | 1 - 1 + 2^-25: E = 0, u = 2^-25; one window for the chunk |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | 1 - 1 + 2^-26: E = 0, u = 2^-25; one window for the chunk |
+| float16 | mma.sync | 0.0 | 1.5*1.5, -1.5*1.5, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | 2.25 - 2.25 + 2^-25: the field of 1.5 * 1.5 is 0, not 1 |
+| float16 | mma.sync | 0.0 | 1.5*1.5, -1.5*1.5, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | 2.25 - 2.25 + 2^-26: the field of 1.5 * 1.5 is 0, not 1 |
+| float16 | mma.sync | 0.0 | 1.9990234375*1.9990234375, -1.9990234375*1.9990234375, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the largest significands' product: field 0 |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.0003662109375*0.0001220703125 | 4.470348358154297e-08 | 0.0 | 2.9802322387695312e-08 | 1.5 u truncated to u |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, -0.0003662109375*0.0001220703125 | -4.470348358154297e-08 | 0.0 | -2.9802322387695312e-08 | -1.5 u truncated toward zero, to -u |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*6.103515625e-05, ... (16) | 2.086162567138672e-07 | 1.1920928955078125e-07 | 0.0 | 14 terms u/2: each dropped, no partial sums |
+| float16 | mma.sync | 1.0 | -1.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the accumulator 1 (field 0) is in the window: 2^-25 kept |
+| float16 | mma.sync | 1.0 | -1.0*1.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | and 2^-26 dropped |
+| float16 | mma.sync | 3.0 | -3.0*1.0, 0.000244140625*0.000244140625 | 5.960464477539063e-08 | 0.0 | 5.960464477539063e-08 | accumulator 3 (field 1): u = 2^-24, kept |
+| float16 | mma.sync | 3.0 | -3.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 0.0 | 2^-25 < u dropped |
+| float16 | mma.sync | 1.0000001192092896 | none | 1.0000001192092896 | 1.0000001192092896 | 1.0000001192092896 | the accumulator alone passes unchanged |
+| float16 | mma.sync | 0.0 | 1.0*1.0, 0.000244140625*0.000244140625, 0.000244140625*0.0001220703125 | 1.0000000894069672 | 1.0 | 1.0 | 1 + 3 2^-25: kept in the window, truncated to float32: 1 |
+| float16 | mma.sync | 0.0 | -1.0*1.0, -0.000244140625*0.000244140625, -0.000244140625*0.0001220703125 | -1.0000000894069672 | -1.0 | -1.0 | the same, negative: toward zero |
+| float16 | mma.sync | 0.0 | 1.0*1.0, 1.0*1.0, 0.000244140625*0.00048828125, ... (4) | 2.0000001788139343 | 2.0 | 2.0 | 2 + 3 2^-24: truncated to 2 |
+| float16 | mma.sync | 0.0 | 1.0*1.0, 0.000244140625*0.00048828125, 0.000244140625*0.000244140625, ... (4) | 1.0000002086162567 | 1.0000001192092896 | 1.0000001192092896 | 1 + 7 2^-25: truncated to 1 + 2^-23 |
+| float16 | mma.sync | 0.0 | 1.1920928955078125e-07*16384.0, -1.1920928955078125e-07*16384.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | float16 subnormal 2^-23 reads as 2^-14: E = 0; 2^-25 |
+| float16 | mma.sync | 0.0 | 16384.0*1.1920928955078125e-07, -16384.0*1.1920928955078125e-07, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the same with the subnormal in b; 2^-25 |
+| float16 | mma.sync | 0.0 | 1.1920928955078125e-07*16384.0, -1.1920928955078125e-07*16384.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | float16 subnormal 2^-23 reads as 2^-14: E = 0; 2^-26 |
+| float16 | mma.sync | 0.0 | 16384.0*1.1920928955078125e-07, -16384.0*1.1920928955078125e-07, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | the same with the subnormal in b; 2^-26 |
+| float16 | mma.sync | 0.0 | 1.1920928955078125e-07*16384.0, -1.1920928955078125e-07*16384.0, 6.103515625e-05*6.103515625e-05 | 3.725290298461914e-09 | 0.0 | 0.0 | float16 subnormal 2^-23 times 2^14: E = 0, u = 2^-25, so 2^-28 is dropped |
+| float16 | mma.sync | 0.0 | 0.001953125*1.0, -0.001953125*1.0, 6.103515625e-05*6.103515625e-05 | 3.725290298461914e-09 | 3.725290298461914e-09 | 3.725290298461914e-09 | the same product 2^-9 from normals: E = -9, u = 2^-34, 2^-28 kept |
+| float16 | mma.sync | 0.0 | 1.1920928955078125e-07*16384.0, 0.00048804283142089844*0.000244140625, 0.00048804283142089844*0.000244140625, ... (16) | 0.001954912266228348 | 0.0019544949755072594 | 0.0019544661045074463 | L126's float16 case: each small product loses its bits below 2^-25 |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | 1 - 1 + 2^-25: E = 0, u = 2^-25; one window for the chunk |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | 1 - 1 + 2^-26: E = 0, u = 2^-25; one window for the chunk |
+| float16 | mma.sync | 0.0 | 1.5*1.5, -1.5*1.5, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | 2.25 - 2.25 + 2^-25: the field of 1.5 * 1.5 is 0, not 1 |
+| float16 | mma.sync | 0.0 | 1.5*1.5, -1.5*1.5, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | 2.25 - 2.25 + 2^-26: the field of 1.5 * 1.5 is 0, not 1 |
+| float16 | mma.sync | 0.0 | 1.9990234375*1.9990234375, -1.9990234375*1.9990234375, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the largest significands' product: field 0 |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.0003662109375*0.0001220703125 | 4.470348358154297e-08 | 0.0 | 2.9802322387695312e-08 | 1.5 u truncated to u |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, -0.0003662109375*0.0001220703125 | -4.470348358154297e-08 | 0.0 | -2.9802322387695312e-08 | -1.5 u truncated toward zero, to -u |
+| float16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*6.103515625e-05, ... (16) | 2.086162567138672e-07 | 1.1920928955078125e-07 | 0.0 | 14 terms u/2: each dropped, no partial sums |
+| float16 | mma.sync | 1.0 | -1.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the accumulator 1 (field 0) is in the window: 2^-25 kept |
+| float16 | mma.sync | 1.0 | -1.0*1.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | and 2^-26 dropped |
+| float16 | mma.sync | 3.0 | -3.0*1.0, 0.000244140625*0.000244140625 | 5.960464477539063e-08 | 0.0 | 5.960464477539063e-08 | accumulator 3 (field 1): u = 2^-24, kept |
+| float16 | mma.sync | 3.0 | -3.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 0.0 | 2^-25 < u dropped |
+| float16 | mma.sync | 1.0000001192092896 | none | 1.0000001192092896 | 1.0000001192092896 | 1.0000001192092896 | the accumulator alone passes unchanged |
+| float16 | mma.sync | 0.0 | 1.0*1.0, 0.000244140625*0.000244140625, 0.000244140625*0.0001220703125 | 1.0000000894069672 | 1.0 | 1.0 | 1 + 3 2^-25: kept in the window, truncated to float32: 1 |
+| float16 | mma.sync | 0.0 | -1.0*1.0, -0.000244140625*0.000244140625, -0.000244140625*0.0001220703125 | -1.0000000894069672 | -1.0 | -1.0 | the same, negative: toward zero |
+| float16 | mma.sync | 0.0 | 1.0*1.0, 1.0*1.0, 0.000244140625*0.00048828125, ... (4) | 2.0000001788139343 | 2.0 | 2.0 | 2 + 3 2^-24: truncated to 2 |
+| float16 | mma.sync | 0.0 | 1.0*1.0, 0.000244140625*0.00048828125, 0.000244140625*0.000244140625, ... (4) | 1.0000002086162567 | 1.0000001192092896 | 1.0000001192092896 | 1 + 7 2^-25: truncated to 1 + 2^-23 |
+| float16 | mma.sync | 0.0 | 1.1920928955078125e-07*16384.0, -1.1920928955078125e-07*16384.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | float16 subnormal 2^-23 reads as 2^-14: E = 0; 2^-25 |
+| float16 | mma.sync | 0.0 | 16384.0*1.1920928955078125e-07, -16384.0*1.1920928955078125e-07, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the same with the subnormal in b; 2^-25 |
+| float16 | mma.sync | 0.0 | 1.1920928955078125e-07*16384.0, -1.1920928955078125e-07*16384.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | float16 subnormal 2^-23 reads as 2^-14: E = 0; 2^-26 |
+| float16 | mma.sync | 0.0 | 16384.0*1.1920928955078125e-07, -16384.0*1.1920928955078125e-07, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | the same with the subnormal in b; 2^-26 |
+| float16 | mma.sync | 0.0 | 1.1920928955078125e-07*16384.0, -1.1920928955078125e-07*16384.0, 6.103515625e-05*6.103515625e-05 | 3.725290298461914e-09 | 0.0 | 0.0 | float16 subnormal 2^-23 times 2^14: E = 0, u = 2^-25, so 2^-28 is dropped |
+| float16 | mma.sync | 0.0 | 0.001953125*1.0, -0.001953125*1.0, 6.103515625e-05*6.103515625e-05 | 3.725290298461914e-09 | 3.725290298461914e-09 | 3.725290298461914e-09 | the same product 2^-9 from normals: E = -9, u = 2^-34, 2^-28 kept |
+| float16 | mma.sync | 0.0 | 1.1920928955078125e-07*16384.0, 0.00048804283142089844*0.000244140625, 0.00048804283142089844*0.000244140625, ... (16) | 0.001954912266228348 | 0.0019544949755072594 | 0.0019544661045074463 | L126's float16 case: each small product loses its bits below 2^-25 |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | 1 - 1 + 2^-25: E = 0, u = 2^-25; one window for the chunk |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | 1 - 1 + 2^-26: E = 0, u = 2^-25; one window for the chunk |
+| bfloat16 | mma.sync | 0.0 | 1.5*1.5, -1.5*1.5, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | 2.25 - 2.25 + 2^-25: the field of 1.5 * 1.5 is 0, not 1 |
+| bfloat16 | mma.sync | 0.0 | 1.5*1.5, -1.5*1.5, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | 2.25 - 2.25 + 2^-26: the field of 1.5 * 1.5 is 0, not 1 |
+| bfloat16 | mma.sync | 0.0 | 1.9921875*1.9921875, -1.9921875*1.9921875, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the largest significands' product: field 0 |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.0003662109375*0.0001220703125 | 4.470348358154297e-08 | 0.0 | 2.9802322387695312e-08 | 1.5 u truncated to u |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, -0.0003662109375*0.0001220703125 | -4.470348358154297e-08 | 0.0 | -2.9802322387695312e-08 | -1.5 u truncated toward zero, to -u |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*6.103515625e-05, ... (16) | 2.086162567138672e-07 | 1.1920928955078125e-07 | 0.0 | 14 terms u/2: each dropped, no partial sums |
+| bfloat16 | mma.sync | 1.0 | -1.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the accumulator 1 (field 0) is in the window: 2^-25 kept |
+| bfloat16 | mma.sync | 1.0 | -1.0*1.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | and 2^-26 dropped |
+| bfloat16 | mma.sync | 3.0 | -3.0*1.0, 0.000244140625*0.000244140625 | 5.960464477539063e-08 | 0.0 | 5.960464477539063e-08 | accumulator 3 (field 1): u = 2^-24, kept |
+| bfloat16 | mma.sync | 3.0 | -3.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 0.0 | 2^-25 < u dropped |
+| bfloat16 | mma.sync | 1.0000001192092896 | none | 1.0000001192092896 | 1.0000001192092896 | 1.0000001192092896 | the accumulator alone passes unchanged |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, 0.000244140625*0.000244140625, 0.000244140625*0.0001220703125 | 1.0000000894069672 | 1.0 | 1.0 | 1 + 3 2^-25: kept in the window, truncated to float32: 1 |
+| bfloat16 | mma.sync | 0.0 | -1.0*1.0, -0.000244140625*0.000244140625, -0.000244140625*0.0001220703125 | -1.0000000894069672 | -1.0 | -1.0 | the same, negative: toward zero |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, 1.0*1.0, 0.000244140625*0.00048828125, ... (4) | 2.0000001788139343 | 2.0 | 2.0 | 2 + 3 2^-24: truncated to 2 |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, 0.000244140625*0.00048828125, 0.000244140625*0.000244140625, ... (4) | 1.0000002086162567 | 1.0000001192092896 | 1.0000001192092896 | 1 + 7 2^-25: truncated to 1 + 2^-23 |
+| bfloat16 | mma.sync | 0.0 | 9.183549615799121e-41*2.1267647932558654e+37, -9.183549615799121e-41*2.1267647932558654e+37, 6.103515625e-05*0.0001220703125 | 7.450580596923828e-09 | 0.0 | 7.450580596923828e-09 | bfloat16 subnormal 2^-133 reads as 2^-126: E = -2; 2^-27 |
+| bfloat16 | mma.sync | 0.0 | 2.1267647932558654e+37*9.183549615799121e-41, -2.1267647932558654e+37*9.183549615799121e-41, 6.103515625e-05*0.0001220703125 | 7.450580596923828e-09 | 0.0 | 7.450580596923828e-09 | the same with the subnormal in b; 2^-27 |
+| bfloat16 | mma.sync | 0.0 | 9.183549615799121e-41*2.1267647932558654e+37, -9.183549615799121e-41*2.1267647932558654e+37, 6.103515625e-05*6.103515625e-05 | 3.725290298461914e-09 | 0.0 | 0.0 | bfloat16 subnormal 2^-133 reads as 2^-126: E = -2; 2^-28 |
+| bfloat16 | mma.sync | 0.0 | 2.1267647932558654e+37*9.183549615799121e-41, -2.1267647932558654e+37*9.183549615799121e-41, 6.103515625e-05*6.103515625e-05 | 3.725290298461914e-09 | 0.0 | 0.0 | the same with the subnormal in b; 2^-28 |
+| bfloat16 | mma.sync | 0.0 | 9.183549615799121e-41*2.1267647932558654e+37, 0.00024318695068359375*0.0001220703125, 0.00024318695068359375*0.0001220703125, ... (16) | 0.001953570288605988 | 0.001953466795384884 | 0.0019534602761268616 | L126's bfloat16 case: below 2^-27 lost |
+| bfloat16 | mma.sync | 1.401298464324817e-45 | none | 1.401298464324817e-45 | 1.401298464324817e-45 | 1.401298464324817e-45 | a subnormal accumulator alone passes unchanged |
+| bfloat16 | mma.sync | 1.1754942106924411e-38 | none | 1.1754942106924411e-38 | 1.1754942106924411e-38 | 1.1754942106924411e-38 | a subnormal accumulator alone passes unchanged |
+| bfloat16 | mma.sync | 4.203895392974451e-45 | 1.3234889800848443e-23*1.3234889800848443e-23, 1.3234889800848443e-23*1.3234889800848443e-23, 1.3234889800848443e-23*1.3234889800848443e-23, ... (16) | 7.006492321624085e-45 | 4.203895392974451e-45 | 4.203895392974451e-45 | a subnormal accumulator's field is -126: u = 2^-151, the 2^-152 dropped |
+| bfloat16 | mma.sync | 0.0 | 1.3234889800848443e-23*1.3234889800848443e-23, 1.3234889800848443e-23*1.3234889800848443e-23, 1.3234889800848443e-23*1.3234889800848443e-23, ... (16) | 2.802596928649634e-45 | 1.401298464324817e-45 | 2.802596928649634e-45 | the same products alone: E = -152, kept, 2^-148 |
+| bfloat16 | mma.sync | 0.0 | 8.470329472543003e-22*8.470329472543003e-22 | 7.174648137343064e-43 | 7.174648137343064e-43 | 7.174648137343064e-43 | a subnormal result is kept (no flush) |
+| bfloat16 | mma.sync | 0.0 | 8.536503921547246e-22*8.536503921547246e-22 | 7.28718992025915e-43 | 7.286752014489049e-43 | 7.286752014489049e-43 | truncated to the grid 2^-149 |
+| bfloat16 | mma.sync | 0.0 | 7.888609052210118e-31*7.888609052210118e-31 | 6.223015277861142e-61 | 0.0 | 0.0 | 2^-200: below float32, 0 |
+| bfloat16 | mma.sync | 0.0 | 1.0842021724855044e-19*1.0842021724855044e-19, -1.0842021724855044e-19*1.0842021724855044e-19, 2.6469779601696886e-23*1.3234889800848443e-23, ... (16) | 4.90454462513686e-45 | 2.802596928649634e-45 | 4.203895392974451e-45 | E = -126: 14 terms 2^-151 kept, the sum 3.5 2^-149 truncated |
+| bfloat16 | mma.sync | -1.7632415262334313e-38 | 1.0842021724855044e-19*1.0842021724855044e-19 | -5.877471754111438e-39 | -5.877471754111438e-39 | -5.877471754111438e-39 | -1.5 2^-126 + 2^-126 = -2^-127, subnormal |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | 1 - 1 + 2^-25: E = 0, u = 2^-25; one window for the chunk |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | 1 - 1 + 2^-26: E = 0, u = 2^-25; one window for the chunk |
+| bfloat16 | mma.sync | 0.0 | 1.5*1.5, -1.5*1.5, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | 2.25 - 2.25 + 2^-25: the field of 1.5 * 1.5 is 0, not 1 |
+| bfloat16 | mma.sync | 0.0 | 1.5*1.5, -1.5*1.5, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | 2.25 - 2.25 + 2^-26: the field of 1.5 * 1.5 is 0, not 1 |
+| bfloat16 | mma.sync | 0.0 | 1.9921875*1.9921875, -1.9921875*1.9921875, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the largest significands' product: field 0 |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.0003662109375*0.0001220703125 | 4.470348358154297e-08 | 0.0 | 2.9802322387695312e-08 | 1.5 u truncated to u |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, -0.0003662109375*0.0001220703125 | -4.470348358154297e-08 | 0.0 | -2.9802322387695312e-08 | -1.5 u truncated toward zero, to -u |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, -1.0*1.0, 0.000244140625*6.103515625e-05, ... (16) | 2.086162567138672e-07 | 1.1920928955078125e-07 | 0.0 | 14 terms u/2: each dropped, no partial sums |
+| bfloat16 | mma.sync | 1.0 | -1.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 2.9802322387695312e-08 | the accumulator 1 (field 0) is in the window: 2^-25 kept |
+| bfloat16 | mma.sync | 1.0 | -1.0*1.0, 0.000244140625*6.103515625e-05 | 1.4901161193847656e-08 | 0.0 | 0.0 | and 2^-26 dropped |
+| bfloat16 | mma.sync | 3.0 | -3.0*1.0, 0.000244140625*0.000244140625 | 5.960464477539063e-08 | 0.0 | 5.960464477539063e-08 | accumulator 3 (field 1): u = 2^-24, kept |
+| bfloat16 | mma.sync | 3.0 | -3.0*1.0, 0.000244140625*0.0001220703125 | 2.9802322387695312e-08 | 0.0 | 0.0 | 2^-25 < u dropped |
+| bfloat16 | mma.sync | 1.0000001192092896 | none | 1.0000001192092896 | 1.0000001192092896 | 1.0000001192092896 | the accumulator alone passes unchanged |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, 0.000244140625*0.000244140625, 0.000244140625*0.0001220703125 | 1.0000000894069672 | 1.0 | 1.0 | 1 + 3 2^-25: kept in the window, truncated to float32: 1 |
+| bfloat16 | mma.sync | 0.0 | -1.0*1.0, -0.000244140625*0.000244140625, -0.000244140625*0.0001220703125 | -1.0000000894069672 | -1.0 | -1.0 | the same, negative: toward zero |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, 1.0*1.0, 0.000244140625*0.00048828125, ... (4) | 2.0000001788139343 | 2.0 | 2.0 | 2 + 3 2^-24: truncated to 2 |
+| bfloat16 | mma.sync | 0.0 | 1.0*1.0, 0.000244140625*0.00048828125, 0.000244140625*0.000244140625, ... (4) | 1.0000002086162567 | 1.0000001192092896 | 1.0000001192092896 | 1 + 7 2^-25: truncated to 1 + 2^-23 |
+| bfloat16 | mma.sync | 0.0 | 9.183549615799121e-41*2.1267647932558654e+37, -9.183549615799121e-41*2.1267647932558654e+37, 6.103515625e-05*0.0001220703125 | 7.450580596923828e-09 | 0.0 | 7.450580596923828e-09 | bfloat16 subnormal 2^-133 reads as 2^-126: E = -2; 2^-27 |
+| bfloat16 | mma.sync | 0.0 | 2.1267647932558654e+37*9.183549615799121e-41, -2.1267647932558654e+37*9.183549615799121e-41, 6.103515625e-05*0.0001220703125 | 7.450580596923828e-09 | 0.0 | 7.450580596923828e-09 | the same with the subnormal in b; 2^-27 |
+| bfloat16 | mma.sync | 0.0 | 9.183549615799121e-41*2.1267647932558654e+37, -9.183549615799121e-41*2.1267647932558654e+37, 6.103515625e-05*6.103515625e-05 | 3.725290298461914e-09 | 0.0 | 0.0 | bfloat16 subnormal 2^-133 reads as 2^-126: E = -2; 2^-28 |
+| bfloat16 | mma.sync | 0.0 | 2.1267647932558654e+37*9.183549615799121e-41, -2.1267647932558654e+37*9.183549615799121e-41, 6.103515625e-05*6.103515625e-05 | 3.725290298461914e-09 | 0.0 | 0.0 | the same with the subnormal in b; 2^-28 |
+| bfloat16 | mma.sync | 0.0 | 9.183549615799121e-41*2.1267647932558654e+37, 0.00024318695068359375*0.0001220703125, 0.00024318695068359375*0.0001220703125, ... (16) | 0.001953570288605988 | 0.001953466795384884 | 0.0019534602761268616 | L126's bfloat16 case: below 2^-27 lost |
+| bfloat16 | mma.sync | 1.401298464324817e-45 | none | 1.401298464324817e-45 | 1.401298464324817e-45 | 1.401298464324817e-45 | a subnormal accumulator alone passes unchanged |
+| bfloat16 | mma.sync | 1.1754942106924411e-38 | none | 1.1754942106924411e-38 | 1.1754942106924411e-38 | 1.1754942106924411e-38 | a subnormal accumulator alone passes unchanged |
+| bfloat16 | mma.sync | 4.203895392974451e-45 | 1.3234889800848443e-23*1.3234889800848443e-23, 1.3234889800848443e-23*1.3234889800848443e-23, 1.3234889800848443e-23*1.3234889800848443e-23, ... (16) | 7.006492321624085e-45 | 4.203895392974451e-45 | 4.203895392974451e-45 | a subnormal accumulator's field is -126: u = 2^-151, the 2^-152 dropped |
+| bfloat16 | mma.sync | 0.0 | 1.3234889800848443e-23*1.3234889800848443e-23, 1.3234889800848443e-23*1.3234889800848443e-23, 1.3234889800848443e-23*1.3234889800848443e-23, ... (16) | 2.802596928649634e-45 | 1.401298464324817e-45 | 2.802596928649634e-45 | the same products alone: E = -152, kept, 2^-148 |
+| bfloat16 | mma.sync | 0.0 | 8.470329472543003e-22*8.470329472543003e-22 | 7.174648137343064e-43 | 7.174648137343064e-43 | 7.174648137343064e-43 | a subnormal result is kept (no flush) |
+| bfloat16 | mma.sync | 0.0 | 8.536503921547246e-22*8.536503921547246e-22 | 7.28718992025915e-43 | 7.286752014489049e-43 | 7.286752014489049e-43 | truncated to the grid 2^-149 |
+| bfloat16 | mma.sync | 0.0 | 7.888609052210118e-31*7.888609052210118e-31 | 6.223015277861142e-61 | 0.0 | 0.0 | 2^-200: below float32, 0 |
+| bfloat16 | mma.sync | 0.0 | 1.0842021724855044e-19*1.0842021724855044e-19, -1.0842021724855044e-19*1.0842021724855044e-19, 2.6469779601696886e-23*1.3234889800848443e-23, ... (16) | 4.90454462513686e-45 | 2.802596928649634e-45 | 4.203895392974451e-45 | E = -126: 14 terms 2^-151 kept, the sum 3.5 2^-149 truncated |
+| bfloat16 | mma.sync | -1.7632415262334313e-38 | 1.0842021724855044e-19*1.0842021724855044e-19 | -5.877471754111438e-39 | -5.877471754111438e-39 | -5.877471754111438e-39 | -1.5 2^-126 + 2^-126 = -2^-127, subnormal |
+
+Every device result equal to the model: False
+
+Instructions in the PTX: `mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32`, `mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32`
+
+
+## Part E: the order of the chunks
+
+For chunks x < y and k (all distinct, chunks of 16 consecutive k): +B at a random position of chunk x, -B in chunk y, a small product s in chunk k, with B/s = 2^28, beyond the window. s survives exactly when chunk k is accumulated after both x and y (before, it is cut against B; between, too). `agree`: triples whose outcome is that of increasing k.
+
+| operands | M x N, warps | path | chunks | triples | agree with increasing k |
+|---|---|---|---|---|---|
+| float16 | 64 x 64, 4 | mma.sync | 8 | 168 | 168 |
+| rejected: out of resources on this device |  |
+| float16 | 16 x 16, 1 | mma.sync | 8 | 168 | 168 |
+| float16 | 16 x 16, 1 | mma.sync | 32 | 3000 | 3000 |
+| bfloat16 | 64 x 64, 4 | mma.sync | 8 | 168 | 168 |
+| rejected: out of resources on this device |  |
+| bfloat16 | 16 x 16, 1 | mma.sync | 8 | 168 | 168 |
+| bfloat16 | 16 x 16, 1 | mma.sync | 32 | 3000 | 3000 |
+
+## Part F: L126's inputs
+
+evidence/num-dot-sub16's `probe.py` cases (K = 16, the large product at k = 0, 7, 15), and the same at K = 64 and 256 with the chunk repeated: the error against the bound before round 25 (`old`) and the new one.
+
+| case | path | K | k | exact | device | model | error / old bound | error / new bound |
+|---|---|---|---|---|---|---|---|---|
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 16 | 0 | 0.001954912266228348 | 0.0019544949755072594 | 0.0019544661045074463 | 49.739 | 0.0972 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 16 | 7 | 0.001954912266228348 | 0.0019544949755072594 | 0.0019544661045074463 | 49.739 | 0.0972 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 16 | 15 | 0.001954912266228348 | 0.0019544363021850586 | 0.0019544661045074463 | 56.733 | 0.1109 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 64 | 0 | 0.007819649064913392 | 0.007817801088094711 | 0.007817864418029785 | 15.018 | 0.0294 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 256 | 0 | 0.03127859625965357 | 0.03127102553844452 | 0.03127145767211914 | 3.935 | 0.0077 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 16 | 0 | 0.001954912266228348 | 0.0019544949755072594 | 0.0019544661045074463 | 49.739 | 0.0972 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 16 | 7 | 0.001954912266228348 | 0.0019544949755072594 | 0.0019544661045074463 | 49.739 | 0.0972 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 16 | 15 | 0.001954912266228348 | 0.0019544363021850586 | 0.0019544661045074463 | 56.733 | 0.1109 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 64 | 0 | 0.007819649064913392 | 0.007817801088094711 | 0.007817864418029785 | 15.018 | 0.0294 |
+| float16, subnormal a = 2^-23, b = 2^14 | mma.sync | 256 | 0 | 0.03127859625965357 | 0.03127102553844452 | 0.03127145767211914 | 3.935 | 0.0077 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 16 | 0 | 0.001954912266228348 | 0.0019549112766981125 | 0.001954912208020687 | 0.118 | 0.1179 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 16 | 7 | 0.001954912266228348 | 0.0019549112766981125 | 0.001954912208020687 | 0.118 | 0.1179 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 16 | 15 | 0.001954912266228348 | 0.0019549117423594 | 0.001954912208020687 | 0.062 | 0.0624 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 64 | 0 | 0.007819649064913392 | 0.007819638587534428 | 0.0078196469694376 | 0.085 | 0.0851 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 256 | 0 | 0.03127859625965357 | 0.03127843514084816 | 0.03127852827310562 | 0.084 | 0.0837 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 16 | 0 | 0.001954912266228348 | 0.0019549112766981125 | 0.001954912208020687 | 0.118 | 0.1179 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 16 | 7 | 0.001954912266228348 | 0.0019549112766981125 | 0.001954912208020687 | 0.118 | 0.1179 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 16 | 15 | 0.001954912266228348 | 0.0019549117423594 | 0.001954912208020687 | 0.062 | 0.0624 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 64 | 0 | 0.007819649064913392 | 0.007819638587534428 | 0.0078196469694376 | 0.085 | 0.0851 |
+| float16, normal a = 2^-14, b = 2^5 | mma.sync | 256 | 0 | 0.03127859625965357 | 0.03127843514084816 | 0.03127852827310562 | 0.084 | 0.0837 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 16 | 0 | 0.001953570288605988 | 0.001953466795384884 | 0.0019534602761268616 | 12.344 | 0.0965 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 16 | 7 | 0.001953570288605988 | 0.001953466795384884 | 0.0019534602761268616 | 12.344 | 0.0965 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 16 | 15 | 0.001953570288605988 | 0.0019534528255462646 | 0.0019534602761268616 | 14.011 | 0.1095 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 64 | 0 | 0.007814281154423952 | 0.007813822478055954 | 0.007813841104507446 | 3.730 | 0.0291 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 256 | 0 | 0.03125712461769581 | 0.031255245208740234 | 0.031255364418029785 | 0.977 | 0.0076 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 16 | 0 | 0.001953570288605988 | 0.001953466795384884 | 0.0019534602761268616 | 12.344 | 0.0965 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 16 | 7 | 0.001953570288605988 | 0.001953466795384884 | 0.0019534602761268616 | 12.344 | 0.0965 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 16 | 15 | 0.001953570288605988 | 0.0019534528255462646 | 0.0019534602761268616 | 14.011 | 0.1095 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 64 | 0 | 0.007814281154423952 | 0.007813822478055954 | 0.007813841104507446 | 3.730 | 0.0291 |
+| bfloat16, subnormal a = 2^-133, b = 2^124 | mma.sync | 256 | 0 | 0.03125712461769581 | 0.031255245208740234 | 0.031255364418029785 | 0.977 | 0.0076 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 16 | 0 | 0.001953570288605988 | 0.001953570172190666 | 0.001953570172190666 | 0.014 | 0.0139 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 16 | 7 | 0.001953570288605988 | 0.001953570172190666 | 0.001953570172190666 | 0.014 | 0.0139 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 16 | 15 | 0.001953570288605988 | 0.001953570172190666 | 0.001953570172190666 | 0.014 | 0.0139 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 64 | 0 | 0.007814281154423952 | 0.007814274169504642 | 0.007814280688762665 | 0.057 | 0.0568 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 256 | 0 | 0.03125712461769581 | 0.03125697746872902 | 0.03125707060098648 | 0.077 | 0.0765 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 16 | 0 | 0.001953570288605988 | 0.001953570172190666 | 0.001953570172190666 | 0.014 | 0.0139 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 16 | 7 | 0.001953570288605988 | 0.001953570172190666 | 0.001953570172190666 | 0.014 | 0.0139 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 16 | 15 | 0.001953570288605988 | 0.001953570172190666 | 0.001953570172190666 | 0.014 | 0.0139 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 64 | 0 | 0.007814281154423952 | 0.007814274169504642 | 0.007814280688762665 | 0.057 | 0.0568 |
+| bfloat16, normal a = 2^-126, b = 2^117 | mma.sync | 256 | 0 | 0.03125712461769581 | 0.03125697746872902 | 0.03125707060098648 | 0.077 | 0.0765 |
+
+Largest error / new bound in Part F: 0.1179
+
+## Part G: other facts
+
+### G1: `input_precision` on these inputs
+
+Every `input_precision` against the default (`tf32`), bit for bit, on the kinds with subnormal operands.
+
+| operands | M x N, warps | K | input_precision | kinds | elements | equal to the default |
+|---|---|---|---|---|---|---|
+| float16 | 64 x 64, 4 | 16 | tf32x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 16 | ieee | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 16 | bf16x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 16 | bf16x6 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 64 | tf32x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 64 | ieee | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 64 | bf16x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 64 | bf16x6 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 256 | tf32x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 256 | ieee | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 256 | bf16x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 64 x 64, 4 | 256 | bf16x6 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| float16 | 16 x 16, 1 | 16 | tf32x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 16 | ieee | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 16 | bf16x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 16 | bf16x6 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 64 | tf32x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 64 | ieee | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 64 | bf16x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 64 | bf16x6 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 256 | tf32x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 256 | ieee | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 256 | bf16x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| float16 | 16 x 16, 1 | 256 | bf16x6 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 64 x 64, 4 | 16 | tf32x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 16 | ieee | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 16 | bf16x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 16 | bf16x6 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 64 | tf32x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 64 | ieee | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 64 | bf16x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 64 | bf16x6 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 256 | tf32x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 256 | ieee | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 256 | bf16x3 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 64 x 64, 4 | 256 | bf16x6 | subwin, sub, softmax, subrand, bits | 20480 | 20480 |
+| bfloat16 | 16 x 16, 1 | 16 | tf32x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 16 | ieee | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 16 | bf16x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 16 | bf16x6 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 64 | tf32x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 64 | ieee | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 64 | bf16x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 64 | bf16x6 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 256 | tf32x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 256 | ieee | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 256 | bf16x3 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+| bfloat16 | 16 x 16, 1 | 256 | bf16x6 | subwin, sub, softmax, subrand, bits | 1280 | 1280 |
+
+### G2: the fp8 chunk facts on `mma.sync` with a subnormal `float8e5` operand
+
+On `mma.sync` Triton converts fp8 operands to `float16` (a subnormal `float8e5` value is a subnormal `float16` value) and runs two `float16` instructions per chunk of 32. One product per chunk of 16 has a subnormal `float8e5` operand and a large partner, so its field is the smallest normal's; the other products lie just below that `float16` window's unit and are lost (only `float8e5` by `float8e5` has normal products that small). The error against `DotE5m2Chunk`'s implied interval, on `16 x 16` with 1 warp.
+
+| operands | path | K | rows | largest error / chunk facts' bound | largest error / magnitude sum |
+|---|---|---|---|---|---|
+| e5 x e5 | mma.sync | 32 | 16 | 0.000098 | 1.04e-06 |
+| e5 x e5 | mma.sync | 64 | 16 | 0.000098 | 1.56e-06 |
+| e5 x e5 | mma.sync | 256 | 16 | 0.000032 | 9.27e-07 |
+
+### G3: `tl.dot_scaled` (`"e4m3"` by `"e4m3"`) on window inputs
+
+`DotScaledE4m3`'s domain `scaledDomBF16` admits only `0` and normal `bfloat16` scaled values, so the emulated `bfloat16` dot has no subnormal operand. Per chunk of 16 one product `448 * 448` (scale `2^0`) and 15 products of `1.875 * 2^-6` (normal `e4m3`, and a subnormal `e4m3` element `2^-9`, which `bfloat16` holds as a normal value), lost below the window; the error against the fact's bound `relDot16 K mag + absDot16 K`.
+
+| fast_math | K | rows | largest error / bound | every scaled value in scaledDomBF16 |
+|---|---|---|---|---|
+| False | 32 | 16 | 0.005451 | True |
+| False | 64 | 16 | 0.002808 | True |
+| False | 256 | 16 | 0.000722 | True |
+| True | 32 | 16 | 0.005451 | True |
+| True | 64 | 16 | 0.002808 | True |
+| True | 256 | 16 | 0.000739 | True |
+
+## Part D: the kernels' shapes
+
+### D1: single dots at the kernels' shapes
+
+Tutorial 06's `_attn_fwd` and `_attn_bwd` (`[128, D] x [D, 64]` with `b` transposed, with and without an accumulator; `[128, 64] x [64, D]` with `a` converted to the format in registers, `p.to(...)`), `D` in {64, 128, 256}, and tutorials 03 and 08's tiles (`128 x 128 x 64`, `128 x 256 x 64`), each with 4 and 8 warps; the columns as in Parts B and C.
+
+| operands | M x N, warps | variant | path | K | elements in range | outside the new bound | model = device | new ratio | chunk ratio | outside the old bound | old ratio |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| float16 | 128 x 64, 4 | b transposed | mma.sync | 64 | 1310720 | 0 | 624745/1310720 | 0.1694 | 0.8456 | 8192 | 2.0867 |
+| float16 | 128 x 64, 4 | b transposed, no acc | mma.sync | 64 | 1310720 | 0 | 666040/1310720 | 0.0514 | 0.7139 | 8192 | 17.1341 |
+| float16 | 128 x 64, 4 | a in registers | mma.sync | 64 | 1310720 | 0 | 615468/1310720 | 0.1655 | 0.8092 | 18389 | 16.4631 |
+| float16 | 128 x 64, 4 | b transposed | mma.sync | 128 | 1310720 | 0 | 580005/1310720 | 0.1633 | 0.8456 | 0 | 0.1633 |
+| float16 | 128 x 64, 4 | b transposed, no acc | mma.sync | 128 | 1310720 | 0 | 616233/1310720 | 0.0512 | 0.7139 | 0 | 0.2326 |
+| float16 | 128 x 128, 4 | a in registers | mma.sync | 64 | 2621440 | 0 | 1271031/2621440 | 0.1655 | 0.8456 | 16384 | 16.1398 |
+| float16 | 128 x 64, 4 | b transposed | mma.sync | 256 | 1310720 | 0 | 541146/1310720 | 0.1556 | 0.8092 | 0 | 0.1556 |
+| float16 | 128 x 64, 4 | b transposed, no acc | mma.sync | 256 | 1310720 | 0 | 574787/1310720 | 0.0505 | 0.7139 | 0 | 0.0505 |
+| float16 | 128 x 256, 4 | a in registers | mma.sync | 64 | 5242880 | 0 | 2553807/5242880 | 0.1707 | 0.8456 | 65536 | 16.8357 |
+| float16 | 128 x 128, 4 | tile 128x128x64 | mma.sync | 64 | 2621440 | 0 | 1235670/2621440 | 0.1729 | 0.8456 | 16384 | 4.4880 |
+| float16 | 128 x 256, 4 | tile 128x256x64 | mma.sync | 64 | 5242880 | 0 | 2551515/5242880 | 0.1683 | 0.8092 | 65536 | 16.7274 |
+| float16 | 128 x 64, 8 | b transposed | mma.sync | 64 | 1310720 | 0 | 624772/1310720 | 0.1684 | 0.8456 | 16384 | 16.7274 |
+| float16 | 128 x 64, 8 | b transposed, no acc | mma.sync | 64 | 1310720 | 0 | 637000/1310720 | 0.0594 | 0.7139 | 8192 | 12.0260 |
+| float16 | 128 x 64, 8 | a in registers | mma.sync | 64 | 1310720 | 0 | 598166/1310720 | 0.1631 | 0.8456 | 0 | 0.2397 |
+| float16 | 128 x 64, 8 | b transposed | mma.sync | 128 | 1310720 | 0 | 556331/1310720 | 0.1665 | 0.8092 | 0 | 0.5201 |
+| float16 | 128 x 64, 8 | b transposed, no acc | mma.sync | 128 | 1310720 | 0 | 594830/1310720 | 0.0517 | 0.7139 | 0 | 0.1006 |
+| float16 | 128 x 128, 8 | a in registers | mma.sync | 64 | 2621440 | 0 | 1215823/2621440 | 0.1653 | 0.7616 | 0 | 0.7558 |
+| float16 | 128 x 64, 8 | b transposed | mma.sync | 256 | 1310720 | 0 | 528983/1310720 | 0.1561 | 0.8456 | 0 | 0.1561 |
+| float16 | 128 x 64, 8 | b transposed, no acc | mma.sync | 256 | 1310720 | 0 | 590995/1310720 | 0.0521 | 0.7139 | 0 | 0.0521 |
+| float16 | 128 x 256, 8 | a in registers | mma.sync | 64 | 5242880 | 0 | 2516744/5242880 | 0.1664 | 0.8456 | 0 | 0.3802 |
+| float16 | 128 x 128, 8 | tile 128x128x64 | mma.sync | 64 | 2621440 | 0 | 1251188/2621440 | 0.1694 | 0.8092 | 32768 | 15.9056 |
+| float16 | 128 x 256, 8 | tile 128x256x64 | mma.sync | 64 | 5242880 | 0 | 2537385/5242880 | 0.1692 | 0.8092 | 65536 | 16.1400 |
+| bfloat16 | 128 x 64, 4 | b transposed | mma.sync | 64 | 1310720 | 0 | 862366/1310720 | 0.1621 | 0.9020 | 55292 | 2.1581 |
+| bfloat16 | 128 x 64, 4 | b transposed, no acc | mma.sync | 64 | 1310720 | 0 | 963863/1310720 | 0.0460 | 0.7240 | 65536 | 2.0447 |
+| bfloat16 | 128 x 64, 4 | a in registers | mma.sync | 64 | 1310720 | 0 | 900500/1310720 | 0.1648 | 0.9020 | 32768 | 2.1186 |
+| bfloat16 | 128 x 64, 4 | b transposed | mma.sync | 128 | 1310720 | 0 | 819122/1310720 | 0.1600 | 0.9020 | 0 | 0.8607 |
+| bfloat16 | 128 x 64, 4 | b transposed, no acc | mma.sync | 128 | 1310720 | 0 | 896113/1310720 | 0.0277 | 0.8201 | 0 | 0.8670 |
+| bfloat16 | 128 x 128, 4 | a in registers | mma.sync | 64 | 2621440 | 0 | 1742757/2621440 | 0.1657 | 0.9020 | 85948 | 2.1675 |
+| bfloat16 | 128 x 64, 4 | b transposed | mma.sync | 256 | 1310720 | 0 | 710248/1310720 | 0.1536 | 0.9020 | 0 | 0.4406 |
+| bfloat16 | 128 x 64, 4 | b transposed, no acc | mma.sync | 256 | 1310720 | 0 | 816055/1310720 | 0.0289 | 0.8420 | 0 | 0.2103 |
+| bfloat16 | 128 x 256, 4 | a in registers | mma.sync | 64 | 5242880 | 0 | 3527890/5242880 | 0.1618 | 0.9020 | 122826 | 1.9863 |
+| bfloat16 | 128 x 128, 4 | tile 128x128x64 | mma.sync | 64 | 2621440 | 0 | 1742533/2621440 | 0.1636 | 0.9020 | 90043 | 2.2089 |
+| bfloat16 | 128 x 256, 4 | tile 128x256x64 | mma.sync | 64 | 5242880 | 0 | 3546962/5242880 | 0.1661 | 0.9019 | 114632 | 1.9682 |
+| bfloat16 | 128 x 64, 8 | b transposed | mma.sync | 64 | 1310720 | 0 | 891684/1310720 | 0.1703 | 0.9020 | 28601 | 2.1886 |
+| bfloat16 | 128 x 64, 8 | b transposed, no acc | mma.sync | 64 | 1310720 | 0 | 993447/1310720 | 0.0461 | 0.7353 | 40960 | 1.8484 |
+| bfloat16 | 128 x 64, 8 | a in registers | mma.sync | 64 | 1310720 | 0 | 878525/1310720 | 0.1611 | 0.9019 | 77843 | 2.1680 |
+| bfloat16 | 128 x 64, 8 | b transposed | mma.sync | 128 | 1310720 | 0 | 819804/1310720 | 0.1585 | 0.9020 | 8192 | 1.0875 |
+| bfloat16 | 128 x 64, 8 | b transposed, no acc | mma.sync | 128 | 1310720 | 0 | 864517/1310720 | 0.0348 | 0.8067 | 0 | 0.8841 |
+| bfloat16 | 128 x 128, 8 | a in registers | mma.sync | 64 | 2621440 | 0 | 1796581/2621440 | 0.1635 | 0.9020 | 65536 | 2.1935 |
+| bfloat16 | 128 x 64, 8 | b transposed | mma.sync | 256 | 1310720 | 0 | 715789/1310720 | 0.1549 | 0.9017 | 0 | 0.5146 |
+| bfloat16 | 128 x 64, 8 | b transposed, no acc | mma.sync | 256 | 1310720 | 0 | 788714/1310720 | 0.0289 | 0.8064 | 0 | 0.4350 |
+| bfloat16 | 128 x 256, 8 | a in registers | mma.sync | 64 | 5242880 | 0 | 3485683/5242880 | 0.1680 | 0.9020 | 114585 | 2.1675 |
+| bfloat16 | 128 x 128, 8 | tile 128x128x64 | mma.sync | 64 | 2621440 | 0 | 1740564/2621440 | 0.1686 | 0.9020 | 57278 | 2.0362 |
+| bfloat16 | 128 x 256, 8 | tile 128x256x64 | mma.sync | 64 | 5242880 | 0 | 3578272/5242880 | 0.1702 | 0.9020 | 221182 | 2.1409 |
+
+### Totals
+
+| operands | path | elements in range | outside the new bound | model = device | largest new ratio | largest chunk ratio | elements with float64 sums (rounding added) | outside the old bound | largest old ratio |
+|---|---|---|---|---|---|---|---|---|---|
+| bfloat16 | mma.sync | 49807360 | 0 | 33081989/49807360 | 0.1703 | 0.9020 | 25747543 | 1181222 | 2.2089 |
+| float16 | mma.sync | 49807360 | 0 | 23482664/49807360 | 0.1729 | 0.8456 | 14276714 | 321493 | 17.1341 |
+
+### Elements outside the old bound, by kind of input
+
+| operands | path | kind | elements |
+|---|---|---|---|
+| bfloat16 | mma.sync | `subwin` | 1181222 |
+| float16 | mma.sync | `subwin` | 321493 |
+
+### The inputs with the largest new ratio
+
+- bfloat16, mma.sync: 128 x 64, 8 warps, b transposed, K = 64, kind `accbig`, element (116, 11): accumulator 1048575.9375, exact result 1048723.1846923828, device 1048720.375, L = 1048723.1846923828
+- float16, mma.sync: 128 x 128, 4 warps, tile 128x128x64, K = 64, kind `accbig`, element (61, 106): accumulator 524287.96875, exact result 524428.5514831543, device 524427.125, L = 524428.5514831543
+
+### D2: chains
+
+`for t in range(T): [acc = acc * alpha_t]; acc = tl.dot(p_t, v_t, acc)`, every acc_t stored (the result without the stores is checked equal). `p.to`: p_t [M, 64] arrives as float32 and is converted in registers (tutorial 06's `p.to(fp16)`), from a softmax of random scores (`exp2` of scores minus the row maximum, scale 1, 4, 16 or 64: many subnormal and zero values), or `subwin` blocks; `K loop`: p_t loaded in the format (tutorial 03's `acc = tl.dot(a, b, acc)`), `normal` or `subwin` blocks. `per dot`: each dot from the stored accumulator before it (times alpha_t, in float32) against the facts and the model. `whole chain` (no rescale): the final result against the facts for one dot of K = 64 T from the initial accumulator, and against the model run over the concatenated operands.
+
+| operands | M x N, warps | path | p, v | rescale | T | elements | per dot: model = device | per dot: new ratio | per dot: old ratio | whole chain: model = device | whole chain: new ratio | whole chain: old ratio |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| float16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 1 | 8192 | 3719/8192 | 0.0497 | 0.0497 | 3719/8192 | 0.0497 | 0.0497 |
+| float16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 4 | 8192 | 14154/32768 | 0.0452 | 0.0452 | 1567/8192 | 0.0122 | 0.0122 |
+| float16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 16 | 8192 | 58797/131072 | 0.0690 | 0.0691 | 715/8192 | 0.0033 | 0.0033 |
+| float16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 64 | 8192 | 236183/524288 | 0.0656 | 0.0656 | 236/8192 | 0.0010 | 0.0010 |
+| float16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 256 | 8192 | 957980/2097152 | 0.0781 | 0.0781 | 52/8192 | 0.0004 | 0.0004 |
+| float16 | 128 x 64, 4 | mma.sync | p.to softmax | yes | 16 | 8192 | 62529/131072 | 0.0564 | 0.0565 | - | - | - |
+| float16 | 128 x 64, 4 | mma.sync | p.to softmax | yes | 64 | 8192 | 247006/524288 | 0.0614 | 0.0614 | - | - | - |
+| float16 | 128 x 64, 4 | mma.sync | p.to subwin | no | 1 | 8192 | 8192/8192 | 0.0284 | 0.0494 | 8192/8192 | 0.0284 | 0.0494 |
+| float16 | 128 x 64, 4 | mma.sync | p.to subwin | no | 4 | 8192 | 24576/32768 | 0.0248 | 0.0625 | 4672/8192 | 0.0073 | 0.0244 |
+| float16 | 128 x 64, 4 | mma.sync | p.to subwin | no | 16 | 8192 | 78336/131072 | 0.0314 | 0.7794 | 1408/8192 | 0.0011 | 0.0043 |
+| float16 | 128 x 64, 4 | mma.sync | p.to subwin | no | 64 | 8192 | 441088/524288 | 0.0296 | 0.8771 | 3456/8192 | 0.0001 | 0.0005 |
+| float16 | 128 x 64, 4 | mma.sync | p.to subwin | yes | 16 | 8192 | 45120/131072 | 0.0285 | 3.2980 | - | - | - |
+| float16 | 128 x 64, 4 | mma.sync | p.to subwin | yes | 64 | 8192 | 214592/524288 | 0.0328 | 3.6378 | - | - | - |
+| float16 | 128 x 64, 4 | mma.sync | K loop normal | no | 1 | 8192 | 3037/8192 | 0.0157 | 0.0157 | 3037/8192 | 0.0157 | 0.0157 |
+| float16 | 128 x 64, 4 | mma.sync | K loop normal | no | 4 | 8192 | 9982/32768 | 0.0261 | 0.0261 | 1223/8192 | 0.0050 | 0.0050 |
+| float16 | 128 x 64, 4 | mma.sync | K loop normal | no | 16 | 8192 | 36082/131072 | 0.0414 | 0.0414 | 449/8192 | 0.0017 | 0.0017 |
+| float16 | 128 x 64, 4 | mma.sync | K loop normal | no | 64 | 8192 | 133986/524288 | 0.0537 | 0.0537 | 106/8192 | 0.0008 | 0.0008 |
+| float16 | 128 x 64, 4 | mma.sync | K loop normal | no | 256 | 8192 | 513578/2097152 | 0.0724 | 0.0724 | 16/8192 | 0.0003 | 0.0003 |
+| float16 | 128 x 64, 4 | mma.sync | K loop subwin | no | 1 | 8192 | 0/8192 | 0.0208 | 0.3158 | 0/8192 | 0.0208 | 0.3158 |
+| float16 | 128 x 64, 4 | mma.sync | K loop subwin | no | 4 | 8192 | 18944/32768 | 0.0249 | 0.1288 | 0/8192 | 0.0070 | 0.0260 |
+| float16 | 128 x 64, 4 | mma.sync | K loop subwin | no | 16 | 8192 | 86656/131072 | 0.0303 | 1.0619 | 1280/8192 | 0.0013 | 0.0062 |
+| float16 | 128 x 64, 4 | mma.sync | K loop subwin | no | 64 | 8192 | 436288/524288 | 0.0294 | 1.9373 | 2560/8192 | 0.0001 | 0.0006 |
+| float16 | 128 x 128, 4 | mma.sync | p.to softmax | no | 1 | 16384 | 7641/16384 | 0.0375 | 0.0375 | 7641/16384 | 0.0375 | 0.0375 |
+| rejected: out of resources on this device |  |
+| float16 | 128 x 256, 4 | mma.sync | p.to softmax | no | 1 | 32768 | 14974/32768 | 0.0443 | 0.0443 | 14974/32768 | 0.0443 | 0.0443 |
+| rejected: out of resources on this device |  |
+| float16 | 128 x 64, 8 | mma.sync | p.to softmax | no | 1 | 8192 | 3805/8192 | 0.0358 | 0.0359 | 3805/8192 | 0.0358 | 0.0359 |
+| rejected: out of resources on this device |  |
+| float16 | 128 x 128, 8 | mma.sync | p.to softmax | no | 1 | 16384 | 7462/16384 | 0.0550 | 0.0550 | 7462/16384 | 0.0550 | 0.0550 |
+| rejected: out of resources on this device |  |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 1 | 2048 | 786/2048 | 0.0395 | 0.0396 | 786/2048 | 0.0395 | 0.0396 |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 4 | 2048 | 3766/8192 | 0.0394 | 0.0394 | 460/2048 | 0.0101 | 0.0101 |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 16 | 2048 | 14569/32768 | 0.0583 | 0.0583 | 174/2048 | 0.0027 | 0.0027 |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 64 | 2048 | 60348/131072 | 0.0580 | 0.0580 | 58/2048 | 0.0012 | 0.0012 |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 256 | 2048 | 236169/524288 | 0.0769 | 0.0769 | 12/2048 | 0.0004 | 0.0004 |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | yes | 16 | 2048 | 15777/32768 | 0.0457 | 0.0457 | - | - | - |
+| float16 | 32 x 64, 2 | mma.sync | p.to softmax | yes | 64 | 2048 | 61795/131072 | 0.0548 | 0.0548 | - | - | - |
+| float16 | 32 x 64, 2 | mma.sync | p.to subwin | no | 1 | 2048 | 0/2048 | 0.0219 | 0.0835 | 0/2048 | 0.0219 | 0.0835 |
+| float16 | 32 x 64, 2 | mma.sync | p.to subwin | no | 4 | 2048 | 5504/8192 | 0.0231 | 1.0791 | 0/2048 | 0.0068 | 0.0348 |
+| float16 | 32 x 64, 2 | mma.sync | p.to subwin | no | 16 | 2048 | 23104/32768 | 0.0279 | 4.8952 | 512/2048 | 0.0015 | 0.0059 |
+| float16 | 32 x 64, 2 | mma.sync | p.to subwin | no | 64 | 2048 | 116032/131072 | 0.0284 | 0.7080 | 832/2048 | 0.0002 | 0.0007 |
+| float16 | 32 x 64, 2 | mma.sync | p.to subwin | yes | 16 | 2048 | 13760/32768 | 0.0305 | 0.3566 | - | - | - |
+| float16 | 32 x 64, 2 | mma.sync | p.to subwin | yes | 64 | 2048 | 40960/131072 | 0.0296 | 4.1189 | - | - | - |
+| float16 | 32 x 64, 2 | mma.sync | K loop normal | no | 1 | 2048 | 753/2048 | 0.0096 | 0.0096 | 753/2048 | 0.0096 | 0.0096 |
+| float16 | 32 x 64, 2 | mma.sync | K loop normal | no | 4 | 2048 | 2495/8192 | 0.0297 | 0.0297 | 300/2048 | 0.0050 | 0.0050 |
+| float16 | 32 x 64, 2 | mma.sync | K loop normal | no | 16 | 2048 | 9037/32768 | 0.0376 | 0.0376 | 109/2048 | 0.0015 | 0.0015 |
+| float16 | 32 x 64, 2 | mma.sync | K loop normal | no | 64 | 2048 | 33523/131072 | 0.0520 | 0.0520 | 20/2048 | 0.0007 | 0.0007 |
+| float16 | 32 x 64, 2 | mma.sync | K loop normal | no | 256 | 2048 | 128027/524288 | 0.0657 | 0.0657 | 6/2048 | 0.0003 | 0.0003 |
+| float16 | 32 x 64, 2 | mma.sync | K loop subwin | no | 1 | 2048 | 0/2048 | 0.0237 | 0.1122 | 0/2048 | 0.0237 | 0.1122 |
+| float16 | 32 x 64, 2 | mma.sync | K loop subwin | no | 4 | 2048 | 3072/8192 | 0.0214 | 0.3446 | 0/2048 | 0.0067 | 0.0288 |
+| float16 | 32 x 64, 2 | mma.sync | K loop subwin | no | 16 | 2048 | 20224/32768 | 0.0279 | 0.5266 | 256/2048 | 0.0008 | 0.0037 |
+| float16 | 32 x 64, 2 | mma.sync | K loop subwin | no | 64 | 2048 | 112128/131072 | 0.0309 | 2.4802 | 896/2048 | 0.0001 | 0.0006 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 1 | 8192 | 5389/8192 | 0.0350 | 0.0350 | 5389/8192 | 0.0350 | 0.0350 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 4 | 8192 | 20180/32768 | 0.0476 | 0.0476 | 2902/8192 | 0.0101 | 0.0101 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 16 | 8192 | 79517/131072 | 0.0562 | 0.0562 | 1173/8192 | 0.0045 | 0.0045 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 64 | 8192 | 311640/524288 | 0.0615 | 0.0615 | 431/8192 | 0.0009 | 0.0009 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to softmax | no | 256 | 8192 | 1199902/2097152 | 0.0750 | 0.0750 | 107/8192 | 0.0004 | 0.0004 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to softmax | yes | 16 | 8192 | 79571/131072 | 0.0484 | 0.0484 | - | - | - |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to softmax | yes | 64 | 8192 | 321788/524288 | 0.0467 | 0.0467 | - | - | - |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to subwin | no | 1 | 8192 | 0/8192 | 0.0150 | 0.0583 | 0/8192 | 0.0150 | 0.0583 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to subwin | no | 4 | 8192 | 16384/32768 | 0.0160 | 1.9179 | 0/8192 | 0.0054 | 0.0113 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to subwin | no | 16 | 8192 | 91328/131072 | 0.0273 | 1.1968 | 0/8192 | 0.0013 | 0.0079 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to subwin | no | 64 | 8192 | 413824/524288 | 0.0302 | 2.0514 | 64/8192 | 0.0004 | 0.0018 |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to subwin | yes | 16 | 8192 | 65536/131072 | 0.0293 | 2.1674 | - | - | - |
+| bfloat16 | 128 x 64, 4 | mma.sync | p.to subwin | yes | 64 | 8192 | 238848/524288 | 0.0329 | 2.1705 | - | - | - |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop normal | no | 1 | 8192 | 6468/8192 | 0.0088 | 0.0088 | 6468/8192 | 0.0088 | 0.0088 |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop normal | no | 4 | 8192 | 24713/32768 | 0.0143 | 0.0143 | 4137/8192 | 0.0029 | 0.0029 |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop normal | no | 16 | 8192 | 90631/131072 | 0.0237 | 0.0237 | 1542/8192 | 0.0014 | 0.0014 |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop normal | no | 64 | 8192 | 317123/524288 | 0.0328 | 0.0328 | 401/8192 | 0.0006 | 0.0006 |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop normal | no | 256 | 8192 | 1080543/2097152 | 0.0447 | 0.0447 | 34/8192 | 0.0003 | 0.0003 |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop subwin | no | 1 | 8192 | 0/8192 | 0.0153 | 0.0165 | 0/8192 | 0.0153 | 0.0165 |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop subwin | no | 4 | 8192 | 8192/32768 | 0.0169 | 1.8804 | 0/8192 | 0.0037 | 0.4768 |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop subwin | no | 16 | 8192 | 63232/131072 | 0.0213 | 1.8957 | 896/8192 | 0.0014 | 0.0049 |
+| bfloat16 | 128 x 64, 4 | mma.sync | K loop subwin | no | 64 | 8192 | 392064/524288 | 0.0304 | 1.6002 | 896/8192 | 0.0003 | 0.0011 |
+| bfloat16 | 128 x 128, 4 | mma.sync | p.to softmax | no | 1 | 16384 | 9935/16384 | 0.0443 | 0.0443 | 9935/16384 | 0.0443 | 0.0443 |
+| rejected: out of resources on this device |  |
+| bfloat16 | 128 x 256, 4 | mma.sync | p.to softmax | no | 1 | 32768 | 20435/32768 | 0.0440 | 0.0440 | 20435/32768 | 0.0440 | 0.0440 |
+| rejected: out of resources on this device |  |
+| bfloat16 | 128 x 64, 8 | mma.sync | p.to softmax | no | 1 | 8192 | 5050/8192 | 0.0309 | 0.0309 | 5050/8192 | 0.0309 | 0.0309 |
+| rejected: out of resources on this device |  |
+| bfloat16 | 128 x 128, 8 | mma.sync | p.to softmax | no | 1 | 16384 | 10204/16384 | 0.0357 | 0.0357 | 10204/16384 | 0.0357 | 0.0357 |
+| rejected: out of resources on this device |  |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 1 | 2048 | 1319/2048 | 0.0263 | 0.0263 | 1319/2048 | 0.0263 | 0.0263 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 4 | 2048 | 4823/8192 | 0.0373 | 0.0373 | 619/2048 | 0.0098 | 0.0098 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 16 | 2048 | 19923/32768 | 0.0505 | 0.0505 | 289/2048 | 0.0021 | 0.0021 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 64 | 2048 | 77168/131072 | 0.0598 | 0.0598 | 113/2048 | 0.0008 | 0.0008 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | no | 256 | 2048 | 303825/524288 | 0.0643 | 0.0643 | 26/2048 | 0.0004 | 0.0004 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | yes | 16 | 2048 | 19910/32768 | 0.0499 | 0.0499 | - | - | - |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to softmax | yes | 64 | 2048 | 81118/131072 | 0.0497 | 0.0497 | - | - | - |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to subwin | no | 1 | 2048 | 0/2048 | 0.0170 | 0.1039 | 0/2048 | 0.0170 | 0.1039 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to subwin | no | 4 | 2048 | 3840/8192 | 0.0212 | 0.1066 | 0/2048 | 0.0056 | 0.0300 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to subwin | no | 16 | 2048 | 16000/32768 | 0.0240 | 0.1499 | 64/2048 | 0.0013 | 0.0100 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to subwin | no | 64 | 2048 | 95552/131072 | 0.0317 | 1.7223 | 128/2048 | 0.0002 | 0.0012 |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to subwin | yes | 16 | 2048 | 13696/32768 | 0.0203 | 1.7459 | - | - | - |
+| bfloat16 | 32 x 64, 2 | mma.sync | p.to subwin | yes | 64 | 2048 | 66048/131072 | 0.0319 | 2.1090 | - | - | - |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop normal | no | 1 | 2048 | 1528/2048 | 0.0056 | 0.0056 | 1528/2048 | 0.0056 | 0.0056 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop normal | no | 4 | 2048 | 6098/8192 | 0.0117 | 0.0117 | 977/2048 | 0.0030 | 0.0030 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop normal | no | 16 | 2048 | 22580/32768 | 0.0213 | 0.0213 | 410/2048 | 0.0010 | 0.0010 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop normal | no | 64 | 2048 | 79889/131072 | 0.0305 | 0.0305 | 97/2048 | 0.0006 | 0.0006 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop normal | no | 256 | 2048 | 270725/524288 | 0.0440 | 0.0440 | 11/2048 | 0.0003 | 0.0003 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop subwin | no | 1 | 2048 | 0/2048 | 0.0133 | 1.6282 | 0/2048 | 0.0133 | 1.6282 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop subwin | no | 4 | 2048 | 2048/8192 | 0.0283 | 1.8254 | 0/2048 | 0.0046 | 0.0456 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop subwin | no | 16 | 2048 | 25600/32768 | 0.0300 | 1.7171 | 576/2048 | 0.0015 | 0.0033 |
+| bfloat16 | 32 x 64, 2 | mma.sync | K loop subwin | no | 64 | 2048 | 110528/131072 | 0.0313 | 0.8841 | 192/2048 | 0.0002 | 0.0006 |
+
+Elements outside the new bound in D2: 0; largest new ratio 0.0781
+
+## Parts B and C: the model and the facts, every K that compiles
+
+Each row: one format, block shape and K; 15 kinds of inputs (README), 16 draws of each kind with subnormal operands or the window's worst case (`softmax`, `tiny`, `sub`, `subwin`, `winworst`, `subrand`, `bits`) and 6 of the others. `model = device`: elements whose device result equals the model's (as values). `new ratio`: the largest error over the new bound relDot16(K) L + absDot16(K) (1 = on the bound). `chunk ratio`: the largest step of the model's chain over the derivation's per-chunk bound 5.25 2^-23 (|s_j| + A_j) + 5.25 2^-149. `old ratio`: the error over the bound before round 25, relDot16(K) (|acc| + sum |a b|) + absDot16(K).
+
+| operands | M x N, warps | variant | path | K | elements in range | outside the new bound | model = device | new ratio | chunk ratio | outside the old bound | old ratio |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| float16 | 16 x 16, 1 | plain | mma.sync | 16 | 40960 | 0 | 24396/40960 | 0.1411 | 0.7616 | 2816 | 63.9187 |
+| float16 | 16 x 16, 1 | plain | mma.sync | 32 | 40960 | 0 | 22352/40960 | 0.1628 | 0.8092 | 1024 | 33.8393 |
+| float16 | 16 x 16, 1 | plain | mma.sync | 64 | 40960 | 0 | 20257/40960 | 0.1543 | 0.7933 | 512 | 16.4630 |
+| float16 | 16 x 16, 1 | plain | mma.sync | 128 | 40960 | 0 | 17295/40960 | 0.1549 | 0.8092 | 0 | 0.1549 |
+| float16 | 16 x 16, 1 | plain | mma.sync | 256 | 40960 | 0 | 16969/40960 | 0.1494 | 0.8456 | 0 | 0.1494 |
+| float16 | 16 x 16, 1 | plain | mma.sync | 512 | 40960 | 0 | 17213/40960 | 0.1482 | 0.8456 | 0 | 0.1482 |
+| float16 | 16 x 16, 1 | plain | mma.sync | 1024 | 40960 | 0 | 16191/40960 | 0.1484 | 0.8092 | 0 | 0.1484 |
+| float16 | 16 x 16, 1 | plain | rejected | 2048 | (out of resources) | | | | | | |
+| float16 | 32 x 32, 2 | plain | mma.sync | 16 | 163840 | 0 | 98705/163840 | 0.1468 | 0.7616 | 10242 | 63.9187 |
+| float16 | 32 x 32, 2 | plain | mma.sync | 32 | 163840 | 0 | 88083/163840 | 0.1566 | 0.8092 | 3072 | 32.6238 |
+| float16 | 32 x 32, 2 | plain | mma.sync | 64 | 163840 | 0 | 79358/163840 | 0.1605 | 0.8092 | 1024 | 16.0293 |
+| float16 | 32 x 32, 2 | plain | mma.sync | 128 | 163840 | 0 | 74167/163840 | 0.1578 | 0.8092 | 0 | 0.2558 |
+| float16 | 32 x 32, 2 | plain | mma.sync | 256 | 163840 | 0 | 67662/163840 | 0.1554 | 0.8456 | 0 | 0.1554 |
+| float16 | 32 x 32, 2 | plain | mma.sync | 512 | 163840 | 0 | 67432/163840 | 0.1527 | 0.8092 | 0 | 0.1527 |
+| float16 | 32 x 32, 2 | plain | rejected | 1024 | (out of resources) | | | | | | |
+| float16 | 16 x 64, 4 | plain | mma.sync | 16 | 163840 | 0 | 101306/163840 | 0.1480 | 0.7616 | 4098 | 63.9187 |
+| float16 | 16 x 64, 4 | plain | mma.sync | 32 | 163840 | 0 | 88443/163840 | 0.1585 | 0.8456 | 4579 | 32.5846 |
+| float16 | 16 x 64, 4 | plain | mma.sync | 64 | 163840 | 0 | 79529/163840 | 0.1604 | 0.8092 | 3072 | 16.9154 |
+| float16 | 16 x 64, 4 | plain | mma.sync | 128 | 163840 | 0 | 74231/163840 | 0.1580 | 0.8092 | 0 | 0.1580 |
+| float16 | 16 x 64, 4 | plain | mma.sync | 256 | 163840 | 0 | 66543/163840 | 0.1515 | 0.8092 | 0 | 0.1515 |
+| float16 | 16 x 64, 4 | plain | mma.sync | 512 | 163840 | 0 | 64894/163840 | 0.1510 | 0.8456 | 0 | 0.1510 |
+| float16 | 16 x 64, 4 | plain | rejected | 1024 | (out of resources) | | | | | | |
+| float16 | 64 x 64, 4 | plain | mma.sync | 16 | 655360 | 0 | 402919/655360 | 0.1585 | 0.7616 | 32775 | 63.9187 |
+| float16 | 64 x 64, 4 | plain | mma.sync | 32 | 655360 | 0 | 362158/655360 | 0.1644 | 0.8456 | 11260 | 33.8393 |
+| float16 | 64 x 64, 4 | plain | mma.sync | 64 | 655360 | 0 | 316747/655360 | 0.1665 | 0.8092 | 0 | 0.8054 |
+| float16 | 64 x 64, 4 | plain | mma.sync | 128 | 655360 | 0 | 283379/655360 | 0.1620 | 0.8456 | 0 | 0.2293 |
+| float16 | 64 x 64, 4 | plain | mma.sync | 256 | 655360 | 0 | 271359/655360 | 0.1548 | 0.8092 | 0 | 0.1548 |
+| float16 | 64 x 64, 4 | plain | rejected | 512 | (out of resources) | | | | | | |
+| float16 | 128 x 64, 4 | plain | mma.sync | 16 | 1310720 | 0 | 813649/1310720 | 0.1548 | 0.7616 | 40981 | 63.9187 |
+| float16 | 128 x 64, 4 | plain | mma.sync | 32 | 1310720 | 0 | 690404/1310720 | 0.1667 | 0.8456 | 32768 | 33.8393 |
+| float16 | 128 x 64, 4 | plain | mma.sync | 64 | 1310720 | 0 | 620389/1310720 | 0.1639 | 0.8456 | 8192 | 17.4324 |
+| float16 | 128 x 64, 4 | plain | mma.sync | 128 | 1310720 | 0 | 570607/1310720 | 0.1602 | 0.8092 | 8192 | 1.2539 |
+| float16 | 128 x 64, 4 | plain | rejected | 256 | (out of resources) | | | | | | |
+| float16 | 64 x 128, 8 | plain | mma.sync | 16 | 1310720 | 0 | 809330/1310720 | 0.1620 | 0.7616 | 57360 | 63.9187 |
+| float16 | 64 x 128, 8 | plain | mma.sync | 32 | 1310720 | 0 | 704030/1310720 | 0.1724 | 0.8030 | 49153 | 33.8393 |
+| float16 | 64 x 128, 8 | plain | mma.sync | 64 | 1310720 | 0 | 633891/1310720 | 0.1707 | 0.8456 | 8192 | 16.3823 |
+| float16 | 64 x 128, 8 | plain | mma.sync | 128 | 1310720 | 0 | 559556/1310720 | 0.1601 | 0.8092 | 0 | 0.1601 |
+| float16 | 64 x 128, 8 | plain | rejected | 256 | (out of resources) | | | | | | |
+| float16 | 128 x 128, 8 | plain | mma.sync | 16 | 2621440 | 0 | 1587451/2621440 | 0.1587 | 0.7616 | 131098 | 63.9187 |
+| float16 | 128 x 128, 8 | plain | mma.sync | 32 | 2621440 | 0 | 1495048/2621440 | 0.1674 | 0.8456 | 131072 | 33.8393 |
+| float16 | 128 x 128, 8 | plain | mma.sync | 64 | 2621440 | 0 | 1277128/2621440 | 0.1653 | 0.8456 | 16384 | 16.1398 |
+| float16 | 128 x 128, 8 | plain | mma.sync | 128 | 2621440 | 0 | 1123770/2621440 | 0.1642 | 0.8456 | 0 | 0.1642 |
+| float16 | 128 x 128, 8 | plain | rejected | 256 | (out of resources) | | | | | | |
+| bfloat16 | 16 x 16, 1 | plain | mma.sync | 16 | 40960 | 0 | 31115/40960 | 0.1484 | 0.7591 | 1792 | 7.9475 |
+| bfloat16 | 16 x 16, 1 | plain | mma.sync | 32 | 40960 | 0 | 28970/40960 | 0.1510 | 0.9020 | 2304 | 4.2074 |
+| bfloat16 | 16 x 16, 1 | plain | mma.sync | 64 | 40960 | 0 | 27553/40960 | 0.1534 | 0.9020 | 1153 | 2.0953 |
+| bfloat16 | 16 x 16, 1 | plain | mma.sync | 128 | 40960 | 0 | 24896/40960 | 0.1535 | 0.9020 | 0 | 0.9160 |
+| bfloat16 | 16 x 16, 1 | plain | mma.sync | 256 | 40960 | 0 | 23257/40960 | 0.1483 | 0.9020 | 0 | 0.4851 |
+| bfloat16 | 16 x 16, 1 | plain | mma.sync | 512 | 40960 | 0 | 19863/40960 | 0.1472 | 0.9020 | 0 | 0.1476 |
+| bfloat16 | 16 x 16, 1 | plain | mma.sync | 1024 | 40960 | 0 | 17982/40960 | 0.1439 | 0.9020 | 0 | 0.1439 |
+| bfloat16 | 16 x 16, 1 | plain | rejected | 2048 | (out of resources) | | | | | | |
+| bfloat16 | 32 x 32, 2 | plain | mma.sync | 16 | 163840 | 0 | 121333/163840 | 0.1583 | 0.7591 | 11264 | 7.9475 |
+| bfloat16 | 32 x 32, 2 | plain | mma.sync | 32 | 163840 | 0 | 116688/163840 | 0.1560 | 0.9020 | 8700 | 4.2079 |
+| bfloat16 | 32 x 32, 2 | plain | mma.sync | 64 | 163840 | 0 | 110920/163840 | 0.1541 | 0.9020 | 5651 | 2.1675 |
+| bfloat16 | 32 x 32, 2 | plain | mma.sync | 128 | 163840 | 0 | 100126/163840 | 0.1512 | 0.9020 | 0 | 0.9711 |
+| bfloat16 | 32 x 32, 2 | plain | mma.sync | 256 | 163840 | 0 | 90299/163840 | 0.1520 | 0.9020 | 0 | 0.2233 |
+| bfloat16 | 32 x 32, 2 | plain | mma.sync | 512 | 163840 | 0 | 83084/163840 | 0.1484 | 0.9020 | 0 | 0.1484 |
+| bfloat16 | 32 x 32, 2 | plain | rejected | 1024 | (out of resources) | | | | | | |
+| bfloat16 | 16 x 64, 4 | plain | mma.sync | 16 | 163840 | 0 | 121786/163840 | 0.1500 | 0.7591 | 13035 | 7.9475 |
+| bfloat16 | 16 x 64, 4 | plain | mma.sync | 32 | 163840 | 0 | 117788/163840 | 0.1642 | 0.9010 | 11264 | 4.2075 |
+| bfloat16 | 16 x 64, 4 | plain | mma.sync | 64 | 163840 | 0 | 111298/163840 | 0.1665 | 0.9020 | 5921 | 2.1416 |
+| bfloat16 | 16 x 64, 4 | plain | mma.sync | 128 | 163840 | 0 | 100742/163840 | 0.1580 | 0.9020 | 239 | 1.0301 |
+| bfloat16 | 16 x 64, 4 | plain | mma.sync | 256 | 163840 | 0 | 88992/163840 | 0.1522 | 0.9017 | 0 | 0.1541 |
+| bfloat16 | 16 x 64, 4 | plain | mma.sync | 512 | 163840 | 0 | 81966/163840 | 0.1497 | 0.9020 | 0 | 0.1915 |
+| bfloat16 | 16 x 64, 4 | plain | rejected | 1024 | (out of resources) | | | | | | |
+| bfloat16 | 64 x 64, 4 | plain | mma.sync | 16 | 655360 | 0 | 495827/655360 | 0.1519 | 0.7591 | 22571 | 7.9475 |
+| bfloat16 | 64 x 64, 4 | plain | mma.sync | 32 | 655360 | 0 | 465097/655360 | 0.1633 | 0.9020 | 45135 | 4.2089 |
+| bfloat16 | 64 x 64, 4 | plain | mma.sync | 64 | 655360 | 0 | 435176/655360 | 0.1618 | 0.9020 | 24576 | 2.0501 |
+| bfloat16 | 64 x 64, 4 | plain | mma.sync | 128 | 655360 | 0 | 396488/655360 | 0.1580 | 0.9020 | 0 | 0.7882 |
+| bfloat16 | 64 x 64, 4 | plain | mma.sync | 256 | 655360 | 0 | 358876/655360 | 0.1530 | 0.9020 | 0 | 0.1530 |
+| bfloat16 | 64 x 64, 4 | plain | rejected | 512 | (out of resources) | | | | | | |
+| bfloat16 | 128 x 64, 4 | plain | mma.sync | 16 | 1310720 | 0 | 996623/1310720 | 0.1567 | 0.7591 | 69524 | 7.9475 |
+| bfloat16 | 128 x 64, 4 | plain | mma.sync | 32 | 1310720 | 0 | 921478/1310720 | 0.1660 | 0.9020 | 28676 | 3.8415 |
+| bfloat16 | 128 x 64, 4 | plain | mma.sync | 64 | 1310720 | 0 | 849863/1310720 | 0.1612 | 0.9020 | 38915 | 2.1606 |
+| bfloat16 | 128 x 64, 4 | plain | mma.sync | 128 | 1310720 | 0 | 809263/1310720 | 0.1576 | 0.9020 | 0 | 0.3397 |
+| bfloat16 | 128 x 64, 4 | plain | rejected | 256 | (out of resources) | | | | | | |
+| bfloat16 | 64 x 128, 8 | plain | mma.sync | 16 | 1310720 | 0 | 985154/1310720 | 0.1552 | 0.7591 | 73730 | 7.9475 |
+| bfloat16 | 64 x 128, 8 | plain | mma.sync | 32 | 1310720 | 0 | 969890/1310720 | 0.1690 | 0.9020 | 28714 | 4.0751 |
+| bfloat16 | 64 x 128, 8 | plain | mma.sync | 64 | 1310720 | 0 | 888517/1310720 | 0.1606 | 0.9020 | 32918 | 2.1650 |
+| bfloat16 | 64 x 128, 8 | plain | mma.sync | 128 | 1310720 | 0 | 836288/1310720 | 0.1621 | 0.9020 | 0 | 0.9964 |
+| bfloat16 | 64 x 128, 8 | plain | rejected | 256 | (out of resources) | | | | | | |
+| bfloat16 | 128 x 128, 8 | plain | mma.sync | 16 | 2621440 | 0 | 1978943/2621440 | 0.1515 | 0.7591 | 98308 | 7.9475 |
+| bfloat16 | 128 x 128, 8 | plain | mma.sync | 32 | 2621440 | 0 | 1883345/2621440 | 0.1704 | 0.9020 | 131216 | 4.1970 |
+| bfloat16 | 128 x 128, 8 | plain | mma.sync | 64 | 2621440 | 0 | 1791044/2621440 | 0.1658 | 0.9020 | 28700 | 1.9272 |
+| bfloat16 | 128 x 128, 8 | plain | mma.sync | 128 | 2621440 | 0 | 1595389/2621440 | 0.1615 | 0.9020 | 28652 | 1.0978 |
+| bfloat16 | 128 x 128, 8 | plain | rejected | 256 | (out of resources) | | | | | | |
+
+### Totals
+
+| operands | path | elements in range | outside the new bound | model = device | largest new ratio | largest chunk ratio | elements with float64 sums (rounding added) | outside the old bound | largest old ratio |
+|---|---|---|---|---|---|---|---|---|---|
+| bfloat16 | mma.sync | 26501120 | 0 | 18075919/26501120 | 0.1704 | 0.9020 | 12274553 | 712958 | 7.9475 |
+| float16 | mma.sync | 26501120 | 0 | 13606841/26501120 | 0.1724 | 0.8456 | 7536298 | 557866 | 63.9187 |
+
+### Elements outside the old bound, by kind of input
+
+| operands | path | kind | elements |
+|---|---|---|---|
+| bfloat16 | mma.sync | `subrand` | 7 |
+| bfloat16 | mma.sync | `subwin` | 712951 |
+| float16 | mma.sync | `sub` | 2 |
+| float16 | mma.sync | `subrand` | 73 |
+| float16 | mma.sync | `subwin` | 557791 |
+
+### The inputs with the largest new ratio
+
+- bfloat16, mma.sync: 128 x 128, 8 warps, plain, K = 32, kind `accbig`, element (94, 45): accumulator 262143.984375, exact result 262217.36224365234, device 262217.0, L = 262217.36224365234
+- float16, mma.sync: 64 x 128, 8 warps, plain, K = 32, kind `accbig`, element (26, 55): accumulator 4095.999755859375, exact result 4164.475057601929, device 4164.46923828125, L = 4164.475057601929
+
+Zero results equal to the model's (all parts): 549972; of them with the opposite sign: 0
+
+(run time 334 s)

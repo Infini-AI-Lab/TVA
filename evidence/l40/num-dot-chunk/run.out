@@ -1,0 +1,19 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA L40
+
+## Part A: the window (one output element, one chunk)
+
+Each row: one element of `tl.dot(a, b, acc)` with K = 32 on wgmma (64 x 64 block, 4 warps); the products and the accumulator as listed, the rest zero. `model`: the bit-level model (module docstring). u is the window's unit 2^(E-13).
+
+| operands | accumulator | products | exact | device | model | what it shows |
+|---|---|---|---|---|---|---|
+Traceback (most recent call last):
+  File "/home/zhuominc/tva-l40/tva/evidence/num-dot-chunk/run.py", line 815, in <module>
+    main()
+    ~~~~^^
+  File "/home/zhuominc/tva-l40/tva/evidence/num-dot-chunk/run.py", line 803, in main
+    part_a(out)
+    ~~~~~~^^^^^
+  File "/home/zhuominc/tva-l40/tva/evidence/num-dot-chunk/run.py", line 490, in part_a
+    assert path == "wgmma"
+           ^^^^^^^^^^^^^^^
+AssertionError

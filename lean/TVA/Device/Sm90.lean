@@ -7,7 +7,9 @@ Each definition here is one fact about the platform `P`: one shape of `TVA.Devic
 operation, format and configuration, with its constants written in. Its docstring says what the
 device does (the instructions Triton 3.8.0 lowers the operation to), the bound, and the folder of
 `evidence/` where TVA measured it on an NVIDIA H200 NVL. The fp8 and 16-bit `tl.dot` facts stated
-chunk by chunk are in `TVA.Device.Dot8Chunk` and `TVA.Device.Dot16Chunk`.
+chunk by chunk are in `TVA.Device.Dot8Chunk` and `TVA.Device.Dot16Chunk`. The L40 (sm_89,
+`TVA.Device.L40`) meets the same statements except `CvtSatF32E4m3` and `CvtSatF32E5m2`
+(`evidence/l40/README.md`).
 
 The constants a claim's tolerance may use are here under their own names: `relDot16`,
 `absDot16` (a 16-bit `tl.dot`), `scaledDomBF16`, `e8m0Dom` (the domain of `tl.dot_scaled`).
@@ -113,10 +115,10 @@ Triton converts into fp8 with `cvt.rn.satfinite.e4m3x2` / `e5m2x2` (from `float3
 a `bfloat16` source is first widened exactly to `float32`). `.satfinite` sends a finite value
 beyond `maxVal` (`448`, `57344`) and `±∞` to `±maxVal`, and a NaN to the NaN `0x7f`. Each fact is
 `CvtSat`: the result is `FloatV.cvtSat .rn x`, up to NaN payload. The round-to-nearest facts in
-range (`CvtF32E4m3`, …) follow (`Device.cvtF32E4m3`, …). Evidence: `evidence/num-cvt8` (every
-input of the three source formats, bit for bit: `run.py` in range and above `maxVal`,
-`specials.py` every `±∞` and NaN pattern) and `evidence/float-layer`, part A (`FloatV.cvtSat`
-against the device on every `float16`, `bfloat16` and `float32` input). -/
+range (`CvtF32E4m3`, …) follow (`H200.Facts.cvtF32E4m3`, `Device.cvtF16E4m3`, …). Evidence:
+`evidence/num-cvt8` (every input of the three source formats, bit for bit: `run.py` in range and
+above `maxVal`, `specials.py` every `±∞` and NaN pattern) and `evidence/float-layer`, part A
+(`FloatV.cvtSat` against the device on every `float16`, `bfloat16` and `float32` input). -/
 
 /-- **`float32 → float8e4nv`**, every input (`cvt.rn.satfinite.e4m3x2.f32`): `CvtSat`. -/
 def CvtSatF32E4m3 : Prop := CvtSat P .binary32 .e4m3

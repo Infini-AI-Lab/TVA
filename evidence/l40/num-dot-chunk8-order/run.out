@@ -1,0 +1,39 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA L40
+
+| operands | M x N, warps | K | chunks | triples, k in its own chunk | agree | triples, k = x or y | agree | instructions |
+|---|---|---|---|---|---|---|---|---|
+| float8e5 | 16 x 16, 1 | 64 | 2 | 0 | 0 | 2 | 2 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 16 x 16, 1 | 128 | 4 | 12 | 12 | 12 | 12 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 16 x 16, 1 | 256 | 8 | 168 | 168 | 56 | 49 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 16 x 16, 1 | 1024 | 32 | 3751 | 3751 | 249 | 212 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 32 x 32, 2 | 64 | 2 | 0 | 0 | 2 | 2 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 32 x 32, 2 | 128 | 4 | 12 | 12 | 12 | 11 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 32 x 32, 2 | 256 | 8 | 168 | 168 | 56 | 45 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 32 x 32, 2 | 1024 | 32 | 3743 | 3743 | 257 | 222 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 64 x 64, 4 | 64 | 2 | 0 | 0 | 2 | 1 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 64 x 64, 4 | 128 | 4 | 12 | 12 | 12 | 10 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 64 x 64, 4 | 256 | 8 | 168 | 168 | 56 | 48 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 64 x 64, 4 | 1024 | 32 | rejected: out of resources on this device | | | | |
+| float8e5 | 16 x 64, 1 | 64 | 2 | 0 | 0 | 2 | 2 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 16 x 64, 1 | 128 | 4 | 12 | 12 | 12 | 11 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 16 x 64, 1 | 256 | 8 | 168 | 168 | 56 | 52 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e5 | 16 x 64, 1 | 1024 | 32 | 3762 | 3762 | 238 | 214 | mma.sync.aligned.m16n8k32.row.col.f32.e5m2.e5m2.f32 |
+| float8e4nv | 16 x 16, 1 | 64 | 2 | 0 | 0 | 2 | 2 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 16 x 16, 1 | 128 | 4 | 12 | 12 | 12 | 10 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 16 x 16, 1 | 256 | 8 | 168 | 168 | 56 | 49 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 16 x 16, 1 | 1024 | 32 | 3770 | 3770 | 230 | 205 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 32 x 32, 2 | 64 | 2 | 0 | 0 | 2 | 2 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 32 x 32, 2 | 128 | 4 | 12 | 12 | 12 | 8 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 32 x 32, 2 | 256 | 8 | 168 | 168 | 56 | 47 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 32 x 32, 2 | 1024 | 32 | 3758 | 3758 | 242 | 219 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 64 x 64, 4 | 64 | 2 | 0 | 0 | 2 | 2 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 64 x 64, 4 | 128 | 4 | 12 | 12 | 12 | 12 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 64 x 64, 4 | 256 | 8 | 168 | 168 | 56 | 52 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 64 x 64, 4 | 1024 | 32 | rejected: out of resources on this device | | | | |
+| float8e4nv | 16 x 64, 1 | 64 | 2 | 0 | 0 | 2 | 2 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 16 x 64, 1 | 128 | 4 | 12 | 12 | 12 | 11 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 16 x 64, 1 | 256 | 8 | 168 | 168 | 56 | 48 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+| float8e4nv | 16 x 64, 1 | 1024 | 32 | 3767 | 3767 | 233 | 206 | mma.sync.aligned.m16n8k32.row.col.f32.e4m3.e4m3.f32 |
+
+Triples with k in its own chunk where the result disagrees with aligned chunks of 32 added in increasing order: 0
+Triples with k = x or y where S survives a B in its chunk (the instruction is not one window): 241

@@ -17,10 +17,12 @@ once, the proofs by Lean. Every part should be understandable by reading it.
 2. **A claim is about the model.** Because the compiler is trusted, a claim does not mention the
    compiled kernel: it says that the model's launch is well behaved and that every way it can end
    is a normal end whose memory satisfies the specification.
-3. **One device.** `Device P` is the conjunction of every fact the library states about the
-   platform `P` (the H200, sm_90): accuracy of `exp`, division, `tl.dot`, conversions, float
-   atomics, reduction depth. Every claim assumes all of them; `Device.ref_ok` proves that a
-   reference platform satisfies them, so no claim is vacuous through its assumptions.
+3. **One device at a time.** `Device P` is the conjunction of every fact the library states
+   about the platform `P` of the target device: accuracy of `exp`, division, `tl.dot`,
+   conversions, float atomics, reduction depth. The target is a module that can be swapped
+   (`lean/TVA/Device.lean`: the H200, sm_90, by default; the L40, sm_89), each with the same field
+   names. Every claim assumes all of them; `Device.ref_ok` proves that a reference platform
+   satisfies them, so no claim is vacuous through its assumptions.
 4. **Explainable.** Each file opens with a module docstring that says what it defines, how that
    maps to Triton, and what to read next. Each definition has a docstring that says what it means
    in Triton's terms (with a source reference, e.g. `semantic.py:1516`, when the meaning is

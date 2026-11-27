@@ -1,0 +1,6 @@
+Triton 3.8.0, torch 2.11.0+cu130, NVIDIA L40
+
+| to | inputs | NaN inputs | differ from cvtSat(RZ16(x)) | first difference (x, device, ref) | differ: one rounding vs two | first (x, one rounding, two) |
+|---|---|---|---|---|---|---|
+| float8e4nv | 4294967296 | 16777214 | 0 | None | 1032066 | (0.0009765626164153218, 1, 0) |
+| float8e5 | 4294967296 | 16777214 | 0 | None | 1146756 | (7.629395440744702e-06, 1, 0) |

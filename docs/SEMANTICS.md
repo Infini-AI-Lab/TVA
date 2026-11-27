@@ -602,7 +602,10 @@ atomics, `sumDepth`, and the operations that may be either a platform result or 
 occurrences of one operation on the same operands give different results, as the device may.
 
 Every claim quantifies over every `P` with `Device P` (`TVA.Device`): the conjunction of all the
-facts TVA states about an H200 running Triton 3.8.0's code. Each fact is one shape of
+facts TVA states about the target device running Triton 3.8.0's code. The target is a module that
+can be swapped: `Device` is `TVA.Device.H200.Facts` (the default) or `TVA.Device.L40.Facts`, which
+have the same field names; the table below is the H200's, and the L40's differ in one row (its
+conversion from `float32` into fp8 rounds twice, `Device.L40.CvtSatF32Two`). Each fact is one shape of
 `TVA.Device.Shapes` (totality, accuracy on a domain, an exact value) at one operation and format,
 with its constants written in (`TVA.Device.Sm90`, `TVA.Device.Dot8Chunk`, `TVA.Device.Dot16Chunk`).
 Each docstring names the instructions Triton emits, the bound and the folder of `evidence/` where
@@ -629,13 +632,15 @@ TVA measured it; each constant keeps slack over what was observed.
 | depth of a float reduction | `Device.SumDepth` | `⌈log₂ n⌉` |
 
 Facts implied by others are theorems: the round-to-nearest conversions in range
-(`Device.cvtF32E4m3`, …) and the first arm of the fp8 chunk facts (`Device.dotE4m3Chunk`, …).
+(`Device.cvtF16E4m3`, …; from `float32` on the H200 only, `H200.Facts.cvtF32E4m3`) and the first arm of the fp8 chunk facts (`Device.dotE4m3Chunk`, …).
 `TVA.Device.Weaken` derives weaker forms (larger constants, smaller domains).
 
 **Why the facts cannot make a claim vacuous.** If the facts contradicted each other, every claim
-would hold whatever its kernel does. `Device.ref_ok` proves that one platform, `Platform.ref`
-(IEEE arithmetic rounded once, `TVA.Device.Ref.Platform`), satisfies them all. So a proof can draw
-nothing from `Device P` that a platform as accurate as `Platform.ref` would not give.
+would hold whatever its kernel does. `Device.ref_ok` proves that one platform, the target's
+`Device.refPlatform`, satisfies them all: `Platform.ref` (IEEE arithmetic rounded once,
+`TVA.Device.Ref.Platform`) for the H200, the same with the L40's two roundings into fp8 for the
+L40. So a proof can draw nothing from `Device P` that a platform as accurate as the reference
+would not give.
 
 **Tolerances in specifications.** Some claims bound an error by a formula that follows how the
 kernel accumulates; those formulas are in `TVA.Device.Tolerance` (`DotLoop.bound`,

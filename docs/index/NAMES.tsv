@@ -362,32 +362,32 @@ TVA.DType.val?_zero_f32	theorem	lean/TVA/Proof/Float/Facts.lean:320	A `float32` 
 TVA.DType.val?_zero_f64	theorem	lean/TVA/Proof/Float/Facts.lean:323	A `float64` `+0` has the value `0`.
 TVA.DType.val?_zero_f8e4nv	theorem	lean/TVA/Proof/Float/Facts.lean:329	A `float8e4nv` `+0` has the value `0`.
 TVA.DType.val?_zero_f8e5	theorem	lean/TVA/Proof/Float/Facts.lean:326	A `float8e5` `+0` has the value `0`.
-TVA.Device	structure	lean/TVA/Device.lean:50	**The device facts**: every fact TVA states about the platform `P` of an H200 (sm_90) running Triton 3.8.0's code.
+TVA.Device	def	lean/TVA/Device.lean:68	**The device facts** every claim assumes (`TVA.Claim`): those of the target device.
 TVA.Device.AtomicAddAcc	def	lean/TVA/Device/Shapes.lean:170	**Accuracy of a float `tl.atomic_add`.** If the old value `o` and the operand `v` are finite and their exact sum is in range, the new value is finite and within `rel · |o + v| + abs` of the sum.
-TVA.Device.AtomicAddF32	def	lean/TVA/Device/Sm90.lean:245	**`tl.atomic_add` on `float32`**: `AtomicAddAcc` with `rel = 2^-23`, `abs = 2^-124`.
+TVA.Device.AtomicAddF32	def	lean/TVA/Device/Sm90.lean:247	**`tl.atomic_add` on `float32`**: `AtomicAddAcc` with `rel = 2^-23`, `abs = 2^-124`.
 TVA.Device.AtomicAddTotal	def	lean/TVA/Device/Shapes.lean:104	`P.atomicAdd f` has a result for every old value and operand.
 TVA.Device.CvtAcc	def	lean/TVA/Device/Shapes.lean:160	**A conversion is within one rounding in range**: a finite value within `g`'s range converts (with `.rn`) to a finite value within `|x|·u + η` of `x`.
-TVA.Device.CvtBF16E4m3	def	lean/TVA/Device/Sm90.lean:155	**`bfloat16 → float8e4nv` in range**: `CvtRn`.
-TVA.Device.CvtBF16E5m2	def	lean/TVA/Device/Sm90.lean:158	**`bfloat16 → float8e5` in range**: `CvtRn`.
-TVA.Device.CvtF16E4m3	def	lean/TVA/Device/Sm90.lean:149	**`float16 → float8e4nv` in range**: `CvtRn`.
-TVA.Device.CvtF16E5m2	def	lean/TVA/Device/Sm90.lean:152	**`float16 → float8e5` in range**: `CvtRn`.
-TVA.Device.CvtF32E4m3	def	lean/TVA/Device/Sm90.lean:141	**`float32 → float8e4nv` in range**: a finite value with `|x| ≤ 448` rounds to nearest even (`CvtRn`).
-TVA.Device.CvtF32E5m2	def	lean/TVA/Device/Sm90.lean:145	**`float32 → float8e5` in range** (`|x| ≤ 57344`): `CvtRn`.
+TVA.Device.CvtBF16E4m3	def	lean/TVA/Device/Sm90.lean:157	**`bfloat16 → float8e4nv` in range**: `CvtRn`.
+TVA.Device.CvtBF16E5m2	def	lean/TVA/Device/Sm90.lean:160	**`bfloat16 → float8e5` in range**: `CvtRn`.
+TVA.Device.CvtF16E4m3	def	lean/TVA/Device/Sm90.lean:151	**`float16 → float8e4nv` in range**: `CvtRn`.
+TVA.Device.CvtF16E5m2	def	lean/TVA/Device/Sm90.lean:154	**`float16 → float8e5` in range**: `CvtRn`.
+TVA.Device.CvtF32E4m3	def	lean/TVA/Device/Sm90.lean:143	**`float32 → float8e4nv` in range**: a finite value with `|x| ≤ 448` rounds to nearest even (`CvtRn`).
+TVA.Device.CvtF32E5m2	def	lean/TVA/Device/Sm90.lean:147	**`float32 → float8e5` in range** (`|x| ≤ 57344`): `CvtRn`.
 TVA.Device.CvtRn	def	lean/TVA/Device/Shapes.lean:146	**A conversion rounds to nearest even in range.** A finite value within `g`'s range converts, with the default rounding `.rn`, to its rounding to nearest even (`FloatV.cvtWith .rn`), up to NaN payload.
 TVA.Device.CvtRn.cvtAcc	theorem	lean/TVA/Device/Weaken.lean:161	Rounding to nearest in range is within one rounding's bound: `CvtRn` gives `CvtAcc`.
 TVA.Device.CvtSat	def	lean/TVA/Device/Shapes.lean:153	**A conversion saturates.** Every input converts, with the default rounding `.rn`, to its saturating rounding to nearest even (`FloatV.cvtSat .rn`), up to NaN payload: a finite value within `g`'s range to its rounding, a finite value bey...
 TVA.Device.CvtSat.cvtRn	theorem	lean/TVA/Device/Weaken.lean:155	A saturating conversion rounds to nearest even in range: `CvtSat` gives `CvtRn`.
-TVA.Device.CvtSatBF16E4m3	def	lean/TVA/Device/Sm90.lean:133	**`bfloat16 → float8e4nv`**, every input (exact widening to `float32`, then `cvt.rn.satfinite.e4m3x2.f32`): `CvtSat`.
-TVA.Device.CvtSatBF16E5m2	def	lean/TVA/Device/Sm90.lean:137	**`bfloat16 → float8e5`**, every input (exact widening, then `cvt.rn.satfinite.e5m2x2.f32`): `CvtSat`.
-TVA.Device.CvtSatF16E4m3	def	lean/TVA/Device/Sm90.lean:127	**`float16 → float8e4nv`**, every input (`cvt.rn.satfinite.e4m3x2.f16x2`): `CvtSat`.
-TVA.Device.CvtSatF16E5m2	def	lean/TVA/Device/Sm90.lean:130	**`float16 → float8e5`**, every input (`cvt.rn.satfinite.e5m2x2.f16x2`): `CvtSat`.
-TVA.Device.CvtSatF32E4m3	def	lean/TVA/Device/Sm90.lean:121	**`float32 → float8e4nv`**, every input (`cvt.rn.satfinite.e4m3x2.f32`): `CvtSat`.
-TVA.Device.CvtSatF32E5m2	def	lean/TVA/Device/Sm90.lean:124	**`float32 → float8e5`**, every input (`cvt.rn.satfinite.e5m2x2.f32`): `CvtSat`.
+TVA.Device.CvtSatBF16E4m3	def	lean/TVA/Device/Sm90.lean:135	**`bfloat16 → float8e4nv`**, every input (exact widening to `float32`, then `cvt.rn.satfinite.e4m3x2.f32`): `CvtSat`.
+TVA.Device.CvtSatBF16E5m2	def	lean/TVA/Device/Sm90.lean:139	**`bfloat16 → float8e5`**, every input (exact widening, then `cvt.rn.satfinite.e5m2x2.f32`): `CvtSat`.
+TVA.Device.CvtSatF16E4m3	def	lean/TVA/Device/Sm90.lean:129	**`float16 → float8e4nv`**, every input (`cvt.rn.satfinite.e4m3x2.f16x2`): `CvtSat`.
+TVA.Device.CvtSatF16E5m2	def	lean/TVA/Device/Sm90.lean:132	**`float16 → float8e5`**, every input (`cvt.rn.satfinite.e5m2x2.f16x2`): `CvtSat`.
+TVA.Device.CvtSatF32E4m3	def	lean/TVA/Device/Sm90.lean:123	**`float32 → float8e4nv`**, every input (`cvt.rn.satfinite.e4m3x2.f32`): `CvtSat`.
+TVA.Device.CvtSatF32E5m2	def	lean/TVA/Device/Sm90.lean:126	**`float32 → float8e5`**, every input (`cvt.rn.satfinite.e5m2x2.f32`): `CvtSat`.
 TVA.Device.CvtTotal	def	lean/TVA/Device/Shapes.lean:95	`P.cvt f g rnd` has a result for every input.
 TVA.Device.DivAcc	def	lean/TVA/Device/Shapes.lean:131	**Accuracy of the default division** (`/`, `tl.fdiv` with `ieee_rounding=False`).
-TVA.Device.DivF32InfDivisor	def	lean/TVA/Device/Sm90.lean:94	**`x / ±∞ = ±0`** on `float32` (`div.full.f32`): for every finite `x` and infinite `y`, the result is the zero whose sign is `sign x xor sign y` (`1 / ∞ = +0`), as IEEE division gives it.
-TVA.Device.DivF64	def	lean/TVA/Device/Sm90.lean:102	**`/` on `float64` is IEEE division**, up to NaN payload.
-TVA.Device.DivFull	def	lean/TVA/Device/Sm90.lean:84	**`/` on `float32` is `div.full.f32`**, within `2^-22·|x/y| + 2^-148` of `x/y` for `|x/y| ≤ 2^126`.
+TVA.Device.DivF32InfDivisor	def	lean/TVA/Device/Sm90.lean:96	**`x / ±∞ = ±0`** on `float32` (`div.full.f32`): for every finite `x` and infinite `y`, the result is the zero whose sign is `sign x xor sign y` (`1 / ∞ = +0`), as IEEE division gives it.
+TVA.Device.DivF64	def	lean/TVA/Device/Sm90.lean:104	**`/` on `float64` is IEEE division**, up to NaN payload.
+TVA.Device.DivFull	def	lean/TVA/Device/Sm90.lean:86	**`/` on `float32` is `div.full.f32`**, within `2^-22·|x/y| + 2^-148` of `x/y` for `|x/y| ≤ 2^126`.
 TVA.Device.DivFull.of_divRn	theorem	lean/TVA/Device/Weaken.lean:183	IEEE `float32` division meets `DivFull`: a proof that cites `DivFull` also holds when `/` is IEEE.
 TVA.Device.DivRn	def	lean/TVA/Device/Shapes.lean:139	**The default division on format `f` is IEEE division**, rounded to nearest even (`FloatV.divRn`), up to NaN payload.
 TVA.Device.DivRn.divAcc	theorem	lean/TVA/Device/Weaken.lean:170	IEEE division meets `DivAcc` with one rounding's bound (`u`, `η`) over the whole range of the format.
@@ -398,7 +398,7 @@ TVA.Device.Dot16BitChunk.liftAcc	theorem	lean/TVA/Proof/Dot/Chunk16.lean:279	**A
 TVA.Device.DotAcc	def	lean/TVA/Device/Shapes.lean:180	**Accuracy of `tl.dot`**, per output element `(i, n)`.
 TVA.Device.DotAcc.liftAcc	theorem	lean/TVA/Device/Weaken.lean:197	A `DotAcc` fact on every value gives `DotLiftAcc` with the same constants, since `|va·vb| ≤ liftMag va · liftMag vb`.
 TVA.Device.DotAcc.mono	theorem	lean/TVA/Device/Weaken.lean:65	`DotAcc` on a smaller domain with constants at least as large.
-TVA.Device.DotBF16	def	lean/TVA/Device/Sm90.lean:185	**`tl.dot` of `bfloat16` operands into `float32`**: as `DotF16`, with the same constants, a subnormal operand counted at `2^-126` (the absolute term covers products below `float32`'s normal range).
+TVA.Device.DotBF16	def	lean/TVA/Device/Sm90.lean:187	**`tl.dot` of `bfloat16` operands into `float32`**: as `DotF16`, with the same constants, a subnormal operand counted at `2^-126` (the absolute term covers products below `float32`'s normal range).
 TVA.Device.DotBF16Chunk	def	lean/TVA/Device/Dot16Chunk.lean:135	**`tl.dot` of `bfloat16` operands into `float32`, chunk by chunk** (`Dot16BitChunk`, as `DotF16Chunk`; a subnormal operand counts as `2^-126`).
 TVA.Device.DotChunk16Loss	def	lean/TVA/Device/Dot16Chunk.lean:95	**A 16-bit `tl.dot` chunk by chunk**, per output element `(i, n)`.
 TVA.Device.DotChunk16Loss.err	theorem	lean/TVA/Proof/Dot/Chunk16.lean:100	**A 16-bit `tl.dot` from its exact inputs.** Under `DotChunk16Loss`, for any bounds `m j` on the lifted products of each chunk (`chunkLift16` will do), the result is within `errM ρ σ α κ ρ' vc (chunkSum16 va vb) (chunkAbs16 va vb) m (chu...
@@ -423,51 +423,139 @@ TVA.Device.DotE5m2Chunk	def	lean/TVA/Device/Dot8Chunk.lean:162	**`tl.dot` of `fl
 TVA.Device.DotE5m2ChunkLoss	def	lean/TVA/Device/Dot8Chunk.lean:140	**`tl.dot` of `float8e5` operands into `float32`, chunk by chunk** (`DotF8ChunkLoss`, as `DotE4m3ChunkLoss`; a subnormal operand counts as `2^-14`).
 TVA.Device.DotE5m2E4m3Chunk	def	lean/TVA/Device/Dot8Chunk.lean:170	**`tl.dot` of `float8e5` by `float8e4nv`, chunk by chunk, first arm** (`DotF8Chunk`).
 TVA.Device.DotE5m2E4m3ChunkLoss	def	lean/TVA/Device/Dot8Chunk.lean:149	**`tl.dot` of `float8e5` by `float8e4nv` into `float32`, chunk by chunk** (`DotF8ChunkLoss`).
-TVA.Device.DotF16	def	lean/TVA/Device/Sm90.lean:169	**`tl.dot` of `float16` operands into `float32`** (`max_num_imprecise_acc = 0`, any `input_precision`, which Triton ignores for these operands), relative to lifted magnitudes (`DotLiftAcc`).
+TVA.Device.DotF16	def	lean/TVA/Device/Sm90.lean:171	**`tl.dot` of `float16` operands into `float32`** (`max_num_imprecise_acc = 0`, any `input_precision`, which Triton ignores for these operands), relative to lifted magnitudes (`DotLiftAcc`).
 TVA.Device.DotF16Chunk	def	lean/TVA/Device/Dot16Chunk.lean:127	**`tl.dot` of `float16` operands into `float32`, chunk by chunk** (`Dot16BitChunk`; a subnormal operand counts as `2^-14` in `Mj`).
-TVA.Device.DotF32Ieee	def	lean/TVA/Device/Sm90.lean:191	**`tl.dot` of `float32` operands with `input_precision="ieee"`** (no tensor cores): each output element is a sequence of `K` `fma.rn.f32`, `k = 0, …, K-1`, from the accumulator.
+TVA.Device.DotF32Ieee	def	lean/TVA/Device/Sm90.lean:193	**`tl.dot` of `float32` operands with `input_precision="ieee"`** (no tensor cores): each output element is a sequence of `K` `fma.rn.f32`, `k = 0, …, K-1`, from the accumulator.
 TVA.Device.DotF8Chunk	def	lean/TVA/Device/Dot8Chunk.lean:153	`tl.dot` of fp8 operands `a`, `b` into `float32`, chunk by chunk with each step within `2^-7·Mj + 2^-12·|s j + c_j| + 2^-126` (`DotChunkAcc`, the first arm of `DotF8ChunkLoss`).
 TVA.Device.DotF8Chunk.err	theorem	lean/TVA/Proof/Dot/Chunk8.lean:123	**`DotE5m2Chunk` and the other first-arm fp8 facts, from the exact inputs**: the result is within `errB 2^-7 2^-12 2^-126 vc (chunkSum8 va vb) m (chunks8 K)` of `vc + Σ va·vb`.
 TVA.Device.DotF8Chunk.liftAcc	theorem	lean/TVA/Proof/Dot/Chunk8.lean:296	**A whole fp8 `tl.dot` from `DotE5m2Chunk` and the other first-arm facts**: `DotLiftAcc` with `relLift8`, `absLift8`.
 TVA.Device.DotF8ChunkLoss	def	lean/TVA/Device/Dot8Chunk.lean:126	`tl.dot` of fp8 operands `a`, `b` into `float32` with Triton's default `max_num_imprecise_acc` on sm_90 (`2^30`), any `input_precision`, chunk by chunk with each step within `min (2^-7·Mj) (2·A_j + 2^-12·Mj) + 2^-12·|s j + c_j| + 2^-126`...
 TVA.Device.DotF8ChunkLoss.chunk	theorem	lean/TVA/Device/Weaken.lean:220	`DotF8ChunkLoss` gives `DotF8Chunk`: `DotE4m3ChunkLoss` gives `DotE4m3Chunk`, and likewise for the other pairs.
 TVA.Device.DotF8ChunkLoss.err	theorem	lean/TVA/Proof/Dot/Chunk8.lean:166	**`DotE5m2ChunkLoss` and the other fp8 facts, from the exact inputs**: the result is within `errM 2^-7 2^-12 2^-126 2 2^-12 vc (chunkSum8 va vb) (chunkAbs8 va vb) m (chunks8 K)` of `vc + Σ va·vb`.
-TVA.Device.DotI8	def	lean/TVA/Device/Sm90.lean:200	**`tl.dot` of `int8` operands into `int32`** (with or without an accumulator, any `input_precision`, `max_num_imprecise_acc = 0`, the default for operands that are not fp8, `semantic.py:1516-1520`): exact.
+TVA.Device.DotI8	def	lean/TVA/Device/Sm90.lean:202	**`tl.dot` of `int8` operands into `int32`** (with or without an accumulator, any `input_precision`, `max_num_imprecise_acc = 0`, the default for operands that are not fp8, `semantic.py:1516-1520`): exact.
 TVA.Device.DotLiftAcc	def	lean/TVA/Device/Shapes.lean:196	**Accuracy of `tl.dot` relative to lifted magnitudes**, per output element `(i, n)`.
 TVA.Device.DotLiftAcc.dotAcc	theorem	lean/TVA/Proof/Dot/Lift.lean:59	**On zero and normal values a `DotLiftAcc` fact is a `DotAcc` fact** with the same constants: where `liftMag` is `|q|` for both operand dtypes (`liftMag_of_le`, `liftMag_zero`), `L` is `|acc| + Σ|a·b|`.
 TVA.Device.DotLiftAcc.mono	theorem	lean/TVA/Device/Weaken.lean:77	`DotLiftAcc` with constants at least as large.
 TVA.Device.DotScaledAcc	def	lean/TVA/Device/Shapes.lean:216	**Accuracy of `tl.dot_scaled`**, per output element `(i, n)`.
 TVA.Device.DotScaledAcc.addStep	theorem	lean/TVA/Proof/Dot/Scaled.lean:54	**One trip of `acc += tl.dot_scaled(…)` from a `DotScaledAcc` fact**, at output element `(i, n)`: whether the device folded `c` into the accumulator or added it to the product from the zero accumulator `z` (`hr`, as `safe_dot_scaled_add`...
 TVA.Device.DotScaledAcc.mono	theorem	lean/TVA/Device/Weaken.lean:88	`DotScaledAcc` on smaller domains with constants at least as large.
-TVA.Device.DotScaledE4m3	def	lean/TVA/Device/Sm90.lean:233	**`tl.dot_scaled(…, "e4m3", …, "e4m3", …)`** (MXFP8) on sm_90: Triton's emulation (`DecomposeScaledBlocked.cpp:191-228`), as `DotScaledMx`.
-TVA.Device.DotScaledE4m3E2m1	def	lean/TVA/Device/Sm90.lean:239	**`tl.dot_scaled(…, "e4m3", …, "e2m1", …)`** (MXFP8 by MXFP4) on sm_90, as `DotScaledMx`.
-TVA.Device.DotScaledMx	def	lean/TVA/Device/Sm90.lean:224	`tl.dot_scaled` with `e8m0` scales on both sides, groups of `32`, `K`-packed operands and either `fast_math`, as sm_90 runs it: each element and its scale are converted to `bfloat16` and multiplied there (exact on `scaledDomBF16`), then ...
+TVA.Device.DotScaledE4m3	def	lean/TVA/Device/Sm90.lean:235	**`tl.dot_scaled(…, "e4m3", …, "e4m3", …)`** (MXFP8) on sm_90: Triton's emulation (`DecomposeScaledBlocked.cpp:191-228`), as `DotScaledMx`.
+TVA.Device.DotScaledE4m3E2m1	def	lean/TVA/Device/Sm90.lean:241	**`tl.dot_scaled(…, "e4m3", …, "e2m1", …)`** (MXFP8 by MXFP4) on sm_90, as `DotScaledMx`.
+TVA.Device.DotScaledMx	def	lean/TVA/Device/Sm90.lean:226	`tl.dot_scaled` with `e8m0` scales on both sides, groups of `32`, `K`-packed operands and either `fast_math`, as sm_90 runs it: each element and its scale are converted to `bfloat16` and multiplied there (exact on `scaledDomBF16`), then ...
 TVA.Device.DotScaledTotal	def	lean/TVA/Device/Shapes.lean:107	`P.dotScaled cfg` has a result for all operands of all sizes.
 TVA.Device.DotTotal	def	lean/TVA/Device/Shapes.lean:99	`P.dot cfg` has a result for all operands of all sizes.
-TVA.Device.Exp2F32	def	lean/TVA/Device/Sm90.lean:35	**`tl.math.exp2` on `float32`.** Triton calls libdevice's `__nv_exp2f`, which with Triton's default flush-to-zero setting is `ex2.approx.ftz.f32`: results below `2^-126` are flushed to `0`.
-TVA.Device.Exp2F32NegInf	def	lean/TVA/Device/Sm90.lean:68	**`tl.math.exp2(-∞) = +0`** on `float32` (`ex2.approx.ftz.f32` of `-∞`).
-TVA.Device.ExpF32	def	lean/TVA/Device/Sm90.lean:24	**`tl.exp` on `float32`.** Triton computes `x · log2 e` with `mul.f32` (the constant rounded to `float32`), then `ex2.approx.f32` without `.ftz`, so subnormal results are kept (`ElementwiseOpToLLVM.cpp:634-658`).
-TVA.Device.ExpF32NegInf	def	lean/TVA/Device/Sm90.lean:64	**`tl.exp(-∞) = +0`** on `float32` (`ex2.approx.f32` of `-∞`).
-TVA.Device.ExpF32Overflow	def	lean/TVA/Device/Sm90.lean:72	**`tl.exp` overflows to `+∞` on `float32`**: every input from `88.72283935546875` (pattern `0x42b17218`, `1453635/16384`) up, and `+∞`, gives `+∞`.
-TVA.Device.Log2F32	def	lean/TVA/Device/Sm90.lean:45	**`tl.math.log2` on `float32`** (libdevice's `__nv_log2f`, a polynomial with `fma.rn.ftz` that scales subnormal inputs first): for finite `x > 0`, within `2^-22·|log₂ x| + 2^-149` of `log₂ x`.
-TVA.Device.LogF32	def	lean/TVA/Device/Sm90.lean:41	**`tl.log` on `float32`** (libdevice's `__nv_logf`): for finite `x > 0`, within `2^-22·|ln x| + 2^-149` of `ln x`.
+TVA.Device.Exp2F32	def	lean/TVA/Device/Sm90.lean:37	**`tl.math.exp2` on `float32`.** Triton calls libdevice's `__nv_exp2f`, which with Triton's default flush-to-zero setting is `ex2.approx.ftz.f32`: results below `2^-126` are flushed to `0`.
+TVA.Device.Exp2F32NegInf	def	lean/TVA/Device/Sm90.lean:70	**`tl.math.exp2(-∞) = +0`** on `float32` (`ex2.approx.ftz.f32` of `-∞`).
+TVA.Device.ExpF32	def	lean/TVA/Device/Sm90.lean:26	**`tl.exp` on `float32`.** Triton computes `x · log2 e` with `mul.f32` (the constant rounded to `float32`), then `ex2.approx.f32` without `.ftz`, so subnormal results are kept (`ElementwiseOpToLLVM.cpp:634-658`).
+TVA.Device.ExpF32NegInf	def	lean/TVA/Device/Sm90.lean:66	**`tl.exp(-∞) = +0`** on `float32` (`ex2.approx.f32` of `-∞`).
+TVA.Device.ExpF32Overflow	def	lean/TVA/Device/Sm90.lean:74	**`tl.exp` overflows to `+∞` on `float32`**: every input from `88.72283935546875` (pattern `0x42b17218`, `1453635/16384`) up, and `+∞`, gives `+∞`.
+TVA.Device.H200.Facts	structure	lean/TVA/Device/H200.lean:21	**The H200's device facts**: every fact TVA states about the platform `P` of an H200 (sm_90) running Triton 3.8.0's code.
+TVA.Device.H200.Facts.atomicAddF32	theorem	lean/TVA/Device/H200.lean:100	`tl.atomic_add` on `float32` (`Device.AtomicAddF32`).
+TVA.Device.H200.Facts.atomicAddTotal	theorem	lean/TVA/Device/H200.lean:36	A float `tl.atomic_add` has a result for every old value and operand.
+TVA.Device.H200.Facts.cvtF32E4m3	theorem	lean/TVA/Device/H200.lean:152	`float32 → float8e4nv` rounds to nearest even in range (`CvtF32E4m3`, from the saturating `cvtSatF32E4m3`; false on the L40, which rounds twice).
+TVA.Device.H200.Facts.cvtF32E5m2	theorem	lean/TVA/Device/H200.lean:156	`float32 → float8e5` rounds to nearest even in range (`CvtF32E5m2`; as `cvtF32E4m3`).
+TVA.Device.H200.Facts.cvtSatBF16E4m3	theorem	lean/TVA/Device/H200.lean:72	`bfloat16 → float8e4nv` saturates (`Device.CvtSatBF16E4m3`).
+TVA.Device.H200.Facts.cvtSatBF16E5m2	theorem	lean/TVA/Device/H200.lean:74	`bfloat16 → float8e5` saturates (`Device.CvtSatBF16E5m2`).
+TVA.Device.H200.Facts.cvtSatF16E4m3	theorem	lean/TVA/Device/H200.lean:68	`float16 → float8e4nv` saturates (`Device.CvtSatF16E4m3`).
+TVA.Device.H200.Facts.cvtSatF16E5m2	theorem	lean/TVA/Device/H200.lean:70	`float16 → float8e5` saturates (`Device.CvtSatF16E5m2`).
+TVA.Device.H200.Facts.cvtSatF32E4m3	theorem	lean/TVA/Device/H200.lean:64	`float32 → float8e4nv` saturates (`Device.CvtSatF32E4m3`).
+TVA.Device.H200.Facts.cvtSatF32E5m2	theorem	lean/TVA/Device/H200.lean:66	`float32 → float8e5` saturates (`Device.CvtSatF32E5m2`).
+TVA.Device.H200.Facts.cvtTotal	theorem	lean/TVA/Device/H200.lean:31	Every conversion has a result.
+TVA.Device.H200.Facts.divF32InfDivisor	theorem	lean/TVA/Device/H200.lean:60	`x / ±∞ = ±0` on `float32` (`Device.DivF32InfDivisor`).
+TVA.Device.H200.Facts.divF64	theorem	lean/TVA/Device/H200.lean:62	`/` on `float64` is IEEE division (`Device.DivF64`).
+TVA.Device.H200.Facts.divFull	theorem	lean/TVA/Device/H200.lean:58	`/` on `float32` is `div.full.f32` (`Device.DivFull`).
+TVA.Device.H200.Facts.divTotal	theorem	lean/TVA/Device/H200.lean:29	The default division has a result for every pair of operands.
+TVA.Device.H200.Facts.dotBF16	theorem	lean/TVA/Device/H200.lean:78	`tl.dot` of `bfloat16` into `float32`, relative to lifted magnitudes (`Device.DotBF16`).
+TVA.Device.H200.Facts.dotBF16Chunk	theorem	lean/TVA/Device/H200.lean:86	`tl.dot` of `bfloat16`, chunk by chunk (`Device.DotBF16Chunk`).
+TVA.Device.H200.Facts.dotE4m3ChunkLoss	theorem	lean/TVA/Device/H200.lean:88	`tl.dot` of `float8e4nv`, chunk by chunk (`Device.DotE4m3ChunkLoss`).
+TVA.Device.H200.Facts.dotE4m3E5m2ChunkLoss	theorem	lean/TVA/Device/H200.lean:92	`tl.dot` of `float8e4nv` by `float8e5`, chunk by chunk (`Device.DotE4m3E5m2ChunkLoss`).
+TVA.Device.H200.Facts.dotE5m2ChunkLoss	theorem	lean/TVA/Device/H200.lean:90	`tl.dot` of `float8e5`, chunk by chunk (`Device.DotE5m2ChunkLoss`).
+TVA.Device.H200.Facts.dotE5m2E4m3ChunkLoss	theorem	lean/TVA/Device/H200.lean:94	`tl.dot` of `float8e5` by `float8e4nv`, chunk by chunk (`Device.DotE5m2E4m3ChunkLoss`).
+TVA.Device.H200.Facts.dotF16	theorem	lean/TVA/Device/H200.lean:76	`tl.dot` of `float16` into `float32`, relative to lifted magnitudes (`Device.DotF16`).
+TVA.Device.H200.Facts.dotF16Chunk	theorem	lean/TVA/Device/H200.lean:84	`tl.dot` of `float16`, chunk by chunk (`Device.DotF16Chunk`).
+TVA.Device.H200.Facts.dotF32Ieee	theorem	lean/TVA/Device/H200.lean:80	`tl.dot` of `float32` with `input_precision="ieee"` (`Device.DotF32Ieee`).
+TVA.Device.H200.Facts.dotI8	theorem	lean/TVA/Device/H200.lean:82	`tl.dot` of `int8` into `int32` is exact in range (`Device.DotI8`).
+TVA.Device.H200.Facts.dotScaledE4m3	theorem	lean/TVA/Device/H200.lean:96	`tl.dot_scaled` of MXFP8 operands (`Device.DotScaledE4m3`).
+TVA.Device.H200.Facts.dotScaledE4m3E2m1	theorem	lean/TVA/Device/H200.lean:98	`tl.dot_scaled` of MXFP8 by MXFP4 (`Device.DotScaledE4m3E2m1`).
+TVA.Device.H200.Facts.dotScaledTotal	theorem	lean/TVA/Device/H200.lean:38	`tl.dot_scaled` has a result for all operands.
+TVA.Device.H200.Facts.dotTotal	theorem	lean/TVA/Device/H200.lean:34	`tl.dot` has a result for all operands.
+TVA.Device.H200.Facts.exp2F32	theorem	lean/TVA/Device/H200.lean:42	`tl.math.exp2` on `float32` (`Device.Exp2F32`).
+TVA.Device.H200.Facts.exp2F32NegInf	theorem	lean/TVA/Device/H200.lean:54	`tl.math.exp2(-∞) = +0` on `float32` (`Device.Exp2F32NegInf`).
+TVA.Device.H200.Facts.expF32	theorem	lean/TVA/Device/H200.lean:40	`tl.exp` on `float32` (`Device.ExpF32`).
+TVA.Device.H200.Facts.expF32NegInf	theorem	lean/TVA/Device/H200.lean:52	`tl.exp(-∞) = +0` on `float32` (`Device.ExpF32NegInf`).
+TVA.Device.H200.Facts.expF32Overflow	theorem	lean/TVA/Device/H200.lean:56	`tl.exp` overflows to `+∞` on `float32` (`Device.ExpF32Overflow`).
+TVA.Device.H200.Facts.log2F32	theorem	lean/TVA/Device/H200.lean:46	`tl.math.log2` on `float32` (`Device.Log2F32`).
+TVA.Device.H200.Facts.logF32	theorem	lean/TVA/Device/H200.lean:44	`tl.log` on `float32` (`Device.LogF32`).
+TVA.Device.H200.Facts.mathTotal	theorem	lean/TVA/Device/H200.lean:27	Every approximate function has a result on every input of every format.
+TVA.Device.H200.Facts.rsqrtF32	theorem	lean/TVA/Device/H200.lean:50	`tl.math.rsqrt` on `float32` (`Device.RsqrtF32`).
+TVA.Device.H200.Facts.sqrtF32	theorem	lean/TVA/Device/H200.lean:48	`tl.sqrt` on `float32` (`Device.SqrtF32`).
+TVA.Device.H200.Facts.sumDepth	theorem	lean/TVA/Device/H200.lean:102	The trees of a float reduction are balanced (`Device.SumDepth`).
+TVA.Device.H200.refPlatform	def	lean/TVA/Device/H200.lean:104	The H200's reference platform: `Platform.ref` (IEEE arithmetic rounded once).
+TVA.Device.H200.ref_ok	theorem	lean/TVA/Device/H200.lean:107	**The H200's facts are jointly satisfiable**: the reference platform satisfies every one.
+TVA.Device.L40.CvtSatF32E4m3	def	lean/TVA/Device/L40.lean:67	**`float32 → float8e4nv`** on the L40: two roundings (`CvtSatF32Two`).
+TVA.Device.L40.CvtSatF32E5m2	def	lean/TVA/Device/L40.lean:71	**`float32 → float8e5`** on the L40: two roundings (`CvtSatF32Two`).
+TVA.Device.L40.CvtSatF32Two	def	lean/TVA/Device/L40.lean:59	`float32 → fp8` on the L40 (`x.to(g)` with the default rounding): toward zero into `float16` (`cvt.rz.f16.f32`; beyond `65504` the largest finite `float16`), then the saturating rounding to nearest even (`cvt.rn.satfinite…f16x2`): the re...
+TVA.Device.L40.Facts	structure	lean/TVA/Device/L40.lean:77	**The L40's device facts**: every fact TVA states about the platform `P` of an L40 (sm_89) running Triton 3.8.0's code, with the H200's field names.
+TVA.Device.L40.Facts.atomicAddF32	theorem	lean/TVA/Device/L40.lean:157	`tl.atomic_add` on `float32` (`Device.AtomicAddF32`).
+TVA.Device.L40.Facts.atomicAddTotal	theorem	lean/TVA/Device/L40.lean:92	A float `tl.atomic_add` has a result for every old value and operand.
+TVA.Device.L40.Facts.cvtSatBF16E4m3	theorem	lean/TVA/Device/L40.lean:129	`bfloat16 → float8e4nv` saturates (`Device.CvtSatBF16E4m3`).
+TVA.Device.L40.Facts.cvtSatBF16E5m2	theorem	lean/TVA/Device/L40.lean:131	`bfloat16 → float8e5` saturates (`Device.CvtSatBF16E5m2`).
+TVA.Device.L40.Facts.cvtSatF16E4m3	theorem	lean/TVA/Device/L40.lean:125	`float16 → float8e4nv` saturates (`Device.CvtSatF16E4m3`).
+TVA.Device.L40.Facts.cvtSatF16E5m2	theorem	lean/TVA/Device/L40.lean:127	`float16 → float8e5` saturates (`Device.CvtSatF16E5m2`).
+TVA.Device.L40.Facts.cvtSatF32E4m3	theorem	lean/TVA/Device/L40.lean:121	`float32 → float8e4nv`: two roundings, toward zero to `float16`, then saturating to nearest even (`L40.CvtSatF32E4m3`).
+TVA.Device.L40.Facts.cvtSatF32E5m2	theorem	lean/TVA/Device/L40.lean:123	`float32 → float8e5`: two roundings (`L40.CvtSatF32E5m2`).
+TVA.Device.L40.Facts.cvtTotal	theorem	lean/TVA/Device/L40.lean:87	Every conversion has a result.
+TVA.Device.L40.Facts.divF32InfDivisor	theorem	lean/TVA/Device/L40.lean:116	`x / ±∞ = ±0` on `float32` (`Device.DivF32InfDivisor`).
+TVA.Device.L40.Facts.divF64	theorem	lean/TVA/Device/L40.lean:118	`/` on `float64` is IEEE division (`Device.DivF64`).
+TVA.Device.L40.Facts.divFull	theorem	lean/TVA/Device/L40.lean:114	`/` on `float32` is `div.full.f32` (`Device.DivFull`).
+TVA.Device.L40.Facts.divTotal	theorem	lean/TVA/Device/L40.lean:85	The default division has a result for every pair of operands.
+TVA.Device.L40.Facts.dotBF16	theorem	lean/TVA/Device/L40.lean:135	`tl.dot` of `bfloat16` into `float32`, relative to lifted magnitudes (`Device.DotBF16`).
+TVA.Device.L40.Facts.dotBF16Chunk	theorem	lean/TVA/Device/L40.lean:143	`tl.dot` of `bfloat16`, chunk by chunk (`Device.DotBF16Chunk`).
+TVA.Device.L40.Facts.dotE4m3ChunkLoss	theorem	lean/TVA/Device/L40.lean:145	`tl.dot` of `float8e4nv`, chunk by chunk (`Device.DotE4m3ChunkLoss`).
+TVA.Device.L40.Facts.dotE4m3E5m2ChunkLoss	theorem	lean/TVA/Device/L40.lean:149	`tl.dot` of `float8e4nv` by `float8e5`, chunk by chunk (`Device.DotE4m3E5m2ChunkLoss`).
+TVA.Device.L40.Facts.dotE5m2ChunkLoss	theorem	lean/TVA/Device/L40.lean:147	`tl.dot` of `float8e5`, chunk by chunk (`Device.DotE5m2ChunkLoss`).
+TVA.Device.L40.Facts.dotE5m2E4m3ChunkLoss	theorem	lean/TVA/Device/L40.lean:151	`tl.dot` of `float8e5` by `float8e4nv`, chunk by chunk (`Device.DotE5m2E4m3ChunkLoss`).
+TVA.Device.L40.Facts.dotF16	theorem	lean/TVA/Device/L40.lean:133	`tl.dot` of `float16` into `float32`, relative to lifted magnitudes (`Device.DotF16`).
+TVA.Device.L40.Facts.dotF16Chunk	theorem	lean/TVA/Device/L40.lean:141	`tl.dot` of `float16`, chunk by chunk (`Device.DotF16Chunk`).
+TVA.Device.L40.Facts.dotF32Ieee	theorem	lean/TVA/Device/L40.lean:137	`tl.dot` of `float32` with `input_precision="ieee"` (`Device.DotF32Ieee`).
+TVA.Device.L40.Facts.dotI8	theorem	lean/TVA/Device/L40.lean:139	`tl.dot` of `int8` into `int32` is exact in range (`Device.DotI8`).
+TVA.Device.L40.Facts.dotScaledE4m3	theorem	lean/TVA/Device/L40.lean:153	`tl.dot_scaled` of MXFP8 operands (`Device.DotScaledE4m3`).
+TVA.Device.L40.Facts.dotScaledE4m3E2m1	theorem	lean/TVA/Device/L40.lean:155	`tl.dot_scaled` of MXFP8 by MXFP4 (`Device.DotScaledE4m3E2m1`).
+TVA.Device.L40.Facts.dotScaledTotal	theorem	lean/TVA/Device/L40.lean:94	`tl.dot_scaled` has a result for all operands.
+TVA.Device.L40.Facts.dotTotal	theorem	lean/TVA/Device/L40.lean:90	`tl.dot` has a result for all operands.
+TVA.Device.L40.Facts.exp2F32	theorem	lean/TVA/Device/L40.lean:98	`tl.math.exp2` on `float32` (`Device.Exp2F32`).
+TVA.Device.L40.Facts.exp2F32NegInf	theorem	lean/TVA/Device/L40.lean:110	`tl.math.exp2(-∞) = +0` on `float32` (`Device.Exp2F32NegInf`).
+TVA.Device.L40.Facts.expF32	theorem	lean/TVA/Device/L40.lean:96	`tl.exp` on `float32` (`Device.ExpF32`).
+TVA.Device.L40.Facts.expF32NegInf	theorem	lean/TVA/Device/L40.lean:108	`tl.exp(-∞) = +0` on `float32` (`Device.ExpF32NegInf`).
+TVA.Device.L40.Facts.expF32Overflow	theorem	lean/TVA/Device/L40.lean:112	`tl.exp` overflows to `+∞` on `float32` (`Device.ExpF32Overflow`).
+TVA.Device.L40.Facts.log2F32	theorem	lean/TVA/Device/L40.lean:102	`tl.math.log2` on `float32` (`Device.Log2F32`).
+TVA.Device.L40.Facts.logF32	theorem	lean/TVA/Device/L40.lean:100	`tl.log` on `float32` (`Device.LogF32`).
+TVA.Device.L40.Facts.mathTotal	theorem	lean/TVA/Device/L40.lean:83	Every approximate function has a result on every input of every format.
+TVA.Device.L40.Facts.rsqrtF32	theorem	lean/TVA/Device/L40.lean:106	`tl.math.rsqrt` on `float32` (`Device.RsqrtF32`).
+TVA.Device.L40.Facts.sqrtF32	theorem	lean/TVA/Device/L40.lean:104	`tl.sqrt` on `float32` (`Device.SqrtF32`).
+TVA.Device.L40.Facts.sumDepth	theorem	lean/TVA/Device/L40.lean:159	The trees of a float reduction are balanced (`Device.SumDepth`).
+TVA.Device.L40.TwoRoundings	def	lean/TVA/Device/L40.lean:163	The conversions the L40 does in two roundings: `float32` into fp8, to nearest.
+TVA.Device.L40.cvtTotal	theorem	lean/TVA/Device/L40.lean:176	Every conversion of `refPlatform` has a result.
+TVA.Device.L40.oneRounding	theorem	lean/TVA/Device/L40.lean:183	A conversion from a format other than `float32` is `Platform.ref`'s on `refPlatform`.
+TVA.Device.L40.refPlatform	def	lean/TVA/Device/L40.lean:167	The reference platform with the L40's conversion from `float32` into fp8: one rounding everywhere (`Platform.ref`), except the two roundings of `CvtSatF32Two`.
+TVA.Device.L40.ref_ok	theorem	lean/TVA/Device/L40.lean:188	**The L40's facts are jointly satisfiable**: `refPlatform` satisfies every one.
+TVA.Device.Log2F32	def	lean/TVA/Device/Sm90.lean:47	**`tl.math.log2` on `float32`** (libdevice's `__nv_log2f`, a polynomial with `fma.rn.ftz` that scales subnormal inputs first): for finite `x > 0`, within `2^-22·|log₂ x| + 2^-149` of `log₂ x`.
+TVA.Device.LogF32	def	lean/TVA/Device/Sm90.lean:43	**`tl.log` on `float32`** (libdevice's `__nv_logf`): for finite `x > 0`, within `2^-22·|ln x| + 2^-149` of `ln x`.
 TVA.Device.MathAcc	def	lean/TVA/Device/Shapes.lean:115	**Accuracy of an approximate function.** On finite inputs `x` in `dom` and in the function's natural domain (`MathFn.natDom`), whose reference value leaves room in the format (`(1 + rel)·|ref x| + abs ≤ maxVal`), every result of `P.math ...
 TVA.Device.MathAcc.mono	theorem	lean/TVA/Device/Weaken.lean:53	`MathAcc` on a smaller domain with a bound that is at least as large at every point.
 TVA.Device.MathAt	def	lean/TVA/Device/Shapes.lean:125	**A special value.** Every result of `P.math fn` at the input `x` is `y` (for example `exp(-∞) = +0`).
 TVA.Device.MathTotal	def	lean/TVA/Device/Shapes.lean:89	`P.math fn` has a result for every input of format `f`.
-TVA.Device.RsqrtF32	def	lean/TVA/Device/Sm90.lean:58	**`tl.math.rsqrt` on `float32`** (`rsqrt.approx.ftz.f32`): for a normal `x > 0`, within `2^-22/√x + 2^-149` of `1/√x`.
-TVA.Device.SqrtF32	def	lean/TVA/Device/Sm90.lean:53	**`tl.sqrt` on `float32`** (`sqrt.approx.ftz.f32`): for `x = 0` or a normal `x > 0`, within `2^-22·√x + 2^-149` of `√x`.
-TVA.Device.SumDepth	def	lean/TVA/Device/Sm90.lean:257	**The trees of a float reduction on sm_90 are balanced**: `P.sumDepth n ≤ ⌈log₂ n⌉`, so a float reduction (`tl.sum` and the other float reductions, on any axis) over the `n` positions of its axis combines them along a tree of depth at mo...
+TVA.Device.RsqrtF32	def	lean/TVA/Device/Sm90.lean:60	**`tl.math.rsqrt` on `float32`** (`rsqrt.approx.ftz.f32`): for a normal `x > 0`, within `2^-22/√x + 2^-149` of `1/√x`.
+TVA.Device.SqrtF32	def	lean/TVA/Device/Sm90.lean:55	**`tl.sqrt` on `float32`** (`sqrt.approx.ftz.f32`): for `x = 0` or a normal `x > 0`, within `2^-22·√x + 2^-149` of `√x`.
+TVA.Device.SumDepth	def	lean/TVA/Device/Sm90.lean:259	**The trees of a float reduction on sm_90 are balanced**: `P.sumDepth n ≤ ⌈log₂ n⌉`, so a float reduction (`tl.sum` and the other float reductions, on any axis) over the `n` positions of its axis combines them along a tree of depth at mo...
 TVA.Device.absChunk16	def	lean/TVA/Device/Dot16Chunk.lean:79	The absolute constant of the room: `⌈K/64⌉·(1 + 2^-13)^⌈K/64⌉·2^-143`.
-TVA.Device.absDot16	def	lean/TVA/Device/Sm90.lean:166	The absolute constant of a 16-bit `tl.dot` with `K` products: `(K + 2)·2^-126`.
+TVA.Device.absDot16	def	lean/TVA/Device/Sm90.lean:168	The absolute constant of a 16-bit `tl.dot` with `K` products: `(K + 2)·2^-126`.
 TVA.Device.absDot16_nonneg	theorem	lean/TVA/Proof/Dot/Sm90.lean:36	`absDot16 K ≥ 0`.
 TVA.Device.absDot8	def	lean/TVA/Device/Dot8Chunk.lean:43	The absolute constant of the chunk facts' room: `⌈K/32⌉·(1 + 2^-7)^⌈K/32⌉·2^-126`.
 TVA.Device.abs_le_liftMag	theorem	lean/TVA/Device/Weaken.lean:38	A lifted magnitude is at least the magnitude.
 TVA.Device.abs_mul_le_liftMag	theorem	lean/TVA/Device/Weaken.lean:44	`|x·y| ≤ liftMag da x · liftMag db y`: a product's magnitude is at most its lifted one.
 TVA.Device.alphaChunk16	def	lean/TVA/Device/Dot16Chunk.lean:67	The chunk facts' absolute constant: `2^-143` per chunk.
 TVA.Device.alphaChunk8	def	lean/TVA/Device/Dot8Chunk.lean:62	The chunk facts' absolute constant: `2^-126` per chunk.
-TVA.Device.atomicAddF32	theorem	lean/TVA/Device.lean:129	`tl.atomic_add` on `float32` (`Device.AtomicAddF32`).
-TVA.Device.atomicAddTotal	theorem	lean/TVA/Device.lean:65	A float `tl.atomic_add` has a result for every old value and operand.
 TVA.Device.chunk16	def	lean/TVA/Device/Dot16Chunk.lean:51	Chunk `j` of `K` products: the `k < K` with `k / 64 = j`, the `64` consecutive `k` from `64·j` (all `K` of them when `K < 64`).
 TVA.Device.chunk8	def	lean/TVA/Device/Dot8Chunk.lean:46	Chunk `j` of `K` products: the `k < K` with `k / 32 = j`, that is the `32` consecutive `k` from `32·j` (fewer in a last, partial chunk).
 TVA.Device.chunkAbs16	def	lean/TVA/Device/Dot16Chunk.lean:58	The exact magnitude of chunk `j`: `Σ_{k ∈ chunk16 K j} |va k · vb k|` (not lifted).
@@ -476,59 +564,27 @@ TVA.Device.chunkSum16	def	lean/TVA/Device/Dot16Chunk.lean:55	The exact sum of ch
 TVA.Device.chunkSum8	def	lean/TVA/Device/Dot8Chunk.lean:50	The exact sum of chunk `j`: `Σ_{k ∈ chunk8 K j} va k · vb k`.
 TVA.Device.chunks16	def	lean/TVA/Device/Dot16Chunk.lean:48	The number of chunks of a 16-bit `tl.dot` with `K` products: `⌈K/64⌉`.
 TVA.Device.chunks8	def	lean/TVA/Device/Dot8Chunk.lean:37	The number of `32`-product chunks of an fp8 `tl.dot` with `K` products: `⌈K/32⌉`.
-TVA.Device.cvtBF16E4m3	theorem	lean/TVA/Device.lean:151	`bfloat16 → float8e4nv` rounds to nearest even in range (`CvtBF16E4m3`).
-TVA.Device.cvtBF16E5m2	theorem	lean/TVA/Device.lean:155	`bfloat16 → float8e5` rounds to nearest even in range (`CvtBF16E5m2`).
-TVA.Device.cvtF16E4m3	theorem	lean/TVA/Device.lean:145	`float16 → float8e4nv` rounds to nearest even in range (`CvtF16E4m3`).
-TVA.Device.cvtF16E5m2	theorem	lean/TVA/Device.lean:148	`float16 → float8e5` rounds to nearest even in range (`CvtF16E5m2`).
-TVA.Device.cvtF32E4m3	theorem	lean/TVA/Device.lean:139	`float32 → float8e4nv` rounds to nearest even in range (`CvtF32E4m3`).
-TVA.Device.cvtF32E5m2	theorem	lean/TVA/Device.lean:142	`float32 → float8e5` rounds to nearest even in range (`CvtF32E5m2`).
-TVA.Device.cvtSatBF16E4m3	theorem	lean/TVA/Device.lean:101	`bfloat16 → float8e4nv` saturates (`Device.CvtSatBF16E4m3`).
-TVA.Device.cvtSatBF16E5m2	theorem	lean/TVA/Device.lean:103	`bfloat16 → float8e5` saturates (`Device.CvtSatBF16E5m2`).
-TVA.Device.cvtSatF16E4m3	theorem	lean/TVA/Device.lean:97	`float16 → float8e4nv` saturates (`Device.CvtSatF16E4m3`).
-TVA.Device.cvtSatF16E5m2	theorem	lean/TVA/Device.lean:99	`float16 → float8e5` saturates (`Device.CvtSatF16E5m2`).
-TVA.Device.cvtSatF32E4m3	theorem	lean/TVA/Device.lean:93	`float32 → float8e4nv` saturates (`Device.CvtSatF32E4m3`).
-TVA.Device.cvtSatF32E5m2	theorem	lean/TVA/Device.lean:95	`float32 → float8e5` saturates (`Device.CvtSatF32E5m2`).
-TVA.Device.cvtTotal	theorem	lean/TVA/Device.lean:60	Every conversion has a result.
-TVA.Device.divF32InfDivisor	theorem	lean/TVA/Device.lean:89	`x / ±∞ = ±0` on `float32` (`Device.DivF32InfDivisor`).
-TVA.Device.divF64	theorem	lean/TVA/Device.lean:91	`/` on `float64` is IEEE division (`Device.DivF64`).
-TVA.Device.divFull	theorem	lean/TVA/Device.lean:87	`/` on `float32` is `div.full.f32` (`Device.DivFull`).
-TVA.Device.divTotal	theorem	lean/TVA/Device.lean:58	The default division has a result for every pair of operands.
+TVA.Device.cvtBF16E4m3	theorem	lean/TVA/Device.lean:92	`bfloat16 → float8e4nv` rounds to nearest even in range (`CvtBF16E4m3`).
+TVA.Device.cvtBF16E5m2	theorem	lean/TVA/Device.lean:96	`bfloat16 → float8e5` rounds to nearest even in range (`CvtBF16E5m2`).
+TVA.Device.cvtF16E4m3	theorem	lean/TVA/Device.lean:86	`float16 → float8e4nv` rounds to nearest even in range (`CvtF16E4m3`).
+TVA.Device.cvtF16E5m2	theorem	lean/TVA/Device.lean:89	`float16 → float8e5` rounds to nearest even in range (`CvtF16E5m2`).
 TVA.Device.div_lt_chunks16	theorem	lean/TVA/Device/Dot16Chunk.lean:82	Every `k < K` lies in a chunk `j < chunks16 K`.
 TVA.Device.div_lt_chunks8	theorem	lean/TVA/Device/Dot8Chunk.lean:71	Every `k < K` lies in a chunk `j < chunks8 K`.
-TVA.Device.dotBF16	theorem	lean/TVA/Device.lean:107	`tl.dot` of `bfloat16` into `float32`, relative to lifted magnitudes (`Device.DotBF16`).
 TVA.Device.dotBF16Acc	theorem	lean/TVA/Proof/Dot/Sm90.lean:81	**`DotBF16` on zero and normal operands** is a `DotAcc` fact: as `dotF16Acc`.
-TVA.Device.dotBF16Chunk	theorem	lean/TVA/Device.lean:115	`tl.dot` of `bfloat16`, chunk by chunk (`Device.DotBF16Chunk`).
 TVA.Device.dotBF16ChunkLift	theorem	lean/TVA/Proof/Dot/Sm90.lean:68	**A `bfloat16` `tl.dot` from the chunk facts as a whole-dot bound**: as `dotF16ChunkLift`.
-TVA.Device.dotE4m3Chunk	theorem	lean/TVA/Device.lean:159	`tl.dot` of `float8e4nv`, chunk by chunk, first arm (`DotE4m3Chunk`).
-TVA.Device.dotE4m3ChunkLoss	theorem	lean/TVA/Device.lean:117	`tl.dot` of `float8e4nv`, chunk by chunk (`Device.DotE4m3ChunkLoss`).
-TVA.Device.dotE4m3E5m2Chunk	theorem	lean/TVA/Device.lean:165	`tl.dot` of `float8e4nv` by `float8e5`, chunk by chunk, first arm (`DotE4m3E5m2Chunk`).
-TVA.Device.dotE4m3E5m2ChunkLoss	theorem	lean/TVA/Device.lean:121	`tl.dot` of `float8e4nv` by `float8e5`, chunk by chunk (`Device.DotE4m3E5m2ChunkLoss`).
+TVA.Device.dotE4m3Chunk	theorem	lean/TVA/Device.lean:100	`tl.dot` of `float8e4nv`, chunk by chunk, first arm (`DotE4m3Chunk`).
+TVA.Device.dotE4m3E5m2Chunk	theorem	lean/TVA/Device.lean:106	`tl.dot` of `float8e4nv` by `float8e5`, chunk by chunk, first arm (`DotE4m3E5m2Chunk`).
 TVA.Device.dotE4m3E5m2Lift	theorem	lean/TVA/Proof/Dot/Sm90.lean:52	**A `float8e4nv` by `float8e5` `tl.dot` as a whole-dot bound**: as `dotE4m3Lift`.
 TVA.Device.dotE4m3Lift	theorem	lean/TVA/Proof/Dot/Sm90.lean:41	**A `float8e4nv` `tl.dot` as a whole-dot bound**: `DotLiftAcc` with `relLift8`, `absLift8`.
-TVA.Device.dotE5m2Chunk	theorem	lean/TVA/Device.lean:162	`tl.dot` of `float8e5`, chunk by chunk, first arm (`DotE5m2Chunk`).
-TVA.Device.dotE5m2ChunkLoss	theorem	lean/TVA/Device.lean:119	`tl.dot` of `float8e5`, chunk by chunk (`Device.DotE5m2ChunkLoss`).
-TVA.Device.dotE5m2E4m3Chunk	theorem	lean/TVA/Device.lean:169	`tl.dot` of `float8e5` by `float8e4nv`, chunk by chunk, first arm (`DotE5m2E4m3Chunk`).
-TVA.Device.dotE5m2E4m3ChunkLoss	theorem	lean/TVA/Device.lean:123	`tl.dot` of `float8e5` by `float8e4nv`, chunk by chunk (`Device.DotE5m2E4m3ChunkLoss`).
+TVA.Device.dotE5m2Chunk	theorem	lean/TVA/Device.lean:103	`tl.dot` of `float8e5`, chunk by chunk, first arm (`DotE5m2Chunk`).
+TVA.Device.dotE5m2E4m3Chunk	theorem	lean/TVA/Device.lean:110	`tl.dot` of `float8e5` by `float8e4nv`, chunk by chunk, first arm (`DotE5m2E4m3Chunk`).
 TVA.Device.dotE5m2E4m3Lift	theorem	lean/TVA/Proof/Dot/Sm90.lean:57	**A `float8e5` by `float8e4nv` `tl.dot` as a whole-dot bound**: as `dotE4m3Lift`.
 TVA.Device.dotE5m2Lift	theorem	lean/TVA/Proof/Dot/Sm90.lean:47	**A `float8e5` `tl.dot` as a whole-dot bound**: as `dotE4m3Lift`.
-TVA.Device.dotF16	theorem	lean/TVA/Device.lean:105	`tl.dot` of `float16` into `float32`, relative to lifted magnitudes (`Device.DotF16`).
 TVA.Device.dotF16Acc	theorem	lean/TVA/Proof/Dot/Sm90.lean:73	**`DotF16` on zero and normal operands** is a `DotAcc` fact with the same constants, relative to `|acc| + Σ|a·b|`.
-TVA.Device.dotF16Chunk	theorem	lean/TVA/Device.lean:113	`tl.dot` of `float16`, chunk by chunk (`Device.DotF16Chunk`).
 TVA.Device.dotF16ChunkLift	theorem	lean/TVA/Proof/Dot/Sm90.lean:62	**A `float16` `tl.dot` from the chunk facts as a whole-dot bound**: `DotLiftAcc` with `relLift16`, `absLift16`.
-TVA.Device.dotF32Ieee	theorem	lean/TVA/Device.lean:109	`tl.dot` of `float32` with `input_precision="ieee"` (`Device.DotF32Ieee`).
-TVA.Device.dotI8	theorem	lean/TVA/Device.lean:111	`tl.dot` of `int8` into `int32` is exact in range (`Device.DotI8`).
 TVA.Device.dotI8_eq	theorem	lean/TVA/Proof/Dot/Sm90.lean:91	**An `int8` `tl.dot` in range is exact**: when `|acc| + Σ|a·b|` fits in `int32`, the result element's value is `acc + Σ a·b`.
-TVA.Device.dotScaledE4m3	theorem	lean/TVA/Device.lean:125	`tl.dot_scaled` of MXFP8 operands (`Device.DotScaledE4m3`).
-TVA.Device.dotScaledE4m3E2m1	theorem	lean/TVA/Device.lean:127	`tl.dot_scaled` of MXFP8 by MXFP4 (`Device.DotScaledE4m3E2m1`).
-TVA.Device.dotScaledTotal	theorem	lean/TVA/Device.lean:67	`tl.dot_scaled` has a result for all operands.
-TVA.Device.dotTotal	theorem	lean/TVA/Device.lean:63	`tl.dot` has a result for all operands.
-TVA.Device.e8m0Dom	def	lean/TVA/Device/Sm90.lean:220	The `e8m0` scale bytes the emulation decodes as their OCP value: `1 … 254` (`0x00` is read as `0`, `0xFF` is NaN).
+TVA.Device.e8m0Dom	def	lean/TVA/Device/Sm90.lean:222	The `e8m0` scale bytes the emulation decodes as their OCP value: `1 … 254` (`0x00` is read as `0`, `0xFF` is NaN).
 TVA.Device.e8m0Dom_ne	theorem	lean/TVA/Proof/Dot/Scaled.lean:35	A scale byte in the device's domain is not the NaN `0xFF`.
-TVA.Device.exp2F32	theorem	lean/TVA/Device.lean:71	`tl.math.exp2` on `float32` (`Device.Exp2F32`).
-TVA.Device.exp2F32NegInf	theorem	lean/TVA/Device.lean:83	`tl.math.exp2(-∞) = +0` on `float32` (`Device.Exp2F32NegInf`).
-TVA.Device.expF32	theorem	lean/TVA/Device.lean:69	`tl.exp` on `float32` (`Device.ExpF32`).
-TVA.Device.expF32NegInf	theorem	lean/TVA/Device.lean:81	`tl.exp(-∞) = +0` on `float32` (`Device.ExpF32NegInf`).
-TVA.Device.expF32Overflow	theorem	lean/TVA/Device.lean:85	`tl.exp` overflows to `+∞` on `float32` (`Device.ExpF32Overflow`).
 TVA.Device.kappaChunk16	def	lean/TVA/Device/Dot16Chunk.lean:70	The second arm's constant on the chunk's exact magnitude: `2`.
 TVA.Device.kappaChunk8	def	lean/TVA/Device/Dot8Chunk.lean:65	The second arm's constant on the chunk's exact magnitude: `2`.
 TVA.Device.liftFloor	def	lean/TVA/Device/Shapes.lean:69	The magnitude below which the tensor core reads a nonzero operand of dtype `d` at this magnitude: the smallest normal magnitude of the 16- and 8-bit float dtypes (`2^-14` for `float16` and `float8e5`, `2^-6` for `float8e4nv`, `2^-126` fo...
@@ -540,26 +596,21 @@ TVA.Device.liftMag_le	theorem	lean/TVA/Proof/Dot/Lift.lean:50	A lifted magnitude
 TVA.Device.liftMag_nonneg	theorem	lean/TVA/Device/Weaken.lean:31	A lifted magnitude is nonnegative.
 TVA.Device.liftMag_of_le	theorem	lean/TVA/Proof/Dot/Lift.lean:42	A value at least the floor (a normal value of the dtype) counts as `|q|`.
 TVA.Device.liftMag_zero	theorem	lean/TVA/Proof/Dot/Lift.lean:39	The lifted magnitude of `0` is `0`.
-TVA.Device.log2F32	theorem	lean/TVA/Device.lean:75	`tl.math.log2` on `float32` (`Device.Log2F32`).
-TVA.Device.logF32	theorem	lean/TVA/Device.lean:73	`tl.log` on `float32` (`Device.LogF32`).
-TVA.Device.mathTotal	theorem	lean/TVA/Device.lean:56	Every approximate function has a result on every input of every format.
-TVA.Device.ref_ok	theorem	lean/TVA/Device.lean:175	**The device facts are jointly satisfiable**: the reference platform satisfies every one, so no claim holds vacuously through its assumption `Device P`.
+TVA.Device.refPlatform	def	lean/TVA/Device.lean:77	The target's reference platform: one that satisfies every fact of the target.
+TVA.Device.ref_ok	theorem	lean/TVA/Device.lean:80	**The target's facts are jointly satisfiable**: the target's reference platform satisfies every one, so no claim holds vacuously through its assumption `Device P`.
 TVA.Device.relChunk16	def	lean/TVA/Device/Dot16Chunk.lean:76	The relative constant of the room: `(1 + 2^-13)^⌈K/64⌉ − 1`.
-TVA.Device.relDot16	def	lean/TVA/Device/Sm90.lean:163	The relative constant of a 16-bit `tl.dot` with `K` products: `(K + 2)·2^-22`.
+TVA.Device.relDot16	def	lean/TVA/Device/Sm90.lean:165	The relative constant of a 16-bit `tl.dot` with `K` products: `(K + 2)·2^-22`.
 TVA.Device.relDot16_nonneg	theorem	lean/TVA/Proof/Dot/Sm90.lean:33	`relDot16 K ≥ 0`.
 TVA.Device.relDot8	def	lean/TVA/Device/Dot8Chunk.lean:40	The relative constant of the chunk facts' room: `(1 + 2^-7)^⌈K/32⌉ − 1`.
 TVA.Device.rhoChunk16	def	lean/TVA/Device/Dot16Chunk.lean:61	The chunk facts' relative constant on the largest term: `2^-13`.
 TVA.Device.rhoChunk8	def	lean/TVA/Device/Dot8Chunk.lean:56	The chunk facts' relative constant on the largest term: `2^-7`.
 TVA.Device.rhoLossChunk16	def	lean/TVA/Device/Dot16Chunk.lean:73	The second arm's constant on the largest term: `2^-22`.
 TVA.Device.rhoLossChunk8	def	lean/TVA/Device/Dot8Chunk.lean:68	The second arm's constant on the largest term: `2^-12`.
-TVA.Device.rsqrtF32	theorem	lean/TVA/Device.lean:79	`tl.math.rsqrt` on `float32` (`Device.RsqrtF32`).
-TVA.Device.scaledDomBF16	def	lean/TVA/Device/Sm90.lean:215	The scaled values the sm_90 emulation multiplies exactly in `bfloat16`: `0`, or a magnitude in `bfloat16`'s normal range.
+TVA.Device.scaledDomBF16	def	lean/TVA/Device/Sm90.lean:217	The scaled values the sm_90 emulation multiplies exactly in `bfloat16`: `0`, or a magnitude in `bfloat16`'s normal range.
 TVA.Device.scaledDomBF16_zero	theorem	lean/TVA/Proof/Dot/Scaled.lean:39	`0` is in the domain of the `tl.dot_scaled` facts.
 TVA.Device.sigmaChunk16	def	lean/TVA/Device/Dot16Chunk.lean:64	The chunk facts' relative constant on the new value: `2^-20`.
 TVA.Device.sigmaChunk8	def	lean/TVA/Device/Dot8Chunk.lean:59	The chunk facts' relative constant on the new value: `2^-12`.
-TVA.Device.sqrtDom	def	lean/TVA/Device/Sm90.lean:50	The inputs on which `tl.sqrt` is accurate: `0` and the normal positive floats.
-TVA.Device.sqrtF32	theorem	lean/TVA/Device.lean:77	`tl.sqrt` on `float32` (`Device.SqrtF32`).
-TVA.Device.sumDepth	theorem	lean/TVA/Device.lean:131	The trees of a float reduction are balanced (`Device.SumDepth`).
+TVA.Device.sqrtDom	def	lean/TVA/Device/Sm90.lean:52	The inputs on which `tl.sqrt` is accurate: `0` and the normal positive floats.
 TVA.Device.sum_chunkSum16	theorem	lean/TVA/Device/Dot16Chunk.lean:86	The chunks' exact sums add up to the whole sum `Σ va·vb`.
 TVA.Device.sum_chunkSum8	theorem	lean/TVA/Device/Dot8Chunk.lean:75	The chunks' exact sums add up to the whole sum `Σ va·vb`.
 TVA.DistinctLanes	def	lean/TVA/Proof/Mem.lean:284	The enabled lanes of an access touch pairwise disjoint bytes: a store's lanes then land in any order with the same result.
